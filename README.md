@@ -1,6 +1,6 @@
 # REWIND
 
-REWIND is a programming language implemented in Rust, with named checkpoints, deterministic replay, and virtual I/O. Version 0.3 adds generics, traits, enums, pattern matching, function values and closures, project manifests, environment observations, and development tools. See the [v0.1 specification](docs/REWIND_v0.1.md), [v0.2 design](docs/REWIND_v0.2.md), [v0.3 design](docs/REWIND_v0.3.md), and [v0.3 implementation notes](docs/v0.3-status.md). The next version is described in the [v0.4 proposal](docs/REWIND_v0.4.md).
+REWIND is a programming language implemented in Rust, with named checkpoints, deterministic replay, and virtual I/O. Version 0.4 adds cooperative async tasks, FIFO channels, cancellation, signed packages, capability checks, reproducible build templates, recorded replay, state inspection, profiling, and bounded schedule exploration. See the [v0.1 specification](docs/REWIND_v0.1.md), [v0.2 design](docs/REWIND_v0.2.md), [v0.3 design](docs/REWIND_v0.3.md), [v0.4 design](docs/REWIND_v0.4.md), and [v0.4 implementation notes](docs/v0.4-status.md). The next version is described in the [v0.5 proposal](docs/REWIND_v0.5.md).
 
 ## Commands
 
@@ -12,14 +12,25 @@ cargo run -- run examples/v03.rw --root .
 cargo run -- fmt examples/v03.rw --check
 cargo run -- doc examples/v03.rw --root .
 cargo run -- trace examples/v03.rw --root . --trace-json
+cargo run -- run examples/v04.rw --root . --record session.json
+cargo run -- replay session.json --root .
+cargo run -- debug session.json
+cargo run -- profile examples/v04.rw --root .
+cargo run -- test --root /path/to/project --explore 100
+cargo run -- update --root /path/to/v04-project
+cargo run -- build --root /path/to/v04-project --output rewind.build.json
 cargo test
 ```
 
-`rewind check FILE [FILE ...]` parses, resolves imports, and checks types without executing code. `rewind run [FILE] --root DIR` executes inside an existing project root. With a `rewind.toml` manifest, omitting FILE uses the configured entry; otherwise it loads `DIR/main.rw`. Manifest commands create a missing dependency lockfile and reject changed dependencies until `rewind lock --root DIR` is explicitly requested.
+`rewind check FILE [FILE ...]` parses, resolves imports, and checks types without executing code. `rewind run [FILE] --root DIR` executes inside an existing project root. With a `rewind.toml` manifest, omitting FILE uses the configured entry; otherwise it loads `DIR/main.rw`. v0.2/v0.3 manifests create a missing dependency lockfile and reject changed dependencies until `rewind lock --root DIR` is explicitly requested. A v0.4 manifest requires an explicit initial `rewind update` and verifies package signatures, version requirements, capabilities, and the exact lockfile on subsequent commands.
 
 `rewind test [FILE] --filter NAME` runs matching `test fn` functions with separate virtual I/O states. Tests cannot call `publish`. `rewind fmt FILE [--check]` formats or verifies formatting; `rewind doc FILE --root DIR [--output API.md]` generates Markdown public API documentation from signatures and `///` comments. `rewind trace` and the `run --trace` option write checkpoint information to stderr. `--trace-json` selects JSON. Traces are separate from virtual `Err.println` output.
 
 The v0.1 command form `rewind FILE --root DIR` remains available. The same v0.1 scripts also work with `rewind run` without translation.
+
+`async fn` calls create cold `Task<T>` values; `spawn`, `await`, or `TaskGroup.add` starts them. `await` returns `Result<T,String>`. `Channel<T>(capacity)` supports awaited send/receive, including rendezvous at capacity zero. Checkpoints restore all task states and channel queues together. Transfer uses immutable deep snapshots; resources, closures, and cyclic objects cannot cross task boundaries. `publish` requires the application task and completed or cancelled children.
+
+`run --record FILE` records successful observations and instruction order. `replay FILE` checks the program and observations without changing host files. `debug TRACE.json` inspects saved states; `debug SOURCE.rw` executes with publication kept virtual. `profile` reports logical storage and task instruction counts to stderr. `test --explore N` explores schedules up to the explicit bound. `build` produces deterministic JSON bytecode templates; direct artifact execution is proposed for v0.5. Details and limits are in the [v0.4 implementation notes](docs/v0.4-status.md).
 
 ## Language example
 

@@ -3,6 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
+mod effects;
+mod packages;
 mod project;
 mod vm;
 
@@ -14,6 +16,15 @@ pub struct RunOptions {
     pub locale: Option<String>,
     pub test_filter: Option<String>,
     pub trace_json: bool,
+    pub output: Option<PathBuf>,
+    pub record: Option<PathBuf>,
+    pub replay: Option<serde_json::Value>,
+    pub inspect: bool,
+    pub profile: bool,
+    pub explore: usize,
+    pub choices: Vec<usize>,
+    pub virtual_publish: bool,
+    pub task_steps: Option<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -234,6 +245,7 @@ enum StmtKind {
 }
 #[derive(Clone, Debug)]
 struct Function {
+    asynchronous: bool,
     type_params: Vec<(String, Option<String>)>,
     params: Vec<(String, String)>,
     ret: String,
@@ -280,6 +292,7 @@ struct Program {
     import_aliases: BTreeMap<String, String>,
     import_exposure: BTreeMap<(PathBuf, PathBuf), BTreeSet<String>>,
     included_modules: BTreeSet<PathBuf>,
+    module_effects: BTreeMap<PathBuf, BTreeSet<String>>,
 }
 
 struct Parser {
@@ -402,7 +415,20 @@ impl Parser {
         let mut p = Program::default();
         while !self.is("<eof>") {
             let public = self.eat("pub");
-            if self.eat("import") {
+            if self.eat("effects") {
+                self.need("{")?;
+                let mut declared = BTreeSet::new();
+                while !self.eat("}") {
+                    declared.insert(self.name()?);
+                    if !self.is("}") {
+                        self.need(",")?;
+                    }
+                }
+                self.eat(";");
+                if p.module_effects.insert(PathBuf::new(), declared).is_some() {
+                    return Err(diagnostic(self.current(), "duplicate effects declaration"));
+                }
+            } else if self.eat("import") {
                 if public {
                     return Err(diagnostic(self.current(), "import cannot be public"));
                 }
@@ -605,6 +631,7 @@ impl Parser {
                         symbol,
                         Function {
                             type_params: Vec::new(),
+                            asynchronous: false,
                             params,
                             ret,
                             body,
@@ -654,9 +681,11 @@ impl Parser {
                     ));
                 }
             } else if self.is("fn")
+                || self.is("async")
                 || (self.is("test") && self.toks.get(self.pos + 1).is_some_and(|t| t.text == "fn"))
             {
                 let test = self.eat("test");
+                let asynchronous = self.eat("async");
                 let at = self.current().clone();
                 self.need("fn")?;
                 let name = self.name()?;
@@ -689,6 +718,7 @@ impl Parser {
                         name.clone(),
                         Function {
                             type_params,
+                            asynchronous,
                             params,
                             ret,
                             body,
@@ -1044,7 +1074,7 @@ impl Parser {
                     at: at.clone(),
                 }
             }
-            "-" | "!" => Expr {
+            "-" | "!" | "await" | "spawn" => Expr {
                 kind: ExprKind::Unary(at.text.clone(), Box::new(self.expr(13)?)),
                 at: at.clone(),
             },
@@ -1722,6 +1752,9 @@ fn load_program(
     };
     let mut own = parser.program()?;
     own.root_origin = full.clone();
+    if let Some(declared) = own.module_effects.remove(&PathBuf::new()) {
+        own.module_effects.insert(full.clone(), declared);
+    }
     own.stmt_origins = vec![full.clone(); own.stmts.len()];
     for def in own.functions.values_mut() {
         def.origin = full.clone();
@@ -1963,6 +1996,7 @@ fn load_program(
                     }
                 }
                 program.impl_origins.extend(imported.impl_origins);
+                program.module_effects.extend(imported.module_effects);
                 program.const_origins.extend(imported.const_origins);
                 for (name, ty) in imported.consts {
                     if program.consts.insert(name.clone(), ty).is_some() {
@@ -2033,6 +2067,7 @@ fn load_program(
         }
     }
     program.impl_origins.extend(own.impl_origins);
+    program.module_effects.extend(own.module_effects);
     program.const_origins.extend(own.const_origins);
     for (name, ty) in own.consts {
         if program.consts.insert(name.clone(), ty).is_some() {
@@ -2085,9 +2120,30 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
         &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )?;
-    program.strict_visibility = manifest.as_ref().is_some_and(|m| m.language == "0.3");
+    program.strict_visibility = manifest
+        .as_ref()
+        .is_some_and(|m| matches!(m.language.as_str(), "0.3" | "0.4"));
     check_program(&program)?;
+    if let Some(config) = &manifest {
+        if config.language == "0.4" {
+            effects::validate(&program, config)?;
+        }
+    }
     vm::validate(&program)?;
+    if mode == "build" {
+        let artifact = vm::build_artifact(&program, root)?;
+        fs::write(
+            options
+                .output
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| root.join("rewind.build.json")),
+            serde_json::to_string_pretty(&artifact)
+                .map_err(|e| Error::InvalidOperation(e.to_string()))?
+                + "\n",
+        )?;
+        return Ok(());
+    }
     if mode == "check" {
         return Ok(());
     }
@@ -2114,8 +2170,15 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
         &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )?;
-    program.strict_visibility = manifest.as_ref().is_some_and(|m| m.language == "0.3");
+    program.strict_visibility = manifest
+        .as_ref()
+        .is_some_and(|m| matches!(m.language.as_str(), "0.3" | "0.4"));
     check_program(&program)?;
+    if let Some(config) = &manifest {
+        if config.language == "0.4" {
+            effects::validate(&program, config)?;
+        }
+    }
     let mut docs = BTreeMap::new();
     let mut pending = Vec::new();
     for line in fs::read_to_string(file)?.lines() {
@@ -2125,6 +2188,7 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
             continue;
         }
         if let Some(declaration) = line.strip_prefix("pub ") {
+            let declaration = declaration.strip_prefix("async ").unwrap_or(declaration);
             let mut parts = declaration.split_whitespace();
             if let (Some(kind), Some(name)) = (parts.next(), parts.next()) {
                 let name = name.split(['<', '(', '{', ':']).next().unwrap_or(name);
@@ -2201,7 +2265,8 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
     for (name, def) in &program.functions {
         if def.public && def.origin == program.root_origin {
             out.push_str(&format!(
-                "- `pub fn {name}{}({}) -> {}`\n",
+                "- `pub {}fn {name}{}({}) -> {}`\n",
+                if def.asynchronous { "async " } else { "" },
                 if def.type_params.is_empty() {
                     String::new()
                 } else {
@@ -2230,10 +2295,79 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
     }
     Ok(out)
 }
+pub fn sign_package(path: &Path, key: &Path, output: &Path) -> Result<()> {
+    packages::sign_package(path, key, output)
+}
+pub fn replay_trace(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
+    if fs::metadata(path)?.len() > 128 * 1024 * 1024 {
+        return Err(Error::InvalidOperation(
+            "replay trace exceeds 128 MiB budget".into(),
+        ));
+    }
+    let trace: serde_json::Value = serde_json::from_slice(&fs::read(path)?)
+        .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+    if trace["format"] != 1 || trace["compiler"] != env!("CARGO_PKG_VERSION") {
+        return Err(Error::InvalidOperation(
+            "ReplayMismatch: trace format/compiler".into(),
+        ));
+    }
+    let file = trace["entry"]
+        .as_str()
+        .ok_or_else(|| Error::InvalidOperation("ReplayMismatch: missing entry".into()))?;
+    let relative = Path::new(file);
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(Error::InvalidPath(file.into()));
+    }
+    let entry = root.join(relative).to_string_lossy().into_owned();
+    let task_steps = trace["task_steps"]
+        .as_u64()
+        .and_then(|n| usize::try_from(n).ok())
+        .filter(|n| *n > 0)
+        .ok_or_else(|| Error::InvalidOperation("ReplayMismatch: invalid task budget".into()))?;
+    if options.task_steps.is_some_and(|n| n != task_steps) {
+        return Err(Error::InvalidOperation(
+            "ReplayMismatch: task budget differs from recording".into(),
+        ));
+    }
+    options.task_steps = Some(task_steps);
+    options.replay = Some(trace);
+    options.virtual_publish = options.replay.as_ref().unwrap()["virtual_publish"] == true;
+    cli("run", &entry, root, false, options)
+}
+pub fn debug_trace(path: &Path) -> Result<()> {
+    if fs::metadata(path)?.len() > 128 * 1024 * 1024 {
+        return Err(Error::InvalidOperation("trace exceeds budget".into()));
+    }
+    let trace: serde_json::Value = serde_json::from_slice(&fs::read(path)?)
+        .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+    if trace["format"] != 1 {
+        return Err(Error::InvalidOperation("unsupported trace format".into()));
+    }
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&trace["debug"])
+            .map_err(|e| Error::InvalidOperation(e.to_string()))?
+    );
+    Ok(())
+}
 pub fn lock_project(root: &Path) -> Result<()> {
-    project::ProjectConfig::load(root)?
-        .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?
-        .lock(root, true)
+    let project = project::ProjectConfig::load(root)?
+        .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
+    if project.language == "0.4" {
+        return Err(Error::InvalidOperation(
+            "use 'rewind update' to update v0.4 dependencies".into(),
+        ));
+    }
+    project.lock(root, true)
+}
+pub fn update_project(root: &Path) -> Result<()> {
+    let project = project::ProjectConfig::load(root)?
+        .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
+    project.lock(root, true)
 }
 pub fn format_source(source: &str) -> Result<String> {
     let mut parser = Parser {
@@ -2769,7 +2903,11 @@ impl Checker<'_> {
                             .map(|(_, t)| t.as_str())
                             .collect::<Vec<_>>()
                             .join(","),
-                        f.ret
+                        if f.asynchronous {
+                            format!("Task<{}>", f.ret)
+                        } else {
+                            f.ret.clone()
+                        }
                     )
                 } else if let Some(ty) = enum_constructor_type(
                     self.program,
@@ -2790,6 +2928,17 @@ impl Checker<'_> {
             }
             ExprKind::Unary(op, inner) => {
                 let t = self.expr(inner)?;
+                if op == "spawn" || op == "await" {
+                    let inner = t
+                        .strip_prefix("Task<")
+                        .and_then(|t| t.strip_suffix('>'))
+                        .ok_or_else(|| diagnostic(&e.at, "spawn/await requires Task<T>"))?;
+                    return Ok(if op == "spawn" {
+                        t
+                    } else {
+                        format!("Result<{inner},String>")
+                    });
+                }
                 if op == "!" && t != "Bool" || op == "-" && !matches!(t.as_str(), "Int" | "Float") {
                     return Err(diagnostic(&e.at, format!("invalid operand {t} for {op}")));
                 }
@@ -2853,7 +3002,11 @@ impl Checker<'_> {
                                     .map(|(_, ty)| ty.as_str())
                                     .collect::<Vec<_>>()
                                     .join(","),
-                                f.ret
+                                if f.asynchronous {
+                                    format!("Task<{}>", f.ret)
+                                } else {
+                                    f.ret.clone()
+                                }
                             ));
                         }
                     }
@@ -2916,6 +3069,52 @@ impl Checker<'_> {
                     .iter()
                     .map(|a| self.expr(a))
                     .collect::<Result<Vec<_>>>()?;
+                if let ExprKind::Member(base, method) = &target.kind {
+                    let special = matches!(&base.kind,ExprKind::Name(n) if self.program.import_aliases.keys().any(|alias| alias.starts_with(&format!("{n}."))) || matches!(n.as_str(),"Out"|"Err"|"File"|"Directory"|"Time"|"Random"|"Args"|"Env"|"Locale"|"In"));
+                    if !special {
+                        let ty = self.expr(base)?;
+                        if let Some(inner) = ty
+                            .strip_prefix("Channel<")
+                            .and_then(|t| t.strip_suffix('>'))
+                        {
+                            return Ok(match (method.as_str(), types.as_slice()) {
+                                ("send", [actual]) if compatible(inner, actual) => {
+                                    "Task<Unit>".into()
+                                }
+                                ("receive", []) => format!("Task<{inner}>"),
+                                ("close", []) => "Unit".into(),
+                                _ => {
+                                    return Err(diagnostic(
+                                        &e.at,
+                                        "invalid Channel method arguments",
+                                    ))
+                                }
+                            });
+                        }
+                        if ty.starts_with("Task<") {
+                            return Ok(match (method.as_str(), types.as_slice()) {
+                                ("cancel", []) => "Unit".into(),
+                                ("setPriority", [t]) if t == "Int" => "Unit".into(),
+                                _ => {
+                                    return Err(diagnostic(&e.at, "invalid Task method arguments"))
+                                }
+                            });
+                        }
+                        if ty == "TaskGroup" {
+                            return Ok(match (method.as_str(), types.as_slice()) {
+                                ("add", [t]) if t.starts_with("Task<") => "Unit".into(),
+                                ("join", []) => "Task<Unit>".into(),
+                                ("cancel", []) => "Unit".into(),
+                                _ => {
+                                    return Err(diagnostic(
+                                        &e.at,
+                                        "invalid TaskGroup method arguments",
+                                    ))
+                                }
+                            });
+                        }
+                    }
+                }
                 if let ExprKind::Name(name) = &target.kind {
                     if let Some((params, ret)) =
                         self.find(name).and_then(|(ty, _)| function_signature(ty))
@@ -2983,7 +3182,12 @@ impl Checker<'_> {
                                 }
                             }
                         }
-                        substitute_type(&f.ret, &substitutions)
+                        let ret = substitute_type(&f.ret, &substitutions);
+                        if f.asynchronous {
+                            format!("Task<{ret}>")
+                        } else {
+                            ret
+                        }
                     } else if let Some(s) = self.program.structs.get(
                         self.program
                             .import_aliases
@@ -3040,6 +3244,8 @@ impl Checker<'_> {
                                 "Unit".into()
                             }
                             "panic" if types == ["String"] => "Never".into(),
+                            "TaskGroup" if types.is_empty() => "TaskGroup".into(),
+                            _ if name.starts_with("Channel<") && types == ["Int"] => name.clone(),
                             _ if name.starts_with("List<") || name.starts_with("Map<") => {
                                 if !types.is_empty() {
                                     return Err(diagnostic(
@@ -3097,7 +3303,12 @@ impl Checker<'_> {
                                         }
                                     }
                                 }
-                                return Ok(substitute_type(&f.ret, &substitutions));
+                                let ret = substitute_type(&f.ret, &substitutions);
+                                return Ok(if f.asynchronous {
+                                    format!("Task<{ret}>")
+                                } else {
+                                    ret
+                                });
                             }
                             if let Some(s) = self.program.structs.get(symbol) {
                                 self.visible(s.public, &s.origin, &e.at, &qualified)?;
@@ -3487,7 +3698,7 @@ impl Checker<'_> {
             }
             StmtKind::Using(name, expr) => {
                 let ty = self.expr(expr)?;
-                if ty != "FileHandle" {
+                if ty != "FileHandle" && ty != "TaskGroup" {
                     return Err(diagnostic(&stmt.at, "using requires a FileHandle"));
                 }
                 if self.scopes.last().unwrap().contains_key(name) {
@@ -3696,9 +3907,10 @@ fn cleanup_calls_publish(program: &Program, body: &[Stmt], seen: &mut BTreeSet<S
                         let resolved = resolve_alias(program, name);
                         let base = resolved.split('<').next().unwrap_or(&resolved);
                         if let Some(f) = program.functions.get(base) {
-                            seen.insert(base.into())
-                                && (!cleanup_safe(&f.body)
-                                    || cleanup_calls_publish(program, &f.body, seen))
+                            f.asynchronous
+                                || seen.insert(base.into())
+                                    && (!cleanup_safe(&f.body)
+                                        || cleanup_calls_publish(program, &f.body, seen))
                         } else {
                             !matches!(
                                 base,
@@ -3723,9 +3935,10 @@ fn cleanup_calls_publish(program: &Program, body: &[Stmt], seen: &mut BTreeSet<S
                         };
                         alias.is_some_and(|symbol| {
                             program.functions.get(symbol).is_some_and(|f| {
-                                seen.insert(symbol.clone())
-                                    && (!cleanup_safe(&f.body)
-                                        || cleanup_calls_publish(program, &f.body, seen))
+                                f.asynchronous
+                                    || (seen.insert(symbol.clone())
+                                        && (!cleanup_safe(&f.body)
+                                            || cleanup_calls_publish(program, &f.body, seen)))
                             })
                         }) || program
                             .impls
@@ -3745,9 +3958,10 @@ fn cleanup_calls_publish(program: &Program, body: &[Stmt], seen: &mut BTreeSet<S
                     || expr(program, callee, seen)
                     || args.iter().any(|arg| expr(program, arg, seen))
             }
-            ExprKind::Unary(_, e) | ExprKind::Try(e) | ExprKind::Member(e, _) => {
-                expr(program, e, seen)
+            ExprKind::Unary(op, e) => {
+                matches!(op.as_str(), "await" | "spawn") || expr(program, e, seen)
             }
+            ExprKind::Try(e) | ExprKind::Member(e, _) => expr(program, e, seen),
             ExprKind::Binary(_, a, b) => expr(program, a, seen) || expr(program, b, seen),
             ExprKind::Match(e, arms) => {
                 expr(program, e, seen)
@@ -4314,7 +4528,11 @@ impl<R: BufRead> Engine<R> {
                                 .map(|(_, t)| t.as_str())
                                 .collect::<Vec<_>>()
                                 .join(","),
-                            f.ret
+                            if f.asynchronous {
+                                format!("Task<{}>", f.ret)
+                            } else {
+                                f.ret.clone()
+                            }
                         ),
                     ))
                 } else if n.contains("::") {

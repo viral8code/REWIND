@@ -1,0 +1,28 @@
+async fn produce(channel: Channel<Int>) -> Unit {
+    assert_eq(await channel.send(7), Ok(()));
+    assert_eq(await channel.send(8), Ok(()));
+    channel.close();
+}
+
+async fn consume(channel: Channel<Int>) -> Int {
+    var total = 0;
+    while true {
+        match await channel.receive() {
+            Ok(value) => { total += value; },
+            Err(_) => { break; },
+        }
+    }
+    return total;
+}
+
+let channel = Channel<Int>(1);
+using group = TaskGroup();
+let producer = produce(channel);
+let consumer = consume(channel);
+group.add(producer);
+group.add(consumer);
+commit ready;
+assert_eq(await consumer, Ok(15));
+assert_eq(await group.join(), Ok(()));
+Out.println("total=15");
+publish;

@@ -1,7 +1,9 @@
 use super::*;
 use rewind::BranchAnchor;
+mod scheduler;
+use scheduler::Scheduler;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Op {
     Push(Value),
     Load(String),
@@ -9,6 +11,8 @@ enum Op {
     Store(String, String),
     StoreField(String, String),
     Unary(String),
+    Await,
+    Spawn,
     Binary(String),
     Property(String),
     Call(String, usize),
@@ -186,10 +190,7 @@ impl Compiler {
             }
             StmtKind::Using(name, expr) => {
                 self.expr(expr)?;
-                self.emit(
-                    Op::Declare(name.clone(), false, Some("FileHandle".into())),
-                    at,
-                );
+                self.emit(Op::Declare(name.clone(), false, None), at);
                 self.emit(Op::Using(name.clone()), at);
             }
             StmtKind::Assign(lhs, op, rhs) => match &lhs.kind {
@@ -392,7 +393,14 @@ impl Compiler {
             }
             ExprKind::Unary(op, inner) => {
                 self.expr(inner)?;
-                self.emit(Op::Unary(op.clone()), &e.at);
+                self.emit(
+                    match op.as_str() {
+                        "await" => Op::Await,
+                        "spawn" => Op::Spawn,
+                        _ => Op::Unary(op.clone()),
+                    },
+                    &e.at,
+                );
             }
             ExprKind::Binary(op, a, b) if op == "&&" => {
                 self.expr(a)?;
@@ -535,6 +543,7 @@ impl Compiler {
                     name.clone(),
                     Function {
                         type_params: self.type_params.clone(),
+                        asynchronous: false,
                         params: params.clone(),
                         ret: ret.clone(),
                         body: body.clone(),
@@ -580,11 +589,15 @@ enum Cleanup {
     Expr(Expr, Vec<BTreeMap<String, Binding>>, usize),
     Callable(Value, usize),
     Handle(u64, usize),
+    Group(u64, usize),
 }
 impl Cleanup {
     fn depth(&self) -> usize {
         match self {
-            Self::Expr(_, _, depth) | Self::Callable(_, depth) | Self::Handle(_, depth) => *depth,
+            Self::Expr(_, _, depth)
+            | Self::Callable(_, depth)
+            | Self::Handle(_, depth)
+            | Self::Group(_, depth) => *depth,
         }
     }
 }
@@ -602,6 +615,7 @@ struct BranchFrame {
     anchor: BranchAnchor,
     globals: Vec<BTreeMap<String, Binding>>,
     frames: Vec<VmFrame>,
+    scheduler: Scheduler,
 }
 #[derive(Clone)]
 struct VmSnapshot {
@@ -611,6 +625,7 @@ struct VmSnapshot {
     frames: Vec<VmFrame>,
     branches: Vec<BranchFrame>,
     global_cleanups: Vec<Cleanup>,
+    scheduler: Scheduler,
 }
 
 struct Vm<R: BufRead> {
@@ -629,6 +644,15 @@ struct Vm<R: BufRead> {
     specializations: BTreeMap<(String, Vec<String>), usize>,
     template_ends: BTreeMap<String, usize>,
     specialized_instructions: usize,
+    scheduler: Scheduler,
+    options: RunOptions,
+    events: Vec<serde_json::Value>,
+    inspections: Vec<serde_json::Value>,
+    task_instructions: BTreeMap<u64, usize>,
+    choice_widths: Vec<usize>,
+    choices_used: Vec<usize>,
+    fingerprint: String,
+    entry: String,
 }
 
 impl<R: BufRead> Vm<R> {
@@ -641,6 +665,7 @@ impl<R: BufRead> Vm<R> {
         options: &RunOptions,
     ) -> Result<Self> {
         let compiled = Compiler::compile(&program)?;
+        let artifact = build_artifact(&program, root)?;
         program.functions.extend(compiled.closure_defs.clone());
         let halt_pc = compiled
             .code
@@ -673,6 +698,29 @@ impl<R: BufRead> Vm<R> {
             options.secret_env.clone(),
             options.locale.clone().unwrap_or_else(|| "en-US".into()),
         )?;
+        if options.inspect || options.virtual_publish {
+            engine.runtime.enable_virtual_publish();
+        }
+        let fingerprint = packages::hash(
+            serde_json::to_vec(&artifact).map_err(|e| Error::InvalidOperation(e.to_string()))?,
+        );
+        let entry = engine
+            .program
+            .root_origin
+            .strip_prefix(fs::canonicalize(root)?)
+            .map_err(|_| Error::InvalidPath("entry outside root".into()))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        if let Some(replay) = &options.replay {
+            if replay["fingerprint"] != fingerprint {
+                return Err(Error::InvalidOperation(
+                    "ReplayMismatch: source/lock/build fingerprint".into(),
+                ));
+            }
+            engine
+                .runtime
+                .import_observations(&replay["observations"])?;
+        }
         engine.trace = trace;
         engine.trace_json = options.trace_json;
         engine.test_mode = test_mode;
@@ -692,6 +740,15 @@ impl<R: BufRead> Vm<R> {
             specializations: BTreeMap::new(),
             template_ends,
             specialized_instructions: 0,
+            scheduler: Scheduler::default(),
+            options: options.clone(),
+            events: Vec::new(),
+            inspections: Vec::new(),
+            task_instructions: BTreeMap::new(),
+            choice_widths: Vec::new(),
+            choices_used: Vec::new(),
+            fingerprint,
+            entry,
         })
     }
     fn error(&self, at: &Tok, message: impl AsRef<str>) -> Error {
@@ -819,6 +876,7 @@ impl<R: BufRead> Vm<R> {
             frames: self.frames.clone(),
             branches: self.branches.clone(),
             global_cleanups: self.global_cleanups.clone(),
+            scheduler: self.scheduler.clone(),
         }
     }
     fn restore(&mut self, snap: VmSnapshot) {
@@ -827,13 +885,23 @@ impl<R: BufRead> Vm<R> {
         self.frames = snap.frames;
         self.branches = snap.branches;
         self.global_cleanups = snap.global_cleanups;
+        self.scheduler = snap.scheduler;
     }
     fn call_user(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Result<()> {
         self.call_user_captured(name, args, BTreeMap::new(), at)
     }
     fn call_value(&mut self, callable: Value, args: Vec<Value>, at: &Tok) -> Result<()> {
         match callable {
-            Value::Function(name, _) => self.call_user(&name, args, at),
+            Value::Function(name, _) => {
+                if self.engine.program.functions[name.split('<').next().unwrap_or(&name)]
+                    .asynchronous
+                {
+                    let task = self.create_async_task(&name, args, at)?;
+                    self.push(task)
+                } else {
+                    self.call_user(&name, args, at)
+                }
+            }
             Value::HeapRef(id) => match self.engine.runtime.heap_get(id).cloned() {
                 Some(Value::Closure(name, _, captures)) => {
                     self.call_user_captured(&name, args, captures, at)
@@ -845,6 +913,7 @@ impl<R: BufRead> Vm<R> {
     }
     fn run_cleanup(&mut self, cleanup: Cleanup, at: &Tok) -> Result<()> {
         match cleanup {
+            Cleanup::Group(id, _) => self.cancel_group(id, at),
             Cleanup::Handle(id, _) => self.engine.runtime.close_handle(id),
             Cleanup::Expr(expr, captured, _) => {
                 self.engine.scopes = self.globals.clone();
@@ -1048,8 +1117,50 @@ impl<R: BufRead> Vm<R> {
         self.push(value)
     }
     fn run(&mut self) -> Result<()> {
-        let result = self.run_inner();
+        if self.scheduler.active == 0 {
+            self.scheduler.reactivate_main();
+        }
+        let result = loop {
+            match self.run_inner() {
+                Err(error) if self.scheduler.active != 0 => {
+                    let at = self
+                        .code
+                        .get(self.pc.saturating_sub(1))
+                        .map(|i| i.at.clone())
+                        .unwrap_or(Tok {
+                            text: "<task>".into(),
+                            line: 0,
+                            col: 0,
+                        });
+                    for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
+                        let _ = self.run_cleanups(frame.defers, &at);
+                    }
+                    let pending = std::mem::take(&mut self.global_cleanups);
+                    let _ = self.run_cleanups(pending, &at);
+                    self.frames.clear();
+                    if let Err(error) = self.cancel_children(&at) {
+                        break Err(error);
+                    }
+                    match self.finish_scheduled_task(Err(error.to_string()), &at) {
+                        Ok(true) => continue,
+                        Ok(false) => break Ok(()),
+                        Err(error) => break Err(error),
+                    }
+                }
+                result => break result,
+            }
+        };
         if result.is_err() {
+            let at = self
+                .code
+                .get(self.pc.saturating_sub(1))
+                .map(|i| i.at.clone())
+                .unwrap_or(Tok {
+                    text: "<task>".into(),
+                    line: 0,
+                    col: 0,
+                });
+            let _ = self.cancel_children(&at);
             for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
                 for cleanup in frame.defers.into_iter().rev() {
                     let at = self
@@ -1079,8 +1190,64 @@ impl<R: BufRead> Vm<R> {
         }
         result
     }
+    fn finish_tools(&self) -> Result<()> {
+        let digest = self.engine.runtime.state_digest()?;
+        if let Some(replay) = &self.options.replay {
+            if replay["events"]
+                .as_array()
+                .is_none_or(|events| events.len() != self.events.len())
+                || replay["state_digest"] != digest
+            {
+                return Err(Error::InvalidOperation(
+                    "ReplayMismatch: final state or event count".into(),
+                ));
+            }
+        }
+        if let Some(path) = &self.options.record {
+            let trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
+            let bytes = serde_json::to_string_pretty(&trace)
+                .map_err(|e| Error::InvalidOperation(e.to_string()))?
+                + "\n";
+            if bytes.len() > 128 * 1024 * 1024 {
+                return Err(Error::InvalidOperation(
+                    "TraceBudgetExceeded: 128 MiB".into(),
+                ));
+            }
+            fs::write(path, bytes)?;
+        }
+        if self.options.inspect {
+            eprintln!(
+                "{}",
+                serde_json::json!({"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}})
+            );
+        }
+        if self.options.profile {
+            eprintln!(
+                "{}",
+                serde_json::json!({"task_instructions":self.task_instructions.iter().map(|(id,count)|(id.to_string(),*count)).collect::<BTreeMap<_,_>>(),"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"schedule_choices":self.choices_used})
+            );
+        }
+        Ok(())
+    }
     fn run_inner(&mut self) -> Result<()> {
         loop {
+            let scheduler_bytes = self.scheduler.storage_bytes()
+                + self
+                    .snapshots
+                    .values()
+                    .map(|s| s.scheduler.storage_bytes())
+                    .sum::<usize>()
+                + self
+                    .branches
+                    .iter()
+                    .map(|b| b.scheduler.storage_bytes())
+                    .sum::<usize>();
+            if scheduler_bytes > 16 * 1024 * 1024 {
+                return Err(self.error(
+                    &self.code[self.pc].at,
+                    "TaskBudgetExceeded: scheduler storage (16 MiB)",
+                ));
+            }
             if self.steps == 0 {
                 return Err(self.error(&self.code[self.pc].at, "ExecutionBudgetExceeded"));
             }
@@ -1088,13 +1255,72 @@ impl<R: BufRead> Vm<R> {
             let inst = self.code.get(self.pc).cloned().ok_or_else(|| {
                 Error::InvalidOperation(format!("invalid program counter {}", self.pc))
             })?;
+            if self.scheduler.active != 0
+                && self
+                    .task_instructions
+                    .get(&self.scheduler.active)
+                    .copied()
+                    .unwrap_or(0)
+                    >= self.options.task_steps.unwrap_or(100_000)
+            {
+                return Err(self.error(
+                    &inst.at,
+                    format!(
+                        "TaskBudgetExceeded: instructions for task {}",
+                        self.scheduler.active
+                    ),
+                ));
+            }
+            *self
+                .task_instructions
+                .entry(self.scheduler.active)
+                .or_default() += 1;
+            if self.options.record.is_some() || self.options.replay.is_some() {
+                let operation = format!("{:?}", inst.op)
+                    .split(['(', '{'])
+                    .next()
+                    .unwrap()
+                    .to_string();
+                let event = serde_json::json!({"task":self.scheduler.active,"pc":self.pc,"operation":operation});
+                if let Some(replay) = &self.options.replay {
+                    if replay["events"].get(self.events.len()) != Some(&event) {
+                        return Err(self.error(
+                            &inst.at,
+                            format!(
+                                "ReplayMismatch: event {} task {} pc {}",
+                                self.events.len(),
+                                self.scheduler.active,
+                                self.pc
+                            ),
+                        ));
+                    }
+                }
+                self.events.push(event);
+            }
             self.engine.runtime.set_program_counter(self.pc);
             self.pc += 1;
             match inst.op {
                 Op::Halt => {
                     let pending = std::mem::take(&mut self.global_cleanups);
                     self.run_cleanups(pending, &inst.at)?;
+                    let value = if self.scheduler.active == 0 {
+                        Value::Null
+                    } else {
+                        self.pop()?
+                    };
+                    if self.finish_scheduled_task(Ok(value), &inst.at)? {
+                        continue;
+                    }
                     return Ok(());
+                }
+                Op::Spawn => {
+                    let task = self.pop()?;
+                    self.start_task(&task, &inst.at)?;
+                    self.push(task)?;
+                }
+                Op::Await => {
+                    let task = self.pop()?;
+                    self.wait_task(task, &inst.at)?;
                 }
                 Op::Push(value) => self.push(value)?,
                 Op::Load(name) => {
@@ -1110,7 +1336,11 @@ impl<R: BufRead> Vm<R> {
                                     .map(|(_, t)| t.as_str())
                                     .collect::<Vec<_>>()
                                     .join(","),
-                                f.ret
+                                if f.asynchronous {
+                                    format!("Task<{}>", f.ret)
+                                } else {
+                                    f.ret.clone()
+                                }
                             ),
                         )
                     } else if name.contains("::") {
@@ -1234,6 +1464,21 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Call(name, count) => {
                     let args = self.args(count)?;
+                    if let Some(value) = self.scheduler_constructor(&name, &args, &inst.at)? {
+                        self.push(value)?;
+                        continue;
+                    }
+                    if self
+                        .engine
+                        .program
+                        .functions
+                        .get(name.split('<').next().unwrap_or(&name))
+                        .is_some_and(|f| f.asynchronous)
+                    {
+                        let value = self.create_async_task(&name, args, &inst.at)?;
+                        self.push(value)?;
+                        continue;
+                    }
                     if let Some(binding) = self.get(&name) {
                         let callable = self.resolve(&binding.value);
                         self.call_value(callable, args, &inst.at)?;
@@ -1301,6 +1546,10 @@ impl<R: BufRead> Vm<R> {
                 Op::Method(method, count) => {
                     let mut args = self.args(count)?;
                     let target = self.pop()?;
+                    if let Some(value) = self.scheduler_method(&target, &method, &args, &inst.at)? {
+                        self.push(value)?;
+                        continue;
+                    }
                     let ty = value_type(&target, &self.engine.runtime);
                     let matching = self
                         .engine
@@ -1430,7 +1679,19 @@ impl<R: BufRead> Vm<R> {
                     let binding = self
                         .get(&name)
                         .ok_or_else(|| self.error(&inst.at, "unknown using resource"))?;
-                    let Value::Handle(id) = self.resolve(&binding.value) else {
+                    let value = self.resolve(&binding.value);
+                    if value_type(&value, &self.engine.runtime) == "TaskGroup" {
+                        let id = scheduler::handle_id(&value)
+                            .ok_or_else(|| self.error(&inst.at, "invalid TaskGroup"))?;
+                        if let Some(frame) = self.frames.last_mut() {
+                            frame.defers.push(Cleanup::Group(id, frame.scopes.len()));
+                        } else {
+                            self.global_cleanups
+                                .push(Cleanup::Group(id, self.globals.len()));
+                        }
+                        continue;
+                    }
+                    let Value::Handle(id) = value else {
                         return Err(self.error(&inst.at, "using requires FileHandle"));
                     };
                     if let Some(frame) = self.frames.last_mut() {
@@ -1444,6 +1705,9 @@ impl<R: BufRead> Vm<R> {
                     self.engine.runtime.set_program_counter(self.pc);
                     self.engine.runtime.commit(name.clone())?;
                     self.snapshots.insert(name.clone(), self.snapshot());
+                    if self.options.inspect || self.options.record.is_some() {
+                        self.inspections.push(serde_json::json!({"checkpoint":name,"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"frames":self.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|s|s.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>() })).collect::<Vec<_>>() }));
+                    }
                     if self.engine.trace {
                         eprintln!(
                             "{}",
@@ -1495,6 +1759,9 @@ impl<R: BufRead> Vm<R> {
                     self.snapshots.remove(&name);
                 }
                 Op::Publish(force) => {
+                    if self.scheduler.active != 0 || self.scheduler.has_live_tasks() {
+                        return Err(self.error(&inst.at,"publish requires the application task and completed/cancelled children"));
+                    }
                     if self.engine.test_mode {
                         return Err(
                             self.error(&inst.at, "publish is unavailable during rewind test")
@@ -1511,6 +1778,7 @@ impl<R: BufRead> Vm<R> {
                         anchor: self.engine.runtime.begin_branch(),
                         globals: self.globals.clone(),
                         frames: self.frames.clone(),
+                        scheduler: self.scheduler.clone(),
                     });
                 }
                 Op::EndBranch(name) => {
@@ -1525,6 +1793,7 @@ impl<R: BufRead> Vm<R> {
                         .end_branch(name.clone(), branch.anchor)?;
                     self.globals = branch.globals;
                     self.frames = branch.frames;
+                    self.scheduler = branch.scheduler;
                     if self.engine.trace {
                         eprintln!(
                             "{}",
@@ -1605,12 +1874,119 @@ pub(super) fn execute(
             vm.run()
                 .map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
             eprintln!("ok {test}");
+            vm.finish_tools()?;
+            if options.explore > 0 {
+                let widths = vm.choice_widths.clone();
+                let used = vm.choices_used.clone();
+                drop(vm);
+                explore_test(&program, root, &test, trace, &options, &widths, &used)?;
+            }
         }
         Ok(())
     } else {
-        Vm::new(program, root, io::stdin().lock(), trace, false, &options)?.run()
+        let mut vm = Vm::new(program, root, io::stdin().lock(), trace, false, &options)?;
+        let result = vm.run();
+        if result.is_err() && (options.inspect || options.profile) {
+            let _ = vm.finish_tools();
+        }
+        result?;
+        vm.finish_tools()
     }
 }
 pub(super) fn validate(program: &Program) -> Result<()> {
     Compiler::compile(program).map(|_| ())
+}
+pub(super) fn build_artifact(program: &Program, root: &Path) -> Result<serde_json::Value> {
+    let compiler = Compiler::compile(program)?;
+    let canonical = fs::canonicalize(root)?;
+    let sources = program
+        .included_modules
+        .iter()
+        .map(|path| {
+            Ok((
+                path.strip_prefix(&canonical)
+                    .map_err(|_| Error::InvalidPath(path.display().to_string()))?
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+                packages::hash(fs::read(path)?),
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    let functions=program.functions.iter().map(|(name,f)| (name.clone(),serde_json::json!({"async":f.asynchronous,"type_params":f.type_params,"parameters":f.params,"return":f.ret}))).collect::<BTreeMap<_,_>>();
+    let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
+    let document = super::documentation(&program.root_origin.to_string_lossy(), root)?;
+    let lock = root.join("rewind.lock");
+    Ok(
+        serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"sources":sources,"lock_sha256":if lock.exists(){Some(packages::hash(fs::read(lock)?))}else{None},"api_document_sha256":packages::hash(document),"functions":functions,"function_entries":compiler.functions,"bytecode":code}),
+    )
+}
+fn explore_test(
+    program: &Program,
+    root: &Path,
+    test: &str,
+    trace: bool,
+    options: &RunOptions,
+    initial_widths: &[usize],
+    initial_used: &[usize],
+) -> Result<()> {
+    use std::collections::VecDeque;
+    let mut queue = VecDeque::new();
+    let mut seen = BTreeSet::new();
+    seen.insert(Vec::new());
+    fn alternatives(
+        widths: &[usize],
+        used: &[usize],
+        queue: &mut VecDeque<Vec<usize>>,
+        seen: &mut BTreeSet<Vec<usize>>,
+    ) {
+        for (i, width) in widths.iter().enumerate() {
+            for choice in 0..*width {
+                if used[i] != choice {
+                    let mut path = used[..i].to_vec();
+                    path.push(choice);
+                    if seen.insert(path.clone()) {
+                        queue.push_back(path);
+                    }
+                }
+            }
+        }
+    }
+    alternatives(initial_widths, initial_used, &mut queue, &mut seen);
+    let mut explored = 1;
+    while explored < options.explore {
+        let Some(choices) = queue.pop_front() else {
+            break;
+        };
+        let mut config = options.clone();
+        config.choices = choices.clone();
+        config.explore = 0;
+        config.record = None;
+        config.inspect = false;
+        config.profile = false;
+        let mut vm = Vm::new(
+            program.clone(),
+            root,
+            io::stdin().lock(),
+            trace,
+            true,
+            &config,
+        )?;
+        let run = (|| {
+            vm.run()?;
+            vm.pc = vm.halt_pc;
+            vm.call_user(test, Vec::new(), &program.functions[test].at)?;
+            vm.run()
+        })();
+        run.map_err(|e| {
+            Error::InvalidOperation(format!("test {test}: schedule {choices:?}: {e}"))
+        })?;
+        alternatives(&vm.choice_widths, &vm.choices_used, &mut queue, &mut seen);
+        explored += 1;
+    }
+    eprintln!(
+        "explored {test}: {explored} schedules, {} pending at budget {}",
+        queue.len(),
+        options.explore
+    );
+    Ok(())
 }
