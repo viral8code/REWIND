@@ -77,18 +77,63 @@ impl MapKey {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FileFailure {
+    pub code: String,
+    pub path: String,
+    pub causes: Vec<String>,
+}
+impl FileFailure {
+    pub fn from_error(error: &Error, path: &str) -> Self {
+        let code = match error {
+            Error::MissingFile(_) => "NotFound".into(),
+            Error::InvalidPath(_) => "InvalidPath".into(),
+            Error::ExternalStateConflict(_) => "Conflict".into(),
+            Error::Io(io) => format!("Io::{:?}", io.kind()),
+            _ => "OperationFailed".into(),
+        };
+        let mut causes = vec![error.to_string()];
+        let mut source = std::error::Error::source(error);
+        while let Some(cause) = source {
+            causes.push(cause.to_string());
+            source = cause.source();
+        }
+        Self {
+            code,
+            path: path.into(),
+            causes,
+        }
+    }
+}
+impl fmt::Display for FileFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: {} ({})",
+            self.code,
+            self.path,
+            self.causes.join(" -> ")
+        )
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value {
     Bool(bool),
     Int(i64),
     Float(u64),
     Text(String),
     Bytes(Vec<u8>),
-    FileError(String),
+    FileError(FileFailure),
     List(Vec<Value>),
     TypedList(String, Vec<Value>),
     Map(BTreeMap<MapKey, Value>),
     TypedMap(String, String, BTreeMap<MapKey, Value>),
+    OrderedMap(String, String, Vec<(Value, Value)>),
     Struct(String, BTreeMap<String, Value>),
+    Enum(String, String, Vec<(String, Value)>),
+    Function(String, String),
+    Closure(String, String, BTreeMap<String, Value>),
+    CellRef(u64),
     Option(Option<Box<Value>>),
     Result(std::result::Result<Box<Value>, Box<Value>>),
     HeapRef(u64),
@@ -118,7 +163,18 @@ impl fmt::Display for Value {
             Value::HeapRef(id) => write!(f, "<object:{id}>"),
             Value::Map(v) => write!(f, "{v:?}"),
             Value::TypedMap(_, _, v) => write!(f, "{v:?}"),
+            Value::OrderedMap(_, _, v) => write!(f, "{v:?}"),
             Value::Struct(name, v) => write!(f, "{name}{v:?}"),
+            Value::Enum(name, variant, fields) => {
+                write!(f, "{name}::{variant}")?;
+                if !fields.is_empty() {
+                    write!(f, "{fields:?}")?;
+                }
+                Ok(())
+            }
+            Value::Function(name, _) => write!(f, "<fn:{name}>"),
+            Value::Closure(name, _, _) => write!(f, "<closure:{name}>"),
+            Value::CellRef(id) => write!(f, "<cell:{id}>"),
             Value::Option(Some(v)) => write!(f, "Some({v})"),
             Value::Option(None) => write!(f, "None"),
             Value::Result(Ok(v)) => write!(f, "Ok({v})"),
@@ -159,7 +215,15 @@ impl fmt::Display for Error {
         }
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        if let Self::Io(error) = self {
+            Some(error)
+        } else {
+            None
+        }
+    }
+}
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self {
         Error::Io(e)
@@ -377,6 +441,9 @@ pub struct State {
     pub stderr: Journal,
     pub stdin_cursor: usize,
     pub time_cursor: usize,
+    pub args_cursor: usize,
+    pub env_cursor: usize,
+    pub directory_cursor: usize,
     pub file_epoch: u64,
     pub random_state: u64,
     pub next_heap_id: u64,
@@ -398,6 +465,9 @@ impl Default for State {
             stderr: Journal::default(),
             stdin_cursor: 0,
             time_cursor: 0,
+            args_cursor: 0,
+            env_cursor: 0,
+            directory_cursor: 0,
             file_epoch: 0,
             random_state: 0x4d595df4d0f33173,
             next_heap_id: 1,
@@ -443,6 +513,12 @@ pub struct Runtime {
     directory_observations: BTreeMap<(u64, String), Option<BTreeSet<String>>>,
     input: Vec<String>,
     times: Vec<u128>,
+    arguments: Vec<String>,
+    env_allowed: BTreeSet<String>,
+    env_secrets: BTreeSet<String>,
+    env_observations: Vec<(String, Option<String>)>,
+    entry_observations: Vec<(String, Vec<String>)>,
+    locale: String,
     published_stdout: Journal,
     published_stderr: Journal,
     budget: ResourceBudget,
@@ -450,11 +526,137 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    pub fn configure_environment(
+        &mut self,
+        args: Vec<String>,
+        allowed: BTreeSet<String>,
+        secrets: BTreeSet<String>,
+        locale: String,
+    ) -> Result<()> {
+        if !secrets.is_subset(&allowed) {
+            return Err(Error::InvalidOperation(
+                "secret environment names must be allowed".into(),
+            ));
+        }
+        if locale.is_empty() {
+            return Err(Error::InvalidOperation("locale must be explicit".into()));
+        }
+        self.arguments = args;
+        self.env_allowed = allowed;
+        self.env_secrets = secrets;
+        self.locale = locale;
+        Ok(())
+    }
+    pub fn arguments(&mut self) -> Vec<String> {
+        self.state.args_cursor += 1;
+        self.arguments.clone()
+    }
+    pub fn environment_value(&mut self, name: &str) -> Result<Option<String>> {
+        if !self.env_allowed.contains(name) {
+            return Err(Error::InvalidOperation(format!(
+                "environment name {name} is not allowed"
+            )));
+        }
+        let cursor = self.state.env_cursor;
+        let value = if let Some((previous, value)) = self.env_observations.get(cursor) {
+            if previous != name {
+                return Err(Error::InvalidOperation(format!(
+                    "environment observation mismatch at {cursor}"
+                )));
+            }
+            value.clone()
+        } else {
+            let value = std::env::var(name).ok();
+            self.env_observations.push((name.into(), value.clone()));
+            value
+        };
+        self.state.env_cursor += 1;
+        Ok(value)
+    }
+    pub fn locale(&self) -> &str {
+        &self.locale
+    }
+    pub fn directory_entries(&mut self, path: &str) -> Result<Vec<String>> {
+        let normalized = if path == "." {
+            ".".to_string()
+        } else {
+            self.checked_path(path)?;
+            Path::new(path)
+                .components()
+                .map(|part| part.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/")
+        };
+        let path = normalized.as_str();
+        let cursor = self.state.directory_cursor;
+        if let Some((previous, entries)) = self.entry_observations.get(cursor) {
+            if previous != path {
+                return Err(Error::InvalidOperation(format!(
+                    "directory observation mismatch at {cursor}"
+                )));
+            }
+            let entries = entries.clone();
+            self.state.directory_cursor += 1;
+            return Ok(entries);
+        }
+        let mut entries = if path == "." {
+            let key = (self.state.file_epoch, ".".into());
+            if let Some(cached) = self.directory_observations.get(&key) {
+                cached.clone()
+            } else {
+                let found = Self::host_directory_entries(&self.root)?;
+                self.directory_observations.insert(key, found.clone());
+                found
+            }
+        } else {
+            self.observe_directory(path)?
+        }
+        .or_else(|| (self.state.directories.get(path) == Some(&true)).then(BTreeSet::new))
+        .ok_or_else(|| Error::MissingFile(path.into()))?;
+        if self.state.directories.get(path) == Some(&false) {
+            return Err(Error::MissingFile(path.into()));
+        }
+        let prefix = if path.is_empty() || path == "." {
+            String::new()
+        } else {
+            format!("{}/", path.trim_end_matches('/'))
+        };
+        for (name, content) in self.state.files.iter() {
+            if let Some(child) = name.strip_prefix(&prefix) {
+                if !child.is_empty() && !child.contains('/') {
+                    if content.is_some() {
+                        entries.insert(child.into());
+                    } else {
+                        entries.remove(child);
+                    }
+                }
+            }
+        }
+        for (name, exists) in self.state.directories.iter() {
+            if let Some(child) = name.strip_prefix(&prefix) {
+                if !child.is_empty() && !child.contains('/') {
+                    if *exists {
+                        entries.insert(child.into());
+                    } else {
+                        entries.remove(child);
+                    }
+                }
+            }
+        }
+        let entries = entries.into_iter().collect::<Vec<_>>();
+        self.entry_observations.push((path.into(), entries.clone()));
+        self.state.directory_cursor += 1;
+        Ok(entries)
+    }
     fn value_bytes(value: &Value) -> usize {
         match value {
             Value::Text(text) => text.len(),
             Value::Bytes(bytes) => bytes.len(),
-            Value::FileError(error) => error.len(),
+            Value::FileError(error) => {
+                error.code.len()
+                    + error.path.len()
+                    + error.causes.iter().map(String::len).sum::<usize>()
+            }
             Value::List(items) | Value::TypedList(_, items) => {
                 items.iter().map(Self::value_bytes).sum()
             }
@@ -462,15 +664,31 @@ impl Runtime {
                 .iter()
                 .map(|(key, value)| format!("{key:?}").len() + Self::value_bytes(value))
                 .sum(),
+            Value::OrderedMap(_, _, items) => items
+                .iter()
+                .map(|(key, value)| Self::value_bytes(key) + Self::value_bytes(value))
+                .sum(),
             Value::Struct(_, items) => items
                 .iter()
                 .map(|(key, value)| key.len() + Self::value_bytes(value))
                 .sum(),
+            Value::Enum(_, _, fields) => fields
+                .iter()
+                .map(|(name, value)| name.len() + Self::value_bytes(value))
+                .sum(),
+            Value::Function(name, ty) => name.len() + ty.len(),
+            Value::Closure(name, ty, captures) => {
+                name.len() + ty.len() + captures.values().map(Self::value_bytes).sum::<usize>()
+            }
             Value::Option(Some(value)) => Self::value_bytes(value),
             Value::Option(None) => 0,
             Value::Result(Ok(value)) | Value::Result(Err(value)) => Self::value_bytes(value),
             Value::Bool(_) => 1,
-            Value::Int(_) | Value::Float(_) | Value::HeapRef(_) | Value::Handle(_) => 8,
+            Value::Int(_)
+            | Value::Float(_)
+            | Value::HeapRef(_)
+            | Value::Handle(_)
+            | Value::CellRef(_) => 8,
             Value::Null => 0,
         }
     }
@@ -488,6 +706,12 @@ impl Runtime {
             directory_observations: BTreeMap::new(),
             input: Vec::new(),
             times: Vec::new(),
+            arguments: Vec::new(),
+            env_allowed: BTreeSet::new(),
+            env_secrets: BTreeSet::new(),
+            env_observations: Vec::new(),
+            entry_observations: Vec::new(),
+            locale: "en-US".into(),
             published_stdout: Journal::default(),
             published_stderr: Journal::default(),
             budget: ResourceBudget::default(),
@@ -808,6 +1032,58 @@ impl Runtime {
             files.join(","), directories.join(","), state.stdout.len(), state.stderr.len(),
             state.stdin_cursor, state.time_cursor
         ))
+    }
+    pub fn trace_checkpoint_json(&self, name: &str) -> Result<String> {
+        fn quote(input: &str) -> String {
+            let mut out = String::from("\"");
+            for c in input.chars() {
+                match c {
+                    '"' => out.push_str("\\\""),
+                    '\\' => out.push_str("\\\\"),
+                    '\n' => out.push_str("\\n"),
+                    '\r' => out.push_str("\\r"),
+                    '\t' => out.push_str("\\t"),
+                    c if c <= '\u{001f}' => out.push_str(&format!("\\u{:04x}", c as u32)),
+                    c => out.push(c),
+                }
+            }
+            out.push('"');
+            out
+        }
+        let checkpoint = self
+            .checkpoints
+            .get(name)
+            .ok_or_else(|| Error::MissingCheckpoint(name.into()))?;
+        let state = &checkpoint.state;
+        let files = state
+            .files
+            .iter()
+            .map(|(path, v)| {
+                format!(
+                    "{{\"path\":{},\"operation\":{}}}",
+                    quote(path),
+                    quote(if v.is_some() { "write" } else { "delete" })
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let dirs = state
+            .directories
+            .iter()
+            .map(|(path, v)| {
+                format!(
+                    "{{\"path\":{},\"operation\":{}}}",
+                    quote(path),
+                    quote(if *v { "create" } else { "delete" })
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let parent = checkpoint
+            .parent
+            .as_ref()
+            .map_or("null".into(), |p| quote(p));
+        Ok(format!("{{\"checkpoint\":{},\"parent\":{},\"pc\":{},\"frames\":{},\"files\":[{}],\"directories\":[{}],\"stdout_bytes\":{},\"stderr_bytes\":{},\"cursors\":{{\"stdin\":{},\"time\":{},\"args\":{},\"env\":{},\"directory\":{}}},\"secret_env_count\":{}}}",quote(name),parent,state.program_counter,state.call_frames.len(),files,dirs,state.stdout.len(),state.stderr.len(),state.stdin_cursor,state.time_cursor,state.args_cursor,state.env_cursor,state.directory_cursor,self.env_secrets.len()))
     }
     pub fn begin_branch(&self) -> BranchAnchor {
         BranchAnchor {
@@ -1432,6 +1708,19 @@ impl Runtime {
                     .get(&(self.state.file_epoch, path.clone()));
                 let actual = Self::host_directory_entries(&self.checked_path(path)?)?;
                 if expected != Some(&actual) {
+                    return Err(Error::ExternalStateConflict(path.clone()));
+                }
+            }
+            for ((epoch, path), expected) in &self.directory_observations {
+                if *epoch != self.state.file_epoch {
+                    continue;
+                }
+                let full = if path == "." {
+                    self.root.clone()
+                } else {
+                    self.checked_path(path)?
+                };
+                if Self::host_directory_entries(&full)? != *expected {
                     return Err(Error::ExternalStateConflict(path.clone()));
                 }
             }
