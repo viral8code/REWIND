@@ -1,0 +1,14 @@
+[package]
+name = "rewind"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "A transactional runtime with named checkpoints and virtual I/O"
+
+[lib]
+name = "rewind"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rewind"
+path = "src/main.rs"
