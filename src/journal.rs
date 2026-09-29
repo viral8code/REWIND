@@ -17,7 +17,7 @@ pub(crate) struct Segment {
     storage: Mutex<Storage>,
 }
 impl Segment {
-    fn new(bytes: Vec<u8>) -> Self {
+    pub(crate) fn new(bytes: Vec<u8>) -> Self {
         Self {
             id: NEXT_SPILL.fetch_add(1, Ordering::Relaxed),
             storage: Mutex::new(Storage::Memory(bytes)),
@@ -50,7 +50,7 @@ impl Segment {
         *storage = Storage::Spill(path, bytes.len());
         Ok(())
     }
-    fn write_to(&self, writer: &mut impl Write) -> io::Result<()> {
+    pub(crate) fn write_to(&self, writer: &mut impl Write) -> io::Result<()> {
         match &*self.storage.lock().expect("journal lock") {
             Storage::Memory(bytes) => writer.write_all(bytes),
             Storage::Spill(path, _) => {
@@ -59,6 +59,11 @@ impl Segment {
                 Ok(())
             }
         }
+    }
+    pub(crate) fn bytes(&self) -> io::Result<Vec<u8>> {
+        let mut bytes = Vec::new();
+        self.write_to(&mut bytes)?;
+        Ok(bytes)
     }
 }
 impl Drop for Segment {
