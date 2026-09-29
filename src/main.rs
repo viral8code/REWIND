@@ -2,6 +2,7 @@ use rewind::{Error, ResourceBudget, Result, Runtime, Value};
 use std::env;
 use std::fs;
 use std::io::{self, BufRead};
+use std::path::{Path, PathBuf};
 mod v2;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -499,6 +500,36 @@ fn run_cli() -> Result<()> {
     let script = args
         .next()
         .ok_or_else(|| Error::InvalidOperation("usage: rewind <script.rw> [--root DIR]".into()))?;
+    if script == "sign" {
+        let package = PathBuf::from(args.next().ok_or_else(|| {
+            Error::InvalidOperation(
+                "usage: rewind sign PACKAGE --key SEED [--output SIGNATURE]".into(),
+            )
+        })?);
+        let mut key = None;
+        let mut output = package.join("rewind.signature");
+        while let Some(option) = args.next() {
+            match option.as_str() {
+                "--key" => {
+                    key = Some(PathBuf::from(args.next().ok_or_else(|| {
+                        Error::InvalidOperation("missing signing seed".into())
+                    })?))
+                }
+                "--output" => {
+                    output = args
+                        .next()
+                        .ok_or_else(|| Error::InvalidOperation("missing signature path".into()))?
+                        .into()
+                }
+                _ => return Err(Error::InvalidOperation(format!("unknown option {option}"))),
+            }
+        }
+        return v2::sign_package(
+            &package,
+            &key.ok_or_else(|| Error::InvalidOperation("--key is required".into()))?,
+            &output,
+        );
+    }
     if script == "fmt" {
         let file = args
             .next()
@@ -553,7 +584,7 @@ fn run_cli() -> Result<()> {
         }
         return Ok(());
     }
-    if script == "lock" {
+    if script == "lock" || script == "update" {
         let mut root = env::current_dir()?;
         if let Some(option) = args.next() {
             if option != "--root" {
@@ -567,9 +598,16 @@ fn run_cli() -> Result<()> {
         if args.next().is_some() {
             return Err(Error::InvalidOperation("too many arguments".into()));
         }
-        return v2::lock_project(&root);
+        return if script == "update" {
+            v2::update_project(&root)
+        } else {
+            v2::lock_project(&root)
+        };
     }
-    if matches!(script.as_str(), "check" | "run" | "test" | "trace") {
+    if matches!(
+        script.as_str(),
+        "check" | "run" | "test" | "trace" | "build" | "debug" | "profile" | "replay"
+    ) {
         let remaining = args.collect::<Vec<_>>();
         let mut index = 0;
         let default_file = remaining.first().is_none_or(|s| s.starts_with("--"));
@@ -584,7 +622,11 @@ fn run_cli() -> Result<()> {
         };
         let mut root = env::current_dir()?;
         let mut trace = script == "trace";
-        let mut options = v2::RunOptions::default();
+        let mut options = v2::RunOptions {
+            inspect: script == "debug",
+            profile: script == "profile",
+            ..v2::RunOptions::default()
+        };
         let mut files = vec![if default_file {
             String::new()
         } else {
@@ -609,6 +651,55 @@ fn run_cli() -> Result<()> {
                 "--trace-json" => {
                     trace = true;
                     options.trace_json = true;
+                }
+                "--output" | "--record" => {
+                    let option = remaining[index].clone();
+                    index += 1;
+                    let path =
+                        PathBuf::from(remaining.get(index).ok_or_else(|| {
+                            Error::InvalidOperation("missing output path".into())
+                        })?);
+                    if option == "--record" {
+                        options.record = Some(path);
+                    } else {
+                        options.output = Some(path);
+                    }
+                }
+                "--explore" => {
+                    index += 1;
+                    let limit = remaining
+                        .get(index)
+                        .ok_or_else(|| {
+                            Error::InvalidOperation("missing exploration budget".into())
+                        })?
+                        .parse::<usize>()
+                        .map_err(|_| {
+                            Error::InvalidOperation("invalid exploration budget".into())
+                        })?;
+                    if script != "test" || !(1..=10000).contains(&limit) {
+                        return Err(Error::InvalidOperation(
+                            "--explore requires test and budget 1..10000".into(),
+                        ));
+                    }
+                    options.explore = limit;
+                }
+                "--task-steps" => {
+                    index += 1;
+                    let limit = remaining
+                        .get(index)
+                        .ok_or_else(|| {
+                            Error::InvalidOperation("missing task instruction budget".into())
+                        })?
+                        .parse::<usize>()
+                        .map_err(|_| {
+                            Error::InvalidOperation("invalid task instruction budget".into())
+                        })?;
+                    if limit == 0 {
+                        return Err(Error::InvalidOperation(
+                            "task instruction budget must be positive".into(),
+                        ));
+                    }
+                    options.task_steps = Some(limit);
                 }
                 "--allow-env" | "--secret-env" => {
                     let secret = remaining[index] == "--secret-env";
@@ -646,6 +737,12 @@ fn run_cli() -> Result<()> {
             index += 1;
         }
         let file = if default_file { String::new() } else { file };
+        if script == "debug" && Path::new(&file).extension().is_some_and(|e| e == "json") {
+            return v2::debug_trace(Path::new(&file));
+        }
+        if script == "replay" {
+            return v2::replay_trace(Path::new(&file), &root, options);
+        }
         if script == "check" {
             let mut errors = Vec::new();
             for path in files {

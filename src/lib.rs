@@ -5,6 +5,7 @@
 //! live outside checkpoints, while their cursors live inside them.
 
 pub mod journal;
+mod replay;
 use journal::{Journal, Segment};
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -523,6 +524,9 @@ pub struct Runtime {
     published_stderr: Journal,
     budget: ResourceBudget,
     publish_failure: Option<String>,
+    replaying: bool,
+    input_eof: bool,
+    virtual_publish: bool,
 }
 
 impl Runtime {
@@ -566,6 +570,11 @@ impl Runtime {
             }
             value.clone()
         } else {
+            if self.replaying {
+                return Err(Error::InvalidOperation(format!(
+                    "ReplayMismatch: env observation {name} at {cursor}"
+                )));
+            }
             let value = std::env::var(name).ok();
             self.env_observations.push((name.into(), value.clone()));
             value
@@ -604,6 +613,11 @@ impl Runtime {
             if let Some(cached) = self.directory_observations.get(&key) {
                 cached.clone()
             } else {
+                if self.replaying {
+                    return Err(Error::InvalidOperation(format!(
+                        "ReplayMismatch: directory observation {path}"
+                    )));
+                }
                 let found = Self::host_directory_entries(&self.root)?;
                 self.directory_observations.insert(key, found.clone());
                 found
@@ -648,7 +662,7 @@ impl Runtime {
         self.state.directory_cursor += 1;
         Ok(entries)
     }
-    fn value_bytes(value: &Value) -> usize {
+    pub fn value_bytes(value: &Value) -> usize {
         match value {
             Value::Text(text) => text.len(),
             Value::Bytes(bytes) => bytes.len(),
@@ -716,6 +730,9 @@ impl Runtime {
             published_stderr: Journal::default(),
             budget: ResourceBudget::default(),
             publish_failure: None,
+            replaying: false,
+            input_eof: false,
+            virtual_publish: false,
         })
     }
 
@@ -843,6 +860,27 @@ impl Runtime {
     }
     pub fn set_program_counter(&mut self, pc: usize) {
         self.state.program_counter = pc;
+    }
+    /// Replace only the active task's compute roots; virtual I/O and heap stay shared.
+    pub fn set_task_compute(
+        &mut self,
+        stack: Arc<Vec<Value>>,
+        frames: Arc<Vec<CallFrame>>,
+        globals: Arc<BTreeMap<String, Value>>,
+    ) -> Result<()> {
+        let previous = (
+            self.state.stack.clone(),
+            self.state.call_frames.clone(),
+            self.state.globals.clone(),
+        );
+        self.state.stack = stack;
+        self.state.call_frames = frames;
+        self.state.globals = globals;
+        if let Err(error) = self.enforce_budget() {
+            (self.state.stack, self.state.call_frames, self.state.globals) = previous;
+            return Err(error);
+        }
+        Ok(())
     }
     pub fn push_stack(&mut self, value: Value) -> Result<()> {
         let previous = self.state.stack.clone();
@@ -1124,8 +1162,18 @@ impl Runtime {
     pub fn input_line(&mut self, source: &mut impl io::BufRead) -> Result<Option<String>> {
         let cursor = self.state.stdin_cursor;
         if cursor == self.input.len() {
+            if self.replaying {
+                return if self.input_eof {
+                    Ok(None)
+                } else {
+                    Err(Error::InvalidOperation(format!(
+                        "ReplayMismatch: stdin at {cursor}"
+                    )))
+                };
+            }
             let mut line = String::new();
             if source.read_line(&mut line)? == 0 {
+                self.input_eof = true;
                 return Ok(None);
             }
             self.input.push(line);
@@ -1140,6 +1188,11 @@ impl Runtime {
     pub fn now_millis(&mut self) -> Result<u128> {
         let cursor = self.state.time_cursor;
         if cursor == self.times.len() {
+            if self.replaying {
+                return Err(Error::InvalidOperation(format!(
+                    "ReplayMismatch: clock at {cursor}"
+                )));
+            }
             self.times.push(
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -1202,6 +1255,11 @@ impl Runtime {
         if let Some(entries) = self.directory_observations.get(&key) {
             return Ok(entries.clone());
         }
+        if self.replaying {
+            return Err(Error::InvalidOperation(format!(
+                "ReplayMismatch: directory observation {path}"
+            )));
+        }
         let entries = Self::host_directory_entries(&full)?;
         self.directory_observations.insert(key, entries.clone());
         Ok(entries)
@@ -1245,6 +1303,11 @@ impl Runtime {
         if let Some(o) = self.observations.get(&key) {
             return Ok(o.version.clone());
         }
+        if self.replaying {
+            return Err(Error::InvalidOperation(format!(
+                "ReplayMismatch: file metadata {path}"
+            )));
+        }
         let version = Self::host_version(&full)?;
         self.observations.insert(
             key,
@@ -1271,6 +1334,11 @@ impl Runtime {
         let needs_host =
             (first..=last).any(|index| !self.observations[&key].blocks.contains_key(&index));
         if needs_host {
+            if self.replaying {
+                return Err(Error::InvalidOperation(format!(
+                    "ReplayMismatch: file blocks {path} offset {offset}"
+                )));
+            }
             let full = self.checked_path(path)?;
             if Self::host_version(&full)? != Some(version.clone()) {
                 return Err(Error::ExternalStateConflict(path.into()));
@@ -1676,6 +1744,24 @@ impl Runtime {
             return Err(Error::InvalidOperation(
                 "cannot publish an output history that predates an earlier publish".into(),
             ));
+        }
+        if self.replaying || self.virtual_publish {
+            if !self.virtual_publish {
+                self.state
+                    .stdout
+                    .write_since(&self.published_stdout, stdout)?;
+                self.state
+                    .stderr
+                    .write_since(&self.published_stderr, stderr)?;
+            }
+            self.published_stdout = self.state.stdout.clone();
+            self.published_stderr = self.state.stderr.clone();
+            if !self.virtual_publish {
+                self.state.files = Arc::new(BTreeMap::new());
+                self.state.directories = Arc::new(BTreeMap::new());
+            }
+            self.state.file_epoch = next_epoch;
+            return Ok(());
         }
         let changed: BTreeSet<_> = self
             .state

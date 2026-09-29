@@ -5,6 +5,10 @@ pub(super) struct ProjectConfig {
     pub entry: PathBuf,
     pub imports: BTreeMap<String, PathBuf>,
     pub language: String,
+    pub effects: BTreeSet<String>,
+    versions: BTreeMap<String, String>,
+    signers: BTreeMap<String, String>,
+    trust: BTreeMap<String, String>,
 }
 
 fn quoted(value: &str) -> Result<String> {
@@ -47,19 +51,26 @@ impl ProjectConfig {
         let mut source_root = None;
         let mut entry = None;
         let mut deps = BTreeMap::new();
+        let mut effects = BTreeSet::new();
+        let mut versions = BTreeMap::new();
+        let mut signers = BTreeMap::new();
+        let mut trust = BTreeMap::new();
         for (line, text) in source.lines().enumerate() {
             let text = text.split('#').next().unwrap_or("").trim();
             if text.is_empty() {
                 continue;
             }
             if text.starts_with('[') {
-                if text != "[dependencies]" {
+                if !matches!(
+                    text,
+                    "[dependencies]" | "[dependency_versions]" | "[dependency_signers]" | "[trust]"
+                ) {
                     return Err(Error::InvalidOperation(format!(
                         "rewind.toml:{}: unsupported section",
                         line + 1
                     )));
                 }
-                section = "dependencies";
+                section = text.trim_matches(['[', ']']);
                 continue;
             }
             let (key, value) = text.split_once('=').ok_or_else(|| {
@@ -67,8 +78,14 @@ impl ProjectConfig {
             })?;
             let key = key.trim();
             let value = quoted(value)?;
-            if section == "dependencies" {
-                if key.is_empty() || deps.insert(key.to_string(), value).is_some() {
+            if !section.is_empty() {
+                let entries = match section {
+                    "dependencies" => &mut deps,
+                    "dependency_versions" => &mut versions,
+                    "dependency_signers" => &mut signers,
+                    _ => &mut trust,
+                };
+                if key.is_empty() || entries.insert(key.to_string(), value).is_some() {
                     return Err(Error::InvalidOperation(format!(
                         "rewind.toml:{}: duplicate dependency",
                         line + 1
@@ -79,6 +96,14 @@ impl ProjectConfig {
                     "language" => language = Some(value),
                     "source_root" => source_root = Some(value),
                     "entry" => entry = Some(value),
+                    "effects" => {
+                        effects = value
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_string)
+                            .collect()
+                    }
                     _ => {
                         return Err(Error::InvalidOperation(format!(
                             "rewind.toml:{}: unknown key {key}",
@@ -90,7 +115,7 @@ impl ProjectConfig {
         }
         let language = language
             .ok_or_else(|| Error::InvalidOperation("rewind.toml: language is required".into()))?;
-        if !matches!(language.as_str(), "0.2" | "0.3") {
+        if !matches!(language.as_str(), "0.2" | "0.3" | "0.4") {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
             )));
@@ -109,7 +134,7 @@ impl ProjectConfig {
                     "invalid dependency name {name}"
                 )));
             }
-            let full = inside(&root, &path)?;
+            let full = inside(&root, path.strip_prefix("file:").unwrap_or(&path))?;
             if !full.is_dir() {
                 return Err(Error::InvalidPath(path));
             }
@@ -120,6 +145,10 @@ impl ProjectConfig {
             entry,
             imports,
             language,
+            effects,
+            versions,
+            signers,
+            trust,
         }))
     }
     fn digest(path: &Path, root: &Path, hash: &mut u128) -> Result<()> {
@@ -158,6 +187,9 @@ impl ProjectConfig {
         Ok(())
     }
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
+        if self.language == "0.4" {
+            return self.secure_lock(root, update);
+        }
         let mut expected = format!(
             "version = 1\nlanguage = \"{}\"\n\n[dependencies]\n",
             self.language
@@ -176,6 +208,89 @@ impl ProjectConfig {
         } else if fs::read_to_string(path)? != expected {
             return Err(Error::InvalidOperation(
                 "rewind.lock dependency hash mismatch; run 'rewind lock' to update".into(),
+            ));
+        }
+        Ok(())
+    }
+    fn secure_lock(&self, root: &Path, update: bool) -> Result<()> {
+        use ed25519_dalek::{Signature, VerifyingKey};
+        let mut dependencies = serde_json::Map::new();
+        for (name, path) in &self.imports {
+            if name.is_empty() {
+                continue;
+            }
+            let metadata: serde_json::Value =
+                serde_json::from_slice(&fs::read(path.join("rewind.package.json"))?)
+                    .map_err(|e| Error::InvalidOperation(format!("package {name}: {e}")))?;
+            let version = metadata["version"].as_str().ok_or_else(|| {
+                Error::InvalidOperation(format!("package {name}: missing version"))
+            })?;
+            if metadata["name"].as_str() != Some(name) {
+                return Err(Error::InvalidOperation(format!(
+                    "package {name}: metadata name mismatch"
+                )));
+            }
+            let wanted = self.versions.get(name).ok_or_else(|| {
+                Error::InvalidOperation(format!("package {name}: missing version requirement"))
+            })?;
+            let requirement = semver::VersionReq::parse(wanted)
+                .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            let actual = semver::Version::parse(version)
+                .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            if !requirement.matches(&actual) {
+                return Err(Error::InvalidOperation(format!(
+                    "package {name}: version {version} does not satisfy {wanted}"
+                )));
+            }
+            let signer = self.signers.get(name).ok_or_else(|| {
+                Error::InvalidOperation(format!("package {name}: missing signer"))
+            })?;
+            let public = self.trust.get(signer).ok_or_else(|| {
+                Error::InvalidOperation(format!("untrusted package signer {signer}"))
+            })?;
+            let key_bytes = super::packages::decode_hex(public)?;
+            let key = VerifyingKey::from_bytes(&key_bytes.try_into().map_err(|_| {
+                Error::InvalidOperation("Ed25519 public key must have 32 bytes".into())
+            })?)
+            .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            let hash = super::packages::package_hash(path)?;
+            let signature_hex = fs::read_to_string(path.join("rewind.signature"))?;
+            let signature =
+                Signature::from_slice(&super::packages::decode_hex(signature_hex.trim())?)
+                    .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            key.verify_strict(
+                super::packages::signature_message(&hash).as_bytes(),
+                &signature,
+            )
+            .map_err(|_| {
+                Error::InvalidOperation(format!("package {name}: signature verification failed"))
+            })?;
+            let needed = metadata["effects"].as_array().ok_or_else(|| {
+                Error::InvalidOperation(format!("package {name}: missing effects array"))
+            })?;
+            for effect in needed {
+                let effect = effect.as_str().ok_or_else(|| {
+                    Error::InvalidOperation("package effect must be a string".into())
+                })?;
+                if !self.effects.contains(effect) {
+                    return Err(Error::InvalidOperation(format!(
+                        "package {name}: effect {effect} is not allowed"
+                    )));
+                }
+            }
+            dependencies.insert(name.clone(),serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()}));
+        }
+        let expected=serde_json::to_string_pretty(&serde_json::json!({"format":2,"language":"0.4","compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies})).map_err(|e| Error::InvalidOperation(e.to_string()))?+"\n";
+        let path = root.join("rewind.lock");
+        if update {
+            fs::write(path, expected)?;
+        } else if !path.exists() {
+            return Err(Error::InvalidOperation(
+                "v0.4 requires rewind.lock; run 'rewind update' explicitly".into(),
+            ));
+        } else if fs::read_to_string(path)? != expected {
+            return Err(Error::InvalidOperation(
+                "rewind.lock mismatch; run 'rewind update' explicitly".into(),
             ));
         }
         Ok(())
