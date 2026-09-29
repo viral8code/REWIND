@@ -1,9 +1,20 @@
-use rewind::{Error, MapKey, ResourceBudget, Result, Runtime, Value};
+use rewind::{Error, FileFailure, MapKey, ResourceBudget, Result, Runtime, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
+mod project;
 mod vm;
+
+#[derive(Clone, Default)]
+pub struct RunOptions {
+    pub arguments: Vec<String>,
+    pub allowed_env: BTreeSet<String>,
+    pub secret_env: BTreeSet<String>,
+    pub locale: Option<String>,
+    pub test_filter: Option<String>,
+    pub trace_json: bool,
+}
 
 #[derive(Clone, Debug)]
 struct Tok {
@@ -133,13 +144,14 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
                         | ('%', '=')
                         | ('-', '>')
                         | ('=', '>')
+                        | (':', ':')
                         | ('.', '.')
                 ) {
                     text.push(it.next().unwrap());
                     col += 1;
                 }
             }
-            if text.len() == 1 && !"=+-*/%(),;{}.!<>?:[]".contains(c) {
+            if text.len() == 1 && !"=+-*/%(),;{}.!<>?:[]|".contains(c) {
                 return Err(diagnostic(
                     &Tok {
                         text,
@@ -178,6 +190,19 @@ enum ExprKind {
     Call(Box<Expr>, Vec<Expr>),
     Member(Box<Expr>, String),
     Try(Box<Expr>),
+    Match(Box<Expr>, Vec<(Pattern, Option<Expr>, Expr)>),
+    Closure(Vec<(String, String)>, String, Vec<Stmt>),
+    NamedConstructor(String, Vec<(String, Expr)>),
+}
+#[derive(Clone, Debug)]
+enum Pattern {
+    Wildcard,
+    Bind(String),
+    Literal(Value),
+    Range(i64, i64),
+    Variant(String, Vec<Pattern>),
+    List(Vec<Pattern>),
+    Struct(String, Vec<(String, Pattern)>),
 }
 #[derive(Clone, Debug)]
 struct Stmt {
@@ -187,6 +212,7 @@ struct Stmt {
 #[derive(Clone, Debug)]
 enum StmtKind {
     Let(String, bool, Option<String>, Expr),
+    Using(String, Expr),
     Assign(Expr, String, Expr),
     Expr(Expr),
     Block(Vec<Stmt>),
@@ -204,30 +230,62 @@ enum StmtKind {
     Publish(bool),
     Branch(String, Vec<Stmt>),
     Runtime(ResourceBudget, Option<usize>),
-    Match(Expr, Vec<(String, String, Expr)>),
+    Match(Expr, Vec<(Pattern, Option<Expr>, Stmt)>),
 }
 #[derive(Clone, Debug)]
 struct Function {
+    type_params: Vec<(String, Option<String>)>,
     params: Vec<(String, String)>,
     ret: String,
     body: Vec<Stmt>,
     at: Tok,
     test: bool,
+    public: bool,
+    origin: PathBuf,
 }
 #[derive(Clone, Debug)]
 struct StructDef {
+    type_params: Vec<String>,
     fields: Vec<(String, String)>,
+    public: bool,
+    origin: PathBuf,
+}
+#[derive(Clone, Debug)]
+struct TraitDef {
+    methods: BTreeMap<String, (Vec<String>, String)>,
+    public: bool,
+    origin: PathBuf,
+}
+#[derive(Clone, Debug)]
+struct EnumDef {
+    type_params: Vec<String>,
+    variants: BTreeMap<String, Vec<(String, String)>>,
+    public: bool,
+    origin: PathBuf,
 }
 #[derive(Clone, Debug, Default)]
 struct Program {
     stmts: Vec<Stmt>,
     functions: BTreeMap<String, Function>,
     structs: BTreeMap<String, StructDef>,
+    traits: BTreeMap<String, TraitDef>,
+    impls: BTreeMap<(String, String), BTreeMap<String, String>>,
+    impl_origins: BTreeMap<(String, String), PathBuf>,
+    enums: BTreeMap<String, EnumDef>,
+    consts: BTreeMap<String, String>,
+    const_origins: BTreeMap<String, (bool, PathBuf)>,
+    stmt_origins: Vec<PathBuf>,
+    strict_visibility: bool,
+    root_origin: PathBuf,
+    import_aliases: BTreeMap<String, String>,
+    import_exposure: BTreeMap<(PathBuf, PathBuf), BTreeSet<String>>,
+    included_modules: BTreeSet<PathBuf>,
 }
 
 struct Parser {
     toks: Vec<Tok>,
     pos: usize,
+    type_depth: usize,
 }
 impl Parser {
     fn current(&self) -> &Tok {
@@ -269,7 +327,38 @@ impl Parser {
         }
     }
     fn ty(&mut self) -> Result<String> {
+        if self.type_depth >= 64 {
+            return Err(diagnostic(
+                &self.toks[self.pos],
+                "TypeExpansionBudgetExceeded: nesting",
+            ));
+        }
+        self.type_depth += 1;
+        let result = self.ty_inner();
+        self.type_depth -= 1;
+        result
+    }
+    fn ty_inner(&mut self) -> Result<String> {
+        if self.eat("fn") {
+            self.need("(")?;
+            let mut args = Vec::new();
+            if !self.eat(")") {
+                loop {
+                    args.push(self.ty()?);
+                    if self.eat(")") {
+                        break;
+                    }
+                    self.need(",")?;
+                }
+            }
+            self.need("->")?;
+            return Ok(format!("fn({})->{}", args.join(","), self.ty()?));
+        }
         let mut name = self.name()?;
+        while self.eat(".") {
+            name.push('.');
+            name.push_str(&self.name()?);
+        }
         if self.eat("<") {
             name.push('<');
             loop {
@@ -284,26 +373,258 @@ impl Parser {
         }
         Ok(name)
     }
+    fn type_params(&mut self) -> Result<Vec<(String, Option<String>)>> {
+        let mut params = Vec::new();
+        if self.eat("<") {
+            loop {
+                let name = self.name()?;
+                let bound = if self.eat(":") {
+                    Some(self.name()?)
+                } else {
+                    None
+                };
+                if params.iter().any(|(n, _)| n == &name) {
+                    return Err(diagnostic(
+                        self.current(),
+                        format!("duplicate type parameter {name}"),
+                    ));
+                }
+                params.push((name, bound));
+                if self.eat(">") {
+                    break;
+                }
+                self.need(",")?;
+            }
+        }
+        Ok(params)
+    }
     fn program(&mut self) -> Result<Program> {
         let mut p = Program::default();
         while !self.is("<eof>") {
+            let public = self.eat("pub");
             if self.eat("import") {
+                if public {
+                    return Err(diagnostic(self.current(), "import cannot be public"));
+                }
                 let mut path = self.name()?;
+                let mut selected = Vec::new();
                 while self.eat(".") {
+                    if self.eat("{") {
+                        while !self.eat("}") {
+                            let item = self.name()?;
+                            let alias = if self.eat("as") {
+                                self.name()?
+                            } else {
+                                item.clone()
+                            };
+                            selected.push((item, alias));
+                            if !self.is("}") {
+                                self.need(",")?;
+                            }
+                        }
+                        break;
+                    }
                     path.push('/');
                     path.push_str(&self.name()?);
+                }
+                if self.eat("::") {
+                    self.need("{")?;
+                    while !self.eat("}") {
+                        let item = self.name()?;
+                        let alias = if self.eat("as") {
+                            self.name()?
+                        } else {
+                            item.clone()
+                        };
+                        selected.push((item, alias));
+                        if !self.is("}") {
+                            self.need(",")?;
+                        }
+                    }
+                }
+                let alias = if self.eat("as") {
+                    self.name()?
+                } else {
+                    String::new()
+                };
+                if !alias.is_empty() && !selected.is_empty() {
+                    return Err(diagnostic(
+                        self.current(),
+                        "choose module alias or selective import",
+                    ));
                 }
                 self.need(";")?;
                 let at = self.toks[self.pos - 1].clone();
                 p.stmts.push(Stmt {
                     kind: StmtKind::Expr(Expr {
-                        kind: ExprKind::Name(format!("@import:{path}")),
+                        kind: ExprKind::Name(format!(
+                            "@import:{path}|{alias}|{}",
+                            selected
+                                .iter()
+                                .map(|(a, b)| format!("{a}={b}"))
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        )),
                         at: at.clone(),
                     }),
                     at,
                 });
+            } else if self.eat("enum") {
+                let name = self.name()?;
+                let type_params = self.type_params()?.into_iter().map(|(n, _)| n).collect();
+                self.need("{")?;
+                let mut variants = BTreeMap::new();
+                while !self.eat("}") {
+                    let variant = self.name()?;
+                    let mut fields = Vec::new();
+                    if self.eat("(") {
+                        if !self.eat(")") {
+                            loop {
+                                fields.push((fields.len().to_string(), self.ty()?));
+                                if self.eat(")") {
+                                    break;
+                                }
+                                self.need(",")?;
+                            }
+                        }
+                    } else if self.eat("{") {
+                        while !self.eat("}") {
+                            let field = self.name()?;
+                            self.need(":")?;
+                            fields.push((field, self.ty()?));
+                            if !self.is("}") {
+                                self.need(",")?;
+                            }
+                        }
+                    }
+                    if variants.insert(variant.clone(), fields).is_some() {
+                        return Err(diagnostic(
+                            self.current(),
+                            format!("duplicate variant {variant}"),
+                        ));
+                    }
+                    if !self.is("}") {
+                        self.need(",")?;
+                    }
+                }
+                if p.enums
+                    .insert(
+                        name.clone(),
+                        EnumDef {
+                            type_params,
+                            variants,
+                            public,
+                            origin: PathBuf::new(),
+                        },
+                    )
+                    .is_some()
+                {
+                    return Err(diagnostic(self.current(), format!("duplicate enum {name}")));
+                }
+            } else if self.eat("trait") {
+                let name = self.name()?;
+                self.need("{")?;
+                let mut methods = BTreeMap::new();
+                while !self.eat("}") {
+                    self.need("fn")?;
+                    let method = self.name()?;
+                    self.need("(")?;
+                    let mut args = Vec::new();
+                    if !self.eat(")") {
+                        loop {
+                            self.name()?;
+                            self.need(":")?;
+                            args.push(self.ty()?);
+                            if self.eat(")") {
+                                break;
+                            }
+                            self.need(",")?;
+                        }
+                    }
+                    self.need("->")?;
+                    let ret = self.ty()?;
+                    self.need(";")?;
+                    if methods.insert(method.clone(), (args, ret)).is_some() {
+                        return Err(diagnostic(
+                            self.current(),
+                            format!("duplicate trait method {method}"),
+                        ));
+                    }
+                }
+                if p.traits
+                    .insert(
+                        name.clone(),
+                        TraitDef {
+                            methods,
+                            public,
+                            origin: PathBuf::new(),
+                        },
+                    )
+                    .is_some()
+                {
+                    return Err(diagnostic(
+                        self.current(),
+                        format!("duplicate trait {name}"),
+                    ));
+                }
+            } else if self.eat("impl") {
+                if public {
+                    return Err(diagnostic(self.current(), "impl cannot be public"));
+                }
+                let tr = self.name()?;
+                self.need("for")?;
+                let target = self.ty()?;
+                self.need("{")?;
+                let mut methods = BTreeMap::new();
+                while !self.eat("}") {
+                    let at = self.current().clone();
+                    self.need("fn")?;
+                    let method = self.name()?;
+                    self.need("(")?;
+                    let mut params = Vec::new();
+                    if !self.eat(")") {
+                        loop {
+                            let arg = self.name()?;
+                            self.need(":")?;
+                            let ty = self.ty()?.replace("Self", &target);
+                            params.push((arg, ty));
+                            if self.eat(")") {
+                                break;
+                            }
+                            self.need(",")?;
+                        }
+                    }
+                    self.need("->")?;
+                    let ret = self.ty()?.replace("Self", &target);
+                    let body = self.block()?;
+                    let symbol = format!("$impl${tr}${target}${method}");
+                    if methods.insert(method, symbol.clone()).is_some() {
+                        return Err(diagnostic(&at, "duplicate impl method"));
+                    }
+                    p.functions.insert(
+                        symbol,
+                        Function {
+                            type_params: Vec::new(),
+                            params,
+                            ret,
+                            body,
+                            at,
+                            test: false,
+                            public: false,
+                            origin: PathBuf::new(),
+                        },
+                    );
+                }
+                if p.impls
+                    .insert((tr.clone(), target.clone()), methods)
+                    .is_some()
+                {
+                    return Err(diagnostic(self.current(), "duplicate trait implementation"));
+                }
+                p.impl_origins.insert((tr, target), PathBuf::new());
             } else if self.eat("struct") {
                 let name = self.name()?;
+                let type_params = self.type_params()?.into_iter().map(|(n, _)| n).collect();
                 self.need("{")?;
                 let mut fields = Vec::new();
                 while !self.eat("}") {
@@ -316,7 +637,15 @@ impl Parser {
                     }
                 }
                 if p.structs
-                    .insert(name.clone(), StructDef { fields })
+                    .insert(
+                        name.clone(),
+                        StructDef {
+                            type_params,
+                            fields,
+                            public,
+                            origin: PathBuf::new(),
+                        },
+                    )
                     .is_some()
                 {
                     return Err(diagnostic(
@@ -325,14 +654,13 @@ impl Parser {
                     ));
                 }
             } else if self.is("fn")
-                || self.is("pub")
                 || (self.is("test") && self.toks.get(self.pos + 1).is_some_and(|t| t.text == "fn"))
             {
                 let test = self.eat("test");
-                let public = self.eat("pub");
                 let at = self.current().clone();
                 self.need("fn")?;
                 let name = self.name()?;
+                let type_params = self.type_params()?;
                 self.need("(")?;
                 let mut params = Vec::new();
                 if !self.eat(")") {
@@ -360,11 +688,14 @@ impl Parser {
                     .insert(
                         name.clone(),
                         Function {
+                            type_params,
                             params,
                             ret,
                             body,
                             at,
                             test,
+                            public,
+                            origin: PathBuf::new(),
                         },
                     )
                     .is_some()
@@ -374,7 +705,27 @@ impl Parser {
                         format!("duplicate function {name}"),
                     ));
                 }
+            } else if self.eat("const") {
+                let at = self.current().clone();
+                let name = self.name()?;
+                self.need(":")?;
+                let ty = self.ty()?;
+                self.need("=")?;
+                let expr = self.expr(0)?;
+                self.need(";")?;
+                p.const_origins
+                    .insert(name.clone(), (public, PathBuf::new()));
+                if public {
+                    p.consts.insert(name.clone(), ty.clone());
+                }
+                p.stmts.push(Stmt {
+                    kind: StmtKind::Let(name, false, Some(ty), expr),
+                    at,
+                });
             } else {
+                if public {
+                    return Err(diagnostic(self.current(), "pub requires a declaration"));
+                }
                 p.stmts.push(self.stmt()?);
             }
         }
@@ -391,6 +742,104 @@ impl Parser {
         }
         Ok(body)
     }
+    fn pattern(&mut self) -> Result<Pattern> {
+        let at = self.current().clone();
+        if self.eat("_") {
+            return Ok(Pattern::Wildcard);
+        }
+        if self.eat("[") {
+            let mut fields = Vec::new();
+            while !self.eat("]") {
+                fields.push(self.pattern()?);
+                if !self.is("]") {
+                    self.need(",")?;
+                }
+            }
+            return Ok(Pattern::List(fields));
+        }
+        if at.text == "true" || at.text == "false" {
+            self.pos += 1;
+            return Ok(Pattern::Literal(Value::Bool(at.text == "true")));
+        }
+        if at.text.starts_with('"') {
+            let expr = self.expr(0)?;
+            if let ExprKind::Value(v) = expr.kind {
+                return Ok(Pattern::Literal(v));
+            }
+            return Err(diagnostic(&at, "invalid literal pattern"));
+        }
+        if at.text.chars().next().is_some_and(|c| c.is_ascii_digit()) || at.text == "-" {
+            let negative = self.eat("-");
+            let token = self.current().clone();
+            self.pos += 1;
+            let mut first = token
+                .text
+                .parse::<i64>()
+                .map_err(|_| diagnostic(&token, "expected integer pattern"))?;
+            if negative {
+                first = -first;
+            }
+            if self.eat("..") {
+                let end = self.current().clone();
+                self.pos += 1;
+                return Ok(Pattern::Range(
+                    first,
+                    end.text
+                        .parse()
+                        .map_err(|_| diagnostic(&end, "expected range end"))?,
+                ));
+            }
+            return Ok(Pattern::Literal(Value::Int(first)));
+        }
+        let mut name = self.name()?;
+        while self.eat(".") {
+            name.push('.');
+            name.push_str(&self.name()?);
+        }
+        if self.eat("<") {
+            name.push('<');
+            loop {
+                name.push_str(&self.ty()?);
+                if self.eat(">") {
+                    name.push('>');
+                    break;
+                }
+                self.need(",")?;
+                name.push(',');
+            }
+        }
+        while self.eat("::") {
+            name.push_str("::");
+            name.push_str(&self.name()?);
+        }
+        if self.eat("(") {
+            let mut fields = Vec::new();
+            while !self.eat(")") {
+                fields.push(self.pattern()?);
+                if !self.is(")") {
+                    self.need(",")?;
+                }
+            }
+            return Ok(Pattern::Variant(name, fields));
+        }
+        if self.eat("{") {
+            let mut fields = Vec::new();
+            while !self.eat("}") {
+                let field = self.name()?;
+                self.need(":")?;
+                fields.push((field, self.pattern()?));
+                if !self.is("}") {
+                    self.need(",")?;
+                }
+            }
+            return Ok(Pattern::Struct(name, fields));
+        }
+        if name.contains("::") || matches!(name.as_str(), "None") {
+            Ok(Pattern::Variant(name, Vec::new()))
+        } else {
+            Ok(Pattern::Bind(name))
+        }
+    }
     fn stmt(&mut self) -> Result<Stmt> {
         let at = self.current().clone();
         let kind = if self.eat("let") || self.eat("var") {
@@ -405,6 +854,12 @@ impl Parser {
             let init = self.expr(0)?;
             self.need(";")?;
             StmtKind::Let(name, mutable, ty, init)
+        } else if self.eat("using") {
+            let name = self.name()?;
+            self.need("=")?;
+            let init = self.expr(0)?;
+            self.need(";")?;
+            StmtKind::Using(name, init)
         } else if self.eat("if") {
             let cond = self.expr(0)?;
             let yes = self.block()?;
@@ -510,13 +965,37 @@ impl Parser {
             self.need("{")?;
             let mut arms = Vec::new();
             while !self.eat("}") {
-                let variant = self.name()?;
-                self.need("(")?;
-                let binding = self.name()?;
-                self.need(")")?;
+                let pattern = self.pattern()?;
+                let guard = if self.eat("if") {
+                    Some(self.expr(0)?)
+                } else {
+                    None
+                };
                 self.need("=>")?;
-                let expr = self.expr(0)?;
-                arms.push((variant, binding, expr));
+                let arm_at = self.current().clone();
+                let body = if self.eat("return") {
+                    let value = if self.is(",") || self.is("}") {
+                        None
+                    } else {
+                        Some(self.expr(0)?)
+                    };
+                    self.eat(";");
+                    Stmt {
+                        kind: StmtKind::Return(value),
+                        at: arm_at,
+                    }
+                } else if self.is("{") {
+                    Stmt {
+                        kind: StmtKind::Block(self.block()?),
+                        at: arm_at,
+                    }
+                } else {
+                    Stmt {
+                        kind: StmtKind::Expr(self.expr(0)?),
+                        at: arm_at,
+                    }
+                };
+                arms.push((pattern, guard, body));
                 if !self.is("}") {
                     self.need(",")?;
                 }
@@ -585,6 +1064,50 @@ impl Parser {
                 kind: ExprKind::Value(Value::Null),
                 at: at.clone(),
             },
+            "match" => {
+                let value = self.expr(0)?;
+                self.need("{")?;
+                let mut arms = Vec::new();
+                while !self.eat("}") {
+                    let pattern = self.pattern()?;
+                    let guard = if self.eat("if") {
+                        Some(self.expr(0)?)
+                    } else {
+                        None
+                    };
+                    self.need("=>")?;
+                    let result = self.expr(0)?;
+                    arms.push((pattern, guard, result));
+                    if !self.is("}") {
+                        self.need(",")?;
+                    }
+                }
+                Expr {
+                    kind: ExprKind::Match(Box::new(value), arms),
+                    at: at.clone(),
+                }
+            }
+            "||" | "|" => {
+                let mut params = Vec::new();
+                if at.text == "|" && !self.eat("|") {
+                    loop {
+                        let name = self.name()?;
+                        self.need(":")?;
+                        params.push((name, self.ty()?));
+                        if self.eat("|") {
+                            break;
+                        }
+                        self.need(",")?;
+                    }
+                }
+                self.need("->")?;
+                let ret = self.ty()?;
+                let body = self.block()?;
+                Expr {
+                    kind: ExprKind::Closure(params, ret, body),
+                    at: at.clone(),
+                }
+            }
             _ if at.text.starts_with('"') => {
                 let raw = &at.text[1..at.text.len() - 1];
                 let mut s = String::new();
@@ -635,26 +1158,90 @@ impl Parser {
                 .is_some_and(|c| c.is_alphabetic() || c == '_') =>
             {
                 let mut name = at.text.clone();
-                if matches!(at.text.as_str(), "List" | "Map") && self.eat("<") {
+                let saved = self.pos;
+                if self.eat("<") {
                     name.push('<');
-                    loop {
-                        name.push_str(&self.ty()?);
-                        if self.eat(">") {
-                            name.push('>');
-                            break;
+                    let parsed = (|| -> Result<()> {
+                        loop {
+                            name.push_str(&self.ty()?);
+                            if self.eat(">") {
+                                name.push('>');
+                                break;
+                            }
+                            self.need(",")?;
+                            name.push(',');
                         }
-                        self.need(",")?;
-                        name.push(',');
+                        Ok(())
+                    })();
+                    if parsed.is_err() || !self.is("(") {
+                        self.pos = saved;
+                        name = at.text.clone();
                     }
                 }
-                Expr {
-                    kind: ExprKind::Name(name),
-                    at: at.clone(),
+                while self.eat("::") {
+                    name.push_str("::");
+                    name.push_str(&self.name()?);
+                }
+                if name.contains("::") && self.eat("{") {
+                    let mut fields = Vec::new();
+                    while !self.eat("}") {
+                        let field = self.name()?;
+                        self.need(":")?;
+                        fields.push((field, self.expr(0)?));
+                        if !self.is("}") {
+                            self.need(",")?;
+                        }
+                    }
+                    Expr {
+                        kind: ExprKind::NamedConstructor(name, fields),
+                        at: at.clone(),
+                    }
+                } else {
+                    Expr {
+                        kind: ExprKind::Name(name),
+                        at: at.clone(),
+                    }
                 }
             }
             _ => return Err(diagnostic(&at, "expected an expression")),
         };
         loop {
+            if self.eat("::") {
+                let variant = self.name()?;
+                let prefix = match &lhs.kind {
+                    ExprKind::Name(name) => name.clone(),
+                    ExprKind::Member(base, field) => {
+                        if let ExprKind::Name(name) = &base.kind {
+                            format!("{name}.{field}")
+                        } else {
+                            return Err(diagnostic(&at, "invalid enum path"));
+                        }
+                    }
+                    _ => return Err(diagnostic(&at, "invalid enum path")),
+                };
+                let name = format!("{prefix}::{variant}");
+                if self.eat("{") {
+                    let mut fields = Vec::new();
+                    while !self.eat("}") {
+                        let field = self.name()?;
+                        self.need(":")?;
+                        fields.push((field, self.expr(0)?));
+                        if !self.is("}") {
+                            self.need(",")?;
+                        }
+                    }
+                    lhs = Expr {
+                        kind: ExprKind::NamedConstructor(name, fields),
+                        at: at.clone(),
+                    };
+                } else {
+                    lhs = Expr {
+                        kind: ExprKind::Name(name),
+                        at: at.clone(),
+                    };
+                }
+                continue;
+            }
             if self.eat(".") {
                 let field = self.name()?;
                 lhs = Expr {
@@ -711,11 +1298,406 @@ impl Parser {
     }
 }
 
+fn rename_symbol(name: &str, names: &BTreeMap<String, String>) -> String {
+    if let Some(replacement) = names.get(name) {
+        return replacement.clone();
+    }
+    let split = name.find(['<', ':']).unwrap_or(name.len());
+    if let Some(replacement) = names.get(&name[..split]) {
+        return format!("{replacement}{}", &name[split..]);
+    }
+    name.into()
+}
+fn rename_type(ty: &str, names: &BTreeMap<String, String>) -> String {
+    let mut out = String::new();
+    let mut token = String::new();
+    for c in ty.chars().chain(std::iter::once(' ')) {
+        if c.is_alphanumeric() || c == '_' || c == '$' || c == '.' {
+            token.push(c);
+        } else {
+            if !token.is_empty() {
+                out.push_str(names.get(&token).unwrap_or(&token));
+                token.clear();
+            }
+            out.push(c);
+        }
+    }
+    out.pop();
+    out
+}
+fn collect_pattern_bindings(pattern: &Pattern, out: &mut BTreeSet<String>) {
+    match pattern {
+        Pattern::Bind(name) => {
+            out.insert(name.clone());
+        }
+        Pattern::Variant(_, parts) | Pattern::List(parts) => {
+            for part in parts {
+                collect_pattern_bindings(part, out);
+            }
+        }
+        Pattern::Struct(_, fields) => {
+            for (_, part) in fields {
+                collect_pattern_bindings(part, out);
+            }
+        }
+        _ => {}
+    }
+}
+fn collect_local_bindings(body: &[Stmt], out: &mut BTreeSet<String>) {
+    for stmt in body {
+        match &stmt.kind {
+            StmtKind::Let(name, _, _, _) | StmtKind::Using(name, _) => {
+                out.insert(name.clone());
+            }
+            StmtKind::For(name, _, _, body) => {
+                out.insert(name.clone());
+                collect_local_bindings(body, out);
+            }
+            StmtKind::Block(body) | StmtKind::While(_, body) | StmtKind::Branch(_, body) => {
+                collect_local_bindings(body, out)
+            }
+            StmtKind::If(_, a, b) => {
+                collect_local_bindings(a, out);
+                collect_local_bindings(b, out);
+            }
+            StmtKind::Match(_, arms) => {
+                for (pattern, _, stmt) in arms {
+                    collect_pattern_bindings(pattern, out);
+                    collect_local_bindings(std::slice::from_ref(stmt), out);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+fn rename_pattern(pattern: &mut Pattern, names: &BTreeMap<String, String>) {
+    match pattern {
+        Pattern::Variant(name, parts) => {
+            *name = rename_symbol(name, names);
+            for part in parts {
+                rename_pattern(part, names);
+            }
+        }
+        Pattern::Struct(name, fields) => {
+            *name = rename_symbol(name, names);
+            for (_, part) in fields {
+                rename_pattern(part, names);
+            }
+        }
+        Pattern::List(parts) => {
+            for part in parts {
+                rename_pattern(part, names);
+            }
+        }
+        _ => {}
+    }
+}
+fn rename_expr(expr: &mut Expr, names: &BTreeMap<String, String>) {
+    match &mut expr.kind {
+        ExprKind::Name(name) => *name = rename_symbol(name, names),
+        ExprKind::Unary(_, value) | ExprKind::Try(value) | ExprKind::Member(value, _) => {
+            rename_expr(value, names)
+        }
+        ExprKind::Binary(_, a, b) => {
+            rename_expr(a, names);
+            rename_expr(b, names);
+        }
+        ExprKind::Call(callee, args) => {
+            rename_expr(callee, names);
+            for arg in args {
+                rename_expr(arg, names);
+            }
+        }
+        ExprKind::Match(value, arms) => {
+            rename_expr(value, names);
+            for (pattern, guard, result) in arms {
+                rename_pattern(pattern, names);
+                if let Some(guard) = guard {
+                    rename_expr(guard, names);
+                }
+                rename_expr(result, names);
+            }
+        }
+        ExprKind::Closure(params, ret, body) => {
+            for (_, ty) in params.iter_mut() {
+                *ty = rename_type(ty, names);
+            }
+            *ret = rename_type(ret, names);
+            let mut locals = params
+                .iter()
+                .map(|(n, _)| n.clone())
+                .collect::<BTreeSet<_>>();
+            collect_local_bindings(body, &mut locals);
+            let filtered = names
+                .iter()
+                .filter(|(n, _)| !locals.contains(*n))
+                .map(|(n, v)| (n.clone(), v.clone()))
+                .collect();
+            for stmt in body {
+                rename_stmt(stmt, &filtered);
+            }
+        }
+        ExprKind::NamedConstructor(name, fields) => {
+            *name = rename_symbol(name, names);
+            for (_, expr) in fields {
+                rename_expr(expr, names);
+            }
+        }
+        ExprKind::Value(_) => {}
+    }
+}
+fn rename_stmt(stmt: &mut Stmt, names: &BTreeMap<String, String>) {
+    match &mut stmt.kind {
+        StmtKind::Let(_, _, ty, e) => {
+            if let Some(ty) = ty {
+                *ty = rename_type(ty, names);
+            }
+            rename_expr(e, names);
+        }
+        StmtKind::Using(_, e) | StmtKind::Expr(e) | StmtKind::Defer(e) => rename_expr(e, names),
+        StmtKind::Assign(a, _, b) => {
+            rename_expr(a, names);
+            rename_expr(b, names);
+        }
+        StmtKind::Block(body) | StmtKind::Branch(_, body) => {
+            for stmt in body {
+                rename_stmt(stmt, names);
+            }
+        }
+        StmtKind::If(e, a, b) => {
+            rename_expr(e, names);
+            for stmt in a.iter_mut().chain(b) {
+                rename_stmt(stmt, names);
+            }
+        }
+        StmtKind::While(e, body) => {
+            rename_expr(e, names);
+            for stmt in body {
+                rename_stmt(stmt, names);
+            }
+        }
+        StmtKind::For(_, a, b, body) => {
+            rename_expr(a, names);
+            rename_expr(b, names);
+            for stmt in body {
+                rename_stmt(stmt, names);
+            }
+        }
+        StmtKind::Return(Some(e)) => rename_expr(e, names),
+        StmtKind::Match(e, arms) => {
+            rename_expr(e, names);
+            for (pattern, guard, body) in arms {
+                rename_pattern(pattern, names);
+                if let Some(guard) = guard {
+                    rename_expr(guard, names);
+                }
+                rename_stmt(body, names);
+            }
+        }
+        _ => {}
+    }
+}
+fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, String> {
+    let prefix = format!("$import${}$", module.replace('/', "$"));
+    let names = program
+        .functions
+        .iter()
+        .filter(|(_, f)| f.origin == program.root_origin)
+        .map(|(n, _)| n.clone())
+        .chain(
+            program
+                .structs
+                .iter()
+                .filter(|(_, d)| d.origin == program.root_origin)
+                .map(|(n, _)| n.clone()),
+        )
+        .chain(
+            program
+                .enums
+                .iter()
+                .filter(|(_, d)| d.origin == program.root_origin)
+                .map(|(n, _)| n.clone()),
+        )
+        .chain(
+            program
+                .traits
+                .iter()
+                .filter(|(_, d)| d.origin == program.root_origin)
+                .map(|(n, _)| n.clone()),
+        )
+        .chain(
+            program
+                .const_origins
+                .iter()
+                .filter(|(_, (_, origin))| origin == &program.root_origin)
+                .map(|(n, _)| n.clone()),
+        )
+        .map(|name| (name.clone(), format!("{prefix}{name}")))
+        .collect::<BTreeMap<_, _>>();
+    for f in program
+        .functions
+        .values_mut()
+        .filter(|f| f.origin == program.root_origin)
+    {
+        for (_, ty) in &mut f.params {
+            *ty = rename_type(ty, &names);
+        }
+        f.ret = rename_type(&f.ret, &names);
+        for (_, bound) in &mut f.type_params {
+            if let Some(bound) = bound {
+                *bound = rename_type(bound, &names);
+            }
+        }
+        let mut locals = f
+            .params
+            .iter()
+            .map(|(n, _)| n.clone())
+            .collect::<BTreeSet<_>>();
+        collect_local_bindings(&f.body, &mut locals);
+        let filtered = names
+            .iter()
+            .filter(|(n, _)| !locals.contains(*n))
+            .map(|(n, v)| (n.clone(), v.clone()))
+            .collect();
+        for stmt in &mut f.body {
+            rename_stmt(stmt, &filtered);
+        }
+    }
+    for def in program
+        .structs
+        .values_mut()
+        .filter(|d| d.origin == program.root_origin)
+    {
+        for (_, ty) in &mut def.fields {
+            *ty = rename_type(ty, &names);
+        }
+    }
+    for def in program
+        .enums
+        .values_mut()
+        .filter(|d| d.origin == program.root_origin)
+    {
+        for fields in def.variants.values_mut() {
+            for (_, ty) in fields {
+                *ty = rename_type(ty, &names);
+            }
+        }
+    }
+    for def in program
+        .traits
+        .values_mut()
+        .filter(|d| d.origin == program.root_origin)
+    {
+        for (args, ret) in def.methods.values_mut() {
+            for ty in args {
+                *ty = rename_type(ty, &names);
+            }
+            *ret = rename_type(ret, &names);
+        }
+    }
+    let top = program
+        .stmts
+        .iter()
+        .zip(&program.stmt_origins)
+        .filter(|(_, origin)| *origin == &program.root_origin)
+        .map(|(stmt, _)| stmt.clone())
+        .collect::<Vec<_>>();
+    let mut locals = BTreeSet::new();
+    collect_local_bindings(&top, &mut locals);
+    for name in program.const_origins.keys() {
+        locals.remove(name);
+    }
+    let filtered = names
+        .iter()
+        .filter(|(n, _)| !locals.contains(*n))
+        .map(|(n, v)| (n.clone(), v.clone()))
+        .collect();
+    for (stmt, origin) in program.stmts.iter_mut().zip(&program.stmt_origins) {
+        if origin == &program.root_origin {
+            rename_stmt(stmt, &filtered);
+            if let StmtKind::Let(name, _, _, _) = &mut stmt.kind {
+                if let Some(new) = names.get(name) {
+                    *name = new.clone();
+                }
+            }
+        }
+    }
+    let old = std::mem::take(&mut program.functions);
+    program.functions = old
+        .into_iter()
+        .map(|(name, f)| (names.get(&name).cloned().unwrap_or(name), f))
+        .collect();
+    let old = std::mem::take(&mut program.structs);
+    program.structs = old
+        .into_iter()
+        .map(|(name, d)| (names.get(&name).cloned().unwrap_or(name), d))
+        .collect();
+    let old = std::mem::take(&mut program.enums);
+    program.enums = old
+        .into_iter()
+        .map(|(name, d)| (names.get(&name).cloned().unwrap_or(name), d))
+        .collect();
+    let old = std::mem::take(&mut program.traits);
+    program.traits = old
+        .into_iter()
+        .map(|(name, d)| (names.get(&name).cloned().unwrap_or(name), d))
+        .collect();
+    let old = std::mem::take(&mut program.consts);
+    program.consts = old
+        .into_iter()
+        .map(|(name, ty)| {
+            (
+                names.get(&name).cloned().unwrap_or(name),
+                rename_type(&ty, &names),
+            )
+        })
+        .collect();
+    let old = std::mem::take(&mut program.const_origins);
+    program.const_origins = old
+        .into_iter()
+        .map(|(name, info)| (names.get(&name).cloned().unwrap_or(name), info))
+        .collect();
+    let old = std::mem::take(&mut program.impls);
+    program.impls = old
+        .into_iter()
+        .map(|((trait_name, target), methods)| {
+            (
+                (
+                    rename_type(&trait_name, &names),
+                    rename_type(&target, &names),
+                ),
+                methods,
+            )
+        })
+        .collect();
+    let old = std::mem::take(&mut program.impl_origins);
+    program.impl_origins = old
+        .into_iter()
+        .map(|((trait_name, target), origin)| {
+            (
+                (
+                    rename_type(&trait_name, &names),
+                    rename_type(&target, &names),
+                ),
+                origin,
+            )
+        })
+        .collect();
+    for methods in program.impls.values_mut() {
+        for symbol in methods.values_mut() {
+            if let Some(new) = names.get(symbol) {
+                *symbol = new.clone();
+            }
+        }
+    }
+    names
+}
 fn load_program(
     path: &Path,
     root: &Path,
+    imports: &BTreeMap<String, PathBuf>,
     visiting: &mut BTreeSet<PathBuf>,
-    loaded: &mut BTreeSet<PathBuf>,
+    loaded: &mut BTreeMap<PathBuf, Program>,
 ) -> Result<Program> {
     let full = fs::canonicalize(path)?;
     let project_root = fs::canonicalize(root)?;
@@ -728,30 +1710,218 @@ fn load_program(
             path.display()
         )));
     }
-    if !loaded.insert(full.clone()) {
-        return Ok(Program::default());
+    if let Some(program) = loaded.get(&full) {
+        return Ok(program.clone());
     }
     visiting.insert(full.clone());
     let source = fs::read_to_string(&full)?;
     let mut parser = Parser {
         toks: lex(&source)?,
         pos: 0,
+        type_depth: 0,
     };
     let mut own = parser.program()?;
-    let mut program = Program::default();
+    own.root_origin = full.clone();
+    own.stmt_origins = vec![full.clone(); own.stmts.len()];
+    for def in own.functions.values_mut() {
+        def.origin = full.clone();
+    }
+    for def in own.structs.values_mut() {
+        def.origin = full.clone();
+    }
+    for def in own.enums.values_mut() {
+        def.origin = full.clone();
+    }
+    for def in own.traits.values_mut() {
+        def.origin = full.clone();
+    }
+    for (_, origin) in own.const_origins.values_mut() {
+        *origin = full.clone();
+    }
+    for origin in own.impl_origins.values_mut() {
+        *origin = full.clone();
+    }
+    let mut program = Program {
+        root_origin: full.clone(),
+        ..Program::default()
+    };
+    program.included_modules.insert(full.clone());
     for stmt in &own.stmts {
         if let StmtKind::Expr(Expr {
             kind: ExprKind::Name(name),
             ..
         }) = &stmt.kind
         {
-            if let Some(module) = name.strip_prefix("@import:") {
-                let imported = load_program(
-                    &project_root.join(format!("{module}.rw")),
+            if let Some(spec) = name.strip_prefix("@import:") {
+                let mut parts = spec.splitn(3, '|');
+                let module = parts.next().unwrap();
+                let alias = parts.next().unwrap_or("");
+                let selected = parts
+                    .next()
+                    .unwrap_or("")
+                    .split(',')
+                    .filter(|s| !s.is_empty())
+                    .filter_map(|s| s.split_once('='))
+                    .collect::<Vec<_>>();
+                let (base, relative) = module
+                    .split_once('/')
+                    .and_then(|(name, rest)| imports.get(name).map(|root| (root, rest)))
+                    .unwrap_or((&imports[""], module));
+                let mut imported = load_program(
+                    &base.join(format!("{relative}.rw")),
                     root,
+                    imports,
                     visiting,
                     loaded,
                 )?;
+                let target_origin = imported.root_origin.clone();
+                let renamed = if alias.is_empty() && selected.is_empty() {
+                    BTreeMap::new()
+                } else {
+                    namespace_symbols(&mut imported, module)
+                };
+                let original = |name: &String| {
+                    renamed
+                        .iter()
+                        .find(|(_, symbol)| *symbol == name)
+                        .map(|(original, _)| original.clone())
+                        .unwrap_or_else(|| name.clone())
+                };
+                let mut exposure = BTreeSet::new();
+                let exports = imported
+                    .functions
+                    .iter()
+                    .filter(|(_, f)| f.origin == target_origin && f.public)
+                    .map(|(n, _)| original(n))
+                    .chain(
+                        imported
+                            .structs
+                            .iter()
+                            .filter(|(_, f)| f.origin == target_origin && f.public)
+                            .map(|(n, _)| original(n)),
+                    )
+                    .chain(
+                        imported
+                            .enums
+                            .iter()
+                            .filter(|(_, f)| f.origin == target_origin && f.public)
+                            .map(|(n, _)| original(n)),
+                    )
+                    .chain(
+                        imported
+                            .traits
+                            .iter()
+                            .filter(|(_, f)| f.origin == target_origin && f.public)
+                            .map(|(n, _)| original(n)),
+                    )
+                    .chain(
+                        imported
+                            .const_origins
+                            .iter()
+                            .filter(|(_, (public, origin))| *public && origin == &target_origin)
+                            .map(|(n, _)| original(n)),
+                    )
+                    .collect::<BTreeSet<_>>();
+                if !alias.is_empty() {
+                    for export in &exports {
+                        let visible = format!("{alias}.{export}");
+                        if program
+                            .import_aliases
+                            .insert(
+                                visible.clone(),
+                                renamed
+                                    .get(export)
+                                    .cloned()
+                                    .unwrap_or_else(|| export.clone()),
+                            )
+                            .is_some()
+                        {
+                            return Err(diagnostic(
+                                &stmt.at,
+                                format!("duplicate import alias {visible}"),
+                            ));
+                        }
+                        exposure.insert(visible);
+                    }
+                } else if !selected.is_empty() {
+                    for (export, local) in selected {
+                        if !exports.contains(export) {
+                            return Err(diagnostic(
+                                &stmt.at,
+                                format!("{export} is not a public export of {module}"),
+                            ));
+                        }
+                        if program
+                            .import_aliases
+                            .insert(
+                                local.into(),
+                                renamed
+                                    .get(export)
+                                    .cloned()
+                                    .unwrap_or_else(|| export.to_string()),
+                            )
+                            .is_some()
+                        {
+                            return Err(diagnostic(
+                                &stmt.at,
+                                format!("duplicate import alias {local}"),
+                            ));
+                        }
+                        exposure.insert(local.into());
+                    }
+                } else {
+                    exposure.extend(exports);
+                }
+                program
+                    .import_exposure
+                    .entry((full.clone(), target_origin))
+                    .or_default()
+                    .extend(exposure);
+                program
+                    .import_aliases
+                    .extend(imported.import_aliases.clone());
+                program
+                    .import_exposure
+                    .extend(imported.import_exposure.clone());
+                if program.included_modules.contains(&imported.root_origin) {
+                    continue;
+                }
+                let already_included = program.included_modules.clone();
+                imported
+                    .functions
+                    .retain(|_, f| !already_included.contains(&f.origin));
+                imported
+                    .structs
+                    .retain(|_, f| !already_included.contains(&f.origin));
+                imported
+                    .traits
+                    .retain(|_, f| !already_included.contains(&f.origin));
+                imported
+                    .enums
+                    .retain(|_, f| !already_included.contains(&f.origin));
+                imported.impls.retain(|key, _| {
+                    !imported
+                        .impl_origins
+                        .get(key)
+                        .is_some_and(|origin| already_included.contains(origin))
+                });
+                imported.consts.retain(|name, _| {
+                    !imported
+                        .const_origins
+                        .get(name)
+                        .is_some_and(|(_, origin)| already_included.contains(origin))
+                });
+                let statements = imported
+                    .stmts
+                    .into_iter()
+                    .zip(imported.stmt_origins)
+                    .filter(|(_, origin)| !already_included.contains(origin))
+                    .collect::<Vec<_>>();
+                imported.stmts = statements.iter().map(|(s, _)| s.clone()).collect();
+                imported.stmt_origins = statements.into_iter().map(|(_, o)| o).collect();
+                program
+                    .included_modules
+                    .extend(imported.included_modules.clone());
                 for (name, f) in imported.functions {
                     if program.functions.insert(name.clone(), f).is_some() {
                         return Err(diagnostic(
@@ -768,11 +1938,71 @@ fn load_program(
                         ));
                     }
                 }
+                for (name, tr) in imported.traits {
+                    if program.traits.insert(name.clone(), tr).is_some() {
+                        return Err(diagnostic(
+                            &stmt.at,
+                            format!("duplicate imported trait {name}"),
+                        ));
+                    }
+                }
+                for (name, en) in imported.enums {
+                    if program.enums.insert(name.clone(), en).is_some() {
+                        return Err(diagnostic(
+                            &stmt.at,
+                            format!("duplicate imported enum {name}"),
+                        ));
+                    }
+                }
+                for (key, imp) in imported.impls {
+                    if program.impls.insert(key, imp).is_some() {
+                        return Err(diagnostic(
+                            &stmt.at,
+                            "duplicate imported trait implementation",
+                        ));
+                    }
+                }
+                program.impl_origins.extend(imported.impl_origins);
+                program.const_origins.extend(imported.const_origins);
+                for (name, ty) in imported.consts {
+                    if program.consts.insert(name.clone(), ty).is_some() {
+                        return Err(diagnostic(
+                            &stmt.at,
+                            format!("duplicate imported const {name}"),
+                        ));
+                    }
+                }
                 program.stmts.extend(imported.stmts);
+                program.stmt_origins.extend(imported.stmt_origins);
             }
         }
     }
-    own.stmts.retain(|s| !matches!(&s.kind, StmtKind::Expr(Expr { kind: ExprKind::Name(n), .. }) if n.starts_with("@import:")));
+    let kept = own.stmts.into_iter().zip(own.stmt_origins).filter(|(s,_)| !matches!(&s.kind, StmtKind::Expr(Expr { kind: ExprKind::Name(n), .. }) if n.starts_with("@import:"))).collect::<Vec<_>>();
+    own.stmts = kept.iter().map(|(s, _)| s.clone()).collect();
+    own.stmt_origins = kept.into_iter().map(|(_, o)| o).collect();
+    for f in own.functions.values_mut() {
+        for (_, ty) in &mut f.params {
+            *ty = rename_type(ty, &program.import_aliases);
+        }
+        f.ret = rename_type(&f.ret, &program.import_aliases);
+        for (_, bound) in &mut f.type_params {
+            if let Some(bound) = bound {
+                *bound = rename_type(bound, &program.import_aliases);
+            }
+        }
+    }
+    for def in own.structs.values_mut() {
+        for (_, ty) in &mut def.fields {
+            *ty = rename_type(ty, &program.import_aliases);
+        }
+    }
+    for def in own.enums.values_mut() {
+        for fields in def.variants.values_mut() {
+            for (_, ty) in fields {
+                *ty = rename_type(ty, &program.import_aliases);
+            }
+        }
+    }
     for (name, f) in own.functions {
         if program.functions.insert(name.clone(), f).is_some() {
             return Err(Error::InvalidOperation(format!(
@@ -785,27 +2015,338 @@ fn load_program(
             return Err(Error::InvalidOperation(format!("duplicate struct {name}")));
         }
     }
+    for (name, tr) in own.traits {
+        if program.traits.insert(name.clone(), tr).is_some() {
+            return Err(Error::InvalidOperation(format!("duplicate trait {name}")));
+        }
+    }
+    for (name, en) in own.enums {
+        if program.enums.insert(name.clone(), en).is_some() {
+            return Err(Error::InvalidOperation(format!("duplicate enum {name}")));
+        }
+    }
+    for (key, imp) in own.impls {
+        if program.impls.insert(key, imp).is_some() {
+            return Err(Error::InvalidOperation(
+                "duplicate trait implementation".into(),
+            ));
+        }
+    }
+    program.impl_origins.extend(own.impl_origins);
+    program.const_origins.extend(own.const_origins);
+    for (name, ty) in own.consts {
+        if program.consts.insert(name.clone(), ty).is_some() {
+            return Err(Error::InvalidOperation(format!("duplicate const {name}")));
+        }
+    }
     program.stmts.extend(own.stmts);
+    program.stmt_origins.extend(own.stmt_origins);
     visiting.remove(&full);
+    loaded.insert(full, program.clone());
     Ok(program)
 }
 
-pub fn cli(mode: &str, file: &str, root: &Path, trace: bool) -> Result<()> {
-    let program = load_program(
-        Path::new(file),
+pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions) -> Result<()> {
+    let manifest = project::ProjectConfig::load(root)?;
+    if let Some(config) = &manifest {
+        config.lock(root, false)?;
+    }
+    let file = if let Some(config) = &manifest {
+        if file.is_empty()
+            || (!Path::new(file).exists()
+                && Path::new(file)
+                    .file_name()
+                    .is_some_and(|name| name == "main.rw"))
+        {
+            config.entry.to_string_lossy().into_owned()
+        } else {
+            file.into()
+        }
+    } else if file.is_empty() {
+        root.join("main.rw").to_string_lossy().into_owned()
+    } else {
+        file.into()
+    };
+    let mut imports = BTreeMap::new();
+    imports.insert(
+        String::new(),
+        manifest
+            .as_ref()
+            .map(|m| m.source_root.clone())
+            .unwrap_or(fs::canonicalize(root)?),
+    );
+    if let Some(config) = &manifest {
+        imports.extend(config.imports.clone());
+    }
+    let mut program = load_program(
+        Path::new(&file),
         root,
+        &imports,
         &mut BTreeSet::new(),
-        &mut BTreeSet::new(),
+        &mut BTreeMap::new(),
     )?;
+    program.strict_visibility = manifest.as_ref().is_some_and(|m| m.language == "0.3");
     check_program(&program)?;
     vm::validate(&program)?;
     if mode == "check" {
         return Ok(());
     }
-    vm::execute(program, root, trace, mode)
+    vm::execute(program, root, trace, mode, options)
+}
+pub fn documentation(file: &str, root: &Path) -> Result<String> {
+    let manifest = project::ProjectConfig::load(root)?;
+    let mut imports = BTreeMap::new();
+    imports.insert(
+        String::new(),
+        manifest
+            .as_ref()
+            .map(|m| m.source_root.clone())
+            .unwrap_or(fs::canonicalize(root)?),
+    );
+    if let Some(config) = &manifest {
+        imports.extend(config.imports.clone());
+        config.lock(root, false)?;
+    }
+    let mut program = load_program(
+        Path::new(file),
+        root,
+        &imports,
+        &mut BTreeSet::new(),
+        &mut BTreeMap::new(),
+    )?;
+    program.strict_visibility = manifest.as_ref().is_some_and(|m| m.language == "0.3");
+    check_program(&program)?;
+    let mut docs = BTreeMap::new();
+    let mut pending = Vec::new();
+    for line in fs::read_to_string(file)?.lines() {
+        let line = line.trim();
+        if let Some(comment) = line.strip_prefix("///") {
+            pending.push(comment.trim_start().to_string());
+            continue;
+        }
+        if let Some(declaration) = line.strip_prefix("pub ") {
+            let mut parts = declaration.split_whitespace();
+            if let (Some(kind), Some(name)) = (parts.next(), parts.next()) {
+                let name = name.split(['<', '(', '{', ':']).next().unwrap_or(name);
+                docs.insert(format!("{kind}:{name}"), pending.join("\n"));
+            }
+        }
+        pending.clear();
+    }
+    fn append_doc(out: &mut String, docs: &BTreeMap<String, String>, kind: &str, name: &str) {
+        if let Some(doc) = docs.get(&format!("{kind}:{name}")) {
+            if !doc.is_empty() {
+                for line in doc.lines() {
+                    out.push_str(&format!("  {line}\n"));
+                }
+            }
+        }
+    }
+    let mut out = String::from("# REWIND public API\n\n");
+    for (name, ty) in &program.consts {
+        if program
+            .const_origins
+            .get(name)
+            .is_none_or(|(_, origin)| origin != &program.root_origin)
+        {
+            continue;
+        }
+        out.push_str(&format!("- `pub const {name}: {ty}`\n"));
+        append_doc(&mut out, &docs, "const", name);
+    }
+    for (name, def) in &program.structs {
+        if def.public && def.origin == program.root_origin {
+            out.push_str(&format!(
+                "- `pub struct {name}{} {{ {} }}`\n",
+                if def.type_params.is_empty() {
+                    String::new()
+                } else {
+                    format!("<{}>", def.type_params.join(", "))
+                },
+                def.fields
+                    .iter()
+                    .map(|(n, t)| format!("{n}: {t}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+            append_doc(&mut out, &docs, "struct", name);
+        }
+    }
+    for (name, def) in &program.enums {
+        if def.public && def.origin == program.root_origin {
+            out.push_str(&format!(
+                "- `pub enum {name}{} {{ {} }}`\n",
+                if def.type_params.is_empty() {
+                    String::new()
+                } else {
+                    format!("<{}>", def.type_params.join(", "))
+                },
+                def.variants.keys().cloned().collect::<Vec<_>>().join(", ")
+            ));
+            append_doc(&mut out, &docs, "enum", name);
+        }
+    }
+    for (name, def) in &program.traits {
+        if def.public && def.origin == program.root_origin {
+            out.push_str(&format!("- `pub trait {name}`\n"));
+            append_doc(&mut out, &docs, "trait", name);
+            for (method, (args, ret)) in &def.methods {
+                out.push_str(&format!(
+                    "  - `fn {method}({}) -> {ret}`\n",
+                    args.join(", ")
+                ));
+            }
+        }
+    }
+    for (name, def) in &program.functions {
+        if def.public && def.origin == program.root_origin {
+            out.push_str(&format!(
+                "- `pub fn {name}{}({}) -> {}`\n",
+                if def.type_params.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "<{}>",
+                        def.type_params
+                            .iter()
+                            .map(|(n, b)| if let Some(b) = b {
+                                format!("{n}: {b}")
+                            } else {
+                                n.clone()
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                },
+                def.params
+                    .iter()
+                    .map(|(n, t)| format!("{n}: {t}"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                def.ret
+            ));
+            append_doc(&mut out, &docs, "fn", name);
+        }
+    }
+    Ok(out)
+}
+pub fn lock_project(root: &Path) -> Result<()> {
+    project::ProjectConfig::load(root)?
+        .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?
+        .lock(root, true)
+}
+pub fn format_source(source: &str) -> Result<String> {
+    let mut parser = Parser {
+        toks: lex(source)?,
+        pos: 0,
+        type_depth: 0,
+    };
+    parser.program()?;
+    let mut out = String::new();
+    let mut depth = 0usize;
+    let mut quoted = false;
+    for line in source.lines() {
+        let line = line.trim_end();
+        if quoted {
+            out.push_str(line);
+            out.push('\n');
+        } else if line.trim().is_empty() {
+            out.push('\n');
+        } else {
+            let content = line.trim_start();
+            let indent = depth.saturating_sub(usize::from(content.starts_with('}')));
+            out.push_str(&"    ".repeat(indent));
+            out.push_str(content);
+            out.push('\n');
+        }
+        let mut chars = line.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '\\' && quoted {
+                chars.next();
+                continue;
+            }
+            if c == '"' {
+                quoted = !quoted;
+                continue;
+            }
+            if !quoted && c == '/' && chars.peek() == Some(&'/') {
+                break;
+            }
+            if !quoted && c == '{' {
+                depth += 1;
+            }
+            if !quoted && c == '}' {
+                depth = depth.saturating_sub(1);
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn check_program(program: &Program) -> Result<()> {
+    for ((trait_name, target), methods) in &program.impls {
+        let impl_origin = &program.impl_origins[&(trait_name.clone(), target.clone())];
+        let trait_local = program
+            .traits
+            .get(trait_name)
+            .is_some_and(|tr| &tr.origin == impl_origin);
+        let target_base = target.split('<').next().unwrap_or(target);
+        let type_local = program
+            .structs
+            .get(target_base)
+            .is_some_and(|ty| &ty.origin == impl_origin)
+            || program
+                .enums
+                .get(target_base)
+                .is_some_and(|ty| &ty.origin == impl_origin);
+        if !trait_local && !type_local {
+            return Err(Error::InvalidOperation(format!(
+                "orphan impl: {trait_name} for {target}"
+            )));
+        }
+        let standard = standard_trait(trait_name);
+        let tr = program
+            .traits
+            .get(trait_name)
+            .or(standard.as_ref())
+            .ok_or_else(|| Error::InvalidOperation(format!("unknown trait {trait_name}")))?;
+        if !matches!(
+            target.split('<').next().unwrap_or(target),
+            "Bool" | "Int" | "Float" | "String" | "Bytes"
+        ) && !program
+            .structs
+            .contains_key(target.split('<').next().unwrap_or(target))
+            && !program
+                .enums
+                .contains_key(target.split('<').next().unwrap_or(target))
+        {
+            return Err(Error::InvalidOperation(format!(
+                "unknown impl target {target}"
+            )));
+        }
+        if methods.len() != tr.methods.len() || tr.methods.keys().any(|m| !methods.contains_key(m))
+        {
+            return Err(Error::InvalidOperation(format!(
+                "impl {trait_name} for {target} does not define every trait method"
+            )));
+        }
+        for (method, symbol) in methods {
+            let f = &program.functions[symbol];
+            let (args, ret) = &tr.methods[method];
+            if f.params.len() != args.len()
+                || f.params
+                    .iter()
+                    .zip(args)
+                    .any(|((_, actual), expected)| actual != &expected.replace("Self", target))
+                || f.ret != ret.replace("Self", target)
+            {
+                return Err(diagnostic(
+                    &f.at,
+                    format!("method {method} does not match trait signature"),
+                ));
+            }
+        }
+    }
     for (name, f) in &program.functions {
         let mut seen = BTreeSet::new();
         for (arg, _) in &f.params {
@@ -828,8 +2369,11 @@ fn check_program(program: &Program) -> Result<()> {
         scopes: vec![BTreeMap::new()],
         return_ty: None,
         loop_depth: 0,
+        bounds: BTreeMap::new(),
+        origin: program.root_origin.clone(),
     };
-    for stmt in &program.stmts {
+    for (stmt, origin) in program.stmts.iter().zip(&program.stmt_origins) {
+        checker.origin = origin.clone();
         checker.stmt(stmt)?;
     }
     let globals = checker.scopes[0].clone();
@@ -839,6 +2383,12 @@ fn check_program(program: &Program) -> Result<()> {
             scopes: vec![globals.clone(), BTreeMap::new()],
             return_ty: Some(f.ret.clone()),
             loop_depth: 0,
+            bounds: f
+                .type_params
+                .iter()
+                .filter_map(|(n, b)| b.as_ref().map(|b| (n.clone(), b.clone())))
+                .collect(),
+            origin: f.origin.clone(),
         };
         for (name, ty) in &f.params {
             checker.scopes[1].insert(name.clone(), (ty.clone(), false));
@@ -860,6 +2410,16 @@ fn guarantees_return(body: &[Stmt]) -> bool {
         StmtKind::Return(_) => true,
         StmtKind::Block(body) => guarantees_return(body),
         StmtKind::If(_, yes, no) => guarantees_return(yes) && guarantees_return(no),
+        StmtKind::Match(_, arms) => {
+            !arms.is_empty()
+                && arms
+                    .iter()
+                    .all(|(_, _, body)| guarantees_return(std::slice::from_ref(body)))
+        }
+        StmtKind::Expr(Expr {
+            kind: ExprKind::Call(target, _),
+            ..
+        }) if matches!(&target.kind, ExprKind::Name(name) if name == "panic") => true,
         _ => false,
     })
 }
@@ -869,8 +2429,294 @@ struct Checker<'a> {
     scopes: Vec<BTreeMap<String, (String, bool)>>,
     return_ty: Option<String>,
     loop_depth: usize,
+    bounds: BTreeMap<String, String>,
+    origin: PathBuf,
 }
 impl Checker<'_> {
+    fn visible(&self, public: bool, origin: &Path, at: &Tok, name: &str) -> Result<()> {
+        if self.program.strict_visibility && !public && origin != self.origin {
+            return Err(diagnostic(at, format!("{name} is private to its module")));
+        }
+        if self.program.strict_visibility && origin != self.origin {
+            if let Some(exposed) = self
+                .program
+                .import_exposure
+                .get(&(self.origin.clone(), origin.to_path_buf()))
+            {
+                if !exposed.contains(name) {
+                    return Err(diagnostic(
+                        at,
+                        format!("{name} is not imported into this module"),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+    fn pattern(
+        &self,
+        p: &Pattern,
+        ty: &str,
+        at: &Tok,
+        bindings: &mut BTreeMap<String, (String, bool)>,
+    ) -> Result<()> {
+        match p {
+            Pattern::Wildcard => {}
+            Pattern::Bind(name) => {
+                if bindings.insert(name.clone(), (ty.into(), false)).is_some() {
+                    return Err(diagnostic(at, format!("duplicate pattern binding {name}")));
+                }
+            }
+            Pattern::Literal(value) => {
+                let actual = match value {
+                    Value::Bool(_) => "Bool",
+                    Value::Int(_) => "Int",
+                    Value::Text(_) => "String",
+                    _ => "Unknown",
+                };
+                if !compatible(ty, actual) {
+                    return Err(diagnostic(
+                        at,
+                        format!("pattern expects {ty}, found {actual}"),
+                    ));
+                }
+            }
+            Pattern::Range(_, _) => {
+                if ty != "Int" {
+                    return Err(diagnostic(at, "range pattern requires Int"));
+                }
+            }
+            Pattern::List(parts) => {
+                let Some(inner) = ty.strip_prefix("List<").and_then(|s| s.strip_suffix('>')) else {
+                    return Err(diagnostic(at, "List pattern requires List"));
+                };
+                for part in parts {
+                    self.pattern(part, inner, at, bindings)?;
+                }
+            }
+            Pattern::Struct(name, fields) => {
+                if name == "FileError" && ty == "FileError" {
+                    for (field, p) in fields {
+                        let field_ty = match field.as_str() {
+                            "code" | "path" => "String",
+                            "cause" => "Option<String>",
+                            "causes" => "List<String>",
+                            _ => {
+                                return Err(diagnostic(
+                                    at,
+                                    format!("unknown FileError field {field}"),
+                                ))
+                            }
+                        };
+                        self.pattern(p, field_ty, at, bindings)?;
+                    }
+                    return Ok(());
+                }
+                if let Some((pattern_ty, variant)) = name.split_once("::") {
+                    let base = ty.split('<').next().unwrap_or(ty);
+                    if pattern_ty.split('<').next() != Some(base) {
+                        return Err(diagnostic(
+                            at,
+                            format!("pattern {name} does not match {ty}"),
+                        ));
+                    }
+                    let def = self
+                        .program
+                        .enums
+                        .get(base)
+                        .ok_or_else(|| diagnostic(at, format!("unknown enum {base}")))?;
+                    let variant_fields = def
+                        .variants
+                        .get(variant)
+                        .ok_or_else(|| diagnostic(at, format!("unknown variant {variant}")))?;
+                    let args = ty
+                        .split_once('<')
+                        .map(|(_, i)| split_type_args(outer_type_end(i)))
+                        .unwrap_or_default();
+                    let substitutions = def
+                        .type_params
+                        .iter()
+                        .cloned()
+                        .zip(args.iter().map(|s| s.to_string()))
+                        .collect::<BTreeMap<_, _>>();
+                    for (field, p) in fields {
+                        let field_ty =
+                            variant_fields
+                                .iter()
+                                .find(|(n, _)| n == field)
+                                .ok_or_else(|| {
+                                    diagnostic(at, format!("unknown variant field {field}"))
+                                })?;
+                        self.pattern(
+                            p,
+                            &substitute_type(&field_ty.1, &substitutions),
+                            at,
+                            bindings,
+                        )?;
+                    }
+                    return Ok(());
+                }
+                if ty.split('<').next() != Some(name) {
+                    return Err(diagnostic(
+                        at,
+                        format!("pattern {name} does not match {ty}"),
+                    ));
+                }
+                let def = self
+                    .program
+                    .structs
+                    .get(name)
+                    .ok_or_else(|| diagnostic(at, format!("unknown struct {name}")))?;
+                let args = ty
+                    .split_once('<')
+                    .map(|(_, i)| split_type_args(outer_type_end(i)))
+                    .unwrap_or_default();
+                let map = def
+                    .type_params
+                    .iter()
+                    .cloned()
+                    .zip(args.iter().map(|s| s.to_string()))
+                    .collect::<BTreeMap<_, _>>();
+                for (field, p) in fields {
+                    let field_ty = def
+                        .fields
+                        .iter()
+                        .find(|(n, _)| n == field)
+                        .ok_or_else(|| diagnostic(at, format!("unknown field {field}")))?;
+                    self.pattern(p, &substitute_type(&field_ty.1, &map), at, bindings)?;
+                }
+            }
+            Pattern::Variant(name, parts) => {
+                let (head, field_types) = if ty.starts_with("Option<") {
+                    let inner = outer_type_end(ty.strip_prefix("Option<").unwrap());
+                    (
+                        name.as_str(),
+                        if name == "Some" {
+                            vec![inner.to_string()]
+                        } else if name == "None" {
+                            Vec::new()
+                        } else {
+                            return Err(diagnostic(at, "invalid Option pattern"));
+                        },
+                    )
+                } else if ty.starts_with("Result<") {
+                    let inner = outer_type_end(ty.strip_prefix("Result<").unwrap());
+                    let args = split_type_args(inner);
+                    (
+                        name.as_str(),
+                        if name == "Ok" {
+                            vec![args[0].into()]
+                        } else if name == "Err" {
+                            vec![args[1].into()]
+                        } else {
+                            return Err(diagnostic(at, "invalid Result pattern"));
+                        },
+                    )
+                } else {
+                    let base = ty.split('<').next().unwrap_or(ty);
+                    let def = self
+                        .program
+                        .enums
+                        .get(base)
+                        .ok_or_else(|| diagnostic(at, format!("{ty} is not an enum")))?;
+                    let (pattern_ty, variant) = name
+                        .split_once("::")
+                        .ok_or_else(|| diagnostic(at, "enum pattern needs Enum::Variant"))?;
+                    if pattern_ty.split('<').next() != Some(base) {
+                        return Err(diagnostic(
+                            at,
+                            format!("pattern {name} does not match {ty}"),
+                        ));
+                    }
+                    let fields = def
+                        .variants
+                        .get(variant)
+                        .ok_or_else(|| diagnostic(at, format!("unknown variant {variant}")))?;
+                    let args = ty
+                        .split_once('<')
+                        .map(|(_, i)| split_type_args(outer_type_end(i)))
+                        .unwrap_or_default();
+                    let map = def
+                        .type_params
+                        .iter()
+                        .cloned()
+                        .zip(args.iter().map(|s| s.to_string()))
+                        .collect::<BTreeMap<_, _>>();
+                    (
+                        name.as_str(),
+                        fields
+                            .iter()
+                            .map(|(_, t)| substitute_type(t, &map))
+                            .collect(),
+                    )
+                };
+                let _ = head;
+                if parts.len() != field_types.len() {
+                    return Err(diagnostic(
+                        at,
+                        format!("pattern {name} expects {} fields", field_types.len()),
+                    ));
+                }
+                for (part, field_ty) in parts.iter().zip(field_types) {
+                    self.pattern(part, &field_ty, at, bindings)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn check_match(&self, ty: &str, patterns: &[(&Pattern, bool)], at: &Tok) -> Result<()> {
+        fn irrefutable(pattern: &Pattern) -> bool {
+            matches!(pattern, Pattern::Wildcard | Pattern::Bind(_))
+        }
+        let required: Vec<String> = if ty.starts_with("Option<") {
+            vec!["Some".into(), "None".into()]
+        } else if ty.starts_with("Result<") {
+            vec!["Ok".into(), "Err".into()]
+        } else if ty == "Bool" {
+            vec!["true".into(), "false".into()]
+        } else if let Some(def) = self.program.enums.get(ty.split('<').next().unwrap_or(ty)) {
+            def.variants.keys().cloned().collect()
+        } else {
+            Vec::new()
+        };
+        let mut covered = BTreeSet::new();
+        let mut all = false;
+        for (pattern, guarded) in patterns {
+            let key = match pattern {
+                Pattern::Wildcard | Pattern::Bind(_) => None,
+                Pattern::Variant(name, parts) if parts.iter().all(irrefutable) => {
+                    Some(name.split("::").last().unwrap().to_string())
+                }
+                Pattern::Struct(name, fields)
+                    if name.contains("::") && fields.iter().all(|(_, p)| irrefutable(p)) =>
+                {
+                    Some(name.split("::").last().unwrap().to_string())
+                }
+                Pattern::Literal(Value::Bool(b)) => Some(b.to_string()),
+                _ => Some(String::new()),
+            };
+            if all
+                || key
+                    .as_ref()
+                    .is_some_and(|k| covered.contains(k) && !k.is_empty())
+            {
+                eprintln!("warning: {}:{}: unreachable match arm", at.line, at.col);
+            }
+            if !guarded {
+                if let Some(key) = key {
+                    if !key.is_empty() {
+                        covered.insert(key);
+                    }
+                } else {
+                    all = true;
+                }
+            }
+        }
+        if !all && (required.is_empty() || required.iter().any(|v| !covered.contains(v))) {
+            return Err(diagnostic(at, format!("non-exhaustive match for {ty}")));
+        }
+        Ok(())
+    }
     fn find(&self, name: &str) -> Option<&(String, bool)> {
         self.scopes.iter().rev().find_map(|s| s.get(name))
     }
@@ -897,10 +2743,51 @@ impl Checker<'_> {
                 _ => "Unknown",
             }
             .into(),
-            ExprKind::Name(n) => self
-                .find(n)
-                .map(|b| b.0.clone())
-                .ok_or_else(|| diagnostic(&e.at, format!("unknown name {n}")))?,
+            ExprKind::Name(n) => {
+                let resolved = resolve_alias(self.program, n);
+                if let Some((public, origin)) = self.program.const_origins.get(&resolved) {
+                    self.visible(*public, origin, &e.at, n)?;
+                }
+                if let Some(binding) = self.find(&resolved) {
+                    binding.0.clone()
+                } else if let Some(f) = self
+                    .program
+                    .functions
+                    .get(self.program.import_aliases.get(n).unwrap_or(n))
+                {
+                    self.visible(f.public, &f.origin, &e.at, n)?;
+                    if !f.type_params.is_empty() {
+                        return Err(diagnostic(
+                            &e.at,
+                            "generic function requires a call for type inference",
+                        ));
+                    }
+                    format!(
+                        "fn({})->{}",
+                        f.params
+                            .iter()
+                            .map(|(_, t)| t.as_str())
+                            .collect::<Vec<_>>()
+                            .join(","),
+                        f.ret
+                    )
+                } else if let Some(ty) = enum_constructor_type(
+                    self.program,
+                    &resolve_alias(self.program, n),
+                    &[],
+                    &e.at,
+                )? {
+                    if let Some((base, _)) = n.split_once("::") {
+                        let resolved = resolve_alias(self.program, base);
+                        let def =
+                            &self.program.enums[resolved.split('<').next().unwrap_or(&resolved)];
+                        self.visible(def.public, &def.origin, &e.at, base)?;
+                    }
+                    ty
+                } else {
+                    return Err(diagnostic(&e.at, format!("unknown name {n}")));
+                }
+            }
             ExprKind::Unary(op, inner) => {
                 let t = self.expr(inner)?;
                 if op == "!" && t != "Bool" || op == "-" && !matches!(t.as_str(), "Int" | "Float") {
@@ -942,20 +2829,82 @@ impl Checker<'_> {
             }
             ExprKind::Member(base, field) => {
                 if let ExprKind::Name(n) = &base.kind {
+                    let qualified = format!("{n}.{field}");
+                    if let Some(symbol) = self.program.import_aliases.get(&qualified) {
+                        if let Some((public, origin)) = self.program.const_origins.get(symbol) {
+                            self.visible(*public, origin, &e.at, &qualified)?;
+                            return self
+                                .find(symbol)
+                                .map(|b| b.0.clone())
+                                .ok_or_else(|| diagnostic(&e.at, "constant is not initialized"));
+                        }
+                        if let Some(f) = self.program.functions.get(symbol) {
+                            self.visible(f.public, &f.origin, &e.at, &qualified)?;
+                            if !f.type_params.is_empty() {
+                                return Err(diagnostic(
+                                    &e.at,
+                                    "generic function requires a call for type inference",
+                                ));
+                            }
+                            return Ok(format!(
+                                "fn({})->{}",
+                                f.params
+                                    .iter()
+                                    .map(|(_, ty)| ty.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(","),
+                                f.ret
+                            ));
+                        }
+                    }
                     if matches!(
                         n.as_str(),
-                        "Out" | "Err" | "File" | "Directory" | "Time" | "Random" | "In"
+                        "Out"
+                            | "Err"
+                            | "File"
+                            | "Directory"
+                            | "Time"
+                            | "Random"
+                            | "In"
+                            | "Args"
+                            | "Env"
+                            | "Locale"
                     ) {
                         return Ok("Builtin".into());
                     }
                 }
                 let t = self.expr(base)?;
-                if let Some(def) = self.program.structs.get(&t) {
+                if let Some(def) = self.program.structs.get(t.split('<').next().unwrap_or(&t)) {
+                    if self.program.strict_visibility && !def.public && def.origin != self.origin {
+                        return Err(diagnostic(&e.at, format!("{t} is private to its module")));
+                    }
+                    let args = t
+                        .split_once('<')
+                        .map(|(_, inner)| split_type_args(outer_type_end(inner)))
+                        .unwrap_or_default();
+                    let substitutions = def
+                        .type_params
+                        .iter()
+                        .cloned()
+                        .zip(args.iter().map(|a| a.to_string()))
+                        .collect::<BTreeMap<_, _>>();
                     def.fields
                         .iter()
                         .find(|(n, _)| n == field)
-                        .map(|(_, t)| t.clone())
+                        .map(|(_, t)| substitute_type(t, &substitutions))
                         .ok_or_else(|| diagnostic(&e.at, format!("unknown field {field}")))?
+                } else if t == "FileError" {
+                    match field.as_str() {
+                        "code" | "path" => "String".into(),
+                        "cause" => "Option<String>".into(),
+                        "causes" => "List<String>".into(),
+                        _ => {
+                            return Err(diagnostic(
+                                &e.at,
+                                format!("FileError has no field {field}"),
+                            ))
+                        }
+                    }
                 } else if t == "FileHandle" && field == "position" {
                     "Int".into()
                 } else {
@@ -968,38 +2917,116 @@ impl Checker<'_> {
                     .map(|a| self.expr(a))
                     .collect::<Result<Vec<_>>>()?;
                 if let ExprKind::Name(name) = &target.kind {
-                    if let Some(f) = self.program.functions.get(name) {
-                        if f.params.len() != types.len() {
+                    if let Some((params, ret)) =
+                        self.find(name).and_then(|(ty, _)| function_signature(ty))
+                    {
+                        if params.len() != types.len()
+                            || params.iter().zip(&types).any(|(p, a)| !compatible(p, a))
+                        {
                             return Err(diagnostic(
                                 &e.at,
-                                format!("{name} expects {} arguments", f.params.len()),
+                                format!("invalid arguments for function value {name}"),
                             ));
                         }
-                        for ((_, expected), actual) in f.params.iter().zip(&types) {
-                            if !compatible(expected, actual) && actual != "Unknown" {
+                        return Ok(ret);
+                    }
+                    if let Some(ty) = enum_constructor_type(
+                        self.program,
+                        &resolve_alias(self.program, name),
+                        &types,
+                        &e.at,
+                    )? {
+                        if let Some((base, _)) = name.split_once("::") {
+                            let resolved = resolve_alias(self.program, base);
+                            let def = &self.program.enums
+                                [resolved.split('<').next().unwrap_or(&resolved)];
+                            self.visible(def.public, &def.origin, &e.at, base)?;
+                        }
+                        return Ok(ty);
+                    }
+                    let resolved_call = resolve_alias(self.program, name);
+                    if let Some(f) = self
+                        .program
+                        .functions
+                        .get(resolved_call.split('<').next().unwrap_or(&resolved_call))
+                    {
+                        self.visible(
+                            f.public,
+                            &f.origin,
+                            &e.at,
+                            name.split('<').next().unwrap_or(name),
+                        )?;
+                        let params = f
+                            .type_params
+                            .iter()
+                            .map(|(n, _)| n.clone())
+                            .collect::<Vec<_>>();
+                        let substitutions = infer_call_arguments(
+                            &resolved_call,
+                            &f.params,
+                            &params,
+                            &types,
+                            &e.at,
+                        )?;
+                        for (param, bound) in &f.type_params {
+                            if let Some(bound) = bound {
+                                if !trait_satisfied(self.program, bound, &substitutions[param])
+                                    && self.bounds.get(&substitutions[param]) != Some(bound)
+                                {
+                                    return Err(diagnostic(
+                                        &e.at,
+                                        format!(
+                                            "{} does not implement {bound}",
+                                            substitutions[param]
+                                        ),
+                                    ));
+                                }
+                            }
+                        }
+                        substitute_type(&f.ret, &substitutions)
+                    } else if let Some(s) = self.program.structs.get(
+                        self.program
+                            .import_aliases
+                            .get(name)
+                            .map(String::as_str)
+                            .unwrap_or_else(|| name.split('<').next().unwrap_or(name)),
+                    ) {
+                        self.visible(s.public, &s.origin, &e.at, name)?;
+                        let actual_name = self
+                            .program
+                            .import_aliases
+                            .get(name)
+                            .map(String::as_str)
+                            .unwrap_or(name);
+                        let params = s.type_params.clone();
+                        let substitutions = infer_arguments(&s.fields, &params, &types, &e.at)?;
+                        if let Some((_, explicit)) = name.split_once('<') {
+                            let explicit = split_type_args(outer_type_end(explicit));
+                            if explicit.len() != params.len()
+                                || params
+                                    .iter()
+                                    .zip(explicit)
+                                    .any(|(p, t)| substitutions[p] != t)
+                            {
                                 return Err(diagnostic(
                                     &e.at,
-                                    format!("{name} expects {expected}, found {actual}"),
+                                    "explicit type arguments disagree with constructor arguments",
                                 ));
                             }
                         }
-                        f.ret.clone()
-                    } else if let Some(s) = self.program.structs.get(name) {
-                        if s.fields.len() != types.len() {
-                            return Err(diagnostic(
-                                &e.at,
-                                format!("{name} expects {} fields", s.fields.len()),
-                            ));
+                        if params.is_empty() {
+                            actual_name.into()
+                        } else {
+                            format!(
+                                "{}<{}>",
+                                actual_name.split('<').next().unwrap(),
+                                params
+                                    .iter()
+                                    .map(|p| substitutions[p].as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(",")
+                            )
                         }
-                        for ((field, expected), actual) in s.fields.iter().zip(&types) {
-                            if !compatible(expected, actual) {
-                                return Err(diagnostic(
-                                    &e.at,
-                                    format!("field {field} expects {expected}, found {actual}"),
-                                ));
-                            }
-                        }
-                        name.clone()
                     } else {
                         match name.as_str() {
                             "List" => "List".into(),
@@ -1009,6 +3036,10 @@ impl Checker<'_> {
                             "Err" if types.len() == 1 => format!("Result<Unknown,{}>", types[0]),
                             "Some" if types.len() == 1 => format!("Option<{}>", types[0]),
                             "assert" if types == ["Bool"] => "Unit".into(),
+                            "assert_eq" if types.len() == 2 && compatible(&types[0], &types[1]) => {
+                                "Unit".into()
+                            }
+                            "panic" if types == ["String"] => "Never".into(),
                             _ if name.starts_with("List<") || name.starts_with("Map<") => {
                                 if !types.is_empty() {
                                     return Err(diagnostic(
@@ -1021,12 +3052,12 @@ impl Checker<'_> {
                                 {
                                     let parts = split_type_args(inner);
                                     if parts.len() != 2
-                                        || !matches!(
-                                            parts[0],
-                                            "Bool" | "Int" | "Float" | "String" | "Bytes"
-                                        )
+                                        || !trait_satisfied(self.program, "Ord", parts[0])
                                     {
-                                        return Err(diagnostic(&e.at, "Map key type must be Bool, Int, Float, String, or Bytes"));
+                                        return Err(diagnostic(
+                                            &e.at,
+                                            "Map key type must implement Ord",
+                                        ));
                                     }
                                 }
                                 name.clone()
@@ -1036,9 +3067,68 @@ impl Checker<'_> {
                     }
                 } else if let ExprKind::Member(base, method) = &target.kind {
                     if let ExprKind::Name(n) = &base.kind {
+                        let qualified = format!("{n}.{method}");
+                        if let Some(symbol) = self.program.import_aliases.get(&qualified) {
+                            if let Some(f) = self.program.functions.get(symbol) {
+                                self.visible(f.public, &f.origin, &e.at, &qualified)?;
+                                let params = f
+                                    .type_params
+                                    .iter()
+                                    .map(|(n, _)| n.clone())
+                                    .collect::<Vec<_>>();
+                                let substitutions =
+                                    infer_arguments(&f.params, &params, &types, &e.at)?;
+                                for (param, bound) in &f.type_params {
+                                    if let Some(bound) = bound {
+                                        if !trait_satisfied(
+                                            self.program,
+                                            bound,
+                                            &substitutions[param],
+                                        ) && self.bounds.get(&substitutions[param])
+                                            != Some(bound)
+                                        {
+                                            return Err(diagnostic(
+                                                &e.at,
+                                                format!(
+                                                    "{} does not implement {bound}",
+                                                    substitutions[param]
+                                                ),
+                                            ));
+                                        }
+                                    }
+                                }
+                                return Ok(substitute_type(&f.ret, &substitutions));
+                            }
+                            if let Some(s) = self.program.structs.get(symbol) {
+                                self.visible(s.public, &s.origin, &e.at, &qualified)?;
+                                let substitutions =
+                                    infer_arguments(&s.fields, &s.type_params, &types, &e.at)?;
+                                return Ok(if s.type_params.is_empty() {
+                                    symbol.clone()
+                                } else {
+                                    format!(
+                                        "{symbol}<{}>",
+                                        s.type_params
+                                            .iter()
+                                            .map(|p| substitutions[p].as_str())
+                                            .collect::<Vec<_>>()
+                                            .join(",")
+                                    )
+                                });
+                            }
+                        }
                         if matches!(
                             n.as_str(),
-                            "Out" | "Err" | "File" | "Directory" | "Time" | "Random" | "In"
+                            "Out"
+                                | "Err"
+                                | "File"
+                                | "Directory"
+                                | "Time"
+                                | "Random"
+                                | "In"
+                                | "Args"
+                                | "Env"
+                                | "Locale"
                         ) {
                             builtin_type(n, method, &types, &e.at)?
                         } else {
@@ -1117,6 +3207,27 @@ impl Checker<'_> {
                                     | ("FileHandle", "close", 0)
                             );
                             if !arity_ok {
+                                if let Some(bound) = self.bounds.get(&t) {
+                                    let standard = standard_trait(bound);
+                                    if let Some(tr) =
+                                        self.program.traits.get(bound).or(standard.as_ref())
+                                    {
+                                        if let Some((params, ret)) = tr.methods.get(method) {
+                                            if params.len() == types.len() + 1
+                                                && params[1..].iter().zip(&types).all(|(e, a)| {
+                                                    compatible(&e.replace("Self", &t), a)
+                                                })
+                                            {
+                                                return Ok(ret.replace("Self", &t));
+                                            }
+                                        }
+                                    }
+                                }
+                                if let Some(ret) =
+                                    trait_method_return(self.program, &t, method, &types, &e.at)?
+                                {
+                                    return Ok(ret);
+                                }
                                 return Err(diagnostic(
                                     &e.at,
                                     format!("invalid method call {t}.{method}/{}", types.len()),
@@ -1158,6 +3269,11 @@ impl Checker<'_> {
                         }
                     } else {
                         let t = self.expr(base)?;
+                        if let Some(ret) =
+                            trait_method_return(self.program, &t, method, &types, &e.at)?
+                        {
+                            return Ok(ret);
+                        }
                         match (
                             t.split('<').next().unwrap_or(""),
                             method.as_str(),
@@ -1182,7 +3298,16 @@ impl Checker<'_> {
                         }
                     }
                 } else {
-                    return Err(diagnostic(&e.at, "invalid call target"));
+                    let ty = self.expr(target)?;
+                    let Some((params, ret)) = function_signature(&ty) else {
+                        return Err(diagnostic(&e.at, "invalid call target"));
+                    };
+                    if params.len() != types.len()
+                        || params.iter().zip(&types).any(|(p, a)| !compatible(p, a))
+                    {
+                        return Err(diagnostic(&e.at, "invalid function arguments"));
+                    }
+                    ret
                 }
             }
             ExprKind::Try(inner) => {
@@ -1200,13 +3325,145 @@ impl Checker<'_> {
                     .unwrap_or("Unknown")
                     .into()
             }
+            ExprKind::Match(value, arms) => {
+                let ty = self.expr(value)?;
+                self.check_match(
+                    &ty,
+                    &arms
+                        .iter()
+                        .map(|(p, g, _)| (p, g.is_some()))
+                        .collect::<Vec<_>>(),
+                    &e.at,
+                )?;
+                let mut result: Option<String> = None;
+                for (pattern, guard, arm) in arms {
+                    let mut bindings = BTreeMap::new();
+                    self.pattern(
+                        &resolve_pattern_alias(pattern, &self.program.import_aliases),
+                        &ty,
+                        &e.at,
+                        &mut bindings,
+                    )?;
+                    let scoped = Checker {
+                        program: self.program,
+                        scopes: {
+                            let mut scopes = self.scopes.clone();
+                            scopes.push(bindings);
+                            scopes
+                        },
+                        return_ty: self.return_ty.clone(),
+                        loop_depth: self.loop_depth,
+                        bounds: self.bounds.clone(),
+                        origin: self.origin.clone(),
+                    };
+                    if let Some(guard) = guard {
+                        if scoped.expr(guard)? != "Bool" {
+                            return Err(diagnostic(&guard.at, "match guard must be Bool"));
+                        }
+                        check_guard_effects(self.program, guard)?;
+                    }
+                    let arm_ty = scoped.expr(arm)?;
+                    if let Some(prior) = &result {
+                        if !compatible(prior, &arm_ty) {
+                            return Err(diagnostic(
+                                &arm.at,
+                                format!("match arm expects {prior}, found {arm_ty}"),
+                            ));
+                        }
+                    } else {
+                        result = Some(arm_ty);
+                    }
+                }
+                result.unwrap_or("Unit".into())
+            }
+            ExprKind::Closure(params, ret, body) => {
+                let mut scoped = Checker {
+                    program: self.program,
+                    scopes: self.scopes.clone(),
+                    return_ty: Some(ret.clone()),
+                    loop_depth: 0,
+                    bounds: self.bounds.clone(),
+                    origin: self.origin.clone(),
+                };
+                scoped.scopes.push(BTreeMap::new());
+                for (name, ty) in params {
+                    if scoped
+                        .scopes
+                        .last_mut()
+                        .unwrap()
+                        .insert(name.clone(), (ty.clone(), false))
+                        .is_some()
+                    {
+                        return Err(diagnostic(&e.at, format!("duplicate parameter {name}")));
+                    }
+                }
+                for stmt in body {
+                    scoped.stmt(stmt)?;
+                }
+                if ret != "Unit" && !guarantees_return(body) {
+                    return Err(diagnostic(
+                        &e.at,
+                        format!("closure returning {ret} needs return on every path"),
+                    ));
+                }
+                format!(
+                    "fn({})->{ret}",
+                    params
+                        .iter()
+                        .map(|(_, t)| t.as_str())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            }
+            ExprKind::NamedConstructor(name, fields) => {
+                let resolved_name = resolve_alias(self.program, name);
+                let (enum_name, variant) = resolved_name.split_once("::").unwrap();
+                let base = enum_name.split('<').next().unwrap_or(enum_name);
+                let def = self
+                    .program
+                    .enums
+                    .get(base)
+                    .ok_or_else(|| diagnostic(&e.at, format!("unknown enum {base}")))?;
+                self.visible(
+                    def.public,
+                    &def.origin,
+                    &e.at,
+                    name.split_once("::").unwrap().0,
+                )?;
+                let expected = def
+                    .variants
+                    .get(variant)
+                    .ok_or_else(|| diagnostic(&e.at, format!("unknown variant {variant}")))?;
+                if fields.len() != expected.len() {
+                    return Err(diagnostic(&e.at, "named constructor field count mismatch"));
+                }
+                let mut types = BTreeMap::new();
+                for (field, value) in fields {
+                    if types.insert(field.clone(), self.expr(value)?).is_some() {
+                        return Err(diagnostic(&e.at, format!("duplicate field {field}")));
+                    }
+                }
+                let ordered = expected
+                    .iter()
+                    .map(|(field, _)| {
+                        types
+                            .get(field)
+                            .cloned()
+                            .ok_or_else(|| diagnostic(&e.at, format!("missing field {field}")))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                enum_constructor_type(self.program, &resolved_name, &ordered, &e.at)?.unwrap()
+            }
         })
     }
     fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match &stmt.kind {
             StmtKind::Let(name, mutable, ty, expr) => {
                 let inferred = self.expr(expr)?;
-                if let Some(expected) = ty {
+                let annotation = ty
+                    .as_ref()
+                    .map(|ty| rename_type(ty, &self.program.import_aliases));
+                if let Some(expected) = &annotation {
                     if !compatible(expected, &inferred) && inferred != "Unknown" {
                         return Err(diagnostic(
                             &stmt.at,
@@ -1226,7 +3483,20 @@ impl Checker<'_> {
                 self.scopes
                     .last_mut()
                     .unwrap()
-                    .insert(name.clone(), (ty.clone().unwrap_or(inferred), *mutable));
+                    .insert(name.clone(), (annotation.unwrap_or(inferred), *mutable));
+            }
+            StmtKind::Using(name, expr) => {
+                let ty = self.expr(expr)?;
+                if ty != "FileHandle" {
+                    return Err(diagnostic(&stmt.at, "using requires a FileHandle"));
+                }
+                if self.scopes.last().unwrap().contains_key(name) {
+                    return Err(diagnostic(&stmt.at, format!("duplicate binding {name}")));
+                }
+                self.scopes
+                    .last_mut()
+                    .unwrap()
+                    .insert(name.clone(), (ty, false));
             }
             StmtKind::Assign(lhs, _, rhs) => {
                 let right = self.expr(rhs)?;
@@ -1270,7 +3540,16 @@ impl Checker<'_> {
                 if self.return_ty.is_none() {
                     return Err(diagnostic(&stmt.at, "defer requires a function"));
                 }
-                if !defer_safe(expr) {
+                if cleanup_calls_publish(
+                    self.program,
+                    std::slice::from_ref(stmt),
+                    &mut BTreeSet::new(),
+                ) {
+                    return Err(diagnostic(&stmt.at, "defer cleanup may not call publish"));
+                }
+                if !defer_safe(expr)
+                    && !matches!(&expr.kind, ExprKind::Closure(_,_,body) if cleanup_safe(body) && !cleanup_calls_publish(self.program,body,&mut BTreeSet::new()))
+                {
                     return Err(diagnostic(
                         &stmt.at,
                         "defer may only call virtual I/O or object methods",
@@ -1330,44 +3609,31 @@ impl Checker<'_> {
             }
             StmtKind::Match(value, arms) => {
                 let t = self.expr(value)?;
-                if !t.starts_with("Result") && !t.starts_with("Option") {
-                    return Err(diagnostic(&value.at, "match expects Result or Option"));
-                }
-                let required = if t.starts_with("Result") {
-                    ["Ok", "Err"]
-                } else {
-                    ["Some", "None"]
-                };
-                let present = arms
-                    .iter()
-                    .map(|(variant, _, _)| variant.as_str())
-                    .collect::<BTreeSet<_>>();
-                if present.len() != arms.len()
-                    || required.iter().any(|variant| !present.contains(variant))
-                    || present.len() != 2
-                {
-                    return Err(diagnostic(
+                self.check_match(
+                    &t,
+                    &arms
+                        .iter()
+                        .map(|(p, g, _)| (p, g.is_some()))
+                        .collect::<Vec<_>>(),
+                    &stmt.at,
+                )?;
+                for (pattern, guard, body) in arms {
+                    let mut bindings = BTreeMap::new();
+                    self.pattern(
+                        &resolve_pattern_alias(pattern, &self.program.import_aliases),
+                        &t,
                         &stmt.at,
-                        "match must have exactly one arm for each variant",
-                    ));
-                }
-                let parts = t
-                    .split_once('<')
-                    .and_then(|(_, tail)| tail.strip_suffix('>'))
-                    .map(split_type_args)
-                    .unwrap_or_default();
-                for (variant, binding, expr) in arms {
-                    let inner_ty = match variant.as_str() {
-                        "Ok" | "Some" => parts.first().copied().unwrap_or("Unknown"),
-                        "Err" => parts.get(1).copied().unwrap_or("Unknown"),
-                        _ => "Unit",
-                    };
+                        &mut bindings,
+                    )?;
                     self.scopes.push(BTreeMap::new());
-                    self.scopes
-                        .last_mut()
-                        .unwrap()
-                        .insert(binding.clone(), (inner_ty.into(), false));
-                    self.expr(expr)?;
+                    self.scopes.last_mut().unwrap().extend(bindings);
+                    if let Some(guard) = guard {
+                        if self.expr(guard)? != "Bool" {
+                            return Err(diagnostic(&guard.at, "match guard must be Bool"));
+                        }
+                        check_guard_effects(self.program, guard)?;
+                    }
+                    self.stmt(body)?;
                     self.scopes.pop();
                 }
             }
@@ -1387,8 +3653,149 @@ fn defer_safe(expr: &Expr) -> bool {
             defer_safe(base)
         }
         ExprKind::Binary(_, a, b) => defer_safe(a) && defer_safe(b),
+        ExprKind::Match(_, _) | ExprKind::Closure(_, _, _) | ExprKind::NamedConstructor(_, _) => {
+            false
+        }
         ExprKind::Value(_) | ExprKind::Name(_) => true,
     }
+}
+fn cleanup_safe(body: &[Stmt]) -> bool {
+    body.iter().all(|stmt| match &stmt.kind {
+        StmtKind::Publish(_)
+        | StmtKind::Commit(_)
+        | StmtKind::Revert(_)
+        | StmtKind::Resume(_)
+        | StmtKind::Drop(_)
+        | StmtKind::Branch(_, _) => false,
+        StmtKind::Block(body) | StmtKind::While(_, body) | StmtKind::For(_, _, _, body) => {
+            cleanup_safe(body)
+        }
+        StmtKind::If(_, a, b) => cleanup_safe(a) && cleanup_safe(b),
+        StmtKind::Match(_, arms) => arms
+            .iter()
+            .all(|(_, _, s)| cleanup_safe(std::slice::from_ref(s))),
+        _ => true,
+    })
+}
+fn check_guard_effects(program: &Program, guard: &Expr) -> Result<()> {
+    let statement = Stmt {
+        kind: StmtKind::Expr(guard.clone()),
+        at: guard.at.clone(),
+    };
+    if cleanup_calls_publish(program, &[statement], &mut BTreeSet::new()) {
+        return Err(diagnostic(&guard.at,"match guard may only perform virtual I/O; publish, checkpoints and unresolved function values are forbidden"));
+    }
+    Ok(())
+}
+fn cleanup_calls_publish(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> bool {
+    fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>) -> bool {
+        match &e.kind {
+            ExprKind::Call(callee, args) => {
+                let direct = match &callee.kind {
+                    ExprKind::Name(name) => {
+                        let resolved = resolve_alias(program, name);
+                        let base = resolved.split('<').next().unwrap_or(&resolved);
+                        if let Some(f) = program.functions.get(base) {
+                            seen.insert(base.into())
+                                && (!cleanup_safe(&f.body)
+                                    || cleanup_calls_publish(program, &f.body, seen))
+                        } else {
+                            !matches!(
+                                base,
+                                "assert"
+                                    | "assert_eq"
+                                    | "panic"
+                                    | "Ok"
+                                    | "Err"
+                                    | "Some"
+                                    | "Bytes"
+                                    | "List"
+                                    | "Map"
+                            ) && !program.structs.contains_key(base)
+                                && !resolved.contains("::")
+                        }
+                    }
+                    ExprKind::Member(base, method) => {
+                        let alias = if let ExprKind::Name(name) = &base.kind {
+                            program.import_aliases.get(&format!("{name}.{method}"))
+                        } else {
+                            None
+                        };
+                        alias.is_some_and(|symbol| {
+                            program.functions.get(symbol).is_some_and(|f| {
+                                seen.insert(symbol.clone())
+                                    && (!cleanup_safe(&f.body)
+                                        || cleanup_calls_publish(program, &f.body, seen))
+                            })
+                        }) || program
+                            .impls
+                            .values()
+                            .filter_map(|methods| methods.get(method))
+                            .any(|name| {
+                                program.functions.get(name).is_some_and(|f| {
+                                    seen.insert(name.clone())
+                                        && (!cleanup_safe(&f.body)
+                                            || cleanup_calls_publish(program, &f.body, seen))
+                                })
+                            })
+                    }
+                    _ => true,
+                };
+                direct
+                    || expr(program, callee, seen)
+                    || args.iter().any(|arg| expr(program, arg, seen))
+            }
+            ExprKind::Unary(_, e) | ExprKind::Try(e) | ExprKind::Member(e, _) => {
+                expr(program, e, seen)
+            }
+            ExprKind::Binary(_, a, b) => expr(program, a, seen) || expr(program, b, seen),
+            ExprKind::Match(e, arms) => {
+                expr(program, e, seen)
+                    || arms.iter().any(|(_, guard, result)| {
+                        guard.as_ref().is_some_and(|g| expr(program, g, seen))
+                            || expr(program, result, seen)
+                    })
+            }
+            ExprKind::Closure(_, _, body) => cleanup_calls_publish(program, body, seen),
+            ExprKind::NamedConstructor(_, fields) => {
+                fields.iter().any(|(_, e)| expr(program, e, seen))
+            }
+            _ => false,
+        }
+    }
+    body.iter().any(|stmt| match &stmt.kind {
+        StmtKind::Publish(_) => true,
+        StmtKind::Let(_, _, _, e)
+        | StmtKind::Using(_, e)
+        | StmtKind::Expr(e)
+        | StmtKind::Defer(e)
+        | StmtKind::Return(Some(e)) => expr(program, e, seen),
+        StmtKind::Assign(a, _, b) => expr(program, a, seen) || expr(program, b, seen),
+        StmtKind::Block(body) | StmtKind::Branch(_, body) => {
+            cleanup_calls_publish(program, body, seen)
+        }
+        StmtKind::If(e, a, b) => {
+            expr(program, e, seen)
+                || cleanup_calls_publish(program, a, seen)
+                || cleanup_calls_publish(program, b, seen)
+        }
+        StmtKind::While(e, body) => {
+            expr(program, e, seen) || cleanup_calls_publish(program, body, seen)
+        }
+        StmtKind::For(_, a, b, body) => {
+            expr(program, a, seen)
+                || expr(program, b, seen)
+                || cleanup_calls_publish(program, body, seen)
+        }
+        StmtKind::Match(e, arms) => {
+            expr(program, e, seen)
+                || arms.iter().any(|(_, guard, body)| {
+                    guard.as_ref().is_some_and(|g| expr(program, g, seen))
+                        || cleanup_calls_publish(program, std::slice::from_ref(body), seen)
+                })
+        }
+        _ => false,
+    })
 }
 fn builtin_type(receiver: &str, method: &str, args: &[String], at: &Tok) -> Result<String> {
     let count = args.len();
@@ -1396,6 +3803,9 @@ fn builtin_type(receiver: &str, method: &str, args: &[String], at: &Tok) -> Resu
         ("Out" | "Err", "println", 1) | ("Out" | "Err", "flush", 0) => "Unit",
         ("In", "readLine", 0) => "Option<String>",
         ("Time", "now", 0) | ("Random", "next", 0) => "Int",
+        ("Args", "all", 0) | ("Directory", "entries", 1) => "List<String>",
+        ("Env", "get", 1) => "Option<String>",
+        ("Locale", "current", 0) => "String",
         ("File", "readText", 1) => "Result<String,FileError>",
         ("File", "readBytes", 1) => "Result<Bytes,FileError>",
         ("File", "open" | "openSnapshot", 1) => "FileHandle",
@@ -1412,7 +3822,7 @@ fn builtin_type(receiver: &str, method: &str, args: &[String], at: &Tok) -> Resu
             ))
         }
     };
-    if matches!(receiver, "File" | "Directory") {
+    if matches!(receiver, "File" | "Directory" | "Env") {
         for (index, actual) in args.iter().enumerate() {
             let expected = match (receiver, method, index) {
                 ("File", "writeBytes", 1) => "Bytes",
@@ -1447,6 +3857,7 @@ impl<R: BufRead> Engine<R> {
             defers: vec![Vec::new()],
             test_mode: false,
             trace: false,
+            trace_json: false,
             call_path: Vec::new(),
             next_call_id: 1,
         })
@@ -1492,6 +3903,7 @@ struct Engine<R: BufRead> {
     defers: Vec<Vec<Expr>>,
     test_mode: bool,
     trace: bool,
+    trace_json: bool,
     call_path: Vec<u64>,
     next_call_id: u64,
 }
@@ -1529,18 +3941,23 @@ impl<R: BufRead> Engine<R> {
         if scope.contains_key(&name) {
             return Err(self.fail(at, format!("duplicate binding {name}; choose another name")));
         }
+        let stored = if mutable {
+            Value::CellRef(self.runtime.alloc(value.clone())?)
+        } else {
+            value.clone()
+        };
         scope.insert(
             name.clone(),
             Binding {
-                value: value.clone(),
+                value: stored.clone(),
                 mutable,
                 ty,
             },
         );
         if self.function_depth == 0 {
-            self.runtime.set_global(name, value)?;
+            self.runtime.set_global(name, stored)?;
         } else {
-            self.runtime.set_local(name, value)?;
+            self.runtime.set_local(name, stored)?;
         }
         Ok(())
     }
@@ -1557,7 +3974,12 @@ impl<R: BufRead> Engine<R> {
                 let value = if op == "=" {
                     rhs
                 } else {
-                    binary(&op[..1], old.value, rhs, &lhs.at)?
+                    let current = if let Value::CellRef(id) = old.value {
+                        self.runtime.heap_get(id).cloned().unwrap_or(Value::Null)
+                    } else {
+                        old.value.clone()
+                    };
+                    binary(&op[..1], current, rhs, &lhs.at)?
                 };
                 let actual = value_type(&value, &self.runtime);
                 if !compatible(&old.ty, &actual) {
@@ -1565,6 +3987,10 @@ impl<R: BufRead> Engine<R> {
                         &lhs.at,
                         format!("type mismatch: expected {}, found {actual}", old.ty),
                     ));
+                }
+                if let Value::CellRef(id) = old.value {
+                    self.runtime.heap_set(id, value)?;
+                    return Ok(());
                 }
                 for scope in self.scopes.iter_mut().rev() {
                     if let Some(binding) = scope.get_mut(name) {
@@ -1648,6 +4074,29 @@ impl<R: BufRead> Engine<R> {
             StmtKind::Let(name, mutable, ty, init) => {
                 let value = self.eval(init)?;
                 self.define(name.clone(), value, *mutable, ty.clone(), &stmt.at)
+            }
+            StmtKind::Using(name, init) => {
+                let value = self.eval(init)?;
+                self.define(
+                    name.clone(),
+                    value,
+                    false,
+                    Some("FileHandle".into()),
+                    &stmt.at,
+                )?;
+                let receiver = Expr {
+                    kind: ExprKind::Name(name.clone()),
+                    at: stmt.at.clone(),
+                };
+                let method = Expr {
+                    kind: ExprKind::Member(Box::new(receiver), "close".into()),
+                    at: stmt.at.clone(),
+                };
+                self.defers.last_mut().unwrap().push(Expr {
+                    kind: ExprKind::Call(Box::new(method), Vec::new()),
+                    at: stmt.at.clone(),
+                });
+                Ok(())
             }
             StmtKind::Assign(lhs, op, rhs) => {
                 let rhs = self.eval(rhs)?;
@@ -1801,22 +4250,27 @@ impl<R: BufRead> Engine<R> {
             }
             StmtKind::Match(value, arms) => {
                 let v = self.eval(value)?;
-                let (variant, inner) = match v {
-                    Value::Result(Ok(v)) => ("Ok", *v),
-                    Value::Result(Err(v)) => ("Err", *v),
-                    Value::Option(Some(v)) => ("Some", *v),
-                    Value::Option(None) => ("None", Value::Null),
-                    _ => return Err(self.fail(&value.at, "match expects Result or Option")),
-                };
-                let (_, binding, arm) = arms
-                    .iter()
-                    .find(|(v, _, _)| v == variant)
-                    .ok_or_else(|| self.fail(&stmt.at, "non-exhaustive match"))?;
-                self.scopes.push(BTreeMap::new());
-                self.define(binding.clone(), inner, false, None, &stmt.at)?;
-                let result = self.eval(arm).map(|_| ());
-                self.scopes.pop();
-                result
+                for (pattern, guard, body) in arms {
+                    let mut bindings = BTreeMap::new();
+                    if !pattern_matches(pattern, &v, &self.runtime, &mut bindings) {
+                        continue;
+                    }
+                    self.scopes.push(BTreeMap::new());
+                    for (name, value) in bindings {
+                        self.define(name, value, false, None, &stmt.at)?;
+                    }
+                    let accept = if let Some(guard) = guard {
+                        self.eval(guard)? == Value::Bool(true)
+                    } else {
+                        true
+                    };
+                    let result = if accept { Some(self.stmt(body)) } else { None };
+                    self.scopes.pop();
+                    if let Some(result) = result {
+                        return result;
+                    }
+                }
+                Err(self.fail(&stmt.at, "non-exhaustive match"))
             }
         }
     }
@@ -1842,10 +4296,33 @@ impl<R: BufRead> Engine<R> {
         self.tick(&e.at)?;
         match &e.kind {
             ExprKind::Value(v) => Ok(v.clone()),
-            ExprKind::Name(n) => self
-                .get(n)
-                .map(|b| b.value.clone())
-                .ok_or_else(|| self.fail(&e.at, format!("unknown name {n}"))),
+            ExprKind::Name(n) => {
+                if let Some(binding) = self.get(n) {
+                    let value = binding.value.clone();
+                    if let Value::CellRef(id) = value {
+                        Ok(self.runtime.heap_get(id).cloned().unwrap_or(Value::Null))
+                    } else {
+                        Ok(value)
+                    }
+                } else if let Some(f) = self.program.functions.get(n) {
+                    Ok(Value::Function(
+                        n.clone(),
+                        format!(
+                            "fn({})->{}",
+                            f.params
+                                .iter()
+                                .map(|(_, t)| t.as_str())
+                                .collect::<Vec<_>>()
+                                .join(","),
+                            f.ret
+                        ),
+                    ))
+                } else if n.contains("::") {
+                    self.call(n, Vec::new(), &e.at)
+                } else {
+                    Err(self.fail(&e.at, format!("unknown name {n}")))
+                }
+            }
             ExprKind::Unary(op, inner) => {
                 let v = self.eval(inner)?;
                 match (op.as_str(), v) {
@@ -1886,6 +4363,22 @@ impl<R: BufRead> Engine<R> {
             ExprKind::Member(base, field) => {
                 let value = self.eval(base)?;
                 match value {
+                    Value::FileError(error) => match field.as_str() {
+                        "code" => Ok(Value::Text(error.code)),
+                        "path" => Ok(Value::Text(error.path)),
+                        "cause" => Ok(Value::Option(
+                            error
+                                .causes
+                                .first()
+                                .cloned()
+                                .map(|s| Box::new(Value::Text(s))),
+                        )),
+                        "causes" => Ok(Value::HeapRef(self.runtime.alloc(Value::TypedList(
+                            "String".into(),
+                            error.causes.into_iter().map(Value::Text).collect(),
+                        ))?)),
+                        _ => Err(self.fail(&e.at, "unknown FileError field")),
+                    },
                     Value::Handle(id) if field == "position" => {
                         Ok(Value::Int(self.runtime.handle(id)?.position as i64))
                     }
@@ -1896,6 +4389,10 @@ impl<R: BufRead> Engine<R> {
                             .ok_or_else(|| self.fail(&e.at, "unknown field")),
                         _ => Err(self.fail(&e.at, "unknown property")),
                     },
+                    Value::Struct(_, fields) => fields
+                        .get(field)
+                        .cloned()
+                        .ok_or_else(|| self.fail(&e.at, "unknown field")),
                     _ => Err(self.fail(&e.at, "unknown property")),
                 }
             }
@@ -1923,12 +4420,95 @@ impl<R: BufRead> Engine<R> {
                 Value::Result(Err(v)) => Err(Flow::Return(Value::Result(Err(v)))),
                 _ => Err(self.fail(&e.at, "'?' requires Result")),
             },
+            ExprKind::Match(value, arms) => {
+                let value = self.eval(value)?;
+                for (pattern, guard, arm) in arms {
+                    let mut bindings = BTreeMap::new();
+                    if !pattern_matches(pattern, &value, &self.runtime, &mut bindings) {
+                        continue;
+                    }
+                    self.scopes.push(BTreeMap::new());
+                    for (name, value) in bindings {
+                        self.define(name, value, false, None, &e.at)?;
+                    }
+                    let accept = if let Some(guard) = guard {
+                        self.eval(guard)? == Value::Bool(true)
+                    } else {
+                        true
+                    };
+                    let result = if accept { Some(self.eval(arm)) } else { None };
+                    self.scopes.pop();
+                    if let Some(result) = result {
+                        return result;
+                    }
+                }
+                Err(self.fail(&e.at, "non-exhaustive match"))
+            }
+            ExprKind::Closure(_, _, _) => {
+                Err(self.fail(&e.at, "closure cannot be evaluated in deferred expression"))
+            }
+            ExprKind::NamedConstructor(name, fields) => {
+                let mut values = Vec::new();
+                for (field, expr) in fields {
+                    values.push((field.clone(), self.eval(expr)?));
+                }
+                self.call_named(name, values, &e.at)
+            }
         }
     }
 }
 
 impl<R: BufRead> Engine<R> {
+    fn call_named(&mut self, name: &str, fields: Vec<(String, Value)>, at: &Tok) -> Exec<Value> {
+        let (enum_name, variant) = name
+            .split_once("::")
+            .ok_or_else(|| self.fail(at, "named constructor requires enum variant"))?;
+        let def = self
+            .program
+            .enums
+            .get(enum_name.split('<').next().unwrap_or(enum_name))
+            .ok_or_else(|| self.fail(at, "unknown enum"))?;
+        let expected = def
+            .variants
+            .get(variant)
+            .ok_or_else(|| self.fail(at, "unknown variant"))?;
+        let mut supplied = fields.into_iter().collect::<BTreeMap<_, _>>();
+        let args = expected
+            .iter()
+            .map(|(field, _)| {
+                supplied
+                    .remove(field)
+                    .ok_or_else(|| self.fail(at, format!("missing field {field}")))
+            })
+            .collect::<Exec<Vec<_>>>()?;
+        if !supplied.is_empty() {
+            return Err(self.fail(at, "unknown named constructor field"));
+        }
+        self.call(name, args, at)
+    }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
+        if name.contains("::") {
+            let actual = args
+                .iter()
+                .map(|a| value_type(a, &self.runtime))
+                .collect::<Vec<_>>();
+            if let Some(ty) =
+                enum_constructor_type(&self.program, name, &actual, at).map_err(Flow::Error)?
+            {
+                let (enum_name, variant) = name.split_once("::").unwrap();
+                let fields = &self.program.enums[enum_name.split('<').next().unwrap_or(enum_name)]
+                    .variants[variant];
+                return Ok(Value::Enum(
+                    ty,
+                    variant.into(),
+                    fields
+                        .iter()
+                        .map(|(name, _)| name.clone())
+                        .zip(args)
+                        .collect(),
+                ));
+            }
+        }
         if let Some(inner) = name.strip_prefix("List<").and_then(|s| s.strip_suffix('>')) {
             if !args.is_empty() {
                 return Err(self.fail(at, "List constructor takes no arguments"));
@@ -1945,6 +4525,16 @@ impl<R: BufRead> Engine<R> {
             let types = split_type_args(inner);
             if types.len() != 2 {
                 return Err(self.fail(at, "Map requires key and value types"));
+            }
+            if !trait_satisfied(&self.program, "Ord", types[0]) {
+                return Err(self.fail(at, "Map key type must implement Ord"));
+            }
+            if !matches!(types[0], "Bool" | "Int" | "Float" | "String" | "Bytes") {
+                return Ok(Value::HeapRef(self.runtime.alloc(Value::OrderedMap(
+                    types[0].into(),
+                    types[1].into(),
+                    Vec::new(),
+                ))?));
             }
             return Ok(Value::HeapRef(self.runtime.alloc(Value::TypedMap(
                 types[0].into(),
@@ -1972,32 +4562,90 @@ impl<R: BufRead> Engine<R> {
             "assert" if args == [Value::Bool(false)] => {
                 return Err(self.fail(at, "assertion failed"))
             }
+            "assert_eq" if args.len() == 2 => {
+                if args[0] == args[1] {
+                    return Ok(Value::Null);
+                }
+                return Err(self.fail(
+                    at,
+                    format!(
+                        "assert_eq failed: left={} right={}",
+                        self.runtime.display_value(&args[0]),
+                        self.runtime.display_value(&args[1])
+                    ),
+                ));
+            }
+            "panic" if args.len() == 1 => return Err(self.fail(at, format!("panic: {}", args[0]))),
             _ => {}
         }
-        if let Some(def) = self.program.structs.get(name).cloned() {
+        if let Some(def) = self
+            .program
+            .structs
+            .get(name.split('<').next().unwrap_or(name))
+            .cloned()
+        {
             if args.len() != def.fields.len() {
                 return Err(self.fail(at, format!("{name} expects {} fields", def.fields.len())));
             }
             let mut fields = BTreeMap::new();
+            let actuals = args
+                .iter()
+                .map(|arg| value_type(arg, &self.runtime))
+                .collect::<Vec<_>>();
+            let substitutions = infer_arguments(&def.fields, &def.type_params, &actuals, at)
+                .map_err(Flow::Error)?;
             for ((field, ty), arg) in def.fields.iter().zip(args) {
                 let actual = value_type(&arg, &self.runtime);
-                if !compatible(ty, &actual) {
-                    return Err(
-                        self.fail(at, format!("field {field} expects {ty}, found {actual}"))
-                    );
+                let expected = substitute_type(ty, &substitutions);
+                if !compatible(&expected, &actual) {
+                    return Err(self.fail(
+                        at,
+                        format!("field {field} expects {expected}, found {actual}"),
+                    ));
                 }
                 fields.insert(field.clone(), arg);
             }
+            let concrete = if def.type_params.is_empty() {
+                name.into()
+            } else {
+                format!(
+                    "{}<{}>",
+                    name.split('<').next().unwrap(),
+                    def.type_params
+                        .iter()
+                        .map(|p| substitutions[p].as_str())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            };
             return Ok(Value::HeapRef(
-                self.runtime.alloc(Value::Struct(name.into(), fields))?,
+                self.runtime.alloc(Value::Struct(concrete, fields))?,
             ));
         }
-        let def = self
+        let mut def = self
             .program
             .functions
-            .get(name)
+            .get(name.split('<').next().unwrap_or(name))
             .cloned()
             .ok_or_else(|| self.fail(at, format!("unknown function {name}")))?;
+        let types = args
+            .iter()
+            .map(|v| value_type(v, &self.runtime))
+            .collect::<Vec<_>>();
+        let parameters = def
+            .type_params
+            .iter()
+            .map(|(p, _)| p.clone())
+            .collect::<Vec<_>>();
+        let substitutions = infer_call_arguments(name, &def.params, &parameters, &types, at)
+            .map_err(Flow::Error)?;
+        def.ret = substitute_type(&def.ret, &substitutions);
+        for (_, ty) in &mut def.params {
+            *ty = substitute_type(ty, &substitutions);
+        }
+        for stmt in &mut def.body {
+            rename_stmt(stmt, &substitutions);
+        }
         if args.len() != def.params.len() {
             return Err(self.fail(at, format!("{name} expects {} arguments", def.params.len())));
         }
@@ -2011,7 +4659,8 @@ impl<R: BufRead> Engine<R> {
         self.scopes.push(BTreeMap::new());
         self.defers.push(Vec::new());
         for ((param, ty), arg) in def.params.iter().zip(args) {
-            self.define(param.clone(), arg, false, Some(ty.clone()), at)?;
+            let _ = ty;
+            self.define(param.clone(), arg, false, None, at)?;
         }
         let body = self.statements(&def.body);
         if matches!(&body, Err(Flow::Resume(_))) {
@@ -2043,8 +4692,156 @@ impl<R: BufRead> Engine<R> {
         }
         Ok(value)
     }
+    fn ordered_key(&self, value: &Value, at: &Tok) -> Exec<Value> {
+        fn freeze<R: BufRead>(
+            engine: &Engine<R>,
+            value: &Value,
+            at: &Tok,
+            path: &mut BTreeSet<u64>,
+            depth: usize,
+            remaining: &mut usize,
+        ) -> Exec<Value> {
+            if depth > 64 || *remaining == 0 {
+                return Err(engine.fail(at, "Map key snapshot budget exceeded"));
+            }
+            *remaining -= 1;
+            let mut child = |v: &Value| freeze(engine, v, at, path, depth + 1, remaining);
+            Ok(match value {
+                Value::HeapRef(id) | Value::CellRef(id) => {
+                    if !path.insert(*id) {
+                        return Err(engine.fail(at, "cyclic Map key"));
+                    }
+                    let value = engine
+                        .runtime
+                        .heap_get(*id)
+                        .ok_or_else(|| engine.fail(at, "missing Map key object"))?;
+                    let frozen = freeze(engine, value, at, path, depth + 1, remaining)?;
+                    path.remove(id);
+                    frozen
+                }
+                Value::Struct(ty, fields) => Value::Struct(
+                    ty.clone(),
+                    fields
+                        .iter()
+                        .map(|(n, v)| Ok((n.clone(), child(v)?)))
+                        .collect::<Exec<_>>()?,
+                ),
+                Value::Enum(ty, variant, fields) => Value::Enum(
+                    ty.clone(),
+                    variant.clone(),
+                    fields
+                        .iter()
+                        .map(|(n, v)| Ok((n.clone(), child(v)?)))
+                        .collect::<Exec<_>>()?,
+                ),
+                Value::List(values) => {
+                    Value::List(values.iter().map(&mut child).collect::<Exec<_>>()?)
+                }
+                Value::TypedList(ty, values) => Value::TypedList(
+                    ty.clone(),
+                    values.iter().map(&mut child).collect::<Exec<_>>()?,
+                ),
+                Value::Map(values) => Value::Map(
+                    values
+                        .iter()
+                        .map(|(k, v)| Ok((k.clone(), child(v)?)))
+                        .collect::<Exec<_>>()?,
+                ),
+                Value::TypedMap(k, v, values) => Value::TypedMap(
+                    k.clone(),
+                    v.clone(),
+                    values
+                        .iter()
+                        .map(|(k, v)| Ok((k.clone(), child(v)?)))
+                        .collect::<Exec<_>>()?,
+                ),
+                Value::OrderedMap(k, v, values) => Value::OrderedMap(
+                    k.clone(),
+                    v.clone(),
+                    values
+                        .iter()
+                        .map(|(k, v)| Ok((child(k)?, child(v)?)))
+                        .collect::<Exec<_>>()?,
+                ),
+                Value::Option(value) => {
+                    Value::Option(value.as_ref().map(|v| child(v).map(Box::new)).transpose()?)
+                }
+                Value::Result(Ok(v)) => Value::Result(Ok(Box::new(child(v)?))),
+                Value::Result(Err(v)) => Value::Result(Err(Box::new(child(v)?))),
+                Value::Handle(_) | Value::Closure(_, _, _) | Value::Function(_, _) => {
+                    return Err(engine.fail(at, "Map keys cannot capture resources or functions"))
+                }
+                other => other.clone(),
+            })
+        }
+        freeze(self, value, at, &mut BTreeSet::new(), 0, &mut 10_000)
+    }
+    fn ordered_position(
+        &mut self,
+        ty: &str,
+        entries: &[(Value, Value)],
+        key: &Value,
+        at: &Tok,
+    ) -> Exec<std::result::Result<usize, usize>> {
+        let symbol = self
+            .program
+            .impls
+            .get(&("Ord".into(), ty.into()))
+            .and_then(|m| m.get("cmp"))
+            .cloned()
+            .ok_or_else(|| self.fail(at, format!("{ty} has no Ord.cmp implementation")))?;
+        let mut position = entries.len();
+        for (i, (existing, _)) in entries.iter().enumerate() {
+            let forward = self.call(&symbol, vec![key.clone(), existing.clone()], at)?;
+            let reverse = self.call(&symbol, vec![existing.clone(), key.clone()], at)?;
+            let (Value::Int(forward), Value::Int(reverse)) = (forward, reverse) else {
+                return Err(self.fail(at, "Ord.cmp must return Int"));
+            };
+            if forward.signum() != -reverse.signum() {
+                return Err(self.fail(at, "Ord.cmp is not antisymmetric"));
+            }
+            if forward == 0 {
+                return Ok(Ok(i));
+            }
+            if forward < 0 && position == entries.len() {
+                position = i;
+            }
+            if forward > 0 && position != entries.len() {
+                return Err(self.fail(at, "Ord.cmp is not a total order"));
+            }
+        }
+        Ok(Err(position))
+    }
     fn method(&mut self, target: Value, method: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
         let unit = Value::Null;
+        if let Some(key) = MapKey::from_value(&target) {
+            match (method, args.as_slice()) {
+                ("eq", [other]) => {
+                    return Ok(Value::Bool(
+                        MapKey::from_value(other).as_ref() == Some(&key),
+                    ))
+                }
+                ("cmp", [other]) => {
+                    let other = MapKey::from_value(other)
+                        .ok_or_else(|| self.fail(at, "comparison requires a primitive value"))?;
+                    return Ok(Value::Int(match key.cmp(&other) {
+                        std::cmp::Ordering::Less => -1,
+                        std::cmp::Ordering::Equal => 0,
+                        std::cmp::Ordering::Greater => 1,
+                    }));
+                }
+                ("display", []) => return Ok(Value::Text(target.to_string())),
+                ("hash", []) => {
+                    let bytes = format!("{key:?}");
+                    let mut hash = 0xcbf29ce484222325u64;
+                    for byte in bytes.bytes() {
+                        hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+                    }
+                    return Ok(Value::Int(hash as i64));
+                }
+                _ => {}
+            }
+        }
         match target {
             Value::List(list) => match (method, args.as_slice()) {
                 ("get", [Value::Int(n)]) if *n >= 0 => list
@@ -2082,6 +4879,21 @@ impl<R: BufRead> Engine<R> {
                 ("len", []) => Ok(Value::Int(map.len() as i64)),
                 _ => Err(self.fail(at, "unsupported immutable Map method")),
             },
+            Value::OrderedMap(key_ty, _, entries) => match (method, args.as_slice()) {
+                ("get", [key]) => {
+                    let key = self.ordered_key(key, at)?;
+                    let position = self.ordered_position(&key_ty, &entries, &key, at)?;
+                    Ok(Value::Option(
+                        position.ok().map(|i| Box::new(entries[i].1.clone())),
+                    ))
+                }
+                ("keys", []) => Ok(Value::HeapRef(self.runtime.alloc(Value::TypedList(
+                    key_ty,
+                    entries.into_iter().map(|(key, _)| key).collect(),
+                ))?)),
+                ("len", []) => Ok(Value::Int(entries.len() as i64)),
+                _ => Err(self.fail(at, "unsupported immutable Map method")),
+            },
             Value::HeapRef(id) => {
                 let old = self
                     .runtime
@@ -2089,6 +4901,52 @@ impl<R: BufRead> Engine<R> {
                     .cloned()
                     .ok_or_else(|| self.fail(at, "unknown object"))?;
                 match old {
+                    Value::OrderedMap(key_ty, value_ty, mut entries) => {
+                        match (method, args.as_slice()) {
+                            ("set", [key, value]) => {
+                                let actual_key = value_type(key, &self.runtime);
+                                let actual_value = value_type(value, &self.runtime);
+                                if !compatible(&key_ty, &actual_key)
+                                    || !compatible(&value_ty, &actual_value)
+                                {
+                                    return Err(self.fail(at,format!("Map<{key_ty},{value_ty}> cannot contain {actual_key},{actual_value}")));
+                                }
+                                let key = self.ordered_key(key, at)?;
+                                match self.ordered_position(&key_ty, &entries, &key, at)? {
+                                    Ok(i) => entries[i] = (key, value.clone()),
+                                    Err(i) => entries.insert(i, (key, value.clone())),
+                                }
+                                self.runtime
+                                    .heap_set(id, Value::OrderedMap(key_ty, value_ty, entries))?;
+                                Ok(unit)
+                            }
+                            ("get", [key]) => {
+                                let key = self.ordered_key(key, at)?;
+                                let position =
+                                    self.ordered_position(&key_ty, &entries, &key, at)?;
+                                Ok(Value::Option(
+                                    position.ok().map(|i| Box::new(entries[i].1.clone())),
+                                ))
+                            }
+                            ("remove", [key]) => {
+                                let key = self.ordered_key(key, at)?;
+                                if let Ok(i) = self.ordered_position(&key_ty, &entries, &key, at)? {
+                                    entries.remove(i);
+                                }
+                                self.runtime
+                                    .heap_set(id, Value::OrderedMap(key_ty, value_ty, entries))?;
+                                Ok(unit)
+                            }
+                            ("keys", []) => {
+                                Ok(Value::HeapRef(self.runtime.alloc(Value::TypedList(
+                                    key_ty,
+                                    entries.into_iter().map(|(key, _)| key).collect(),
+                                ))?))
+                            }
+                            ("len", []) => Ok(Value::Int(entries.len() as i64)),
+                            _ => Err(self.fail(at, "unsupported Map method")),
+                        }
+                    }
                     Value::TypedList(ty, mut list) => {
                         match (method, args.as_slice()) {
                             ("add", [value]) | ("push", [value]) => {
@@ -2259,18 +5117,53 @@ impl<R: BufRead> Engine<R> {
             )),
             ("Time", "now", 0) => Ok(Value::Int(self.runtime.now_millis()? as i64)),
             ("Random", "next", 0) => Ok(Value::Int(self.runtime.random_u64() as i64)),
+            ("Args", "all", 0) => {
+                let values = self
+                    .runtime
+                    .arguments()
+                    .into_iter()
+                    .map(Value::Text)
+                    .collect();
+                Ok(Value::HeapRef(
+                    self.runtime
+                        .alloc(Value::TypedList("String".into(), values))?,
+                ))
+            }
+            ("Env", "get", 1) => Ok(Value::Option(
+                self.runtime
+                    .environment_value(&strings()[0])?
+                    .map(|s| Box::new(Value::Text(s))),
+            )),
+            ("Locale", "current", 0) => Ok(Value::Text(self.runtime.locale().into())),
+            ("Directory", "entries", 1) => {
+                let values = self
+                    .runtime
+                    .directory_entries(&strings()[0])?
+                    .into_iter()
+                    .map(Value::Text)
+                    .collect();
+                Ok(Value::HeapRef(
+                    self.runtime
+                        .alloc(Value::TypedList("String".into(), values))?,
+                ))
+            }
             ("File", "readText", 1) => {
                 let result = self.runtime.read_file(&strings()[0]).and_then(|v| {
                     String::from_utf8(v).map_err(|e| Error::InvalidOperation(e.to_string()))
                 });
                 Ok(match result {
                     Ok(s) => Value::Result(Ok(Box::new(Value::Text(s)))),
-                    Err(e) => Value::Result(Err(Box::new(Value::FileError(e.to_string())))),
+                    Err(e) => Value::Result(Err(Box::new(Value::FileError(
+                        FileFailure::from_error(&e, &strings()[0]),
+                    )))),
                 })
             }
             ("File", "readBytes", 1) => Ok(match self.runtime.read_file(&strings()[0]) {
                 Ok(v) => Value::Result(Ok(Box::new(Value::Bytes(v)))),
-                Err(e) => Value::Result(Err(Box::new(Value::FileError(e.to_string())))),
+                Err(e) => Value::Result(Err(Box::new(Value::FileError(FileFailure::from_error(
+                    &e,
+                    &strings()[0],
+                ))))),
             }),
             ("File", "writeText", 2) | ("File", "write", 2) | ("File", "create", 2) => {
                 let a = strings();
@@ -2347,7 +5240,7 @@ fn int(v: Value, at: &Tok) -> Exec<i64> {
     }
 }
 fn value_type(v: &Value, rt: &Runtime) -> String {
-    if let Value::HeapRef(id) = v {
+    if let Value::HeapRef(id) | Value::CellRef(id) = v {
         return rt
             .heap_get(*id)
             .map(|v| value_type(v, rt))
@@ -2365,18 +5258,21 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
         Value::TypedList(ty, _) => return format!("List<{ty}>"),
         Value::Map(_) => "Map",
         Value::TypedMap(key, value, _) => return format!("Map<{key},{value}>"),
+        Value::OrderedMap(key, value, _) => return format!("Map<{key},{value}>"),
         Value::Struct(name, _) => name,
+        Value::Enum(name, _, _) => name,
+        Value::Function(_, ty) | Value::Closure(_, ty, _) => ty,
         Value::Option(Some(v)) => return format!("Option<{}>", value_type(v, rt)),
         Value::Option(None) => return "Option<Unknown>".into(),
         Value::Result(Ok(v)) => return format!("Result<{},Unknown>", value_type(v, rt)),
         Value::Result(Err(v)) => return format!("Result<Unknown,{}>", value_type(v, rt)),
         Value::Handle(_) => "FileHandle",
-        Value::HeapRef(_) => unreachable!(),
+        Value::HeapRef(_) | Value::CellRef(_) => unreachable!(),
     }
     .into()
 }
 fn compatible(expected: &str, actual: &str) -> bool {
-    if expected == actual || expected == "Unknown" || actual == "Unknown" {
+    if expected == actual || expected == "Unknown" || actual == "Unknown" || actual == "Never" {
         return true;
     }
     let (Some((expected_head, expected_inner)), Some((actual_head, actual_inner))) =
@@ -2387,23 +5283,467 @@ fn compatible(expected: &str, actual: &str) -> bool {
     if expected_head != actual_head {
         return false;
     }
-    let expected_parts = split_type_args(expected_inner.trim_end_matches('>'));
-    let actual_parts = split_type_args(actual_inner.trim_end_matches('>'));
+    let expected_parts = split_type_args(outer_type_end(expected_inner));
+    let actual_parts = split_type_args(outer_type_end(actual_inner));
     expected_parts.len() == actual_parts.len()
         && expected_parts
             .iter()
             .zip(actual_parts)
             .all(|(a, b)| compatible(a, b))
 }
+fn unify_type(
+    expected: &str,
+    actual: &str,
+    params: &[String],
+    substitutions: &mut BTreeMap<String, String>,
+) -> bool {
+    if params.iter().any(|p| p == expected) {
+        return match substitutions.get(expected) {
+            Some(previous) => compatible(previous, actual),
+            None => {
+                substitutions.insert(expected.into(), actual.into());
+                true
+            }
+        };
+    }
+    if let (Some((eh, ei)), Some((ah, ai))) = (expected.split_once('<'), actual.split_once('<')) {
+        if eh != ah {
+            return false;
+        }
+        let ep = split_type_args(outer_type_end(ei));
+        let ap = split_type_args(outer_type_end(ai));
+        return ep.len() == ap.len()
+            && ep
+                .iter()
+                .zip(ap)
+                .all(|(e, a)| unify_type(e, a, params, substitutions));
+    }
+    compatible(expected, actual)
+}
+fn substitute_type(ty: &str, substitutions: &BTreeMap<String, String>) -> String {
+    rename_type(ty, substitutions)
+}
+fn infer_arguments(
+    params: &[(String, String)],
+    type_params: &[String],
+    actual: &[String],
+    at: &Tok,
+) -> Result<BTreeMap<String, String>> {
+    if params.len() != actual.len() {
+        return Err(diagnostic(
+            at,
+            format!(
+                "expected {} arguments, found {}",
+                params.len(),
+                actual.len()
+            ),
+        ));
+    }
+    let mut substitutions = BTreeMap::new();
+    for ((_, expected), found) in params.iter().zip(actual) {
+        if !unify_type(expected, found, type_params, &mut substitutions) {
+            return Err(diagnostic(
+                at,
+                format!("expected {expected}, found {found}"),
+            ));
+        }
+    }
+    for name in type_params {
+        if !substitutions.contains_key(name) || substitutions[name] == "Unknown" {
+            return Err(diagnostic(
+                at,
+                format!("cannot infer type parameter {name}"),
+            ));
+        }
+    }
+    Ok(substitutions)
+}
+fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
+    if matches!(bound, "Eq" | "Ord" | "Hash" | "Display")
+        && matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes")
+    {
+        return true;
+    }
+    program.impls.contains_key(&(bound.into(), ty.into()))
+}
+fn infer_call_arguments(
+    name: &str,
+    parameters: &[(String, String)],
+    type_params: &[String],
+    actuals: &[String],
+    at: &Tok,
+) -> Result<BTreeMap<String, String>> {
+    if let Some((_, explicit)) = name.split_once('<') {
+        let types = split_type_args(outer_type_end(explicit));
+        if types.len() != type_params.len() || parameters.len() != actuals.len() {
+            return Err(diagnostic(at, "wrong number of type or value arguments"));
+        }
+        let substitutions = type_params
+            .iter()
+            .cloned()
+            .zip(types.into_iter().map(str::to_string))
+            .collect::<BTreeMap<_, _>>();
+        for ((_, expected), actual) in parameters.iter().zip(actuals) {
+            let expected = substitute_type(expected, &substitutions);
+            if !compatible(&expected, actual) {
+                return Err(diagnostic(
+                    at,
+                    format!("expected {expected}, found {actual}"),
+                ));
+            }
+        }
+        Ok(substitutions)
+    } else {
+        infer_arguments(parameters, type_params, actuals, at)
+    }
+}
+fn standard_trait(name: &str) -> Option<TraitDef> {
+    let (method, params, ret): (&str, Vec<&str>, &str) = match name {
+        "Eq" => ("eq", vec!["Self", "Self"], "Bool"),
+        "Ord" => ("cmp", vec!["Self", "Self"], "Int"),
+        "Hash" => ("hash", vec!["Self"], "Int"),
+        "Display" => ("display", vec!["Self"], "String"),
+        _ => return None,
+    };
+    let mut methods = BTreeMap::new();
+    methods.insert(
+        method.into(),
+        (params.into_iter().map(str::to_string).collect(), ret.into()),
+    );
+    Some(TraitDef {
+        methods,
+        public: true,
+        origin: PathBuf::new(),
+    })
+}
+fn function_signature(ty: &str) -> Option<(Vec<String>, String)> {
+    let tail = ty.strip_prefix("fn(")?;
+    let mut depth = 1usize;
+    let close = tail.char_indices().find_map(|(i, c)| {
+        if c == '(' {
+            depth += 1;
+        }
+        if c == ')' {
+            depth -= 1;
+            if depth == 0 {
+                return Some(i);
+            }
+        }
+        None
+    })?;
+    let args = &tail[..close];
+    let ret = tail[close + 1..].strip_prefix("->")?;
+    let args = if args.is_empty() {
+        Vec::new()
+    } else {
+        split_type_args(args)
+            .iter()
+            .map(|a| a.to_string())
+            .collect()
+    };
+    Some((args, ret.into()))
+}
+fn trait_method_return(
+    program: &Program,
+    ty: &str,
+    method: &str,
+    args: &[String],
+    at: &Tok,
+) -> Result<Option<String>> {
+    let matching = program
+        .impls
+        .iter()
+        .filter_map(|((_, target), methods)| (target == ty).then(|| methods.get(method)).flatten())
+        .collect::<Vec<_>>();
+    if matching.len() > 1 {
+        return Err(diagnostic(
+            at,
+            format!("ambiguous method {method} for {ty}"),
+        ));
+    }
+    let Some(symbol) = matching.first() else {
+        if matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes") {
+            let expected = match method {
+                "eq" | "cmp" => vec![ty.to_string()],
+                "hash" | "display" => Vec::new(),
+                _ => return Ok(None),
+            };
+            if expected != args {
+                return Err(diagnostic(
+                    at,
+                    format!("invalid arguments for {ty}.{method}"),
+                ));
+            }
+            return Ok(Some(
+                match method {
+                    "eq" => "Bool",
+                    "display" => "String",
+                    _ => "Int",
+                }
+                .into(),
+            ));
+        }
+        return Ok(None);
+    };
+    let f = &program.functions[*symbol];
+    if f.params.len() != args.len() + 1
+        || f.params.first().is_none_or(|(_, t)| t != ty)
+        || f.params
+            .iter()
+            .skip(1)
+            .zip(args)
+            .any(|((_, e), a)| !compatible(e, a))
+    {
+        return Err(diagnostic(
+            at,
+            format!("invalid arguments for {ty}.{method}"),
+        ));
+    }
+    Ok(Some(f.ret.clone()))
+}
+fn enum_constructor_type(
+    program: &Program,
+    name: &str,
+    args: &[String],
+    at: &Tok,
+) -> Result<Option<String>> {
+    let Some((enum_ty, variant)) = name.split_once("::") else {
+        return Ok(None);
+    };
+    let base = enum_ty.split('<').next().unwrap_or(enum_ty);
+    let def = program
+        .enums
+        .get(base)
+        .ok_or_else(|| diagnostic(at, format!("unknown enum {base}")))?;
+    let fields = def
+        .variants
+        .get(variant)
+        .ok_or_else(|| diagnostic(at, format!("unknown variant {variant}")))?;
+    if fields.len() != args.len() {
+        return Err(diagnostic(
+            at,
+            format!("{name} expects {} fields", fields.len()),
+        ));
+    }
+    let mut substitutions = BTreeMap::new();
+    for ((_, expected), actual) in fields.iter().zip(args) {
+        if !unify_type(expected, actual, &def.type_params, &mut substitutions) {
+            return Err(diagnostic(
+                at,
+                format!("expected {expected}, found {actual}"),
+            ));
+        }
+    }
+    if let Some((_, explicit)) = enum_ty.split_once('<') {
+        let explicit = split_type_args(outer_type_end(explicit));
+        if explicit.len() != def.type_params.len() {
+            return Err(diagnostic(at, "wrong number of enum type arguments"));
+        }
+        for (p, actual) in def.type_params.iter().zip(explicit) {
+            if let Some(inferred) = substitutions.get(p) {
+                if inferred != actual {
+                    return Err(diagnostic(at, "enum type arguments disagree with fields"));
+                }
+            } else {
+                substitutions.insert(p.clone(), actual.into());
+            }
+        }
+    }
+    if def
+        .type_params
+        .iter()
+        .any(|p| !substitutions.contains_key(p))
+    {
+        return Err(diagnostic(at, "cannot infer enum type arguments"));
+    }
+    Ok(Some(if def.type_params.is_empty() {
+        base.into()
+    } else {
+        format!(
+            "{base}<{}>",
+            def.type_params
+                .iter()
+                .map(|p| substitutions[p].as_str())
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }))
+}
+fn resolve_alias(program: &Program, name: &str) -> String {
+    if let Some((head, tail)) = name.split_once("::") {
+        let base = head.split('<').next().unwrap_or(head);
+        if let Some(alias) = program.import_aliases.get(base) {
+            return format!("{}{}::{tail}", alias, &head[base.len()..]);
+        }
+    }
+    if let Some((head, tail)) = name.split_once('<') {
+        if let Some(alias) = program.import_aliases.get(head) {
+            return format!("{alias}<{tail}");
+        }
+    }
+    program
+        .import_aliases
+        .get(name)
+        .cloned()
+        .unwrap_or_else(|| name.into())
+}
+fn resolve_pattern_alias(pattern: &Pattern, aliases: &BTreeMap<String, String>) -> Pattern {
+    match pattern {
+        Pattern::Variant(name, parts) => {
+            let name = if let Some((head, tail)) = name.split_once("::") {
+                format!(
+                    "{}::{tail}",
+                    aliases.get(head).map(String::as_str).unwrap_or(head)
+                )
+            } else {
+                name.clone()
+            };
+            Pattern::Variant(
+                name,
+                parts
+                    .iter()
+                    .map(|p| resolve_pattern_alias(p, aliases))
+                    .collect(),
+            )
+        }
+        Pattern::Struct(name, fields) => {
+            let name = if let Some((head, tail)) = name.split_once("::") {
+                format!(
+                    "{}::{tail}",
+                    aliases.get(head).map(String::as_str).unwrap_or(head)
+                )
+            } else {
+                aliases.get(name).cloned().unwrap_or_else(|| name.clone())
+            };
+            Pattern::Struct(
+                name,
+                fields
+                    .iter()
+                    .map(|(n, p)| (n.clone(), resolve_pattern_alias(p, aliases)))
+                    .collect(),
+            )
+        }
+        Pattern::List(parts) => Pattern::List(
+            parts
+                .iter()
+                .map(|p| resolve_pattern_alias(p, aliases))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+fn pattern_matches(
+    pattern: &Pattern,
+    value: &Value,
+    runtime: &Runtime,
+    bindings: &mut BTreeMap<String, Value>,
+) -> bool {
+    let resolved = if let Value::HeapRef(id) = value {
+        runtime.heap_get(*id).unwrap_or(value)
+    } else {
+        value
+    };
+    match pattern {
+        Pattern::Wildcard => true,
+        Pattern::Bind(name) => bindings.insert(name.clone(), value.clone()).is_none(),
+        Pattern::Literal(expected) => expected == resolved,
+        Pattern::Range(start, end) => matches!(resolved, Value::Int(n) if n >= start && n < end),
+        Pattern::List(parts) => {
+            let values = match resolved {
+                Value::List(v) | Value::TypedList(_, v) => v,
+                _ => return false,
+            };
+            parts.len() == values.len()
+                && parts
+                    .iter()
+                    .zip(values)
+                    .all(|(p, v)| pattern_matches(p, v, runtime, bindings))
+        }
+        Pattern::Struct(name, fields) => {
+            if name == "FileError" {
+                let Value::FileError(error) = resolved else {
+                    return false;
+                };
+                return fields.iter().all(|(field, p)| {
+                    let value = match field.as_str() {
+                        "code" => Value::Text(error.code.clone()),
+                        "path" => Value::Text(error.path.clone()),
+                        "cause" => Value::Option(
+                            error
+                                .causes
+                                .first()
+                                .cloned()
+                                .map(|s| Box::new(Value::Text(s))),
+                        ),
+                        "causes" => Value::TypedList(
+                            "String".into(),
+                            error.causes.iter().cloned().map(Value::Text).collect(),
+                        ),
+                        _ => return false,
+                    };
+                    pattern_matches(p, &value, runtime, bindings)
+                });
+            }
+            if let Some((expected_ty, expected_variant)) = name.split_once("::") {
+                let Value::Enum(actual_ty, actual_variant, values) = resolved else {
+                    return false;
+                };
+                return expected_ty.split('<').next() == actual_ty.split('<').next()
+                    && expected_variant == actual_variant
+                    && fields.iter().all(|(field, p)| {
+                        values
+                            .iter()
+                            .find(|(n, _)| n == field)
+                            .is_some_and(|(_, v)| pattern_matches(p, v, runtime, bindings))
+                    });
+            }
+            let Value::Struct(actual, values) = resolved else {
+                return false;
+            };
+            actual.split('<').next() == Some(name.as_str())
+                && fields.iter().all(|(key, p)| {
+                    values
+                        .get(key)
+                        .is_some_and(|v| pattern_matches(p, v, runtime, bindings))
+                })
+        }
+        Pattern::Variant(name, parts) => {
+            let (variant, values): (&str, Vec<Value>) = match resolved {
+                Value::Enum(ty, v, fields)
+                    if name == v
+                        || name.split_once("::").is_some_and(|(head, variant)| {
+                            head.split('<').next() == ty.split('<').next() && variant == v
+                        }) =>
+                {
+                    (v, fields.iter().map(|(_, value)| value.clone()).collect())
+                }
+                Value::Option(Some(v)) => ("Some", vec![(**v).clone()]),
+                Value::Option(None) => ("None", Vec::new()),
+                Value::Result(Ok(v)) => ("Ok", vec![(**v).clone()]),
+                Value::Result(Err(v)) => ("Err", vec![(**v).clone()]),
+                _ => return false,
+            };
+            (name == variant || name.ends_with(&format!("::{variant}")))
+                && parts.len() == values.len()
+                && parts
+                    .iter()
+                    .zip(&values)
+                    .all(|(p, v)| pattern_matches(p, v, runtime, bindings))
+        }
+    }
+}
 fn split_type_args(input: &str) -> Vec<&str> {
     let mut depth = 0usize;
+    let mut parens = 0usize;
     let mut start = 0usize;
     let mut out = Vec::new();
     for (i, c) in input.char_indices() {
         match c {
             '<' => depth += 1,
-            '>' => depth -= 1,
-            ',' if depth == 0 => {
+            '>' if i == 0 || input.as_bytes()[i - 1] != b'-' => depth = depth.saturating_sub(1),
+            '(' => parens += 1,
+            ')' => parens = parens.saturating_sub(1),
+            ',' if depth == 0 && parens == 0 => {
                 out.push(&input[start..i]);
                 start = i + 1;
             }
@@ -2412,6 +5752,9 @@ fn split_type_args(input: &str) -> Vec<&str> {
     }
     out.push(&input[start..]);
     out
+}
+fn outer_type_end(input: &str) -> &str {
+    input.strip_suffix('>').unwrap_or(input)
 }
 fn binary(op: &str, a: Value, b: Value, at: &Tok) -> Exec<Value> {
     let bad = || Flow::Error(diagnostic(at, format!("invalid operands for '{op}'")));

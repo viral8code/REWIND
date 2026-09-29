@@ -1,0 +1,51 @@
+/// Return a value without changing its type.
+pub fn identity<T>(value: T) -> T {
+    return value;
+}
+
+struct Item {
+    value: Int,
+}
+
+trait Render {
+    fn render(self: Self) -> String;
+}
+
+impl Render for Item {
+    fn render(self: Self) -> String {
+        return "item=" + self.value;
+    }
+}
+
+fn show<T: Render>(value: T) -> String {
+    return value.render();
+}
+
+enum Command {
+    Write(String),
+    Quit,
+}
+
+fn counter(start: Int) -> fn()->Int {
+    var current = start;
+    return || -> Int {
+        current += 1;
+        return current;
+    };
+}
+
+let next = counter(10);
+assert_eq(next(), 11);
+commit saved;
+assert_eq(next(), 12);
+revert saved;
+assert_eq(next(), 12);
+
+let command = Command::Write(show(Item(identity(7))));
+let message = match command {
+    Command::Write(text) => text,
+    Command::Quit => "quit",
+};
+Out.println(message);
+Out.println(next());
+publish;

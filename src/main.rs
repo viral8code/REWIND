@@ -499,12 +499,81 @@ fn run_cli() -> Result<()> {
     let script = args
         .next()
         .ok_or_else(|| Error::InvalidOperation("usage: rewind <script.rw> [--root DIR]".into()))?;
-    if matches!(script.as_str(), "check" | "run" | "test") {
+    if script == "fmt" {
+        let file = args
+            .next()
+            .ok_or_else(|| Error::InvalidOperation("usage: rewind fmt FILE [--check]".into()))?;
+        let check = match args.next().as_deref() {
+            None => false,
+            Some("--check") => true,
+            Some(other) => return Err(Error::InvalidOperation(format!("unknown option: {other}"))),
+        };
+        if args.next().is_some() {
+            return Err(Error::InvalidOperation("too many arguments".into()));
+        }
+        let source = fs::read_to_string(&file)?;
+        let formatted = v2::format_source(&source)?;
+        if check {
+            if source != formatted {
+                return Err(Error::InvalidOperation(format!("format differs: {file}")));
+            }
+        } else if source != formatted {
+            fs::write(file, formatted)?;
+        }
+        return Ok(());
+    }
+    if script == "doc" {
+        let file = args.next().ok_or_else(|| {
+            Error::InvalidOperation("usage: rewind doc FILE [--root DIR] [--output FILE]".into())
+        })?;
+        let mut root = env::current_dir()?;
+        let mut output: Option<String> = None;
+        while let Some(option) = args.next() {
+            match option.as_str() {
+                "--root" => {
+                    root = args
+                        .next()
+                        .ok_or_else(|| Error::InvalidOperation("missing root directory".into()))?
+                        .into()
+                }
+                "--output" => {
+                    output = Some(
+                        args.next()
+                            .ok_or_else(|| Error::InvalidOperation("missing output path".into()))?,
+                    )
+                }
+                _ => return Err(Error::InvalidOperation(format!("unknown option: {option}"))),
+            }
+        }
+        let document = v2::documentation(&file, &root)?;
+        if let Some(path) = output {
+            fs::write(path, document)?;
+        } else {
+            print!("{document}");
+        }
+        return Ok(());
+    }
+    if script == "lock" {
+        let mut root = env::current_dir()?;
+        if let Some(option) = args.next() {
+            if option != "--root" {
+                return Err(Error::InvalidOperation(format!("unknown option: {option}")));
+            }
+            root = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing root directory".into()))?
+                .into();
+        }
+        if args.next().is_some() {
+            return Err(Error::InvalidOperation("too many arguments".into()));
+        }
+        return v2::lock_project(&root);
+    }
+    if matches!(script.as_str(), "check" | "run" | "test" | "trace") {
         let remaining = args.collect::<Vec<_>>();
         let mut index = 0;
-        let default_test_file =
-            script == "test" && remaining.first().is_none_or(|s| s.starts_with("--"));
-        let file = if default_test_file {
+        let default_file = remaining.first().is_none_or(|s| s.starts_with("--"));
+        let file = if default_file {
             "main.rw".to_string()
         } else {
             let file = remaining.first().ok_or_else(|| {
@@ -514,9 +583,21 @@ fn run_cli() -> Result<()> {
             file.clone()
         };
         let mut root = env::current_dir()?;
-        let mut trace = false;
+        let mut trace = script == "trace";
+        let mut options = v2::RunOptions::default();
+        let mut files = vec![if default_file {
+            String::new()
+        } else {
+            file.clone()
+        }];
         while index < remaining.len() {
             match remaining[index].as_str() {
+                "--" => {
+                    options
+                        .arguments
+                        .extend(remaining[index + 1..].iter().cloned());
+                    break;
+                }
                 "--root" => {
                     index += 1;
                     root = remaining
@@ -525,16 +606,59 @@ fn run_cli() -> Result<()> {
                         .into();
                 }
                 "--trace" => trace = true,
+                "--trace-json" => {
+                    trace = true;
+                    options.trace_json = true;
+                }
+                "--allow-env" | "--secret-env" => {
+                    let secret = remaining[index] == "--secret-env";
+                    index += 1;
+                    let name = remaining
+                        .get(index)
+                        .ok_or_else(|| Error::InvalidOperation("missing environment name".into()))?
+                        .clone();
+                    options.allowed_env.insert(name.clone());
+                    if secret {
+                        options.secret_env.insert(name);
+                    }
+                }
+                "--locale" => {
+                    index += 1;
+                    options.locale = Some(
+                        remaining
+                            .get(index)
+                            .ok_or_else(|| Error::InvalidOperation("missing locale".into()))?
+                            .clone(),
+                    );
+                }
+                "--filter" => {
+                    index += 1;
+                    options.test_filter = Some(
+                        remaining
+                            .get(index)
+                            .ok_or_else(|| Error::InvalidOperation("missing test filter".into()))?
+                            .clone(),
+                    );
+                }
+                value if script == "check" && !value.starts_with("--") => files.push(value.into()),
                 flag => return Err(Error::InvalidOperation(format!("unknown option: {flag}"))),
             }
             index += 1;
         }
-        let file = if default_test_file {
-            root.join(file).to_string_lossy().into_owned()
-        } else {
-            file
-        };
-        return v2::cli(&script, &file, &root, trace);
+        let file = if default_file { String::new() } else { file };
+        if script == "check" {
+            let mut errors = Vec::new();
+            for path in files {
+                if let Err(error) = v2::cli("check", &path, &root, false, options.clone()) {
+                    errors.push(format!("{path}: {error}"));
+                }
+            }
+            if !errors.is_empty() {
+                return Err(Error::InvalidOperation(errors.join("\n")));
+            }
+            return Ok(());
+        }
+        return v2::cli(&script, &file, &root, trace, options);
     }
     let mut root = env::current_dir()?;
     if let Some(flag) = args.next() {
