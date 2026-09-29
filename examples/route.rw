@@ -1,0 +1,18 @@
+var a = 10;
+var b = 20;
+File.write("result.txt", "initial\n");
+Out.println("start");
+commit base;
+a += b;
+File.append("result.txt", "value=" + a);
+Out.println(a);
+commit routeA;
+a *= 10;
+File.append("result.txt", "\nrouteA=" + a);
+Out.println(a);
+revert base;
+a -= 5;
+File.append("result.txt", "\nrouteB=" + a);
+Out.println(a);
+commit routeB;
+publish;
