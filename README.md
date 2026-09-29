@@ -1,6 +1,6 @@
 # REWIND
 
-REWIND is a Rust programming language with named checkpoints, deterministic replay, and virtual I/O. The transactional runtime is described by the [v0.1 specification](docs/REWIND_v0.1.md). The v0.2 implementation adds typed expressions, control flow, functions, collections, modules, and a bytecode VM that can restore a saved call stack and program counter.
+REWIND is a Rust programming language with named checkpoints, deterministic replay, and virtual I/O. The transactional runtime is described by the [v0.1 specification](docs/REWIND_v0.1.md). The [v0.2 design](docs/REWIND_v0.2.md) adds typed expressions, control flow, functions, collections, modules, and a bytecode VM that can restore a saved call stack and program counter. The [v0.3 proposal](docs/REWIND_v0.3.md) describes the next language features.
 
 ## Commands
 
