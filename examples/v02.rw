@@ -1,0 +1,24 @@
+fn sum_to(n: Int) -> Int {
+    var total = 0;
+    for x in 1..(n + 1) {
+        total += x;
+    }
+    return total;
+}
+
+struct Task {
+    title: String,
+    done: Bool,
+}
+
+let answer = sum_to(5);
+let task = Task("sample", false);
+let list = List<Int>();
+list.add(answer);
+let map = Map<String,Int>();
+map.set("sum", answer);
+if map.get("sum") == Some(15) {
+    Out.println(task.title);
+    Out.println(list.get(0));
+}
+publish;

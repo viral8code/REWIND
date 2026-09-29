@@ -2,6 +2,7 @@ use rewind::{Error, ResourceBudget, Result, Runtime, Value};
 use std::env;
 use std::fs;
 use std::io::{self, BufRead};
+mod v2;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Token {
@@ -498,6 +499,43 @@ fn run_cli() -> Result<()> {
     let script = args
         .next()
         .ok_or_else(|| Error::InvalidOperation("usage: rewind <script.rw> [--root DIR]".into()))?;
+    if matches!(script.as_str(), "check" | "run" | "test") {
+        let remaining = args.collect::<Vec<_>>();
+        let mut index = 0;
+        let default_test_file =
+            script == "test" && remaining.first().is_none_or(|s| s.starts_with("--"));
+        let file = if default_test_file {
+            "main.rw".to_string()
+        } else {
+            let file = remaining.first().ok_or_else(|| {
+                Error::InvalidOperation(format!("usage: rewind {script} <script.rw> [--root DIR]"))
+            })?;
+            index += 1;
+            file.clone()
+        };
+        let mut root = env::current_dir()?;
+        let mut trace = false;
+        while index < remaining.len() {
+            match remaining[index].as_str() {
+                "--root" => {
+                    index += 1;
+                    root = remaining
+                        .get(index)
+                        .ok_or_else(|| Error::InvalidOperation("missing root directory".into()))?
+                        .into();
+                }
+                "--trace" => trace = true,
+                flag => return Err(Error::InvalidOperation(format!("unknown option: {flag}"))),
+            }
+            index += 1;
+        }
+        let file = if default_test_file {
+            root.join(file).to_string_lossy().into_owned()
+        } else {
+            file
+        };
+        return v2::cli(&script, &file, &root, trace);
+    }
     let mut root = env::current_dir()?;
     if let Some(flag) = args.next() {
         if flag != "--root" {

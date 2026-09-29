@@ -17,10 +17,80 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Value {
+pub enum MapKey {
+    Bool(bool),
     Int(i64),
+    Float(u64),
     Text(String),
+    Bytes(Vec<u8>),
+}
+impl PartialOrd for MapKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for MapKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        fn rank(k: &MapKey) -> u8 {
+            match k {
+                MapKey::Bool(_) => 0,
+                MapKey::Int(_) => 1,
+                MapKey::Float(_) => 2,
+                MapKey::Text(_) => 3,
+                MapKey::Bytes(_) => 4,
+            }
+        }
+        rank(self)
+            .cmp(&rank(other))
+            .then_with(|| match (self, other) {
+                (MapKey::Bool(a), MapKey::Bool(b)) => a.cmp(b),
+                (MapKey::Int(a), MapKey::Int(b)) => a.cmp(b),
+                (MapKey::Float(a), MapKey::Float(b)) => {
+                    f64::from_bits(*a).total_cmp(&f64::from_bits(*b))
+                }
+                (MapKey::Text(a), MapKey::Text(b)) => a.cmp(b),
+                (MapKey::Bytes(a), MapKey::Bytes(b)) => a.cmp(b),
+                _ => std::cmp::Ordering::Equal,
+            })
+    }
+}
+impl MapKey {
+    pub fn from_value(value: &Value) -> Option<Self> {
+        Some(match value {
+            Value::Bool(v) => Self::Bool(*v),
+            Value::Int(v) => Self::Int(*v),
+            Value::Float(v) => Self::Float(*v),
+            Value::Text(v) => Self::Text(v.clone()),
+            Value::Bytes(v) => Self::Bytes(v.clone()),
+            _ => return None,
+        })
+    }
+    pub fn value(&self) -> Value {
+        match self {
+            Self::Bool(v) => Value::Bool(*v),
+            Self::Int(v) => Value::Int(*v),
+            Self::Float(v) => Value::Float(*v),
+            Self::Text(v) => Value::Text(v.clone()),
+            Self::Bytes(v) => Value::Bytes(v.clone()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Value {
+    Bool(bool),
+    Int(i64),
+    Float(u64),
+    Text(String),
+    Bytes(Vec<u8>),
+    FileError(String),
     List(Vec<Value>),
+    TypedList(String, Vec<Value>),
+    Map(BTreeMap<MapKey, Value>),
+    TypedMap(String, String, BTreeMap<MapKey, Value>),
+    Struct(String, BTreeMap<String, Value>),
+    Option(Option<Box<Value>>),
+    Result(std::result::Result<Box<Value>, Box<Value>>),
     HeapRef(u64),
     Handle(u64),
     Null,
@@ -29,9 +99,13 @@ pub enum Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Value::Bool(v) => write!(f, "{v}"),
             Value::Int(n) => write!(f, "{n}"),
+            Value::Float(bits) => write!(f, "{}", f64::from_bits(*bits)),
             Value::Text(s) => write!(f, "{s}"),
-            Value::List(v) => {
+            Value::Bytes(v) => write!(f, "{v:?}"),
+            Value::FileError(v) => write!(f, "{v}"),
+            Value::List(v) | Value::TypedList(_, v) => {
                 write!(f, "[")?;
                 for (i, item) in v.iter().enumerate() {
                     if i > 0 {
@@ -42,6 +116,13 @@ impl fmt::Display for Value {
                 write!(f, "]")
             }
             Value::HeapRef(id) => write!(f, "<object:{id}>"),
+            Value::Map(v) => write!(f, "{v:?}"),
+            Value::TypedMap(_, _, v) => write!(f, "{v:?}"),
+            Value::Struct(name, v) => write!(f, "{name}{v:?}"),
+            Value::Option(Some(v)) => write!(f, "Some({v})"),
+            Value::Option(None) => write!(f, "None"),
+            Value::Result(Ok(v)) => write!(f, "Ok({v})"),
+            Value::Result(Err(v)) => write!(f, "Err({v})"),
             Value::Handle(id) => write!(f, "<handle:{id}>"),
             Value::Null => write!(f, "null"),
         }
@@ -332,6 +413,7 @@ struct Checkpoint {
     tainted: bool,
 }
 
+#[derive(Clone)]
 pub struct BranchAnchor {
     state: State,
     parent: Option<String>,
@@ -371,8 +453,24 @@ impl Runtime {
     fn value_bytes(value: &Value) -> usize {
         match value {
             Value::Text(text) => text.len(),
-            Value::List(items) => items.iter().map(Self::value_bytes).sum(),
-            Value::Int(_) | Value::HeapRef(_) | Value::Handle(_) => 8,
+            Value::Bytes(bytes) => bytes.len(),
+            Value::FileError(error) => error.len(),
+            Value::List(items) | Value::TypedList(_, items) => {
+                items.iter().map(Self::value_bytes).sum()
+            }
+            Value::Map(items) | Value::TypedMap(_, _, items) => items
+                .iter()
+                .map(|(key, value)| format!("{key:?}").len() + Self::value_bytes(value))
+                .sum(),
+            Value::Struct(_, items) => items
+                .iter()
+                .map(|(key, value)| key.len() + Self::value_bytes(value))
+                .sum(),
+            Value::Option(Some(value)) => Self::value_bytes(value),
+            Value::Option(None) => 0,
+            Value::Result(Ok(value)) | Value::Result(Err(value)) => Self::value_bytes(value),
+            Value::Bool(_) => 1,
+            Value::Int(_) | Value::Float(_) | Value::HeapRef(_) | Value::Handle(_) => 8,
             Value::Null => 0,
         }
     }
@@ -568,6 +666,13 @@ impl Runtime {
     pub fn local(&self, name: &str) -> Option<&Value> {
         self.state.call_frames.last()?.locals.get(name)
     }
+    pub fn remove_local(&mut self, name: &str) -> Result<()> {
+        let frame = Arc::make_mut(&mut self.state.call_frames)
+            .last_mut()
+            .ok_or_else(|| Error::InvalidOperation("no active call frame".into()))?;
+        frame.locals.remove(name);
+        Ok(())
+    }
     pub fn set_global(&mut self, name: impl Into<String>, value: Value) -> Result<()> {
         let previous = self.state.globals.clone();
         Arc::make_mut(&mut self.state.globals).insert(name.into(), value);
@@ -579,6 +684,9 @@ impl Runtime {
     }
     pub fn global(&self, name: &str) -> Option<&Value> {
         self.state.globals.get(name)
+    }
+    pub fn remove_global(&mut self, name: &str) {
+        Arc::make_mut(&mut self.state.globals).remove(name);
     }
     pub fn alloc(&mut self, value: Value) -> Result<u64> {
         let id = self.state.next_heap_id;
@@ -672,6 +780,34 @@ impl Runtime {
             .ok_or_else(|| Error::MissingCheckpoint(name.into()))?
             .parent
             .as_deref())
+    }
+    pub fn trace_checkpoint(&self, name: &str) -> Result<String> {
+        let checkpoint = self
+            .checkpoints
+            .get(name)
+            .ok_or_else(|| Error::MissingCheckpoint(name.into()))?;
+        let state = &checkpoint.state;
+        let files = state
+            .files
+            .iter()
+            .map(|(path, value)| {
+                format!(
+                    "{}:{path}",
+                    if value.is_some() { "write" } else { "delete" }
+                )
+            })
+            .collect::<Vec<_>>();
+        let directories = state
+            .directories
+            .iter()
+            .map(|(path, exists)| format!("{}:{path}", if *exists { "create" } else { "delete" }))
+            .collect::<Vec<_>>();
+        Ok(format!(
+            "checkpoint={name} parent={} pc={} files=[{}] directories=[{}] stdout={} stderr={} stdin_cursor={} time_cursor={}",
+            checkpoint.parent.as_deref().unwrap_or("<root>"), state.program_counter,
+            files.join(","), directories.join(","), state.stdout.len(), state.stderr.len(),
+            state.stdin_cursor, state.time_cursor
+        ))
     }
     pub fn begin_branch(&self) -> BranchAnchor {
         BranchAnchor {
@@ -1158,6 +1294,13 @@ impl Runtime {
     }
     pub fn handle(&self, id: u64) -> Result<&FileHandle> {
         self.state.handles.get(&id).ok_or(Error::MissingHandle(id))
+    }
+    pub fn close_handle(&mut self, id: u64) -> Result<()> {
+        if Arc::make_mut(&mut self.state.handles).remove(&id).is_some() {
+            Ok(())
+        } else {
+            Err(Error::MissingHandle(id))
+        }
     }
     pub fn read_handle(&mut self, id: u64, count: usize) -> Result<Vec<u8>> {
         let handle = self.handle(id)?.clone();
