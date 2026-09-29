@@ -1,6 +1,6 @@
 use rewind::{Error, ResourceBudget, Runtime, Value};
 use std::fs;
-use std::io::Cursor;
+use std::io::{self, Cursor, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -151,6 +151,29 @@ fn lazy_handle_replays_captured_block_and_rejects_changed_unread_block() {
     runtime.seek(handle, 4096).unwrap();
     assert!(matches!(
         runtime.read_handle(handle, 4),
+        Err(Error::ExternalStateConflict(_))
+    ));
+}
+
+#[test]
+fn lazy_read_detects_same_size_and_timestamp_change() {
+    let dir = TestDir::new();
+    let path = dir.0.join("same.bin");
+    fs::write(&path, vec![b'A'; 8192]).unwrap();
+    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    let mut runtime = Runtime::new(&dir.0).unwrap();
+    let handle = runtime.open_file("same.bin").unwrap();
+    assert_eq!(runtime.read_handle(handle, 1).unwrap(), b"A");
+    fs::write(&path, vec![b'B'; 8192]).unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_times(fs::FileTimes::new().set_modified(modified))
+        .unwrap();
+    runtime.seek(handle, 4096).unwrap();
+    assert!(matches!(
+        runtime.read_handle(handle, 1),
         Err(Error::ExternalStateConflict(_))
     ));
 }
@@ -313,4 +336,98 @@ fn strict_snapshot_ignores_later_virtual_writes() {
         runtime.write_handle(handle, b"x"),
         Err(Error::InvalidOperation(_))
     ));
+}
+
+struct FailingWriter {
+    bytes: Vec<u8>,
+    failed: bool,
+}
+impl Write for FailingWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if self.failed {
+            return Err(io::Error::other("simulated terminal failure"));
+        }
+        self.failed = true;
+        let count = bytes.len().min(2);
+        self.bytes.extend_from_slice(&bytes[..count]);
+        Ok(count)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn partial_terminal_publish_cannot_be_retried() {
+    let dir = TestDir::new();
+    let mut runtime = Runtime::new(&dir.0).unwrap();
+    runtime.write_file("result.txt", "ready").unwrap();
+    runtime.print_out("hello").unwrap();
+    let mut stdout = FailingWriter {
+        bytes: Vec::new(),
+        failed: false,
+    };
+    assert!(matches!(
+        runtime.publish(false, &mut stdout, &mut Vec::new()),
+        Err(Error::PublishPartiallyApplied(_))
+    ));
+    assert_eq!(stdout.bytes, b"he");
+    assert_eq!(fs::read(dir.0.join("result.txt")).unwrap(), b"ready");
+    let prior = stdout.bytes.clone();
+    assert!(matches!(
+        runtime.publish(false, &mut stdout, &mut Vec::new()),
+        Err(Error::PublishPartiallyApplied(_))
+    ));
+    assert_eq!(stdout.bytes, prior);
+}
+
+#[test]
+fn stderr_and_stdout_only_publish_selected_events() {
+    let dir = TestDir::new();
+    let mut runtime = Runtime::new(&dir.0).unwrap();
+    runtime.print_out("start\n").unwrap();
+    runtime.print_err("first\n").unwrap();
+    runtime.commit("base").unwrap();
+    runtime.print_out("discard\n").unwrap();
+    runtime.print_err("discard\n").unwrap();
+    runtime.revert("base").unwrap();
+    runtime.print_err("last\n").unwrap();
+    let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+    runtime.publish(false, &mut stdout, &mut stderr).unwrap();
+    assert_eq!(stdout, b"start\n");
+    assert_eq!(stderr, b"first\nlast\n");
+}
+
+#[test]
+fn compute_budget_rejects_global_without_mutating_it() {
+    let dir = TestDir::new();
+    let mut runtime = Runtime::new(&dir.0).unwrap();
+    runtime
+        .set_budget(ResourceBudget {
+            history_memory: 5,
+            history_storage: 0,
+            spill_threshold: 5,
+        })
+        .unwrap();
+    runtime.set_global("x", Value::Text("abcd".into())).unwrap();
+    assert!(matches!(
+        runtime.set_global("y", Value::Int(1)),
+        Err(Error::HistoryBudgetExceeded)
+    ));
+    assert_eq!(runtime.global("x"), Some(&Value::Text("abcd".into())));
+    assert_eq!(runtime.global("y"), None);
+}
+
+#[test]
+fn directory_publish_detects_external_entry_change() {
+    let dir = TestDir::new();
+    fs::create_dir(dir.0.join("old")).unwrap();
+    let mut runtime = Runtime::new(&dir.0).unwrap();
+    runtime.delete_directory("old").unwrap();
+    fs::write(dir.0.join("old/new.txt"), "external").unwrap();
+    assert!(matches!(
+        runtime.publish(false, &mut Vec::new(), &mut Vec::new()),
+        Err(Error::ExternalStateConflict(_))
+    ));
+    assert!(dir.0.join("old/new.txt").exists());
 }

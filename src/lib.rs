@@ -5,7 +5,7 @@
 //! live outside checkpoints, while their cursors live inside them.
 
 pub mod journal;
-use journal::Journal;
+use journal::{Journal, Segment};
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
@@ -58,6 +58,7 @@ pub enum Error {
     ExternalStateConflict(String),
     TaintedCheckpoint(String),
     HistoryBudgetExceeded,
+    PublishPartiallyApplied(String),
     InvalidOperation(String),
 }
 
@@ -72,6 +73,7 @@ impl fmt::Display for Error {
             Error::ExternalStateConflict(s) => write!(f, "external state conflict: {s}"),
             Error::TaintedCheckpoint(s) => write!(f, "tainted checkpoint: {s}"),
             Error::HistoryBudgetExceeded => write!(f, "history budget exceeded"),
+            Error::PublishPartiallyApplied(s) => write!(f, "publish partially applied: {s}"),
             Error::InvalidOperation(s) => write!(f, "invalid operation: {s}"),
         }
     }
@@ -96,10 +98,19 @@ impl Drop for StagedFiles {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone)]
 struct PagedFile {
     len: usize,
-    pages: Arc<BTreeMap<usize, Arc<Vec<u8>>>>,
+    pages: Arc<BTreeMap<usize, Arc<Segment>>>,
+}
+
+impl fmt::Debug for PagedFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PagedFile")
+            .field("len", &self.len)
+            .field("pages", &self.pages.len())
+            .finish()
+    }
 }
 
 impl PagedFile {
@@ -107,41 +118,43 @@ impl PagedFile {
         let pages = bytes
             .chunks(FILE_PAGE_SIZE)
             .enumerate()
-            .map(|(index, chunk)| (index, Arc::new(chunk.to_vec())))
+            .map(|(index, chunk)| (index, Arc::new(Segment::new(chunk.to_vec()))))
             .collect();
         Self {
             len: bytes.len(),
             pages: Arc::new(pages),
         }
     }
-    fn to_vec(&self) -> Vec<u8> {
+    fn to_vec(&self) -> Result<Vec<u8>> {
         let mut bytes = Vec::with_capacity(self.len);
         for page in self.pages.values() {
-            bytes.extend_from_slice(page);
+            page.write_to(&mut bytes)?;
         }
         bytes.truncate(self.len);
-        bytes
+        Ok(bytes)
     }
-    fn append(&mut self, bytes: &[u8]) {
+    fn append(&mut self, bytes: &[u8]) -> Result<()> {
         let pages = Arc::make_mut(&mut self.pages);
         let mut rest = bytes;
         if self.len % FILE_PAGE_SIZE != 0 && !rest.is_empty() {
             let index = self.len / FILE_PAGE_SIZE;
-            let page = Arc::make_mut(pages.get_mut(&index).expect("last page exists"));
+            let mut page = pages.get(&index).expect("last page exists").bytes()?;
             let count = rest.len().min(FILE_PAGE_SIZE - page.len());
             page.extend_from_slice(&rest[..count]);
+            pages.insert(index, Arc::new(Segment::new(page)));
             rest = &rest[count..];
         }
         let mut index = self.len.div_ceil(FILE_PAGE_SIZE);
         for chunk in rest.chunks(FILE_PAGE_SIZE) {
-            pages.insert(index, Arc::new(chunk.to_vec()));
+            pages.insert(index, Arc::new(Segment::new(chunk.to_vec())));
             index += 1;
         }
         self.len += bytes.len();
+        Ok(())
     }
-    fn write_at(&mut self, offset: usize, bytes: &[u8]) {
+    fn write_at(&mut self, offset: usize, bytes: &[u8]) -> Result<()> {
         if offset > self.len {
-            self.truncate(offset);
+            self.truncate(offset)?;
         }
         let pages = Arc::make_mut(&mut self.pages);
         let mut cursor = offset;
@@ -150,32 +163,40 @@ impl PagedFile {
             let index = cursor / FILE_PAGE_SIZE;
             let within = cursor % FILE_PAGE_SIZE;
             let count = remaining.len().min(FILE_PAGE_SIZE - within);
-            let page = Arc::make_mut(pages.entry(index).or_insert_with(|| Arc::new(Vec::new())));
+            let mut page = pages
+                .get(&index)
+                .map(|p| p.bytes())
+                .transpose()?
+                .unwrap_or_default();
             if page.len() < within + count {
                 page.resize(within + count, 0);
             }
             page[within..within + count].copy_from_slice(&remaining[..count]);
+            pages.insert(index, Arc::new(Segment::new(page)));
             cursor += count;
             remaining = &remaining[count..];
         }
         self.len = self.len.max(cursor);
+        Ok(())
     }
-    fn truncate(&mut self, len: usize) {
+    fn truncate(&mut self, len: usize) -> Result<()> {
         if len >= self.len {
             let zeros = [0u8; FILE_PAGE_SIZE];
             while self.len < len {
-                self.append(&zeros[..(len - self.len).min(FILE_PAGE_SIZE)]);
+                self.append(&zeros[..(len - self.len).min(FILE_PAGE_SIZE)])?;
             }
-            return;
+            return Ok(());
         }
         let pages = Arc::make_mut(&mut self.pages);
         pages.retain(|index, _| index.saturating_mul(FILE_PAGE_SIZE) < len);
         if len % FILE_PAGE_SIZE != 0 {
             let index = len / FILE_PAGE_SIZE;
-            Arc::make_mut(pages.get_mut(&index).expect("last page exists"))
-                .truncate(len % FILE_PAGE_SIZE);
+            let mut page = pages.get(&index).expect("last page exists").bytes()?;
+            page.truncate(len % FILE_PAGE_SIZE);
+            pages.insert(index, Arc::new(Segment::new(page)));
         }
         self.len = len;
+        Ok(())
     }
 }
 
@@ -186,15 +207,43 @@ mod page_tests {
     fn copy_on_write_reuses_unchanged_file_pages() {
         let mut original = PagedFile::from_bytes(&vec![b'A'; FILE_PAGE_SIZE * 2]);
         let snapshot = original.clone();
-        original.truncate(FILE_PAGE_SIZE + 2);
+        original.truncate(FILE_PAGE_SIZE + 2).unwrap();
         assert!(Arc::ptr_eq(&original.pages[&0], &snapshot.pages[&0]));
         assert!(!Arc::ptr_eq(&original.pages[&1], &snapshot.pages[&1]));
-        assert_eq!(snapshot.to_vec().len(), FILE_PAGE_SIZE * 2);
-        assert_eq!(original.to_vec().len(), FILE_PAGE_SIZE + 2);
+        assert_eq!(snapshot.to_vec().unwrap().len(), FILE_PAGE_SIZE * 2);
+        assert_eq!(original.to_vec().unwrap().len(), FILE_PAGE_SIZE + 2);
+    }
+    #[test]
+    fn file_pages_spill_and_replay_after_checkpoint() {
+        let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+        runtime
+            .set_budget(ResourceBudget {
+                history_memory: FILE_PAGE_SIZE,
+                history_storage: FILE_PAGE_SIZE * 4,
+                spill_threshold: FILE_PAGE_SIZE,
+            })
+            .unwrap();
+        let path = format!(
+            "rewind-page-test-{}-{}.bin",
+            std::process::id(),
+            NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+        );
+        runtime
+            .write_file(&path, vec![b'A'; FILE_PAGE_SIZE * 2])
+            .unwrap();
+        let file = runtime.state.files[&path].as_ref().unwrap();
+        assert!(file.pages.values().any(|page| page.usage().1 > 0));
+        runtime.commit("base").unwrap();
+        runtime.truncate_file(&path, FILE_PAGE_SIZE + 1).unwrap();
+        runtime.revert("base").unwrap();
+        assert_eq!(
+            runtime.read_file(&path).unwrap(),
+            vec![b'A'; FILE_PAGE_SIZE * 2]
+        );
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct FileHandle {
     pub path: String,
     pub mode: FileMode,
@@ -292,15 +341,15 @@ pub struct BranchAnchor {
 struct HostVersion {
     len: u64,
     modified: Option<SystemTime>,
+    content_hash: u128,
 }
 
 /// Host metadata is captured on open. Blocks are copied only when read through
 /// a handle. A whole-file read intentionally loads every block.
 #[derive(Clone)]
 struct Observation {
-    content: Option<Arc<Vec<u8>>>,
     version: Option<HostVersion>,
-    blocks: BTreeMap<usize, Arc<Vec<u8>>>,
+    blocks: BTreeMap<usize, Arc<Segment>>,
 }
 
 pub struct Runtime {
@@ -315,6 +364,7 @@ pub struct Runtime {
     published_stdout: Journal,
     published_stderr: Journal,
     budget: ResourceBudget,
+    publish_failure: Option<String>,
 }
 
 impl Runtime {
@@ -343,6 +393,7 @@ impl Runtime {
             published_stdout: Journal::default(),
             published_stderr: Journal::default(),
             budget: ResourceBudget::default(),
+            publish_failure: None,
         })
     }
 
@@ -358,9 +409,8 @@ impl Runtime {
     fn enforce_budget(&self) -> Result<()> {
         let mut segments = Vec::new();
         let mut seen_segments = HashSet::new();
-        let mut seen_pages = HashSet::new();
         let mut seen_compute = HashSet::new();
-        let mut file_memory = 0usize;
+        let mut compute_memory = 0usize;
         for state in std::iter::once(&self.state).chain(self.checkpoints.values().map(|c| &c.state))
         {
             for journal in [&state.stdout, &state.stderr] {
@@ -373,22 +423,22 @@ impl Runtime {
             }
             for content in state.files.values().flatten() {
                 for page in content.pages.values() {
-                    if seen_pages.insert(Arc::as_ptr(page) as usize) {
-                        file_memory = file_memory.saturating_add(page.len());
+                    if seen_segments.insert(Arc::as_ptr(page) as usize) {
+                        segments.push(page.clone());
                     }
                 }
             }
             for handle in state.handles.values() {
                 if let Some(snapshot) = &handle.snapshot {
                     for page in snapshot.pages.values() {
-                        if seen_pages.insert(Arc::as_ptr(page) as usize) {
-                            file_memory = file_memory.saturating_add(page.len());
+                        if seen_segments.insert(Arc::as_ptr(page) as usize) {
+                            segments.push(page.clone());
                         }
                     }
                 }
             }
             if seen_compute.insert(Arc::as_ptr(&state.globals) as usize) {
-                file_memory = file_memory.saturating_add(
+                compute_memory = compute_memory.saturating_add(
                     state
                         .globals
                         .iter()
@@ -397,15 +447,15 @@ impl Runtime {
                 );
             }
             if seen_compute.insert(Arc::as_ptr(&state.heap) as usize) {
-                file_memory =
-                    file_memory.saturating_add(state.heap.values().map(Self::value_bytes).sum());
+                compute_memory =
+                    compute_memory.saturating_add(state.heap.values().map(Self::value_bytes).sum());
             }
             if seen_compute.insert(Arc::as_ptr(&state.stack) as usize) {
-                file_memory =
-                    file_memory.saturating_add(state.stack.iter().map(Self::value_bytes).sum());
+                compute_memory =
+                    compute_memory.saturating_add(state.stack.iter().map(Self::value_bytes).sum());
             }
             if seen_compute.insert(Arc::as_ptr(&state.call_frames) as usize) {
-                file_memory = file_memory.saturating_add(
+                compute_memory = compute_memory.saturating_add(
                     state
                         .call_frames
                         .iter()
@@ -423,7 +473,14 @@ impl Runtime {
                 }
             }
         }
-        if file_memory > self.budget.history_memory {
+        for observation in self.observations.values() {
+            for block in observation.blocks.values() {
+                if seen_segments.insert(Arc::as_ptr(block) as usize) {
+                    segments.push(block.clone());
+                }
+            }
+        }
+        if compute_memory > self.budget.history_memory {
             return Err(Error::HistoryBudgetExceeded);
         }
         segments.sort_by_key(|segment| segment.id);
@@ -440,7 +497,7 @@ impl Runtime {
         let target = self
             .budget
             .spill_threshold
-            .min(self.budget.history_memory - file_memory);
+            .min(self.budget.history_memory - compute_memory);
         for segment in segments {
             if journal_memory <= target {
                 break;
@@ -692,7 +749,9 @@ impl Runtime {
 
     fn checked_path(&self, path: &str) -> Result<PathBuf> {
         let relative = Path::new(path);
-        if relative.as_os_str().is_empty()
+        if path.contains('\\')
+            || path.contains(':')
+            || relative.as_os_str().is_empty()
             || relative
                 .components()
                 .any(|c| !matches!(c, Component::Normal(_)))
@@ -737,10 +796,32 @@ impl Runtime {
     }
     fn host_version(full: &Path) -> Result<Option<HostVersion>> {
         match fs::metadata(full) {
-            Ok(metadata) if metadata.is_file() => Ok(Some(HostVersion {
-                len: metadata.len(),
-                modified: metadata.modified().ok(),
-            })),
+            Ok(metadata) if metadata.is_file() => {
+                let mut file = fs::File::open(full)?;
+                let mut hash = 0x6c62272e07bb014262b821756295c58du128;
+                let mut buffer = [0u8; 64 * 1024];
+                loop {
+                    let count = file.read(&mut buffer)?;
+                    if count == 0 {
+                        break;
+                    }
+                    for byte in &buffer[..count] {
+                        hash ^= u128::from(*byte);
+                        hash = hash.wrapping_mul(0x0000000001000000000000000000013bu128);
+                    }
+                }
+                let after = file.metadata()?;
+                if metadata.len() != after.len()
+                    || metadata.modified().ok() != after.modified().ok()
+                {
+                    return Err(Error::ExternalStateConflict(full.display().to_string()));
+                }
+                Ok(Some(HostVersion {
+                    len: metadata.len(),
+                    modified: metadata.modified().ok(),
+                    content_hash: hash,
+                }))
+            }
             Ok(_) => Err(Error::InvalidPath(full.display().to_string())),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
             Err(e) => Err(e.into()),
@@ -756,45 +837,11 @@ impl Runtime {
         self.observations.insert(
             key,
             Observation {
-                content: None,
                 version: version.clone(),
                 blocks: BTreeMap::new(),
             },
         );
         Ok(version)
-    }
-    fn observe(&mut self, path: &str) -> Result<Option<Arc<Vec<u8>>>> {
-        let version = self.observe_metadata(path)?;
-        let key = (self.state.file_epoch, path.to_string());
-        if version.is_none() {
-            return Ok(None);
-        }
-        if let Some(content) = &self.observations[&key].content {
-            return Ok(Some(content.clone()));
-        }
-        let full = self.checked_path(path)?;
-        if Self::host_version(&full)? != version {
-            return Err(Error::ExternalStateConflict(path.into()));
-        }
-        let content = match fs::read(&full) {
-            Ok(data) => Some(Arc::new(data)),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => None,
-            Err(e) => return Err(e.into()),
-        };
-        if Self::host_version(&full)? != version {
-            return Err(Error::ExternalStateConflict(path.into()));
-        }
-        let observation = self.observations.get_mut(&key).expect("observation exists");
-        if let Some(bytes) = &content {
-            for (index, chunk) in bytes.chunks(FILE_PAGE_SIZE).enumerate() {
-                observation
-                    .blocks
-                    .entry(index)
-                    .or_insert_with(|| Arc::new(chunk.to_vec()));
-            }
-        }
-        observation.content = content.clone();
-        Ok(content)
     }
     fn read_observed_range(&mut self, path: &str, offset: usize, count: usize) -> Result<Vec<u8>> {
         let version = self
@@ -817,6 +864,7 @@ impl Runtime {
                 return Err(Error::ExternalStateConflict(path.into()));
             }
             let mut file = fs::File::open(&full)?;
+            let mut new_blocks = Vec::new();
             for index in first..=last {
                 if self.observations[&key].blocks.contains_key(&index) {
                     continue;
@@ -826,19 +874,26 @@ impl Runtime {
                 let mut block = vec![0; len];
                 file.seek(SeekFrom::Start(start as u64))?;
                 file.read_exact(&mut block)?;
-                self.observations
-                    .get_mut(&key)
-                    .expect("observation exists")
-                    .blocks
-                    .insert(index, Arc::new(block));
+                new_blocks.push((index, Arc::new(Segment::new(block))));
             }
             if Self::host_version(&full)? != Some(version) {
                 return Err(Error::ExternalStateConflict(path.into()));
             }
+            let observation = self.observations.get_mut(&key).expect("observation exists");
+            for (index, block) in &new_blocks {
+                observation.blocks.insert(*index, block.clone());
+            }
+            if let Err(error) = self.enforce_budget() {
+                let observation = self.observations.get_mut(&key).expect("observation exists");
+                for (index, _) in new_blocks {
+                    observation.blocks.remove(&index);
+                }
+                return Err(error);
+            }
         }
         let mut result = Vec::with_capacity(end - offset);
         for index in first..=last {
-            let block = &self.observations[&key].blocks[&index];
+            let block = self.observations[&key].blocks[&index].bytes()?;
             let start = if index == first {
                 offset % FILE_PAGE_SIZE
             } else {
@@ -858,15 +913,18 @@ impl Runtime {
         if let Some(entry) = self.state.files.get(path) {
             return entry
                 .as_ref()
-                .map(|b| b.to_vec())
-                .ok_or_else(|| Error::MissingFile(path.into()));
+                .ok_or_else(|| Error::MissingFile(path.into()))?
+                .to_vec();
         }
-        self.observe(path)?
-            .map(|b| b.as_ref().clone())
-            .ok_or_else(|| Error::MissingFile(path.into()))
+        let version = self
+            .observe_metadata(path)?
+            .ok_or_else(|| Error::MissingFile(path.into()))?;
+        let len = usize::try_from(version.len)
+            .map_err(|_| Error::InvalidOperation("file too large".into()))?;
+        self.read_observed_range(path, 0, len)
     }
     pub fn write_file(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<()> {
-        self.observe(path)?;
+        self.observe_metadata(path)?;
         let previous = self.state.files.clone();
         Arc::make_mut(&mut self.state.files).insert(
             path.into(),
@@ -882,17 +940,21 @@ impl Runtime {
         let previous = self.state.files.clone();
         self.checked_path(path)?;
         if !self.state.files.contains_key(path) {
-            let content = self
-                .observe(path)?
-                .map(|v| PagedFile::from_bytes(&v))
-                .unwrap_or_else(|| PagedFile::from_bytes(&[]));
+            let content = match self.read_file(path) {
+                Ok(bytes) => PagedFile::from_bytes(&bytes),
+                Err(Error::MissingFile(_)) => PagedFile::from_bytes(&[]),
+                Err(error) => return Err(error),
+            };
             Arc::make_mut(&mut self.state.files).insert(path.into(), Some(Arc::new(content)));
         }
         let file = Arc::make_mut(&mut self.state.files)
             .get_mut(path)
             .and_then(Option::as_mut)
             .ok_or_else(|| Error::MissingFile(path.into()))?;
-        Arc::make_mut(file).append(data.as_ref());
+        if let Err(error) = Arc::make_mut(file).append(data.as_ref()) {
+            self.state.files = previous;
+            return Err(error);
+        }
         if let Err(error) = self.enforce_budget() {
             self.state.files = previous;
             return Err(error);
@@ -903,9 +965,7 @@ impl Runtime {
         let previous = self.state.files.clone();
         self.checked_path(path)?;
         if !self.state.files.contains_key(path) {
-            let content = self
-                .observe(path)?
-                .ok_or_else(|| Error::MissingFile(path.into()))?;
+            let content = self.read_file(path)?;
             Arc::make_mut(&mut self.state.files)
                 .insert(path.into(), Some(Arc::new(PagedFile::from_bytes(&content))));
         }
@@ -913,7 +973,10 @@ impl Runtime {
             .get_mut(path)
             .and_then(Option::as_mut)
             .ok_or_else(|| Error::MissingFile(path.into()))?;
-        Arc::make_mut(file).truncate(len);
+        if let Err(error) = Arc::make_mut(file).truncate(len) {
+            self.state.files = previous;
+            return Err(error);
+        }
         if let Err(error) = self.enforce_budget() {
             self.state.files = previous;
             return Err(error);
@@ -928,7 +991,7 @@ impl Runtime {
     pub fn copy_file(&mut self, from: &str, to: &str) -> Result<()> {
         let previous = self.state.files.clone();
         self.checked_path(from)?;
-        self.observe(to)?;
+        self.observe_metadata(to)?;
         if let Some(entry) = self.state.files.get(from) {
             let content = entry
                 .clone()
@@ -940,9 +1003,7 @@ impl Runtime {
             }
             Ok(())
         } else {
-            let content = self
-                .observe(from)?
-                .ok_or_else(|| Error::MissingFile(from.into()))?;
+            let content = self.read_file(from)?;
             Arc::make_mut(&mut self.state.files)
                 .insert(to.into(), Some(Arc::new(PagedFile::from_bytes(&content))));
             if let Err(error) = self.enforce_budget() {
@@ -1054,6 +1115,9 @@ impl Runtime {
         for name in entries.unwrap_or_default() {
             let child = format!("{path}/{name}");
             let full = self.checked_path(&child)?;
+            if fs::symlink_metadata(&full)?.file_type().is_symlink() {
+                return Err(Error::InvalidPath(child));
+            }
             if full.is_dir() {
                 self.collect_directory(&child, dirs, files)?;
             } else if full.is_file() {
@@ -1102,7 +1166,7 @@ impl Runtime {
         }
         let bytes = if let Some(snapshot) = &handle.snapshot {
             snapshot
-                .to_vec()
+                .to_vec()?
                 .into_iter()
                 .skip(handle.position)
                 .take(count)
@@ -1146,9 +1210,7 @@ impl Runtime {
         }
         let previous = self.state.files.clone();
         if !self.state.files.contains_key(&handle.path) {
-            let content = self
-                .observe(&handle.path)?
-                .ok_or_else(|| Error::MissingFile(handle.path.clone()))?;
+            let content = self.read_file(&handle.path)?;
             Arc::make_mut(&mut self.state.files).insert(
                 handle.path.clone(),
                 Some(Arc::new(PagedFile::from_bytes(&content))),
@@ -1158,7 +1220,10 @@ impl Runtime {
             .get_mut(&handle.path)
             .and_then(Option::as_mut)
             .ok_or_else(|| Error::MissingFile(handle.path.clone()))?;
-        Arc::make_mut(file).write_at(handle.position, bytes);
+        if let Err(error) = Arc::make_mut(file).write_at(handle.position, bytes) {
+            self.state.files = previous;
+            return Err(error);
+        }
         if let Err(error) = self.enforce_budget() {
             self.state.files = previous;
             return Err(error);
@@ -1179,6 +1244,9 @@ impl Runtime {
         stdout: &mut impl Write,
         stderr: &mut impl Write,
     ) -> Result<()> {
+        if let Some(detail) = &self.publish_failure {
+            return Err(Error::PublishPartiallyApplied(detail.clone()));
+        }
         let next_epoch =
             self.state.file_epoch.checked_add(1).ok_or_else(|| {
                 Error::InvalidOperation("file observation epoch exhausted".into())
@@ -1203,18 +1271,13 @@ impl Runtime {
                 let expected = self
                     .observations
                     .get(&(self.state.file_epoch, path.clone()))
-                    .and_then(|o| o.content.as_ref())
-                    .map(|v| v.as_slice());
-                let actual = match fs::read(&full) {
-                    Ok(v) => Some(v),
-                    Err(e) if e.kind() == io::ErrorKind::NotFound => None,
-                    Err(e) if full.is_dir() => {
-                        let _ = e;
-                        None
-                    }
-                    Err(e) => return Err(e.into()),
+                    .map(|o| o.version.clone());
+                let actual = if self.state.files.contains_key(path) {
+                    Self::host_version(&full)?
+                } else {
+                    None
                 };
-                if expected != actual.as_deref() && self.state.files.contains_key(path) {
+                if expected != Some(actual) && self.state.files.contains_key(path) {
                     return Err(Error::ExternalStateConflict(path.clone()));
                 }
             }
@@ -1260,35 +1323,76 @@ impl Runtime {
                 };
                 staged.0.push((temp, full));
                 for page in content.pages.values() {
-                    file.write_all(page)?;
+                    page.write_to(&mut file)?;
                 }
                 file.sync_all()?;
             }
         }
+        let mut applied = Vec::new();
         for (temp, full) in &staged.0 {
-            replace_file(temp, full)?;
+            if let Err(error) = replace_file(temp, full) {
+                let detail = format!(
+                    "applied {applied:?}; file replacement {} failed: {error}",
+                    full.display()
+                );
+                self.publish_failure = Some(detail.clone());
+                return Err(Error::PublishPartiallyApplied(detail));
+            }
+            applied.push(format!("file {}", full.display()));
         }
         for (path, content) in self.state.files.iter() {
             if content.is_none() {
                 let full = self.checked_path(path)?;
                 if full.exists() {
-                    fs::remove_file(full)?;
+                    if let Err(error) = fs::remove_file(&full) {
+                        let detail = format!(
+                            "applied {applied:?}; file deletion {} failed: {error}",
+                            full.display()
+                        );
+                        self.publish_failure = Some(detail.clone());
+                        return Err(Error::PublishPartiallyApplied(detail));
+                    }
+                    applied.push(format!("deleted file {}", full.display()));
                 }
             }
         }
         for (path, exists) in self.state.directories.iter().rev() {
             if !exists {
-                fs::remove_dir(self.checked_path(path)?)?;
+                let full = self.checked_path(path)?;
+                if let Err(error) = fs::remove_dir(&full) {
+                    let detail = format!(
+                        "applied {applied:?}; directory deletion {} failed: {error}",
+                        full.display()
+                    );
+                    self.publish_failure = Some(detail.clone());
+                    return Err(Error::PublishPartiallyApplied(detail));
+                }
+                applied.push(format!("deleted directory {}", full.display()));
             }
         }
-        self.state
+        if let Err(error) = self
+            .state
             .stdout
-            .write_since(&self.published_stdout, stdout)?;
-        self.state
+            .write_since(&self.published_stdout, stdout)
+        {
+            let detail = format!("applied {applied:?}; stdout failed: {error}");
+            self.publish_failure = Some(detail.clone());
+            return Err(Error::PublishPartiallyApplied(detail));
+        }
+        if let Err(error) = self
+            .state
             .stderr
-            .write_since(&self.published_stderr, stderr)?;
-        stdout.flush()?;
-        stderr.flush()?;
+            .write_since(&self.published_stderr, stderr)
+        {
+            let detail = format!("applied {applied:?}; stderr failed after stdout: {error}");
+            self.publish_failure = Some(detail.clone());
+            return Err(Error::PublishPartiallyApplied(detail));
+        }
+        if let Err(error) = stdout.flush().and_then(|_| stderr.flush()) {
+            let detail = format!("applied {applied:?}; terminal flush failed: {error}");
+            self.publish_failure = Some(detail.clone());
+            return Err(Error::PublishPartiallyApplied(detail));
+        }
         self.published_stdout = self.state.stdout.clone();
         self.published_stderr = self.state.stderr.clone();
         self.state.files = Arc::new(BTreeMap::new());
