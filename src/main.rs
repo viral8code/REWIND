@@ -694,6 +694,93 @@ fn run_cli() -> Result<()> {
         }
         return v2::migrate_project(&root, write);
     }
+    if script == "api-snapshot" {
+        let mut root = env::current_dir()?;
+        let mut output = None;
+        while let Some(option) = args.next() {
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing API option value".into()))?;
+            match option.as_str() {
+                "--root" => root = PathBuf::from(value),
+                "--output" => output = Some(PathBuf::from(value)),
+                _ => return Err(Error::InvalidOperation("unknown API option".into())),
+            }
+        }
+        return v2::api_snapshot(&root, output.as_deref());
+    }
+    if script == "api-diff" {
+        let before = args.next().ok_or_else(|| {
+            Error::InvalidOperation("api-diff BEFORE AFTER [--deny-breaking]".into())
+        })?;
+        let after = args.next().ok_or_else(|| {
+            Error::InvalidOperation("api-diff BEFORE AFTER [--deny-breaking]".into())
+        })?;
+        let deny = match args.next().as_deref() {
+            None => false,
+            Some("--deny-breaking") => true,
+            _ => return Err(Error::InvalidOperation("unknown API diff option".into())),
+        };
+        if args.next().is_some() {
+            return Err(Error::InvalidOperation(
+                "too many API diff arguments".into(),
+            ));
+        }
+        return v2::api_diff(Path::new(&before), Path::new(&after), deny);
+    }
+    if script == "doctest" {
+        let file = args
+            .next()
+            .ok_or_else(|| Error::InvalidOperation("doctest FILE.md [--root DIR]".into()))?;
+        let mut root = env::current_dir()?;
+        if let Some(flag) = args.next() {
+            if flag != "--root" {
+                return Err(Error::InvalidOperation("unknown doctest option".into()));
+            }
+            root = PathBuf::from(
+                args.next()
+                    .ok_or_else(|| Error::InvalidOperation("missing root".into()))?,
+            );
+        }
+        if args.next().is_some() {
+            return Err(Error::InvalidOperation("too many doctest arguments".into()));
+        }
+        return v2::doctest(&root, Path::new(&file));
+    }
+    if script == "timeline" {
+        let file = args.next().ok_or_else(|| {
+            Error::InvalidOperation("timeline TRACE [--from N] [--count N] [--task ID]".into())
+        })?;
+        let mut start = 0;
+        let mut count = 100;
+        let mut task = None;
+        while let Some(option) = args.next() {
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing timeline option value".into()))?;
+            match option.as_str() {
+                "--from" => {
+                    start = value
+                        .parse()
+                        .map_err(|_| Error::InvalidOperation("invalid event".into()))?
+                }
+                "--count" => {
+                    count = value
+                        .parse()
+                        .map_err(|_| Error::InvalidOperation("invalid count".into()))?
+                }
+                "--task" => {
+                    task = Some(
+                        value
+                            .parse()
+                            .map_err(|_| Error::InvalidOperation("invalid task".into()))?,
+                    )
+                }
+                _ => return Err(Error::InvalidOperation("unknown timeline option".into())),
+            }
+        }
+        return v2::timeline(Path::new(&file), start, count, task);
+    }
     if script == "compatibility" {
         let path = args
             .next()

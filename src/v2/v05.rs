@@ -35,7 +35,7 @@ pub(super) mod pairs {
 
 pub(super) fn prepare(program: &mut Program) -> Result<()> {
     v06::language::prepare(program)?;
-    if !matches!(program.language.as_str(), "0.5" | "0.6") {
+    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7") {
         return Ok(());
     }
     for name in [
@@ -68,7 +68,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             "TaskError and Diagnostic are reserved standard types".into(),
         ));
     }
-    if program.language == "0.6"
+    if matches!(program.language.as_str(), "0.6" | "0.7")
         && ["WaitEdge", "WaitTarget", "Tuple"]
             .iter()
             .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
@@ -98,6 +98,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     program.structs.insert(
         "WaitGraph".into(),
         StructDef {
+            immutable: false,
             type_params: Vec::new(),
             fields: vec![("description".into(), "String".into())],
             public: true,
@@ -121,6 +122,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     program.structs.insert(
         "Diagnostic".into(),
         StructDef {
+            immutable: false,
             type_params: Vec::new(),
             fields: vec![
                 ("code".into(), "String".into()),
@@ -131,7 +133,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             origin: program.root_origin.clone(),
         },
     );
-    if program.language == "0.6" {
+    if matches!(program.language.as_str(), "0.6" | "0.7") {
         program
             .enums
             .get_mut("TaskError")
@@ -157,6 +159,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
         program.structs.insert(
             "WaitEdge".into(),
             StructDef {
+                immutable: false,
                 type_params: vec![],
                 fields: vec![
                     ("task".into(), "Int".into()),
@@ -207,6 +210,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
         program.structs.insert(
             "PropertyFailure".into(),
             StructDef {
+                immutable: false,
                 type_params: Vec::new(),
                 fields: vec![
                     ("seed".into(), "Int".into()),
@@ -218,6 +222,30 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
                 origin: program.root_origin.clone(),
             },
         );
+        if program_v07(program) {
+            if program.structs.contains_key("PropertyCase")
+                || program.functions.contains_key("property")
+            {
+                return Err(Error::InvalidOperation(
+                    "PropertyCase and property are reserved".into(),
+                ));
+            }
+            program.structs.insert(
+                "PropertyCase".into(),
+                StructDef {
+                    immutable: false,
+                    type_params: vec!["T".into()],
+                    fields: vec![
+                        ("seed".into(), "Int".into()),
+                        ("case".into(), "Int".into()),
+                        ("input".into(), "T".into()),
+                        ("shrinks".into(), "Int".into()),
+                    ],
+                    public: true,
+                    origin: program.root_origin.clone(),
+                },
+            );
+        }
         v06::infer(program)?;
     }
     Ok(())
@@ -320,7 +348,7 @@ pub(super) fn task_error(error: &str) -> Value {
 
 pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Result<()> {
     ownership::validate(program)?;
-    if program.language == "0.6" {
+    if matches!(program.language.as_str(), "0.6" | "0.7") {
         return v06::validate(program, config);
     }
     capabilities::validate(program, config)
@@ -627,7 +655,7 @@ pub(super) fn transfer_type(
         return true;
     }
     if ty.starts_with("fn(") {
-        return if program.language == "0.6" {
+        return if matches!(program.language.as_str(), "0.6" | "0.7") {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
         } else {
             !shared
@@ -642,14 +670,23 @@ pub(super) fn transfer_type(
     if let Some(t) = ty.strip_prefix("Secret<").and_then(|s| s.strip_suffix('>')) {
         return transfer_type(program, t, shared, seen);
     }
-    if program.language == "0.6" {
+    if matches!(program.language.as_str(), "0.6" | "0.7") {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
                 .iter()
                 .all(|t| transfer_type(program, t, shared, seen));
         }
     }
-    if shared {
+    if shared
+        && !(program_v07(program)
+            && program
+                .enums
+                .contains_key(ty.split('<').next().unwrap_or(ty)))
+        && !program
+            .structs
+            .get(ty.split('<').next().unwrap_or(ty))
+            .is_some_and(|s| s.immutable)
+    {
         return false;
     }
     let base = ty.split('<').next().unwrap_or(ty);
@@ -669,7 +706,7 @@ pub(super) fn transfer_type(
             .collect();
         s.fields
             .iter()
-            .all(|(_, t)| transfer_type(program, &substitute_type(t, &substitutions), false, seen))
+            .all(|(_, t)| transfer_type(program, &substitute_type(t, &substitutions), shared, seen))
     } else if let Some(e) = program.enums.get(base) {
         let args = ty
             .split_once('<')
@@ -684,7 +721,7 @@ pub(super) fn transfer_type(
         e.variants
             .values()
             .flatten()
-            .all(|(_, t)| transfer_type(program, &substitute_type(t, &substitutions), false, seen))
+            .all(|(_, t)| transfer_type(program, &substitute_type(t, &substitutions), shared, seen))
     } else if matches!(base, "List" | "Map" | "Option" | "Result") {
         ty.split_once('<').is_some_and(|(_, args)| {
             split_type_args(outer_type_end(args))
@@ -936,7 +973,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     }
                 }
             });
-            if program.language == "0.6" {
+            if matches!(program.language.as_str(), "0.6" | "0.7") {
                 let checker = Checker {
                     program,
                     scopes: vec![BTreeMap::new()],

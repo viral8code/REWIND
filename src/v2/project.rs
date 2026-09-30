@@ -178,7 +178,10 @@ impl ProjectConfig {
         }
         let language = language
             .ok_or_else(|| Error::InvalidOperation("rewind.toml: language is required".into()))?;
-        if !matches!(language.as_str(), "0.2" | "0.3" | "0.4" | "0.5" | "0.6") {
+        if !matches!(
+            language.as_str(),
+            "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7"
+        ) {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
             )));
@@ -191,7 +194,7 @@ impl ProjectConfig {
         let entry = inside(&source_root, &entry)?;
         let mut imports = BTreeMap::new();
         imports.insert(String::new(), source_root.clone());
-        if language == "0.6"
+        if matches!(language.as_str(), "0.6" | "0.7")
             && deps
                 .values()
                 .chain(registry.values())
@@ -215,7 +218,7 @@ impl ProjectConfig {
                 }
                 imports.insert(name, full);
             }
-            if matches!(language.as_str(), "0.5" | "0.6") {
+            if matches!(language.as_str(), "0.5" | "0.6" | "0.7") {
                 let mut inspected = BTreeSet::new();
                 loop {
                     let pending = imports
@@ -321,7 +324,7 @@ impl ProjectConfig {
         Ok(())
     }
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
-        if matches!(self.language.as_str(), "0.4" | "0.5" | "0.6") {
+        if matches!(self.language.as_str(), "0.4" | "0.5" | "0.6" | "0.7") {
             return self.secure_lock(root, update);
         }
         let mut expected = format!(
@@ -418,7 +421,7 @@ impl ProjectConfig {
                 }
             }
             let mut selected = serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()});
-            if matches!(self.language.as_str(), "0.5" | "0.6") {
+            if matches!(self.language.as_str(), "0.5" | "0.6" | "0.7") {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
                     .get("dependencies")
@@ -438,7 +441,7 @@ impl ProjectConfig {
         let dependencies = parsed["dependencies"].as_object().unwrap();
         let path = root.join("rewind.lock");
         if update {
-            if matches!(self.language.as_str(), "0.5" | "0.6") {
+            if matches!(self.language.as_str(), "0.5" | "0.6" | "0.7") {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()
                     .and_then(|b| serde_json::from_slice(&b).ok())

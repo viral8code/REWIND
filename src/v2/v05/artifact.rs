@@ -119,7 +119,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     let mut program: Program =
         serde_json::from_value(payload["program"].clone()).map_err(|e| invalid(&e.to_string()))?;
-    if !matches!(program.language.as_str(), "0.5" | "0.6")
+    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7")
         || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
@@ -145,7 +145,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         ..Program::default()
     };
     prepare(&mut standard)?;
-    if program.language == "0.6"
+    if matches!(program.language.as_str(), "0.6" | "0.7")
         && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
             != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
             || serde_json::to_value(program.enums.get("WaitTarget")).ok()
@@ -179,13 +179,13 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             return Err(invalid("reserved standard type"));
         }
     }
-    if program.language == "0.6"
+    if matches!(program.language.as_str(), "0.6" | "0.7")
         && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
             != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
         return Err(invalid("invalid property failure layout"));
     }
-    if program.language == "0.6"
+    if matches!(program.language.as_str(), "0.6" | "0.7")
         && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
         return Err(invalid("Tuple is a reserved standard type"));
@@ -210,6 +210,24 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     for key in program.impls.keys() {
         if !program.impl_origins.contains_key(key) {
             return Err(invalid("missing impl source"));
+        }
+    }
+    if program_v07(&program) {
+        let actual = program
+            .structs
+            .get("PropertyCase")
+            .ok_or_else(|| invalid("missing PropertyCase"))?;
+        if actual.immutable
+            || actual.type_params != vec!["T".to_string()]
+            || actual.fields
+                != vec![
+                    ("seed".into(), "Int".into()),
+                    ("case".into(), "Int".into()),
+                    ("input".into(), "T".into()),
+                    ("shrinks".into(), "Int".into()),
+                ]
+        {
+            return Err(invalid("invalid PropertyCase layout"));
         }
     }
     let mut nodes = 0usize;
@@ -238,7 +256,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     if unsafe_literal || nodes > 100_000 {
         return Err(invalid("invalid literal/IR budget"));
     }
-    if program.language == "0.6" {
+    if matches!(program.language.as_str(), "0.6" | "0.7") {
         v06::infer(&mut program)?;
     }
     check_program(&program)?;

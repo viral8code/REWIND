@@ -26,6 +26,9 @@ pub(in crate::v2) fn stamp() -> String {
                 include_str!("../v05/tooling.rs"),
                 include_str!("../v05/tooling/symbols.rs"),
                 include_str!("../v06.rs"),
+                include_str!("../v07.rs"),
+                include_str!("../v07/api.rs"),
+                include_str!("../v07/docs.rs"),
                 include_str!("effects.rs"),
                 include_str!("captures.rs"),
                 include_str!("language.rs"),
@@ -122,8 +125,9 @@ fn path(root: &Path, kind: &str, key: &str) -> Option<(PathBuf, Vec<u8>)> {
     let manifest = fs::read_to_string(root.join("rewind.toml")).ok()?;
     if !manifest.lines().any(|line| {
         let line = line.split('#').next().unwrap_or("");
-        line.split_once('=')
-            .is_some_and(|(key, value)| key.trim() == "language" && value.trim() == "\"0.6\"")
+        line.split_once('=').is_some_and(|(key, value)| {
+            key.trim() == "language" && matches!(value.trim(), "\"0.6\"" | "\"0.7\"")
+        })
     }) {
         return None;
     }
