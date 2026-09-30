@@ -47,6 +47,13 @@ impl Flow<'_> {
         }
         Ok(())
     }
+    fn closure_names(&self, params: &[(String, String)], body: &[Stmt]) -> BTreeSet<String> {
+        if self.program.language == "0.6" {
+            v06::captures::names(&self.checker(), params, body)
+        } else {
+            free_names(body, params)
+        }
+    }
     fn transfer_ty(&self, ty: &str, shared: bool) -> bool {
         transfer_bounded(self.program, ty, shared, &self.bounds)
     }
@@ -64,11 +71,13 @@ impl Flow<'_> {
                 })
             }),
             ExprKind::Unary(op, v) if op == "move" => self.shareable(v),
-            ExprKind::Closure(params, _, body) => free_names(body, params).iter().all(|n| {
-                self.vars
-                    .get(n)
-                    .is_none_or(|v| v.shareable && !v.mutable && v.borrow.is_none())
-            }),
+            ExprKind::Closure(params, _, body) => {
+                self.closure_names(params, body).iter().all(|n| {
+                    self.vars
+                        .get(n)
+                        .is_none_or(|v| v.shareable && !v.mutable && v.borrow.is_none())
+                })
+            }
             _ => self
                 .checker()
                 .expr(e)
@@ -89,18 +98,20 @@ impl Flow<'_> {
                 })
             }),
             ExprKind::Unary(op, v) if op == "move" => self.sendable(v),
-            ExprKind::Closure(params, _, body) => free_names(body, params).iter().all(|n| {
-                self.vars
-                    .get(n)
-                    .map(|v| v.transferable && v.borrow.is_none())
-                    .unwrap_or_else(|| {
-                        needed_globals(self.program, n).iter().all(|n| {
-                            self.vars
-                                .get(n)
-                                .is_none_or(|v| v.transferable && v.borrow.is_none())
+            ExprKind::Closure(params, _, body) => {
+                self.closure_names(params, body).iter().all(|n| {
+                    self.vars
+                        .get(n)
+                        .map(|v| v.transferable && v.borrow.is_none())
+                        .unwrap_or_else(|| {
+                            needed_globals(self.program, n).iter().all(|n| {
+                                self.vars
+                                    .get(n)
+                                    .is_none_or(|v| v.transferable && v.borrow.is_none())
+                            })
                         })
-                    })
-            }),
+                })
+            }
             ExprKind::NamedConstructor(_, fields) => fields.iter().all(|(_, v)| self.sendable(v)),
             ExprKind::Call(target, args) => {
                 let ty = self.checker().expr(e).unwrap_or_default();
@@ -173,7 +184,11 @@ impl Flow<'_> {
                 let ExprKind::Closure(params, _, body) = &inner.kind else {
                     return Err(diagnostic(&e.at, "capture requires a closure"));
                 };
-                let mut captured = free_names(body, params);
+                let mut captured = if self.program.language == "0.6" {
+                    v06::captures::names(&self.checker(), params, body)
+                } else {
+                    free_names(body, params)
+                };
                 for name in captured.clone() {
                     captured.extend(needed_globals(self.program, &name));
                 }
@@ -339,6 +354,22 @@ impl Flow<'_> {
                                 .get(place.split('.').next().unwrap())
                                 .and_then(|v| v.borrow.as_ref())
                                 .is_some_and(|(_, m)| !*m);
+                            if let Some(tr) = self
+                                .bounds
+                                .get(&ty)
+                                .and_then(|n| self.program.traits.get(n))
+                            {
+                                if let Some((params, _)) = tr.methods.get(method) {
+                                    if let Some(receiver) = params.first() {
+                                        if (shared || self.borrowed(&place))
+                                            && (!receiver.starts_with('&')
+                                                || receiver.starts_with("&mut "))
+                                        {
+                                            return Err(diagnostic(&e.at,"shared borrow requires a shared borrowed receiver contract"));
+                                        }
+                                    }
+                                }
+                            }
                             for symbol in matching_methods(self.program, &ty, method) {
                                 let receiver = &self.program.functions[&symbol].params[0].1;
                                 if (shared || self.borrowed(&place))
@@ -500,6 +531,34 @@ impl Flow<'_> {
                                 "async borrow arguments are not supported",
                             ));
                         }
+                        if matches!(&arg.kind, ExprKind::Unary(op, _) if op == "$capture:borrow") {
+                            if let ExprKind::Unary(_, inner) = &arg.kind {
+                                if let ExprKind::Closure(params, _, body) = &inner.kind {
+                                    let names = self.closure_names(params, body);
+                                    for n in names.iter().flat_map(|n| {
+                                        needed_globals(self.program, n)
+                                            .into_iter()
+                                            .chain(std::iter::once(n.clone()))
+                                    }) {
+                                        if call_borrows
+                                            .iter()
+                                            .any(|(p, m)| *m && Self::overlaps(p, &n))
+                                        {
+                                            return Err(diagnostic(
+                                                &arg.at,
+                                                "conflicting borrows in call",
+                                            ));
+                                        }
+                                        call_borrows.insert(n, false);
+                                    }
+                                }
+                            }
+                            if expected.unwrap().starts_with("&mut ") {
+                                return Err(diagnostic(&arg.at, "borrow capture is shared"));
+                            }
+                            self.expr(arg)?;
+                            continue;
+                        }
                         let (owner, mutable) = match &arg.kind {
                             ExprKind::Unary(op, v) if op == "borrow" || op == "borrowMut" => {
                                 let Some(n) = Self::place(v) else {
@@ -593,7 +652,8 @@ impl Flow<'_> {
                                 }
                             }
                             if let ExprKind::Closure(params, _, body) = &e.kind {
-                                conflict |= free_names(body, params)
+                                conflict |= self
+                                    .closure_names(params, body)
                                     .iter()
                                     .any(|n| call_borrows.keys().any(|p| Self::overlaps(p, n)));
                             }
@@ -633,7 +693,9 @@ impl Flow<'_> {
                         ));
                     }
                     if let ExprKind::Name(n) = &arg.kind {
-                        if self.vars.get(n).is_some_and(|v| v.borrow.is_some()) {
+                        if self.vars.get(n).is_some_and(|v| v.borrow.is_some())
+                            && !matches!(&target.kind,ExprKind::Name(n) if n=="freeze")
+                        {
                             return Err(diagnostic(
                                 &arg.at,
                                 "a lexical borrow cannot escape through a call; use freeze",
@@ -662,7 +724,7 @@ impl Flow<'_> {
                             ));
                         }
                     } else if (function.is_some()
-                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple"))
+                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple" || self.program.language=="0.6" && (n=="secret"||n=="reveal")))
                         && !self.shareable(arg)
                         && matches!(&arg.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
                     {
@@ -735,11 +797,17 @@ impl Flow<'_> {
                                 transferable: self.transfer_ty(&ty, false),
                                 shareable: self.transfer_ty(&ty, true),
                                 mutable: false,
-                                ty,
+                                ty: ty.clone(),
                                 moved: false,
                                 moved_fields: BTreeSet::new(),
                                 capture_borrows: BTreeSet::new(),
-                                borrow: None,
+                                borrow: if self.program.language == "0.6"
+                                    && !self.transfer_ty(&ty, true)
+                                {
+                                    Self::place(v).map(|p| (p, false))
+                                } else {
+                                    None
+                                },
                             },
                         );
                     }
@@ -838,7 +906,7 @@ impl Flow<'_> {
                             let ExprKind::Closure(params, _, body) = &inner.kind else {
                                 unreachable!()
                             };
-                            let mut names = free_names(body, params);
+                            let mut names = self.closure_names(params, body);
                             for name in names.clone() {
                                 names.extend(needed_globals(self.program, &name));
                             }
@@ -1070,11 +1138,17 @@ impl Flow<'_> {
                                     transferable: self.transfer_ty(&t, false),
                                     shareable: self.transfer_ty(&t, true),
                                     mutable: false,
-                                    ty: t,
+                                    ty: t.clone(),
                                     moved: false,
                                     moved_fields: BTreeSet::new(),
                                     capture_borrows: BTreeSet::new(),
-                                    borrow: None,
+                                    borrow: if self.program.language == "0.6"
+                                        && !self.transfer_ty(&t, true)
+                                    {
+                                        Self::place(e).map(|p| (p, false))
+                                    } else {
+                                        None
+                                    },
                                 },
                             );
                         }
@@ -1100,7 +1174,18 @@ impl Flow<'_> {
                 }
                 StmtKind::Revert(n) | StmtKind::Resume(n) => {
                     if let Some(vars) = self.checkpoints.get(n) {
+                        let invalidated = self
+                            .vars
+                            .iter()
+                            .filter(|(n, _)| !vars.contains_key(*n))
+                            .map(|(n, v)| {
+                                let mut v = v.clone();
+                                v.moved = true;
+                                (n.clone(), v)
+                            })
+                            .collect::<BTreeMap<_, _>>();
                         self.vars = vars.clone();
+                        self.vars.extend(invalidated);
                     }
                 }
                 StmtKind::Drop(n) => {

@@ -532,8 +532,10 @@ fn run_cli() -> Result<()> {
                 "--root" => root = PathBuf::from(value),
                 "--verify-key" => options.verify_key = Some(value),
                 "--secret-env" => {
+                    options.allowed_env.insert(value.clone());
                     options.secret_env.insert(value);
                 }
+                "--secret-input" => options.secret_input = Some(PathBuf::from(value)),
                 _ => return Err(Error::InvalidOperation(format!("unknown option {option}"))),
             }
         }
@@ -692,21 +694,52 @@ fn run_cli() -> Result<()> {
         }
         return v2::migrate_project(&root, write);
     }
-    if script == "lock" || script == "update" {
-        let mut root = env::current_dir()?;
-        if let Some(option) = args.next() {
-            if option != "--root" {
-                return Err(Error::InvalidOperation(format!("unknown option: {option}")));
-            }
-            root = args
-                .next()
-                .ok_or_else(|| Error::InvalidOperation("missing root directory".into()))?
-                .into();
-        }
+    if script == "compatibility" {
+        let path = args
+            .next()
+            .ok_or_else(|| Error::InvalidOperation("usage: rewind compatibility FILE".into()))?;
         if args.next().is_some() {
             return Err(Error::InvalidOperation("too many arguments".into()));
         }
-        return if script == "update" {
+        return v2::compatibility(Path::new(&path));
+    }
+    if script == "lock" || script == "update" {
+        let mut root = env::current_dir()?;
+        let mut preview = false;
+        let mut apply = None;
+        let mut output = None;
+        while let Some(option) = args.next() {
+            match option.as_str() {
+                "--root" => {
+                    root =
+                        PathBuf::from(args.next().ok_or_else(|| {
+                            Error::InvalidOperation("missing root directory".into())
+                        })?)
+                }
+                "--preview" if script == "update" => preview = true,
+                "--apply" if script == "update" => {
+                    apply = Some(PathBuf::from(args.next().ok_or_else(|| {
+                        Error::InvalidOperation("missing proposal file".into())
+                    })?))
+                }
+                "--output" if script == "update" => {
+                    output = Some(PathBuf::from(args.next().ok_or_else(|| {
+                        Error::InvalidOperation("missing output file".into())
+                    })?))
+                }
+                _ => return Err(Error::InvalidOperation(format!("unknown option: {option}"))),
+            }
+        }
+        if preview && apply.is_some() || output.is_some() && !preview {
+            return Err(Error::InvalidOperation(
+                "use --preview [--output FILE] or --apply FILE".into(),
+            ));
+        }
+        return if preview {
+            v2::update_preview(&root, output.as_deref())
+        } else if let Some(path) = apply {
+            v2::update_apply(&root, &path)
+        } else if script == "update" {
             v2::update_project(&root)
         } else {
             v2::lock_project(&root)
@@ -837,6 +870,13 @@ fn run_cli() -> Result<()> {
                         ));
                     }
                     options.task_steps = Some(limit);
+                }
+                "--secret-input" => {
+                    index += 1;
+                    options.secret_input =
+                        Some(PathBuf::from(remaining.get(index).ok_or_else(|| {
+                            Error::InvalidOperation("missing secret input file".into())
+                        })?));
                 }
                 "--allow-env" | "--secret-env" => {
                     let secret = remaining[index] == "--secret-env";

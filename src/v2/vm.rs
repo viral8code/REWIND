@@ -4,7 +4,7 @@ mod extensions;
 mod scheduler;
 use scheduler::Scheduler;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 enum Op {
     Push(Value),
     Load(String),
@@ -46,10 +46,30 @@ enum Op {
     Halt,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Inst {
     op: Op,
     at: Tok,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+struct FunctionChunk {
+    code: Vec<Inst>,
+    closures: BTreeMap<String, Function>,
+    hidden: usize,
+}
+fn relocate(code: &mut [Inst], base: usize, relative: bool) {
+    for inst in code {
+        match &mut inst.op {
+            Op::Jump(to) | Op::JumpFalse(to) | Op::JumpTrue(to) | Op::PatternTest(_, to) => {
+                *to = if relative {
+                    to.saturating_sub(base)
+                } else {
+                    to.saturating_add(base)
+                };
+            }
+            _ => {}
+        }
+    }
 }
 struct LoopPatch {
     breaks: Vec<usize>,
@@ -140,15 +160,8 @@ impl Compiler {
         });
         c.emit(Op::Halt, &end);
         for (name, f) in &program.functions {
-            c.type_params = f.type_params.clone();
             c.functions.insert(name.clone(), c.code.len());
-            c.depth = 1;
-            for stmt in &f.body {
-                c.stmt(stmt)?;
-            }
-            c.emit(Op::Push(Value::Null), &f.at);
-            c.emit(Op::Return, &f.at);
-            c.depth = 0;
+            c.compile_function(f, program)?;
         }
         let mut compiled = BTreeSet::new();
         loop {
@@ -162,19 +175,57 @@ impl Compiler {
                 break;
             }
             for (name, f) in pending {
-                c.type_params = f.type_params.clone();
                 compiled.insert(name.clone());
                 c.functions.insert(name, c.code.len());
-                c.depth = 1;
-                for stmt in &f.body {
-                    c.stmt(stmt)?;
-                }
-                c.emit(Op::Push(Value::Null), &f.at);
-                c.emit(Op::Return, &f.at);
-                c.depth = 0;
+                c.compile_function(&f, program)?;
             }
         }
         Ok(c)
+    }
+    fn compile_function(&mut self, f: &Function, program: &Program) -> Result<()> {
+        let root = program.root_origin.parent().unwrap_or(Path::new("."));
+        let key = v06::cache::key(&(f, &self.aliases, self.hidden, &program.language))
+            .unwrap_or_default();
+        let base = self.code.len();
+        if program.language == "0.6" {
+            if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
+                relocate(&mut chunk.code, base, false);
+                self.code.extend(chunk.code);
+                self.closure_defs.extend(chunk.closures);
+                self.hidden = chunk.hidden;
+                return Ok(());
+            }
+        }
+        let before = self.closure_defs.keys().cloned().collect::<BTreeSet<_>>();
+        self.type_params = f.type_params.clone();
+        self.depth = 1;
+        for stmt in &f.body {
+            self.stmt(stmt)?;
+        }
+        self.emit(Op::Push(Value::Null), &f.at);
+        self.emit(Op::Return, &f.at);
+        self.depth = 0;
+        if program.language == "0.6" {
+            let mut code = self.code[base..].to_vec();
+            relocate(&mut code, base, true);
+            let closures = self
+                .closure_defs
+                .iter()
+                .filter(|(n, _)| !before.contains(*n))
+                .map(|(n, f)| (n.clone(), f.clone()))
+                .collect();
+            v06::cache::put(
+                root,
+                "compiled",
+                &key,
+                &FunctionChunk {
+                    code,
+                    closures,
+                    hidden: self.hidden,
+                },
+            );
+        }
+        Ok(())
     }
     fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
         let at = &stmt.at;
@@ -650,6 +701,12 @@ struct Vm<R: BufRead> {
     scheduler: Scheduler,
     options: RunOptions,
     events: Vec<serde_json::Value>,
+    debug_initial: serde_json::Value,
+    debug_previous: serde_json::Value,
+    debug_deltas: Vec<serde_json::Value>,
+    debug_anchors: Vec<serde_json::Value>,
+    debug_bytes: usize,
+    audit: Vec<serde_json::Value>,
     inspections: Vec<serde_json::Value>,
     task_instructions: BTreeMap<u64, usize>,
     choice_widths: Vec<usize>,
@@ -706,6 +763,17 @@ impl<R: BufRead> Vm<R> {
             options.secret_env.clone(),
             options.locale.clone().unwrap_or_else(|| "en-US".into()),
         )?;
+        if let Some(path) = &options.secret_input {
+            if fs::metadata(path)?.len() > 1024 * 1024 {
+                return Err(Error::InvalidOperation("secret input exceeds 1 MiB".into()));
+            }
+            engine.runtime.configure_secret_input(
+                fs::read_to_string(path)?
+                    .lines()
+                    .map(str::to_string)
+                    .collect(),
+            );
+        }
         if options.inspect || options.virtual_publish {
             engine.runtime.enable_virtual_publish();
         }
@@ -751,6 +819,12 @@ impl<R: BufRead> Vm<R> {
             scheduler: Scheduler::default(),
             options: options.clone(),
             events: Vec::new(),
+            debug_initial: serde_json::Value::Null,
+            debug_previous: serde_json::Value::Null,
+            debug_deltas: Vec::new(),
+            debug_anchors: Vec::new(),
+            debug_bytes: 0,
+            audit: Vec::new(),
             inspections: Vec::new(),
             task_instructions: BTreeMap::new(),
             choice_widths: Vec::new(),
@@ -762,19 +836,15 @@ impl<R: BufRead> Vm<R> {
     }
     fn error(&self, at: &Tok, message: impl AsRef<str>) -> Error {
         if self.engine.program.language == "0.6" {
-            let message = message.as_ref();
-            let code = if message.starts_with("TaskBudgetExceeded: scheduler storage") {
-                "SchedulerStorage"
-            } else if message.starts_with("TaskBudgetExceeded: objects") {
-                "SchedulerObjects"
-            } else if message.starts_with("TaskBudgetExceeded: instructions") {
-                "TaskSteps"
-            } else {
-                message.split([':', ' ']).next().unwrap_or("TaskFailed")
-            };
+            let message = self
+                .engine
+                .runtime
+                .masked_value(&Value::Text(message.as_ref().into()));
+            let code = v06::diagnostics::code(&message).to_string();
             return Error::Diagnostic(Box::new(rewind::DiagnosticRecord {
-                code: code.into(),
-                message: message.into(),
+                code: code.clone(),
+                message,
+
                 source: at.source.clone(),
                 line: at.line,
                 column: at.col,
@@ -788,6 +858,56 @@ impl<R: BufRead> Vm<R> {
             }));
         }
         diagnostic(at, message)
+    }
+    fn inspection(&self) -> serde_json::Value {
+        serde_json::json!({"event":self.events.len(),"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"task_frames":self.task_frame_views(),"frames":self.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|scope|scope.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>()})).collect::<Vec<_>>()})
+    }
+    fn index_state(&mut self, at: &Tok) -> Result<()> {
+        let value = self.inspection();
+        let patch = (!self.debug_previous.is_null())
+            .then(|| serde_json::json!(v06::debug::delta(&self.debug_previous, &value)));
+        let anchor = self
+            .events
+            .len()
+            .is_multiple_of(256)
+            .then(|| serde_json::json!({"event":self.events.len(),"state":value}));
+        let mut bytes = self.debug_bytes;
+        for item in patch.iter().chain(anchor.iter()) {
+            bytes = bytes.saturating_add(
+                serde_json::to_vec(item)
+                    .map_err(|e| self.error(at, e.to_string()))?
+                    .len(),
+            );
+        }
+        if self.debug_previous.is_null() {
+            bytes = bytes.saturating_add(
+                serde_json::to_vec(&value)
+                    .map_err(|e| self.error(at, e.to_string()))?
+                    .len(),
+            );
+        }
+        if bytes > 16 * 1024 * 1024 {
+            return Err(self.error(at, "TraceBudgetExceeded: debug index (16 MiB)"));
+        }
+        if self.debug_previous.is_null() {
+            self.debug_initial = value.clone();
+        }
+        if let Some(patch) = patch {
+            self.debug_deltas.push(patch);
+        }
+        if let Some(anchor) = anchor {
+            self.debug_anchors.push(anchor);
+        }
+        self.debug_previous = value;
+        self.debug_bytes = bytes;
+        Ok(())
+    }
+    fn record_error(&self, error: &Error, at: &Tok, task: u64) -> rewind::DiagnosticRecord {
+        let mut d = v06::diagnostics::record(error, at, task);
+        if matches!(error, Error::HistoryBudgetExceeded) {
+            d.code = self.engine.runtime.history_budget_kind().into();
+        }
+        d
     }
     fn push(&mut self, value: Value) -> Result<()> {
         self.engine.runtime.push_stack(value)
@@ -1006,14 +1126,14 @@ impl<R: BufRead> Vm<R> {
                 if first_error.is_none() {
                     first_error = Some(error);
                 } else {
-                    typed_causes.push(v06::diagnostics::record(&error, at, self.scheduler.active));
+                    typed_causes.push(self.record_error(&error, at, self.scheduler.active));
                     suppressed.push(error.to_string());
                 }
             }
         }
         if self.engine.program.language == "0.6" {
             return first_error.map_or(Ok(()), |e| {
-                let mut d = v06::diagnostics::record(&e, at, self.scheduler.active);
+                let mut d = self.record_error(&e, at, self.scheduler.active);
                 d.causes.extend(typed_causes);
                 Err(Error::Diagnostic(Box::new(d)))
             });
@@ -1192,24 +1312,20 @@ impl<R: BufRead> Vm<R> {
                             col: 0,
                         });
                     let mut causes = Vec::new();
-                    let mut failure = v06::diagnostics::record(&error, &at, self.scheduler.active);
+                    let mut failure = self.record_error(&error, &at, self.scheduler.active);
                     for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
                         if let Err(e) = self.run_cleanups(frame.defers, &at) {
-                            failure.causes.push(v06::diagnostics::record(
-                                &e,
-                                &at,
-                                self.scheduler.active,
-                            ));
+                            failure
+                                .causes
+                                .push(self.record_error(&e, &at, self.scheduler.active));
                             causes.push(e.to_string());
                         }
                     }
                     let pending = std::mem::take(&mut self.global_cleanups);
                     if let Err(e) = self.run_cleanups(pending, &at) {
-                        failure.causes.push(v06::diagnostics::record(
-                            &e,
-                            &at,
-                            self.scheduler.active,
-                        ));
+                        failure
+                            .causes
+                            .push(self.record_error(&e, &at, self.scheduler.active));
                         causes.push(e.to_string());
                     }
                     self.frames.clear();
@@ -1254,7 +1370,7 @@ impl<R: BufRead> Vm<R> {
                     col: 0,
                 });
             if let Err(e) = self.cancel_children(&at) {
-                typed_causes.push(v06::diagnostics::record(&e, &at, self.scheduler.active));
+                typed_causes.push(self.record_error(&e, &at, self.scheduler.active));
                 causes.push(e.to_string());
             }
             for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
@@ -1270,7 +1386,7 @@ impl<R: BufRead> Vm<R> {
                             col: 0,
                         });
                     if let Err(e) = self.run_cleanup(cleanup, &at) {
-                        typed_causes.push(v06::diagnostics::record(&e, &at, self.scheduler.active));
+                        typed_causes.push(self.record_error(&e, &at, self.scheduler.active));
                         causes.push(e.to_string());
                     }
                 }
@@ -1287,13 +1403,13 @@ impl<R: BufRead> Vm<R> {
                 });
             for cleanup in std::mem::take(&mut self.global_cleanups).into_iter().rev() {
                 if let Err(e) = self.run_cleanup(cleanup, &at) {
-                    typed_causes.push(v06::diagnostics::record(&e, &at, self.scheduler.active));
+                    typed_causes.push(self.record_error(&e, &at, self.scheduler.active));
                     causes.push(e.to_string());
                 }
             }
             if self.engine.program.language == "0.6" {
                 let mut failure =
-                    v06::diagnostics::record(&result.unwrap_err(), &at, self.scheduler.active);
+                    self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
                 failure.causes.extend(typed_causes);
                 result = Err(Error::Diagnostic(Box::new(failure)));
             } else if matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
@@ -1336,7 +1452,27 @@ impl<R: BufRead> Vm<R> {
             }
         }
         if let Some(path) = &self.options.record {
-            let trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
+            let mut trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
+            if self.engine.program.language == "0.6" {
+                let mut deltas = self.debug_deltas.clone();
+                if !self.debug_previous.is_null() {
+                    deltas.push(serde_json::json!(v06::debug::delta(
+                        &self.debug_previous,
+                        &self.inspection()
+                    )));
+                }
+                trace["debug"]["index"]=self.engine.runtime.mask_debug_json(&serde_json::json!({"format":1,"initial":self.debug_initial,"deltas":deltas,"anchors":self.debug_anchors}));
+                trace["debug"]["checkpoints"] = self
+                    .engine
+                    .runtime
+                    .mask_debug_json(&trace["debug"]["checkpoints"]);
+                trace["debug"]["final"] = self
+                    .engine
+                    .runtime
+                    .mask_debug_json(&trace["debug"]["final"]);
+                trace["audit"] = serde_json::json!(self.audit);
+                trace["artifact_sha256"] = serde_json::json!(self.fingerprint);
+            }
             let bytes = serde_json::to_string_pretty(&trace)
                 .map_err(|e| Error::InvalidOperation(e.to_string()))?
                 + "\n";
@@ -1376,6 +1512,9 @@ impl<R: BufRead> Vm<R> {
             {
                 return Ok(());
             }
+            if self.engine.program.language == "0.6" {
+                self.expire_timeouts(&self.code[self.pc].at.clone())?;
+            }
             if self.cancellation_requested() {
                 return Err(self.error(&self.code[self.pc].at, "TaskCancelled"));
             }
@@ -1400,6 +1539,7 @@ impl<R: BufRead> Vm<R> {
                 return Err(self.error(&self.code[self.pc].at, "ExecutionBudgetExceeded"));
             }
             self.steps -= 1;
+            self.scheduler.ticks = self.scheduler.ticks.saturating_add(1);
             let inst = self.code.get(self.pc).cloned().ok_or_else(|| {
                 Error::InvalidOperation(format!("invalid program counter {}", self.pc))
             })?;
@@ -1429,7 +1569,15 @@ impl<R: BufRead> Vm<R> {
                     .next()
                     .unwrap()
                     .to_string();
-                let event = serde_json::json!({"task":self.scheduler.active,"pc":self.pc,"operation":operation});
+                if self.engine.program.language == "0.6" {
+                    self.index_state(&inst.at)?;
+                }
+                let mut event = serde_json::json!({"task":self.scheduler.active,"pc":self.pc,"operation":operation});
+                if self.engine.program.language == "0.6" {
+                    event["source"] = serde_json::json!(inst.at.source);
+                    event["line"] = serde_json::json!(inst.at.line);
+                    event["column"] = serde_json::json!(inst.at.col);
+                }
                 if let Some(replay) = &self.options.replay {
                     if replay["events"].get(self.events.len()) != Some(&event) {
                         return Err(self.error(
@@ -1480,19 +1628,47 @@ impl<R: BufRead> Vm<R> {
                     } else if let Some(f) = self.engine.program.functions.get(&name) {
                         Value::Function(
                             name.clone(),
-                            format!(
-                                "fn({})->{}",
-                                f.params
-                                    .iter()
-                                    .map(|(_, t)| t.as_str())
-                                    .collect::<Vec<_>>()
-                                    .join(","),
-                                if f.asynchronous {
-                                    format!("Task<{}>", f.ret)
-                                } else {
-                                    f.ret.clone()
-                                }
-                            ),
+                            if self.engine.program.language == "0.6" {
+                                let ty = v06::fn_type(
+                                    &f.params,
+                                    &if f.asynchronous {
+                                        format!("Task<{}>", f.ret)
+                                    } else {
+                                        f.ret.clone()
+                                    },
+                                    &v06::function_effects(&self.engine.program, &name),
+                                );
+                                let names = v05::needed_globals(&self.engine.program, &name);
+                                let can = |shared: bool| {
+                                    names.iter().all(|n| {
+                                        self.get(n).is_none_or(|b| {
+                                            (!shared || !b.mutable)
+                                                && v06::captures::value_flags(
+                                                    &self.engine.program,
+                                                    &self.engine.runtime,
+                                                    &b.value,
+                                                    shared,
+                                                    &mut BTreeSet::new(),
+                                                )
+                                        })
+                                    })
+                                };
+                                v06::captures::with_flags(&ty, can(false), can(true))
+                            } else {
+                                format!(
+                                    "fn({})->{}",
+                                    f.params
+                                        .iter()
+                                        .map(|(_, t)| t.as_str())
+                                        .collect::<Vec<_>>()
+                                        .join(","),
+                                    if f.asynchronous {
+                                        format!("Task<{}>", f.ret)
+                                    } else {
+                                        f.ret.clone()
+                                    }
+                                )
+                            },
                         )
                     } else if name.contains("::") {
                         unflow(self.engine.call(&name, Vec::new(), &inst.at), &inst.at)?
@@ -1567,7 +1743,18 @@ impl<R: BufRead> Vm<R> {
                         ("!", Value::Bool(v)) => Value::Bool(!v),
                         ("move" | "borrow" | "borrowMut", v) => v,
                         ("$capture:value", v) => v05::task_copy(&mut self.engine.runtime, &v)?,
-                        ("$capture:move" | "$capture:borrow", v) => v,
+                        ("$capture:move", v) => v,
+                        ("$capture:borrow", v) => {
+                            if let Value::Closure(name, ty, captures) = self.resolve(&v) {
+                                Value::HeapRef(self.engine.runtime.alloc(Value::Closure(
+                                    name,
+                                    v06::captures::with_flags(&ty, false, false),
+                                    captures,
+                                ))?)
+                            } else {
+                                v
+                            }
+                        }
                         _ => return Err(self.error(&inst.at, "invalid unary operand")),
                     };
                     self.push(result)?;
@@ -1579,12 +1766,19 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Property(field) => {
                     let value = self.pop()?;
+                    let secret = v05::unsecret(&value).cloned();
+                    let value = secret.clone().unwrap_or(value);
                     if let Some(Value::Struct(_, fields)) = v05::unfrozen(&value) {
                         let value = fields
                             .get(&field)
                             .cloned()
                             .ok_or_else(|| self.error(&inst.at, "unknown frozen field"))?;
-                        self.push(v05::freeze_member(value, &self.engine.runtime))?;
+                        let value = v05::freeze_member(value, &self.engine.runtime);
+                        self.push(if secret.is_some() {
+                            v05::secret(value.clone(), value_type(&value, &self.engine.runtime))
+                        } else {
+                            value
+                        })?;
                         continue;
                     }
                     let result = match value {
@@ -1622,10 +1816,23 @@ impl<R: BufRead> Vm<R> {
                             .ok_or_else(|| self.error(&inst.at, "unknown field"))?,
                         _ => return Err(self.error(&inst.at, "unknown property")),
                     };
+                    let result = if secret.is_some() {
+                        v05::secret(result.clone(), value_type(&result, &self.engine.runtime))
+                    } else {
+                        result
+                    };
                     self.push(result)?;
                 }
                 Op::Call(name, count) => {
                     let args = self.args(count)?;
+                    if self.engine.program.language == "0.6" && name == "reveal" {
+                        self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
+                    }
+                    if name == "propertyInt" && self.engine.program.language == "0.6" {
+                        let value = self.property_int(&args, &inst.at)?;
+                        self.push(value)?;
+                        continue;
+                    }
                     if let Some(value) = self.scheduler_constructor(&name, &args, &inst.at)? {
                         self.push(value)?;
                         continue;
@@ -1710,6 +1917,49 @@ impl<R: BufRead> Vm<R> {
                             }
                         }
                     }
+                    let ty = if self.engine.program.language == "0.6" {
+                        let f =
+                            &self.engine.program.functions[name.split('<').next().unwrap_or(&name)];
+                        let checker = Checker {
+                            program: &self.engine.program,
+                            scopes: vec![captures
+                                .iter()
+                                .map(|(n, v)| {
+                                    (
+                                        n.clone(),
+                                        (value_type(&self.resolve(v), &self.engine.runtime), false),
+                                    )
+                                })
+                                .collect()],
+                            return_ty: None,
+                            loop_depth: 0,
+                            bounds: f
+                                .type_params
+                                .iter()
+                                .filter_map(|(n, b)| b.as_ref().map(|b| (n.clone(), b.clone())))
+                                .collect(),
+                            origin: self.engine.program.root_origin.clone(),
+                        };
+                        let effects = v06::closure_effects(&checker, &f.params, &f.body)?;
+                        let ty = format!(
+                            "{ty}!{{{}}}",
+                            effects.into_iter().collect::<Vec<_>>().join("+")
+                        );
+                        let can = |shared: bool| {
+                            captures.values().all(|v| {
+                                v06::captures::value_flags(
+                                    &self.engine.program,
+                                    &self.engine.runtime,
+                                    v,
+                                    shared,
+                                    &mut BTreeSet::new(),
+                                )
+                            })
+                        };
+                        v06::captures::with_flags(&ty, can(false), can(true))
+                    } else {
+                        ty
+                    };
                     let id = self
                         .engine
                         .runtime
@@ -1757,6 +2007,14 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Builtin(receiver, method, count) => {
                     let args = self.args(count)?;
+                    if self.engine.program.language == "0.6"
+                        && matches!(
+                            (receiver.as_str(), method.as_str()),
+                            ("Env", "getSecret") | ("In", "readSecretLine")
+                        )
+                    {
+                        self.audit.push(serde_json::json!({"kind":if receiver=="Env" {"secretEnvironment"}else{"secretInput"},"source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
+                    }
                     let value = unflow(
                         self.engine.builtin(&receiver, &method, args, &inst.at),
                         &inst.at,

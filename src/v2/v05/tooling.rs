@@ -1,4 +1,5 @@
 use super::*;
+mod symbols;
 use serde_json::{json, Value as Json};
 use std::io::{Read, Write};
 fn uri_path(uri: &str) -> Result<PathBuf> {
@@ -90,6 +91,19 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
     }
     Ok(program)
 }
+fn workspace_program(
+    root: &Path,
+    path: &Path,
+    documents: &BTreeMap<PathBuf, String>,
+) -> Result<Program> {
+    if let Some(config) = project::ProjectConfig::load(root)? {
+        let p = program(root, &config.entry, documents)?;
+        if p.included_modules.contains(path) {
+            return Ok(p);
+        }
+    }
+    program(root, path, documents)
+}
 fn send(writer: &mut impl Write, value: &Json) -> Result<()> {
     let bytes = serde_json::to_vec(value).map_err(|e| Error::InvalidOperation(e.to_string()))?;
     write!(writer, "Content-Length: {}\r\n\r\n", bytes.len())?;
@@ -179,7 +193,7 @@ pub fn lsp(root: &Path) -> Result<()> {
         let response = (|| -> Result<Json> {
             match method {
                 "initialize" => Ok(
-                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
+                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
                 ),
                 "shutdown" => {
                     shutdown = true;
@@ -256,25 +270,9 @@ pub fn lsp(root: &Path) -> Result<()> {
                     }
                     documents.insert(path.clone(), text.clone());
                     versions.insert(path.clone(), version);
-                    let diagnostics = match program(root, &path, &documents) {
+                    let diagnostics = match workspace_program(root, &path, &documents) {
                         Ok(_) => Vec::new(),
-                        Err(e) => {
-                            let message = e.to_string();
-                            let location = lex(&text).ok().and_then(|tokens| {
-                                tokens
-                                    .into_iter()
-                                    .find(|t| message.contains(&format!(":{}:{}:", t.line, t.col)))
-                            });
-                            let line = location.as_ref().map_or(0, |t| t.line.saturating_sub(1));
-                            let column = utf16_column(
-                                &text,
-                                line,
-                                location.as_ref().map_or(0, |t| t.col.saturating_sub(1)),
-                            );
-                            vec![
-                                json!({"range":{"start":{"line":line,"character":column},"end":{"line":line,"character":column+1}},"severity":1,"source":"rewind","message":message}),
-                            ]
-                        }
+                        Err(e) => symbols::diagnostics(root, &path, &text, &e),
                     };
                     send(
                         &mut output,
@@ -282,9 +280,51 @@ pub fn lsp(root: &Path) -> Result<()> {
                     )?;
                     Ok(Json::Null)
                 }
+                "textDocument/references"
+                | "textDocument/rename"
+                | "textDocument/prepareRename"
+                | "textDocument/signatureHelp" => {
+                    if !incremental {
+                        return Err(Error::InvalidOperation(
+                            "LSP request requires language 0.6".into(),
+                        ));
+                    }
+                    let path = document_path(params["textDocument"]["uri"].as_str().unwrap_or(""))?;
+                    if !path.starts_with(fs::canonicalize(root)?) {
+                        return Err(Error::InvalidPath(path.display().to_string()));
+                    }
+                    let p = match workspace_program(root, &path, &documents) {
+                        Ok(p) => p,
+                        Err(_) if method.ends_with("signatureHelp") => {
+                            let mut saved = documents.clone();
+                            saved.remove(&path);
+                            workspace_program(root, &path, &saved)?
+                        }
+                        Err(e) => return Err(e),
+                    };
+                    symbols::request(root, method, &p, &path, params, &documents)
+                }
+                "textDocument/codeAction" => {
+                    if !incremental {
+                        return Err(Error::InvalidOperation(
+                            "LSP request requires language 0.6".into(),
+                        ));
+                    }
+                    symbols::quick_fixes(root, params, &documents)
+                }
                 "textDocument/hover" | "textDocument/definition" | "textDocument/completion" => {
                     let path = document_path(params["textDocument"]["uri"].as_str().unwrap_or(""))?;
-                    let p = program(root, &path, &documents)?;
+                    if !path.starts_with(fs::canonicalize(root)?) {
+                        return Err(Error::InvalidPath(path.display().to_string()));
+                    }
+                    let p = if incremental {
+                        workspace_program(root, &path, &documents)?
+                    } else {
+                        program(root, &path, &documents)?
+                    };
+                    if incremental && method.ends_with("definition") {
+                        return symbols::request(root, method, &p, &path, params, &documents);
+                    }
                     if method.ends_with("completion") {
                         let mut names = p
                             .functions
@@ -426,6 +466,22 @@ pub fn lsp(root: &Path) -> Result<()> {
         }
     }
 }
+fn debugger_view(
+    parsed: Option<&Program>,
+    root: &Path,
+    trace: &Json,
+    index: usize,
+    options: &RunOptions,
+) -> Result<Json> {
+    if let Some(view) = v06::debug::view(trace, index)? {
+        return Ok(view);
+    }
+    if let Some(p) = parsed {
+        vm::debug_view(p.clone(), root, trace, index, options.clone())
+    } else {
+        Ok(trace["debug"]["final"].clone())
+    }
+}
 pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()> {
     if fs::metadata(path)?.len() > 128 * 1024 * 1024 {
         return Err(Error::InvalidOperation("debug trace exceeds budget".into()));
@@ -457,8 +513,24 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
     {
         return Err(Error::InvalidPath("debug entry".into()));
     }
+    let events = trace["events"]
+        .as_array()
+        .ok_or_else(|| Error::InvalidOperation("missing events".into()))?;
+    let indexed = !trace["debug"]["index"].is_null();
+    if indexed
+        && trace["debug"]["index"]["deltas"]
+            .as_array()
+            .is_none_or(|a| a.len() != events.len())
+    {
+        return Err(Error::InvalidOperation("invalid debug index length".into()));
+    }
+    if indexed && trace["artifact_sha256"] != trace["fingerprint"] {
+        return Err(Error::InvalidOperation(
+            "debug artifact fingerprint mismatch".into(),
+        ));
+    }
     let source = root.join(entry);
-    let parsed = if source.exists() {
+    let parsed = if !indexed && source.exists() {
         if let Some(c) = project::ProjectConfig::load(root)? {
             c.lock(root, false)?;
         }
@@ -466,26 +538,17 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
     } else {
         None
     };
-    let events = trace["events"]
-        .as_array()
-        .ok_or_else(|| Error::InvalidOperation("missing events".into()))?;
     let checkpoints = trace["debug"]["checkpoints"]
         .as_array()
         .ok_or_else(|| Error::InvalidOperation("missing checkpoints".into()))?;
-    let mut index = 0usize;
-    let mut checkpoint: Option<usize> = None;
     let stdin = io::stdin();
     let stdout = io::stdout();
-    let mut current = if let Some(p) = &parsed {
-        vm::debug_view(p.clone(), root, &trace, 0, options.clone())?
-    } else {
-        trace["debug"]["final"].clone()
-    };
     let mut output = stdout.lock();
-    writeln!(
-        output,
-        "REWIND recorded debugger: step, continue, checkpoint NAME, state, tasks, files, quit"
-    )?;
+    let mut index = 0usize;
+    let mut current = debugger_view(parsed.as_ref(), root, &trace, index, &options)?;
+    let mut selected_task: Option<u64> = None;
+    let mut breakpoints: BTreeSet<(String, usize)> = BTreeSet::new();
+    writeln!(output,"REWIND recorded debugger: step, back, next-line, previous-line, continue, reverse-continue, break SOURCE:LINE, clear SOURCE:LINE, task ID, checkpoint NAME, state, tasks, files, diff EVENT, quit")?;
     output.flush()?;
     loop {
         let mut command = String::new();
@@ -493,50 +556,127 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
             break;
         }
         let command = command.trim();
+        let previous = index;
         let value = match command {
             "step" => {
-                let event = events.get(index).cloned().unwrap_or(Json::Null);
-                index = index.saturating_add(1).min(events.len());
-                checkpoint = None;
-                if let Some(p) = &parsed {
-                    current = vm::debug_view(p.clone(), root, &trace, index, options.clone())?;
-                }
-                json!({"event":index,"instruction":event,"state_available":parsed.is_some()})
+                index = (index..events.len())
+                    .find(|i| selected_task.is_none_or(|task| events[*i]["task"] == task))
+                    .map(|i| i + 1)
+                    .unwrap_or(events.len());
+                json!({"event":index,"instruction":events.get(index.saturating_sub(1)),"state_available":indexed||parsed.is_some()})
             }
-            "continue" => {
-                index = events.len();
-                checkpoint = None;
-                if let Some(p) = &parsed {
-                    current = vm::debug_view(p.clone(), root, &trace, index, options.clone())?;
-                }
-                trace["result"].clone()
+            "back" | "reverse-step" => {
+                index = (0..index)
+                    .rev()
+                    .find(|i| selected_task.is_none_or(|task| events[*i]["task"] == task))
+                    .unwrap_or(0);
+                json!({"event":index,"instruction":events.get(index),"state_available":indexed||parsed.is_some()})
             }
-            "state" => checkpoint
-                .map(|i| &checkpoints[i])
-                .unwrap_or(&current)
-                .clone(),
-            "tasks" => checkpoint
-                .map(|i| &checkpoints[i]["scheduler"])
-                .unwrap_or(&current["scheduler"])
-                .clone(),
-            "files" => checkpoint
-                .map(|i| &checkpoints[i]["runtime"]["file_deltas"])
-                .unwrap_or(&current["runtime"]["file_deltas"])
-                .clone(),
+            "next-line" | "previous-line" => {
+                let forward = command == "next-line";
+                let base = events.get(index.min(events.len().saturating_sub(1)));
+                let range: Box<dyn Iterator<Item = usize>> = if forward {
+                    Box::new(index + 1..events.len())
+                } else {
+                    Box::new((0..index).rev())
+                };
+                index = range
+                    .filter(|i| selected_task.is_none_or(|task| events[*i]["task"] == task))
+                    .find(|i| {
+                        base.is_none_or(|base| {
+                            events[*i]["source"] != base["source"]
+                                || events[*i]["line"] != base["line"]
+                        })
+                    })
+                    .unwrap_or(if forward { events.len() } else { 0 });
+                json!({"event":index,"instruction":events.get(index)})
+            }
+            "continue" | "reverse-continue" => {
+                let forward = command == "continue";
+                let range: Box<dyn Iterator<Item = usize>> = if forward {
+                    Box::new(index + 1..events.len())
+                } else {
+                    Box::new((0..index).rev())
+                };
+                let stop = range
+                    .filter(|i| selected_task.is_none_or(|task| events[*i]["task"] == task))
+                    .find(|i| {
+                        breakpoints.contains(&(
+                            events[*i]["source"].as_str().unwrap_or("").into(),
+                            events[*i]["line"].as_u64().unwrap_or(0) as usize,
+                        ))
+                    });
+                index = stop.unwrap_or(if forward { events.len() } else { 0 });
+                json!({"event":index,"breakpoint":stop.is_some(),"result":if index==events.len(){trace["result"].clone()}else{Json::Null}})
+            }
+            "state" => {
+                if let Some(task) = selected_task {
+                    json!({"event":index,"task":task,"task_state":current["scheduler"]["tasks"][task.to_string()],"frames":if current["scheduler"]["active"]==task{current["frames"].clone()}else{current["task_frames"][task.to_string()].clone()},"runtime":current["runtime"]})
+                } else {
+                    current.clone()
+                }
+            }
+            "tasks" => current["scheduler"].clone(),
+            "files" => current["runtime"]["file_deltas"].clone(),
             "quit" => break,
             _ => {
                 if let Some(name) = command.strip_prefix("checkpoint ") {
-                    checkpoint = checkpoints.iter().rposition(|c| c["checkpoint"] == name);
-                    if let Some(i) = checkpoint {
-                        index = checkpoints[i]["event_index"].as_u64().unwrap_or(0) as usize;
+                    let checkpoint = checkpoints.iter().rfind(|c| c["checkpoint"] == name);
+                    if let Some(c) = checkpoint {
+                        index = c["event_index"].as_u64().unwrap_or(0) as usize;
                     }
-                    json!({"checkpoint":checkpoint.map(|i|&checkpoints[i]["checkpoint"]),"found":checkpoint.is_some()})
+                    json!({"checkpoint":name,"found":checkpoint.is_some(),"event":index})
+                } else if let Some(text) = command.strip_prefix("task ") {
+                    match text.parse::<u64>() {
+                        Ok(task)
+                            if current["scheduler"]["tasks"]
+                                .get(task.to_string())
+                                .is_some() =>
+                        {
+                            selected_task = Some(task);
+                            json!({"task":task})
+                        }
+                        _ => json!({"error":"unknown task"}),
+                    }
+                } else if let Some(text) = command
+                    .strip_prefix("break ")
+                    .or_else(|| command.strip_prefix("clear "))
+                {
+                    if let Some((source, line)) = text
+                        .rsplit_once(':')
+                        .and_then(|(s, n)| n.parse::<usize>().ok().map(|n| (s.to_string(), n)))
+                    {
+                        let remove = command.starts_with("clear ");
+                        if remove {
+                            breakpoints.remove(&(source.clone(), line));
+                        } else {
+                            breakpoints.insert((source.clone(), line));
+                        }
+                        json!({"source":source,"line":line,"enabled":!remove})
+                    } else {
+                        json!({"error":"expected SOURCE:LINE"})
+                    }
+                } else if let Some(text) = command.strip_prefix("diff ") {
+                    if let Ok(other) = text.parse::<usize>() {
+                        if other <= events.len() {
+                            let before =
+                                debugger_view(parsed.as_ref(), root, &trace, other, &options)?;
+                            json!({"from":other,"to":index,"files":v06::debug::delta(&before["runtime"]["file_deltas"],&current["runtime"]["file_deltas"])})
+                        } else {
+                            json!({"error":"event out of range"})
+                        }
+                    } else {
+                        json!({"error":"expected event number"})
+                    }
                 } else {
                     json!({"error":"unknown debugger command"})
                 }
             }
         };
-        writeln!(output, "{}", value)?;
+        if index != previous {
+            current = debugger_view(parsed.as_ref(), root, &trace, index, &options)?;
+        }
+        writeln!(output, "{value}")?;
         output.flush()?;
     }
     Ok(())

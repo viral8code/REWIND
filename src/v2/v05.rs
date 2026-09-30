@@ -34,6 +34,7 @@ pub(super) mod pairs {
 }
 
 pub(super) fn prepare(program: &mut Program) -> Result<()> {
+    v06::language::prepare(program)?;
     if !matches!(program.language.as_str(), "0.5" | "0.6") {
         return Ok(());
     }
@@ -131,6 +132,12 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
         },
     );
     if program.language == "0.6" {
+        program
+            .enums
+            .get_mut("TaskError")
+            .unwrap()
+            .variants
+            .insert("TimedOut".into(), vec![]);
         program.structs.get_mut("Diagnostic").unwrap().fields = vec![
             ("code".into(), "String".into()),
             ("message".into(), "String".into()),
@@ -179,6 +186,9 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             "Monomorphization",
             "HistoryMemory",
             "HistoryStorage",
+            "IteratorItems",
+            "EffectInference",
+            "DependencyResolution",
         ] {
             program
                 .enums
@@ -187,6 +197,27 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
                 .variants
                 .insert(kind.into(), vec![]);
         }
+        if program.structs.contains_key("PropertyFailure")
+            || program.functions.contains_key("propertyInt")
+        {
+            return Err(Error::InvalidOperation(
+                "PropertyFailure and propertyInt are reserved".into(),
+            ));
+        }
+        program.structs.insert(
+            "PropertyFailure".into(),
+            StructDef {
+                type_params: Vec::new(),
+                fields: vec![
+                    ("seed".into(), "Int".into()),
+                    ("case".into(), "Int".into()),
+                    ("input".into(), "Int".into()),
+                    ("shrinks".into(), "Int".into()),
+                ],
+                public: true,
+                origin: program.root_origin.clone(),
+            },
+        );
         v06::infer(program)?;
     }
     Ok(())
@@ -596,7 +627,11 @@ pub(super) fn transfer_type(
         return true;
     }
     if ty.starts_with("fn(") {
-        return !shared;
+        return if program.language == "0.6" {
+            v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
+        } else {
+            !shared
+        };
     }
     if matches!(ty, "FileHandle") {
         return false;
@@ -901,6 +936,23 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     }
                 }
             });
+            if program.language == "0.6" {
+                let checker = Checker {
+                    program,
+                    scopes: vec![BTreeMap::new()],
+                    return_ty: None,
+                    loop_depth: 0,
+                    bounds: f
+                        .type_params
+                        .iter()
+                        .filter_map(|(n, b)| b.as_ref().map(|b| (n.clone(), b.clone())))
+                        .collect(),
+                    origin: f.origin.clone(),
+                };
+                pending.extend(v06::captures::method_dependencies(
+                    &checker, &f.params, &f.body,
+                ));
+            }
             names.extend(free);
         }
     }

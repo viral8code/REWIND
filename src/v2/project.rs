@@ -82,6 +82,12 @@ impl ProjectConfig {
         }
     }
     pub fn load(root: &Path) -> Result<Option<Self>> {
+        Self::load_mode(root, false)
+    }
+    pub(super) fn load_for_update(root: &Path) -> Result<Option<Self>> {
+        Self::load_mode(root, true)
+    }
+    fn load_mode(root: &Path, latest: bool) -> Result<Option<Self>> {
         let root = fs::canonicalize(root)?;
         let manifest = root.join("rewind.toml");
         if !manifest.exists() {
@@ -185,63 +191,81 @@ impl ProjectConfig {
         let entry = inside(&source_root, &entry)?;
         let mut imports = BTreeMap::new();
         imports.insert(String::new(), source_root.clone());
-        for (name, path) in deps {
-            if name.contains('/') || name.contains('.') || name.is_empty() {
-                return Err(Error::InvalidOperation(format!(
-                    "invalid dependency name {name}"
-                )));
-            }
-            let full = inside(&root, path.strip_prefix("file:").unwrap_or(&path))?;
-            if !full.is_dir() {
-                return Err(Error::InvalidPath(path));
-            }
-            imports.insert(name, full);
-        }
-        if matches!(language.as_str(), "0.5" | "0.6") {
-            let mut inspected = BTreeSet::new();
-            loop {
-                let pending = imports
-                    .iter()
-                    .filter(|(n, _)| !n.is_empty() && !inspected.contains(*n))
-                    .map(|(n, p)| (n.clone(), p.clone()))
-                    .collect::<Vec<_>>();
-                if pending.is_empty() {
-                    break;
+        if language == "0.6"
+            && deps
+                .values()
+                .chain(registry.values())
+                .any(|s| s.contains('|'))
+        {
+            let (selected, constraints) = v06::resolver::resolve(
+                &root, &deps, &registry, &versions, &signers, &trust, &revoked, latest,
+            )?;
+            imports.extend(selected);
+            versions = constraints;
+        } else {
+            for (name, path) in deps {
+                if name.contains('/') || name.contains('.') || name.is_empty() {
+                    return Err(Error::InvalidOperation(format!(
+                        "invalid dependency name {name}"
+                    )));
                 }
-                for (name, path) in pending {
-                    inspected.insert(name);
-                    let metadata: serde_json::Value =
-                        serde_json::from_slice(&fs::read(path.join("rewind.package.json"))?)
-                            .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-                    if let Some(dependencies) = metadata.get("dependencies") {
-                        let dependencies = dependencies.as_object().ok_or_else(|| {
-                            Error::InvalidOperation("package dependencies must be an object".into())
-                        })?;
-                        for (name, wanted) in dependencies {
-                            let wanted = wanted.as_str().ok_or_else(|| {
+                let full = inside(&root, path.strip_prefix("file:").unwrap_or(&path))?;
+                if !full.is_dir() {
+                    return Err(Error::InvalidPath(path));
+                }
+                imports.insert(name, full);
+            }
+            if matches!(language.as_str(), "0.5" | "0.6") {
+                let mut inspected = BTreeSet::new();
+                loop {
+                    let pending = imports
+                        .iter()
+                        .filter(|(n, _)| !n.is_empty() && !inspected.contains(*n))
+                        .map(|(n, p)| (n.clone(), p.clone()))
+                        .collect::<Vec<_>>();
+                    if pending.is_empty() {
+                        break;
+                    }
+                    for (name, path) in pending {
+                        inspected.insert(name);
+                        let metadata: serde_json::Value =
+                            serde_json::from_slice(&fs::read(path.join("rewind.package.json"))?)
+                                .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+                        if let Some(dependencies) = metadata.get("dependencies") {
+                            let dependencies = dependencies.as_object().ok_or_else(|| {
                                 Error::InvalidOperation(
-                                    "transitive requirement must be a string".into(),
+                                    "package dependencies must be an object".into(),
                                 )
                             })?;
-                            semver::VersionReq::parse(wanted)
-                                .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-                            versions
-                                .entry(name.clone())
-                                .and_modify(|v| {
-                                    v.push_str(", ");
-                                    v.push_str(wanted);
-                                })
-                                .or_insert_with(|| wanted.into());
-                            if !imports.contains_key(name) {
-                                let source=registry.get(name).ok_or_else(||Error::InvalidOperation(format!("transitive package {name} requires an explicit registry mirror")))?;
-                                imports.insert(
-                                    name.clone(),
-                                    inside(&root, source.strip_prefix("file:").unwrap_or(source))?,
-                                );
-                                if imports.len() > 1024 {
-                                    return Err(Error::InvalidOperation(
-                                        "DependencyBudgetExceeded".into(),
-                                    ));
+                            for (name, wanted) in dependencies {
+                                let wanted = wanted.as_str().ok_or_else(|| {
+                                    Error::InvalidOperation(
+                                        "transitive requirement must be a string".into(),
+                                    )
+                                })?;
+                                semver::VersionReq::parse(wanted)
+                                    .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+                                versions
+                                    .entry(name.clone())
+                                    .and_modify(|v| {
+                                        v.push_str(", ");
+                                        v.push_str(wanted);
+                                    })
+                                    .or_insert_with(|| wanted.into());
+                                if !imports.contains_key(name) {
+                                    let source=registry.get(name).ok_or_else(||Error::InvalidOperation(format!("transitive package {name} requires an explicit registry mirror")))?;
+                                    imports.insert(
+                                        name.clone(),
+                                        inside(
+                                            &root,
+                                            source.strip_prefix("file:").unwrap_or(source),
+                                        )?,
+                                    );
+                                    if imports.len() > 1024 {
+                                        return Err(Error::InvalidOperation(
+                                            "DependencyBudgetExceeded".into(),
+                                        ));
+                                    }
                                 }
                             }
                         }
@@ -322,7 +346,7 @@ impl ProjectConfig {
         }
         Ok(())
     }
-    fn secure_lock(&self, root: &Path, update: bool) -> Result<()> {
+    pub(super) fn lock_document(&self, root: &Path) -> Result<String> {
         use ed25519_dalek::{Signature, VerifyingKey};
         let mut dependencies = serde_json::Map::new();
         for (name, path) in &self.imports {
@@ -405,6 +429,13 @@ impl ProjectConfig {
             dependencies.insert(name.clone(), selected);
         }
         let expected=serde_json::to_string_pretty(&serde_json::json!({"format":2,"language":self.language,"compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies})).map_err(|e| Error::InvalidOperation(e.to_string()))?+"\n";
+        Ok(expected)
+    }
+    fn secure_lock(&self, root: &Path, update: bool) -> Result<()> {
+        let expected = self.lock_document(root)?;
+        let parsed: serde_json::Value =
+            serde_json::from_str(&expected).map_err(|e| Error::InvalidOperation(e.to_string()))?;
+        let dependencies = parsed["dependencies"].as_object().unwrap();
         let path = root.join("rewind.lock");
         if update {
             if matches!(self.language.as_str(), "0.5" | "0.6") {
@@ -412,7 +443,7 @@ impl ProjectConfig {
                     .ok()
                     .and_then(|b| serde_json::from_slice(&b).ok())
                     .unwrap_or(serde_json::Value::Null);
-                for (name, value) in &dependencies {
+                for (name, value) in dependencies {
                     if old["dependencies"][name] != *value {
                         eprintln!(
                             "selected {name}: {} -> {}; satisfies {}; explicit mirror {}",

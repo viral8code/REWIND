@@ -3,6 +3,11 @@ pub(in crate::v2) fn record(error: &Error, at: &Tok, task_id: u64) -> rewind::Di
     if let Error::Diagnostic(d) = error {
         let mut d = (**d).clone();
         d.task_id = Some(task_id);
+        if d.line == 0 {
+            d.source = at.source.clone();
+            d.line = at.line;
+            d.column = at.col;
+        }
         return d;
     }
     let code = match error {
@@ -10,9 +15,7 @@ pub(in crate::v2) fn record(error: &Error, at: &Tok, task_id: u64) -> rewind::Di
         Error::Io(_) => "Io",
         Error::MissingFile(_) => "NotFound",
         Error::InvalidPath(_) => "InvalidPath",
-        Error::InvalidOperation(message) if message.starts_with("TaskTransferBudgetExceeded") => {
-            "TransferDepth"
-        }
+        Error::InvalidOperation(message) => code(message),
         _ => "TaskFailed",
     };
     rewind::DiagnosticRecord {
@@ -50,6 +53,8 @@ pub(in crate::v2) fn value(d: &rewind::DiagnosticRecord) -> Value {
 pub(in crate::v2) fn task_error(d: &rewind::DiagnosticRecord) -> Value {
     let (variant, fields) = if d.causes.is_empty() && d.code == "TaskCancelled" {
         ("Cancelled", vec![])
+    } else if d.causes.is_empty() && d.code == "LogicalTimeout" {
+        ("TimedOut", vec![])
     } else if d.code == "ChannelClosed" {
         ("ChannelClosed", vec![])
     } else if d.causes.is_empty() && d.code == "TaskDeadlock" {
@@ -66,6 +71,9 @@ pub(in crate::v2) fn task_error(d: &rewind::DiagnosticRecord) -> Value {
                 | "TransferDepth"
                 | "HistoryMemory"
                 | "HistoryStorage"
+                | "IteratorItems"
+                | "EffectInference"
+                | "DependencyResolution"
         )
     {
         let kind = match d.code.as_str() {
@@ -133,4 +141,32 @@ pub(in crate::v2) fn masked_record(
     value["causes"] =
         serde_json::Value::Array(d.causes.iter().map(|d| masked_record(d, rt)).collect());
     value
+}
+
+pub(in crate::v2) fn code(message: &str) -> &str {
+    if message.starts_with("TaskBudgetExceeded: scheduler storage") {
+        "SchedulerStorage"
+    } else if message.starts_with("TaskBudgetExceeded: objects") {
+        "SchedulerObjects"
+    } else if message.starts_with("TaskBudgetExceeded: instructions") {
+        "TaskSteps"
+    } else if message.starts_with("TaskTransferBudgetExceeded") {
+        "TransferDepth"
+    } else if message.starts_with("IteratorBudgetExceeded") {
+        "IteratorItems"
+    } else if message.starts_with("TraceBudgetExceeded")
+        || message.starts_with("ArtifactBudgetExceeded")
+    {
+        "HistoryStorage"
+    } else if message.contains("undeclared effect")
+        || message.contains("effect ") && message.contains("not allowed")
+    {
+        "EffectMissing"
+    } else if message.starts_with("EffectInferenceBudgetExceeded") {
+        "EffectInference"
+    } else if message.starts_with("DependencyResolutionBudgetExceeded") {
+        "DependencyResolution"
+    } else {
+        message.split([':', ' ']).next().unwrap_or("TaskFailed")
+    }
 }

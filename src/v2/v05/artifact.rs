@@ -15,6 +15,12 @@ fn paths(program: &mut Program, mut map: impl FnMut(&Path) -> Result<PathBuf>) -
     }
     for t in program.traits.values_mut() {
         t.origin = map(&t.origin)?;
+        for f in t.defaults.values_mut() {
+            f.origin = map(&f.origin)?;
+        }
+    }
+    for a in program.aliases.values_mut() {
+        a.origin = map(&a.origin)?;
     }
     for (_, p) in program.const_origins.values_mut() {
         *p = map(p)?;
@@ -172,6 +178,12 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         if program.structs.contains_key(n) || program.enums.contains_key(n) {
             return Err(invalid("reserved standard type"));
         }
+    }
+    if program.language == "0.6"
+        && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
+            != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
+    {
+        return Err(invalid("invalid property failure layout"));
     }
     if program.language == "0.6"
         && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))

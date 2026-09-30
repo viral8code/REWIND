@@ -1,7 +1,13 @@
 use super::*;
+pub(super) mod cache;
+pub(super) mod captures;
+pub(super) mod debug;
 pub(super) mod diagnostics;
 mod effects;
+pub(super) mod language;
 mod library;
+pub(super) mod resolver;
+pub(super) mod update;
 pub(super) use effects::{closure_effects, function_effects, infer, validate};
 pub(super) const KNOWN: &[&str] = &[
     "fileRead",
@@ -41,6 +47,7 @@ pub(super) fn strip_effects(t: &str) -> &str {
 pub(super) fn type_effects(t: &str) -> BTreeSet<String> {
     let base = strip_effects(t);
     let suffix = &t[base.len()..];
+    let suffix = suffix.split("~{").next().unwrap_or(suffix);
     suffix
         .strip_prefix("!{")
         .and_then(|s| s.strip_suffix('}'))
@@ -68,15 +75,29 @@ pub(super) fn unify_effects(
 ) -> bool {
     let expected = type_effects(e);
     let actual = type_effects(a);
-    if let Some(p) = expected.iter().find(|p| params.contains(p)) {
-        let value = format!("@{}", actual.into_iter().collect::<Vec<_>>().join("+"));
-        return match map.get(p) {
-            Some(old) => old == &value,
-            None => {
-                map.insert(p.clone(), value);
-                true
-            }
-        };
+    let variables = expected
+        .iter()
+        .filter(|p| params.contains(p))
+        .collect::<Vec<_>>();
+    if !variables.is_empty() {
+        for p in &variables {
+            map.entry((*p).clone()).or_insert_with(|| "@".into());
+        }
+        if variables.len() == 1 {
+            let p = variables[0];
+            let mut effects = map[p]
+                .trim_start_matches('@')
+                .split('+')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect::<BTreeSet<_>>();
+            effects.extend(actual.difference(&expected).cloned());
+            map.insert(
+                p.clone(),
+                format!("@{}", effects.into_iter().collect::<Vec<_>>().join("+")),
+            );
+        }
+        return true;
     }
     effects_compatible(e, a)
 }
@@ -120,4 +141,78 @@ pub(super) fn immutable_tuple(value: Value, rt: &Runtime) -> Value {
         Value::Result(Err(v)) => Value::Result(Err(Box::new(immutable_tuple(*v, rt)))),
         v => v,
     }
+}
+
+pub(super) fn solve_effects(
+    expected: &str,
+    actual: &str,
+    params: &[String],
+    map: &mut BTreeMap<String, String>,
+) -> bool {
+    let expected = borrowed_type(expected);
+    let actual = borrowed_type(actual);
+    if let (Some((ea, er)), Some((aa, ar))) =
+        (function_signature(expected), function_signature(actual))
+    {
+        for (e, a) in ea.iter().zip(aa) {
+            if !solve_effects(e, &a, params, map) {
+                return false;
+            }
+        }
+        if !solve_effects(&er, &ar, params, map) {
+            return false;
+        }
+        if strip_effects(actual) == actual {
+            return true;
+        }
+        let needs = type_effects(actual);
+        let upper = type_effects(expected);
+        let mut allowed = upper
+            .iter()
+            .filter(|e| !params.contains(e))
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let vars = upper
+            .iter()
+            .filter(|e| params.contains(e))
+            .collect::<Vec<_>>();
+        for v in &vars {
+            allowed.extend(
+                map.get(*v)
+                    .into_iter()
+                    .flat_map(|s| s.trim_start_matches('@').split('+'))
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string),
+            );
+        }
+        let missing = needs.difference(&allowed).cloned().collect::<BTreeSet<_>>();
+        if !missing.is_empty() {
+            let Some(v) = vars.first() else {
+                return false;
+            };
+            let mut effects = map[*v]
+                .trim_start_matches('@')
+                .split('+')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect::<BTreeSet<_>>();
+            effects.extend(missing);
+            map.insert(
+                (*v).clone(),
+                format!("@{}", effects.into_iter().collect::<Vec<_>>().join("+")),
+            );
+        }
+    } else if let (Some((_, ei)), Some((_, ai))) =
+        (expected.split_once('<'), actual.split_once('<'))
+    {
+        for (e, a) in split_type_args(outer_type_end(ei))
+            .into_iter()
+            .zip(split_type_args(outer_type_end(ai)))
+        {
+            if !solve_effects(e, a, params, map) {
+                return false;
+            }
+        }
+    }
+    true
 }

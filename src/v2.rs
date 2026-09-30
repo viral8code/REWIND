@@ -11,7 +11,7 @@ mod v06;
 mod vm;
 thread_local! {
     // Parsed modules are reused within a compiler session by content identity.
-    // This cache never accepts IR from a writable on-disk cache.
+    // Persistent entries are authenticated outside the project before reuse.
     static MODULE_CACHE: std::cell::RefCell<BTreeMap<String,Program>> = const { std::cell::RefCell::new(BTreeMap::new()) };
 }
 
@@ -21,6 +21,7 @@ pub struct RunOptions {
     pub arguments: Vec<String>,
     pub allowed_env: BTreeSet<String>,
     pub secret_env: BTreeSet<String>,
+    pub secret_input: Option<PathBuf>,
     pub locale: Option<String>,
     pub test_filter: Option<String>,
     pub trace_json: bool,
@@ -48,17 +49,16 @@ struct Tok {
 }
 
 fn diagnostic(t: &Tok, message: impl AsRef<str>) -> Error {
-    Error::InvalidOperation(format!(
-        "{}{}:{}: {}",
-        if t.source.is_empty() {
-            String::new()
-        } else {
-            format!("{}:", t.source)
-        },
-        t.line,
-        t.col,
-        message.as_ref()
-    ))
+    Error::Diagnostic(Box::new(rewind::DiagnosticRecord {
+        code: v06::diagnostics::code(message.as_ref()).into(),
+        message: message.as_ref().into(),
+        source: t.source.clone(),
+        line: t.line,
+        column: t.col,
+        task_id: None,
+        causes: vec![],
+        wait_edges: vec![],
+    }))
 }
 
 fn lex(src: &str) -> Result<Vec<Tok>> {
@@ -293,6 +293,8 @@ struct StructDef {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct TraitDef {
     #[serde(default)]
+    defaults: BTreeMap<String, Function>,
+    #[serde(default)]
     method_effects: BTreeMap<String, BTreeSet<String>>,
     associated: BTreeSet<String>,
     methods: BTreeMap<String, (Vec<String>, String)>,
@@ -306,8 +308,20 @@ struct EnumDef {
     public: bool,
     origin: PathBuf,
 }
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+struct AliasDef {
+    params: Vec<String>,
+    ty: String,
+    public: bool,
+    origin: PathBuf,
+    at: Tok,
+}
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 struct Program {
+    #[serde(default)]
+    aliases: BTreeMap<String, AliasDef>,
+    #[serde(default, with = "v05::pairs")]
+    impl_generics: BTreeMap<(String, String), Vec<(String, Option<String>)>>,
     language: String,
     #[serde(default)]
     inferred_effects: BTreeMap<String, BTreeSet<String>>,
@@ -364,6 +378,11 @@ impl Parser {
         self.current().text == s
     }
     fn eat(&mut self, s: &str) -> bool {
+        if s == ">" && self.is(">=") {
+            self.toks[self.pos].text = "=".into();
+            self.toks[self.pos].col += 1;
+            return true;
+        }
         if self.is(s) {
             self.pos += 1;
             true
@@ -448,11 +467,41 @@ impl Parser {
             self.need("->")?;
             let ret = self.ty()?;
             let effects = self.effect_set()?;
+            let captures = if self.eat("captures") {
+                self.need("{")?;
+                let mut flags = BTreeSet::new();
+                while !self.eat("}") {
+                    let flag = self.name()?;
+                    if flag != "Send" && flag != "Share" {
+                        return Err(diagnostic(
+                            self.current(),
+                            "capture contract must use Send or Share",
+                        ));
+                    }
+                    flags.insert(flag);
+                    if !self.is("}") {
+                        self.need(",")?;
+                    }
+                }
+                if flags.contains("Share") {
+                    flags.insert("Send".into());
+                }
+                Some(flags)
+            } else {
+                None
+            };
             return Ok(format!(
-                "fn({})->{ret}{}",
+                "fn({})->{ret}{}{}",
                 args.join(","),
                 effects
                     .map(|e| format!("!{{{}}}", e.into_iter().collect::<Vec<_>>().join("+")))
+                    .unwrap_or_else(|| if captures.is_some() {
+                        format!("!{{{}}}", v06::KNOWN.join("+"))
+                    } else {
+                        String::new()
+                    }),
+                captures
+                    .map(|c| format!("~{{{}}}", c.into_iter().collect::<Vec<_>>().join("+")))
                     .unwrap_or_default()
             ));
         }
@@ -586,6 +635,31 @@ impl Parser {
                     }),
                     at,
                 });
+            } else if self.eat("type") {
+                let at = self.current().clone();
+                let name = self.name()?;
+                let params = self.type_params()?.into_iter().map(|(n, _)| n).collect();
+                self.need("=")?;
+                let ty = self.ty()?;
+                self.need(";")?;
+                if p.aliases
+                    .insert(
+                        name.clone(),
+                        AliasDef {
+                            params,
+                            ty,
+                            public,
+                            origin: PathBuf::new(),
+                            at,
+                        },
+                    )
+                    .is_some()
+                {
+                    return Err(diagnostic(
+                        self.current(),
+                        format!("duplicate type alias {name}"),
+                    ));
+                }
             } else if self.eat("enum") {
                 let name = self.name()?;
                 let type_params = self.type_params()?.into_iter().map(|(n, _)| n).collect();
@@ -643,6 +717,7 @@ impl Parser {
                 self.need("{")?;
                 let mut methods = BTreeMap::new();
                 let mut method_effects = BTreeMap::new();
+                let mut defaults = BTreeMap::new();
                 let mut associated = BTreeSet::new();
                 while !self.eat("}") {
                     if self.eat("type") {
@@ -650,15 +725,19 @@ impl Parser {
                         self.need(";")?;
                         continue;
                     }
+                    let at = self.current().clone();
                     self.need("fn")?;
                     let method = self.name()?;
                     self.need("(")?;
                     let mut args = Vec::new();
+                    let mut params = Vec::new();
                     if !self.eat(")") {
                         loop {
-                            self.name()?;
+                            let arg = self.name()?;
                             self.need(":")?;
-                            args.push(self.ty()?);
+                            let ty = self.ty()?;
+                            args.push(ty.clone());
+                            params.push((arg, ty));
                             if self.eat(")") {
                                 break;
                             }
@@ -670,7 +749,29 @@ impl Parser {
                     if let Some(effects) = self.effect_set()? {
                         method_effects.insert(method.clone(), effects);
                     }
-                    self.need(";")?;
+                    if self.is("{") {
+                        let body = self.block()?;
+                        defaults.insert(
+                            method.clone(),
+                            Function {
+                                asynchronous: false,
+                                effects: method_effects
+                                    .get(&method)
+                                    .cloned()
+                                    .or_else(|| Some(BTreeSet::new())),
+                                type_params: Vec::new(),
+                                params,
+                                ret: ret.clone(),
+                                body,
+                                at,
+                                test: false,
+                                public: false,
+                                origin: PathBuf::new(),
+                            },
+                        );
+                    } else {
+                        self.need(";")?;
+                    }
                     if methods.insert(method.clone(), (args, ret)).is_some() {
                         return Err(diagnostic(
                             self.current(),
@@ -682,6 +783,7 @@ impl Parser {
                     .insert(
                         name.clone(),
                         TraitDef {
+                            defaults,
                             method_effects,
                             associated,
                             methods,
@@ -781,6 +883,8 @@ impl Parser {
                 }
                 p.impl_associated
                     .insert((tr.clone(), target.clone()), associated);
+                p.impl_generics
+                    .insert((tr.clone(), target.clone()), type_params);
                 p.impl_origins.insert((tr, target), PathBuf::new());
             } else if self.eat("struct") {
                 let name = self.name()?;
@@ -891,10 +995,20 @@ impl Parser {
                 if public {
                     return Err(diagnostic(self.current(), "pub requires a declaration"));
                 }
-                p.stmts.push(self.stmt()?);
+                let stmt = self.stmt()?;
+                Self::push_stmt(&mut p.stmts, stmt);
             }
         }
         Ok(p)
+    }
+    fn push_stmt(body: &mut Vec<Stmt>, stmt: Stmt) {
+        if stmt.at.text == "$destructure" {
+            if let StmtKind::Block(stmts) = stmt.kind {
+                body.extend(stmts);
+            }
+        } else {
+            body.push(stmt);
+        }
     }
     fn block(&mut self) -> Result<Vec<Stmt>> {
         self.need("{")?;
@@ -903,7 +1017,8 @@ impl Parser {
             if self.is("<eof>") {
                 return Err(diagnostic(self.current(), "unclosed block; add '}'"));
             }
-            body.push(self.stmt()?);
+            let stmt = self.stmt()?;
+            Self::push_stmt(&mut body, stmt);
         }
         Ok(body)
     }
@@ -911,6 +1026,20 @@ impl Parser {
         let at = self.current().clone();
         if self.eat("_") {
             return Ok(Pattern::Wildcard);
+        }
+        if self.eat("(") {
+            let mut parts = Vec::new();
+            while !self.eat(")") {
+                parts.push(self.pattern()?);
+                if self.eat(")") {
+                    if parts.len() == 1 {
+                        return Ok(parts.remove(0));
+                    }
+                    break;
+                }
+                self.need(",")?;
+            }
+            return Ok(Pattern::Variant("$tuple".into(), parts));
         }
         if self.eat("[") {
             let mut fields = Vec::new();
@@ -1009,6 +1138,38 @@ impl Parser {
         let at = self.current().clone();
         let kind = if self.eat("let") || self.eat("var") {
             let mutable = at.text == "var";
+            if self.is("(") {
+                let pattern = self.pattern()?;
+                let ty = if self.eat(":") {
+                    Some(self.ty()?)
+                } else {
+                    None
+                };
+                self.need("=")?;
+                let init = self.expr(0)?;
+                self.need(";")?;
+                let temp = format!("$destructure${}${}", at.line, at.col);
+                let mut body = vec![Stmt {
+                    kind: StmtKind::Let(temp.clone(), false, ty, init),
+                    at: at.clone(),
+                }];
+                v06::language::destructure(
+                    &pattern,
+                    Expr {
+                        kind: ExprKind::Name(temp),
+                        at: at.clone(),
+                    },
+                    mutable,
+                    &at,
+                    &mut body,
+                )?;
+                let mut marker = at;
+                marker.text = "$destructure".into();
+                return Ok(Stmt {
+                    kind: StmtKind::Block(body),
+                    at: marker,
+                });
+            }
             let name = self.name()?;
             let ty = if self.eat(":") {
                 Some(self.ty()?)
@@ -1812,6 +1973,13 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
         )
         .chain(
             program
+                .aliases
+                .iter()
+                .filter(|(_, d)| d.origin == program.root_origin)
+                .map(|(n, _)| n.clone()),
+        )
+        .chain(
+            program
                 .const_origins
                 .iter()
                 .filter(|(_, (_, origin))| origin == &program.root_origin)
@@ -1880,6 +2048,32 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
             *ret = rename_type(ret, &names);
         }
     }
+    for alias in program
+        .aliases
+        .values_mut()
+        .filter(|d| d.origin == program.root_origin)
+    {
+        alias.ty = rename_type(&alias.ty, &names);
+    }
+    for def in program
+        .traits
+        .values_mut()
+        .filter(|d| d.origin == program.root_origin)
+    {
+        for f in def.defaults.values_mut() {
+            v06::language::rename_function(f, &names);
+        }
+    }
+    let old = std::mem::take(&mut program.aliases);
+    program.aliases = old
+        .into_iter()
+        .map(|(n, d)| (names.get(&n).cloned().unwrap_or(n), d))
+        .collect();
+    let old = std::mem::take(&mut program.impl_generics);
+    program.impl_generics = old
+        .into_iter()
+        .map(|((tr, ty), params)| ((rename_type(&tr, &names), rename_type(&ty, &names)), params))
+        .collect();
     let top = program
         .stmts
         .iter()
@@ -2043,11 +2237,16 @@ fn load_program_overlay(
         .map_err(|_| Error::InvalidPath(full.display().to_string()))?
         .to_string_lossy()
         .replace('\\', "/");
-    let module_key = packages::hash(format!(
-        "{}\0{module_id}\0{source}",
-        env!("CARGO_PKG_VERSION")
-    ));
-    let cached = MODULE_CACHE.with(|cache| cache.borrow().get(&module_key).cloned());
+    let module_key = packages::hash(format!("{}\0{module_id}\0{source}", v06::cache::stamp()));
+    let cached = MODULE_CACHE
+        .with(|cache| cache.borrow().get(&module_key).cloned())
+        .or_else(|| {
+            if overlay.is_empty() {
+                v06::cache::get(root, "module", &module_key)
+            } else {
+                None
+            }
+        });
     let mut own = if let Some(program) = cached {
         program
     } else {
@@ -2067,6 +2266,9 @@ fn load_program_overlay(
             type_depth: 0,
         };
         let parsed = parser.program()?;
+        if overlay.is_empty() {
+            v06::cache::put(root, "module", &module_key, &parsed);
+        }
         if source.len() <= 128 * 1024 {
             MODULE_CACHE.with(|cache| {
                 let mut cache = cache.borrow_mut();
@@ -2093,6 +2295,12 @@ fn load_program_overlay(
         def.origin = full.clone();
     }
     for def in own.traits.values_mut() {
+        def.origin = full.clone();
+        for f in def.defaults.values_mut() {
+            f.origin = full.clone();
+        }
+    }
+    for def in own.aliases.values_mut() {
         def.origin = full.clone();
     }
     for (_, origin) in own.const_origins.values_mut() {
@@ -2177,6 +2385,13 @@ fn load_program_overlay(
                     )
                     .chain(
                         imported
+                            .aliases
+                            .iter()
+                            .filter(|(_, d)| d.origin == target_origin && d.public)
+                            .map(|(n, _)| original(n)),
+                    )
+                    .chain(
+                        imported
                             .const_origins
                             .iter()
                             .filter(|(_, (public, origin))| *public && origin == &target_origin)
@@ -2248,6 +2463,9 @@ fn load_program_overlay(
                     continue;
                 }
                 let already_included = program.included_modules.clone();
+                imported
+                    .aliases
+                    .retain(|_, d| !already_included.contains(&d.origin));
                 imported
                     .functions
                     .retain(|_, f| !already_included.contains(&f.origin));
@@ -2323,6 +2541,19 @@ fn load_program_overlay(
                         ));
                     }
                 }
+                for (name, alias) in imported.aliases {
+                    if let Some(existing) = program.aliases.get(&name) {
+                        if existing.origin != alias.origin {
+                            return Err(diagnostic(
+                                &stmt.at,
+                                format!("type alias collision: {name}"),
+                            ));
+                        }
+                    } else {
+                        program.aliases.insert(name, alias);
+                    }
+                }
+                program.impl_generics.extend(imported.impl_generics);
                 program.impl_origins.extend(imported.impl_origins);
                 program.impl_associated.extend(imported.impl_associated);
                 program.module_effects.extend(imported.module_effects);
@@ -2366,6 +2597,28 @@ fn load_program_overlay(
             }
         }
     }
+    for alias in own.aliases.values_mut() {
+        alias.ty = rename_type(&alias.ty, &program.import_aliases);
+    }
+    for def in own.traits.values_mut() {
+        for (args, ret) in def.methods.values_mut() {
+            for ty in args {
+                *ty = rename_type(ty, &program.import_aliases);
+            }
+            *ret = rename_type(ret, &program.import_aliases);
+        }
+        for f in def.defaults.values_mut() {
+            v06::language::rename_function(f, &program.import_aliases);
+        }
+    }
+    for (name, d) in own.aliases {
+        if program.aliases.insert(name.clone(), d).is_some() {
+            return Err(Error::InvalidOperation(format!(
+                "duplicate type alias {name}"
+            )));
+        }
+    }
+    program.impl_generics.extend(own.impl_generics);
     for (name, f) in own.functions {
         if program.functions.insert(name.clone(), f).is_some() {
             return Err(Error::InvalidOperation(format!(
@@ -2763,8 +3016,17 @@ pub fn lock_project(root: &Path) -> Result<()> {
     }
     project.lock(root, true)
 }
+pub fn update_preview(root: &Path, output: Option<&Path>) -> Result<()> {
+    v06::update::preview(root, output)
+}
+pub fn update_apply(root: &Path, path: &Path) -> Result<()> {
+    v06::update::apply(root, path)
+}
+pub fn compatibility(path: &Path) -> Result<()> {
+    v06::update::compatibility(path)
+}
 pub fn update_project(root: &Path) -> Result<()> {
-    let project = project::ProjectConfig::load(root)?
+    let project = project::ProjectConfig::load_for_update(root)?
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
     project.lock(root, true)
 }
@@ -3020,7 +3282,19 @@ fn check_program(program: &Program) -> Result<()> {
         checker.stmt(stmt)?;
     }
     let globals = checker.scopes[0].clone();
+    let mut interfaces = program.clone();
+    interfaces.stmts.clear();
+    for f in interfaces.functions.values_mut() {
+        f.body.clear();
+    }
+    let interface_key = v06::cache::key(&(interfaces, &globals)).unwrap_or_default();
     for f in program.functions.values() {
+        let root = program.root_origin.parent().unwrap_or(Path::new("."));
+        let key = v06::cache::key(&(f, &interface_key)).unwrap_or_default();
+        if program.language == "0.6" && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
+        {
+            continue;
+        }
         let mut checker = Checker {
             program,
             scopes: vec![globals.clone(), BTreeMap::new()],
@@ -3044,6 +3318,9 @@ fn check_program(program: &Program) -> Result<()> {
                 &f.at,
                 format!("function returning {} needs a return on every path", f.ret),
             ));
+        }
+        if program.language == "0.6" {
+            v06::cache::put(root, "checked", &key, &true);
         }
     }
     Ok(())
@@ -3230,7 +3507,22 @@ impl Checker<'_> {
                 }
             }
             Pattern::Variant(name, parts) => {
-                let (head, field_types) = if ty.starts_with("Option<") {
+                let (head, field_types) = if name == "$tuple" {
+                    if self.program.language != "0.6" {
+                        return Err(diagnostic(at, "tuple pattern requires language 0.6"));
+                    }
+                    let inner = ty
+                        .strip_prefix("Tuple<")
+                        .and_then(|s| s.strip_suffix('>'))
+                        .ok_or_else(|| diagnostic(at, "tuple pattern requires a tuple"))?;
+                    (
+                        name.as_str(),
+                        split_type_args(inner)
+                            .into_iter()
+                            .map(str::to_string)
+                            .collect(),
+                    )
+                } else if ty.starts_with("Option<") {
                     let inner = outer_type_end(ty.strip_prefix("Option<").unwrap());
                     (
                         name.as_str(),
@@ -3310,6 +3602,7 @@ impl Checker<'_> {
     fn check_match(&self, ty: &str, patterns: &[(&Pattern, bool)], at: &Tok) -> Result<()> {
         fn irrefutable(pattern: &Pattern) -> bool {
             matches!(pattern, Pattern::Wildcard | Pattern::Bind(_))
+                || matches!(pattern, Pattern::Variant(n, parts) if n == "$tuple" && parts.iter().all(irrefutable))
         }
         let required: Vec<String> = if ty.starts_with("Option<") {
             vec!["Some".into(), "None".into()]
@@ -3326,7 +3619,7 @@ impl Checker<'_> {
         let mut all = false;
         for (pattern, guarded) in patterns {
             let key = match pattern {
-                Pattern::Wildcard | Pattern::Bind(_) => None,
+                p if irrefutable(p) => None,
                 Pattern::Variant(name, parts) if parts.iter().all(irrefutable) => {
                     Some(name.split("::").last().unwrap().to_string())
                 }
@@ -3410,7 +3703,7 @@ impl Checker<'_> {
                         ));
                     }
                     if self.program.language == "0.6" {
-                        v06::fn_type(
+                        let ty = v06::fn_type(
                             &f.params,
                             &if f.asynchronous {
                                 format!("Task<{}>", f.ret)
@@ -3418,6 +3711,11 @@ impl Checker<'_> {
                                 f.ret.clone()
                             },
                             &v06::function_effects(self.program, &resolved),
+                        );
+                        v06::captures::infer(
+                            self,
+                            &ty,
+                            v05::needed_globals(self.program, &resolved),
                         )
                     } else {
                         format!(
@@ -3457,7 +3755,11 @@ impl Checker<'_> {
                     if self.program.language != "0.6" {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
                     }
-                    return Ok(t);
+                    return Ok(if op == "$capture:borrow" {
+                        v06::captures::with_flags(&t, false, false)
+                    } else {
+                        t
+                    });
                 }
                 if op == "$unsecret" {
                     return Ok(t
@@ -3624,6 +3926,17 @@ impl Checker<'_> {
                     }
                 }
                 let t = self.expr(base)?;
+                if self.program.language == "0.6" && t.starts_with("Secret<") {
+                    let inner = Expr {
+                        kind: ExprKind::Unary("$unsecret".into(), base.clone()),
+                        at: base.at.clone(),
+                    };
+                    let field_expr = Expr {
+                        kind: ExprKind::Member(Box::new(inner), field.clone()),
+                        at: e.at.clone(),
+                    };
+                    return Ok(format!("Secret<{}>", self.expr(&field_expr)?));
+                }
                 if self.program.language == "0.6" {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
                     {
@@ -3690,27 +4003,52 @@ impl Checker<'_> {
             ExprKind::Call(target, args) => {
                 if self.program.language == "0.6" {
                     if let ExprKind::Member(base, method) = &target.kind {
-                        if self.expr(base).is_ok_and(|t| t.starts_with("Secret<")) {
-                            let call = Expr {
-                                kind: ExprKind::Call(
-                                    Box::new(Expr {
-                                        kind: ExprKind::Member(
-                                            Box::new(Expr {
-                                                kind: ExprKind::Unary(
-                                                    "$unsecret".into(),
-                                                    base.clone(),
-                                                ),
-                                                at: base.at.clone(),
-                                            }),
-                                            method.clone(),
-                                        ),
-                                        at: target.at.clone(),
-                                    }),
-                                    args.clone(),
-                                ),
-                                at: e.at.clone(),
-                            };
-                            return Ok(format!("Secret<{}>", self.expr(&call)?));
+                        if let Ok(ty) = self.expr(base) {
+                            if let Some(inner) =
+                                ty.strip_prefix("Secret<").and_then(|s| s.strip_suffix('>'))
+                            {
+                                let builtin = inner.split('<').next().unwrap_or(inner);
+                                if !matches!(
+                                    builtin,
+                                    "Bool"
+                                        | "Int"
+                                        | "Float"
+                                        | "String"
+                                        | "Bytes"
+                                        | "List"
+                                        | "Map"
+                                        | "Option"
+                                        | "Result"
+                                        | "Tuple"
+                                ) || args.iter().any(|a| {
+                                    self.expr(a).is_ok_and(|t| function_signature(&t).is_some())
+                                }) {
+                                    return Err(diagnostic(
+                                        &e.at,
+                                        "Secret callbacks and user methods require explicit reveal",
+                                    ));
+                                }
+                                let call = Expr {
+                                    kind: ExprKind::Call(
+                                        Box::new(Expr {
+                                            kind: ExprKind::Member(
+                                                Box::new(Expr {
+                                                    kind: ExprKind::Unary(
+                                                        "$unsecret".into(),
+                                                        base.clone(),
+                                                    ),
+                                                    at: base.at.clone(),
+                                                }),
+                                                method.clone(),
+                                            ),
+                                            at: target.at.clone(),
+                                        }),
+                                        args.clone(),
+                                    ),
+                                    at: e.at.clone(),
+                                };
+                                return Ok(format!("Secret<{}>", self.expr(&call)?));
+                            }
                         }
                     }
                 }
@@ -3802,6 +4140,24 @@ impl Checker<'_> {
                             });
                         }
                         if ty.starts_with("Task<") {
+                            if self.program.language == "0.6" {
+                                if method == "timeout" && types == ["Int"] {
+                                    return Ok(ty);
+                                }
+                                if method == "select"
+                                    && types.len() == 1
+                                    && compatible(&ty, &types[0])
+                                {
+                                    let inner = ty
+                                        .strip_prefix("Task<")
+                                        .unwrap()
+                                        .strip_suffix('>')
+                                        .unwrap();
+                                    return Ok(format!(
+                                        "Task<Tuple<Int,Result<{inner},TaskError>>>"
+                                    ));
+                                }
+                            }
                             if self.program.language == "0.6" && types.is_empty() {
                                 if method == "requestCancel" {
                                     return Ok("Unit".into());
@@ -3832,6 +4188,25 @@ impl Checker<'_> {
                             });
                         }
                     }
+                }
+                if matches!(&target.kind, ExprKind::Name(n) if n == "propertyInt")
+                    && self.program.language == "0.6"
+                {
+                    if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
+                        return Err(diagnostic(
+                            &e.at,
+                            "propertyInt requires seed, cases, min, max, and predicate",
+                        ));
+                    }
+                    if function_signature(&types[4]) != Some((vec!["Int".into()], "Bool".into()))
+                        || !v06::type_effects(&types[4]).is_empty()
+                    {
+                        return Err(diagnostic(
+                            &e.at,
+                            "propertyInt predicate must be fn(Int)->Bool effects {}",
+                        ));
+                    }
+                    return Ok("Result<Unit,PropertyFailure>".into());
                 }
                 if let ExprKind::Name(name) = &target.kind {
                     if matches!(self.program.language.as_str(), "0.5" | "0.6")
@@ -4096,7 +4471,20 @@ impl Checker<'_> {
                                 | "Env"
                                 | "Locale"
                         ) {
-                            builtin_type(n, method, &types, &e.at)?
+                            {
+                                if self.program.language != "0.6"
+                                    && matches!(
+                                        (n.as_str(), method.as_str()),
+                                        ("In", "readSecretLine") | ("Env", "getSecret")
+                                    )
+                                {
+                                    return Err(diagnostic(
+                                        &e.at,
+                                        "secret observations require language 0.6",
+                                    ));
+                                }
+                                builtin_type(n, method, &types, &e.at)?
+                            }
                         } else {
                             let mut t = self.expr(base)?;
                             if let Some(inner) =
@@ -4391,7 +4779,8 @@ impl Checker<'_> {
                     ));
                 }
                 if self.program.language == "0.6" {
-                    v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?)
+                    let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
+                    v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
                 } else {
                     format!(
                         "fn({})->{ret}",
@@ -4599,7 +4988,16 @@ impl Checker<'_> {
                 if !compatible(expected, &actual) && actual != "Unknown" {
                     return Err(diagnostic(
                         &stmt.at,
-                        format!("return type mismatch: expected {expected}, found {actual}"),
+                        format!(
+                            "return type mismatch: expected {expected}, found {actual}{}",
+                            if actual.starts_with("fn(")
+                                && !v06::captures::compatible(expected, &actual)
+                            {
+                                "; closure cannot escape its capture contract"
+                            } else {
+                                ""
+                            }
+                        ),
                     ));
                 }
             }
@@ -4801,9 +5199,11 @@ fn builtin_type(receiver: &str, method: &str, args: &[String], at: &Tok) -> Resu
     let result = match (receiver, method, count) {
         ("Out" | "Err", "println", 1) | ("Out" | "Err", "flush", 0) => "Unit",
         ("In", "readLine", 0) => "Option<String>",
+        ("In", "readSecretLine", 0) => "Option<Secret<String>>",
         ("Time", "now", 0) | ("Random", "next", 0) => "Int",
         ("Args", "all", 0) | ("Directory", "entries", 1) => "List<String>",
         ("Env", "get", 1) => "Option<String>",
+        ("Env", "getSecret", 1) => "Option<Secret<String>>",
         ("Locale", "current", 0) => "String",
         ("File", "readText", 1) => "Result<String,FileError>",
         ("File", "readBytes", 1) => "Result<Bytes,FileError>",
@@ -4908,7 +5308,10 @@ struct Engine<R: BufRead> {
 }
 impl<R: BufRead> Engine<R> {
     fn fail(&self, at: &Tok, msg: impl AsRef<str>) -> Flow {
-        Flow::Error(diagnostic(at, msg))
+        Flow::Error(diagnostic(
+            at,
+            self.runtime.masked_value(&Value::Text(msg.as_ref().into())),
+        ))
     }
     fn tick(&mut self, at: &Tok) -> Exec<()> {
         if self.remaining == 0 {
@@ -5518,6 +5921,9 @@ impl<R: BufRead> Engine<R> {
         {
             if args.len() != 1 {
                 return Err(self.fail(at, "secret/reveal requires one argument"));
+            }
+            if self.program.language == "0.6" {
+                self.runtime.register_secret_value(&args[0]);
             }
             return if name == "secret" {
                 Ok(v05::secret(
@@ -6208,6 +6614,16 @@ impl<R: BufRead> Engine<R> {
                 Ok(unit)
             }
             ("Out", "flush", 0) | ("Err", "flush", 0) => Ok(unit),
+            ("In", "readSecretLine", 0) if self.program.language == "0.6" => Ok(Value::Option(
+                self.runtime
+                    .secret_input_line(&mut self.input)?
+                    .map(|s| Box::new(v05::secret(Value::Text(s), "String".into()))),
+            )),
+            ("Env", "getSecret", 1) if self.program.language == "0.6" => Ok(Value::Option(
+                self.runtime
+                    .secret_environment_value(&strings()[0])?
+                    .map(|s| Box::new(v05::secret(Value::Text(s), "String".into()))),
+            )),
             ("In", "readLine", 0) => Ok(Value::Option(
                 self.runtime
                     .input_line(&mut self.input)?
@@ -6371,7 +6787,14 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
 }
 fn compatible(expected: &str, actual: &str) -> bool {
     if expected.starts_with('&') || actual.starts_with('&') {
-        return compatible(v06::borrowed_type(expected), v06::borrowed_type(actual));
+        let expected = v06::borrowed_type(expected);
+        let actual = v06::borrowed_type(actual);
+        let expected = if expected.starts_with("fn(") {
+            v06::captures::with_flags(expected, false, false)
+        } else {
+            expected.into()
+        };
+        return compatible(&expected, actual);
     }
     if let (Some((ea, er)), Some((aa, ar))) =
         (function_signature(expected), function_signature(actual))
@@ -6379,7 +6802,8 @@ fn compatible(expected: &str, actual: &str) -> bool {
         return ea.len() == aa.len()
             && ea.iter().zip(aa).all(|(e, a)| compatible(e, &a))
             && compatible(&er, &ar)
-            && v06::effects_compatible(expected, actual);
+            && v06::effects_compatible(expected, actual)
+            && v06::captures::compatible(expected, actual);
     }
     if expected == actual || expected == "Unknown" || actual == "Unknown" || actual == "Never" {
         return true;
@@ -6407,12 +6831,13 @@ fn unify_type(
     substitutions: &mut BTreeMap<String, String>,
 ) -> bool {
     if expected.starts_with('&') || actual.starts_with('&') {
-        return unify_type(
-            v06::borrowed_type(expected),
-            v06::borrowed_type(actual),
-            params,
-            substitutions,
-        );
+        let base = v06::borrowed_type(expected);
+        let expected = if base.starts_with("fn(") {
+            v06::captures::with_flags(base, false, false)
+        } else {
+            base.into()
+        };
+        return unify_type(&expected, v06::borrowed_type(actual), params, substitutions);
     }
     if let (Some((ea, er)), Some((aa, ar))) =
         (function_signature(expected), function_signature(actual))
@@ -6426,7 +6851,8 @@ fn unify_type(
         {
             return false;
         }
-        return v06::unify_effects(expected, actual, params, substitutions);
+        return v06::captures::compatible(expected, actual)
+            && v06::unify_effects(expected, actual, params, substitutions);
     }
     if params.iter().any(|p| p == expected) {
         return match substitutions.get(expected) {
@@ -6476,6 +6902,14 @@ fn infer_arguments(
             return Err(diagnostic(
                 at,
                 format!("expected {expected}, found {found}"),
+            ));
+        }
+    }
+    for ((_, expected), found) in params.iter().zip(actual) {
+        if !v06::solve_effects(expected, found, type_params, &mut substitutions) {
+            return Err(diagnostic(
+                at,
+                format!("effect inclusion constraint failed: {expected} <- {found}"),
             ));
         }
     }
@@ -6585,6 +7019,7 @@ fn infer_call_arguments(
 fn standard_trait(name: &str) -> Option<TraitDef> {
     if matches!(name, "Iterator" | "IntoIterator") {
         return Some(TraitDef {
+            defaults: BTreeMap::new(),
             method_effects: BTreeMap::new(),
             associated: BTreeSet::from(["Item".into()]),
             methods: BTreeMap::from([(
@@ -6616,6 +7051,7 @@ fn standard_trait(name: &str) -> Option<TraitDef> {
         (params.into_iter().map(str::to_string).collect(), ret.into()),
     );
     Some(TraitDef {
+        defaults: BTreeMap::new(),
         method_effects: BTreeMap::new(),
         associated: BTreeSet::new(),
         methods,
@@ -6624,6 +7060,7 @@ fn standard_trait(name: &str) -> Option<TraitDef> {
     })
 }
 fn function_signature(ty: &str) -> Option<(Vec<String>, String)> {
+    let ty = v06::borrowed_type(ty);
     let tail = ty.strip_prefix("fn(")?;
     let mut depth = 1usize;
     let close = tail.char_indices().find_map(|(i, c)| {
@@ -6937,6 +7374,12 @@ fn pattern_matches(
                 {
                     (v, fields.iter().map(|(_, value)| value.clone()).collect())
                 }
+                Value::Struct(ty, fields) if name == "$tuple" && ty.starts_with("Tuple<") => (
+                    "$tuple",
+                    (0..fields.len())
+                        .filter_map(|i| fields.get(&format!("_{i}")).cloned())
+                        .collect(),
+                ),
                 Value::Option(Some(v)) => ("Some", vec![(**v).clone()]),
                 Value::Option(None) => ("None", Vec::new()),
                 Value::Result(Ok(v)) => ("Ok", vec![(**v).clone()]),

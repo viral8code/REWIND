@@ -54,16 +54,34 @@ impl Runtime {
             .map(|((epoch, path), entries)| json!({"epoch":epoch,"path":path,"entries":entries}))
             .collect::<Vec<_>>();
         Ok(
-            json!({"format":1,"input":self.input,"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
+            json!({"format":1,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
         )
     }
     pub fn import_observations(&mut self, data: &Json) -> Result<()> {
         if data["format"] != 1 {
             return Err(invalid("unsupported observation format"));
         }
+        self.secret_input_indices.clear();
+        let mut secret_index = 0usize;
         self.input = array(&data["input"])?
             .iter()
-            .map(|v| string(v).map(str::to_string))
+            .enumerate()
+            .map(|(index, value)| {
+                if value["secret"] == true {
+                    let text = self
+                        .supplied_secret_input
+                        .as_ref()
+                        .and_then(|v| v.get(secret_index))
+                        .cloned()
+                        .ok_or_else(|| invalid("secret input requires --secret-input FILE"))?;
+                    secret_index += 1;
+                    self.secret_input_indices.insert(index);
+                    self.sensitive_values.insert(text.clone());
+                    Ok(format!("{text}\n"))
+                } else {
+                    string(value).map(str::to_string)
+                }
+            })
             .collect::<Result<_>>()?;
         self.input_eof = data["input_eof"]
             .as_bool()
@@ -165,6 +183,9 @@ impl Runtime {
                 }
             }
         }
+        for secret in &self.sensitive_values {
+            text = text.replace(secret, "<redacted>");
+        }
         text
     }
     pub fn state_digest(&self) -> Result<String> {
@@ -199,7 +220,7 @@ impl Runtime {
     }
     pub fn debug_state(&self) -> Json {
         let deltas=self.state.files.iter().map(|(path,file)| {
-            let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>()})}else{json!({"operation":"delete"})};(path.clone(),delta)
+            let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>(),"content":if file.len<=65536 {file.to_vec().ok().map(|bytes|self.masked_value(&String::from_utf8(bytes.clone()).map(Value::Text).unwrap_or(Value::Bytes(bytes))))}else{None}})}else{json!({"operation":"delete"})};(path.clone(),delta)
         }).collect::<BTreeMap<_,_>>();
         let states = std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
