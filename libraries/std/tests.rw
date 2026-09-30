@@ -1,0 +1,44 @@
+import collections as collections;
+import math as math;
+import option as option;
+import json as json;
+import config as config;
+import args as args;
+test fn algorithms() {
+    assert_eq(json.floating(Json::Float(1.5)),Some(1.5));
+    match json.parse("[1,true]") {Ok(v)=>{match json.array(v) {Some(values)=>{assert_eq(json.integer(thaw(values.get(0))),Some(1));assert_eq(json.boolean(thaw(values.get(1))),Some(true));},None=>{panic("expected array");}}},Err(_)=>{panic("expected parsed array");}}
+
+    let values=List<Int>();values.add(1);values.add(2);values.add(3);
+    let even=collections.filter(&values,|n:Int|->Bool{return n%2==0;});assert_eq(even.len(),1);assert_eq(even.get(0),2);
+    let doubled=collections.map(&values,|n:Int|->Int{return n*2;});assert_eq(doubled.get(2),6);
+    assert(collections.any(&values,|n:Int|->Bool{return n==2;}));assert(collections.all(&values,|n:Int|->Bool{return n>0;}));
+    let empty=List<Int>();assert(collections.all(&empty,|n:Int|->Bool{return false;}));assert(!collections.any(&empty,|n:Int|->Bool{return true;}));
+    assert_eq(math.min(2,3),2);assert_eq(math.max(2,3),3);assert_eq(math.clamp(9,0,5),Ok(5));assert_eq(math.clamp(1,3,2),Err("InvalidRange"));
+    assert_eq(option.valueOr(Some(4),0),4);assert_eq(option.valueOr(None,7),7);assert_eq(option.map(Some(3),|n:Int|->Int{return n+1;}),Some(4));
+}
+test fn configuration_and_arguments() {
+    let names=List<String>();names.add("count");let values=List<String>();values.add("--count");values.add("3");
+    match args.parse(&values,&names) {Ok(v)=>{assert_eq(v.get("count"),Some("3"));},Err(_)=>{panic("unexpected argument failure");}}
+    values.add("--count");values.add("secret-value");match args.parse(&values,&names){Err(e)=>{assert_eq(e.code,"DuplicateOption");},Ok(_)=>{panic("expected duplicate");}}
+    let fields=List<config.Field>();fields.add(config.Field("count","Int",false,Json::Int(1)));
+    let base=Map<String,Json>();base.set("count",Json::Int(2));let environment=Map<String,Json>();environment.set("count",Json::Int(3));let arguments=Map<String,Json>();arguments.set("count",Json::Int(4));
+    match config.resolve(Json::Object(freeze(base)),Json::Object(freeze(environment)),Json::Object(freeze(arguments)),&fields){Ok(v)=>{assert_eq(json.get(v,"count"),Some(Json::Int(4)));},Err(_)=>{panic("unexpected configuration failure");}}
+    let bad=Map<String,Json>();bad.set("unknown-secret-key",Json::Text("secret"));let empty=Map<String,Json>();let object=Json::Object(freeze(empty));
+    match config.resolve(Json::Object(freeze(bad)),object,object,&fields){Err(e)=>{assert_eq(e.code,"UnknownField");assert_eq(e.field,"");},Ok(_)=>{panic("expected schema failure");}}
+}
+
+test fn configuration_defaults_required_and_types() {
+    let empty=Map<String,Json>();let object=Json::Object(freeze(empty));
+    let fields=List<config.Field>();fields.add(config.Field("count","Int",false,Json::Int(5)));
+    match config.resolve(object,object,object,&fields) {Ok(v)=>{assert_eq(json.get(v,"count"),Some(Json::Int(5)));},Err(_)=>{panic("expected fallback");}}
+    let required=List<config.Field>();required.add(config.Field("count","Int",true,Json::Int(5)));
+    match config.resolve(object,object,object,&required) {Err(e)=>{assert_eq(e.code,"MissingField");},Ok(_)=>{panic("expected required failure");}}
+    let wrong=Map<String,Json>();wrong.set("count",Json::Text("private-value"));
+    match config.resolve(Json::Object(freeze(wrong)),object,object,&fields) {Err(e)=>{assert_eq(e.code,"FieldType");assert_eq(e.field,"count");},Ok(_)=>{panic("expected type failure");}}
+    fields.add(config.Field("count","Int",false,Json::Int(1)));
+    match config.resolve(object,object,object,&fields) {Err(e)=>{assert_eq(e.code,"DuplicateSchema");},Ok(_)=>{panic("expected duplicate failure");}}
+    let names=List<String>();names.add("count");let missing=List<String>();missing.add("--count");
+    match args.parse(&missing,&names) {Err(e)=>{assert_eq(e.code,"MissingValue");},Ok(_)=>{panic("expected missing value");}}
+    let unknown=List<String>();unknown.add("--unknown");unknown.add("secret-value");
+    match args.parse(&unknown,&names) {Err(e)=>{assert_eq(e.code,"UnknownOption");},Ok(_)=>{panic("expected unknown option");}}
+}

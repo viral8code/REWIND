@@ -127,8 +127,12 @@ pub enum Value {
     FileError(FileFailure),
     List(Vec<Value>),
     TypedList(String, Vec<Value>),
-    Map(BTreeMap<MapKey, Value>),
-    TypedMap(String, String, BTreeMap<MapKey, Value>),
+    Map(#[serde(with = "value_map_pairs")] BTreeMap<MapKey, Value>),
+    TypedMap(
+        String,
+        String,
+        #[serde(with = "value_map_pairs")] BTreeMap<MapKey, Value>,
+    ),
     OrderedMap(String, String, Vec<(Value, Value)>),
     Struct(String, BTreeMap<String, Value>),
     Enum(String, String, Vec<(String, Value)>),
@@ -140,6 +144,28 @@ pub enum Value {
     HeapRef(u64),
     Handle(u64),
     Null,
+}
+
+mod value_map_pairs {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+    pub fn serialize<S: serde::Serializer>(
+        m: &BTreeMap<MapKey, Value>,
+        s: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        m.iter().collect::<Vec<_>>().serialize(s)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        d: D,
+    ) -> std::result::Result<BTreeMap<MapKey, Value>, D::Error> {
+        let entries = Vec::<(MapKey, Value)>::deserialize(d)?;
+        let len = entries.len();
+        let map = entries.into_iter().collect::<BTreeMap<_, _>>();
+        if map.len() != len {
+            return Err(serde::de::Error::custom("duplicate value map key"));
+        }
+        Ok(map)
+    }
 }
 
 impl fmt::Display for Value {

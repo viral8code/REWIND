@@ -1,0 +1,20 @@
+pub record ArgError {code:String}
+// Deliberately small grammar: --name VALUE, with explicit names and no repeated
+// options. Values are never included in diagnostics.
+pub fn parse(values:&List<String>,names:&List<String>)->Result<Map<String,String>,ArgError> effects {} {
+    if values.len()>256 || names.len()>128 {return Err(ArgError("Limit"));}
+    let result=Map<String,String>();
+    var i=0;
+    while i<values.len() {
+        let flag=values.get(i);
+        var key="";
+        var j=0;
+        while j<names.len() {let candidate=names.get(j);if flag=="--"+candidate {key=candidate;}j+=1;}
+        if key=="" {return Err(ArgError("UnknownOption"));}
+        if i+1>=values.len() {return Err(ArgError("MissingValue"));}
+        match result.get(key) {Some(_)=>{return Err(ArgError("DuplicateOption"));},None=>{}}
+        result.set(key,values.get(i+1));
+        i+=2;
+    }
+    return Ok(result);
+}

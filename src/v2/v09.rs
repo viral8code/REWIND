@@ -85,6 +85,13 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
         }
         copies.push((relative, bytes));
     }
+    if !config.assets.is_empty() {
+        v091::asset_inventory(&root, &config.assets)?;
+        for path in config.assets.values() {
+            let bytes = fs::read(root.join(path))?;
+            copies.push((PathBuf::from(path), bytes));
+        }
+    }
     // Only a new directory is populated, so existing installations are never changed.
     fs::create_dir(output)?;
     let result = (|| {
@@ -110,6 +117,9 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
         let installed = project::ProjectConfig::load(output)?
             .ok_or_else(|| Error::InvalidOperation("missing installed manifest".into()))?;
         installed.lock(output, false)?;
+        if p.language == "0.9.1" {
+            v091::write_release(output, &installed)?;
+        }
         println!(
             "{}",
             json!({"mode":"production","packages":config.imports.len().saturating_sub(1),"development_graph_verified":false})

@@ -1,0 +1,30 @@
+import lib.json as json;
+import lib.config as config;
+import lib.args as args;
+record State {count:Int}
+fn main()->Int effects {args,env,fileRead,fileWrite,output} {
+    let names=List<String>();names.add("count");
+    let values=Args.all();
+    var options=Map<String,String>();
+    match args.parse(&values,&names) {Ok(v)=>{options=move v;},Err(_)=>{return 2;}}
+    let environment=Map<String,Json>();
+    match Env.get("REWIND_COUNT") {Some(raw)=>{match json.parse(raw) {Ok(v)=>{environment.set("count",v);},Err(_)=>{return 2;}}},None=>{}}
+    let arguments=Map<String,Json>();
+    match options.get("count") {Some(raw)=>{match json.parse(raw) {Ok(v)=>{arguments.set("count",v);},Err(_)=>{return 2;}}},None=>{}}
+    var input=Json::Null;
+    match File.readBytes("assets/config.json") {Ok(bytes)=>{match json.parseBytes(bytes) {Ok(v)=>{input=v;},Err(_)=>{return 2;}}},Err(_)=>{return 3;}}
+    match File.readBytes("state.json") {Ok(bytes)=>{match json.parseBytes(bytes) {Ok(v)=>{input=v;},Err(_)=>{return 2;}}},Err(e)=>{if e.code!="NotFound" {return 3;}}}
+    let fields=List<config.Field>();fields.add(config.Field("count","Int",false,Json::Int(0)));
+    var settings=Json::Null;
+    match config.resolve(input,Json::Object(freeze(environment)),Json::Object(freeze(arguments)),&fields) {Ok(v)=>{settings=v;},Err(_)=>{return 2;}}
+    var count=0;
+    match json.get(settings,"count") {Some(v)=>{match json.integer(v) {Some(n)=>{count=n;},None=>{return 2;}}},None=>{return 2;}}
+    let state=State(count+1);
+    let output=Map<String,Json>();output.set("count",Json::Int(state.count));
+    var text="";
+    match json.stringify(Json::Object(freeze(output))) {Ok(v)=>{text=v;},Err(_)=>{return 3;}}
+    File.writeText("state.json",text);
+    Out.println(state.count);
+    publish;
+    return 0;
+}
