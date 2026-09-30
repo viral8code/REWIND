@@ -11,6 +11,8 @@ pub(in crate::v2) fn record(error: &Error, at: &Tok, task_id: u64) -> rewind::Di
         return d;
     }
     let code = match error {
+        Error::ExternalStateConflict(_) => "ExternalStateConflict",
+        Error::PublishPartiallyApplied(_) => "PublishPartiallyApplied",
         Error::HistoryBudgetExceeded => "HistoryMemory",
         Error::Io(_) => "Io",
         Error::MissingFile(_) => "NotFound",

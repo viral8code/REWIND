@@ -1,0 +1,6 @@
+language = "0.9.1"
+source_root = "."
+entry = "main.rw"
+effects = "args,env,fileRead,fileWrite,output"
+[assets]
+config = "assets/config.json"

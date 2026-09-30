@@ -84,3 +84,7 @@ File changes and `Out`/`Err` output remain virtual until `publish;`. Already pub
 ## Operational boundaries
 
 Publish validates observed host state, stages file replacements, applies file changes, and then emits stdout and stderr. Publication across multiple files and streams is not globally atomic. A partial failure reports `PublishPartiallyApplied` and prevents automatic retry in that runtime. File handles cache observed blocks; `File.openSnapshot` captures the whole file. Details of these v0.1 runtime choices are in [v0.1 status](docs/v0.1-status.md).
+
+## v0.9.1
+
+JSON・設定/引数・application entry/exit status・asset 付き production 配布と最初の標準ライブラリを実装しました。[実装状況](docs/v0.9.1-status.md)、[ライブラリ](libraries/README.md)、[オフライン CLI 例](examples/v091/README.md)、[SDK と library の v0.9.2 草案](docs/REWIND_v0.9.2.md) を参照してください。

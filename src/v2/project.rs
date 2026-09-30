@@ -8,6 +8,7 @@ pub(super) struct ProjectConfig {
     pub language: String,
     pub effects: BTreeSet<String>,
     pub(super) production: bool,
+    pub(super) assets: BTreeMap<String, String>,
     blocked_sources: Vec<PathBuf>,
     versions: BTreeMap<String, String>,
     signers: BTreeMap<String, String>,
@@ -54,7 +55,7 @@ impl ProjectConfig {
             ));
         }
 
-        if matches!(self.language.as_str(), "0.8" | "0.9") {
+        if matches!(self.language.as_str(), "0.8" | "0.9" | "0.9.1") {
             for (name, path) in &self.lock_imports {
                 if !name.is_empty()
                     && !self.imports.contains_key(name)
@@ -105,6 +106,7 @@ impl ProjectConfig {
             lock_imports: BTreeMap::new(),
             language: "0.5".into(),
             production: false,
+            assets: BTreeMap::new(),
             blocked_sources: Vec::new(),
             effects,
             versions: BTreeMap::new(),
@@ -135,6 +137,7 @@ impl ProjectConfig {
         let mut source_root = None;
         let mut entry = None;
         let mut deps = BTreeMap::new();
+        let mut assets = BTreeMap::new();
         let mut dev_deps = BTreeMap::new();
         let mut effects = BTreeSet::new();
         let mut versions = BTreeMap::new();
@@ -150,7 +153,8 @@ impl ProjectConfig {
             if text.starts_with('[') {
                 if !matches!(
                     text,
-                    "[dependencies]"
+                    "[assets]"
+                        | "[dependencies]"
                         | "[dev_dependencies]"
                         | "[dependency_versions]"
                         | "[dependency_signers]"
@@ -172,6 +176,7 @@ impl ProjectConfig {
             let value = quoted(value)?;
             if !section.is_empty() {
                 let entries = match section {
+                    "assets" => &mut assets,
                     "dependencies" => &mut deps,
                     "dev_dependencies" => &mut dev_deps,
                     "dependency_versions" => &mut versions,
@@ -220,20 +225,20 @@ impl ProjectConfig {
             .ok_or_else(|| Error::InvalidOperation("rewind.toml: language is required".into()))?;
         if !matches!(
             language.as_str(),
-            "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+            "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
         ) {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
             )));
         }
-        if !dev_deps.is_empty() && !matches!(language.as_str(), "0.8" | "0.9") {
+        if !dev_deps.is_empty() && !matches!(language.as_str(), "0.8" | "0.9" | "0.9.1") {
             return Err(Error::InvalidOperation(
                 "dev_dependencies requires language 0.8".into(),
             ));
         }
         let production = dependency_mode == "production";
         if !dependency_mode.is_empty()
-            && (language != "0.9"
+            && (!matches!(language.as_str(), "0.9" | "0.9.1")
                 || !matches!(dependency_mode.as_str(), "production" | "development"))
         {
             return Err(Error::InvalidOperation(
@@ -284,7 +289,7 @@ impl ProjectConfig {
         let entry = inside(&source_root, &entry)?;
         let mut imports = BTreeMap::new();
         imports.insert(String::new(), source_root.clone());
-        if matches!(language.as_str(), "0.6" | "0.7" | "0.8" | "0.9")
+        if matches!(language.as_str(), "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1")
             && deps
                 .values()
                 .chain(registry.values())
@@ -308,7 +313,10 @@ impl ProjectConfig {
                 }
                 imports.insert(name, full);
             }
-            if matches!(language.as_str(), "0.5" | "0.6" | "0.7" | "0.8" | "0.9") {
+            if matches!(
+                language.as_str(),
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+            ) {
                 let mut inspected = BTreeSet::new();
                 loop {
                     let pending = imports
@@ -367,7 +375,7 @@ impl ProjectConfig {
             }
         }
         let lock_imports = imports.clone();
-        if matches!(language.as_str(), "0.8" | "0.9") && !include_dev {
+        if matches!(language.as_str(), "0.8" | "0.9" | "0.9.1") && !include_dev {
             let mut reachable = runtime_roots;
             let mut pending = reachable.iter().cloned().collect::<Vec<_>>();
             while let Some(name) = pending.pop() {
@@ -414,6 +422,7 @@ impl ProjectConfig {
         }
         Ok(Some(Self {
             production,
+            assets,
             blocked_sources,
             lock_imports,
             source_root,
@@ -465,7 +474,7 @@ impl ProjectConfig {
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
         if matches!(
             self.language.as_str(),
-            "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+            "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
         ) {
             return self.secure_lock(root, update);
         }
@@ -573,7 +582,7 @@ impl ProjectConfig {
             let mut selected = serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()});
             if matches!(
                 self.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
             ) {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
@@ -584,7 +593,18 @@ impl ProjectConfig {
             }
             dependencies.insert(name.clone(), selected);
         }
-        let expected=serde_json::to_string_pretty(&serde_json::json!({"format":2,"language":self.language,"compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies})).map_err(|e| Error::InvalidOperation(e.to_string()))?+"\n";
+        let mut document = serde_json::json!({"format":2,"language":self.language,"compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies});
+        if !self.assets.is_empty() {
+            if self.language != "0.9.1" {
+                return Err(Error::InvalidOperation(
+                    "assets require language 0.9.1".into(),
+                ));
+            }
+            document["assets"] = v091::asset_inventory(root, &self.assets)?;
+        }
+        let expected = serde_json::to_string_pretty(&document)
+            .map_err(|e| Error::InvalidOperation(e.to_string()))?
+            + "\n";
         Ok(expected)
     }
     fn secure_lock(&self, root: &Path, update: bool) -> Result<()> {
@@ -595,7 +615,7 @@ impl ProjectConfig {
                     .map_err(|e| Error::InvalidOperation(e.to_string()))?;
             let verified: serde_json::Value = serde_json::from_str(&expected)
                 .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-            if ["format", "language", "compiler", "effects"]
+            if ["format", "language", "compiler", "effects", "assets"]
                 .iter()
                 .any(|key| actual[key] != verified[key])
                 || verified["dependencies"]
@@ -617,7 +637,7 @@ impl ProjectConfig {
         if update {
             if matches!(
                 self.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
             ) {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()

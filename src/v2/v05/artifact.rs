@@ -59,7 +59,7 @@ pub fn build(program: &Program, root: &Path) -> Result<serde_json::Value> {
                 .replace('\\', "/"),
         ))
     })?;
-    let payload = serde_json::json!({"program":portable,"build":build,"effects":config.effects});
+    let payload = serde_json::json!({"program":portable,"build":build,"effects":config.effects,"assets":v091::asset_inventory(&root,&config.assets)?});
     let payload_bytes =
         serde_json::to_vec(&payload).map_err(|e| Error::InvalidOperation(e.to_string()))?;
     if payload_bytes.len() > 16 * 1024 * 1024 {
@@ -121,7 +121,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         serde_json::from_value(payload["program"].clone()).map_err(|e| invalid(&e.to_string()))?;
     if !matches!(
         program.language.as_str(),
-        "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
@@ -130,6 +130,9 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         return Err(invalid("invalid program metadata/budget"));
     }
     let root = fs::canonicalize(root)?;
+    if let Some(assets) = payload.get("assets") {
+        v091::verify_assets(&root, assets)?;
+    }
     paths(&mut program, |p| {
         if p.as_os_str().is_empty()
             || p.is_absolute()
@@ -147,11 +150,30 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         ..Program::default()
     };
     prepare(&mut standard)?;
-    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9")
-        && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
-            != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
-            || serde_json::to_value(program.enums.get("WaitTarget")).ok()
-                != serde_json::to_value(standard.enums.get("WaitTarget")).ok())
+    if program.language == "0.9.1" {
+        for n in ["Json", "JsonError"] {
+            if serde_json::to_value(program.structs.get(n)).ok()
+                != serde_json::to_value(standard.structs.get(n)).ok()
+                || serde_json::to_value(program.enums.get(n)).ok()
+                    != serde_json::to_value(standard.enums.get(n)).ok()
+            {
+                return Err(invalid("invalid JSON standard layout"));
+            }
+        }
+        if v091::reserved_functions()
+            .iter()
+            .any(|n| program.functions.contains_key(*n))
+        {
+            return Err(invalid("reserved application function"));
+        }
+    }
+    if matches!(
+        program.language.as_str(),
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+    ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
+        != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
+        || serde_json::to_value(program.enums.get("WaitTarget")).ok()
+            != serde_json::to_value(standard.enums.get("WaitTarget")).ok())
     {
         return Err(invalid("invalid wait graph layout"));
     }
@@ -181,14 +203,18 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             return Err(invalid("reserved standard type"));
         }
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9")
-        && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
-            != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
+    if matches!(
+        program.language.as_str(),
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+    ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
+        != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
         return Err(invalid("invalid property failure layout"));
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9")
-        && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
+    if matches!(
+        program.language.as_str(),
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+    ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
         return Err(invalid("Tuple is a reserved standard type"));
     }
@@ -259,7 +285,10 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     if unsafe_literal || nodes > 100_000 {
         return Err(invalid("invalid literal/IR budget"));
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") {
+    if matches!(
+        program.language.as_str(),
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+    ) {
         v06::infer(&mut program)?;
     }
     check_program(&program)?;

@@ -488,15 +488,104 @@ fn binary(operator: char, lhs: Value, rhs: Value) -> Result<Value> {
     }
 }
 
+fn exit_status(error: &Error) -> i32 {
+    if let Error::Diagnostic(d) = error {
+        fn partially_applied(d: &rewind::DiagnosticRecord) -> bool {
+            d.code == "PublishPartiallyApplied" || d.causes.iter().any(partially_applied)
+        }
+        if partially_applied(d) {
+            return 73;
+        }
+        if !d.causes.is_empty() {
+            return 70;
+        }
+        if let Some(n) = d
+            .code
+            .strip_prefix("ApplicationExit")
+            .and_then(|s| s.parse::<i32>().ok())
+            .filter(|n| (1..=63).contains(n))
+        {
+            return n;
+        }
+        if d.code.contains("Budget")
+            || d.code.starts_with("History")
+            || matches!(
+                d.code.as_str(),
+                "TaskSteps"
+                    | "SchedulerStorage"
+                    | "SchedulerObjects"
+                    | "TransferDepth"
+                    | "IteratorItems"
+                    | "EffectInference"
+                    | "DependencyResolution"
+            )
+        {
+            return 71;
+        }
+        if d.code == "ExternalStateConflict" {
+            return 72;
+        }
+        if d.code == "PublishPartiallyApplied" {
+            return 73;
+        }
+        if d.code == "TaskCancelled" {
+            return 74;
+        }
+        if d.message.contains("panic:") {
+            return 70;
+        }
+        return 65;
+    }
+    match error {
+        Error::ExternalStateConflict(_) => 72,
+        Error::PublishPartiallyApplied(_) => 73,
+        Error::HistoryBudgetExceeded => 71,
+        _ => 64,
+    }
+}
 fn main() {
-    if let Err(error) = run_cli() {
-        eprintln!("rewind: {error}");
-        std::process::exit(1);
+    let mut arguments = Vec::new();
+    let mut format = "text".to_string();
+    let mut raw = env::args().skip(1);
+    let mut application = false;
+    while let Some(arg) = raw.next() {
+        if arg == "--" {
+            application = true;
+        }
+        if !application && arg == "--diagnostic-format" {
+            format = raw.next().unwrap_or_default();
+        } else {
+            arguments.push(arg);
+        }
+    }
+    let result = if matches!(format.as_str(), "text" | "json") {
+        run_cli(arguments)
+    } else {
+        Err(Error::InvalidOperation(
+            "diagnostic format must be text or json".into(),
+        ))
+    };
+    if let Err(error) = result {
+        let status = exit_status(&error);
+        if format == "json" {
+            let diagnostic = if let Error::Diagnostic(d) = &error {
+                serde_json::to_value(d).unwrap_or_default()
+            } else {
+                serde_json::Value::Null
+            };
+            eprintln!(
+                "{}",
+                serde_json::json!({"exit_status":status,"message":error.to_string(),"diagnostic":diagnostic,"retryable":false,"retry_hint":if status==72 {"reload_and_decide"}else{"none"}})
+            );
+        } else {
+            eprintln!("rewind: {error}");
+        }
+        std::process::exit(status);
     }
 }
 
-fn run_cli() -> Result<()> {
-    let mut args = env::args().skip(1);
+fn run_cli(arguments: Vec<String>) -> Result<()> {
+    let mut args = arguments.into_iter();
     let script = args
         .next()
         .ok_or_else(|| Error::InvalidOperation("usage: rewind <script.rw> [--root DIR]".into()))?;
@@ -560,6 +649,8 @@ fn run_cli() -> Result<()> {
             | "verify-inspection"
             | "sign-session"
             | "verify-session"
+            | "sign-release"
+            | "verify-release"
     ) {
         let path = PathBuf::from(
             args.next()
@@ -569,6 +660,8 @@ fn run_cli() -> Result<()> {
             "artifact"
         } else if script.ends_with("inspection") {
             "inspection"
+        } else if script.ends_with("release") {
+            "release"
         } else if script.ends_with("session") {
             "session"
         } else {
@@ -594,7 +687,11 @@ fn run_cli() -> Result<()> {
                 &signature,
                 &public.ok_or_else(|| Error::InvalidOperation("--public-key required".into()))?,
                 kind,
-            )
+            )?;
+            if kind == "release" {
+                v2::verify_release(&path)?;
+            }
+            Ok(())
         } else {
             v2::sign_file(
                 &path,

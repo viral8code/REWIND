@@ -1,0 +1,39 @@
+pub record Field {name:String,kind:String,required:Bool,fallback:Json}
+pub record ConfigError {code:String,field:String}
+// Precedence: explicit arguments > allowed environment > JSON file > defaults.
+// Environment/argument Json objects are supplied by the caller, so I/O remains
+// visible in the application's effect declaration and observation journal.
+pub fn resolve(file:Json,environment:Json,arguments:Json,fields:&List<Field>)->Result<Json,ConfigError> effects {} {
+    if fields.len()>128 {return Err(ConfigError("Limit",""));}
+    let sources=List<Json>();sources.add(file);sources.add(environment);sources.add(arguments);
+    var s=0;
+    while s<sources.len() {
+        let source=sources.get(s);
+        if jsonKind(source)!="Object" {return Err(ConfigError("ExpectedObject",""));}
+        let keys=jsonKeys(source);
+        var k=0;
+        while k<keys.len() {
+            let key=keys.get(k);var known=false;var f=0;
+            while f<fields.len() {if fields.get(f).name==key {known=true;}f+=1;}
+            if !known {return Err(ConfigError("UnknownField",""));}
+            k+=1;
+        }
+        s+=1;
+    }
+    let output=Map<String,Json>();
+    var i=0;
+    while i<fields.len() {
+        let field=fields.get(i);
+        match output.get(field.name) {Some(_)=>{return Err(ConfigError("DuplicateSchema",field.name));},None=>{}}
+        if field.kind!="Int" && field.kind!="Text" && field.kind!="Bool" && field.kind!="Object" && field.kind!="Array" && field.kind!="Float" {return Err(ConfigError("SchemaKind",field.name));}
+        var value=field.fallback;var supplied=false;var n=0;
+        while n<sources.len() {
+            match jsonGet(sources.get(n),field.name) {Some(v)=>{value=v;supplied=true;},None=>{}}
+            n+=1;
+        }
+        if field.required && !supplied {return Err(ConfigError("MissingField",field.name));}
+        if jsonKind(value)!=field.kind {return Err(ConfigError("FieldType",field.name));}
+        output.set(field.name,value);i+=1;
+    }
+    return Ok(Json::Object(freeze(output)));
+}

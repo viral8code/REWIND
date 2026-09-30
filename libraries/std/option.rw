@@ -1,0 +1,6 @@
+pub fn valueOr<T:Share>(value:Option<T>,fallback:T)->T effects {} {
+    match value {Some(v)=>{return v;},None=>{return fallback;}}
+}
+pub fn map<T:Share,U:Share>(value:Option<T>,transform:fn(T)->U effects {} captures {Send,Share})->Option<U> effects {} {
+    match value {Some(v)=>{return Some(transform(v));},None=>{return None;}}
+}
