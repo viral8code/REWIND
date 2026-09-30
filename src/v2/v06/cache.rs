@@ -29,6 +29,8 @@ pub(in crate::v2) fn stamp() -> String {
                 include_str!("../v07.rs"),
                 include_str!("../v07/api.rs"),
                 include_str!("../v07/docs.rs"),
+                include_str!("../v08.rs"),
+                include_str!("../v08/repl.rs"),
                 include_str!("effects.rs"),
                 include_str!("captures.rs"),
                 include_str!("language.rs"),
@@ -126,7 +128,7 @@ fn path(root: &Path, kind: &str, key: &str) -> Option<(PathBuf, Vec<u8>)> {
     if !manifest.lines().any(|line| {
         let line = line.split('#').next().unwrap_or("");
         line.split_once('=').is_some_and(|(key, value)| {
-            key.trim() == "language" && matches!(value.trim(), "\"0.6\"" | "\"0.7\"")
+            key.trim() == "language" && matches!(value.trim(), "\"0.6\"" | "\"0.7\"" | "\"0.8\"")
         })
     }) {
         return None;

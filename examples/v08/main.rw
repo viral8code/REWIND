@@ -1,0 +1,5 @@
+record Point{x:Int,y:Int}
+const P:Point=Point(4,3);
+assert_eq(P.x+P.y,7);
+Out.println(P.x+P.y);
+publish;

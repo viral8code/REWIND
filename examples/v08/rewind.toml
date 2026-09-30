@@ -1,0 +1,12 @@
+language = "0.8"
+source_root = "."
+entry = "main.rw"
+effects = "output"
+[dev_dependencies]
+checks = "file:vendor/checks"
+[dependency_versions]
+checks = "^1.0"
+[dependency_signers]
+checks = "example-author"
+[trust]
+example-author = "ed7d1c4c7c39a4b067674af024ec0901a550305294611555f220810699d01d4c"

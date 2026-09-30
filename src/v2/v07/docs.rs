@@ -5,10 +5,10 @@ pub(in crate::v2) fn doctest(root: &Path, path: &Path) -> Result<()> {
             "documentation exceeds 1 MiB".into(),
         ));
     }
-    let config = project::ProjectConfig::load(root)?
+    let config = project::ProjectConfig::load_for_test(root)?
         .ok_or_else(|| Error::InvalidOperation("doctest requires a manifest".into()))?;
     config.lock(root, false)?;
-    if config.language != "0.7" {
+    if !matches!(config.language.as_str(), "0.7" | "0.8") {
         return Err(Error::InvalidOperation(
             "doctest requires language 0.7".into(),
         ));

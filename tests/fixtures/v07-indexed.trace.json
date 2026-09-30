@@ -1,0 +1,1069 @@
+{
+  "artifact_sha256": "5a75b69bcea7361920d1ed72cec1c28a54d0a139d49ec441945aa3e41fda5be9",
+  "audit": [],
+  "compiler": "0.7.0",
+  "debug": {
+    "checkpoints": [],
+    "final": {
+      "runtime": {
+        "checkpoint_heap_roots": 1,
+        "checkpoints": [],
+        "cursors": {
+          "directory": 0,
+          "env": 0,
+          "input": 0,
+          "time": 0
+        },
+        "directories": {},
+        "file_deltas": {},
+        "files": [],
+        "globals": {
+          "FOUR": "4",
+          "p": "Point{\"x\": Int(4), \"y\": Int(3)}"
+        },
+        "heap": {},
+        "heap_objects": 0,
+        "journal_storage_bytes": 0,
+        "observed_file_bytes": 0,
+        "pc": 23,
+        "retained_heap_logical_bytes": 0,
+        "shared_checkpoint_heap_roots": 0,
+        "stderr_bytes": 0,
+        "stdout_bytes": 2
+      },
+      "scheduler": {
+        "active": 0,
+        "channels": {},
+        "logical_storage_bytes": 336,
+        "tasks": {
+          "0": {
+            "frames": null,
+            "parent": 0,
+            "pc": null,
+            "phase": "Done",
+            "priority": 0
+          }
+        }
+      }
+    },
+    "index": {
+      "anchors": [
+        {
+          "event": 0,
+          "state": {
+            "event": 0,
+            "frames": [],
+            "runtime": {
+              "checkpoint_heap_roots": 1,
+              "checkpoints": [],
+              "cursors": {
+                "directory": 0,
+                "env": 0,
+                "input": 0,
+                "time": 0
+              },
+              "directories": {},
+              "file_deltas": {},
+              "files": [],
+              "globals": {},
+              "heap": {},
+              "heap_objects": 0,
+              "journal_storage_bytes": 0,
+              "observed_file_bytes": 0,
+              "pc": 0,
+              "retained_heap_logical_bytes": 0,
+              "shared_checkpoint_heap_roots": 0,
+              "stderr_bytes": 0,
+              "stdout_bytes": 0
+            },
+            "scheduler": {
+              "active": 0,
+              "channels": {},
+              "logical_storage_bytes": 256,
+              "tasks": {
+                "0": {
+                  "frames": null,
+                  "parent": 0,
+                  "pc": null,
+                  "phase": "Running",
+                  "priority": 0
+                }
+              }
+            },
+            "task_frames": {
+              "0": []
+            }
+          }
+        }
+      ],
+      "deltas": [
+        [
+          {
+            "after": 1,
+            "after_exists": true,
+            "before": 0,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 2,
+            "after_exists": true,
+            "before": 1,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": [
+              {
+                "function": "twice",
+                "return_pc": 2,
+                "scopes": [
+                  {
+                    "n": "2"
+                  }
+                ]
+              }
+            ],
+            "after_exists": true,
+            "before": [],
+            "before_exists": true,
+            "path": [
+              "frames"
+            ]
+          },
+          {
+            "after": 1,
+            "after_exists": true,
+            "before": 0,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 3,
+            "after_exists": true,
+            "before": 2,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 24,
+            "after_exists": true,
+            "before": 1,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 4,
+            "after_exists": true,
+            "before": 3,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 25,
+            "after_exists": true,
+            "before": 24,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 5,
+            "after_exists": true,
+            "before": 4,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 26,
+            "after_exists": true,
+            "before": 25,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 6,
+            "after_exists": true,
+            "before": 5,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": [],
+            "after_exists": true,
+            "before": [
+              {
+                "function": "twice",
+                "return_pc": 2,
+                "scopes": [
+                  {
+                    "n": "2"
+                  }
+                ]
+              }
+            ],
+            "before_exists": true,
+            "path": [
+              "frames"
+            ]
+          },
+          {
+            "after": 27,
+            "after_exists": true,
+            "before": 26,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 7,
+            "after_exists": true,
+            "before": 6,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": "4",
+            "after_exists": true,
+            "before": null,
+            "before_exists": false,
+            "path": [
+              "runtime",
+              "globals",
+              "FOUR"
+            ]
+          },
+          {
+            "after": 2,
+            "after_exists": true,
+            "before": 27,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 8,
+            "after_exists": true,
+            "before": 7,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 3,
+            "after_exists": true,
+            "before": 2,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 9,
+            "after_exists": true,
+            "before": 8,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 4,
+            "after_exists": true,
+            "before": 3,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 10,
+            "after_exists": true,
+            "before": 9,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 5,
+            "after_exists": true,
+            "before": 4,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 11,
+            "after_exists": true,
+            "before": 10,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": "Point{\"x\": Int(4), \"y\": Int(3)}",
+            "after_exists": true,
+            "before": null,
+            "before_exists": false,
+            "path": [
+              "runtime",
+              "globals",
+              "p"
+            ]
+          },
+          {
+            "after": 6,
+            "after_exists": true,
+            "before": 5,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 12,
+            "after_exists": true,
+            "before": 11,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 7,
+            "after_exists": true,
+            "before": 6,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 13,
+            "after_exists": true,
+            "before": 12,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 8,
+            "after_exists": true,
+            "before": 7,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 14,
+            "after_exists": true,
+            "before": 13,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 9,
+            "after_exists": true,
+            "before": 8,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 15,
+            "after_exists": true,
+            "before": 14,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 10,
+            "after_exists": true,
+            "before": 9,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 16,
+            "after_exists": true,
+            "before": 15,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 11,
+            "after_exists": true,
+            "before": 10,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 17,
+            "after_exists": true,
+            "before": 16,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 12,
+            "after_exists": true,
+            "before": 11,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 18,
+            "after_exists": true,
+            "before": 17,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 13,
+            "after_exists": true,
+            "before": 12,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 19,
+            "after_exists": true,
+            "before": 18,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 14,
+            "after_exists": true,
+            "before": 13,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 20,
+            "after_exists": true,
+            "before": 19,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 15,
+            "after_exists": true,
+            "before": 14,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 21,
+            "after_exists": true,
+            "before": 20,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 16,
+            "after_exists": true,
+            "before": 15,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 22,
+            "after_exists": true,
+            "before": 21,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 17,
+            "after_exists": true,
+            "before": 16,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 23,
+            "after_exists": true,
+            "before": 22,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 18,
+            "after_exists": true,
+            "before": 17,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 24,
+            "after_exists": true,
+            "before": 23,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 19,
+            "after_exists": true,
+            "before": 18,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 25,
+            "after_exists": true,
+            "before": 24,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 20,
+            "after_exists": true,
+            "before": 19,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          },
+          {
+            "after": 2,
+            "after_exists": true,
+            "before": 0,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "stdout_bytes"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 26,
+            "after_exists": true,
+            "before": 25,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 21,
+            "after_exists": true,
+            "before": 20,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 27,
+            "after_exists": true,
+            "before": 26,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 22,
+            "after_exists": true,
+            "before": 21,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          }
+        ],
+        [
+          {
+            "after": 28,
+            "after_exists": true,
+            "before": 27,
+            "before_exists": true,
+            "path": [
+              "event"
+            ]
+          },
+          {
+            "after": 23,
+            "after_exists": true,
+            "before": 22,
+            "before_exists": true,
+            "path": [
+              "runtime",
+              "pc"
+            ]
+          },
+          {
+            "after": 336,
+            "after_exists": true,
+            "before": 256,
+            "before_exists": true,
+            "path": [
+              "scheduler",
+              "logical_storage_bytes"
+            ]
+          },
+          {
+            "after": "Done",
+            "after_exists": true,
+            "before": "Running",
+            "before_exists": true,
+            "path": [
+              "scheduler",
+              "tasks",
+              "0",
+              "phase"
+            ]
+          }
+        ]
+      ],
+      "format": 1,
+      "initial": {
+        "event": 0,
+        "frames": [],
+        "runtime": {
+          "checkpoint_heap_roots": 1,
+          "checkpoints": [],
+          "cursors": {
+            "directory": 0,
+            "env": 0,
+            "input": 0,
+            "time": 0
+          },
+          "directories": {},
+          "file_deltas": {},
+          "files": [],
+          "globals": {},
+          "heap": {},
+          "heap_objects": 0,
+          "journal_storage_bytes": 0,
+          "observed_file_bytes": 0,
+          "pc": 0,
+          "retained_heap_logical_bytes": 0,
+          "shared_checkpoint_heap_roots": 0,
+          "stderr_bytes": 0,
+          "stdout_bytes": 0
+        },
+        "scheduler": {
+          "active": 0,
+          "channels": {},
+          "logical_storage_bytes": 256,
+          "tasks": {
+            "0": {
+              "frames": null,
+              "parent": 0,
+              "pc": null,
+              "phase": "Running",
+              "priority": 0
+            }
+          }
+        },
+        "task_frames": {
+          "0": []
+        }
+      }
+    }
+  },
+  "entry": "main.rw",
+  "events": [
+    {
+      "column": 26,
+      "line": 3,
+      "operation": "Push",
+      "pc": 0,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 20,
+      "line": 3,
+      "operation": "Call",
+      "pc": 1,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 40,
+      "line": 2,
+      "operation": "Load",
+      "pc": 24,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 42,
+      "line": 2,
+      "operation": "Push",
+      "pc": 25,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 40,
+      "line": 2,
+      "operation": "Binary",
+      "pc": 26,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 33,
+      "line": 2,
+      "operation": "Return",
+      "pc": 27,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 11,
+      "line": 3,
+      "operation": "Declare",
+      "pc": 2,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 13,
+      "line": 4,
+      "operation": "Load",
+      "pc": 3,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 18,
+      "line": 4,
+      "operation": "Push",
+      "pc": 4,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 7,
+      "line": 4,
+      "operation": "Call",
+      "pc": 5,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 1,
+      "line": 4,
+      "operation": "Declare",
+      "pc": 6,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 11,
+      "line": 5,
+      "operation": "Load",
+      "pc": 7,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 11,
+      "line": 5,
+      "operation": "Property",
+      "pc": 8,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 15,
+      "line": 5,
+      "operation": "Load",
+      "pc": 9,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 15,
+      "line": 5,
+      "operation": "Property",
+      "pc": 10,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 11,
+      "line": 5,
+      "operation": "Binary",
+      "pc": 11,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 19,
+      "line": 5,
+      "operation": "Push",
+      "pc": 12,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 1,
+      "line": 5,
+      "operation": "Call",
+      "pc": 13,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 1,
+      "line": 5,
+      "operation": "Pop",
+      "pc": 14,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 13,
+      "line": 6,
+      "operation": "Load",
+      "pc": 15,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 13,
+      "line": 6,
+      "operation": "Property",
+      "pc": 16,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 17,
+      "line": 6,
+      "operation": "Load",
+      "pc": 17,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 17,
+      "line": 6,
+      "operation": "Property",
+      "pc": 18,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 13,
+      "line": 6,
+      "operation": "Binary",
+      "pc": 19,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 1,
+      "line": 6,
+      "operation": "Builtin",
+      "pc": 20,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 1,
+      "line": 6,
+      "operation": "Pop",
+      "pc": 21,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 1,
+      "line": 7,
+      "operation": "Publish",
+      "pc": 22,
+      "source": "main.rw",
+      "task": 0
+    },
+    {
+      "column": 1,
+      "line": 7,
+      "operation": "Halt",
+      "pc": 23,
+      "source": "main.rw",
+      "task": 0
+    }
+  ],
+  "fingerprint": "5a75b69bcea7361920d1ed72cec1c28a54d0a139d49ec441945aa3e41fda5be9",
+  "format": 1,
+  "observations": {
+    "args": [],
+    "directories": [],
+    "entry_observations": [],
+    "env": [],
+    "files": [],
+    "format": 1,
+    "input": [],
+    "input_eof": false,
+    "locale": "en-US",
+    "times": []
+  },
+  "result": {
+    "diagnostic": null,
+    "error": null,
+    "ok": true
+  },
+  "schedule_choices": [],
+  "state_digest": "b99ae97a57ca4ce67d13d7f2773dab2b59947361aa3927be834074257dae11ac",
+  "task_steps": 100000,
+  "test": null,
+  "virtual_publish": false
+}

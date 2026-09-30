@@ -1,6 +1,6 @@
 # REWIND v0.8 作成案
 
-作成日: 2026-09-30。状態: **草案**。v0.7 から独立した `codex/rewind-v0.8` ブランチで実装する。
+作成日: 2026-09-30。状態: **採用範囲を実装済み**。構文・上限・検証は [v0.8-status.md](v0.8-status.md) を参照。v0.7 から独立した `codex/rewind-v0.8` ブランチで実装する。
 
 ## 採用する実装範囲
 
@@ -16,3 +16,7 @@
 ## 境界
 
 対話実行は accepted prefix を再実行するため、実行予算を入力ごとに適用する。未完の複数行編集、定義の置換、live task の対話的継続、任意の compiler への実行形式変換は初版の対象外。borrowed return・動的 trait object・暗号化 trace は v0.9 の採否検討へ送る。ネットワーク、FFI、OS threads、JIT は導入しない。
+
+## 採用結果
+
+上記の 4 項目を採用した。REPL 初版は同期処理に限定し、cleanup と runtime budget override も拒否する。完全な一行入力、:state/:reset/:quit、JSON 応答を提供する。inspection bundle も timeline/debug-session で表示できる。export は新規ファイルだけに出力し、元記録の署名を --public-key で任意検証できる。次版の検討は [v0.9 案](REWIND_v0.9.md) に記載する。
