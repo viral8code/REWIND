@@ -68,3 +68,70 @@ pub fn sign_package(path: &Path, key_path: &Path, output: &Path) -> Result<()> {
     println!("{}", encode_hex(&key.verifying_key().to_bytes()));
     Ok(())
 }
+pub fn keygen(path: &Path) -> Result<()> {
+    use std::io::Write;
+    let mut seed = [0u8; 32];
+    getrandom::getrandom(&mut seed)
+        .map_err(|e| Error::InvalidOperation(format!("secure random source: {e}")))?;
+    let mut options = fs::OpenOptions::new();
+    options.create_new(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(path)?;
+    file.write_all((encode_hex(&seed) + "\n").as_bytes())?;
+    file.sync_all()?;
+    println!(
+        "{}",
+        encode_hex(
+            &ed25519_dalek::SigningKey::from_bytes(&seed)
+                .verifying_key()
+                .to_bytes()
+        )
+    );
+    Ok(())
+}
+fn file_message(path: &Path, kind: &str) -> Result<String> {
+    if fs::metadata(path)?.len() > 128 * 1024 * 1024 {
+        return Err(Error::InvalidOperation(
+            "signed file exceeds 128 MiB budget".into(),
+        ));
+    }
+    if !matches!(kind, "artifact" | "trace") {
+        return Err(Error::InvalidOperation(
+            "signature kind must be artifact or trace".into(),
+        ));
+    }
+    Ok(format!(
+        "REWIND-{}-v1\n{}",
+        kind.to_uppercase(),
+        hash(fs::read(path)?)
+    ))
+}
+pub fn sign_file(path: &Path, key_path: &Path, output: &Path, kind: &str) -> Result<()> {
+    use ed25519_dalek::Signer;
+    let seed: [u8; 32] = decode_hex(fs::read_to_string(key_path)?.trim())?
+        .try_into()
+        .map_err(|_| Error::InvalidOperation("signing seed must have 32 bytes".into()))?;
+    let key = ed25519_dalek::SigningKey::from_bytes(&seed);
+    fs::write(
+        output,
+        encode_hex(&key.sign(file_message(path, kind)?.as_bytes()).to_bytes()) + "\n",
+    )?;
+    println!("{}", encode_hex(&key.verifying_key().to_bytes()));
+    Ok(())
+}
+pub fn verify_file(path: &Path, signature: &Path, public: &str, kind: &str) -> Result<()> {
+    let public: [u8; 32] = decode_hex(public)?
+        .try_into()
+        .map_err(|_| Error::InvalidOperation("public key must have 32 bytes".into()))?;
+    let key = ed25519_dalek::VerifyingKey::from_bytes(&public)
+        .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+    let signature =
+        ed25519_dalek::Signature::from_slice(&decode_hex(fs::read_to_string(signature)?.trim())?)
+            .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+    key.verify_strict(file_message(path, kind)?.as_bytes(), &signature)
+        .map_err(|_| Error::InvalidOperation("file signature verification failed".into()))
+}

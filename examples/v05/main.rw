@@ -1,0 +1,31 @@
+/// Count a transferable, immutable snapshot.
+pub async fn count(items: Frozen<List<Int>>) -> Int effects {} {
+    return items.len();
+}
+
+struct Box<T> { value: T }
+trait Get {
+    type Item;
+    fn get(self: Self) -> Self::Item;
+}
+impl<T> Get for Box<T> {
+    type Item = T;
+    fn get(self: Self) -> T effects {} {
+        return self.value;
+    }
+}
+
+let items = List<Int>();
+items.add(7);
+items.add(Box<Int>(8).get());
+let frozen = freeze(items);
+let task = spawn count(frozen);
+assert_eq(await task, Ok(2));
+
+var sum = 0;
+for item in items {
+    sum += item;
+}
+Out.println(sum);
+Out.println(secret("example secret") + "-derived");
+publish;

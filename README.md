@@ -1,6 +1,6 @@
 # REWIND
 
-REWIND is a programming language implemented in Rust, with named checkpoints, deterministic replay, and virtual I/O. Version 0.4 adds cooperative async tasks, FIFO channels, cancellation, signed packages, capability checks, reproducible build templates, recorded replay, state inspection, profiling, and bounded schedule exploration. See the [v0.1 specification](docs/REWIND_v0.1.md), [v0.2 design](docs/REWIND_v0.2.md), [v0.3 design](docs/REWIND_v0.3.md), [v0.4 design](docs/REWIND_v0.4.md), and [v0.4 implementation notes](docs/v0.4-status.md). The next version is described in the [v0.5 proposal](docs/REWIND_v0.5.md).
+REWIND is a programming language implemented in Rust, with named checkpoints, deterministic replay, and virtual I/O. Version 0.5 adds Frozen snapshots, move and lexical borrow checks, transferable closures, typed task errors, function effects, verified source-free artifacts, generic impls, associated types, iterators, transitive signed dependencies, LSP, and a recorded interactive debugger. See the [v0.1 specification](docs/REWIND_v0.1.md), [v0.2 design](docs/REWIND_v0.2.md), [v0.3 design](docs/REWIND_v0.3.md), [v0.4 implementation notes](docs/v0.4-status.md), [v0.5 implementation notes](docs/v0.5-status.md), and [standard API](docs/stdlib-v0.5.md). The next version is described in the [v0.6 proposal](docs/REWIND_v0.6.md).
 
 ## Commands
 
@@ -19,6 +19,13 @@ cargo run -- profile examples/v04.rw --root .
 cargo run -- test --root /path/to/project --explore 100
 cargo run -- update --root /path/to/v04-project
 cargo run -- build --root /path/to/v04-project --output rewind.build.json
+cargo run -- update --root examples/v05
+cargo run -- run --root examples/v05
+cargo run -- build --root examples/v05 --output program.json
+cargo run -- run-artifact program.json --root examples/v05 --allow-effects output,tasks
+cargo run -- lsp --root examples/v05
+cargo run -- debug-session session.json --root examples/v05
+cargo run -- migrate --root /path/to/project
 cargo test
 ```
 
@@ -28,9 +35,9 @@ cargo test
 
 The v0.1 command form `rewind FILE --root DIR` remains available. The same v0.1 scripts also work with `rewind run` without translation.
 
-`async fn` calls create cold `Task<T>` values; `spawn`, `await`, or `TaskGroup.add` starts them. `await` returns `Result<T,String>`. `Channel<T>(capacity)` supports awaited send/receive, including rendezvous at capacity zero. Checkpoints restore all task states and channel queues together. Transfer uses immutable deep snapshots; resources, closures, and cyclic objects cannot cross task boundaries. `publish` requires the application task and completed or cancelled children.
+`async fn` calls create cold `Task<T>` values; `spawn`, `await`, or `TaskGroup.add` starts them. In v0.5, `await` returns `Result<T,TaskError>`; earlier modes retain `Result<T,String>`. `Channel<T>(capacity)` supports awaited send/receive, including rendezvous at capacity zero. Checkpoints restore all task states and channel queues together. v0.5 transfers independent owners, including closures whose captures are Send. Resources and cyclic graphs cannot cross task boundaries. `publish` requires the application task and completed or cancelled children.
 
-`run --record FILE` records successful observations and instruction order. `replay FILE` checks the program and observations without changing host files. `debug TRACE.json` inspects saved states; `debug SOURCE.rw` executes with publication kept virtual. `profile` reports logical storage and task instruction counts to stderr. `test --explore N` explores schedules up to the explicit bound. `build` produces deterministic JSON bytecode templates; direct artifact execution is proposed for v0.5. Details and limits are in the [v0.4 implementation notes](docs/v0.4-status.md).
+`run --record FILE` records observations and instruction order, including failed v0.5 executions. `replay FILE` checks the program and observations without changing host files. `debug TRACE.json` inspects saved states; `debug-session TRACE` offers step/continue/checkpoint/state/tasks/files. `profile` reports logical storage and task instruction counts to stderr. `test --explore N --record FILE` can save a failing schedule for replay. v0.5 `build` produces a verified artifact for `run-artifact`; older modes retain bytecode templates. Details and limits are in the [v0.5 implementation notes](docs/v0.5-status.md).
 
 ## Language example
 

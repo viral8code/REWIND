@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MapKey {
     Bool(bool),
     Int(i64),
@@ -77,7 +77,7 @@ impl MapKey {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FileFailure {
     pub code: String,
     pub path: String,
@@ -117,7 +117,7 @@ impl fmt::Display for FileFailure {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Value {
     Bool(bool),
     Int(i64),
@@ -412,7 +412,7 @@ pub enum FileMode {
     ReadWrite,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ResourceBudget {
     pub history_memory: usize,
     pub history_storage: usize,
@@ -981,6 +981,40 @@ impl Runtime {
         self.state.heap.get(&id)
     }
     pub fn display_value(&self, value: &Value) -> String {
+        fn secret(rt: &Runtime, v: &Value, seen: &mut BTreeSet<u64>, depth: usize) -> bool {
+            if depth > 64 {
+                return true;
+            }
+            match v {
+                Value::Struct(t, _) if t.starts_with("Secret<") => true,
+                Value::HeapRef(id) | Value::CellRef(id) => {
+                    seen.insert(*id)
+                        && rt
+                            .heap_get(*id)
+                            .is_some_and(|v| secret(rt, v, seen, depth + 1))
+                }
+                Value::List(v) | Value::TypedList(_, v) => {
+                    v.iter().any(|v| secret(rt, v, seen, depth + 1))
+                }
+                Value::Struct(_, v) | Value::Closure(_, _, v) => {
+                    v.values().any(|v| secret(rt, v, seen, depth + 1))
+                }
+                Value::Enum(_, _, v) => v.iter().any(|(_, v)| secret(rt, v, seen, depth + 1)),
+                Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                    secret(rt, v, seen, depth + 1)
+                }
+                Value::Map(v) | Value::TypedMap(_, _, v) => {
+                    v.values().any(|v| secret(rt, v, seen, depth + 1))
+                }
+                Value::OrderedMap(_, _, v) => v
+                    .iter()
+                    .any(|(a, b)| secret(rt, a, seen, depth + 1) || secret(rt, b, seen, depth + 1)),
+                _ => false,
+            }
+        }
+        if secret(self, value, &mut BTreeSet::new(), 0) {
+            return "<redacted: Secret>".into();
+        }
         match value {
             Value::HeapRef(id) => self
                 .heap_get(*id)

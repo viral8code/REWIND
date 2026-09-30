@@ -132,6 +132,7 @@ impl Compiler {
             c.stmt(stmt)?;
         }
         let end = program.stmts.last().map(|s| s.at.clone()).unwrap_or(Tok {
+            source: String::new(),
             text: "<eof>".into(),
             line: 1,
             col: 1,
@@ -544,6 +545,7 @@ impl Compiler {
                     Function {
                         type_params: self.type_params.clone(),
                         asynchronous: false,
+                        effects: None,
                         params: params.clone(),
                         ret: ret.clone(),
                         body: body.clone(),
@@ -665,7 +667,11 @@ impl<R: BufRead> Vm<R> {
         options: &RunOptions,
     ) -> Result<Self> {
         let compiled = Compiler::compile(&program)?;
-        let artifact = build_artifact(&program, root)?;
+        let artifact = options
+            .artifact
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(|| build_artifact(&program, root))?;
         program.functions.extend(compiled.closure_defs.clone());
         let halt_pc = compiled
             .code
@@ -964,14 +970,28 @@ impl<R: BufRead> Vm<R> {
     }
     fn run_cleanups(&mut self, pending: Vec<Cleanup>, at: &Tok) -> Result<()> {
         let mut first_error = None;
+        let mut suppressed = Vec::new();
         for cleanup in pending.into_iter().rev() {
             if let Err(error) = self.run_cleanup(cleanup, at) {
                 if first_error.is_none() {
                     first_error = Some(error);
+                } else {
+                    suppressed.push(error.to_string());
                 }
             }
         }
-        first_error.map_or(Ok(()), Err)
+        if self.engine.program.language == "0.5" {
+            first_error.map_or(Ok(()), |e| {
+                let mut message = e.to_string();
+                for cause in suppressed {
+                    message.push_str("; cleanup: ");
+                    message.push_str(&cause);
+                }
+                Err(Error::InvalidOperation(message))
+            })
+        } else {
+            first_error.map_or(Ok(()), Err)
+        }
     }
     fn call_user_captured(
         &mut self,
@@ -1120,7 +1140,7 @@ impl<R: BufRead> Vm<R> {
         if self.scheduler.active == 0 {
             self.scheduler.reactivate_main();
         }
-        let result = loop {
+        let mut result = loop {
             match self.run_inner() {
                 Err(error) if self.scheduler.active != 0 => {
                     let at = self
@@ -1128,20 +1148,31 @@ impl<R: BufRead> Vm<R> {
                         .get(self.pc.saturating_sub(1))
                         .map(|i| i.at.clone())
                         .unwrap_or(Tok {
+                            source: String::new(),
                             text: "<task>".into(),
                             line: 0,
                             col: 0,
                         });
+                    let mut causes = Vec::new();
                     for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
-                        let _ = self.run_cleanups(frame.defers, &at);
+                        if let Err(e) = self.run_cleanups(frame.defers, &at) {
+                            causes.push(e.to_string());
+                        }
                     }
                     let pending = std::mem::take(&mut self.global_cleanups);
-                    let _ = self.run_cleanups(pending, &at);
+                    if let Err(e) = self.run_cleanups(pending, &at) {
+                        causes.push(e.to_string());
+                    }
                     self.frames.clear();
                     if let Err(error) = self.cancel_children(&at) {
                         break Err(error);
                     }
-                    match self.finish_scheduled_task(Err(error.to_string()), &at) {
+                    let mut message = error.to_string();
+                    for cause in causes {
+                        message.push_str("; cleanup: ");
+                        message.push_str(&cause);
+                    }
+                    match self.finish_scheduled_task(Err(message), &at) {
                         Ok(true) => continue,
                         Ok(false) => break Ok(()),
                         Err(error) => break Err(error),
@@ -1150,17 +1181,26 @@ impl<R: BufRead> Vm<R> {
                 result => break result,
             }
         };
+        if result.is_ok() && self.engine.program.language == "0.5" {
+            if let Some(error) = self.unhandled_task_error() {
+                result = Err(Error::InvalidOperation(error));
+            }
+        }
         if result.is_err() {
+            let mut causes = Vec::new();
             let at = self
                 .code
                 .get(self.pc.saturating_sub(1))
                 .map(|i| i.at.clone())
                 .unwrap_or(Tok {
+                    source: String::new(),
                     text: "<task>".into(),
                     line: 0,
                     col: 0,
                 });
-            let _ = self.cancel_children(&at);
+            if let Err(e) = self.cancel_children(&at) {
+                causes.push(e.to_string());
+            }
             for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
                 for cleanup in frame.defers.into_iter().rev() {
                     let at = self
@@ -1168,11 +1208,14 @@ impl<R: BufRead> Vm<R> {
                         .get(self.pc.saturating_sub(1))
                         .map(|i| i.at.clone())
                         .unwrap_or(Tok {
+                            source: String::new(),
                             text: "<cleanup>".into(),
                             line: 0,
                             col: 0,
                         });
-                    let _ = self.run_cleanup(cleanup, &at);
+                    if let Err(e) = self.run_cleanup(cleanup, &at) {
+                        causes.push(e.to_string());
+                    }
                 }
             }
             let at = self
@@ -1180,23 +1223,36 @@ impl<R: BufRead> Vm<R> {
                 .get(self.pc.saturating_sub(1))
                 .map(|i| i.at.clone())
                 .unwrap_or(Tok {
+                    source: String::new(),
                     text: "<cleanup>".into(),
                     line: 0,
                     col: 0,
                 });
             for cleanup in std::mem::take(&mut self.global_cleanups).into_iter().rev() {
-                let _ = self.run_cleanup(cleanup, &at);
+                if let Err(e) = self.run_cleanup(cleanup, &at) {
+                    causes.push(e.to_string());
+                }
+            }
+            if self.engine.program.language == "0.5" && !causes.is_empty() {
+                let mut message = result.unwrap_err().to_string();
+                for cause in causes {
+                    message.push_str("; cleanup: ");
+                    message.push_str(&cause);
+                }
+                result = Err(Error::InvalidOperation(message));
             }
         }
         result
     }
-    fn finish_tools(&self) -> Result<()> {
+    fn finish_tools(&self, execution_error: Option<&Error>) -> Result<()> {
         let digest = self.engine.runtime.state_digest()?;
+        let outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string())))});
         if let Some(replay) = &self.options.replay {
             if replay["events"]
                 .as_array()
                 .is_none_or(|events| events.len() != self.events.len())
                 || replay["state_digest"] != digest
+                || (!replay["result"].is_null() && replay["result"] != outcome)
             {
                 return Err(Error::InvalidOperation(
                     "ReplayMismatch: final state or event count".into(),
@@ -1204,7 +1260,7 @@ impl<R: BufRead> Vm<R> {
             }
         }
         if let Some(path) = &self.options.record {
-            let trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
+            let trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
             let bytes = serde_json::to_string_pretty(&trace)
                 .map_err(|e| Error::InvalidOperation(e.to_string()))?
                 + "\n";
@@ -1231,6 +1287,16 @@ impl<R: BufRead> Vm<R> {
     }
     fn run_inner(&mut self) -> Result<()> {
         loop {
+            if self
+                .options
+                .pause_after
+                .is_some_and(|limit| self.events.len() >= limit)
+            {
+                return Ok(());
+            }
+            if self.cancellation_requested() {
+                return Err(self.error(&self.code[self.pc].at, "TaskCancelled"));
+            }
             let scheduler_bytes = self.scheduler.storage_bytes()
                 + self
                     .snapshots
@@ -1301,6 +1367,9 @@ impl<R: BufRead> Vm<R> {
             self.pc += 1;
             match inst.op {
                 Op::Halt => {
+                    if self.drain_scope_groups(None, &inst.at)? {
+                        continue;
+                    }
                     let pending = std::mem::take(&mut self.global_cleanups);
                     self.run_cleanups(pending, &inst.at)?;
                     let value = if self.scheduler.active == 0 {
@@ -1414,6 +1483,7 @@ impl<R: BufRead> Vm<R> {
                             .ok_or_else(|| self.error(&inst.at, "integer overflow"))?,
                         ("-", Value::Float(n)) => Value::Float((-f64::from_bits(n)).to_bits()),
                         ("!", Value::Bool(v)) => Value::Bool(!v),
+                        ("move" | "borrow" | "borrowMut", v) => v,
                         _ => return Err(self.error(&inst.at, "invalid unary operand")),
                     };
                     self.push(result)?;
@@ -1425,6 +1495,14 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Property(field) => {
                     let value = self.pop()?;
+                    if let Some(Value::Struct(_, fields)) = v05::unfrozen(&value) {
+                        let value = fields
+                            .get(&field)
+                            .cloned()
+                            .ok_or_else(|| self.error(&inst.at, "unknown frozen field"))?;
+                        self.push(v05::freeze_member(value, &self.engine.runtime))?;
+                        continue;
+                    }
                     let result = match value {
                         Value::FileError(error) => match field.as_str() {
                             "code" => Value::Text(error.code),
@@ -1511,8 +1589,12 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::MakeClosure(name, ty) => {
                     let mut captures = BTreeMap::new();
+                    let needed = v05::needed_globals(&self.engine.program, &name);
                     for scope in &self.globals {
                         for (name, binding) in scope {
+                            if self.engine.program.language == "0.5" && !needed.contains(name) {
+                                continue;
+                            }
                             captures.insert(
                                 name.clone(),
                                 if binding.mutable {
@@ -1526,6 +1608,9 @@ impl<R: BufRead> Vm<R> {
                     if let Some(frame) = self.frames.last() {
                         for scope in &frame.scopes {
                             for (name, binding) in scope {
+                                if self.engine.program.language == "0.5" && !needed.contains(name) {
+                                    continue;
+                                }
                                 captures.insert(
                                     name.clone(),
                                     if binding.mutable {
@@ -1551,18 +1636,7 @@ impl<R: BufRead> Vm<R> {
                         continue;
                     }
                     let ty = value_type(&target, &self.engine.runtime);
-                    let matching = self
-                        .engine
-                        .program
-                        .impls
-                        .iter()
-                        .filter_map(|((_, target_ty), methods)| {
-                            (target_ty == &ty)
-                                .then(|| methods.get(&method))
-                                .flatten()
-                                .cloned()
-                        })
-                        .collect::<Vec<_>>();
+                    let matching = matching_methods(&self.engine.program, &ty, &method);
                     if matching.len() > 1 {
                         return Err(
                             self.error(&inst.at, format!("ambiguous method {method} for {ty}"))
@@ -1609,6 +1683,9 @@ impl<R: BufRead> Vm<R> {
                         .frames
                         .last()
                         .map_or(self.globals.len(), |f| f.scopes.len());
+                    if self.drain_scope_groups(Some(depth), &inst.at)? {
+                        continue;
+                    }
                     self.cleanup_scope(depth, &inst.at)?;
                     if let Some(frame) = self.frames.last_mut() {
                         if frame.scopes.len() <= 1 {
@@ -1653,6 +1730,14 @@ impl<R: BufRead> Vm<R> {
                     _ => return Err(self.error(&inst.at, "condition must be Bool")),
                 },
                 Op::Return => {
+                    let failed = self.engine.program.language == "0.5"
+                        && matches!(
+                            self.engine.runtime.state().stack.last(),
+                            Some(Value::Result(Err(_)))
+                        );
+                    if !failed && self.drain_scope_groups(None, &inst.at)? {
+                        continue;
+                    }
                     let value = self.pop()?;
                     self.finish_call(value, &inst.at)?;
                 }
@@ -1706,7 +1791,7 @@ impl<R: BufRead> Vm<R> {
                     self.engine.runtime.commit(name.clone())?;
                     self.snapshots.insert(name.clone(), self.snapshot());
                     if self.options.inspect || self.options.record.is_some() {
-                        self.inspections.push(serde_json::json!({"checkpoint":name,"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"frames":self.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|s|s.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>() })).collect::<Vec<_>>() }));
+                        self.inspections.push(serde_json::json!({"checkpoint":name,"event_index":self.events.len(),"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"frames":self.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|s|s.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>() })).collect::<Vec<_>>() }));
                     }
                     if self.engine.trace {
                         eprintln!(
@@ -1759,6 +1844,11 @@ impl<R: BufRead> Vm<R> {
                     self.snapshots.remove(&name);
                 }
                 Op::Publish(force) => {
+                    if self.engine.program.language == "0.5" {
+                        if let Some(error) = self.unhandled_task_error() {
+                            return Err(self.error(&inst.at, error));
+                        }
+                    }
                     if self.scheduler.active != 0 || self.scheduler.has_live_tasks() {
                         return Err(self.error(&inst.at,"publish requires the application task and completed/cancelled children"));
                     }
@@ -1848,6 +1938,7 @@ pub(super) fn execute(
             .functions
             .iter()
             .filter(|(_, f)| f.test)
+            .filter(|(name, _)| options.recorded_test.as_ref().is_none_or(|t| *name == t))
             .filter(|(name, _)| {
                 options
                     .test_filter
@@ -1857,24 +1948,28 @@ pub(super) fn execute(
             .map(|(name, _)| name.clone())
             .collect::<Vec<_>>();
         for test in tests {
+            let mut config = options.clone();
+            config.recorded_test = Some(test.clone());
             let mut vm = Vm::new(
                 program.clone(),
                 root,
                 io::stdin().lock(),
                 trace,
                 true,
-                &options,
+                &config,
             )?;
-            vm.run()
-                .map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
-            let at = program.functions[&test].at.clone();
-            vm.pc = vm.halt_pc;
-            vm.call_user(&test, Vec::new(), &at)
-                .map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
-            vm.run()
-                .map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
+            let result = (|| {
+                vm.run()?;
+                let at = program.functions[&test].at.clone();
+                vm.pc = vm.halt_pc;
+                vm.call_user(&test, Vec::new(), &at)?;
+                vm.run()
+            })();
+            if result.is_ok() || program.language == "0.5" {
+                vm.finish_tools(result.as_ref().err())?;
+            }
+            result.map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
             eprintln!("ok {test}");
-            vm.finish_tools()?;
             if options.explore > 0 {
                 let widths = vm.choice_widths.clone();
                 let used = vm.choices_used.clone();
@@ -1886,15 +1981,59 @@ pub(super) fn execute(
     } else {
         let mut vm = Vm::new(program, root, io::stdin().lock(), trace, false, &options)?;
         let result = vm.run();
-        if result.is_err() && (options.inspect || options.profile) {
-            let _ = vm.finish_tools();
+        if result.is_ok()
+            || vm.engine.program.language == "0.5"
+            || options.inspect
+            || options.profile
+        {
+            vm.finish_tools(result.as_ref().err())?;
         }
-        result?;
-        vm.finish_tools()
+        result
     }
 }
 pub(super) fn validate(program: &Program) -> Result<()> {
     Compiler::compile(program).map(|_| ())
+}
+pub(super) fn verified_code(program: &Program) -> Result<serde_json::Value> {
+    let compiler = Compiler::compile(program)?;
+    if compiler.code.len() > 1_000_000 {
+        return Err(Error::InvalidOperation(
+            "ArtifactBudgetExceeded: instructions".into(),
+        ));
+    }
+    let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"module":inst.at.source,"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
+    Ok(serde_json::json!({"bytecode":code,"function_entries":compiler.functions}))
+}
+pub(super) fn debug_view(
+    program: Program,
+    root: &Path,
+    trace: &serde_json::Value,
+    limit: usize,
+    mut options: RunOptions,
+) -> Result<serde_json::Value> {
+    options.replay = Some(trace.clone());
+    options.pause_after = Some(limit);
+    options.virtual_publish = true;
+    options.task_steps = trace["task_steps"]
+        .as_u64()
+        .and_then(|n| usize::try_from(n).ok());
+    options.choices = serde_json::from_value(trace["schedule_choices"].clone()).unwrap_or_default();
+    let mut vm = Vm::new(program, root, io::stdin().lock(), false, false, &options)?;
+    let mut result = vm.run();
+    if result.is_ok() && vm.events.len() < limit {
+        if let Some(test) = trace["test"].as_str() {
+            vm.pc = vm.halt_pc;
+            vm.call_user(
+                test,
+                Vec::new(),
+                &vm.engine.program.functions[test].at.clone(),
+            )?;
+            result = vm.run();
+        }
+    }
+    Ok(
+        serde_json::json!({"event":vm.events.len(),"runtime":vm.engine.runtime.debug_state(),"scheduler":vm.scheduler.debug_json(),"frames":vm.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|scope|scope.iter().map(|(n,b)|(n.clone(),vm.engine.runtime.masked_value(&vm.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>()})).collect::<Vec<_>>(),"error":result.err().map(|e|e.to_string())}),
+    )
 }
 pub(super) fn build_artifact(program: &Program, root: &Path) -> Result<serde_json::Value> {
     let compiler = Compiler::compile(program)?;
@@ -1913,7 +2052,7 @@ pub(super) fn build_artifact(program: &Program, root: &Path) -> Result<serde_jso
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
     let functions=program.functions.iter().map(|(name,f)| (name.clone(),serde_json::json!({"async":f.asynchronous,"type_params":f.type_params,"parameters":f.params,"return":f.ret}))).collect::<BTreeMap<_,_>>();
-    let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
+    let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"module":inst.at.source,"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
     let document = super::documentation(&program.root_origin.to_string_lossy(), root)?;
     let lock = root.join("rewind.lock");
     Ok(
@@ -1960,7 +2099,8 @@ fn explore_test(
         let mut config = options.clone();
         config.choices = choices.clone();
         config.explore = 0;
-        config.record = None;
+        config.record = options.record.clone();
+        config.recorded_test = Some(test.into());
         config.inspect = false;
         config.profile = false;
         let mut vm = Vm::new(
@@ -1977,6 +2117,10 @@ fn explore_test(
             vm.call_user(test, Vec::new(), &program.functions[test].at)?;
             vm.run()
         })();
+        if run.is_err() && program.language == "0.5" {
+            vm.options.record = options.record.clone();
+            vm.finish_tools(run.as_ref().err())?;
+        }
         run.map_err(|e| {
             Error::InvalidOperation(format!("test {test}: schedule {choices:?}: {e}"))
         })?;
