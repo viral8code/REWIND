@@ -262,7 +262,7 @@ fn runtime_dependencies_can_reach_dev_named_transitive_packages() {
 #[test]
 fn previous_compiler_trace_is_inspectable_but_not_replayable() {
     let root = fixture("", "");
-    let trace = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v07-indexed.trace.json");
+    let trace = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/v08-indexed.trace.json");
     let bytes = fs::read(&trace).unwrap();
     let out = command("timeline").arg(&trace).output().unwrap();
     success(&out);
@@ -297,7 +297,7 @@ fn previous_compiler_trace_is_inspectable_but_not_replayable() {
 fn inspection_export_omits_execution_data_and_never_overwrites_source() {
     let root = fixture("", "");
     let trace = root.join("old.json");
-    fs::write(&trace, include_bytes!("fixtures/v07-indexed.trace.json")).unwrap();
+    fs::write(&trace, include_bytes!("fixtures/v08-indexed.trace.json")).unwrap();
     let original = fs::read(&trace).unwrap();
     let export = root.join("inspection.json");
     let out = command("trace-export")
@@ -309,7 +309,7 @@ fn inspection_export_omits_execution_data_and_never_overwrites_source() {
     success(&out);
     let value: Value = serde_json::from_slice(&fs::read(&export).unwrap()).unwrap();
     assert_eq!(value["kind"], "rewind-inspection");
-    assert_eq!(value["source_compiler"], "0.7.0");
+    assert_eq!(value["source_compiler"], "0.8.0");
     success(&command("timeline").arg(&export).output().unwrap());
     assert!(value.get("observations").is_none());
     assert!(value.get("fingerprint").is_none());

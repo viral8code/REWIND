@@ -35,7 +35,10 @@ pub(super) mod pairs {
 
 pub(super) fn prepare(program: &mut Program) -> Result<()> {
     v06::language::prepare(program)?;
-    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
+    if !matches!(
+        program.language.as_str(),
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+    ) {
         return Ok(());
     }
     for name in [
@@ -68,7 +71,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             "TaskError and Diagnostic are reserved standard types".into(),
         ));
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8")
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9")
         && ["WaitEdge", "WaitTarget", "Tuple"]
             .iter()
             .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
@@ -98,6 +101,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     program.structs.insert(
         "WaitGraph".into(),
         StructDef {
+            bounds: BTreeMap::new(),
             immutable: false,
             type_params: Vec::new(),
             fields: vec![("description".into(), "String".into())],
@@ -122,6 +126,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     program.structs.insert(
         "Diagnostic".into(),
         StructDef {
+            bounds: BTreeMap::new(),
             immutable: false,
             type_params: Vec::new(),
             fields: vec![
@@ -133,7 +138,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             origin: program.root_origin.clone(),
         },
     );
-    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") {
         program
             .enums
             .get_mut("TaskError")
@@ -159,6 +164,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
         program.structs.insert(
             "WaitEdge".into(),
             StructDef {
+                bounds: BTreeMap::new(),
                 immutable: false,
                 type_params: vec![],
                 fields: vec![
@@ -210,6 +216,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
         program.structs.insert(
             "PropertyFailure".into(),
             StructDef {
+                bounds: BTreeMap::new(),
                 immutable: false,
                 type_params: Vec::new(),
                 fields: vec![
@@ -225,6 +232,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
         if program_v07(program) {
             if program.structs.contains_key("PropertyCase")
                 || program.functions.contains_key("property")
+                || program.functions.contains_key("propertyCandidates")
             {
                 return Err(Error::InvalidOperation(
                     "PropertyCase and property are reserved".into(),
@@ -233,6 +241,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             program.structs.insert(
                 "PropertyCase".into(),
                 StructDef {
+                    bounds: BTreeMap::new(),
                     immutable: false,
                     type_params: vec!["T".into()],
                     fields: vec![
@@ -348,7 +357,7 @@ pub(super) fn task_error(error: &str) -> Value {
 
 pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Result<()> {
     ownership::validate(program)?;
-    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") {
         return v06::validate(program, config);
     }
     capabilities::validate(program, config)
@@ -655,7 +664,7 @@ pub(super) fn transfer_type(
         return true;
     }
     if ty.starts_with("fn(") {
-        return if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
+        return if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
         } else {
             !shared
@@ -670,7 +679,7 @@ pub(super) fn transfer_type(
     if let Some(t) = ty.strip_prefix("Secret<").and_then(|s| s.strip_suffix('>')) {
         return transfer_type(program, t, shared, seen);
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
                 .iter()
@@ -973,7 +982,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     }
                 }
             });
-            if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
+            if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") {
                 let checker = Checker {
                     program,
                     scopes: vec![BTreeMap::new()],

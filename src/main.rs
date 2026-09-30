@@ -552,7 +552,14 @@ fn run_cli() -> Result<()> {
     }
     if matches!(
         script.as_str(),
-        "sign-artifact" | "sign-trace" | "verify-artifact" | "verify-trace"
+        "sign-artifact"
+            | "sign-trace"
+            | "verify-artifact"
+            | "verify-trace"
+            | "sign-inspection"
+            | "verify-inspection"
+            | "sign-session"
+            | "verify-session"
     ) {
         let path = PathBuf::from(
             args.next()
@@ -560,6 +567,10 @@ fn run_cli() -> Result<()> {
         );
         let kind = if script.ends_with("artifact") {
             "artifact"
+        } else if script.ends_with("inspection") {
+            "inspection"
+        } else if script.ends_with("session") {
+            "session"
         } else {
             "trace"
         };
@@ -694,18 +705,49 @@ fn run_cli() -> Result<()> {
         }
         return v2::migrate_project(&root, write);
     }
-    if script == "repl" {
-        let mut root = env::current_dir()?;
-        while let Some(option) = args.next() {
-            if option != "--root" {
-                return Err(Error::InvalidOperation("repl [--root DIR]".into()));
-            }
-            root = PathBuf::from(
+    if script == "repl" || script == "session-replay" || script == "install" {
+        let path = if script == "session-replay" {
+            Some(
                 args.next()
-                    .ok_or_else(|| Error::InvalidOperation("missing root".into()))?,
-            );
+                    .ok_or_else(|| Error::InvalidOperation("missing session transcript".into()))?,
+            )
+        } else {
+            None
+        };
+        let mut root = env::current_dir()?;
+        let mut output = None;
+        let mut production = false;
+        while let Some(option) = args.next() {
+            if option == "--production" {
+                production = true;
+                continue;
+            }
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing option value".into()))?;
+            match option.as_str() {
+                "--root" => root = PathBuf::from(value),
+                "--record" | "--output" => output = Some(PathBuf::from(value)),
+                _ => {
+                    return Err(Error::InvalidOperation(
+                        "unknown session/install option".into(),
+                    ))
+                }
+            }
         }
-        return v2::repl(&root);
+        return match script.as_str() {
+            "repl" => v2::repl(&root, output.as_deref()),
+            "session-replay" => v2::session_replay(&root, Path::new(&path.unwrap())),
+            _ if production => v2::install_production(
+                &root,
+                &output.ok_or_else(|| {
+                    Error::InvalidOperation("install --production requires --output".into())
+                })?,
+            ),
+            _ => Err(Error::InvalidOperation(
+                "install requires --production".into(),
+            )),
+        };
     }
     if script == "trace-export" {
         let file = args.next().ok_or_else(|| {
@@ -743,6 +785,28 @@ fn run_cli() -> Result<()> {
             }
         }
         return v2::api_snapshot(&root, output.as_deref());
+    }
+    if script == "api-convert" {
+        let input = args.next().ok_or_else(|| {
+            Error::InvalidOperation("api-convert OLD --root DIR --output FILE".into())
+        })?;
+        let mut root = env::current_dir()?;
+        let mut output = None;
+        while let Some(option) = args.next() {
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing conversion option".into()))?;
+            match option.as_str() {
+                "--root" => root = PathBuf::from(value),
+                "--output" => output = Some(PathBuf::from(value)),
+                _ => return Err(Error::InvalidOperation("unknown conversion option".into())),
+            }
+        }
+        return v2::api_convert(
+            &root,
+            Path::new(&input),
+            &output.ok_or_else(|| Error::InvalidOperation("missing --output".into()))?,
+        );
     }
     if script == "api-diff" {
         let before = args.next().ok_or_else(|| {
@@ -789,11 +853,13 @@ fn run_cli() -> Result<()> {
         let mut start = 0;
         let mut count = 100;
         let mut task = None;
+        let mut key = None;
         while let Some(option) = args.next() {
             let value = args
                 .next()
                 .ok_or_else(|| Error::InvalidOperation("missing timeline option value".into()))?;
             match option.as_str() {
+                "--public-key" => key = Some(value),
                 "--from" => {
                     start = value
                         .parse()
@@ -814,7 +880,7 @@ fn run_cli() -> Result<()> {
                 _ => return Err(Error::InvalidOperation("unknown timeline option".into())),
             }
         }
-        return v2::timeline(Path::new(&file), start, count, task);
+        return v2::timeline(Path::new(&file), start, count, task, key.as_deref());
     }
     if script == "compatibility" {
         let path = args

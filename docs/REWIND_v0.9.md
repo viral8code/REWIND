@@ -1,6 +1,6 @@
 # REWIND v0.9 作成案
 
-作成日: 2026-09-30。状態: **草案・未実装**。v0.8 の完了範囲と上限は [v0.8-status.md](v0.8-status.md) を参照。本書は次版の候補であり、実装済み機能として扱わない。
+作成日: 2026-09-30。状態: **採用範囲を実装済み**。採用したコマンド・構文・上限は [v0.9-status.md](v0.9-status.md) を参照。v0.8 の完了範囲と上限は [v0.8-status.md](v0.8-status.md) を参照。本書の条件付き候補と採用機能を末尾で区別する。
 
 ## 1. 対話実行と観測の契約
 
@@ -40,3 +40,9 @@ opt-in 暗号化 trace は条件付き候補。採用前に認証付き暗号、
 まず transcript と未完ソースの編集支援、公開契約の依存追跡、production graph 検証を実装する。次に generic record と property shrinker を追加する。borrowed return・動的 trait object・暗号化は実例と失敗条件をレビューして採否を確定する。
 
 VM 内のネットワーク、FFI、OS 並列 thread、実時間 timer、子プロセス、JIT は必須要件に含めない。
+
+## 6. 採用結果（2026-10-01）
+
+transcript の記録・観測限定 replay、複数行 REPL と session 予算、未完ソースへの最後の検査済み宣言による補完・hover・signature help、API snapshot format 2 と検査済みソースを使う変換、production-only 配布、Share generic record、複数候補の property shrinker、inspection/session の独立署名、署名付き timeline と editor 用 JSON request を採用した。
+
+REPL は prefix 再実行を継続し、live task・定義置換・VM 継続の保存は採用していない。未完ソースの支援は最後に検査できた宣言を明示し、新しい未検査の宣言を意味解析済みとして扱わない。borrowed return・動的 trait object・暗号化 trace は条件付き候補のままである。アプリケーション開発に向けた不足と次の優先順位を [v0.9.1 草案](REWIND_v0.9.1.md) にまとめた。

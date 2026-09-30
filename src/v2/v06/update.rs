@@ -6,7 +6,7 @@ fn old_hash(root: &Path) -> Option<String> {
 fn proposal(root: &Path) -> Result<Json> {
     let config = project::ProjectConfig::load_for_update(root)?
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
-    if !matches!(config.language.as_str(), "0.6" | "0.7" | "0.8") {
+    if !matches!(config.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") {
         return Err(Error::InvalidOperation(
             "update preview/apply requires language 0.6".into(),
         ));
@@ -124,7 +124,7 @@ pub(in crate::v2) fn compatibility(path: &Path) -> Result<()> {
     let viewable = match kind {
         "trace" => v08::readable_trace(&value),
         "inspection" => v08::inspection_trace(value.clone()).is_ok_and(|v| v08::readable_trace(&v)),
-        "api" => value["format"] == 1 && value["symbols"].is_object(),
+        "api" => matches!(value["format"].as_u64(), Some(1 | 2)) && value["symbols"].is_object(),
         _ => false,
     };
     let readable = exact || viewable;

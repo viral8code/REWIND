@@ -1,7 +1,11 @@
 use super::*;
 use std::io::{Read, Write};
 
-fn load(root: &Path, config: &project::ProjectConfig, source: &str) -> Result<Program> {
+pub(in crate::v2) fn load(
+    root: &Path,
+    config: &project::ProjectConfig,
+    source: &str,
+) -> Result<Program> {
     let path = config.source_root.join(".rewind-repl.rw");
     let overlay = BTreeMap::from([(path.clone(), source.to_string())]);
     let mut program = load_program_overlay(

@@ -325,7 +325,7 @@ impl<R: BufRead> Vm<R> {
         let ty = substitute_type(&def.ret, &substitutions);
         let v5 = matches!(
             self.engine.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
         if v5 {
@@ -478,7 +478,7 @@ impl<R: BufRead> Vm<R> {
                 ("send", [value]) => {
                     let value = if matches!(
                         self.engine.program.language.as_str(),
-                        "0.5" | "0.6" | "0.7" | "0.8"
+                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
                     } else {
@@ -508,7 +508,7 @@ impl<R: BufRead> Vm<R> {
                 ("ignore" | "detach", [])
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.5" | "0.6" | "0.7" | "0.8"
+                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
                     ) =>
                 {
                     self.scheduler
@@ -518,7 +518,10 @@ impl<R: BufRead> Vm<R> {
                         .ignored = true
                 }
                 ("timeout", [Value::Int(steps)])
-                    if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8") =>
+                    if matches!(
+                        self.engine.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) =>
                 {
                     if *steps < 0 {
                         return Err(self.error(at, "timeout steps must be nonnegative"));
@@ -537,7 +540,10 @@ impl<R: BufRead> Vm<R> {
                         .map(Some);
                 }
                 ("select", [other])
-                    if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8") =>
+                    if matches!(
+                        self.engine.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) =>
                 {
                     let other =
                         handle_id(other).ok_or_else(|| self.error(at, "select requires a Task"))?;
@@ -556,7 +562,10 @@ impl<R: BufRead> Vm<R> {
                 }
                 ("cancel", []) => self.cancel_task(id, at)?,
                 ("requestCancel", [])
-                    if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8") =>
+                    if matches!(
+                        self.engine.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) =>
                 {
                     let task = self
                         .scheduler
@@ -572,7 +581,10 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 ("cancelAndJoin", [])
-                    if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8") =>
+                    if matches!(
+                        self.engine.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) =>
                 {
                     self.cancel_task(id, at)?;
                     return Ok(Some(value.clone()));
@@ -614,7 +626,10 @@ impl<R: BufRead> Vm<R> {
         Ok(None)
     }
     pub(super) fn task_result(&mut self, id: u64) -> Option<Value> {
-        if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+        if matches!(
+            self.engine.program.language.as_str(),
+            "0.6" | "0.7" | "0.8" | "0.9"
+        ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
                 self.scheduler.tasks.get_mut(&id)?.observed = true;
                 return Some(Value::Result(Err(Box::new(v06::diagnostics::task_error(
@@ -632,7 +647,7 @@ impl<R: BufRead> Vm<R> {
                 Ok(value)
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.5" | "0.6" | "0.7" | "0.8"
+                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
                     ) =>
                 {
                     v05::task_copy(&mut self.engine.runtime, &value)
@@ -641,7 +656,7 @@ impl<R: BufRead> Vm<R> {
                             Box::new(
                                 if matches!(
                                     self.engine.program.language.as_str(),
-                                    "0.6" | "0.7" | "0.8"
+                                    "0.6" | "0.7" | "0.8" | "0.9"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
                                         &e,
@@ -663,7 +678,7 @@ impl<R: BufRead> Vm<R> {
                 Err(error) => Err(Box::new(
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.5" | "0.6" | "0.7" | "0.8"
+                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
                     ) {
                         v05::task_error(&error)
                     } else {
@@ -675,8 +690,10 @@ impl<R: BufRead> Vm<R> {
     }
     fn complete_task(&mut self, id: u64, result: std::result::Result<Value, String>) {
         let task = self.scheduler.tasks.get_mut(&id).unwrap();
-        if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8")
-            && task.failure.is_none()
+        if matches!(
+            self.engine.program.language.as_str(),
+            "0.6" | "0.7" | "0.8" | "0.9"
+        ) && task.failure.is_none()
         {
             if let Err(message) = &result {
                 task.failure = Some(rewind::DiagnosticRecord {
@@ -703,7 +720,10 @@ impl<R: BufRead> Vm<R> {
         task.context = None;
     }
     pub(super) fn set_task_failure(&mut self, failure: rewind::DiagnosticRecord) {
-        if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+        if matches!(
+            self.engine.program.language.as_str(),
+            "0.6" | "0.7" | "0.8" | "0.9"
+        ) {
             self.scheduler
                 .tasks
                 .get_mut(&self.scheduler.active)
@@ -746,8 +766,10 @@ impl<R: BufRead> Vm<R> {
                 .map(|(id, t)| (*id, t.body.clone()))
                 .collect::<Vec<_>>();
             for (id, body) in &actions {
-                if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8")
-                    && self.scheduler.tasks[id].cancel_requested
+                if matches!(
+                    self.engine.program.language.as_str(),
+                    "0.6" | "0.7" | "0.8" | "0.9"
+                ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
                         body,
                         TaskBody::Send(..)
@@ -871,7 +893,10 @@ impl<R: BufRead> Vm<R> {
                     _ => continue,
                 };
                 if let Some(result) = result {
-                    if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+                    if matches!(
+                        self.engine.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) {
                         if let TaskBody::Join(group) = body {
                             let failures = self
                                 .scheduler
@@ -1059,7 +1084,7 @@ impl<R: BufRead> Vm<R> {
             Ok(value) => Ok(
                 if matches!(
                     self.engine.program.language.as_str(),
-                    "0.5" | "0.6" | "0.7" | "0.8"
+                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
                 } else {
@@ -1120,7 +1145,7 @@ impl<R: BufRead> Vm<R> {
     pub(super) fn drain_scope_groups(&mut self, depth: Option<usize>, at: &Tok) -> Result<bool> {
         if !matches!(
             self.engine.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
         ) {
             return Ok(false);
         }
@@ -1206,7 +1231,7 @@ impl<R: BufRead> Vm<R> {
         if id == self.scheduler.active {
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
                 return Ok(());
@@ -1242,7 +1267,10 @@ impl<R: BufRead> Vm<R> {
             }
             self.install_context(current)?;
         }
-        if matches!(self.engine.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+        if matches!(
+            self.engine.program.language.as_str(),
+            "0.6" | "0.7" | "0.8" | "0.9"
+        ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
         }
         self.complete_task(id, Err(error));

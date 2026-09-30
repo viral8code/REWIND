@@ -22,11 +22,11 @@ fn semantic(value: &impl serde::Serialize) -> Result<Json> {
     clean(&mut value);
     Ok(value)
 }
-fn load(root: &Path) -> Result<Program> {
+pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
     let config = project::ProjectConfig::load(root)?
         .ok_or_else(|| Error::InvalidOperation("API snapshot requires a manifest".into()))?;
     config.lock(root, false)?;
-    if !matches!(config.language.as_str(), "0.7" | "0.8") {
+    if !matches!(config.language.as_str(), "0.7" | "0.8" | "0.9") {
         return Err(Error::InvalidOperation(
             "API snapshot requires language 0.7".into(),
         ));
@@ -46,6 +46,24 @@ fn load(root: &Path) -> Result<Program> {
     Ok(p)
 }
 pub(in crate::v2) fn snapshot(root: &Path, output: Option<&Path>) -> Result<()> {
+    let value = document(root)?;
+    write(&value, output)
+}
+fn write(value: &Json, output: Option<&Path>) -> Result<()> {
+    let text = serde_json::to_string_pretty(value)
+        .map_err(|e| Error::InvalidOperation(e.to_string()))?
+        + "\n";
+    if text.len() > 8 * 1024 * 1024 {
+        return Err(Error::InvalidOperation("API snapshot exceeds 8 MiB".into()));
+    }
+    if let Some(path) = output {
+        fs::write(path, text)?;
+    } else {
+        print!("{text}");
+    }
+    Ok(())
+}
+fn document(root: &Path) -> Result<Json> {
     let p = load(root)?;
     let mut symbols = BTreeMap::new();
     for (n, f) in &p.functions {
@@ -108,17 +126,144 @@ pub(in crate::v2) fn snapshot(root: &Path, output: Option<&Path>) -> Result<()> 
             );
         }
     }
-    let value = json!({"format":1,"kind":"rewind-api","language":p.language,"symbols":symbols});
-    let text = serde_json::to_string_pretty(&value)
-        .map_err(|e| Error::InvalidOperation(e.to_string()))?
-        + "\n";
-    if let Some(path) = output {
-        fs::write(path, text)?;
-    } else {
-        print!("{text}");
+    if program_v09(&p) {
+        let values = v07::constant_values(&p)?;
+        for (name, value) in &values {
+            if let Some(contract) = symbols.get_mut(&format!("const:{name}")) {
+                contract["value_sha256"] = value.clone();
+            }
+        }
+        for (name, d) in &p.structs {
+            if let Some(contract) = symbols.get_mut(&format!("type:{name}")) {
+                if !d.bounds.is_empty() {
+                    contract["bounds"] = json!(d.bounds);
+                }
+            }
+        }
+        for ((tr, target), methods) in &p.impls {
+            let exposed = p.traits.get(tr).is_some_and(|d| d.public)
+                || p.structs
+                    .get(target.split('<').next().unwrap_or(target))
+                    .is_some_and(|d| d.public)
+                || p.enums
+                    .get(target.split('<').next().unwrap_or(target))
+                    .is_some_and(|d| d.public);
+            if exposed
+                && p.impl_origins
+                    .get(&(tr.clone(), target.clone()))
+                    .is_some_and(|o| o == &p.root_origin)
+            {
+                let methods=methods.iter().map(|(name,symbol)|{let f=&p.functions[symbol];(name.clone(),json!({"parameters":f.params.iter().map(|(_,t)|t).collect::<Vec<_>>(),"return":f.ret,"effects":f.effects}))}).collect::<BTreeMap<_,_>>();
+                symbols.insert(format!("impl:{tr}:{target}"),json!({"associated":p.impl_associated.get(&(tr.clone(),target.clone())),"generics":p.impl_generics.get(&(tr.clone(),target.clone())),"methods":methods}));
+            }
+        }
+        // Include loaded dependency interfaces conservatively; body-only changes remain ignored.
+        for origin in p.included_modules.iter().filter(|o| *o != &p.root_origin) {
+            let mut exports = BTreeMap::new();
+            for (n, f) in &p.functions {
+                if f.public && &f.origin == origin {
+                    exports.insert(format!("fn:{n}"),json!({"generics":f.type_params,"async":f.asynchronous,"parameters":f.params.iter().map(|(_,t)|t).collect::<Vec<_>>(),"return":f.ret,"effects":f.effects}));
+                }
+            }
+            for (n, d) in &p.structs {
+                if d.public && &d.origin == origin {
+                    exports.insert(format!("type:{n}"),json!({"immutable":d.immutable,"generics":d.type_params,"bounds":d.bounds,"fields":d.fields}));
+                }
+            }
+            for (n, d) in &p.enums {
+                if d.public && &d.origin == origin {
+                    exports.insert(
+                        format!("type:{n}"),
+                        json!({"generics":d.type_params,"variants":d.variants}),
+                    );
+                }
+            }
+            for (n, d) in &p.traits {
+                if d.public && &d.origin == origin {
+                    exports.insert(format!("trait:{n}"), semantic(d)?);
+                }
+            }
+            for (n, d) in &p.aliases {
+                if d.public && &d.origin == origin {
+                    exports.insert(
+                        format!("alias:{n}"),
+                        json!({"params":d.params,"target":d.ty}),
+                    );
+                }
+            }
+            for (n, t) in &p.consts {
+                if p.const_origins
+                    .get(n)
+                    .is_some_and(|(public, o)| *public && o == origin)
+                {
+                    exports.insert(
+                        format!("const:{n}"),
+                        json!({"type":t,"value_sha256":values.get(n)}),
+                    );
+                }
+            }
+            for ((tr, target), methods) in &p.impls {
+                let exposed = p.traits.get(tr).is_some_and(|d| d.public)
+                    || p.structs
+                        .get(target.split('<').next().unwrap_or(target))
+                        .is_some_and(|d| d.public)
+                    || p.enums
+                        .get(target.split('<').next().unwrap_or(target))
+                        .is_some_and(|d| d.public);
+                if exposed
+                    && p.impl_origins
+                        .get(&(tr.clone(), target.clone()))
+                        .is_some_and(|o| o == origin)
+                {
+                    let signatures=methods.iter().map(|(name,symbol)|{let f=&p.functions[symbol];(name.clone(),json!({"parameters":f.params.iter().map(|(_,ty)|ty).collect::<Vec<_>>(),"return":f.ret,"effects":f.effects}))}).collect::<BTreeMap<_,_>>();
+                    exports.insert(format!("impl:{tr}:{target}"),json!({"associated":p.impl_associated.get(&(tr.clone(),target.clone())),"generics":p.impl_generics.get(&(tr.clone(),target.clone())),"methods":signatures}));
+                }
+            }
+            if !exports.is_empty() {
+                let relative = origin
+                    .strip_prefix(fs::canonicalize(root)?)
+                    .map_err(|_| Error::InvalidPath(origin.display().to_string()))?;
+                symbols.insert(
+                    format!("dependency:{}", relative.to_string_lossy()),
+                    json!(exports),
+                );
+            }
+        }
     }
-    Ok(())
+    Ok(
+        json!({"format":if program_v09(&p){2}else{1},"kind":"rewind-api","language":p.language,"symbols":symbols}),
+    )
 }
+
+pub(in crate::v2) fn convert(root: &Path, input: &Path, output: &Path) -> Result<()> {
+    let old = read(input)?;
+    if old["format"] != 1 {
+        return Err(Error::InvalidOperation(
+            "API conversion requires format 1".into(),
+        ));
+    }
+    let new = document(root)?;
+    if new["format"] != 2 {
+        return Err(Error::InvalidOperation(
+            "API conversion requires language 0.9".into(),
+        ));
+    }
+    let mut legacy = new["symbols"].as_object().unwrap().clone();
+    legacy.retain(|n, _| !n.starts_with("dependency:") && !n.starts_with("impl:"));
+    for contract in legacy.values_mut() {
+        if let Some(o) = contract.as_object_mut() {
+            o.remove("value_sha256");
+            o.remove("bounds");
+        }
+    }
+    if json!(legacy) != old["symbols"] {
+        return Err(Error::InvalidOperation(
+            "ApiConversionMismatch: old signatures do not match current checked source".into(),
+        ));
+    }
+    write(&new, Some(output))
+}
+
 fn read(path: &Path) -> Result<Json> {
     if fs::metadata(path)?.len() > 8 * 1024 * 1024 {
         return Err(Error::InvalidOperation(
@@ -127,7 +272,10 @@ fn read(path: &Path) -> Result<Json> {
     }
     let v: Json = serde_json::from_slice(&fs::read(path)?)
         .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-    if v["format"] != 1 || v["kind"] != "rewind-api" || !v["symbols"].is_object() {
+    if !matches!(v["format"].as_u64(), Some(1 | 2))
+        || v["kind"] != "rewind-api"
+        || !v["symbols"].is_object()
+    {
         return Err(Error::InvalidOperation("unsupported API snapshot".into()));
     }
     Ok(v)
@@ -135,6 +283,11 @@ fn read(path: &Path) -> Result<Json> {
 pub(in crate::v2) fn diff(before: &Path, after: &Path, deny: bool) -> Result<()> {
     let old = read(before)?;
     let new = read(after)?;
+    if old["format"] != new["format"] {
+        return Err(Error::InvalidOperation(
+            "API schema generations differ; use api-convert with checked source".into(),
+        ));
+    }
     let a = old["symbols"].as_object().unwrap();
     let b = new["symbols"].as_object().unwrap();
     let mut changes = Vec::new();
@@ -145,9 +298,14 @@ pub(in crate::v2) fn diff(before: &Path, after: &Path, deny: bool) -> Result<()>
         }
         let removed = !b.contains_key(n);
         let added = !a.contains_key(n);
-        let incompatible = !added;
+        let equivalent_const = n.starts_with("const:")
+            && a.get(n).is_some_and(|v| !v["value_sha256"].is_null())
+            && b.get(n).is_some_and(|v| {
+                v["value_sha256"] == a[n]["value_sha256"] && v["type"] == a[n]["type"]
+            });
+        let incompatible = !added && !equivalent_const;
         breaking |= incompatible;
-        changes.push(json!({"symbol":n,"kind":if added{"added"}else if removed{"removed"}else{"contractChanged"},"breaking":incompatible,"before":a.get(n),"after":b.get(n)}));
+        changes.push(json!({"symbol":n,"kind":if added{"added"}else if removed{"removed"}else if equivalent_const {"initializerChanged"}else{"contractChanged"},"breaking":incompatible,"before":a.get(n),"after":b.get(n)}));
     }
     println!(
         "{}",
