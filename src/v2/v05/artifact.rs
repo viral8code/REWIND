@@ -173,6 +173,11 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             return Err(invalid("reserved standard type"));
         }
     }
+    if program.language == "0.6"
+        && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
+    {
+        return Err(invalid("Tuple is a reserved standard type"));
+    }
     for n in ["freeze", "thaw", "secret", "reveal"] {
         if program.functions.contains_key(n) {
             return Err(invalid("reserved standard function"));

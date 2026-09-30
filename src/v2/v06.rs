@@ -100,3 +100,24 @@ pub(super) fn checker_method(
     library::method_type(checker, ty, m, args, at)
 }
 pub(super) use library::primitive_method;
+pub(super) fn immutable_tuple(value: Value, rt: &Runtime) -> Value {
+    match value {
+        Value::HeapRef(id) => match rt.heap_get(id) {
+            Some(Value::Struct(t, _)) if t.starts_with("Tuple<") => {
+                immutable_tuple(rt.heap_get(id).unwrap().clone(), rt)
+            }
+            _ => Value::HeapRef(id),
+        },
+        Value::Struct(t, fields) if t.starts_with("Tuple<") => Value::Struct(
+            t,
+            fields
+                .into_iter()
+                .map(|(n, v)| (n, immutable_tuple(v, rt)))
+                .collect(),
+        ),
+        Value::Option(v) => Value::Option(v.map(|v| Box::new(immutable_tuple(*v, rt)))),
+        Value::Result(Ok(v)) => Value::Result(Ok(Box::new(immutable_tuple(*v, rt)))),
+        Value::Result(Err(v)) => Value::Result(Err(Box::new(immutable_tuple(*v, rt)))),
+        v => v,
+    }
+}

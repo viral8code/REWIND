@@ -8,6 +8,7 @@ struct Owner {
     moved: bool,
     moved_fields: BTreeSet<String>,
     borrow: Option<(String, bool)>,
+    capture_borrows: BTreeSet<String>,
 }
 #[derive(Clone)]
 struct Flow<'a> {
@@ -51,6 +52,10 @@ impl Flow<'_> {
     }
     fn shareable(&self, e: &Expr) -> bool {
         match &e.kind {
+            ExprKind::Unary(op, v) if matches!(op.as_str(), "$capture:value" | "$capture:move") => {
+                self.shareable(v)
+            }
+            ExprKind::Unary(op, _) if op == "$capture:borrow" => false,
             ExprKind::Name(n) => self.vars.get(n).map(|v| v.shareable).unwrap_or_else(|| {
                 needed_globals(self.program, n).iter().all(|n| {
                     self.vars
@@ -72,6 +77,10 @@ impl Flow<'_> {
     }
     fn sendable(&self, e: &Expr) -> bool {
         match &e.kind {
+            ExprKind::Unary(op, v) if matches!(op.as_str(), "$capture:value" | "$capture:move") => {
+                self.sendable(v)
+            }
+            ExprKind::Unary(op, _) if op == "$capture:borrow" => false,
             ExprKind::Name(n) => self.vars.get(n).map(|v| v.transferable).unwrap_or_else(|| {
                 needed_globals(self.program, n).iter().all(|n| {
                     self.vars
@@ -124,13 +133,16 @@ impl Flow<'_> {
     }
     fn borrowed(&self, n: &str) -> bool {
         self.vars.values().any(|v| {
-            v.borrow.as_ref().is_some_and(|(target, _)| {
-                if self.program.language == "0.6" {
-                    Self::overlaps(target, n)
-                } else {
-                    target == n
-                }
-            })
+            v.capture_borrows
+                .iter()
+                .any(|target| Self::overlaps(target, n))
+                || v.borrow.as_ref().is_some_and(|(target, _)| {
+                    if self.program.language == "0.6" {
+                        Self::overlaps(target, n)
+                    } else {
+                        target == n
+                    }
+                })
         })
     }
     fn use_name(&self, n: &str, at: &Tok) -> Result<()> {
@@ -157,6 +169,68 @@ impl Flow<'_> {
     }
     fn expr(&mut self, e: &Expr) -> Result<()> {
         match &e.kind {
+            ExprKind::Unary(op, inner) if op.starts_with("$capture:") => {
+                let ExprKind::Closure(params, _, body) = &inner.kind else {
+                    return Err(diagnostic(&e.at, "capture requires a closure"));
+                };
+                let mut captured = free_names(body, params);
+                for name in captured.clone() {
+                    captured.extend(needed_globals(self.program, &name));
+                }
+                for n in &captured {
+                    self.use_name(n, &e.at)?;
+                }
+                if op == "$capture:value" {
+                    if captured.iter().any(|n| {
+                        self.program.functions.contains_key(n)
+                            && !needed_globals(self.program, n).is_empty()
+                    }) {
+                        return Err(diagnostic(&e.at,"value capture of a function with global dependencies is not supported; capture the data explicitly"));
+                    }
+                    if !self.sendable(inner) {
+                        return Err(diagnostic(&e.at,"value capture requires transferable values; resources and borrows cannot be copied"));
+                    }
+                    self.expr(inner)?;
+                } else if op == "$capture:move" {
+                    self.expr(inner)?;
+                    for n in captured {
+                        if self.borrowed(&n) {
+                            return Err(diagnostic(&e.at, "cannot capture move while borrowed"));
+                        }
+                        if let Some(v) = self.vars.get_mut(&n) {
+                            if v.borrow.is_some() {
+                                return Err(diagnostic(&e.at, "cannot capture move from a borrow"));
+                            }
+                            v.moved = true;
+                        }
+                    }
+                } else {
+                    let mut nested = self.clone();
+                    for n in captured {
+                        if let Some(v) = nested.vars.get_mut(&n) {
+                            v.borrow = Some((format!("$capture:{n}"), false));
+                            v.transferable = false;
+                            v.shareable = false;
+                        }
+                    }
+                    for (n, t) in params {
+                        nested.vars.insert(
+                            n.clone(),
+                            Owner {
+                                ty: t.clone(),
+                                transferable: self.transfer_ty(t, false),
+                                shareable: self.transfer_ty(t, true),
+                                mutable: false,
+                                moved: false,
+                                moved_fields: BTreeSet::new(),
+                                borrow: None,
+                                capture_borrows: BTreeSet::new(),
+                            },
+                        );
+                    }
+                    nested.body(body)?;
+                }
+            }
             ExprKind::Name(n) => self.use_name(n, &e.at)?,
             ExprKind::Unary(op, v) if op == "move" => {
                 if self.program.language == "0.6" {
@@ -251,7 +325,41 @@ impl Flow<'_> {
             }
             ExprKind::Call(target, args) => {
                 if self.program.language == "0.6" {
+                    if matches!(&target.kind,ExprKind::Unary(op,_) if op=="$capture:borrow") {
+                        return Err(diagnostic(
+                            &target.at,
+                            "borrow capture must first be bound in a lexical let scope",
+                        ));
+                    }
                     if let ExprKind::Member(base, method) = &target.kind {
+                        if let Some(place) = Self::place(base) {
+                            let ty = self.checker().expr(base).unwrap_or_default();
+                            let shared = self
+                                .vars
+                                .get(place.split('.').next().unwrap())
+                                .and_then(|v| v.borrow.as_ref())
+                                .is_some_and(|(_, m)| !*m);
+                            for symbol in matching_methods(self.program, &ty, method) {
+                                let receiver = &self.program.functions[&symbol].params[0].1;
+                                if (shared || self.borrowed(&place))
+                                    && (!receiver.starts_with('&') || receiver.starts_with("&mut "))
+                                {
+                                    return Err(diagnostic(&e.at,"shared borrow requires a shared borrowed receiver contract"));
+                                }
+                            }
+                        }
+                        if method == "zip" {
+                            for arg in args {
+                                if let Some(place) = Self::place(arg) {
+                                    if self.borrowed(&place) {
+                                        return Err(diagnostic(
+                                            &arg.at,
+                                            "cannot consume an Iterator while borrowed",
+                                        ));
+                                    }
+                                }
+                            }
+                        }
                         if matches!(
                             method.as_str(),
                             "add"
@@ -268,6 +376,8 @@ impl Flow<'_> {
                                 | "take"
                                 | "fold"
                                 | "collect"
+                                | "enumerate"
+                                | "zip"
                         ) {
                             if let Some(place) = Self::place(base) {
                                 if self.borrowed(&place) {
@@ -334,6 +444,16 @@ impl Flow<'_> {
                             .functions
                             .get(resolved.split('<').next().unwrap_or(&resolved))
                     }
+                } else if self.program.language == "0.6" {
+                    if let ExprKind::Member(base, method) = &target.kind {
+                        self.checker().expr(base).ok().and_then(|ty| {
+                            matching_methods(self.program, &ty, method)
+                                .first()
+                                .and_then(|symbol| self.program.functions.get(symbol))
+                        })
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 };
@@ -351,9 +471,21 @@ impl Flow<'_> {
                     .ok()
                     .and_then(|t| function_signature(&t));
                 let mut call_borrows: BTreeMap<String, bool> = BTreeMap::new();
+                let offset =
+                    usize::from(function.is_some() && matches!(&target.kind, ExprKind::Member(..)));
+                if offset == 1 {
+                    if let ExprKind::Member(base, _) = &target.kind {
+                        if let Some(place) = Self::place(base) {
+                            let receiver = &function.unwrap().params[0].1;
+                            if receiver.starts_with('&') {
+                                call_borrows.insert(place, receiver.starts_with("&mut "));
+                            }
+                        }
+                    }
+                }
                 for (index, arg) in args.iter().enumerate() {
                     let expected = function
-                        .and_then(|f| f.params.get(index).map(|(_, t)| t.as_str()))
+                        .and_then(|f| f.params.get(index + offset).map(|(_, t)| t.as_str()))
                         .or_else(|| {
                             signature
                                 .as_ref()
@@ -449,6 +581,8 @@ impl Flow<'_> {
                                             | "take"
                                             | "fold"
                                             | "collect"
+                                            | "enumerate"
+                                            | "zip"
                                     ) {
                                         if let Some(place) = Self::place(base) {
                                             conflict |= call_borrows
@@ -472,7 +606,7 @@ impl Flow<'_> {
                         ));
                     }
                     if let Some(f) = function {
-                        if let Some((_, expected)) = f.params.get(index) {
+                        if let Some((_, expected)) = f.params.get(index + offset) {
                             for (parameter, bound) in &f.type_params {
                                 if bound.as_deref() == Some("Send")
                                     && substitute_type(
@@ -485,6 +619,12 @@ impl Flow<'_> {
                                 }
                             }
                         }
+                    }
+                    if matches!(&arg.kind,ExprKind::Unary(op,_) if op=="$capture:borrow") {
+                        return Err(diagnostic(
+                            &arg.at,
+                            "borrow capture cannot escape through a call",
+                        ));
                     }
                     if matches!(&arg.kind,ExprKind::Unary(op,_) if op=="borrow"||op=="borrowMut") {
                         return Err(diagnostic(
@@ -514,13 +654,15 @@ impl Flow<'_> {
                                 &arg.kind,
                                 ExprKind::Call(_, _) | ExprKind::NamedConstructor(_, _)
                             )
+                            && !matches!(&arg.kind,ExprKind::Unary(op,_) if matches!(op.as_str(),"$capture:value"|"$capture:move"))
                         {
                             return Err(diagnostic(
                                 &arg.at,
                                 "task transfer requires move or Frozen<T>; use freeze(value)",
                             ));
                         }
-                    } else if function.is_some()
+                    } else if (function.is_some()
+                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple"))
                         && !self.shareable(arg)
                         && matches!(&arg.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
                     {
@@ -556,6 +698,7 @@ impl Flow<'_> {
                             mutable: false,
                             moved: false,
                             moved_fields: BTreeSet::new(),
+                            capture_borrows: BTreeSet::new(),
                             borrow: None,
                         },
                     );
@@ -595,6 +738,7 @@ impl Flow<'_> {
                                 ty,
                                 moved: false,
                                 moved_fields: BTreeSet::new(),
+                                capture_borrows: BTreeSet::new(),
                                 borrow: None,
                             },
                         );
@@ -615,6 +759,11 @@ impl Flow<'_> {
             }
             ExprKind::NamedConstructor(_, fields) => {
                 for (_, v) in fields {
+                    if matches!(&v.kind,ExprKind::Unary(op,_) if op=="$capture:borrow")
+                        || matches!(&v.kind,ExprKind::Name(n) if self.vars.get(n).is_some_and(|v|v.borrow.is_some()))
+                    {
+                        return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
+                    }
                     if self.program.language == "0.6"
                         && self.checker().expr(v).is_ok_and(|t| t.starts_with('&'))
                     {
@@ -677,6 +826,32 @@ impl Flow<'_> {
                     } else {
                         None
                     };
+                    let capture_borrows = if let ExprKind::Unary(op, inner) = &e.kind {
+                        if op == "$capture:borrow" {
+                            if matches!(&s.kind, StmtKind::Let(_, true, _, _)) {
+                                return Err(diagnostic(
+                                    &e.at,
+                                    "borrow capture requires an immutable let binding",
+                                ));
+                            }
+                            borrow = Some((format!("$closure:{n}"), false));
+                            let ExprKind::Closure(params, _, body) = &inner.kind else {
+                                unreachable!()
+                            };
+                            let mut names = free_names(body, params);
+                            for name in names.clone() {
+                                names.extend(needed_globals(self.program, &name));
+                            }
+                            names
+                                .into_iter()
+                                .filter(|n| self.vars.contains_key(n))
+                                .collect()
+                        } else {
+                            BTreeSet::new()
+                        }
+                    } else {
+                        BTreeSet::new()
+                    };
                     if self.program.language == "0.6" && borrow.is_none() && !shareable {
                         super::expressions(
                             &[Stmt {
@@ -701,11 +876,18 @@ impl Flow<'_> {
                             mutable: matches!(&s.kind, StmtKind::Let(_, true, _, _)),
                             moved: false,
                             moved_fields: BTreeSet::new(),
+                            capture_borrows,
                             borrow,
                         },
                     );
                 }
                 StmtKind::Assign(a, _, b) => {
+                    if matches!(&b.kind,ExprKind::Unary(op,_) if op=="$capture:borrow") {
+                        return Err(diagnostic(
+                            &b.at,
+                            "borrow capture must be bound in a lexical let scope",
+                        ));
+                    }
                     let transferable = self.sendable(b);
                     let shareable = self.shareable(b);
                     if let ExprKind::Member(base, _) = &a.kind {
@@ -725,6 +907,17 @@ impl Flow<'_> {
                         }
                     }
                     if let ExprKind::Name(n) = &a.kind {
+                        if self
+                            .vars
+                            .get(n)
+                            .and_then(|v| v.borrow.as_ref())
+                            .is_some_and(|(target, m)| target.starts_with("$capture:") && !*m)
+                        {
+                            return Err(diagnostic(
+                                &a.at,
+                                "cannot assign through a shared capture",
+                            ));
+                        }
                         if self.borrowed(n) {
                             return Err(diagnostic(&a.at, "cannot assign an owner while borrowed"));
                         }
@@ -842,6 +1035,7 @@ impl Flow<'_> {
                             mutable: false,
                             moved: false,
                             moved_fields: BTreeSet::new(),
+                            capture_borrows: BTreeSet::new(),
                             borrow: None,
                         },
                     );
@@ -879,6 +1073,7 @@ impl Flow<'_> {
                                     ty: t,
                                     moved: false,
                                     moved_fields: BTreeSet::new(),
+                                    capture_borrows: BTreeSet::new(),
                                     borrow: None,
                                 },
                             );
@@ -947,6 +1142,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                     mutable: false,
                     moved: false,
                     moved_fields: BTreeSet::new(),
+                    capture_borrows: BTreeSet::new(),
                     borrow: if program.language == "0.6" && ty.starts_with('&') {
                         Some((format!("$parameter:{n}"), ty.starts_with("&mut ")))
                     } else {

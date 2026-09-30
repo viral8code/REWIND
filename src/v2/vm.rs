@@ -1566,6 +1566,8 @@ impl<R: BufRead> Vm<R> {
                         ("-", Value::Float(n)) => Value::Float((-f64::from_bits(n)).to_bits()),
                         ("!", Value::Bool(v)) => Value::Bool(!v),
                         ("move" | "borrow" | "borrowMut", v) => v,
+                        ("$capture:value", v) => v05::task_copy(&mut self.engine.runtime, &v)?,
+                        ("$capture:move" | "$capture:borrow", v) => v,
                         _ => return Err(self.error(&inst.at, "invalid unary operand")),
                     };
                     self.push(result)?;

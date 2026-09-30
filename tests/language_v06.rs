@@ -55,6 +55,49 @@ fn rejected(source: &str, message: &str) {
 }
 
 #[test]
+fn explicit_capture_modes_have_distinct_ownership() {
+    rejected("var n=7;fn read()->Int effects {} {return n;}let snapshot=capture value ||->Int{return read();};","global dependencies");
+    ok("let xs=List<Int>();xs.add(1);let read=capture value ||->Int{return xs.len();};xs.add(2);assert_eq(read(),1);assert_eq(xs.len(),2);","",b"");
+    ok("struct Box{n:Int}trait Read{fn read(self:&Self,xs:&List<Int>)->Int effects {};}impl Read for Box{fn read(self:&Box,xs:&List<Int>)->Int effects {} {return self.n+xs.len();}}let box=Box(2);let xs=List<Int>();xs.add(5);{let read=capture borrow ||->Int{return box.read(&xs);};assert_eq(read(),3);}xs.add(6);","",b"");
+    ok("var n=7;let read=capture value ||->Int{return n;};n=9;assert_eq(read(),7);commit saved;n=10;revert saved;assert_eq(read(),7);","",b"");
+    ok("let xs=List<Int>();xs.add(7);let read=capture move ||->Int{return xs.len();};assert_eq(read(),1);","",b"");
+    rejected(
+        "let xs=List<Int>();let read=capture move ||->Int{return xs.len();};xs.len();",
+        "use after move",
+    );
+    ok("let xs=List<Int>();xs.add(7);{let read=capture borrow ||->Int{return xs.len();};assert_eq(read(),1);}xs.add(8);assert_eq(xs.len(),2);","",b"");
+    rejected(
+        "let xs=List<Int>();let read=capture borrow ||->Int{return xs.len();};xs.add(8);",
+        "while borrowed",
+    );
+    rejected(
+        "let xs=List<Int>();let change=capture borrow ||->Unit{xs.add(1);};",
+        "shared borrow",
+    );
+    rejected(
+        "var n=1;let change=capture borrow ||->Unit{n=2;};",
+        "shared capture",
+    );
+    rejected("fn leak()->fn()->Int effects {} {let xs=List<Int>();return capture borrow ||->Int{return xs.len();};}","cannot escape");
+    ok("async fn invoke(f:fn()->Int effects {})->Int effects {} {return f();}var n=7;let task=spawn invoke(capture value ||->Int{return n;});n=8;assert_eq(await task,Ok(7));","tasks",b"");
+    rejected("File.writeText(\"data\",\"x\");using h=File.open(\"data\");let read=capture value ||->String{return h.read(1);};","value capture requires transferable");
+}
+
+#[test]
+fn tuples_enumerate_and_zip_preserve_types_and_cursor_state() {
+    rejected(
+        "let xs=List<Int>();let pair=(xs,1);",
+        "requires move or freeze",
+    );
+    rejected("let xs=List<Int>();let left=xs.iter();let right=xs.iter();let view=&right;left.zip(right);","while borrowed");
+    ok("let pair:(Int,String)=(7,\"seven\");assert_eq(pair._0,7);assert_eq(pair._1,\"seven\");let single:(Int,)=(4,);assert_eq(single._0,4);async fn sum(pair:(Int,Int))->Int effects {} {return pair._0+pair._1;}assert_eq(await sum((3,4)),Ok(7));","tasks",b"");
+    rejected("let pair=(1,2);pair._0=3;", "tuple fields are immutable");
+    rejected("let pair=(1,2);pair._2;", "out of range");
+    ok("let xs=List<Int>();xs.add(5);xs.add(6);let enumerated=xs.iter().enumerate().collect();assert_eq(enumerated.get(0)._0,0);assert_eq(enumerated.get(1)._1,6);let ys=List<String>();ys.add(\"x\");let zipped=xs.iter().zip(ys.iter()).collect();assert_eq(zipped.len(),1);assert_eq(zipped.get(0)._0,5);assert_eq(zipped.get(0)._1,\"x\");let empty=List<Int>().iter().zip(List<String>().iter()).collect();assert_eq(empty.len(),0);","",b"");
+    ok("let xs=List<Int>();xs.add(1);xs.add(2);let a=xs.iter();let b=xs.iter();commit saved;assert_eq(a.zip(b).collect().len(),2);revert saved;assert_eq(a.enumerate().next(),Some((0,1)));assert_eq(b.next(),Some(1));","",b"");
+}
+
+#[test]
 fn pure_higher_order_effects_and_reassignment() {
     ok("fn apply<E:Effect>(f:fn(Int)->Int effects E,n:Int)->Int effects E {return f(n);}assert_eq(apply(|n:Int|->Int{return n+1;},4),5);","",b"");
     rejected("pub fn quiet()->Int effects {} {return 1;}pub fn loud()->Int effects {output} {Out.println(1);return 2;}var action=quiet;action=loud;action();","output");

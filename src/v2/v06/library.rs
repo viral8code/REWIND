@@ -43,6 +43,24 @@ pub(super) fn method_type(
             if let Some(item) = item {
                 match (m, args) {
                     ("collect", []) => return Ok(Some(format!("List<{item}>"))),
+                    ("enumerate", []) => return Ok(Some(format!("Iterator<Tuple<Int,{item}>>"))),
+                    ("zip", [other]) => {
+                        let right = if other.starts_with("Iterator<") {
+                            v05::iterator_item(other)
+                        } else {
+                            trait_method_return(_checker.program, other, "next", &[], at)?.and_then(
+                                |t| {
+                                    t.strip_prefix("Option<")
+                                        .and_then(|t| t.strip_suffix('>'))
+                                        .map(str::to_string)
+                                },
+                            )
+                        };
+                        let Some(right) = right else {
+                            return Err(diagnostic(at, "zip requires an Iterator"));
+                        };
+                        return Ok(Some(format!("Iterator<Tuple<{item},{right}>>")));
+                    }
                     ("take", [n]) if n == "Int" => return Ok(Some(format!("Iterator<{item}>"))),
                     ("map" | "filter", [f]) | ("fold", [_, f]) => {
                         let Some((params, ret)) = function_signature(f) else {
