@@ -207,8 +207,15 @@ impl fmt::Display for Error {
             Error::Diagnostic(d) => {
                 write!(
                     f,
-                    "invalid operation: {}:{}:{}: {}",
-                    d.source, d.line, d.column, d.message
+                    "invalid operation: {}{}:{}: {}",
+                    if d.source.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{}:", d.source)
+                    },
+                    d.line,
+                    d.column,
+                    d.message
                 )?;
                 for cause in &d.causes {
                     write!(f, "; cleanup: {}", cause.message)?;
@@ -552,6 +559,10 @@ pub struct Runtime {
     arguments: Vec<String>,
     env_allowed: BTreeSet<String>,
     env_secrets: BTreeSet<String>,
+    sensitive_values: BTreeSet<String>,
+    secret_input_indices: BTreeSet<usize>,
+    supplied_secret_input: Option<Vec<String>>,
+    history_budget_kind: std::cell::Cell<&'static str>,
     env_observations: Vec<(String, Option<String>)>,
     entry_observations: Vec<(String, Vec<String>)>,
     locale: String,
@@ -565,6 +576,92 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    pub fn register_secret_value(&mut self, value: &Value) {
+        fn visit(
+            rt: &Runtime,
+            v: &Value,
+            out: &mut BTreeSet<String>,
+            seen: &mut BTreeSet<u64>,
+            depth: usize,
+        ) {
+            if depth > 64 {
+                return;
+            }
+            match v {
+                Value::HeapRef(id) | Value::CellRef(id) => {
+                    if seen.insert(*id) {
+                        if let Some(v) = rt.heap_get(*id) {
+                            visit(rt, v, out, seen, depth + 1);
+                        }
+                    }
+                }
+                Value::Struct(_, fields) | Value::Closure(_, _, fields) => {
+                    for v in fields.values() {
+                        visit(rt, v, out, seen, depth + 1);
+                    }
+                }
+                Value::List(items) | Value::TypedList(_, items) => {
+                    for v in items {
+                        visit(rt, v, out, seen, depth + 1);
+                    }
+                }
+                Value::Map(items) | Value::TypedMap(_, _, items) => {
+                    for (k, v) in items {
+                        visit(rt, &k.value(), out, seen, depth + 1);
+                        visit(rt, v, out, seen, depth + 1);
+                    }
+                }
+                Value::OrderedMap(_, _, items) => {
+                    for (k, v) in items {
+                        visit(rt, k, out, seen, depth + 1);
+                        visit(rt, v, out, seen, depth + 1);
+                    }
+                }
+                Value::Enum(_, _, items) => {
+                    for (_, v) in items {
+                        visit(rt, v, out, seen, depth + 1);
+                    }
+                }
+                Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                    visit(rt, v, out, seen, depth + 1)
+                }
+                Value::Null | Value::Option(None) | Value::Handle(_) | Value::Function(_, _) => {}
+                _ => {
+                    out.insert(v.to_string());
+                    if let Value::Bytes(bytes) = v {
+                        if let Ok(text) = String::from_utf8(bytes.clone()) {
+                            out.insert(text);
+                        }
+                    }
+                }
+            }
+        }
+        let mut values = BTreeSet::new();
+        visit(self, value, &mut values, &mut BTreeSet::new(), 0);
+        self.sensitive_values
+            .extend(values.into_iter().filter(|s| !s.is_empty()));
+    }
+    pub fn mask_debug_json(&self, value: &serde_json::Value) -> serde_json::Value {
+        use serde_json::Value as Json;
+        match value {
+            Json::String(s) => Json::String(self.masked_value(&Value::Text(s.clone()))),
+            Json::Array(a) => Json::Array(a.iter().map(|v| self.mask_debug_json(v)).collect()),
+            Json::Object(o) => Json::Object(
+                o.iter()
+                    .map(|(k, v)| {
+                        (
+                            self.masked_value(&Value::Text(k.clone())),
+                            self.mask_debug_json(v),
+                        )
+                    })
+                    .collect(),
+            ),
+            v => v.clone(),
+        }
+    }
+    pub fn history_budget_kind(&self) -> &'static str {
+        self.history_budget_kind.get()
+    }
     pub fn configure_environment(
         &mut self,
         args: Vec<String>,
@@ -589,6 +686,49 @@ impl Runtime {
     pub fn arguments(&mut self) -> Vec<String> {
         self.state.args_cursor += 1;
         self.arguments.clone()
+    }
+    pub fn configure_secret_input(&mut self, lines: Vec<String>) {
+        self.supplied_secret_input = Some(lines);
+    }
+    pub fn secret_input_line(&mut self, source: &mut impl io::BufRead) -> Result<Option<String>> {
+        let cursor = self.state.stdin_cursor;
+        let value = if cursor == self.input.len()
+            && !self.replaying
+            && self.supplied_secret_input.is_some()
+        {
+            let index = self
+                .secret_input_indices
+                .iter()
+                .filter(|i| **i < cursor)
+                .count();
+            let text = self
+                .supplied_secret_input
+                .as_ref()
+                .and_then(|v| v.get(index))
+                .map(|s| format!("{s}\n"))
+                .unwrap_or_default();
+            self.input_line(&mut io::Cursor::new(text))?
+        } else {
+            self.input_line(source)?
+        };
+        if let Some(text) = &value {
+            self.secret_input_indices.insert(cursor);
+            self.register_secret_value(&Value::Text(text.clone()));
+        }
+        Ok(value)
+    }
+    pub fn secret_environment_value(&mut self, name: &str) -> Result<Option<String>> {
+        if !self.env_allowed.contains(name) {
+            return Err(Error::InvalidOperation(format!(
+                "environment name {name} is not allowed"
+            )));
+        }
+        self.env_secrets.insert(name.into());
+        let value = self.environment_value(name)?;
+        if let Some(text) = &value {
+            self.register_secret_value(&Value::Text(text.clone()));
+        }
+        Ok(value)
     }
     pub fn environment_value(&mut self, name: &str) -> Result<Option<String>> {
         if !self.env_allowed.contains(name) {
@@ -758,6 +898,10 @@ impl Runtime {
             arguments: Vec::new(),
             env_allowed: BTreeSet::new(),
             env_secrets: BTreeSet::new(),
+            sensitive_values: BTreeSet::new(),
+            secret_input_indices: BTreeSet::new(),
+            supplied_secret_input: None,
+            history_budget_kind: std::cell::Cell::new("HistoryMemory"),
             env_observations: Vec::new(),
             entry_observations: Vec::new(),
             locale: "en-US".into(),
@@ -855,6 +999,7 @@ impl Runtime {
             }
         }
         if compute_memory > self.budget.history_memory {
+            self.history_budget_kind.set("HistoryMemory");
             return Err(Error::HistoryBudgetExceeded);
         }
         segments.sort_by_key(|segment| segment.id);
@@ -866,6 +1011,7 @@ impl Runtime {
             storage = storage.saturating_add(disk);
         }
         if storage > self.budget.history_storage {
+            self.history_budget_kind.set("HistoryStorage");
             return Err(Error::HistoryBudgetExceeded);
         }
         let target = self
@@ -881,6 +1027,7 @@ impl Runtime {
                 continue;
             }
             if storage.saturating_add(mem) > self.budget.history_storage {
+                self.history_budget_kind.set("HistoryStorage");
                 return Err(Error::HistoryBudgetExceeded);
             }
             segment.spill()?;

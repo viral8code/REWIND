@@ -207,6 +207,7 @@ version = "0.6.0"
 dependencies = [
  "ed25519-dalek",
  "getrandom",
+ "libc",
  "semver",
  "serde",
  "serde_json",

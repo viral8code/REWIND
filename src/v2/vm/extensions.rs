@@ -46,6 +46,66 @@ impl<R: BufRead> Vm<R> {
             _ => None,
         })
     }
+    pub(super) fn property_int(&mut self, args: &[Value], at: &Tok) -> Result<Value> {
+        let [Value::Int(seed), Value::Int(cases), Value::Int(min), Value::Int(max), predicate] =
+            args
+        else {
+            return Err(self.error(at, "invalid propertyInt arguments"));
+        };
+        if !(0..=100_000).contains(cases) || min > max {
+            return Err(self.error(at, "propertyInt requires 0..100000 cases and min <= max"));
+        }
+        let width = (*max as i128 - *min as i128 + 1) as u128;
+        let mut random = *seed as u64;
+        for case in 0..*cases {
+            // SplitMix64 has a defined state for every seed, including zero.
+            random = random.wrapping_add(0x9e3779b97f4a7c15);
+            let mut bits = random;
+            bits = (bits ^ (bits >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+            bits = (bits ^ (bits >> 27)).wrapping_mul(0x94d049bb133111eb);
+            bits ^= bits >> 31;
+            let mut input = (*min as i128 + (bits as u128 % width) as i128) as i64;
+            if self.callback(predicate.clone(), vec![Value::Int(input)], at)? == Value::Bool(true) {
+                continue;
+            }
+            let target = 0i64.clamp(*min, *max);
+            let mut shrinks = 0;
+            let mut passing = target;
+            if input != target
+                && self.callback(predicate.clone(), vec![Value::Int(target)], at)?
+                    == Value::Bool(false)
+            {
+                input = target;
+                shrinks += 1;
+            } else {
+                for _ in 0..64 {
+                    let distance = input as i128 - passing as i128;
+                    if distance.abs() <= 1 {
+                        break;
+                    }
+                    let candidate = (passing as i128 + distance / 2) as i64;
+                    if self.callback(predicate.clone(), vec![Value::Int(candidate)], at)?
+                        == Value::Bool(false)
+                    {
+                        input = candidate;
+                        shrinks += 1;
+                    } else {
+                        passing = candidate;
+                    }
+                }
+            }
+            return Ok(Value::Result(Err(Box::new(Value::Struct(
+                "PropertyFailure".into(),
+                BTreeMap::from([
+                    ("seed".into(), Value::Int(*seed)),
+                    ("case".into(), Value::Int(case)),
+                    ("input".into(), Value::Int(input)),
+                    ("shrinks".into(), Value::Int(shrinks)),
+                ]),
+            )))));
+        }
+        Ok(Value::Result(Ok(Box::new(Value::Null))))
+    }
     fn next_item(&mut self, target: &Value, at: &Tok) -> Result<Option<Value>> {
         if self.steps == 0 {
             return Err(self.error(at, "ExecutionBudgetExceeded"));

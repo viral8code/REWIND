@@ -87,6 +87,7 @@ struct Scan<'a> {
     checker: Checker<'a>,
     needs: BTreeSet<String>,
     depth: usize,
+    instances: BTreeSet<String>,
 }
 impl Scan<'_> {
     fn expr(&mut self, e: &Expr) -> Result<()> {
@@ -144,7 +145,46 @@ impl Scan<'_> {
                             .collect::<Vec<_>>();
                         let substitutions =
                             infer_call_arguments(n, &f.params, &params, &types, &e.at)?;
-                        for effect in function_effects(self.checker.program, base) {
+                        let mut needs = function_effects(self.checker.program, base);
+                        if !f.type_params.is_empty() && self.depth < 128 {
+                            let key = format!("{base}:{substitutions:?}");
+                            if !self.instances.contains(&key) {
+                                let mut specialized = f.clone();
+                                super::language::rename_function(&mut specialized, &substitutions);
+                                let mut scopes = self
+                                    .checker
+                                    .scopes
+                                    .first()
+                                    .cloned()
+                                    .into_iter()
+                                    .collect::<Vec<_>>();
+                                scopes.push(
+                                    specialized
+                                        .params
+                                        .iter()
+                                        .map(|(n, t)| (n.clone(), (t.clone(), false)))
+                                        .collect(),
+                                );
+                                let mut instances = self.instances.clone();
+                                instances.insert(key);
+                                let mut scan = Scan {
+                                    checker: Checker {
+                                        program: self.checker.program,
+                                        scopes,
+                                        return_ty: Some(specialized.ret.clone()),
+                                        loop_depth: 0,
+                                        bounds: BTreeMap::new(),
+                                        origin: f.origin.clone(),
+                                    },
+                                    needs: BTreeSet::new(),
+                                    depth: self.depth + 1,
+                                    instances,
+                                };
+                                scan.body(&specialized.body)?;
+                                needs = scan.needs;
+                            }
+                        }
+                        for effect in needs {
                             if let Some(effect) = substitutions.get(&effect) {
                                 self.needs.extend(
                                     effect
@@ -387,6 +427,7 @@ pub(in crate::v2) fn closure_effects(
         checker,
         needs: BTreeSet::new(),
         depth: 0,
+        instances: BTreeSet::new(),
     };
     scan.checker.scopes.push(
         params
@@ -416,6 +457,7 @@ pub(in crate::v2) fn infer(program: &mut Program) -> Result<()> {
             checker,
             needs: BTreeSet::new(),
             depth: 0,
+            instances: BTreeSet::new(),
         };
         top.body(&program.stmts)?;
         let mut next = program.inferred_effects.clone();
@@ -439,6 +481,7 @@ pub(in crate::v2) fn infer(program: &mut Program) -> Result<()> {
                 checker,
                 needs: BTreeSet::new(),
                 depth: 0,
+                instances: BTreeSet::new(),
             };
             scan.checker.scopes.push(
                 f.params
@@ -458,6 +501,96 @@ pub(in crate::v2) fn infer(program: &mut Program) -> Result<()> {
         "EffectInferenceBudgetExceeded: 128 iterations".into(),
     ))
 }
+// Build a bounded source route independently of inference, preserving typed causes.
+fn effect_route(
+    program: &Program,
+    body: &[Stmt],
+    effect: &str,
+    seen: &mut BTreeSet<String>,
+) -> Option<rewind::DiagnosticRecord> {
+    let mut route = None;
+    v05::expressions(body, &mut |expr| {
+        if route.is_some() {
+            return;
+        }
+        let operation = match &expr.kind {
+            ExprKind::Call(target, _) => {
+                if let ExprKind::Member(base, method) = &target.kind {
+                    if let ExprKind::Name(n) = &base.kind {
+                        built(n, method) == Some(effect)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            ExprKind::Unary(op, _) => effect == "tasks" && matches!(op.as_str(), "spawn" | "await"),
+            _ => false,
+        };
+        let mut record = rewind::DiagnosticRecord {
+            code: "MissingEffect".into(),
+            message: format!("operation requires effect {effect}"),
+            source: expr.at.source.clone(),
+            line: expr.at.line,
+            column: expr.at.col,
+            task_id: None,
+            causes: Vec::new(),
+            wait_edges: Vec::new(),
+        };
+        if operation {
+            route = Some(record);
+            return;
+        }
+        if let ExprKind::Call(target, _) = &expr.kind {
+            let name = match &target.kind {
+                ExprKind::Name(n) => Some(resolve_alias(program, n)),
+                ExprKind::Member(base, m) => {
+                    if let ExprKind::Name(n) = &base.kind {
+                        program.import_aliases.get(&format!("{n}.{m}")).cloned()
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            if let Some(name) = name {
+                let name = name.split('<').next().unwrap_or(&name).to_string();
+                if seen.len() < 128 && seen.insert(name.clone()) {
+                    if let Some(f) = program.functions.get(&name) {
+                        if let Some(cause) = effect_route(program, &f.body, effect, seen) {
+                            record.message = format!("{name} requires effect {effect}");
+                            record.causes.push(cause);
+                            route = Some(record);
+                        } else if function_effects(program, &name).contains(effect) {
+                            record.message = format!("{name} declares effect {effect}");
+                            route = Some(record);
+                        }
+                    }
+                    seen.remove(&name);
+                }
+            }
+        }
+    });
+    route
+}
+fn missing_effect(
+    program: &Program,
+    body: &[Stmt],
+    at: &Tok,
+    message: String,
+    effect: &str,
+) -> Error {
+    let mut record = match diagnostic(at, message) {
+        Error::Diagnostic(d) => *d,
+        _ => unreachable!(),
+    };
+    record.code = "MissingEffect".into();
+    if let Some(cause) = effect_route(program, body, effect, &mut BTreeSet::new()) {
+        record.causes.push(cause);
+    }
+    Error::Diagnostic(Box::new(record))
+}
 pub(in crate::v2) fn validate(program: &Program, config: &project::ProjectConfig) -> Result<()> {
     if let Some(e) = config.effects.iter().find(|e| !KNOWN.contains(&e.as_str())) {
         return Err(Error::InvalidOperation(format!("unknown effect {e}")));
@@ -475,6 +608,7 @@ pub(in crate::v2) fn validate(program: &Program, config: &project::ProjectConfig
         checker: globals,
         needs: BTreeSet::new(),
         depth: 0,
+        instances: BTreeSet::new(),
     };
     top.body(&program.stmts)?;
     let vars = top.checker.scopes.clone();
@@ -494,6 +628,7 @@ pub(in crate::v2) fn validate(program: &Program, config: &project::ProjectConfig
             },
             needs: BTreeSet::new(),
             depth: 0,
+            instances: BTreeSet::new(),
         };
         scan.checker.scopes.push(
             f.params
@@ -522,9 +657,12 @@ pub(in crate::v2) fn validate(program: &Program, config: &project::ProjectConfig
             .difference(&declared)
             .find(|e| e.as_str() != "publish")
         {
-            return Err(diagnostic(
+            return Err(missing_effect(
+                program,
+                &f.body,
                 &f.at,
-                format!("{name} -> operation: undeclared effect {e}"),
+                format!("{name}: undeclared effect {e}"),
+                e,
             ));
         }
         if scan.needs.contains("publish") && (f.asynchronous || f.origin != program.root_origin) {
@@ -569,9 +707,19 @@ pub(in crate::v2) fn validate(program: &Program, config: &project::ProjectConfig
     }
     top.needs.remove("publish");
     if let Some(e) = top.needs.difference(&config.effects).next() {
-        return Err(Error::InvalidOperation(format!(
-            "entry -> call -> operation: effect {e} is not allowed"
-        )));
+        let at = program.stmts.first().map(|s| s.at.clone()).unwrap_or(Tok {
+            source: String::new(),
+            text: String::new(),
+            line: 1,
+            col: 1,
+        });
+        return Err(missing_effect(
+            program,
+            &program.stmts,
+            &at,
+            format!("entry: effect {e} is not allowed"),
+            e,
+        ));
     }
     Ok(())
 }

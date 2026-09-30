@@ -2,7 +2,7 @@
 
 作成日: 2026-09-30。
 
-状態: **提案・未実装**。v0.5 の実装規則は [v0.5-status.md](v0.5-status.md) を参照する。以下の構文は確定していない。
+状態: **設計と実装の対応済み**。採用した構文・API・制限・互換表は [v0.6-status.md](v0.6-status.md) を参照する。以下は設計時の目的と完了条件を残す。
 
 ## 1. 目的と優先順位
 
@@ -22,7 +22,7 @@ v0.5 で所有権の検査、Frozen、関数効果、検証付き成果物、関
 暫定例:
 
 ```rewind
-fn apply<E>(f: fn(Int)->Int effects E, n:Int) -> Int effects E {
+fn apply<E:Effect>(f: fn(Int)->Int effects E, n:Int) -> Int effects E {
     return f(n);
 }
 ```
@@ -118,4 +118,4 @@ v0.5 のメモリ内モジュール解析キャッシュと成果物キャッシ
 
 VM のネットワーク、DB、FFI、OS 並列スレッド、子プロセス、GPU、デバイス、実時間タイマー、JIT はこの提案の必須要件に含めない。
 
-この文書は v0.6 の実装済み機能を示さない。
+実装で採用した具体的な範囲は [v0.6-status.md](v0.6-status.md) に記載する。

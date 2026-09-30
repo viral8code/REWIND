@@ -18,6 +18,8 @@ enum TaskBody {
     Send(u64, Value),
     Receive(u64),
     Join(u64),
+    Select(u64, u64),
+    Timeout(u64, u64, Option<u64>),
 }
 #[derive(Clone)]
 struct Context {
@@ -32,6 +34,8 @@ struct Context {
 }
 #[derive(Clone)]
 struct Task {
+    at: Tok,
+    timed_out: bool,
     observed: bool,
     ignored: bool,
     cancel_requested: bool,
@@ -53,6 +57,7 @@ struct Channel {
 #[derive(Clone)]
 pub(super) struct Scheduler {
     pub active: u64,
+    pub(super) ticks: u64,
     next_id: u64,
     tasks: BTreeMap<u64, Task>,
     channels: BTreeMap<u64, Channel>,
@@ -61,6 +66,13 @@ pub(super) struct Scheduler {
 impl Default for Scheduler {
     fn default() -> Self {
         let main = Task {
+            at: Tok {
+                source: String::new(),
+                text: String::new(),
+                line: 1,
+                col: 1,
+            },
+            timed_out: false,
             observed: true,
             ignored: false,
             cancel_requested: false,
@@ -75,6 +87,7 @@ impl Default for Scheduler {
         };
         Self {
             active: 0,
+            ticks: 0,
             next_id: 1,
             tasks: BTreeMap::from([(0, main)]),
             channels: BTreeMap::new(),
@@ -84,23 +97,32 @@ impl Default for Scheduler {
 }
 impl Scheduler {
     pub(super) fn wait_edges(&self) -> Vec<rewind::WaitEdge> {
-        self.tasks
-            .iter()
-            .filter_map(|(id, t)| {
-                let target = match (&t.phase, &t.body) {
-                    (TaskPhase::Waiting(on), _) => rewind::WaitTarget::Task(*on),
-                    (
-                        TaskPhase::WaitingChannel,
-                        TaskBody::Send(channel, _) | TaskBody::Receive(channel),
-                    ) => rewind::WaitTarget::Channel(*channel),
-                    (TaskPhase::WaitingChannel, TaskBody::Join(group)) => {
-                        rewind::WaitTarget::Group(*group)
-                    }
-                    _ => return None,
-                };
-                Some(rewind::WaitEdge { task: *id, target })
-            })
-            .collect()
+        let mut edges = Vec::new();
+        for (id, t) in &self.tasks {
+            let targets = match (&t.phase, &t.body) {
+                (TaskPhase::Waiting(on), _) => vec![rewind::WaitTarget::Task(*on)],
+                (
+                    TaskPhase::WaitingChannel,
+                    TaskBody::Send(channel, _) | TaskBody::Receive(channel),
+                ) => vec![rewind::WaitTarget::Channel(*channel)],
+                (TaskPhase::WaitingChannel, TaskBody::Join(group)) => {
+                    vec![rewind::WaitTarget::Group(*group)]
+                }
+                (TaskPhase::WaitingChannel, TaskBody::Select(a, b)) => {
+                    vec![rewind::WaitTarget::Task(*a), rewind::WaitTarget::Task(*b)]
+                }
+                (TaskPhase::WaitingChannel, TaskBody::Timeout(task, _, _)) => {
+                    vec![rewind::WaitTarget::Task(*task)]
+                }
+                _ => Vec::new(),
+            };
+            edges.extend(
+                targets
+                    .into_iter()
+                    .map(|target| rewind::WaitEdge { task: *id, target }),
+            );
+        }
+        edges
     }
     // A conservative logical byte count, including retained task contexts.
     // Checkpoint copies are charged separately by the VM; this is not RSS.
@@ -197,6 +219,13 @@ pub(super) fn handle_id(value: &Value) -> Option<u64> {
     None
 }
 impl<R: BufRead> Vm<R> {
+    pub(super) fn task_frame_views(&self) -> BTreeMap<String, serde_json::Value> {
+        self.scheduler.tasks.iter().map(|(id,t)| {
+            let frames = t.context.as_ref().map(|c| c.frames.as_slice()).unwrap_or(&[]);
+            (id.to_string(), serde_json::json!(frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|scope|scope.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>()})).collect::<Vec<_>>()))
+        }).collect()
+    }
+
     pub(super) fn cancel_children(&mut self, at: &Tok) -> Result<()> {
         let children = self
             .scheduler
@@ -259,6 +288,8 @@ impl<R: BufRead> Vm<R> {
         self.scheduler.tasks.insert(
             id,
             Task {
+                at: at.clone(),
+                timed_out: false,
                 observed: false,
                 ignored: false,
                 cancel_requested: false,
@@ -365,8 +396,27 @@ impl<R: BufRead> Vm<R> {
             .tasks
             .get_mut(&id)
             .ok_or_else(|| diagnostic(at, "unknown Task"))?;
-        if task.phase == TaskPhase::Cold {
+        let start = task.phase == TaskPhase::Cold;
+        if start {
             task.phase = TaskPhase::Ready;
+        }
+        let body = task.body.clone();
+        if start {
+            match body {
+                TaskBody::Select(left, right) => {
+                    self.start_task(&handle("Task<Unknown>".into(), left), at)?;
+                    self.start_task(&handle("Task<Unknown>".into(), right), at)?;
+                }
+                TaskBody::Timeout(target, budget, _) => {
+                    self.scheduler.tasks.get_mut(&id).unwrap().body = TaskBody::Timeout(
+                        target,
+                        budget,
+                        Some(self.scheduler.ticks.saturating_add(budget)),
+                    );
+                    self.start_task(&handle("Task<Unknown>".into(), target), at)?;
+                }
+                _ => {}
+            }
         }
         Ok(id)
     }
@@ -458,6 +508,39 @@ impl<R: BufRead> Vm<R> {
                         .ok_or_else(|| diagnostic(at, "unknown Task"))?
                         .ignored = true
                 }
+                ("timeout", [Value::Int(steps)]) if self.engine.program.language == "0.6" => {
+                    if *steps < 0 {
+                        return Err(self.error(at, "timeout steps must be nonnegative"));
+                    }
+                    return self
+                        .new_action(
+                            TaskBody::Timeout(id, *steps as u64, None),
+                            ty.strip_prefix("Task<")
+                                .unwrap()
+                                .strip_suffix('>')
+                                .unwrap()
+                                .into(),
+                            Vec::new(),
+                            at,
+                        )
+                        .map(Some);
+                }
+                ("select", [other]) if self.engine.program.language == "0.6" => {
+                    let other =
+                        handle_id(other).ok_or_else(|| self.error(at, "select requires a Task"))?;
+                    if !self.scheduler.tasks.contains_key(&other) {
+                        return Err(self.error(at, "unknown Task"));
+                    }
+                    let item = ty.strip_prefix("Task<").unwrap().strip_suffix('>').unwrap();
+                    return self
+                        .new_action(
+                            TaskBody::Select(id, other),
+                            format!("Tuple<Int,Result<{item},TaskError>>"),
+                            Vec::new(),
+                            at,
+                        )
+                        .map(Some);
+                }
                 ("cancel", []) => self.cancel_task(id, at)?,
                 ("requestCancel", []) if self.engine.program.language == "0.6" => {
                     let task = self
@@ -534,7 +617,7 @@ impl<R: BufRead> Vm<R> {
                         .map(Box::new)
                         .map_err(|e| {
                             Box::new(if self.engine.program.language == "0.6" {
-                                v06::diagnostics::task_error(&v06::diagnostics::record(
+                                v06::diagnostics::task_error(&self.record_error(
                                     &e,
                                     &Tok {
                                         source: String::new(),
@@ -574,9 +657,9 @@ impl<R: BufRead> Vm<R> {
                     }
                     .into(),
                     message: message.clone(),
-                    source: String::new(),
-                    line: 0,
-                    column: 0,
+                    source: task.at.source.clone(),
+                    line: task.at.line,
+                    column: task.at.col,
                     task_id: Some(id),
                     causes: vec![],
                     wait_edges: vec![],
@@ -596,6 +679,30 @@ impl<R: BufRead> Vm<R> {
                 .failure = Some(failure);
         }
     }
+    pub(super) fn expire_timeouts(&mut self, at: &Tok) -> Result<()> {
+        let expired = self
+            .scheduler
+            .tasks
+            .iter()
+            .filter_map(|(id, task)| {
+                if let TaskBody::Timeout(target, _, Some(deadline)) = task.body {
+                    if !task.timed_out
+                        && matches!(task.phase, TaskPhase::Ready | TaskPhase::WaitingChannel)
+                        && deadline <= self.scheduler.ticks
+                        && self.scheduler.tasks[&target].phase != TaskPhase::Done
+                    {
+                        return Some((*id, target));
+                    }
+                }
+                None
+            })
+            .collect::<Vec<_>>();
+        for (wrapper, target) in expired {
+            self.scheduler.tasks.get_mut(&wrapper).unwrap().timed_out = true;
+            self.cancel_task(target, at)?;
+        }
+        Ok(())
+    }
     fn pump_actions(&mut self) {
         loop {
             let mut progress = false;
@@ -611,7 +718,11 @@ impl<R: BufRead> Vm<R> {
                     && self.scheduler.tasks[id].cancel_requested
                     && matches!(
                         body,
-                        TaskBody::Send(..) | TaskBody::Receive(..) | TaskBody::Join(..)
+                        TaskBody::Send(..)
+                            | TaskBody::Receive(..)
+                            | TaskBody::Join(..)
+                            | TaskBody::Select(..)
+                            | TaskBody::Timeout(..)
                     )
                 {
                     self.complete_task(*id, Err("TaskCancelled".into()));
@@ -650,6 +761,55 @@ impl<R: BufRead> Vm<R> {
                             Some(Ok(value))
                         } else if c.closed {
                             Some(Err("ChannelClosed".into()))
+                        } else {
+                            None
+                        }
+                    }
+                    TaskBody::Select(left, right) => {
+                        let winner = [*left, *right].into_iter().enumerate().find(|(_, target)| {
+                            self.scheduler.tasks[target].phase == TaskPhase::Done
+                        });
+                        if let Some((index, target)) = winner {
+                            let result = self.task_result(target).unwrap();
+                            let ty = value_type(&result, &self.engine.runtime);
+                            Some(Ok(Value::Struct(
+                                format!("Tuple<Int,{ty}>"),
+                                BTreeMap::from([
+                                    ("_0".into(), Value::Int(index as i64)),
+                                    ("_1".into(), result),
+                                ]),
+                            )))
+                        } else {
+                            None
+                        }
+                    }
+                    TaskBody::Timeout(target, _, _) => {
+                        if self.scheduler.tasks[target].phase == TaskPhase::Done {
+                            self.scheduler.tasks.get_mut(target).unwrap().observed = true;
+                            if self.scheduler.tasks[id].timed_out {
+                                let at = self.scheduler.tasks[id].at.clone();
+                                let causes = self.scheduler.tasks[target]
+                                    .failure
+                                    .as_ref()
+                                    .map(|d| d.causes.clone())
+                                    .unwrap_or_default();
+                                self.scheduler.tasks.get_mut(id).unwrap().failure =
+                                    Some(rewind::DiagnosticRecord {
+                                        code: "LogicalTimeout".into(),
+                                        message: "logical timeout".into(),
+                                        source: at.source,
+                                        line: at.line,
+                                        column: at.col,
+                                        task_id: Some(*id),
+                                        causes,
+                                        wait_edges: vec![],
+                                    });
+                                Some(Err("logical timeout".into()))
+                            } else {
+                                self.scheduler.tasks.get_mut(id).unwrap().failure =
+                                    self.scheduler.tasks[target].failure.clone();
+                                self.scheduler.tasks[target].result.clone()
+                            }
                         } else {
                             None
                         }
@@ -740,7 +900,32 @@ impl<R: BufRead> Vm<R> {
             let context = self.capture_context();
             self.scheduler.tasks.get_mut(&active).unwrap().context = Some(context);
         }
+        self.expire_timeouts(at)?;
         self.pump_actions();
+        if !self.scheduler.tasks.values().any(|t| {
+            t.phase == TaskPhase::Ready && matches!(t.body, TaskBody::Main | TaskBody::Function(..))
+        }) {
+            if let Some(deadline) = self
+                .scheduler
+                .tasks
+                .values()
+                .filter(|t| {
+                    !t.timed_out && matches!(t.phase, TaskPhase::Ready | TaskPhase::WaitingChannel)
+                })
+                .filter_map(|t| {
+                    if let TaskBody::Timeout(_, _, deadline) = t.body {
+                        deadline
+                    } else {
+                        None
+                    }
+                })
+                .min()
+            {
+                self.scheduler.ticks = self.scheduler.ticks.max(deadline);
+                self.expire_timeouts(at)?;
+                self.pump_actions();
+            }
+        }
         let mut candidates = self
             .scheduler
             .tasks
@@ -1003,14 +1188,14 @@ impl<R: BufRead> Vm<R> {
             self.install_context(context)?;
             for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
                 if let Err(e) = self.run_cleanups(frame.defers, at) {
-                    failure.causes.push(v06::diagnostics::record(&e, at, id));
+                    failure.causes.push(self.record_error(&e, at, id));
                     error.push_str("; cleanup: ");
                     error.push_str(&e.to_string());
                 }
             }
             let cleanups = std::mem::take(&mut self.global_cleanups);
             if let Err(e) = self.run_cleanups(cleanups, at) {
-                failure.causes.push(v06::diagnostics::record(&e, at, id));
+                failure.causes.push(self.record_error(&e, at, id));
                 error.push_str("; cleanup: ");
                 error.push_str(&e.to_string());
             }

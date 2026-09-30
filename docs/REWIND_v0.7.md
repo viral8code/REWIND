@@ -2,15 +2,15 @@
 
 作成日: 2026-09-30。状態: **提案・草案・未実装**。
 
-v0.6 は開発途中であり、その未完了項目は [v0.6-status.md](v0.6-status.md) に残す。本書は v0.6 完了後の設計候補を整理する。採用する構文・互換性・実装順は v0.6 の検証結果を踏まえて確定する。
+v0.6 の実装範囲と制限は [v0.6-status.md](v0.6-status.md) に記載する。本書はその実装を前提に、次の設計候補を整理する。採用する構文・互換性・実装順は v0.6 の検証結果を踏まえて確定する。
 
-v0.6 では tuple の構築・型・フィールド参照、Iterator.enumerate/zip、明示的なクロージャーの value/move/borrow 捕捉が追加された。本書の pattern・寿命・公開契約の提案は、この実装を前提に検証する。
+v0.6 では tuple pattern・type alias・default method、公開 Send/Share 契約と一時借用捕捉、論理 timeout/select、整数 property test、増分 cache、更新 preview/apply、LSP 編集支援、source-free 記録 index と逆方向デバッグ、秘密入力と監査を実装した。本書の pattern・寿命・公開契約の提案は、この実装を前提に検証する。
 
 ## 1. モジュール境界で使える言語
 
 ### 不変データと pattern
 
-- immutable record、enum の payload、tuple の destructuring を統一する。
+- immutable record、enum の payload、v0.6 の tuple destructuring を統一する。
 - pattern による部分移動と借用の規則を定義し、分岐の網羅性・到達不能な arm を診断する。
 - const evaluation は純粋な式に限定し、実行手順・型展開・保存領域の予算を明示する。
 
@@ -44,8 +44,8 @@ v0.6 では tuple の構築・型・フィールド参照、Iterator.enumerate/z
 ## 4. 配布と開発環境
 
 - 独立した artifact/lock/trace の互換期間と変換ツールを定める。
-- language server の protocol test と editor integration example を提供する。
-- debugger の表示・探索を記録された観測だけで行い、複数 task の原因と仮想ファイル変更を同じ時間軸で調べられるようにする。
+- v0.6 の protocol test を拡充し、未完成ソースの意味解析・import alias の rename・editor integration example を整える。
+- v0.6 の記録 index に基づく debugger に、複数 task の原因木と仮想ファイル変更をまとめた時間軸 UI を追加する。
 - opt-in の暗号化 trace を導入する場合は、鍵の供給・認証付き暗号・nonce・復元に必要な情報を別仕様にする。
 
 完了条件: ソースなしの成果物について、実行・再生・デバッグの互換可否をコマンドで説明できる。暗号鍵と秘密値を repository や通常ログに保存しない。
