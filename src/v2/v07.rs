@@ -2,7 +2,7 @@ use super::*;
 use serde_json::{json, Value as Json};
 mod api;
 mod docs;
-pub(super) use api::{diff as api_diff, snapshot as api_snapshot};
+pub(super) use api::{convert as api_convert, diff as api_diff, snapshot as api_snapshot};
 pub(super) use docs::doctest;
 
 pub(super) fn validate_records(program: &Program) -> Result<()> {
@@ -15,13 +15,23 @@ pub(super) fn validate_records(program: &Program) -> Result<()> {
                 "record requires language 0.7".into(),
             ));
         }
-        if !record.type_params.is_empty() {
+        if !record.type_params.is_empty() && !program_v09(program) {
             return Err(Error::InvalidOperation(
                 "record generic parameters require explicit field contracts (not supported)".into(),
             ));
         }
+        if program_v09(program)
+            && record
+                .type_params
+                .iter()
+                .any(|p| record.bounds.get(p).map(String::as_str) != Some("Share"))
+        {
+            return Err(Error::InvalidOperation(
+                "generic record parameters require Share bounds".into(),
+            ));
+        }
         for (field, ty) in &record.fields {
-            if !v05::transfer_type(program, ty, true, &mut BTreeSet::new()) {
+            if !v05::transfer_bounded(program, ty, true, &record.bounds) {
                 return Err(Error::InvalidOperation(format!(
                     "record {name}.{field} requires a Share field; freeze mutable values"
                 )));
@@ -31,8 +41,11 @@ pub(super) fn validate_records(program: &Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn validate_constants(program: &Program) -> Result<()> {
+    constant_values(program).map(|_| ())
+}
+pub(in crate::v2) fn constant_values(program: &Program) -> Result<BTreeMap<String, Json>> {
     if !program_v07(program) {
-        return Ok(());
+        return Ok(BTreeMap::new());
     }
     let root = program.root_origin.parent().unwrap_or(Path::new("."));
     let mut engine = Engine::new(program.clone(), root, io::Cursor::new(Vec::<u8>::new()))?;
@@ -51,6 +64,7 @@ pub(super) fn validate_constants(program: &Program) -> Result<()> {
         bounds: BTreeMap::new(),
         origin: program.root_origin.clone(),
     };
+    let mut values = BTreeMap::new();
     for (stmt, origin) in program.stmts.iter().zip(&program.stmt_origins) {
         let StmtKind::Let(name, _, annotation, expr) = &stmt.kind else {
             continue;
@@ -161,12 +175,27 @@ pub(super) fn validate_constants(program: &Program) -> Result<()> {
                 ))
             }
         }
+        if program_v09(program) {
+            values.insert(
+                name.clone(),
+                v09::constant_digest(&engine, &engine.get(name).unwrap().value)?,
+            );
+        }
         checker.scopes[0].insert(name.clone(), (ty, false));
     }
-    Ok(())
+    Ok(values)
 }
 
 pub(super) fn timeline(path: &Path, start: usize, count: usize, task: Option<u64>) -> Result<()> {
+    println!("{}", timeline_data(path, start, count, task)?);
+    Ok(())
+}
+pub(in crate::v2) fn timeline_data(
+    path: &Path,
+    start: usize,
+    count: usize,
+    task: Option<u64>,
+) -> Result<Json> {
     if count > 1000 || fs::metadata(path)?.len() > 128 * 1024 * 1024 {
         return Err(Error::InvalidOperation("timeline budget exceeded".into()));
     }
@@ -195,9 +224,7 @@ pub(super) fn timeline(path: &Path, start: usize, count: usize, task: Option<u64
             .ok_or_else(|| Error::InvalidOperation("timeline requires an indexed trace".into()))?;
         rows.push(json!({"event":index,"instruction":event,"tasks":after["scheduler"]["tasks"],"files":v06::debug::delta(&before["runtime"]["file_deltas"],&after["runtime"]["file_deltas"])}));
     }
-    println!(
-        "{}",
-        json!({"format":1,"events":rows,"result":trace["result"],"audit":trace["audit"]})
-    );
-    Ok(())
+    Ok(
+        json!({"format":1,"schema":"rewind-timeline/v1","events":rows,"result":trace["result"],"audit":trace["audit"]}),
+    )
 }

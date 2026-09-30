@@ -1,13 +1,14 @@
 use super::*;
 use serde_json::{json, Value as Json};
 mod repl;
+pub(super) use repl::load as session_program;
 pub(super) use repl::repl;
 
 // Inspection never executes a program. Execution/replay still require the exact compiler.
 pub(in crate::v2) fn readable_trace(trace: &Json) -> bool {
     trace["format"] == 1
         && (trace["compiler"] == env!("CARGO_PKG_VERSION")
-            || (trace["compiler"] == "0.7.0" && trace["debug"]["index"]["format"] == 1))
+            || (trace["compiler"] == "0.8.0" && trace["debug"]["index"]["format"] == 1))
 }
 pub(in crate::v2) fn inspection_trace(mut value: Json) -> Result<Json> {
     if value["kind"] != "rewind-inspection" {
@@ -15,14 +16,17 @@ pub(in crate::v2) fn inspection_trace(mut value: Json) -> Result<Json> {
     }
     if value["format"] != 1
         || value["executable"] != false
-        || !matches!(value["source_compiler"].as_str(), Some("0.7.0" | "0.8.0"))
+        || !matches!(
+            value["source_compiler"].as_str(),
+            Some("0.7.0" | "0.8.0" | "0.9.0")
+        )
         || value["debug"]["index"]["format"] != 1
     {
         return Err(Error::InvalidOperation(
             "unsupported inspection bundle".into(),
         ));
     }
-    value["compiler"] = value["source_compiler"].clone();
+    value["compiler"] = json!(env!("CARGO_PKG_VERSION"));
     value["entry"] = json!("inspection.rw");
     value["fingerprint"] = value["source_sha256"].clone();
     value["artifact_sha256"] = value["source_sha256"].clone();

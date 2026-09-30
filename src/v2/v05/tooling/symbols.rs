@@ -323,7 +323,7 @@ impl<'a> Index<'a> {
                 .cloned()
                 .map(Ok)
                 .unwrap_or_else(|| fs::read_to_string(path))?;
-            tokens.insert(path.clone(), lex(&source)?);
+            tokens.insert(path.clone(), editor_tokens(&source, program_v09(p))?);
             sources.insert(path.clone(), source);
         }
         let mut index = Self {
@@ -482,7 +482,7 @@ pub(super) fn request(
     if method.ends_with("signatureHelp") {
         let text = &index.sources[path];
         let offset = utf16_offset(text, &params["position"])?;
-        let tokens = lex(&text[..offset])?;
+        let tokens = editor_tokens(&text[..offset], program_v09(p))?;
         let mut stack: Vec<(usize, usize)> = Vec::new();
         for (i, t) in tokens.iter().enumerate() {
             match t.text.as_str() {

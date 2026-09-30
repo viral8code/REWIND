@@ -7,6 +7,8 @@ pub(super) struct ProjectConfig {
     lock_imports: BTreeMap<String, PathBuf>,
     pub language: String,
     pub effects: BTreeSet<String>,
+    pub(super) production: bool,
+    blocked_sources: Vec<PathBuf>,
     versions: BTreeMap<String, String>,
     signers: BTreeMap<String, String>,
     trust: BTreeMap<String, String>,
@@ -42,7 +44,17 @@ fn inside(root: &Path, relative: &str) -> Result<PathBuf> {
 }
 impl ProjectConfig {
     pub(super) fn validate_module_effects(&self, program: &Program) -> Result<()> {
-        if self.language == "0.8" {
+        if program.included_modules.iter().any(|p| {
+            self.blocked_sources
+                .iter()
+                .any(|blocked| p.starts_with(blocked))
+        }) {
+            return Err(Error::InvalidOperation(
+                "development-only module requires a verified development graph".into(),
+            ));
+        }
+
+        if matches!(self.language.as_str(), "0.8" | "0.9") {
             for (name, path) in &self.lock_imports {
                 if !name.is_empty()
                     && !self.imports.contains_key(name)
@@ -92,6 +104,8 @@ impl ProjectConfig {
             imports: BTreeMap::new(),
             lock_imports: BTreeMap::new(),
             language: "0.5".into(),
+            production: false,
+            blocked_sources: Vec::new(),
             effects,
             versions: BTreeMap::new(),
             signers: BTreeMap::new(),
@@ -117,6 +131,7 @@ impl ProjectConfig {
         let source = fs::read_to_string(manifest)?;
         let mut section = "";
         let mut language = None;
+        let mut dependency_mode = String::new();
         let mut source_root = None;
         let mut entry = None;
         let mut deps = BTreeMap::new();
@@ -173,6 +188,7 @@ impl ProjectConfig {
             } else {
                 match key {
                     "language" => language = Some(value),
+                    "dependency_mode" => dependency_mode = value,
                     "source_root" => source_root = Some(value),
                     "entry" => entry = Some(value),
                     "revoked" => {
@@ -204,19 +220,56 @@ impl ProjectConfig {
             .ok_or_else(|| Error::InvalidOperation("rewind.toml: language is required".into()))?;
         if !matches!(
             language.as_str(),
-            "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+            "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
         ) {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
             )));
         }
-        if !dev_deps.is_empty() && language != "0.8" {
+        if !dev_deps.is_empty() && !matches!(language.as_str(), "0.8" | "0.9") {
             return Err(Error::InvalidOperation(
                 "dev_dependencies requires language 0.8".into(),
             ));
         }
+        let production = dependency_mode == "production";
+        if !dependency_mode.is_empty()
+            && (language != "0.9"
+                || !matches!(dependency_mode.as_str(), "production" | "development"))
+        {
+            return Err(Error::InvalidOperation(
+                "unsupported dependency_mode".into(),
+            ));
+        }
+        if production && (include_dev || latest) {
+            return Err(Error::InvalidOperation("production mode has no verified development graph; use development mode for test/update".into()));
+        }
+        let mut blocked_sources = Vec::new();
         let runtime_roots = deps.keys().cloned().collect::<BTreeSet<_>>();
         for (name, source) in dev_deps {
+            if production {
+                for candidate in source.split('|') {
+                    let relative = candidate
+                        .trim()
+                        .strip_prefix("file:")
+                        .unwrap_or(candidate.trim());
+                    let path = Path::new(relative);
+                    if path.is_absolute()
+                        || path
+                            .components()
+                            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+                    {
+                        return Err(Error::InvalidPath(relative.into()));
+                    }
+                    blocked_sources.push(root.join(path));
+                }
+                if deps.contains_key(&name) {
+                    return Err(Error::InvalidOperation(
+                        "duplicate runtime/dev dependency".into(),
+                    ));
+                }
+                registry.entry(name).or_insert(source);
+                continue;
+            }
             if deps.insert(name.clone(), source).is_some() {
                 return Err(Error::InvalidOperation(format!(
                     "duplicate runtime/dev dependency {name}"
@@ -231,7 +284,7 @@ impl ProjectConfig {
         let entry = inside(&source_root, &entry)?;
         let mut imports = BTreeMap::new();
         imports.insert(String::new(), source_root.clone());
-        if matches!(language.as_str(), "0.6" | "0.7" | "0.8")
+        if matches!(language.as_str(), "0.6" | "0.7" | "0.8" | "0.9")
             && deps
                 .values()
                 .chain(registry.values())
@@ -255,7 +308,7 @@ impl ProjectConfig {
                 }
                 imports.insert(name, full);
             }
-            if matches!(language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
+            if matches!(language.as_str(), "0.5" | "0.6" | "0.7" | "0.8" | "0.9") {
                 let mut inspected = BTreeSet::new();
                 loop {
                     let pending = imports
@@ -314,7 +367,7 @@ impl ProjectConfig {
             }
         }
         let lock_imports = imports.clone();
-        if language == "0.8" && !include_dev {
+        if matches!(language.as_str(), "0.8" | "0.9") && !include_dev {
             let mut reachable = runtime_roots;
             let mut pending = reachable.iter().cloned().collect::<Vec<_>>();
             while let Some(name) = pending.pop() {
@@ -334,7 +387,34 @@ impl ProjectConfig {
             }
             imports.retain(|name, _| name.is_empty() || reachable.contains(name));
         }
+        if production {
+            blocked_sources.retain(|p| !imports.values().any(|runtime| runtime == p));
+            let lock: serde_json::Value =
+                serde_json::from_slice(&fs::read(root.join("rewind.lock"))?)
+                    .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            if let Some(entries) = lock["dependencies"].as_object() {
+                for (name, entry) in entries {
+                    if imports.contains_key(name) {
+                        continue;
+                    }
+                    let relative = entry["source"]
+                        .as_str()
+                        .ok_or_else(|| Error::InvalidOperation("invalid locked source".into()))?;
+                    let path = Path::new(relative);
+                    if path.is_absolute()
+                        || path
+                            .components()
+                            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+                    {
+                        return Err(Error::InvalidPath(relative.into()));
+                    }
+                    blocked_sources.push(root.join(path));
+                }
+            }
+        }
         Ok(Some(Self {
+            production,
+            blocked_sources,
             lock_imports,
             source_root,
             entry,
@@ -385,7 +465,7 @@ impl ProjectConfig {
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
         if matches!(
             self.language.as_str(),
-            "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+            "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
         ) {
             return self.secure_lock(root, update);
         }
@@ -410,6 +490,14 @@ impl ProjectConfig {
             ));
         }
         Ok(())
+    }
+    pub(super) fn execution_lock_hash(&self, root: &Path) -> Result<String> {
+        if self.production {
+            self.lock(root, false)?;
+            Ok(packages::hash(self.lock_document(root)?))
+        } else {
+            Ok(packages::hash(fs::read(root.join("rewind.lock"))?))
+        }
     }
     pub(super) fn lock_document(&self, root: &Path) -> Result<String> {
         use ed25519_dalek::{Signature, VerifyingKey};
@@ -483,7 +571,10 @@ impl ProjectConfig {
                 }
             }
             let mut selected = serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()});
-            if matches!(self.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
+            if matches!(
+                self.language.as_str(),
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+            ) {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
                     .get("dependencies")
@@ -498,12 +589,36 @@ impl ProjectConfig {
     }
     fn secure_lock(&self, root: &Path, update: bool) -> Result<()> {
         let expected = self.lock_document(root)?;
+        if self.production {
+            let actual: serde_json::Value =
+                serde_json::from_slice(&fs::read(root.join("rewind.lock"))?)
+                    .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            let verified: serde_json::Value = serde_json::from_str(&expected)
+                .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            if ["format", "language", "compiler", "effects"]
+                .iter()
+                .any(|key| actual[key] != verified[key])
+                || verified["dependencies"]
+                    .as_object()
+                    .unwrap()
+                    .iter()
+                    .any(|(name, entry)| actual["dependencies"][name] != *entry)
+            {
+                return Err(Error::InvalidOperation(
+                    "production runtime lock mismatch".into(),
+                ));
+            }
+            return Ok(());
+        }
         let parsed: serde_json::Value =
             serde_json::from_str(&expected).map_err(|e| Error::InvalidOperation(e.to_string()))?;
         let dependencies = parsed["dependencies"].as_object().unwrap();
         let path = root.join("rewind.lock");
         if update {
-            if matches!(self.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
+            if matches!(
+                self.language.as_str(),
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9"
+            ) {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()
                     .and_then(|b| serde_json::from_slice(&b).ok())

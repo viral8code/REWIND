@@ -1,3 +1,5 @@
+v0.9 adds multiline REPL sessions with verified transcripts, API contracts for implementations and dependencies, production-only installs, Share generic records, ordered property shrinkers, and signed inspection timelines. Select `language = "0.9"`; see [implementation and limits](docs/v0.9-status.md) and the [v0.9.1 application proposal](docs/REWIND_v0.9.1.md).
+
 v0.8 adds signed development dependencies, a transactional virtual-I/O REPL, one-generation read-only trace compatibility, and non-executable inspection exports. Select `language = "0.8"`; see [commands and limits](docs/v0.8-status.md) and the [v0.9 proposal](docs/REWIND_v0.9.md).
 
 v0.7 adds immutable records, checked pure constants, public API snapshots/diffs, isolated documentation examples, typed property generators, and source-free timelines. Select `language = "0.7"`; see [implementation and limits](docs/v0.7-status.md) and the [v0.8 proposal](docs/REWIND_v0.8.md).

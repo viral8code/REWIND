@@ -48,7 +48,10 @@ impl Flow<'_> {
         Ok(())
     }
     fn closure_names(&self, params: &[(String, String)], body: &[Stmt]) -> BTreeSet<String> {
-        if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+        if matches!(
+            self.program.language.as_str(),
+            "0.6" | "0.7" | "0.8" | "0.9"
+        ) {
             v06::captures::names(&self.checker(), params, body)
         } else {
             free_names(body, params)
@@ -148,7 +151,10 @@ impl Flow<'_> {
                 .iter()
                 .any(|target| Self::overlaps(target, n))
                 || v.borrow.as_ref().is_some_and(|(target, _)| {
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+                    if matches!(
+                        self.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) {
                         Self::overlaps(target, n)
                     } else {
                         target == n
@@ -157,7 +163,10 @@ impl Flow<'_> {
         })
     }
     fn use_name(&self, n: &str, at: &Tok) -> Result<()> {
-        if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+        if matches!(
+            self.program.language.as_str(),
+            "0.6" | "0.7" | "0.8" | "0.9"
+        ) {
             return self.use_place(n, at);
         }
         if self.vars.get(n).is_some_and(|v| v.moved) {
@@ -184,12 +193,14 @@ impl Flow<'_> {
                 let ExprKind::Closure(params, _, body) = &inner.kind else {
                     return Err(diagnostic(&e.at, "capture requires a closure"));
                 };
-                let mut captured =
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
-                        v06::captures::names(&self.checker(), params, body)
-                    } else {
-                        free_names(body, params)
-                    };
+                let mut captured = if matches!(
+                    self.program.language.as_str(),
+                    "0.6" | "0.7" | "0.8" | "0.9"
+                ) {
+                    v06::captures::names(&self.checker(), params, body)
+                } else {
+                    free_names(body, params)
+                };
                 for name in captured.clone() {
                     captured.extend(needed_globals(self.program, &name));
                 }
@@ -249,7 +260,10 @@ impl Flow<'_> {
             }
             ExprKind::Name(n) => self.use_name(n, &e.at)?,
             ExprKind::Unary(op, v) if op == "move" => {
-                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+                if matches!(
+                    self.program.language.as_str(),
+                    "0.6" | "0.7" | "0.8" | "0.9"
+                ) {
                     if let Some(place) = Self::place(v).filter(|p| p.contains('.')) {
                         self.use_place(&place, &e.at)?;
                         if self.borrowed(&place) {
@@ -280,7 +294,10 @@ impl Flow<'_> {
                 }
             }
             ExprKind::Unary(op, v) if matches!(op.as_str(), "borrow" | "borrowMut") => {
-                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+                if matches!(
+                    self.program.language.as_str(),
+                    "0.6" | "0.7" | "0.8" | "0.9"
+                ) {
                     if let Some(place) = Self::place(v) {
                         self.use_place(&place, &e.at)?;
                         if op == "borrowMut" && self.borrowed(&place) {
@@ -330,8 +347,10 @@ impl Flow<'_> {
                 self.expr(v)?;
             }
             ExprKind::Member(_, _)
-                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
-                    && Self::place(e).is_some() =>
+                if matches!(
+                    self.program.language.as_str(),
+                    "0.6" | "0.7" | "0.8" | "0.9"
+                ) && Self::place(e).is_some() =>
             {
                 self.use_place(&Self::place(e).unwrap(), &e.at)?
             }
@@ -341,7 +360,10 @@ impl Flow<'_> {
                 self.expr(b)?;
             }
             ExprKind::Call(target, args) => {
-                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+                if matches!(
+                    self.program.language.as_str(),
+                    "0.6" | "0.7" | "0.8" | "0.9"
+                ) {
                     if matches!(&target.kind,ExprKind::Unary(op,_) if op=="$capture:borrow") {
                         return Err(diagnostic(
                             &target.at,
@@ -477,7 +499,10 @@ impl Flow<'_> {
                             .functions
                             .get(resolved.split('<').next().unwrap_or(&resolved))
                     }
-                } else if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+                } else if matches!(
+                    self.program.language.as_str(),
+                    "0.6" | "0.7" | "0.8" | "0.9"
+                ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         self.checker().expr(base).ok().and_then(|ty| {
                             matching_methods(self.program, &ty, method)
@@ -524,8 +549,10 @@ impl Flow<'_> {
                                 .as_ref()
                                 .and_then(|(p, _)| p.get(index).map(String::as_str))
                         });
-                    let borrowing = matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
-                        && expected.is_some_and(|t| t.starts_with('&'));
+                    let borrowing = matches!(
+                        self.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) && expected.is_some_and(|t| t.starts_with('&'));
                     if borrowing {
                         if asynchronous || send {
                             return Err(diagnostic(
@@ -726,7 +753,7 @@ impl Flow<'_> {
                             ));
                         }
                     } else if (function.is_some()
-                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple" || matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") && (n=="secret"||n=="reveal")))
+                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple" || matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") && (n=="secret"||n=="reveal")))
                         && !self.shareable(arg)
                         && matches!(&arg.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
                     {
@@ -769,11 +796,13 @@ impl Flow<'_> {
                 }
                 nested.body(body)?;
                 for n in super::names(body) {
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
-                        && self
-                            .vars
-                            .get(&n)
-                            .is_some_and(|v| v.moved || !v.moved_fields.is_empty())
+                    if matches!(
+                        self.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) && self
+                        .vars
+                        .get(&n)
+                        .is_some_and(|v| v.moved || !v.moved_fields.is_empty())
                     {
                         return Err(diagnostic(
                             &e.at,
@@ -805,7 +834,7 @@ impl Flow<'_> {
                                 capture_borrows: BTreeSet::new(),
                                 borrow: if matches!(
                                     self.program.language.as_str(),
-                                    "0.6" | "0.7" | "0.8"
+                                    "0.6" | "0.7" | "0.8" | "0.9"
                                 ) && !self.transfer_ty(&ty, true)
                                 {
                                     Self::place(v).map(|p| (p, false))
@@ -836,8 +865,10 @@ impl Flow<'_> {
                     {
                         return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
                     }
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
-                        && self.checker().expr(v).is_ok_and(|t| t.starts_with('&'))
+                    if matches!(
+                        self.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) && self.checker().expr(v).is_ok_and(|t| t.starts_with('&'))
                     {
                         return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
                     }
@@ -889,7 +920,7 @@ impl Flow<'_> {
                                 Some((n.clone(), op == "borrowMut"))
                             } else if matches!(
                                 self.program.language.as_str(),
-                                "0.6" | "0.7" | "0.8"
+                                "0.6" | "0.7" | "0.8" | "0.9"
                             ) {
                                 Self::place(v).map(|p| (p, op == "borrowMut"))
                             } else {
@@ -927,8 +958,10 @@ impl Flow<'_> {
                     } else {
                         BTreeSet::new()
                     };
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
-                        && borrow.is_none()
+                    if matches!(
+                        self.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) && borrow.is_none()
                         && !shareable
                     {
                         super::expressions(
@@ -1021,8 +1054,10 @@ impl Flow<'_> {
                 }
                 StmtKind::Expr(e) | StmtKind::Defer(e) => self.expr(e)?,
                 StmtKind::Return(Some(e)) => {
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
-                        && !self.shareable(e)
+                    if matches!(
+                        self.program.language.as_str(),
+                        "0.6" | "0.7" | "0.8" | "0.9"
+                    ) && !self.shareable(e)
                     {
                         let mut borrowed = false;
                         super::expressions(
@@ -1156,7 +1191,7 @@ impl Flow<'_> {
                                     capture_borrows: BTreeSet::new(),
                                     borrow: if matches!(
                                         self.program.language.as_str(),
-                                        "0.6" | "0.7" | "0.8"
+                                        "0.6" | "0.7" | "0.8" | "0.9"
                                     ) && !self.transfer_ty(&t, true)
                                     {
                                         Self::place(e).map(|p| (p, false))
@@ -1221,7 +1256,8 @@ pub(super) fn validate(program: &Program) -> Result<()> {
     };
     flow.body(&program.stmts)?;
     for (function_name, f) in &program.functions {
-        if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") && f.ret.contains('&') {
+        if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9") && f.ret.contains('&')
+        {
             return Err(diagnostic(&f.at, "borrowed return types are not supported"));
         }
         let mut flow = flow.clone();
@@ -1242,7 +1278,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                     moved: false,
                     moved_fields: BTreeSet::new(),
                     capture_borrows: BTreeSet::new(),
-                    borrow: if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8")
+                    borrow: if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9")
                         && ty.starts_with('&')
                     {
                         Some((format!("$parameter:{n}"), ty.starts_with("&mut ")))

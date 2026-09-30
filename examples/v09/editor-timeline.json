@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"method":"rewind/timeline","params":{"uri":"file:///ABSOLUTE_PATH/session.json","from":0,"count":100,"task":0}}

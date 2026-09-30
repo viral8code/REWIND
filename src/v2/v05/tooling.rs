@@ -83,7 +83,7 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
     prepare(&mut program)?;
     check_program(&program)?;
     if let Some(c) = &config {
-        if matches!(c.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
+        if matches!(c.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8" | "0.9") {
             validate(&program, c)?;
         } else if c.language == "0.4" {
             effects::validate(&program, c)?;
@@ -157,8 +157,10 @@ pub fn lsp(root: &Path) -> Result<()> {
     let mut output = stdout.lock();
     let mut documents: BTreeMap<PathBuf, String> = BTreeMap::new();
     let mut versions: BTreeMap<PathBuf, i64> = BTreeMap::new();
+    let modern = project::ProjectConfig::load(root)?.is_some_and(|c| c.language == "0.9");
+    let mut checked: BTreeMap<PathBuf, Program> = BTreeMap::new();
     let incremental = project::ProjectConfig::load(root)?
-        .is_some_and(|c| matches!(c.language.as_str(), "0.6" | "0.7" | "0.8"));
+        .is_some_and(|c| matches!(c.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9"));
     let mut shutdown = false;
     loop {
         let mut length = None;
@@ -194,7 +196,7 @@ pub fn lsp(root: &Path) -> Result<()> {
         let response = (|| -> Result<Json> {
             match method {
                 "initialize" => Ok(
-                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
+                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental,"experimental":{"rewindTimeline":modern,"provisionalDeclarations":modern}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
                 ),
                 "shutdown" => {
                     shutdown = true;
@@ -211,6 +213,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                     }
                     if method.ends_with("didClose") {
                         documents.remove(&path);
+                        checked.remove(&path);
                         versions.remove(&path);
                         send(
                             &mut output,
@@ -272,7 +275,10 @@ pub fn lsp(root: &Path) -> Result<()> {
                     documents.insert(path.clone(), text.clone());
                     versions.insert(path.clone(), version);
                     let diagnostics = match workspace_program(root, &path, &documents) {
-                        Ok(_) => Vec::new(),
+                        Ok(p) => {
+                            checked.insert(path.clone(), p);
+                            Vec::new()
+                        }
                         Err(e) => symbols::diagnostics(root, &path, &text, &e),
                     };
                     send(
@@ -294,16 +300,30 @@ pub fn lsp(root: &Path) -> Result<()> {
                     if !path.starts_with(fs::canonicalize(root)?) {
                         return Err(Error::InvalidPath(path.display().to_string()));
                     }
-                    let p = match workspace_program(root, &path, &documents) {
+                    let loaded = workspace_program(root, &path, &documents);
+                    let provisional = loaded.is_err();
+                    let p = match loaded {
                         Ok(p) => p,
                         Err(_) if method.ends_with("signatureHelp") => {
-                            let mut saved = documents.clone();
-                            saved.remove(&path);
-                            workspace_program(root, &path, &saved)?
+                            if modern {
+                                checked.get(&path).cloned().map(Ok).unwrap_or_else(|| {
+                                    let mut saved = documents.clone();
+                                    saved.remove(&path);
+                                    workspace_program(root, &path, &saved)
+                                })?
+                            } else {
+                                let mut saved = documents.clone();
+                                saved.remove(&path);
+                                workspace_program(root, &path, &saved)?
+                            }
                         }
                         Err(e) => return Err(e),
                     };
-                    symbols::request(root, method, &p, &path, params, &documents)
+                    let mut result = symbols::request(root, method, &p, &path, params, &documents)?;
+                    if modern && method.ends_with("signatureHelp") && result.is_object() {
+                        result["data"] = json!({"provisional":provisional});
+                    }
+                    Ok(result)
                 }
                 "textDocument/codeAction" => {
                     if !incremental {
@@ -318,10 +338,25 @@ pub fn lsp(root: &Path) -> Result<()> {
                     if !path.starts_with(fs::canonicalize(root)?) {
                         return Err(Error::InvalidPath(path.display().to_string()));
                     }
-                    let p = if incremental {
-                        workspace_program(root, &path, &documents)?
+                    let loaded = if incremental {
+                        workspace_program(root, &path, &documents)
                     } else {
-                        program(root, &path, &documents)?
+                        program(root, &path, &documents)
+                    };
+                    let provisional = loaded.is_err();
+                    let p = match loaded {
+                        Ok(p) => {
+                            checked.insert(path.clone(), p.clone());
+                            p
+                        }
+                        Err(_) if modern && !method.ends_with("definition") => {
+                            checked.get(&path).cloned().map(Ok).unwrap_or_else(|| {
+                                let mut saved = documents.clone();
+                                saved.remove(&path);
+                                workspace_program(root, &path, &saved)
+                            })?
+                        }
+                        Err(e) => return Err(e),
                     };
                     if incremental && method.ends_with("definition") {
                         return symbols::request(root, method, &p, &path, params, &documents);
@@ -347,7 +382,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                         return Ok(Json::Array(
                             names
                                 .into_iter()
-                                .map(|n| json!({"label":n,"kind":3}))
+                                .map(|n| json!({"label":n,"kind":3,"data":{"provisional":provisional},"detail":if provisional {"last checked declaration"}else{"checked declaration"}}))
                                 .collect(),
                         ));
                     }
@@ -368,7 +403,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                         utf16 += c.len_utf16();
                         char_column += 1;
                     }
-                    let token = lex(&source)?.into_iter().find(|t| {
+                    let token = editor_tokens(&source, modern)?.into_iter().find(|t| {
                         t.line == line + 1
                             && t.col <= char_column + 1
                             && t.col + t.text.chars().count() > char_column + 1
@@ -418,7 +453,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                         if method.ends_with("hover") {
                             if let Some((ty, _)) = checker.find(&token.text) {
                                 return Ok(
-                                    json!({"contents":{"kind":"markdown","value":format!("`{}: {ty}`",token.text)}}),
+                                    json!({"contents":{"kind":"markdown","value":format!("`{}: {ty}`{}",token.text,if provisional {" (last checked declaration)"}else{""})}}),
                                 );
                             }
                         }
@@ -440,7 +475,38 @@ pub fn lsp(root: &Path) -> Result<()> {
                         );
                     }
                     Ok(
-                        json!({"contents":{"kind":"markdown","value":format!("`{}fn {}({}) -> {} effects {:?}`",if f.asynchronous {"async "}else{""},token.text,f.params.iter().map(|(n,t)|format!("{n}: {t}")).collect::<Vec<_>>().join(", "),f.ret,f.effects)}}),
+                        json!({"contents":{"kind":"markdown","value":format!("`{}fn {}({}) -> {} effects {:?}`{}",if f.asynchronous {"async "}else{""},token.text,f.params.iter().map(|(n,t)|format!("{n}: {t}")).collect::<Vec<_>>().join(", "),f.ret,f.effects,if provisional {" (last checked declaration)"}else{""})}}),
+                    )
+                }
+                "rewind/timeline" if modern => {
+                    let path = document_path(params["uri"].as_str().unwrap_or(""))?;
+                    if !path.starts_with(fs::canonicalize(root)?) {
+                        return Err(Error::InvalidPath(path.display().to_string()));
+                    }
+                    if fs::metadata(&path)?.len() > 128 * 1024 * 1024 {
+                        return Err(Error::InvalidOperation(
+                            "timeline trace exceeds budget".into(),
+                        ));
+                    }
+                    if let Some(key) = params["publicKey"].as_str() {
+                        let trace: Json = serde_json::from_slice(&fs::read(&path)?)
+                            .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+                        packages::verify_file(
+                            &path,
+                            &PathBuf::from(format!("{}.signature", path.display())),
+                            key,
+                            if trace["kind"] == "rewind-inspection" {
+                                "inspection"
+                            } else {
+                                "trace"
+                            },
+                        )?;
+                    }
+                    v07::timeline_data(
+                        &path,
+                        params["from"].as_u64().unwrap_or(0) as usize,
+                        params["count"].as_u64().unwrap_or(100) as usize,
+                        params["task"].as_u64(),
                     )
                 }
                 "initialized" => Ok(Json::Null),
@@ -489,6 +555,11 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
     }
     let trace: Json = serde_json::from_slice(&fs::read(path)?)
         .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+    let signature_kind = if trace["kind"] == "rewind-inspection" {
+        "inspection"
+    } else {
+        "trace"
+    };
     let trace = v08::inspection_trace(trace)?;
     if !v08::readable_trace(&trace) {
         return Err(Error::InvalidOperation(
@@ -501,7 +572,7 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
             path,
             &PathBuf::from(format!("{}.signature", path.display())),
             key,
-            "trace",
+            signature_kind,
         )?;
     }
     let entry = trace["entry"]
@@ -682,4 +753,14 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
         output.flush()?;
     }
     Ok(())
+}
+
+fn editor_tokens(source: &str, modern: bool) -> Result<Vec<Tok>> {
+    lex(source).or_else(|e| {
+        if modern {
+            lex(&format!("{source}\"")).or_else(|_| lex(&format!("{source}*/")))
+        } else {
+            Err(e)
+        }
+    })
 }

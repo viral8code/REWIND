@@ -99,9 +99,9 @@ fn file_message(path: &Path, kind: &str) -> Result<String> {
             "signed file exceeds 128 MiB budget".into(),
         ));
     }
-    if !matches!(kind, "artifact" | "trace") {
+    if !matches!(kind, "artifact" | "trace" | "inspection" | "session") {
         return Err(Error::InvalidOperation(
-            "signature kind must be artifact or trace".into(),
+            "signature kind must be artifact, trace, inspection or session".into(),
         ));
     }
     Ok(format!(

@@ -1,0 +1,7 @@
+pub record Box<T:Share>{value:T}
+pub const FOUR:Int=2+2;
+fn same<T:Share>(box:Box<T>)->Box<T> effects {}{return box;}
+let box=Box(FOUR);
+assert_eq(same(box).value,4);
+Out.println(box.value);
+publish;

@@ -1,5 +1,18 @@
 use super::*;
 impl<R: BufRead> Vm<R> {
+    fn property_key(&self, value: &Value, at: &Tok) -> Result<String> {
+        if program_v09(&self.engine.program) {
+            let digest = v09::constant_digest(&self.engine, value)?;
+            return digest
+                .as_str()
+                .map(str::to_string)
+                .ok_or_else(|| self.error(at, "invalid property value digest"));
+        }
+        Ok(packages::hash(
+            serde_json::to_vec(value).map_err(|e| self.error(at, e.to_string()))?,
+        ))
+    }
+
     fn callback(&mut self, f: Value, args: Vec<Value>, at: &Tok) -> Result<Value> {
         let depth = self.frames.len();
         let old = self.callback_stop;
@@ -46,7 +59,12 @@ impl<R: BufRead> Vm<R> {
             _ => None,
         })
     }
-    pub(super) fn property_case(&mut self, args: &[Value], at: &Tok) -> Result<Value> {
+    pub(super) fn property_case(
+        &mut self,
+        args: &[Value],
+        at: &Tok,
+        multiple: bool,
+    ) -> Result<Value> {
         let [Value::Int(seed), Value::Int(cases), generator, shrinker, predicate] = args else {
             return Err(self.error(at, "invalid property arguments"));
         };
@@ -66,24 +84,55 @@ impl<R: BufRead> Vm<R> {
             }
             let mut seen = BTreeSet::new();
             let mut shrinks = 0;
-            for _ in 0..64 {
-                let key = packages::hash(
-                    serde_json::to_vec(&input).map_err(|e| self.error(at, e.to_string()))?,
-                );
-                if !seen.insert(key) {
-                    break;
+            let mut evaluations = 0;
+            seen.insert(self.property_key(&input, at)?);
+            while evaluations < 64 {
+                let generated = self.callback(shrinker.clone(), vec![input.clone()], at)?;
+                let candidates = if multiple {
+                    let value = v05::unfrozen(&generated)
+                        .ok_or_else(|| self.error(at, "shrinker must return Frozen<List<T>>"))?;
+                    let value = if let Value::HeapRef(id) = value {
+                        self.engine
+                            .runtime
+                            .heap_get(*id)
+                            .cloned()
+                            .ok_or_else(|| self.error(at, "missing candidate list"))?
+                    } else {
+                        value.clone()
+                    };
+                    match value {
+                        Value::TypedList(_, items) | Value::List(items) if items.len() <= 64 => {
+                            items
+                        }
+                        _ => return Err(self.error(at, "shrinker candidates exceed budget (64)")),
+                    }
+                } else {
+                    vec![generated]
+                };
+                let mut next = None;
+                for candidate in candidates {
+                    let key = self.property_key(&candidate, at)?;
+                    if !seen.insert(key) {
+                        continue;
+                    }
+                    if evaluations >= 64 {
+                        break;
+                    }
+                    evaluations += 1;
+                    if self.callback(predicate.clone(), vec![candidate.clone()], at)?
+                        == Value::Bool(false)
+                    {
+                        next = Some(candidate);
+                        break;
+                    }
                 }
-                let candidate = self.callback(shrinker.clone(), vec![input.clone()], at)?;
-                if candidate == input
-                    || self.callback(predicate.clone(), vec![candidate.clone()], at)?
-                        == Value::Bool(true)
-                {
+                let Some(candidate) = next else {
                     break;
-                }
+                };
                 input = candidate;
                 shrinks += 1;
             }
-            self.audit.push(serde_json::json!({"kind":"propertyFailure","source":at.source,"line":at.line,"column":at.col,"task":self.scheduler.active,"event":self.events.len(),"seed":seed,"case":case,"shrinks":shrinks,"input":self.engine.runtime.masked_value(&input)}));
+            self.audit.push(serde_json::json!({"kind":"propertyFailure","source":at.source,"line":at.line,"column":at.col,"task":self.scheduler.active,"event":self.events.len(),"seed":seed,"case":case,"shrinks":shrinks,"evaluations":evaluations,"strategy":if multiple {"ordered-candidates-v1"}else{"single-v1"},"input":self.engine.runtime.masked_value(&input)}));
             let ty = value_type(&input, &self.engine.runtime);
             return Ok(Value::Result(Err(Box::new(Value::Struct(
                 format!("PropertyCase<{ty}>"),
