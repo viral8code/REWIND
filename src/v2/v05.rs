@@ -35,7 +35,7 @@ pub(super) mod pairs {
 
 pub(super) fn prepare(program: &mut Program) -> Result<()> {
     v06::language::prepare(program)?;
-    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7") {
+    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
         return Ok(());
     }
     for name in [
@@ -68,7 +68,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             "TaskError and Diagnostic are reserved standard types".into(),
         ));
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7")
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8")
         && ["WaitEdge", "WaitTarget", "Tuple"]
             .iter()
             .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
@@ -133,7 +133,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             origin: program.root_origin.clone(),
         },
     );
-    if matches!(program.language.as_str(), "0.6" | "0.7") {
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
         program
             .enums
             .get_mut("TaskError")
@@ -348,7 +348,7 @@ pub(super) fn task_error(error: &str) -> Value {
 
 pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Result<()> {
     ownership::validate(program)?;
-    if matches!(program.language.as_str(), "0.6" | "0.7") {
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
         return v06::validate(program, config);
     }
     capabilities::validate(program, config)
@@ -655,7 +655,7 @@ pub(super) fn transfer_type(
         return true;
     }
     if ty.starts_with("fn(") {
-        return if matches!(program.language.as_str(), "0.6" | "0.7") {
+        return if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
         } else {
             !shared
@@ -670,7 +670,7 @@ pub(super) fn transfer_type(
     if let Some(t) = ty.strip_prefix("Secret<").and_then(|s| s.strip_suffix('>')) {
         return transfer_type(program, t, shared, seen);
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7") {
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
                 .iter()
@@ -973,7 +973,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     }
                 }
             });
-            if matches!(program.language.as_str(), "0.6" | "0.7") {
+            if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
                 let checker = Checker {
                     program,
                     scopes: vec![BTreeMap::new()],

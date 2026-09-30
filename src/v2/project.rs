@@ -4,6 +4,7 @@ pub(super) struct ProjectConfig {
     pub source_root: PathBuf,
     pub entry: PathBuf,
     pub imports: BTreeMap<String, PathBuf>,
+    lock_imports: BTreeMap<String, PathBuf>,
     pub language: String,
     pub effects: BTreeSet<String>,
     versions: BTreeMap<String, String>,
@@ -41,6 +42,22 @@ fn inside(root: &Path, relative: &str) -> Result<PathBuf> {
 }
 impl ProjectConfig {
     pub(super) fn validate_module_effects(&self, program: &Program) -> Result<()> {
+        if self.language == "0.8" {
+            for (name, path) in &self.lock_imports {
+                if !name.is_empty()
+                    && !self.imports.contains_key(name)
+                    && program
+                        .included_modules
+                        .iter()
+                        .any(|module| module.starts_with(path))
+                {
+                    return Err(Error::InvalidOperation(format!(
+                        "development-only module {name} requires test/doctest"
+                    )));
+                }
+            }
+        }
+
         for (name, path) in &self.imports {
             if name.is_empty() {
                 continue;
@@ -73,6 +90,7 @@ impl ProjectConfig {
             source_root: root.into(),
             entry,
             imports: BTreeMap::new(),
+            lock_imports: BTreeMap::new(),
             language: "0.5".into(),
             effects,
             versions: BTreeMap::new(),
@@ -82,12 +100,15 @@ impl ProjectConfig {
         }
     }
     pub fn load(root: &Path) -> Result<Option<Self>> {
-        Self::load_mode(root, false)
+        Self::load_mode(root, false, false)
     }
     pub(super) fn load_for_update(root: &Path) -> Result<Option<Self>> {
-        Self::load_mode(root, true)
+        Self::load_mode(root, true, true)
     }
-    fn load_mode(root: &Path, latest: bool) -> Result<Option<Self>> {
+    pub(super) fn load_for_test(root: &Path) -> Result<Option<Self>> {
+        Self::load_mode(root, false, true)
+    }
+    fn load_mode(root: &Path, latest: bool, include_dev: bool) -> Result<Option<Self>> {
         let root = fs::canonicalize(root)?;
         let manifest = root.join("rewind.toml");
         if !manifest.exists() {
@@ -99,6 +120,7 @@ impl ProjectConfig {
         let mut source_root = None;
         let mut entry = None;
         let mut deps = BTreeMap::new();
+        let mut dev_deps = BTreeMap::new();
         let mut effects = BTreeSet::new();
         let mut versions = BTreeMap::new();
         let mut signers = BTreeMap::new();
@@ -114,6 +136,7 @@ impl ProjectConfig {
                 if !matches!(
                     text,
                     "[dependencies]"
+                        | "[dev_dependencies]"
                         | "[dependency_versions]"
                         | "[dependency_signers]"
                         | "[trust]"
@@ -135,6 +158,7 @@ impl ProjectConfig {
             if !section.is_empty() {
                 let entries = match section {
                     "dependencies" => &mut deps,
+                    "dev_dependencies" => &mut dev_deps,
                     "dependency_versions" => &mut versions,
                     "dependency_signers" => &mut signers,
                     "registry" => &mut registry,
@@ -180,11 +204,24 @@ impl ProjectConfig {
             .ok_or_else(|| Error::InvalidOperation("rewind.toml: language is required".into()))?;
         if !matches!(
             language.as_str(),
-            "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7"
+            "0.2" | "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
         ) {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
             )));
+        }
+        if !dev_deps.is_empty() && language != "0.8" {
+            return Err(Error::InvalidOperation(
+                "dev_dependencies requires language 0.8".into(),
+            ));
+        }
+        let runtime_roots = deps.keys().cloned().collect::<BTreeSet<_>>();
+        for (name, source) in dev_deps {
+            if deps.insert(name.clone(), source).is_some() {
+                return Err(Error::InvalidOperation(format!(
+                    "duplicate runtime/dev dependency {name}"
+                )));
+            }
         }
         let source_root = inside(&root, &source_root.unwrap_or_else(|| "src".into()))?;
         if !source_root.is_dir() {
@@ -194,7 +231,7 @@ impl ProjectConfig {
         let entry = inside(&source_root, &entry)?;
         let mut imports = BTreeMap::new();
         imports.insert(String::new(), source_root.clone());
-        if matches!(language.as_str(), "0.6" | "0.7")
+        if matches!(language.as_str(), "0.6" | "0.7" | "0.8")
             && deps
                 .values()
                 .chain(registry.values())
@@ -218,7 +255,7 @@ impl ProjectConfig {
                 }
                 imports.insert(name, full);
             }
-            if matches!(language.as_str(), "0.5" | "0.6" | "0.7") {
+            if matches!(language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
                 let mut inspected = BTreeSet::new();
                 loop {
                     let pending = imports
@@ -276,7 +313,29 @@ impl ProjectConfig {
                 }
             }
         }
+        let lock_imports = imports.clone();
+        if language == "0.8" && !include_dev {
+            let mut reachable = runtime_roots;
+            let mut pending = reachable.iter().cloned().collect::<Vec<_>>();
+            while let Some(name) = pending.pop() {
+                let path = imports
+                    .get(&name)
+                    .ok_or_else(|| Error::InvalidOperation(format!("missing dependency {name}")))?;
+                let metadata: serde_json::Value =
+                    serde_json::from_slice(&fs::read(path.join("rewind.package.json"))?)
+                        .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+                if let Some(deps) = metadata["dependencies"].as_object() {
+                    for name in deps.keys() {
+                        if reachable.insert(name.clone()) {
+                            pending.push(name.clone());
+                        }
+                    }
+                }
+            }
+            imports.retain(|name, _| name.is_empty() || reachable.contains(name));
+        }
         Ok(Some(Self {
+            lock_imports,
             source_root,
             entry,
             imports,
@@ -324,7 +383,10 @@ impl ProjectConfig {
         Ok(())
     }
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
-        if matches!(self.language.as_str(), "0.4" | "0.5" | "0.6" | "0.7") {
+        if matches!(
+            self.language.as_str(),
+            "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+        ) {
             return self.secure_lock(root, update);
         }
         let mut expected = format!(
@@ -352,7 +414,7 @@ impl ProjectConfig {
     pub(super) fn lock_document(&self, root: &Path) -> Result<String> {
         use ed25519_dalek::{Signature, VerifyingKey};
         let mut dependencies = serde_json::Map::new();
-        for (name, path) in &self.imports {
+        for (name, path) in &self.lock_imports {
             if name.is_empty() {
                 continue;
             }
@@ -421,7 +483,7 @@ impl ProjectConfig {
                 }
             }
             let mut selected = serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()});
-            if matches!(self.language.as_str(), "0.5" | "0.6" | "0.7") {
+            if matches!(self.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
                     .get("dependencies")
@@ -441,7 +503,7 @@ impl ProjectConfig {
         let dependencies = parsed["dependencies"].as_object().unwrap();
         let path = root.join("rewind.lock");
         if update {
-            if matches!(self.language.as_str(), "0.5" | "0.6" | "0.7") {
+            if matches!(self.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()
                     .and_then(|b| serde_json::from_slice(&b).ok())

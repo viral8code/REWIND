@@ -1,0 +1,21 @@
+{
+  "compiler": "0.8.0",
+  "dependencies": {
+    "checks": {
+      "dependencies": {},
+      "effects": [],
+      "public_key": "ed7d1c4c7c39a4b067674af024ec0901a550305294611555f220810699d01d4c",
+      "requirement": "^1.0",
+      "sha256": "202acc3119b20f268aa3df1c1bfd1edf9620de058235c13ba809032f47021d2c",
+      "signature": "c7d0c51d88f777ce90c9ae77102bb95facfe70a950414d7e7e72a6bf03fac93786e035082350c08ddacefaef32887aee7b3facbcc32fd5e7ec276049dbabbb09",
+      "signer": "example-author",
+      "source": "vendor/checks",
+      "version": "1.0.0"
+    }
+  },
+  "effects": [
+    "output"
+  ],
+  "format": 2,
+  "language": "0.8"
+}

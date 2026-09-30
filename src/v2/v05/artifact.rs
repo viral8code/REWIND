@@ -119,7 +119,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     let mut program: Program =
         serde_json::from_value(payload["program"].clone()).map_err(|e| invalid(&e.to_string()))?;
-    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7")
+    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8")
         || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
@@ -145,7 +145,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         ..Program::default()
     };
     prepare(&mut standard)?;
-    if matches!(program.language.as_str(), "0.6" | "0.7")
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8")
         && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
             != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
             || serde_json::to_value(program.enums.get("WaitTarget")).ok()
@@ -179,13 +179,13 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             return Err(invalid("reserved standard type"));
         }
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7")
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8")
         && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
             != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
         return Err(invalid("invalid property failure layout"));
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7")
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8")
         && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
         return Err(invalid("Tuple is a reserved standard type"));
@@ -256,7 +256,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     if unsafe_literal || nodes > 100_000 {
         return Err(invalid("invalid literal/IR budget"));
     }
-    if matches!(program.language.as_str(), "0.6" | "0.7") {
+    if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
         v06::infer(&mut program)?;
     }
     check_program(&program)?;

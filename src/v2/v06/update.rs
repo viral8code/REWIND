@@ -6,7 +6,7 @@ fn old_hash(root: &Path) -> Option<String> {
 fn proposal(root: &Path) -> Result<Json> {
     let config = project::ProjectConfig::load_for_update(root)?
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
-    if !matches!(config.language.as_str(), "0.6" | "0.7") {
+    if !matches!(config.language.as_str(), "0.6" | "0.7" | "0.8") {
         return Err(Error::InvalidOperation(
             "update preview/apply requires language 0.6".into(),
         ));
@@ -105,7 +105,11 @@ pub(in crate::v2) fn compatibility(path: &Path) -> Result<()> {
     }
     let value: Json = serde_json::from_slice(&fs::read(path)?)
         .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-    let (kind, expected) = if value.get("payload").is_some() {
+    let (kind, expected) = if value["kind"] == "rewind-inspection" {
+        ("inspection", 1)
+    } else if value["kind"] == "rewind-api" {
+        ("api", 1)
+    } else if value.get("payload").is_some() {
         ("artifact", 2)
     } else if value.get("events").is_some() {
         ("trace", 1)
@@ -114,12 +118,19 @@ pub(in crate::v2) fn compatibility(path: &Path) -> Result<()> {
     } else {
         ("unknown", 0)
     };
-    let readable = expected != 0
+    let exact = expected != 0
         && value["format"] == expected
         && value["compiler"] == env!("CARGO_PKG_VERSION");
+    let viewable = match kind {
+        "trace" => v08::readable_trace(&value),
+        "inspection" => v08::inspection_trace(value.clone()).is_ok_and(|v| v08::readable_trace(&v)),
+        "api" => value["format"] == 1 && value["symbols"].is_object(),
+        _ => false,
+    };
+    let readable = exact || viewable;
     println!(
         "{}",
-        json!({"kind":kind,"format":value["format"],"compiler":value["compiler"],"current_compiler":env!("CARGO_PKG_VERSION"),"readable":readable,"conversion_available":false,"reason":if readable {"format and compiler supported; normal validation is still required"} else {"unsupported format/compiler; rebuild or record with this compiler"}})
+        json!({"kind":kind,"format":value["format"],"compiler":value["compiler"],"current_compiler":env!("CARGO_PKG_VERSION"),"readable":readable,"viewable":viewable,"executable":exact && kind=="artifact","replayable":exact && kind=="trace","conversion_available":kind=="trace" && viewable && value["debug"]["index"]["format"]==1,"reason":if exact {"exact compiler; normal signature, content and contract validation required"} else if viewable {"read-only inspection; execution and replay are unavailable"} else {"unsupported format/compiler; rebuild or record with this compiler"}})
     );
     Ok(())
 }

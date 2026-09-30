@@ -9,9 +9,10 @@ mod project;
 mod v05;
 mod v06;
 mod v07;
+mod v08;
 mod vm;
 fn program_v07(p: &Program) -> bool {
-    p.language == "0.7"
+    matches!(p.language.as_str(), "0.7" | "0.8")
 }
 thread_local! {
     // Parsed modules are reused within a compiler session by content identity.
@@ -2676,7 +2677,11 @@ fn load_program_overlay(
 }
 
 pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions) -> Result<()> {
-    let manifest = project::ProjectConfig::load(root)?;
+    let manifest = if mode == "test" {
+        project::ProjectConfig::load_for_test(root)?
+    } else {
+        project::ProjectConfig::load(root)?
+    };
     if let Some(config) = &manifest {
         config.lock(root, false)?;
     }
@@ -2714,9 +2719,12 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
         &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )?;
-    program.strict_visibility = manifest
-        .as_ref()
-        .is_some_and(|m| matches!(m.language.as_str(), "0.3" | "0.4" | "0.5" | "0.6" | "0.7"));
+    program.strict_visibility = manifest.as_ref().is_some_and(|m| {
+        matches!(
+            m.language.as_str(),
+            "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+        )
+    });
     program.language = manifest
         .as_ref()
         .map(|m| m.language.clone())
@@ -2724,7 +2732,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     v05::prepare(&mut program)?;
     check_program(&program)?;
     if let Some(config) = &manifest {
-        if matches!(config.language.as_str(), "0.5" | "0.6" | "0.7") {
+        if matches!(config.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
             effects::validate(&program, config)?;
@@ -2732,7 +2740,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     }
     vm::validate(&program)?;
     if mode == "build" {
-        let artifact = if matches!(program.language.as_str(), "0.5" | "0.6" | "0.7") {
+        let artifact = if matches!(program.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
             v05::artifact(&program, root)?
         } else {
             vm::build_artifact(&program, root)?
@@ -2755,7 +2763,14 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     vm::execute(program, root, trace, mode, options)
 }
 pub fn documentation(file: &str, root: &Path) -> Result<String> {
-    let manifest = project::ProjectConfig::load(root)?;
+    documentation_mode(file, root, false)
+}
+fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<String> {
+    let manifest = if include_dev {
+        project::ProjectConfig::load_for_test(root)?
+    } else {
+        project::ProjectConfig::load(root)?
+    };
     let mut imports = BTreeMap::new();
     imports.insert(
         String::new(),
@@ -2775,9 +2790,12 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
         &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )?;
-    program.strict_visibility = manifest
-        .as_ref()
-        .is_some_and(|m| matches!(m.language.as_str(), "0.3" | "0.4" | "0.5" | "0.6" | "0.7"));
+    program.strict_visibility = manifest.as_ref().is_some_and(|m| {
+        matches!(
+            m.language.as_str(),
+            "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+        )
+    });
     program.language = manifest
         .as_ref()
         .map(|m| m.language.clone())
@@ -2785,7 +2803,7 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
     v05::prepare(&mut program)?;
     check_program(&program)?;
     if let Some(config) = &manifest {
-        if matches!(config.language.as_str(), "0.5" | "0.6" | "0.7") {
+        if matches!(config.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
             effects::validate(&program, config)?;
@@ -3020,7 +3038,10 @@ pub fn debug_trace(path: &Path) -> Result<()> {
 pub fn lock_project(root: &Path) -> Result<()> {
     let project = project::ProjectConfig::load(root)?
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
-    if matches!(project.language.as_str(), "0.4" | "0.5" | "0.6" | "0.7") {
+    if matches!(
+        project.language.as_str(),
+        "0.4" | "0.5" | "0.6" | "0.7" | "0.8"
+    ) {
         return Err(Error::InvalidOperation(
             "use 'rewind update' to update v0.4 dependencies".into(),
         ));
@@ -3146,7 +3167,7 @@ pub fn format_source(source: &str) -> Result<String> {
 
 fn check_program(program: &Program) -> Result<()> {
     v07::validate_records(program)?;
-    if matches!(program.language.as_str(), "0.5" | "0.6" | "0.7") {
+    if matches!(program.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
         let entries = program.impls.iter().collect::<Vec<_>>();
         for (i, ((tr, target), methods)) in entries.iter().enumerate() {
             for ((other_tr, other_target), other_methods) in entries.iter().skip(i + 1) {
@@ -3303,7 +3324,7 @@ fn check_program(program: &Program) -> Result<()> {
     for f in program.functions.values() {
         let root = program.root_origin.parent().unwrap_or(Path::new("."));
         let key = v06::cache::key(&(f, &interface_key)).unwrap_or_default();
-        if matches!(program.language.as_str(), "0.6" | "0.7")
+        if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8")
             && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
             continue;
@@ -3332,7 +3353,7 @@ fn check_program(program: &Program) -> Result<()> {
                 format!("function returning {} needs a return on every path", f.ret),
             ));
         }
-        if matches!(program.language.as_str(), "0.6" | "0.7") {
+        if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
             v06::cache::put(root, "checked", &key, &true);
         }
     }
@@ -3522,7 +3543,7 @@ impl Checker<'_> {
             }
             Pattern::Variant(name, parts) => {
                 let (head, field_types) = if name == "$tuple" {
-                    if !matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                    if !matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                         return Err(diagnostic(at, "tuple pattern requires language 0.6"));
                     }
                     let inner = ty
@@ -3703,7 +3724,7 @@ impl Checker<'_> {
                     self.visible(*public, origin, &e.at, n)?;
                 }
                 if let Some(binding) = self.find(&resolved) {
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                         v06::borrowed_type(&binding.0).into()
                     } else {
                         binding.0.clone()
@@ -3720,7 +3741,7 @@ impl Checker<'_> {
                             "generic function requires a call for type inference",
                         ));
                     }
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                         let ty = v06::fn_type(
                             &f.params,
                             &if f.asynchronous {
@@ -3770,7 +3791,7 @@ impl Checker<'_> {
             ExprKind::Unary(op, inner) => {
                 let t = self.expr(inner)?;
                 if op.starts_with("$capture:") {
-                    if !matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                    if !matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
                     }
                     return Ok(if op == "$capture:borrow" {
@@ -3803,7 +3824,10 @@ impl Checker<'_> {
                     } else {
                         format!(
                             "Result<{inner},{}>",
-                            if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7") {
+                            if matches!(
+                                self.program.language.as_str(),
+                                "0.5" | "0.6" | "0.7" | "0.8"
+                            ) {
                                 "TaskError"
                             } else {
                                 "String"
@@ -3812,7 +3836,9 @@ impl Checker<'_> {
                     });
                 }
                 if matches!(op.as_str(), "move" | "borrow" | "borrowMut") {
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7") && op != "move" {
+                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
+                        && op != "move"
+                    {
                         return Ok(format!(
                             "&{}{}",
                             if op == "borrowMut" { "mut " } else { "" },
@@ -3827,9 +3853,11 @@ impl Checker<'_> {
                 t
             }
             ExprKind::Binary(op, a, b) => {
-                if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7")
-                    && (self.expr(a)?.starts_with("Secret<")
-                        || self.expr(b)?.starts_with("Secret<"))
+                if matches!(
+                    self.program.language.as_str(),
+                    "0.5" | "0.6" | "0.7" | "0.8"
+                ) && (self.expr(a)?.starts_with("Secret<")
+                    || self.expr(b)?.starts_with("Secret<"))
                 {
                     if matches!(op.as_str(), "&&" | "||") {
                         return Err(diagnostic(
@@ -3901,7 +3929,7 @@ impl Checker<'_> {
                                     "generic function requires a call for type inference",
                                 ));
                             }
-                            if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                            if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                                 return Ok(v06::fn_type(
                                     &f.params,
                                     &if f.asynchronous {
@@ -3944,7 +3972,7 @@ impl Checker<'_> {
                     }
                 }
                 let t = self.expr(base)?;
-                if matches!(self.program.language.as_str(), "0.6" | "0.7")
+                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
                     && t.starts_with("Secret<")
                 {
                     let inner = Expr {
@@ -3957,7 +3985,7 @@ impl Checker<'_> {
                     };
                     return Ok(format!("Secret<{}>", self.expr(&field_expr)?));
                 }
-                if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
                     {
                         let index = field
@@ -3970,8 +3998,10 @@ impl Checker<'_> {
                             .ok_or_else(|| diagnostic(&e.at, "tuple field out of range"));
                     }
                 }
-                if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7")
-                    && t.starts_with("Frozen<")
+                if matches!(
+                    self.program.language.as_str(),
+                    "0.5" | "0.6" | "0.7" | "0.8"
+                ) && t.starts_with("Frozen<")
                 {
                     let inner = Expr {
                         kind: ExprKind::Unary("$unfreeze".into(), base.clone()),
@@ -4021,7 +4051,7 @@ impl Checker<'_> {
                 }
             }
             ExprKind::Call(target, args) => {
-                if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if let Ok(ty) = self.expr(base) {
                             if let Some(inner) =
@@ -4072,7 +4102,10 @@ impl Checker<'_> {
                         }
                     }
                 }
-                if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7") {
+                if matches!(
+                    self.program.language.as_str(),
+                    "0.5" | "0.6" | "0.7" | "0.8"
+                ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
                             if !matches!(
@@ -4109,7 +4142,7 @@ impl Checker<'_> {
                     .map(|a| self.expr(a))
                     .collect::<Result<Vec<_>>>()?;
                 if matches!(&target.kind,ExprKind::Name(n) if n=="$tuple") {
-                    if !matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                    if !matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                         return Err(diagnostic(&e.at, "tuple values require language 0.6"));
                     }
                     if types.iter().any(|t| t.starts_with('&')) {
@@ -4121,14 +4154,17 @@ impl Checker<'_> {
                     let special = matches!(&base.kind,ExprKind::Name(n) if self.program.import_aliases.keys().any(|alias| alias.starts_with(&format!("{n}."))) || matches!(n.as_str(),"Out"|"Err"|"File"|"Directory"|"Time"|"Random"|"Args"|"Env"|"Locale"|"In"));
                     if !special {
                         let ty = self.expr(base)?;
-                        if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                        if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                             if let Some(result) =
                                 v06::checker_method(self, &ty, method, &types, &e.at)?
                             {
                                 return Ok(result);
                             }
                         }
-                        if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7") {
+                        if matches!(
+                            self.program.language.as_str(),
+                            "0.5" | "0.6" | "0.7" | "0.8"
+                        ) {
                             if method == "iter" && types.is_empty() {
                                 if let Some(item) = v05::iterator_item(&ty) {
                                     return Ok(format!("Iterator<{item}>"));
@@ -4160,7 +4196,7 @@ impl Checker<'_> {
                             });
                         }
                         if ty.starts_with("Task<") {
-                            if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                            if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                                 if method == "timeout" && types == ["Int"] {
                                     return Ok(ty);
                                 }
@@ -4178,7 +4214,7 @@ impl Checker<'_> {
                                     ));
                                 }
                             }
-                            if matches!(self.program.language.as_str(), "0.6" | "0.7")
+                            if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
                                 && types.is_empty()
                             {
                                 if method == "requestCancel" {
@@ -4240,7 +4276,7 @@ impl Checker<'_> {
                     return Ok(format!("Result<Unit,PropertyCase<{ty}>>"));
                 }
                 if matches!(&target.kind, ExprKind::Name(n) if n == "propertyInt")
-                    && matches!(self.program.language.as_str(), "0.6" | "0.7")
+                    && matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
                 {
                     if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
                         return Err(diagnostic(
@@ -4259,8 +4295,10 @@ impl Checker<'_> {
                     return Ok("Result<Unit,PropertyFailure>".into());
                 }
                 if let ExprKind::Name(name) = &target.kind {
-                    if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7")
-                        && matches!(name.as_str(), "secret" | "reveal")
+                    if matches!(
+                        self.program.language.as_str(),
+                        "0.5" | "0.6" | "0.7" | "0.8"
+                    ) && matches!(name.as_str(), "secret" | "reveal")
                     {
                         if types.len() != 1 {
                             return Err(diagnostic(&e.at, "secret/reveal requires one argument"));
@@ -4275,8 +4313,10 @@ impl Checker<'_> {
                                 .ok_or_else(|| diagnostic(&e.at, "reveal requires Secret<T>"))
                         };
                     }
-                    if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7")
-                        && matches!(name.as_str(), "freeze" | "thaw")
+                    if matches!(
+                        self.program.language.as_str(),
+                        "0.5" | "0.6" | "0.7" | "0.8"
+                    ) && matches!(name.as_str(), "freeze" | "thaw")
                     {
                         if types.len() != 1 {
                             return Err(diagnostic(&e.at, "freeze/thaw requires one argument"));
@@ -4522,7 +4562,7 @@ impl Checker<'_> {
                                 | "Locale"
                         ) {
                             {
-                                if !matches!(self.program.language.as_str(), "0.6" | "0.7")
+                                if !matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
                                     && matches!(
                                         (n.as_str(), method.as_str()),
                                         ("In", "readSecretLine") | ("Env", "getSecret")
@@ -4828,7 +4868,7 @@ impl Checker<'_> {
                         format!("closure returning {ret} needs return on every path"),
                     ));
                 }
-                if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
                     v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
                 } else {
@@ -4927,7 +4967,7 @@ impl Checker<'_> {
             }
             StmtKind::Assign(lhs, _, rhs) => {
                 if let ExprKind::Member(base, _) = &lhs.kind {
-                    if matches!(self.program.language.as_str(), "0.6" | "0.7")
+                    if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8")
                         && self.expr(base)?.starts_with("Tuple<")
                     {
                         return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
@@ -5962,7 +6002,7 @@ impl<R: BufRead> Engine<R> {
         self.call(name, args, at)
     }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if name == "$tuple" && matches!(self.program.language.as_str(), "0.6" | "0.7") {
+        if name == "$tuple" && matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
             return Ok(Value::Struct(
                 format!(
                     "Tuple<{}>",
@@ -5977,13 +6017,15 @@ impl<R: BufRead> Engine<R> {
                     .collect(),
             ));
         }
-        if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7")
-            && matches!(name, "secret" | "reveal")
+        if matches!(
+            self.program.language.as_str(),
+            "0.5" | "0.6" | "0.7" | "0.8"
+        ) && matches!(name, "secret" | "reveal")
         {
             if args.len() != 1 {
                 return Err(self.fail(at, "secret/reveal requires one argument"));
             }
-            if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+            if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
                 self.runtime.register_secret_value(&args[0]);
             }
             return if name == "secret" {
@@ -5997,8 +6039,10 @@ impl<R: BufRead> Engine<R> {
                     .ok_or_else(|| self.fail(at, "reveal requires Secret<T>"))
             };
         }
-        if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7")
-            && matches!(name, "freeze" | "thaw")
+        if matches!(
+            self.program.language.as_str(),
+            "0.5" | "0.6" | "0.7" | "0.8"
+        ) && matches!(name, "freeze" | "thaw")
         {
             if args.len() != 1 {
                 return Err(self.fail(at, "freeze/thaw requires one argument"));
@@ -6341,7 +6385,7 @@ impl<R: BufRead> Engine<R> {
         Ok(Err(position))
     }
     fn method(&mut self, target: Value, method: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if matches!(self.program.language.as_str(), "0.6" | "0.7") {
+        if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
             if let Some(inner) = v05::unsecret(&target) {
                 let value = self.method(inner.clone(), method, args, at)?;
                 return Ok(v05::secret(
@@ -6361,7 +6405,11 @@ impl<R: BufRead> Engine<R> {
                 v05::freeze_member(result, &self.runtime)
             });
         }
-        if matches!(self.program.language.as_str(), "0.5" | "0.6" | "0.7") && args.is_empty() {
+        if matches!(
+            self.program.language.as_str(),
+            "0.5" | "0.6" | "0.7" | "0.8"
+        ) && args.is_empty()
+        {
             if method == "iter" {
                 let value = self.ordered_key(&target, at)?;
                 if let Some(iterator) =
@@ -6374,11 +6422,13 @@ impl<R: BufRead> Engine<R> {
                 if let Some(value) =
                     v05::iterator_next(&mut self.runtime, &target).map_err(Flow::Error)?
                 {
-                    return Ok(if matches!(self.program.language.as_str(), "0.6" | "0.7") {
-                        v06::immutable_tuple(value, &self.runtime)
-                    } else {
-                        value
-                    });
+                    return Ok(
+                        if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") {
+                            v06::immutable_tuple(value, &self.runtime)
+                        } else {
+                            value
+                        },
+                    );
                 }
             }
         }
@@ -6680,7 +6730,7 @@ impl<R: BufRead> Engine<R> {
             }
             ("Out", "flush", 0) | ("Err", "flush", 0) => Ok(unit),
             ("In", "readSecretLine", 0)
-                if matches!(self.program.language.as_str(), "0.6" | "0.7") =>
+                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") =>
             {
                 Ok(Value::Option(
                     self.runtime
@@ -6688,7 +6738,9 @@ impl<R: BufRead> Engine<R> {
                         .map(|s| Box::new(v05::secret(Value::Text(s), "String".into()))),
                 ))
             }
-            ("Env", "getSecret", 1) if matches!(self.program.language.as_str(), "0.6" | "0.7") => {
+            ("Env", "getSecret", 1)
+                if matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8") =>
+            {
                 Ok(Value::Option(
                     self.runtime
                         .secret_environment_value(&strings()[0])?
@@ -6998,7 +7050,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
     if bound == "Effect" {
         return ty.starts_with('@');
     }
-    if matches!(program.language.as_str(), "0.5" | "0.6" | "0.7")
+    if matches!(program.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8")
         && matches!(bound, "Send" | "Share")
     {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
@@ -7022,7 +7074,7 @@ fn impl_matches(
     if target == ty {
         return true;
     }
-    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7") {
+    if !matches!(program.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
         return false;
     }
     let Some(f) = methods
@@ -7212,7 +7264,7 @@ fn trait_method_return(
     }
     if f.params.len() != args.len() + 1
         || f.params.first().is_none_or(|(_, t)| {
-            if matches!(program.language.as_str(), "0.6" | "0.7") {
+            if matches!(program.language.as_str(), "0.6" | "0.7" | "0.8") {
                 !compatible(t, ty)
             } else {
                 t != ty
@@ -7585,4 +7637,11 @@ pub fn doctest(root: &Path, path: &Path) -> Result<()> {
 }
 pub fn timeline(path: &Path, start: usize, count: usize, task: Option<u64>) -> Result<()> {
     v07::timeline(path, start, count, task)
+}
+
+pub fn repl(root: &Path) -> Result<()> {
+    v08::repl(root)
+}
+pub fn trace_export(path: &Path, output: &Path, key: Option<&str>) -> Result<()> {
+    v08::trace_export(path, output, key)
 }

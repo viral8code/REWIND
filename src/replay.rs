@@ -172,6 +172,12 @@ impl Runtime {
         self.replaying = true;
         Ok(())
     }
+    /// Reuse a trusted in-process observation tape while allowing new observations.
+    pub fn import_session_observations(&mut self, data: &Json) -> Result<()> {
+        self.import_observations(data)?;
+        self.replaying = false;
+        Ok(())
+    }
     pub fn masked_value(&self, value: &Value) -> String {
         let mut text = self.display_value(value);
         for (name, secret) in &self.env_observations {

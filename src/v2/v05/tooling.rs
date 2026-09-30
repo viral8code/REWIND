@@ -83,7 +83,7 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
     prepare(&mut program)?;
     check_program(&program)?;
     if let Some(c) = &config {
-        if matches!(c.language.as_str(), "0.5" | "0.6" | "0.7") {
+        if matches!(c.language.as_str(), "0.5" | "0.6" | "0.7" | "0.8") {
             validate(&program, c)?;
         } else if c.language == "0.4" {
             effects::validate(&program, c)?;
@@ -158,7 +158,7 @@ pub fn lsp(root: &Path) -> Result<()> {
     let mut documents: BTreeMap<PathBuf, String> = BTreeMap::new();
     let mut versions: BTreeMap<PathBuf, i64> = BTreeMap::new();
     let incremental = project::ProjectConfig::load(root)?
-        .is_some_and(|c| matches!(c.language.as_str(), "0.6" | "0.7"));
+        .is_some_and(|c| matches!(c.language.as_str(), "0.6" | "0.7" | "0.8"));
     let mut shutdown = false;
     loop {
         let mut length = None;
@@ -489,7 +489,8 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
     }
     let trace: Json = serde_json::from_slice(&fs::read(path)?)
         .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-    if trace["format"] != 1 || trace["compiler"] != env!("CARGO_PKG_VERSION") {
+    let trace = v08::inspection_trace(trace)?;
+    if !v08::readable_trace(&trace) {
         return Err(Error::InvalidOperation(
             "unsupported debug trace format/compiler; rebuild the recording with this compiler"
                 .into(),

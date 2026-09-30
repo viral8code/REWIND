@@ -26,7 +26,7 @@ fn load(root: &Path) -> Result<Program> {
     let config = project::ProjectConfig::load(root)?
         .ok_or_else(|| Error::InvalidOperation("API snapshot requires a manifest".into()))?;
     config.lock(root, false)?;
-    if config.language != "0.7" {
+    if !matches!(config.language.as_str(), "0.7" | "0.8") {
         return Err(Error::InvalidOperation(
             "API snapshot requires language 0.7".into(),
         ));

@@ -694,6 +694,41 @@ fn run_cli() -> Result<()> {
         }
         return v2::migrate_project(&root, write);
     }
+    if script == "repl" {
+        let mut root = env::current_dir()?;
+        while let Some(option) = args.next() {
+            if option != "--root" {
+                return Err(Error::InvalidOperation("repl [--root DIR]".into()));
+            }
+            root = PathBuf::from(
+                args.next()
+                    .ok_or_else(|| Error::InvalidOperation("missing root".into()))?,
+            );
+        }
+        return v2::repl(&root);
+    }
+    if script == "trace-export" {
+        let file = args.next().ok_or_else(|| {
+            Error::InvalidOperation("trace-export TRACE --output FILE [--public-key KEY]".into())
+        })?;
+        let mut output = None;
+        let mut key = None;
+        while let Some(option) = args.next() {
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing export option value".into()))?;
+            match option.as_str() {
+                "--output" => output = Some(PathBuf::from(value)),
+                "--public-key" => key = Some(value),
+                _ => return Err(Error::InvalidOperation("unknown export option".into())),
+            }
+        }
+        return v2::trace_export(
+            Path::new(&file),
+            &output.ok_or_else(|| Error::InvalidOperation("missing --output".into()))?,
+            key.as_deref(),
+        );
+    }
     if script == "api-snapshot" {
         let mut root = env::current_dir()?;
         let mut output = None;

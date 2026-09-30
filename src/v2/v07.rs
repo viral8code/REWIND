@@ -76,6 +76,13 @@ pub(super) fn validate_constants(program: &Program) -> Result<()> {
         let mut seen = BTreeSet::new();
         let inspect = |body: &[Stmt], pending: &mut Vec<String>, forbidden: &mut bool| {
             v05::expressions(body, &mut |e| {
+                if let ExprKind::Name(n) = &e.kind {
+                    let resolved = resolve_alias(program, n);
+                    let name = resolved.split('<').next().unwrap_or(&resolved);
+                    if program.functions.contains_key(name) {
+                        pending.push(name.into());
+                    }
+                }
                 if let ExprKind::Call(t, _) = &e.kind {
                     if let ExprKind::Name(n) = &t.kind {
                         let n = resolve_alias(program, n);
@@ -165,7 +172,8 @@ pub(super) fn timeline(path: &Path, start: usize, count: usize, task: Option<u64
     }
     let trace: Json = serde_json::from_slice(&fs::read(path)?)
         .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-    if trace["format"] != 1 || trace["compiler"] != env!("CARGO_PKG_VERSION") {
+    let trace = v08::inspection_trace(trace)?;
+    if !v08::readable_trace(&trace) {
         return Err(Error::InvalidOperation(
             "unsupported timeline trace format/compiler".into(),
         ));

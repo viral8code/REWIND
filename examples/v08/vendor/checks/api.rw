@@ -1,0 +1,1 @@
+pub fn answer()->Int effects {}{return 42;}
