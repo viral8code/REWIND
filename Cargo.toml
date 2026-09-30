@@ -1,6 +1,6 @@
 [package]
 name = "rewind"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 license = "MIT"
 description = "A transactional programming language with checkpoints and virtual I/O"
@@ -10,6 +10,8 @@ ed25519-dalek = "=2.2.0"
 sha2 = "=0.10.9"
 serde_json = "=1.0.145"
 semver = "=1.0.28"
+serde = { version = "=1.0.228", features = ["derive"] }
+getrandom = "=0.2.17"
 
 [lib]
 name = "rewind"

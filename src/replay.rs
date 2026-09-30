@@ -198,6 +198,9 @@ impl Runtime {
         Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
     }
     pub fn debug_state(&self) -> Json {
+        let deltas=self.state.files.iter().map(|(path,file)| {
+            let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>()})}else{json!({"operation":"delete"})};(path.clone(),delta)
+        }).collect::<BTreeMap<_,_>>();
         let states = std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
             .collect::<Vec<_>>();
@@ -218,6 +221,6 @@ impl Runtime {
                 m + s
             })
             .sum::<usize>();
-        json!({"pc":self.state.program_counter,"heap_objects":self.state.heap.len(),"checkpoint_heap_roots":heap_roots.len(),"shared_checkpoint_heap_roots":states.len()-heap_roots.len(),"retained_heap_logical_bytes":heap_bytes,"observed_file_bytes":observed_bytes,"checkpoints":self.checkpoints.keys().collect::<Vec<_>>(),"stdout_bytes":self.state.stdout.len(),"stderr_bytes":self.state.stderr.len(),"journal_storage_bytes":self.state.stdout.storage_bytes()+self.state.stderr.storage_bytes(),"globals":self.state.globals.iter().map(|(n,v)|(n.clone(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"heap":self.state.heap.iter().map(|(id,v)|(id.to_string(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"files":self.state.files.keys().collect::<Vec<_>>(),"directories":*self.state.directories,"cursors":{"input":self.state.stdin_cursor,"time":self.state.time_cursor,"env":self.state.env_cursor,"directory":self.state.directory_cursor}})
+        json!({"pc":self.state.program_counter,"heap_objects":self.state.heap.len(),"checkpoint_heap_roots":heap_roots.len(),"shared_checkpoint_heap_roots":states.len()-heap_roots.len(),"retained_heap_logical_bytes":heap_bytes,"observed_file_bytes":observed_bytes,"checkpoints":self.checkpoints.keys().collect::<Vec<_>>(),"stdout_bytes":self.state.stdout.len(),"stderr_bytes":self.state.stderr.len(),"journal_storage_bytes":self.state.stdout.storage_bytes()+self.state.stderr.storage_bytes(),"globals":self.state.globals.iter().map(|(n,v)|(n.clone(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"heap":self.state.heap.iter().map(|(id,v)|(id.to_string(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"files":self.state.files.keys().collect::<Vec<_>>(),"file_deltas":deltas,"directories":*self.state.directories,"cursors":{"input":self.state.stdin_cursor,"time":self.state.time_cursor,"env":self.state.env_cursor,"directory":self.state.directory_cursor}})
     }
 }

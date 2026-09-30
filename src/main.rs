@@ -500,6 +500,97 @@ fn run_cli() -> Result<()> {
     let script = args
         .next()
         .ok_or_else(|| Error::InvalidOperation("usage: rewind <script.rw> [--root DIR]".into()))?;
+    if script == "lsp" {
+        let mut root = env::current_dir()?;
+        if let Some(option) = args.next() {
+            if option != "--root" {
+                return Err(Error::InvalidOperation(
+                    "usage: rewind lsp [--root DIR]".into(),
+                ));
+            }
+            root = PathBuf::from(
+                args.next()
+                    .ok_or_else(|| Error::InvalidOperation("missing root".into()))?,
+            );
+        }
+        if args.next().is_some() {
+            return Err(Error::InvalidOperation("too many arguments".into()));
+        }
+        return v2::lsp(&root);
+    }
+    if script == "debug-session" {
+        let path = args.next().ok_or_else(|| {
+            Error::InvalidOperation("usage: rewind debug-session TRACE [--root DIR]".into())
+        })?;
+        let mut root = env::current_dir()?;
+        let mut options = v2::RunOptions::default();
+        while let Some(option) = args.next() {
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing option value".into()))?;
+            match option.as_str() {
+                "--root" => root = PathBuf::from(value),
+                "--verify-key" => options.verify_key = Some(value),
+                "--secret-env" => {
+                    options.secret_env.insert(value);
+                }
+                _ => return Err(Error::InvalidOperation(format!("unknown option {option}"))),
+            }
+        }
+        return v2::debug_session(Path::new(&path), &root, options);
+    }
+    if script == "keygen" {
+        let path = args
+            .next()
+            .ok_or_else(|| Error::InvalidOperation("usage: rewind keygen NEW_SEED_FILE".into()))?;
+        if args.next().is_some() {
+            return Err(Error::InvalidOperation("too many arguments".into()));
+        }
+        return v2::keygen(Path::new(&path));
+    }
+    if matches!(
+        script.as_str(),
+        "sign-artifact" | "sign-trace" | "verify-artifact" | "verify-trace"
+    ) {
+        let path = PathBuf::from(
+            args.next()
+                .ok_or_else(|| Error::InvalidOperation("missing file".into()))?,
+        );
+        let kind = if script.ends_with("artifact") {
+            "artifact"
+        } else {
+            "trace"
+        };
+        let mut key = None;
+        let mut public = None;
+        let mut signature = PathBuf::from(format!("{}.signature", path.display()));
+        while let Some(option) = args.next() {
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing option value".into()))?;
+            match option.as_str() {
+                "--key" => key = Some(PathBuf::from(value)),
+                "--public-key" => public = Some(value),
+                "--signature" | "--output" => signature = PathBuf::from(value),
+                _ => return Err(Error::InvalidOperation(format!("unknown option {option}"))),
+            }
+        }
+        return if script.starts_with("verify") {
+            v2::verify_file(
+                &path,
+                &signature,
+                &public.ok_or_else(|| Error::InvalidOperation("--public-key required".into()))?,
+                kind,
+            )
+        } else {
+            v2::sign_file(
+                &path,
+                &key.ok_or_else(|| Error::InvalidOperation("--key required".into()))?,
+                &signature,
+                kind,
+            )
+        };
+    }
     if script == "sign" {
         let package = PathBuf::from(args.next().ok_or_else(|| {
             Error::InvalidOperation(
@@ -584,6 +675,23 @@ fn run_cli() -> Result<()> {
         }
         return Ok(());
     }
+    if script == "migrate" {
+        let mut root = env::current_dir()?;
+        let mut write = false;
+        while let Some(option) = args.next() {
+            match option.as_str() {
+                "--root" => {
+                    root = args
+                        .next()
+                        .ok_or_else(|| Error::InvalidOperation("missing root".into()))?
+                        .into()
+                }
+                "--write" => write = true,
+                _ => return Err(Error::InvalidOperation(format!("unknown option {option}"))),
+            }
+        }
+        return v2::migrate_project(&root, write);
+    }
     if script == "lock" || script == "update" {
         let mut root = env::current_dir()?;
         if let Some(option) = args.next() {
@@ -606,7 +714,15 @@ fn run_cli() -> Result<()> {
     }
     if matches!(
         script.as_str(),
-        "check" | "run" | "test" | "trace" | "build" | "debug" | "profile" | "replay"
+        "check"
+            | "run"
+            | "test"
+            | "trace"
+            | "build"
+            | "debug"
+            | "profile"
+            | "replay"
+            | "run-artifact"
     ) {
         let remaining = args.collect::<Vec<_>>();
         let mut index = 0;
@@ -664,6 +780,27 @@ fn run_cli() -> Result<()> {
                     } else {
                         options.output = Some(path);
                     }
+                }
+                "--allow-effects" => {
+                    index += 1;
+                    let effects = remaining
+                        .get(index)
+                        .ok_or_else(|| Error::InvalidOperation("missing allowed effects".into()))?;
+                    options.allowed_effects.extend(
+                        effects
+                            .split(',')
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_string),
+                    );
+                }
+                "--verify-key" => {
+                    index += 1;
+                    options.verify_key = Some(
+                        remaining
+                            .get(index)
+                            .ok_or_else(|| Error::InvalidOperation("missing public key".into()))?
+                            .clone(),
+                    );
                 }
                 "--explore" => {
                     index += 1;
@@ -737,6 +874,9 @@ fn run_cli() -> Result<()> {
             index += 1;
         }
         let file = if default_file { String::new() } else { file };
+        if script == "run-artifact" {
+            return v2::run_artifact(Path::new(&file), &root, options);
+        }
         if script == "debug" && Path::new(&file).extension().is_some_and(|e| e == "json") {
             return v2::debug_trace(Path::new(&file));
         }

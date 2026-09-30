@@ -9,6 +9,7 @@ pub(super) struct ProjectConfig {
     versions: BTreeMap<String, String>,
     signers: BTreeMap<String, String>,
     trust: BTreeMap<String, String>,
+    revoked: BTreeSet<String>,
 }
 
 fn quoted(value: &str) -> Result<String> {
@@ -39,6 +40,47 @@ fn inside(root: &Path, relative: &str) -> Result<PathBuf> {
     Ok(full)
 }
 impl ProjectConfig {
+    pub(super) fn validate_module_effects(&self, program: &Program) -> Result<()> {
+        for (name, path) in &self.imports {
+            if name.is_empty() {
+                continue;
+            }
+            let metadata: serde_json::Value =
+                serde_json::from_slice(&fs::read(path.join("rewind.package.json"))?)
+                    .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            let allowed = metadata["effects"]
+                .as_array()
+                .ok_or_else(|| Error::InvalidOperation("missing package effects".into()))?
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(str::to_string)
+                .collect::<BTreeSet<_>>();
+            for (module, effects) in &program.module_effects {
+                if module.starts_with(path) {
+                    if let Some(e) = effects.difference(&allowed).next() {
+                        return Err(Error::InvalidOperation(format!(
+                            "package {name} -> module {}: undeclared effect {e}",
+                            module.display()
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn artifact(root: &Path, entry: PathBuf, effects: BTreeSet<String>) -> Self {
+        Self {
+            source_root: root.into(),
+            entry,
+            imports: BTreeMap::new(),
+            language: "0.5".into(),
+            effects,
+            versions: BTreeMap::new(),
+            signers: BTreeMap::new(),
+            trust: BTreeMap::new(),
+            revoked: BTreeSet::new(),
+        }
+    }
     pub fn load(root: &Path) -> Result<Option<Self>> {
         let root = fs::canonicalize(root)?;
         let manifest = root.join("rewind.toml");
@@ -55,6 +97,8 @@ impl ProjectConfig {
         let mut versions = BTreeMap::new();
         let mut signers = BTreeMap::new();
         let mut trust = BTreeMap::new();
+        let mut registry = BTreeMap::new();
+        let mut revoked = BTreeSet::new();
         for (line, text) in source.lines().enumerate() {
             let text = text.split('#').next().unwrap_or("").trim();
             if text.is_empty() {
@@ -63,7 +107,11 @@ impl ProjectConfig {
             if text.starts_with('[') {
                 if !matches!(
                     text,
-                    "[dependencies]" | "[dependency_versions]" | "[dependency_signers]" | "[trust]"
+                    "[dependencies]"
+                        | "[dependency_versions]"
+                        | "[dependency_signers]"
+                        | "[trust]"
+                        | "[registry]"
                 ) {
                     return Err(Error::InvalidOperation(format!(
                         "rewind.toml:{}: unsupported section",
@@ -83,6 +131,7 @@ impl ProjectConfig {
                     "dependencies" => &mut deps,
                     "dependency_versions" => &mut versions,
                     "dependency_signers" => &mut signers,
+                    "registry" => &mut registry,
                     _ => &mut trust,
                 };
                 if key.is_empty() || entries.insert(key.to_string(), value).is_some() {
@@ -96,6 +145,14 @@ impl ProjectConfig {
                     "language" => language = Some(value),
                     "source_root" => source_root = Some(value),
                     "entry" => entry = Some(value),
+                    "revoked" => {
+                        revoked = value
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_string)
+                            .collect()
+                    }
                     "effects" => {
                         effects = value
                             .split(',')
@@ -115,7 +172,7 @@ impl ProjectConfig {
         }
         let language = language
             .ok_or_else(|| Error::InvalidOperation("rewind.toml: language is required".into()))?;
-        if !matches!(language.as_str(), "0.2" | "0.3" | "0.4") {
+        if !matches!(language.as_str(), "0.2" | "0.3" | "0.4" | "0.5") {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
             )));
@@ -140,6 +197,58 @@ impl ProjectConfig {
             }
             imports.insert(name, full);
         }
+        if language == "0.5" {
+            let mut inspected = BTreeSet::new();
+            loop {
+                let pending = imports
+                    .iter()
+                    .filter(|(n, _)| !n.is_empty() && !inspected.contains(*n))
+                    .map(|(n, p)| (n.clone(), p.clone()))
+                    .collect::<Vec<_>>();
+                if pending.is_empty() {
+                    break;
+                }
+                for (name, path) in pending {
+                    inspected.insert(name);
+                    let metadata: serde_json::Value =
+                        serde_json::from_slice(&fs::read(path.join("rewind.package.json"))?)
+                            .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+                    if let Some(dependencies) = metadata.get("dependencies") {
+                        let dependencies = dependencies.as_object().ok_or_else(|| {
+                            Error::InvalidOperation("package dependencies must be an object".into())
+                        })?;
+                        for (name, wanted) in dependencies {
+                            let wanted = wanted.as_str().ok_or_else(|| {
+                                Error::InvalidOperation(
+                                    "transitive requirement must be a string".into(),
+                                )
+                            })?;
+                            semver::VersionReq::parse(wanted)
+                                .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+                            versions
+                                .entry(name.clone())
+                                .and_modify(|v| {
+                                    v.push_str(", ");
+                                    v.push_str(wanted);
+                                })
+                                .or_insert_with(|| wanted.into());
+                            if !imports.contains_key(name) {
+                                let source=registry.get(name).ok_or_else(||Error::InvalidOperation(format!("transitive package {name} requires an explicit registry mirror")))?;
+                                imports.insert(
+                                    name.clone(),
+                                    inside(&root, source.strip_prefix("file:").unwrap_or(source))?,
+                                );
+                                if imports.len() > 1024 {
+                                    return Err(Error::InvalidOperation(
+                                        "DependencyBudgetExceeded".into(),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         Ok(Some(Self {
             source_root,
             entry,
@@ -149,6 +258,7 @@ impl ProjectConfig {
             versions,
             signers,
             trust,
+            revoked,
         }))
     }
     fn digest(path: &Path, root: &Path, hash: &mut u128) -> Result<()> {
@@ -187,7 +297,7 @@ impl ProjectConfig {
         Ok(())
     }
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
-        if self.language == "0.4" {
+        if matches!(self.language.as_str(), "0.4" | "0.5") {
             return self.secure_lock(root, update);
         }
         let mut expected = format!(
@@ -245,6 +355,11 @@ impl ProjectConfig {
             let signer = self.signers.get(name).ok_or_else(|| {
                 Error::InvalidOperation(format!("package {name}: missing signer"))
             })?;
+            if self.revoked.contains(signer) {
+                return Err(Error::InvalidOperation(format!(
+                    "revoked package signer {signer}"
+                )));
+            }
             let public = self.trust.get(signer).ok_or_else(|| {
                 Error::InvalidOperation(format!("untrusted package signer {signer}"))
             })?;
@@ -272,17 +387,52 @@ impl ProjectConfig {
                 let effect = effect.as_str().ok_or_else(|| {
                     Error::InvalidOperation("package effect must be a string".into())
                 })?;
-                if !self.effects.contains(effect) {
+                if self.language == "0.4" && !self.effects.contains(effect) {
                     return Err(Error::InvalidOperation(format!(
                         "package {name}: effect {effect} is not allowed"
                     )));
                 }
             }
-            dependencies.insert(name.clone(),serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()}));
+            let mut selected = serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()});
+            if self.language == "0.5" {
+                selected["requirement"] = wanted.clone().into();
+                selected["dependencies"] = metadata
+                    .get("dependencies")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({}));
+                selected["effects"] = metadata["effects"].clone();
+            }
+            dependencies.insert(name.clone(), selected);
         }
-        let expected=serde_json::to_string_pretty(&serde_json::json!({"format":2,"language":"0.4","compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies})).map_err(|e| Error::InvalidOperation(e.to_string()))?+"\n";
+        let expected=serde_json::to_string_pretty(&serde_json::json!({"format":2,"language":self.language,"compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies})).map_err(|e| Error::InvalidOperation(e.to_string()))?+"\n";
         let path = root.join("rewind.lock");
         if update {
+            if self.language == "0.5" {
+                let old: serde_json::Value = fs::read(&path)
+                    .ok()
+                    .and_then(|b| serde_json::from_slice(&b).ok())
+                    .unwrap_or(serde_json::Value::Null);
+                for (name, value) in &dependencies {
+                    if old["dependencies"][name] != *value {
+                        eprintln!(
+                            "selected {name}: {} -> {}; satisfies {}; explicit mirror {}",
+                            old["dependencies"][name]["version"]
+                                .as_str()
+                                .unwrap_or("(none)"),
+                            value["version"].as_str().unwrap_or("?"),
+                            value["requirement"].as_str().unwrap_or("?"),
+                            value["source"].as_str().unwrap_or("?")
+                        );
+                    }
+                }
+                if let Some(old) = old["dependencies"].as_object() {
+                    for name in old.keys() {
+                        if !dependencies.contains_key(name) {
+                            eprintln!("removed {name}");
+                        }
+                    }
+                }
+            }
             fs::write(path, expected)?;
         } else if !path.exists() {
             return Err(Error::InvalidOperation(
