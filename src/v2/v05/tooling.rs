@@ -83,7 +83,7 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
     prepare(&mut program)?;
     check_program(&program)?;
     if let Some(c) = &config {
-        if matches!(c.language.as_str(), "0.5" | "0.6") {
+        if matches!(c.language.as_str(), "0.5" | "0.6" | "0.7") {
             validate(&program, c)?;
         } else if c.language == "0.4" {
             effects::validate(&program, c)?;
@@ -157,7 +157,8 @@ pub fn lsp(root: &Path) -> Result<()> {
     let mut output = stdout.lock();
     let mut documents: BTreeMap<PathBuf, String> = BTreeMap::new();
     let mut versions: BTreeMap<PathBuf, i64> = BTreeMap::new();
-    let incremental = project::ProjectConfig::load(root)?.is_some_and(|c| c.language == "0.6");
+    let incremental = project::ProjectConfig::load(root)?
+        .is_some_and(|c| matches!(c.language.as_str(), "0.6" | "0.7"));
     let mut shutdown = false;
     loop {
         let mut length = None;

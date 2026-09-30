@@ -6,7 +6,7 @@ fn old_hash(root: &Path) -> Option<String> {
 fn proposal(root: &Path) -> Result<Json> {
     let config = project::ProjectConfig::load_for_update(root)?
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
-    if config.language != "0.6" {
+    if !matches!(config.language.as_str(), "0.6" | "0.7") {
         return Err(Error::InvalidOperation(
             "update preview/apply requires language 0.6".into(),
         ));

@@ -1,3 +1,5 @@
+v0.7 adds immutable records, checked pure constants, public API snapshots/diffs, isolated documentation examples, typed property generators, and source-free timelines. Select `language = "0.7"`; see [implementation and limits](docs/v0.7-status.md) and the [v0.8 proposal](docs/REWIND_v0.8.md).
+
 # REWIND
 
 v0.6 adds public closure Send/Share contracts, temporary synchronous borrow captures, specialized generic effects, tuple patterns, type aliases, default methods, logical task timeout/select, reproducible integer property tests, authenticated persistent caches, signed mirror resolution with update preview/apply, LSP editing support, source-free reverse debugging, and external Secret observations with audits. Select `language = "0.6"`; see [APIs, limits, and compatibility](docs/v0.6-status.md) and the [v0.7 draft](docs/REWIND_v0.7.md).

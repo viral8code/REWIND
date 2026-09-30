@@ -280,7 +280,7 @@ impl Expand<'_> {
 
 pub(in crate::v2) fn prepare(program: &mut Program) -> Result<()> {
     let uses_defaults = program.traits.values().any(|tr| !tr.defaults.is_empty());
-    if program.language != "0.6" {
+    if !matches!(program.language.as_str(), "0.6" | "0.7") {
         if !program.aliases.is_empty() || uses_defaults {
             return Err(Error::InvalidOperation(
                 "type aliases and default trait methods require language 0.6".into(),

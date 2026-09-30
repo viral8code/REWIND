@@ -1,6 +1,6 @@
 # REWIND プログラミング言語設計案 v0.7
 
-作成日: 2026-09-30。状態: **提案・草案・未実装**。
+作成日: 2026-09-30。状態: **採用範囲を実装済み**。実装した構文・コマンド・上限は [v0.7-status.md](v0.7-status.md) を参照。
 
 v0.6 の実装範囲と制限は [v0.6-status.md](v0.6-status.md) に記載する。本書はその実装を前提に、次の設計候補を整理する。採用する構文・互換性・実装順は v0.6 の検証結果を踏まえて確定する。
 
@@ -58,3 +58,7 @@ v0.6 では tuple pattern・type alias・default method、公開 Send/Share 契�
 4. borrowed return、動的 trait object、暗号化 trace は実例と失敗条件を確認してから採用する。
 
 VM 内のネットワーク、FFI、OS 並列スレッド、子プロセス、実時間 timer、JIT は引き続き本提案の必須要件に含めない。
+
+## 6. 採用結果
+
+API snapshot/diff、独立した仮想 I/O の doctest、不変 record、純粋な const 評価検査、合成 property generator、source-free JSON timeline を採用した。部分移動・借用と原因木は v0.6 の規則を継承する。用途別依存・対話実行・読み取り専用の互換期間と export は [v0.8 案](REWIND_v0.8.md) に分離する。borrowed return・動的 trait object・暗号化 trace は条件付き候補であり、この版の採用機能には含めない。

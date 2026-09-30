@@ -1,0 +1,7 @@
+record Point{x:Int,y:Int}
+fn twice(n:Int)->Int effects {}{return n*2;}
+pub const FOUR:Int=twice(2);
+let p=Point(FOUR,3);
+assert_eq(p.x+p.y,7);
+Out.println(p.x+p.y);
+publish;

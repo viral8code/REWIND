@@ -46,6 +46,57 @@ impl<R: BufRead> Vm<R> {
             _ => None,
         })
     }
+    pub(super) fn property_case(&mut self, args: &[Value], at: &Tok) -> Result<Value> {
+        let [Value::Int(seed), Value::Int(cases), generator, shrinker, predicate] = args else {
+            return Err(self.error(at, "invalid property arguments"));
+        };
+        if !(0..=100_000).contains(cases) {
+            return Err(self.error(at, "property cases must be 0..100000"));
+        }
+        let mut state = *seed as u64;
+        for case in 0..*cases {
+            state = state.wrapping_add(0x9e3779b97f4a7c15);
+            let mut bits = state;
+            bits = (bits ^ (bits >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+            bits = (bits ^ (bits >> 27)).wrapping_mul(0x94d049bb133111eb);
+            bits ^= bits >> 31;
+            let mut input = self.callback(generator.clone(), vec![Value::Int(bits as i64)], at)?;
+            if self.callback(predicate.clone(), vec![input.clone()], at)? == Value::Bool(true) {
+                continue;
+            }
+            let mut seen = BTreeSet::new();
+            let mut shrinks = 0;
+            for _ in 0..64 {
+                let key = packages::hash(
+                    serde_json::to_vec(&input).map_err(|e| self.error(at, e.to_string()))?,
+                );
+                if !seen.insert(key) {
+                    break;
+                }
+                let candidate = self.callback(shrinker.clone(), vec![input.clone()], at)?;
+                if candidate == input
+                    || self.callback(predicate.clone(), vec![candidate.clone()], at)?
+                        == Value::Bool(true)
+                {
+                    break;
+                }
+                input = candidate;
+                shrinks += 1;
+            }
+            self.audit.push(serde_json::json!({"kind":"propertyFailure","source":at.source,"line":at.line,"column":at.col,"task":self.scheduler.active,"event":self.events.len(),"seed":seed,"case":case,"shrinks":shrinks,"input":self.engine.runtime.masked_value(&input)}));
+            let ty = value_type(&input, &self.engine.runtime);
+            return Ok(Value::Result(Err(Box::new(Value::Struct(
+                format!("PropertyCase<{ty}>"),
+                BTreeMap::from([
+                    ("seed".into(), Value::Int(*seed)),
+                    ("case".into(), Value::Int(case)),
+                    ("input".into(), input),
+                    ("shrinks".into(), Value::Int(shrinks)),
+                ]),
+            )))));
+        }
+        Ok(Value::Result(Ok(Box::new(Value::Null))))
+    }
     pub(super) fn property_int(&mut self, args: &[Value], at: &Tok) -> Result<Value> {
         let [Value::Int(seed), Value::Int(cases), Value::Int(min), Value::Int(max), predicate] =
             args

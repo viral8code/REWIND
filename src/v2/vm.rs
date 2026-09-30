@@ -187,7 +187,7 @@ impl Compiler {
         let key = v06::cache::key(&(f, &self.aliases, self.hidden, &program.language))
             .unwrap_or_default();
         let base = self.code.len();
-        if program.language == "0.6" {
+        if matches!(program.language.as_str(), "0.6" | "0.7") {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
                 relocate(&mut chunk.code, base, false);
                 self.code.extend(chunk.code);
@@ -205,7 +205,7 @@ impl Compiler {
         self.emit(Op::Push(Value::Null), &f.at);
         self.emit(Op::Return, &f.at);
         self.depth = 0;
-        if program.language == "0.6" {
+        if matches!(program.language.as_str(), "0.6" | "0.7") {
             let mut code = self.code[base..].to_vec();
             relocate(&mut code, base, true);
             let closures = self
@@ -835,7 +835,7 @@ impl<R: BufRead> Vm<R> {
         })
     }
     fn error(&self, at: &Tok, message: impl AsRef<str>) -> Error {
-        if self.engine.program.language == "0.6" {
+        if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
             let message = self
                 .engine
                 .runtime
@@ -1131,14 +1131,14 @@ impl<R: BufRead> Vm<R> {
                 }
             }
         }
-        if self.engine.program.language == "0.6" {
+        if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
             return first_error.map_or(Ok(()), |e| {
                 let mut d = self.record_error(&e, at, self.scheduler.active);
                 d.causes.extend(typed_causes);
                 Err(Error::Diagnostic(Box::new(d)))
             });
         }
-        if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
+        if matches!(self.engine.program.language.as_str(), "0.5" | "0.6" | "0.7") {
             first_error.map_or(Ok(()), |e| {
                 let mut message = e.to_string();
                 for cause in suppressed {
@@ -1347,8 +1347,9 @@ impl<R: BufRead> Vm<R> {
                 result => break result,
             }
         };
-        if result.is_ok() && matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
-            if self.engine.program.language == "0.6" {
+        if result.is_ok() && matches!(self.engine.program.language.as_str(), "0.5" | "0.6" | "0.7")
+        {
+            if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                 if let Some(error) = self.unhandled_task_diagnostic() {
                     result = Err(Error::Diagnostic(Box::new(error)));
                 }
@@ -1407,12 +1408,12 @@ impl<R: BufRead> Vm<R> {
                     causes.push(e.to_string());
                 }
             }
-            if self.engine.program.language == "0.6" {
+            if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                 let mut failure =
                     self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
                 failure.causes.extend(typed_causes);
                 result = Err(Error::Diagnostic(Box::new(failure)));
-            } else if matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
+            } else if matches!(self.engine.program.language.as_str(), "0.5" | "0.6" | "0.7")
                 && !causes.is_empty()
             {
                 let mut message = result.unwrap_err().to_string();
@@ -1428,7 +1429,7 @@ impl<R: BufRead> Vm<R> {
     fn finish_tools(&self, execution_error: Option<&Error>) -> Result<()> {
         let digest = self.engine.runtime.state_digest()?;
         let mut outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string())))});
-        if self.engine.program.language == "0.6" {
+        if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
             outcome["diagnostic"] = execution_error
                 .and_then(|e| {
                     if let Error::Diagnostic(d) = e {
@@ -1453,7 +1454,7 @@ impl<R: BufRead> Vm<R> {
         }
         if let Some(path) = &self.options.record {
             let mut trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
-            if self.engine.program.language == "0.6" {
+            if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
                     deltas.push(serde_json::json!(v06::debug::delta(
@@ -1470,7 +1471,10 @@ impl<R: BufRead> Vm<R> {
                     .engine
                     .runtime
                     .mask_debug_json(&trace["debug"]["final"]);
-                trace["audit"] = serde_json::json!(self.audit);
+                trace["audit"] = self
+                    .engine
+                    .runtime
+                    .mask_debug_json(&serde_json::json!(self.audit));
                 trace["artifact_sha256"] = serde_json::json!(self.fingerprint);
             }
             let bytes = serde_json::to_string_pretty(&trace)
@@ -1512,7 +1516,7 @@ impl<R: BufRead> Vm<R> {
             {
                 return Ok(());
             }
-            if self.engine.program.language == "0.6" {
+            if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
             }
             if self.cancellation_requested() {
@@ -1569,11 +1573,11 @@ impl<R: BufRead> Vm<R> {
                     .next()
                     .unwrap()
                     .to_string();
-                if self.engine.program.language == "0.6" {
+                if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                     self.index_state(&inst.at)?;
                 }
                 let mut event = serde_json::json!({"task":self.scheduler.active,"pc":self.pc,"operation":operation});
-                if self.engine.program.language == "0.6" {
+                if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                     event["source"] = serde_json::json!(inst.at.source);
                     event["line"] = serde_json::json!(inst.at.line);
                     event["column"] = serde_json::json!(inst.at.col);
@@ -1628,7 +1632,7 @@ impl<R: BufRead> Vm<R> {
                     } else if let Some(f) = self.engine.program.functions.get(&name) {
                         Value::Function(
                             name.clone(),
-                            if self.engine.program.language == "0.6" {
+                            if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                                 let ty = v06::fn_type(
                                     &f.params,
                                     &if f.asynchronous {
@@ -1825,10 +1829,19 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Call(name, count) => {
                     let args = self.args(count)?;
-                    if self.engine.program.language == "0.6" && name == "reveal" {
+                    if matches!(self.engine.program.language.as_str(), "0.6" | "0.7")
+                        && name == "reveal"
+                    {
                         self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
                     }
-                    if name == "propertyInt" && self.engine.program.language == "0.6" {
+                    if name == "property" && program_v07(&self.engine.program) {
+                        let value = self.property_case(&args, &inst.at)?;
+                        self.push(value)?;
+                        continue;
+                    }
+                    if name == "propertyInt"
+                        && matches!(self.engine.program.language.as_str(), "0.6" | "0.7")
+                    {
                         let value = self.property_int(&args, &inst.at)?;
                         self.push(value)?;
                         continue;
@@ -1883,8 +1896,10 @@ impl<R: BufRead> Vm<R> {
                     let needed = v05::needed_globals(&self.engine.program, &name);
                     for scope in &self.globals {
                         for (name, binding) in scope {
-                            if matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
-                                && !needed.contains(name)
+                            if matches!(
+                                self.engine.program.language.as_str(),
+                                "0.5" | "0.6" | "0.7"
+                            ) && !needed.contains(name)
                             {
                                 continue;
                             }
@@ -1901,8 +1916,10 @@ impl<R: BufRead> Vm<R> {
                     if let Some(frame) = self.frames.last() {
                         for scope in &frame.scopes {
                             for (name, binding) in scope {
-                                if matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
-                                    && !needed.contains(name)
+                                if matches!(
+                                    self.engine.program.language.as_str(),
+                                    "0.5" | "0.6" | "0.7"
+                                ) && !needed.contains(name)
                                 {
                                     continue;
                                 }
@@ -1917,7 +1934,7 @@ impl<R: BufRead> Vm<R> {
                             }
                         }
                     }
-                    let ty = if self.engine.program.language == "0.6" {
+                    let ty = if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                         let f =
                             &self.engine.program.functions[name.split('<').next().unwrap_or(&name)];
                         let checker = Checker {
@@ -1969,7 +1986,7 @@ impl<R: BufRead> Vm<R> {
                 Op::Method(method, count) => {
                     let mut args = self.args(count)?;
                     let target = self.pop()?;
-                    if self.engine.program.language == "0.6" {
+                    if matches!(self.engine.program.language.as_str(), "0.6" | "0.7") {
                         if let Some(value) =
                             self.result_adapter(&target, &method, &args, &inst.at)?
                         {
@@ -2007,7 +2024,7 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Builtin(receiver, method, count) => {
                     let args = self.args(count)?;
-                    if self.engine.program.language == "0.6"
+                    if matches!(self.engine.program.language.as_str(), "0.6" | "0.7")
                         && matches!(
                             (receiver.as_str(), method.as_str()),
                             ("Env", "getSecret") | ("In", "readSecretLine")
@@ -2090,11 +2107,12 @@ impl<R: BufRead> Vm<R> {
                     _ => return Err(self.error(&inst.at, "condition must be Bool")),
                 },
                 Op::Return => {
-                    let failed = matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
-                        && matches!(
-                            self.engine.runtime.state().stack.last(),
-                            Some(Value::Result(Err(_)))
-                        );
+                    let failed =
+                        matches!(self.engine.program.language.as_str(), "0.5" | "0.6" | "0.7")
+                            && matches!(
+                                self.engine.runtime.state().stack.last(),
+                                Some(Value::Result(Err(_)))
+                            );
                     if !failed && self.drain_scope_groups(None, &inst.at)? {
                         continue;
                     }
@@ -2204,7 +2222,7 @@ impl<R: BufRead> Vm<R> {
                     self.snapshots.remove(&name);
                 }
                 Op::Publish(force) => {
-                    if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
+                    if matches!(self.engine.program.language.as_str(), "0.5" | "0.6" | "0.7") {
                         if let Some(error) = self.unhandled_task_error() {
                             return Err(self.error(&inst.at, error));
                         }
@@ -2325,7 +2343,7 @@ pub(super) fn execute(
                 vm.call_user(&test, Vec::new(), &at)?;
                 vm.run()
             })();
-            if result.is_ok() || matches!(program.language.as_str(), "0.5" | "0.6") {
+            if result.is_ok() || matches!(program.language.as_str(), "0.5" | "0.6" | "0.7") {
                 vm.finish_tools(result.as_ref().err())?;
             }
             result.map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
@@ -2342,7 +2360,7 @@ pub(super) fn execute(
         let mut vm = Vm::new(program, root, io::stdin().lock(), trace, false, &options)?;
         let result = vm.run();
         if result.is_ok()
-            || matches!(vm.engine.program.language.as_str(), "0.5" | "0.6")
+            || matches!(vm.engine.program.language.as_str(), "0.5" | "0.6" | "0.7")
             || options.inspect
             || options.profile
         {
@@ -2477,7 +2495,7 @@ fn explore_test(
             vm.call_user(test, Vec::new(), &program.functions[test].at)?;
             vm.run()
         })();
-        if run.is_err() && matches!(program.language.as_str(), "0.5" | "0.6") {
+        if run.is_err() && matches!(program.language.as_str(), "0.5" | "0.6" | "0.7") {
             vm.options.record = options.record.clone();
             vm.finish_tools(run.as_ref().err())?;
         }
