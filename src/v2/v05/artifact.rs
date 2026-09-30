@@ -113,7 +113,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     let mut program: Program =
         serde_json::from_value(payload["program"].clone()).map_err(|e| invalid(&e.to_string()))?;
-    if program.language != "0.5"
+    if !matches!(program.language.as_str(), "0.5" | "0.6")
         || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
@@ -134,11 +134,19 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     })?;
     // Standard layouts are part of the verified format, not user supplied IR.
     let mut standard = Program {
-        language: "0.5".into(),
+        language: program.language.clone(),
         root_origin: program.root_origin.clone(),
         ..Program::default()
     };
     prepare(&mut standard)?;
+    if program.language == "0.6"
+        && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
+            != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
+            || serde_json::to_value(program.enums.get("WaitTarget")).ok()
+                != serde_json::to_value(standard.enums.get("WaitTarget")).ok())
+    {
+        return Err(invalid("invalid wait graph layout"));
+    }
     if serde_json::to_value(program.enums.get("BudgetKind")).ok()
         != serde_json::to_value(standard.enums.get("BudgetKind")).ok()
         || serde_json::to_value(program.structs.get("WaitGraph")).ok()
@@ -212,6 +220,9 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if unsafe_literal || nodes > 100_000 {
         return Err(invalid("invalid literal/IR budget"));
+    }
+    if program.language == "0.6" {
+        v06::infer(&mut program)?;
     }
     check_program(&program)?;
     validate(

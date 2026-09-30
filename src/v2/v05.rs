@@ -34,7 +34,7 @@ pub(super) mod pairs {
 }
 
 pub(super) fn prepare(program: &mut Program) -> Result<()> {
-    if program.language != "0.5" {
+    if !matches!(program.language.as_str(), "0.5" | "0.6") {
         return Ok(());
     }
     for name in [
@@ -65,6 +65,15 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     {
         return Err(Error::InvalidOperation(
             "TaskError and Diagnostic are reserved standard types".into(),
+        ));
+    }
+    if program.language == "0.6"
+        && ["WaitEdge", "WaitTarget"]
+            .iter()
+            .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
+    {
+        return Err(Error::InvalidOperation(
+            "WaitEdge and WaitTarget are reserved standard types".into(),
         ));
     }
     program.enums.insert(
@@ -121,6 +130,65 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             origin: program.root_origin.clone(),
         },
     );
+    if program.language == "0.6" {
+        program.structs.get_mut("Diagnostic").unwrap().fields = vec![
+            ("code".into(), "String".into()),
+            ("message".into(), "String".into()),
+            ("source".into(), "String".into()),
+            ("line".into(), "Int".into()),
+            ("column".into(), "Int".into()),
+            ("taskId".into(), "Option<Int>".into()),
+            ("causes".into(), "List<Diagnostic>".into()),
+            ("waitGraph".into(), "WaitGraph".into()),
+        ];
+        program
+            .structs
+            .get_mut("WaitGraph")
+            .unwrap()
+            .fields
+            .push(("edges".into(), "List<WaitEdge>".into()));
+        program.structs.insert(
+            "WaitEdge".into(),
+            StructDef {
+                type_params: vec![],
+                fields: vec![
+                    ("task".into(), "Int".into()),
+                    ("target".into(), "WaitTarget".into()),
+                ],
+                public: true,
+                origin: program.root_origin.clone(),
+            },
+        );
+        program.enums.insert(
+            "WaitTarget".into(),
+            EnumDef {
+                type_params: vec![],
+                variants: ["Task", "Channel", "Group"]
+                    .into_iter()
+                    .map(|n| (n.into(), vec![("0".into(), "Int".into())]))
+                    .collect(),
+                public: true,
+                origin: program.root_origin.clone(),
+            },
+        );
+        for kind in [
+            "SchedulerStorage",
+            "SchedulerObjects",
+            "TransferDepth",
+            "TypeExpansion",
+            "Monomorphization",
+            "HistoryMemory",
+            "HistoryStorage",
+        ] {
+            program
+                .enums
+                .get_mut("BudgetKind")
+                .unwrap()
+                .variants
+                .insert(kind.into(), vec![]);
+        }
+        v06::infer(program)?;
+    }
     Ok(())
 }
 
@@ -221,6 +289,9 @@ pub(super) fn task_error(error: &str) -> Value {
 
 pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Result<()> {
     ownership::validate(program)?;
+    if program.language == "0.6" {
+        return v06::validate(program, config);
+    }
     capabilities::validate(program, config)
 }
 
@@ -511,6 +582,9 @@ pub(super) fn transfer_type(
     shared: bool,
     seen: &mut BTreeSet<String>,
 ) -> bool {
+    if ty.starts_with('&') {
+        return false;
+    }
     if matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes" | "Unit")
         || ty.starts_with("Task<")
         || ty.starts_with("Channel<")

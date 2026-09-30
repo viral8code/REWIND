@@ -1,0 +1,20 @@
+fn apply<E:Effect>(action:fn(Int)->Int effects E,n:Int)->Int effects E {
+    return action(n);
+}
+fn append(xs:&mut List<Int>,n:Int)->Unit effects {} {
+    xs.add(n);
+}
+fn count(xs:&List<Int>)->Int effects {} {
+    return xs.len();
+}
+let xs=List<Int>();
+append(&mut xs,apply(|n:Int|->Int{return n*2;},3));
+append(&mut xs,8);
+assert_eq(count(&xs),2);
+let total=xs.iter().fold(0,|sum:Int,n:Int|->Int{return sum+n;});
+assert_eq(total,14);
+assert_eq("あ😀".charLen(),2);
+assert_eq("あ😀".utf16Len(),3);
+assert_eq("42".parseInt().map(|n:Int|->Int{return n+1;}),Ok(43));
+Out.println(total);
+publish;

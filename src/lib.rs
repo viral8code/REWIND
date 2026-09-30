@@ -188,6 +188,7 @@ impl fmt::Display for Value {
 
 #[derive(Debug)]
 pub enum Error {
+    Diagnostic(Box<DiagnosticRecord>),
     Io(io::Error),
     InvalidPath(String),
     MissingCheckpoint(String),
@@ -203,6 +204,17 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::Diagnostic(d) => {
+                write!(
+                    f,
+                    "invalid operation: {}:{}:{}: {}",
+                    d.source, d.line, d.column, d.message
+                )?;
+                for cause in &d.causes {
+                    write!(f, "; cleanup: {}", cause.message)?;
+                }
+                Ok(())
+            }
             Error::Io(e) => write!(f, "I/O error: {e}"),
             Error::InvalidPath(s) => write!(f, "invalid path: {s}"),
             Error::MissingCheckpoint(s) => write!(f, "unknown checkpoint: {s}"),
@@ -231,6 +243,29 @@ impl From<io::Error> for Error {
     }
 }
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DiagnosticRecord {
+    pub code: String,
+    pub message: String,
+    pub source: String,
+    pub line: usize,
+    pub column: usize,
+    pub task_id: Option<u64>,
+    pub causes: Vec<DiagnosticRecord>,
+    pub wait_edges: Vec<WaitEdge>,
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub enum WaitTarget {
+    Task(u64),
+    Channel(u64),
+    Group(u64),
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct WaitEdge {
+    pub task: u64,
+    pub target: WaitTarget,
+}
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 const FILE_PAGE_SIZE: usize = 4096;

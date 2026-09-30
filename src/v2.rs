@@ -7,6 +7,7 @@ mod effects;
 mod packages;
 mod project;
 mod v05;
+mod v06;
 mod vm;
 thread_local! {
     // Parsed modules are reused within a compiler session by content identity.
@@ -291,6 +292,8 @@ struct StructDef {
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct TraitDef {
+    #[serde(default)]
+    method_effects: BTreeMap<String, BTreeSet<String>>,
     associated: BTreeSet<String>,
     methods: BTreeMap<String, (Vec<String>, String)>,
     public: bool,
@@ -306,6 +309,8 @@ struct EnumDef {
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 struct Program {
     language: String,
+    #[serde(default)]
+    inferred_effects: BTreeMap<String, BTreeSet<String>>,
     stmts: Vec<Stmt>,
     functions: BTreeMap<String, Function>,
     structs: BTreeMap<String, StructDef>,
@@ -341,6 +346,9 @@ impl Parser {
     fn effect_set(&mut self) -> Result<Option<BTreeSet<String>>> {
         if !self.eat("effects") {
             return Ok(None);
+        }
+        if !self.is("{") {
+            return Ok(Some(BTreeSet::from([self.name()?])));
         }
         self.need("{")?;
         let mut effects = BTreeSet::new();
@@ -400,6 +408,13 @@ impl Parser {
         result
     }
     fn ty_inner(&mut self) -> Result<String> {
+        if self.eat("&") {
+            return Ok(format!(
+                "&{}{}",
+                if self.eat("mut") { "mut " } else { "" },
+                self.ty()?
+            ));
+        }
         if self.eat("fn") {
             self.need("(")?;
             let mut args = Vec::new();
@@ -413,7 +428,15 @@ impl Parser {
                 }
             }
             self.need("->")?;
-            return Ok(format!("fn({})->{}", args.join(","), self.ty()?));
+            let ret = self.ty()?;
+            let effects = self.effect_set()?;
+            return Ok(format!(
+                "fn({})->{ret}{}",
+                args.join(","),
+                effects
+                    .map(|e| format!("!{{{}}}", e.into_iter().collect::<Vec<_>>().join("+")))
+                    .unwrap_or_default()
+            ));
         }
         let mut name = self.name()?;
         while self.is(".") || self.is("::") {
@@ -601,6 +624,7 @@ impl Parser {
                 let name = self.name()?;
                 self.need("{")?;
                 let mut methods = BTreeMap::new();
+                let mut method_effects = BTreeMap::new();
                 let mut associated = BTreeSet::new();
                 while !self.eat("}") {
                     if self.eat("type") {
@@ -625,6 +649,9 @@ impl Parser {
                     }
                     self.need("->")?;
                     let ret = self.ty()?;
+                    if let Some(effects) = self.effect_set()? {
+                        method_effects.insert(method.clone(), effects);
+                    }
                     self.need(";")?;
                     if methods.insert(method.clone(), (args, ret)).is_some() {
                         return Err(diagnostic(
@@ -637,6 +664,7 @@ impl Parser {
                     .insert(
                         name.clone(),
                         TraitDef {
+                            method_effects,
                             associated,
                             methods,
                             public,
@@ -2369,7 +2397,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     )?;
     program.strict_visibility = manifest
         .as_ref()
-        .is_some_and(|m| matches!(m.language.as_str(), "0.3" | "0.4" | "0.5"));
+        .is_some_and(|m| matches!(m.language.as_str(), "0.3" | "0.4" | "0.5" | "0.6"));
     program.language = manifest
         .as_ref()
         .map(|m| m.language.clone())
@@ -2377,7 +2405,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     v05::prepare(&mut program)?;
     check_program(&program)?;
     if let Some(config) = &manifest {
-        if config.language == "0.5" {
+        if matches!(config.language.as_str(), "0.5" | "0.6") {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
             effects::validate(&program, config)?;
@@ -2385,7 +2413,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     }
     vm::validate(&program)?;
     if mode == "build" {
-        let artifact = if program.language == "0.5" {
+        let artifact = if matches!(program.language.as_str(), "0.5" | "0.6") {
             v05::artifact(&program, root)?
         } else {
             vm::build_artifact(&program, root)?
@@ -2430,7 +2458,7 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
     )?;
     program.strict_visibility = manifest
         .as_ref()
-        .is_some_and(|m| matches!(m.language.as_str(), "0.3" | "0.4" | "0.5"));
+        .is_some_and(|m| matches!(m.language.as_str(), "0.3" | "0.4" | "0.5" | "0.6"));
     program.language = manifest
         .as_ref()
         .map(|m| m.language.clone())
@@ -2438,7 +2466,7 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
     v05::prepare(&mut program)?;
     check_program(&program)?;
     if let Some(config) = &manifest {
-        if config.language == "0.5" {
+        if matches!(config.language.as_str(), "0.5" | "0.6") {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
             effects::validate(&program, config)?;
@@ -2673,7 +2701,7 @@ pub fn debug_trace(path: &Path) -> Result<()> {
 pub fn lock_project(root: &Path) -> Result<()> {
     let project = project::ProjectConfig::load(root)?
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
-    if matches!(project.language.as_str(), "0.4" | "0.5") {
+    if matches!(project.language.as_str(), "0.4" | "0.5" | "0.6") {
         return Err(Error::InvalidOperation(
             "use 'rewind update' to update v0.4 dependencies".into(),
         ));
@@ -2789,7 +2817,7 @@ pub fn format_source(source: &str) -> Result<String> {
 }
 
 fn check_program(program: &Program) -> Result<()> {
-    if program.language == "0.5" {
+    if matches!(program.language.as_str(), "0.5" | "0.6") {
         let entries = program.impls.iter().collect::<Vec<_>>();
         for (i, ((tr, target), methods)) in entries.iter().enumerate() {
             for ((other_tr, other_target), other_methods) in entries.iter().skip(i + 1) {
@@ -3309,7 +3337,11 @@ impl Checker<'_> {
                     self.visible(*public, origin, &e.at, n)?;
                 }
                 if let Some(binding) = self.find(&resolved) {
-                    binding.0.clone()
+                    if self.program.language == "0.6" {
+                        v06::borrowed_type(&binding.0).into()
+                    } else {
+                        binding.0.clone()
+                    }
                 } else if let Some(f) = self
                     .program
                     .functions
@@ -3322,19 +3354,31 @@ impl Checker<'_> {
                             "generic function requires a call for type inference",
                         ));
                     }
-                    format!(
-                        "fn({})->{}",
-                        f.params
-                            .iter()
-                            .map(|(_, t)| t.as_str())
-                            .collect::<Vec<_>>()
-                            .join(","),
-                        if f.asynchronous {
-                            format!("Task<{}>", f.ret)
-                        } else {
-                            f.ret.clone()
-                        }
-                    )
+                    if self.program.language == "0.6" {
+                        v06::fn_type(
+                            &f.params,
+                            &if f.asynchronous {
+                                format!("Task<{}>", f.ret)
+                            } else {
+                                f.ret.clone()
+                            },
+                            &v06::function_effects(self.program, &resolved),
+                        )
+                    } else {
+                        format!(
+                            "fn({})->{}",
+                            f.params
+                                .iter()
+                                .map(|(_, t)| t.as_str())
+                                .collect::<Vec<_>>()
+                                .join(","),
+                            if f.asynchronous {
+                                format!("Task<{}>", f.ret)
+                            } else {
+                                f.ret.clone()
+                            }
+                        )
+                    }
                 } else if let Some(ty) = enum_constructor_type(
                     self.program,
                     &resolve_alias(self.program, n),
@@ -3378,7 +3422,7 @@ impl Checker<'_> {
                     } else {
                         format!(
                             "Result<{inner},{}>",
-                            if self.program.language == "0.5" {
+                            if matches!(self.program.language.as_str(), "0.5" | "0.6") {
                                 "TaskError"
                             } else {
                                 "String"
@@ -3387,6 +3431,13 @@ impl Checker<'_> {
                     });
                 }
                 if matches!(op.as_str(), "move" | "borrow" | "borrowMut") {
+                    if self.program.language == "0.6" && op != "move" {
+                        return Ok(format!(
+                            "&{}{}",
+                            if op == "borrowMut" { "mut " } else { "" },
+                            t
+                        ));
+                    }
                     return Ok(t);
                 }
                 if op == "!" && t != "Bool" || op == "-" && !matches!(t.as_str(), "Int" | "Float") {
@@ -3395,7 +3446,7 @@ impl Checker<'_> {
                 t
             }
             ExprKind::Binary(op, a, b) => {
-                if self.program.language == "0.5"
+                if matches!(self.program.language.as_str(), "0.5" | "0.6")
                     && (self.expr(a)?.starts_with("Secret<")
                         || self.expr(b)?.starts_with("Secret<"))
                 {
@@ -3469,6 +3520,17 @@ impl Checker<'_> {
                                     "generic function requires a call for type inference",
                                 ));
                             }
+                            if self.program.language == "0.6" {
+                                return Ok(v06::fn_type(
+                                    &f.params,
+                                    &if f.asynchronous {
+                                        format!("Task<{}>", f.ret)
+                                    } else {
+                                        f.ret.clone()
+                                    },
+                                    &v06::function_effects(self.program, symbol),
+                                ));
+                            }
                             return Ok(format!(
                                 "fn({})->{}",
                                 f.params
@@ -3501,7 +3563,9 @@ impl Checker<'_> {
                     }
                 }
                 let t = self.expr(base)?;
-                if self.program.language == "0.5" && t.starts_with("Frozen<") {
+                if matches!(self.program.language.as_str(), "0.5" | "0.6")
+                    && t.starts_with("Frozen<")
+                {
                     let inner = Expr {
                         kind: ExprKind::Unary("$unfreeze".into(), base.clone()),
                         at: base.at.clone(),
@@ -3550,7 +3614,33 @@ impl Checker<'_> {
                 }
             }
             ExprKind::Call(target, args) => {
-                if self.program.language == "0.5" {
+                if self.program.language == "0.6" {
+                    if let ExprKind::Member(base, method) = &target.kind {
+                        if self.expr(base).is_ok_and(|t| t.starts_with("Secret<")) {
+                            let call = Expr {
+                                kind: ExprKind::Call(
+                                    Box::new(Expr {
+                                        kind: ExprKind::Member(
+                                            Box::new(Expr {
+                                                kind: ExprKind::Unary(
+                                                    "$unsecret".into(),
+                                                    base.clone(),
+                                                ),
+                                                at: base.at.clone(),
+                                            }),
+                                            method.clone(),
+                                        ),
+                                        at: target.at.clone(),
+                                    }),
+                                    args.clone(),
+                                ),
+                                at: e.at.clone(),
+                            };
+                            return Ok(format!("Secret<{}>", self.expr(&call)?));
+                        }
+                    }
+                }
+                if matches!(self.program.language.as_str(), "0.5" | "0.6") {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
                             if !matches!(
@@ -3590,7 +3680,14 @@ impl Checker<'_> {
                     let special = matches!(&base.kind,ExprKind::Name(n) if self.program.import_aliases.keys().any(|alias| alias.starts_with(&format!("{n}."))) || matches!(n.as_str(),"Out"|"Err"|"File"|"Directory"|"Time"|"Random"|"Args"|"Env"|"Locale"|"In"));
                     if !special {
                         let ty = self.expr(base)?;
-                        if self.program.language == "0.5" {
+                        if self.program.language == "0.6" {
+                            if let Some(result) =
+                                v06::checker_method(self, &ty, method, &types, &e.at)?
+                            {
+                                return Ok(result);
+                            }
+                        }
+                        if matches!(self.program.language.as_str(), "0.5" | "0.6") {
                             if method == "iter" && types.is_empty() {
                                 if let Some(item) = v05::iterator_item(&ty) {
                                     return Ok(format!("Iterator<{item}>"));
@@ -3622,6 +3719,14 @@ impl Checker<'_> {
                             });
                         }
                         if ty.starts_with("Task<") {
+                            if self.program.language == "0.6" && types.is_empty() {
+                                if method == "requestCancel" {
+                                    return Ok("Unit".into());
+                                }
+                                if method == "cancelAndJoin" {
+                                    return Ok(ty);
+                                }
+                            }
                             return Ok(match (method.as_str(), types.as_slice()) {
                                 ("cancel" | "ignore" | "detach", []) => "Unit".into(),
                                 ("setPriority", [t]) if t == "Int" => "Unit".into(),
@@ -3646,7 +3751,7 @@ impl Checker<'_> {
                     }
                 }
                 if let ExprKind::Name(name) = &target.kind {
-                    if self.program.language == "0.5"
+                    if matches!(self.program.language.as_str(), "0.5" | "0.6")
                         && matches!(name.as_str(), "secret" | "reveal")
                     {
                         if types.len() != 1 {
@@ -3662,7 +3767,8 @@ impl Checker<'_> {
                                 .ok_or_else(|| diagnostic(&e.at, "reveal requires Secret<T>"))
                         };
                     }
-                    if self.program.language == "0.5" && matches!(name.as_str(), "freeze" | "thaw")
+                    if matches!(self.program.language.as_str(), "0.5" | "0.6")
+                        && matches!(name.as_str(), "freeze" | "thaw")
                     {
                         if types.len() != 1 {
                             return Err(diagnostic(&e.at, "freeze/thaw requires one argument"));
@@ -4201,14 +4307,18 @@ impl Checker<'_> {
                         format!("closure returning {ret} needs return on every path"),
                     ));
                 }
-                format!(
-                    "fn({})->{ret}",
-                    params
-                        .iter()
-                        .map(|(_, t)| t.as_str())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                )
+                if self.program.language == "0.6" {
+                    v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?)
+                } else {
+                    format!(
+                        "fn({})->{ret}",
+                        params
+                            .iter()
+                            .map(|(_, t)| t.as_str())
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    )
+                }
             }
             ExprKind::NamedConstructor(name, fields) => {
                 let resolved_name = resolve_alias(self.program, name);
@@ -5302,7 +5412,9 @@ impl<R: BufRead> Engine<R> {
         self.call(name, args, at)
     }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if self.program.language == "0.5" && matches!(name, "secret" | "reveal") {
+        if matches!(self.program.language.as_str(), "0.5" | "0.6")
+            && matches!(name, "secret" | "reveal")
+        {
             if args.len() != 1 {
                 return Err(self.fail(at, "secret/reveal requires one argument"));
             }
@@ -5317,7 +5429,9 @@ impl<R: BufRead> Engine<R> {
                     .ok_or_else(|| self.fail(at, "reveal requires Secret<T>"))
             };
         }
-        if self.program.language == "0.5" && matches!(name, "freeze" | "thaw") {
+        if matches!(self.program.language.as_str(), "0.5" | "0.6")
+            && matches!(name, "freeze" | "thaw")
+        {
             if args.len() != 1 {
                 return Err(self.fail(at, "freeze/thaw requires one argument"));
             }
@@ -5655,6 +5769,18 @@ impl<R: BufRead> Engine<R> {
         Ok(Err(position))
     }
     fn method(&mut self, target: Value, method: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
+        if self.program.language == "0.6" {
+            if let Some(inner) = v05::unsecret(&target) {
+                let value = self.method(inner.clone(), method, args, at)?;
+                return Ok(v05::secret(
+                    value.clone(),
+                    value_type(&value, &self.runtime),
+                ));
+            }
+            if let Some(value) = v06::primitive_method(&target, method, &args) {
+                return Ok(value);
+            }
+        }
         if let Some(value) = v05::unfrozen(&target) {
             let result = self.method(value.clone(), method, args, at)?;
             return Ok(if method == "iter" {
@@ -5663,7 +5789,7 @@ impl<R: BufRead> Engine<R> {
                 v05::freeze_member(result, &self.runtime)
             });
         }
-        if self.program.language == "0.5" && args.is_empty() {
+        if matches!(self.program.language.as_str(), "0.5" | "0.6") && args.is_empty() {
             if method == "iter" {
                 let value = self.ordered_key(&target, at)?;
                 if let Some(iterator) =
@@ -6139,6 +6265,17 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
     .into()
 }
 fn compatible(expected: &str, actual: &str) -> bool {
+    if expected.starts_with('&') || actual.starts_with('&') {
+        return compatible(v06::borrowed_type(expected), v06::borrowed_type(actual));
+    }
+    if let (Some((ea, er)), Some((aa, ar))) =
+        (function_signature(expected), function_signature(actual))
+    {
+        return ea.len() == aa.len()
+            && ea.iter().zip(aa).all(|(e, a)| compatible(e, &a))
+            && compatible(&er, &ar)
+            && v06::effects_compatible(expected, actual);
+    }
     if expected == actual || expected == "Unknown" || actual == "Unknown" || actual == "Never" {
         return true;
     }
@@ -6164,6 +6301,28 @@ fn unify_type(
     params: &[String],
     substitutions: &mut BTreeMap<String, String>,
 ) -> bool {
+    if expected.starts_with('&') || actual.starts_with('&') {
+        return unify_type(
+            v06::borrowed_type(expected),
+            v06::borrowed_type(actual),
+            params,
+            substitutions,
+        );
+    }
+    if let (Some((ea, er)), Some((aa, ar))) =
+        (function_signature(expected), function_signature(actual))
+    {
+        if ea.len() != aa.len()
+            || !ea
+                .iter()
+                .zip(aa)
+                .all(|(e, a)| unify_type(e, &a, params, substitutions))
+            || !unify_type(&er, &ar, params, substitutions)
+        {
+            return false;
+        }
+        return v06::unify_effects(expected, actual, params, substitutions);
+    }
     if params.iter().any(|p| p == expected) {
         return match substitutions.get(expected) {
             Some(previous) => compatible(previous, actual),
@@ -6226,7 +6385,10 @@ fn infer_arguments(
     Ok(substitutions)
 }
 fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
-    if program.language == "0.5" && matches!(bound, "Send" | "Share") {
+    if bound == "Effect" {
+        return ty.starts_with('@');
+    }
+    if matches!(program.language.as_str(), "0.5" | "0.6") && matches!(bound, "Send" | "Share") {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
     }
     if matches!(bound, "Eq" | "Ord" | "Hash" | "Display")
@@ -6248,7 +6410,7 @@ fn impl_matches(
     if target == ty {
         return true;
     }
-    if program.language != "0.5" {
+    if !matches!(program.language.as_str(), "0.5" | "0.6") {
         return false;
     }
     let Some(f) = methods
@@ -6318,6 +6480,7 @@ fn infer_call_arguments(
 fn standard_trait(name: &str) -> Option<TraitDef> {
     if matches!(name, "Iterator" | "IntoIterator") {
         return Some(TraitDef {
+            method_effects: BTreeMap::new(),
             associated: BTreeSet::from(["Item".into()]),
             methods: BTreeMap::from([(
                 if name == "Iterator" { "next" } else { "iter" }.into(),
@@ -6348,6 +6511,7 @@ fn standard_trait(name: &str) -> Option<TraitDef> {
         (params.into_iter().map(str::to_string).collect(), ret.into()),
     );
     Some(TraitDef {
+        method_effects: BTreeMap::new(),
         associated: BTreeSet::new(),
         methods,
         public: true,
@@ -6379,7 +6543,7 @@ fn function_signature(ty: &str) -> Option<(Vec<String>, String)> {
             .map(|a| a.to_string())
             .collect()
     };
-    Some((args, ret.into()))
+    Some((args, v06::strip_effects(ret).into()))
 }
 fn trait_method_return(
     program: &Program,

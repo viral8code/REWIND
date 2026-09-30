@@ -1,5 +1,6 @@
 use super::*;
 use rewind::BranchAnchor;
+mod extensions;
 mod scheduler;
 use scheduler::Scheduler;
 
@@ -655,6 +656,7 @@ struct Vm<R: BufRead> {
     choices_used: Vec<usize>,
     fingerprint: String,
     entry: String,
+    callback_stop: Option<usize>,
 }
 
 impl<R: BufRead> Vm<R> {
@@ -755,9 +757,36 @@ impl<R: BufRead> Vm<R> {
             choices_used: Vec::new(),
             fingerprint,
             entry,
+            callback_stop: None,
         })
     }
     fn error(&self, at: &Tok, message: impl AsRef<str>) -> Error {
+        if self.engine.program.language == "0.6" {
+            let message = message.as_ref();
+            let code = if message.starts_with("TaskBudgetExceeded: scheduler storage") {
+                "SchedulerStorage"
+            } else if message.starts_with("TaskBudgetExceeded: objects") {
+                "SchedulerObjects"
+            } else if message.starts_with("TaskBudgetExceeded: instructions") {
+                "TaskSteps"
+            } else {
+                message.split([':', ' ']).next().unwrap_or("TaskFailed")
+            };
+            return Error::Diagnostic(Box::new(rewind::DiagnosticRecord {
+                code: code.into(),
+                message: message.into(),
+                source: at.source.clone(),
+                line: at.line,
+                column: at.col,
+                task_id: Some(self.scheduler.active),
+                causes: vec![],
+                wait_edges: if code == "TaskDeadlock" {
+                    self.scheduler.wait_edges()
+                } else {
+                    vec![]
+                },
+            }));
+        }
         diagnostic(at, message)
     }
     fn push(&mut self, value: Value) -> Result<()> {
@@ -971,16 +1000,25 @@ impl<R: BufRead> Vm<R> {
     fn run_cleanups(&mut self, pending: Vec<Cleanup>, at: &Tok) -> Result<()> {
         let mut first_error = None;
         let mut suppressed = Vec::new();
+        let mut typed_causes = Vec::new();
         for cleanup in pending.into_iter().rev() {
             if let Err(error) = self.run_cleanup(cleanup, at) {
                 if first_error.is_none() {
                     first_error = Some(error);
                 } else {
+                    typed_causes.push(v06::diagnostics::record(&error, at, self.scheduler.active));
                     suppressed.push(error.to_string());
                 }
             }
         }
-        if self.engine.program.language == "0.5" {
+        if self.engine.program.language == "0.6" {
+            return first_error.map_or(Ok(()), |e| {
+                let mut d = v06::diagnostics::record(&e, at, self.scheduler.active);
+                d.causes.extend(typed_causes);
+                Err(Error::Diagnostic(Box::new(d)))
+            });
+        }
+        if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
             first_error.map_or(Ok(()), |e| {
                 let mut message = e.to_string();
                 for cause in suppressed {
@@ -1154,13 +1192,24 @@ impl<R: BufRead> Vm<R> {
                             col: 0,
                         });
                     let mut causes = Vec::new();
+                    let mut failure = v06::diagnostics::record(&error, &at, self.scheduler.active);
                     for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
                         if let Err(e) = self.run_cleanups(frame.defers, &at) {
+                            failure.causes.push(v06::diagnostics::record(
+                                &e,
+                                &at,
+                                self.scheduler.active,
+                            ));
                             causes.push(e.to_string());
                         }
                     }
                     let pending = std::mem::take(&mut self.global_cleanups);
                     if let Err(e) = self.run_cleanups(pending, &at) {
+                        failure.causes.push(v06::diagnostics::record(
+                            &e,
+                            &at,
+                            self.scheduler.active,
+                        ));
                         causes.push(e.to_string());
                     }
                     self.frames.clear();
@@ -1172,6 +1221,7 @@ impl<R: BufRead> Vm<R> {
                         message.push_str("; cleanup: ");
                         message.push_str(&cause);
                     }
+                    self.set_task_failure(failure);
                     match self.finish_scheduled_task(Err(message), &at) {
                         Ok(true) => continue,
                         Ok(false) => break Ok(()),
@@ -1181,13 +1231,18 @@ impl<R: BufRead> Vm<R> {
                 result => break result,
             }
         };
-        if result.is_ok() && self.engine.program.language == "0.5" {
-            if let Some(error) = self.unhandled_task_error() {
+        if result.is_ok() && matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
+            if self.engine.program.language == "0.6" {
+                if let Some(error) = self.unhandled_task_diagnostic() {
+                    result = Err(Error::Diagnostic(Box::new(error)));
+                }
+            } else if let Some(error) = self.unhandled_task_error() {
                 result = Err(Error::InvalidOperation(error));
             }
         }
         if result.is_err() {
             let mut causes = Vec::new();
+            let mut typed_causes = Vec::new();
             let at = self
                 .code
                 .get(self.pc.saturating_sub(1))
@@ -1199,6 +1254,7 @@ impl<R: BufRead> Vm<R> {
                     col: 0,
                 });
             if let Err(e) = self.cancel_children(&at) {
+                typed_causes.push(v06::diagnostics::record(&e, &at, self.scheduler.active));
                 causes.push(e.to_string());
             }
             for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
@@ -1214,6 +1270,7 @@ impl<R: BufRead> Vm<R> {
                             col: 0,
                         });
                     if let Err(e) = self.run_cleanup(cleanup, &at) {
+                        typed_causes.push(v06::diagnostics::record(&e, &at, self.scheduler.active));
                         causes.push(e.to_string());
                     }
                 }
@@ -1230,10 +1287,18 @@ impl<R: BufRead> Vm<R> {
                 });
             for cleanup in std::mem::take(&mut self.global_cleanups).into_iter().rev() {
                 if let Err(e) = self.run_cleanup(cleanup, &at) {
+                    typed_causes.push(v06::diagnostics::record(&e, &at, self.scheduler.active));
                     causes.push(e.to_string());
                 }
             }
-            if self.engine.program.language == "0.5" && !causes.is_empty() {
+            if self.engine.program.language == "0.6" {
+                let mut failure =
+                    v06::diagnostics::record(&result.unwrap_err(), &at, self.scheduler.active);
+                failure.causes.extend(typed_causes);
+                result = Err(Error::Diagnostic(Box::new(failure)));
+            } else if matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
+                && !causes.is_empty()
+            {
                 let mut message = result.unwrap_err().to_string();
                 for cause in causes {
                     message.push_str("; cleanup: ");
@@ -1246,7 +1311,18 @@ impl<R: BufRead> Vm<R> {
     }
     fn finish_tools(&self, execution_error: Option<&Error>) -> Result<()> {
         let digest = self.engine.runtime.state_digest()?;
-        let outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string())))});
+        let mut outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string())))});
+        if self.engine.program.language == "0.6" {
+            outcome["diagnostic"] = execution_error
+                .and_then(|e| {
+                    if let Error::Diagnostic(d) = e {
+                        Some(v06::diagnostics::masked_record(d, &self.engine.runtime))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(serde_json::Value::Null);
+        }
         if let Some(replay) = &self.options.replay {
             if replay["events"]
                 .as_array()
@@ -1287,6 +1363,12 @@ impl<R: BufRead> Vm<R> {
     }
     fn run_inner(&mut self) -> Result<()> {
         loop {
+            if self
+                .callback_stop
+                .is_some_and(|depth| self.frames.len() <= depth)
+            {
+                return Ok(());
+            }
             if self
                 .options
                 .pause_after
@@ -1592,7 +1674,9 @@ impl<R: BufRead> Vm<R> {
                     let needed = v05::needed_globals(&self.engine.program, &name);
                     for scope in &self.globals {
                         for (name, binding) in scope {
-                            if self.engine.program.language == "0.5" && !needed.contains(name) {
+                            if matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
+                                && !needed.contains(name)
+                            {
                                 continue;
                             }
                             captures.insert(
@@ -1608,7 +1692,9 @@ impl<R: BufRead> Vm<R> {
                     if let Some(frame) = self.frames.last() {
                         for scope in &frame.scopes {
                             for (name, binding) in scope {
-                                if self.engine.program.language == "0.5" && !needed.contains(name) {
+                                if matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
+                                    && !needed.contains(name)
+                                {
                                     continue;
                                 }
                                 captures.insert(
@@ -1631,6 +1717,20 @@ impl<R: BufRead> Vm<R> {
                 Op::Method(method, count) => {
                     let mut args = self.args(count)?;
                     let target = self.pop()?;
+                    if self.engine.program.language == "0.6" {
+                        if let Some(value) =
+                            self.result_adapter(&target, &method, &args, &inst.at)?
+                        {
+                            self.push(value)?;
+                            continue;
+                        }
+                        if let Some(value) =
+                            self.iterator_adapter(&target, &method, &args, &inst.at)?
+                        {
+                            self.push(value)?;
+                            continue;
+                        }
+                    }
                     if let Some(value) = self.scheduler_method(&target, &method, &args, &inst.at)? {
                         self.push(value)?;
                         continue;
@@ -1730,7 +1830,7 @@ impl<R: BufRead> Vm<R> {
                     _ => return Err(self.error(&inst.at, "condition must be Bool")),
                 },
                 Op::Return => {
-                    let failed = self.engine.program.language == "0.5"
+                    let failed = matches!(self.engine.program.language.as_str(), "0.5" | "0.6")
                         && matches!(
                             self.engine.runtime.state().stack.last(),
                             Some(Value::Result(Err(_)))
@@ -1844,7 +1944,7 @@ impl<R: BufRead> Vm<R> {
                     self.snapshots.remove(&name);
                 }
                 Op::Publish(force) => {
-                    if self.engine.program.language == "0.5" {
+                    if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
                         if let Some(error) = self.unhandled_task_error() {
                             return Err(self.error(&inst.at, error));
                         }
@@ -1965,7 +2065,7 @@ pub(super) fn execute(
                 vm.call_user(&test, Vec::new(), &at)?;
                 vm.run()
             })();
-            if result.is_ok() || program.language == "0.5" {
+            if result.is_ok() || matches!(program.language.as_str(), "0.5" | "0.6") {
                 vm.finish_tools(result.as_ref().err())?;
             }
             result.map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
@@ -1982,7 +2082,7 @@ pub(super) fn execute(
         let mut vm = Vm::new(program, root, io::stdin().lock(), trace, false, &options)?;
         let result = vm.run();
         if result.is_ok()
-            || vm.engine.program.language == "0.5"
+            || matches!(vm.engine.program.language.as_str(), "0.5" | "0.6")
             || options.inspect
             || options.profile
         {
@@ -2117,7 +2217,7 @@ fn explore_test(
             vm.call_user(test, Vec::new(), &program.functions[test].at)?;
             vm.run()
         })();
-        if run.is_err() && program.language == "0.5" {
+        if run.is_err() && matches!(program.language.as_str(), "0.5" | "0.6") {
             vm.options.record = options.record.clone();
             vm.finish_tools(run.as_ref().err())?;
         }

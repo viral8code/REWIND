@@ -40,6 +40,7 @@ struct Task {
     priority: i64,
     context: Option<Context>,
     result: Option<std::result::Result<Value, String>>,
+    failure: Option<rewind::DiagnosticRecord>,
     globals: Vec<BTreeMap<String, Binding>>,
     parent: u64,
 }
@@ -68,6 +69,7 @@ impl Default for Scheduler {
             priority: 0,
             context: None,
             result: None,
+            failure: None,
             globals: Vec::new(),
             parent: 0,
         };
@@ -81,6 +83,25 @@ impl Default for Scheduler {
     }
 }
 impl Scheduler {
+    pub(super) fn wait_edges(&self) -> Vec<rewind::WaitEdge> {
+        self.tasks
+            .iter()
+            .filter_map(|(id, t)| {
+                let target = match (&t.phase, &t.body) {
+                    (TaskPhase::Waiting(on), _) => rewind::WaitTarget::Task(*on),
+                    (
+                        TaskPhase::WaitingChannel,
+                        TaskBody::Send(channel, _) | TaskBody::Receive(channel),
+                    ) => rewind::WaitTarget::Channel(*channel),
+                    (TaskPhase::WaitingChannel, TaskBody::Join(group)) => {
+                        rewind::WaitTarget::Group(*group)
+                    }
+                    _ => return None,
+                };
+                Some(rewind::WaitEdge { task: *id, target })
+            })
+            .collect()
+    }
     // A conservative logical byte count, including retained task contexts.
     // Checkpoint copies are charged separately by the VM; this is not RSS.
     pub(super) fn storage_bytes(&self) -> usize {
@@ -246,6 +267,7 @@ impl<R: BufRead> Vm<R> {
                 priority: 0,
                 context: None,
                 result: None,
+                failure: None,
                 globals,
                 parent: self.scheduler.active,
             },
@@ -270,7 +292,7 @@ impl<R: BufRead> Vm<R> {
             .collect::<Vec<_>>();
         let substitutions = infer_call_arguments(name, &def.params, &params, &actual, at)?;
         let ty = substitute_type(&def.ret, &substitutions);
-        let v5 = self.engine.program.language == "0.5";
+        let v5 = matches!(self.engine.program.language.as_str(), "0.5" | "0.6");
         let mut needed = v05::needed_globals(&self.engine.program, name);
         if v5 {
             for arg in &args {
@@ -401,7 +423,7 @@ impl<R: BufRead> Vm<R> {
             }
             return Ok(Some(match (method, args) {
                 ("send", [value]) => {
-                    let value = if self.engine.program.language == "0.5" {
+                    let value = if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
                         v05::task_copy(&mut self.engine.runtime, value)?
                     } else {
                         unflow(self.engine.ordered_key(value, at), at)?
@@ -427,7 +449,9 @@ impl<R: BufRead> Vm<R> {
         }
         if ty.starts_with("Task<") {
             match (method, args) {
-                ("ignore" | "detach", []) if self.engine.program.language == "0.5" => {
+                ("ignore" | "detach", [])
+                    if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") =>
+                {
                     self.scheduler
                         .tasks
                         .get_mut(&id)
@@ -435,6 +459,24 @@ impl<R: BufRead> Vm<R> {
                         .ignored = true
                 }
                 ("cancel", []) => self.cancel_task(id, at)?,
+                ("requestCancel", []) if self.engine.program.language == "0.6" => {
+                    let task = self
+                        .scheduler
+                        .tasks
+                        .get_mut(&id)
+                        .ok_or_else(|| diagnostic(at, "unknown Task"))?;
+                    task.cancel_requested = true;
+                    if matches!(
+                        task.phase,
+                        TaskPhase::Waiting(_) | TaskPhase::WaitingChannel
+                    ) {
+                        task.phase = TaskPhase::Ready;
+                    }
+                }
+                ("cancelAndJoin", []) if self.engine.program.language == "0.6" => {
+                    self.cancel_task(id, at)?;
+                    return Ok(Some(value.clone()));
+                }
                 ("setPriority", [Value::Int(priority)]) => {
                     self.scheduler
                         .tasks
@@ -472,6 +514,14 @@ impl<R: BufRead> Vm<R> {
         Ok(None)
     }
     pub(super) fn task_result(&mut self, id: u64) -> Option<Value> {
+        if self.engine.program.language == "0.6" {
+            if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
+                self.scheduler.tasks.get_mut(&id)?.observed = true;
+                return Some(Value::Result(Err(Box::new(v06::diagnostics::task_error(
+                    &failure,
+                )))));
+            }
+        }
         if let Some(task) = self.scheduler.tasks.get_mut(&id) {
             if task.result.is_some() {
                 task.observed = true;
@@ -479,25 +529,72 @@ impl<R: BufRead> Vm<R> {
         }
         self.scheduler.tasks.get(&id)?.result.clone().map(|result| {
             Value::Result(match result {
-                Ok(value) if self.engine.program.language == "0.5" => {
+                Ok(value) if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") => {
                     v05::task_copy(&mut self.engine.runtime, &value)
                         .map(Box::new)
-                        .map_err(|e| Box::new(v05::task_error(&e.to_string())))
+                        .map_err(|e| {
+                            Box::new(if self.engine.program.language == "0.6" {
+                                v06::diagnostics::task_error(&v06::diagnostics::record(
+                                    &e,
+                                    &Tok {
+                                        source: String::new(),
+                                        text: String::new(),
+                                        line: 0,
+                                        col: 0,
+                                    },
+                                    id,
+                                ))
+                            } else {
+                                v05::task_error(&e.to_string())
+                            })
+                        })
                 }
                 Ok(value) => Ok(Box::new(value)),
-                Err(error) => Err(Box::new(if self.engine.program.language == "0.5" {
-                    v05::task_error(&error)
-                } else {
-                    Value::Text(error)
-                })),
+                Err(error) => Err(Box::new(
+                    if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
+                        v05::task_error(&error)
+                    } else {
+                        Value::Text(error)
+                    },
+                )),
             })
         })
     }
     fn complete_task(&mut self, id: u64, result: std::result::Result<Value, String>) {
         let task = self.scheduler.tasks.get_mut(&id).unwrap();
+        if self.engine.program.language == "0.6" && task.failure.is_none() {
+            if let Err(message) = &result {
+                task.failure = Some(rewind::DiagnosticRecord {
+                    code: if message == "ChannelClosed" {
+                        "ChannelClosed"
+                    } else if message == "TaskCancelled" {
+                        "TaskCancelled"
+                    } else {
+                        "TaskFailed"
+                    }
+                    .into(),
+                    message: message.clone(),
+                    source: String::new(),
+                    line: 0,
+                    column: 0,
+                    task_id: Some(id),
+                    causes: vec![],
+                    wait_edges: vec![],
+                });
+            }
+        }
         task.phase = TaskPhase::Done;
         task.result = Some(result);
         task.context = None;
+    }
+    pub(super) fn set_task_failure(&mut self, failure: rewind::DiagnosticRecord) {
+        if self.engine.program.language == "0.6" {
+            self.scheduler
+                .tasks
+                .get_mut(&self.scheduler.active)
+                .unwrap()
+                .failure = Some(failure);
+        }
     }
     fn pump_actions(&mut self) {
         loop {
@@ -510,6 +607,17 @@ impl<R: BufRead> Vm<R> {
                 .map(|(id, t)| (*id, t.body.clone()))
                 .collect::<Vec<_>>();
             for (id, body) in &actions {
+                if self.engine.program.language == "0.6"
+                    && self.scheduler.tasks[id].cancel_requested
+                    && matches!(
+                        body,
+                        TaskBody::Send(..) | TaskBody::Receive(..) | TaskBody::Join(..)
+                    )
+                {
+                    self.complete_task(*id, Err("TaskCancelled".into()));
+                    progress = true;
+                    continue;
+                }
                 let result = match body {
                     TaskBody::Send(channel, value) => {
                         let c = self.scheduler.channels.get_mut(channel).unwrap();
@@ -571,6 +679,22 @@ impl<R: BufRead> Vm<R> {
                     _ => continue,
                 };
                 if let Some(result) = result {
+                    if self.engine.program.language == "0.6" {
+                        if let TaskBody::Join(group) = body {
+                            let failures = self
+                                .scheduler
+                                .groups
+                                .get(group)
+                                .into_iter()
+                                .flatten()
+                                .filter_map(|id| self.scheduler.tasks[id].failure.clone())
+                                .collect::<Vec<_>>();
+                            if let Some(mut first) = failures.first().cloned() {
+                                first.causes.extend(failures.into_iter().skip(1));
+                                self.scheduler.tasks.get_mut(id).unwrap().failure = Some(first);
+                            }
+                        }
+                    }
                     if let TaskBody::Join(group) = body {
                         if let Some(children) = self.scheduler.groups.get(group) {
                             for child in children {
@@ -715,11 +839,13 @@ impl<R: BufRead> Vm<R> {
         at: &Tok,
     ) -> Result<bool> {
         let result = match result {
-            Ok(value) => Ok(if self.engine.program.language == "0.5" {
-                v05::task_copy(&mut self.engine.runtime, &value)?
-            } else {
-                unflow(self.engine.ordered_key(&value, at), at)?
-            }),
+            Ok(value) => Ok(
+                if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
+                    v05::task_copy(&mut self.engine.runtime, &value)?
+                } else {
+                    unflow(self.engine.ordered_key(&value, at), at)?
+                },
+            ),
             Err(error) => Err(error),
         };
         let id = self.scheduler.active;
@@ -750,11 +876,29 @@ impl<R: BufRead> Vm<R> {
             }
         })
     }
+    pub(super) fn unhandled_task_diagnostic(&self) -> Option<rewind::DiagnosticRecord> {
+        self.scheduler.tasks.iter().find_map(|(id, t)| {
+            if *id == 0 || t.observed || t.ignored {
+                return None;
+            }
+            let failure = t.failure.clone()?;
+            Some(rewind::DiagnosticRecord {
+                code: "UnhandledTaskError".into(),
+                message: format!("unhandled failure in task {id}"),
+                source: failure.source.clone(),
+                line: failure.line,
+                column: failure.column,
+                task_id: Some(0),
+                causes: vec![failure],
+                wait_edges: vec![],
+            })
+        })
+    }
     pub(super) fn cancellation_requested(&self) -> bool {
         self.scheduler.tasks[&self.scheduler.active].cancel_requested
     }
     pub(super) fn drain_scope_groups(&mut self, depth: Option<usize>, at: &Tok) -> Result<bool> {
-        if self.engine.program.language != "0.5" {
+        if !matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
             return Ok(false);
         }
         let cleanups = self
@@ -837,28 +981,43 @@ impl<R: BufRead> Vm<R> {
             self.cancel_task(child, at)?;
         }
         if id == self.scheduler.active {
-            if self.engine.program.language == "0.5" {
+            if matches!(self.engine.program.language.as_str(), "0.5" | "0.6") {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
                 return Ok(());
             }
             return Err(self.error(at, "cannot synchronously cancel active task"));
         }
         let mut error = String::from("TaskCancelled");
+        let mut failure = rewind::DiagnosticRecord {
+            code: "TaskCancelled".into(),
+            message: error.clone(),
+            source: at.source.clone(),
+            line: at.line,
+            column: at.col,
+            task_id: Some(id),
+            causes: vec![],
+            wait_edges: vec![],
+        };
         if let Some(context) = task.context {
             let current = self.capture_context();
             self.install_context(context)?;
             for frame in self.frames.iter().rev().cloned().collect::<Vec<_>>() {
                 if let Err(e) = self.run_cleanups(frame.defers, at) {
+                    failure.causes.push(v06::diagnostics::record(&e, at, id));
                     error.push_str("; cleanup: ");
                     error.push_str(&e.to_string());
                 }
             }
             let cleanups = std::mem::take(&mut self.global_cleanups);
             if let Err(e) = self.run_cleanups(cleanups, at) {
+                failure.causes.push(v06::diagnostics::record(&e, at, id));
                 error.push_str("; cleanup: ");
                 error.push_str(&e.to_string());
             }
             self.install_context(current)?;
+        }
+        if self.engine.program.language == "0.6" {
+            self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
         }
         self.complete_task(id, Err(error));
         Ok(())
