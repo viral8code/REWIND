@@ -1,5 +1,7 @@
 # REWIND
 
+v0.6 is under development. Effect-bearing function types, synchronous borrow parameters, field moves, diagnostic cause trees, Result and Iterator adapters, checked conversions, and incremental LSP synchronization are available with `language = "0.6"`. See [implementation progress and remaining work](docs/v0.6-status.md) and the [v0.7 draft proposal](docs/REWIND_v0.7.md).
+
 REWIND is a programming language implemented in Rust, with named checkpoints, deterministic replay, and virtual I/O. Version 0.5 adds Frozen snapshots, move and lexical borrow checks, transferable closures, typed task errors, function effects, verified source-free artifacts, generic impls, associated types, iterators, transitive signed dependencies, LSP, and a recorded interactive debugger. See the [v0.1 specification](docs/REWIND_v0.1.md), [v0.2 design](docs/REWIND_v0.2.md), [v0.3 design](docs/REWIND_v0.3.md), [v0.4 implementation notes](docs/v0.4-status.md), [v0.5 implementation notes](docs/v0.5-status.md), and [standard API](docs/stdlib-v0.5.md). The next version is described in the [v0.6 proposal](docs/REWIND_v0.6.md).
 
 ## Commands

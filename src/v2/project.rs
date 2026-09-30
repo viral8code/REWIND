@@ -172,7 +172,7 @@ impl ProjectConfig {
         }
         let language = language
             .ok_or_else(|| Error::InvalidOperation("rewind.toml: language is required".into()))?;
-        if !matches!(language.as_str(), "0.2" | "0.3" | "0.4" | "0.5") {
+        if !matches!(language.as_str(), "0.2" | "0.3" | "0.4" | "0.5" | "0.6") {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
             )));
@@ -197,7 +197,7 @@ impl ProjectConfig {
             }
             imports.insert(name, full);
         }
-        if language == "0.5" {
+        if matches!(language.as_str(), "0.5" | "0.6") {
             let mut inspected = BTreeSet::new();
             loop {
                 let pending = imports
@@ -297,7 +297,7 @@ impl ProjectConfig {
         Ok(())
     }
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
-        if matches!(self.language.as_str(), "0.4" | "0.5") {
+        if matches!(self.language.as_str(), "0.4" | "0.5" | "0.6") {
             return self.secure_lock(root, update);
         }
         let mut expected = format!(
@@ -394,7 +394,7 @@ impl ProjectConfig {
                 }
             }
             let mut selected = serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()});
-            if self.language == "0.5" {
+            if matches!(self.language.as_str(), "0.5" | "0.6") {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
                     .get("dependencies")
@@ -407,7 +407,7 @@ impl ProjectConfig {
         let expected=serde_json::to_string_pretty(&serde_json::json!({"format":2,"language":self.language,"compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies})).map_err(|e| Error::InvalidOperation(e.to_string()))?+"\n";
         let path = root.join("rewind.lock");
         if update {
-            if self.language == "0.5" {
+            if matches!(self.language.as_str(), "0.5" | "0.6") {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()
                     .and_then(|b| serde_json::from_slice(&b).ok())

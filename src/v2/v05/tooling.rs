@@ -82,7 +82,7 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
     prepare(&mut program)?;
     check_program(&program)?;
     if let Some(c) = &config {
-        if c.language == "0.5" {
+        if matches!(c.language.as_str(), "0.5" | "0.6") {
             validate(&program, c)?;
         } else if c.language == "0.4" {
             effects::validate(&program, c)?;
@@ -97,12 +97,53 @@ fn send(writer: &mut impl Write, value: &Json) -> Result<()> {
     writer.flush()?;
     Ok(())
 }
+fn utf16_offset(text: &str, position: &Json) -> Result<usize> {
+    let line = position["line"]
+        .as_u64()
+        .ok_or_else(|| Error::InvalidOperation("missing line".into()))? as usize;
+    let column = position["character"]
+        .as_u64()
+        .ok_or_else(|| Error::InvalidOperation("missing character".into()))?
+        as usize;
+    let mut offset = 0;
+    for (index, part) in text
+        .split_inclusive('\n')
+        .chain(std::iter::once(""))
+        .enumerate()
+    {
+        if index == line {
+            let content = part.trim_end_matches(['\r', '\n']);
+            let mut units = 0;
+            for (byte, c) in content.char_indices() {
+                if units == column {
+                    return Ok(offset + byte);
+                }
+                units += c.len_utf16();
+                if units > column {
+                    return Err(Error::InvalidOperation(
+                        "UTF-16 position splits a surrogate pair".into(),
+                    ));
+                }
+            }
+            if units == column {
+                return Ok(offset + content.len());
+            }
+            break;
+        }
+        offset += part.len();
+    }
+    Err(Error::InvalidOperation(
+        "document position out of range".into(),
+    ))
+}
 pub fn lsp(root: &Path) -> Result<()> {
     let stdin = io::stdin();
     let mut input = stdin.lock();
     let stdout = io::stdout();
     let mut output = stdout.lock();
-    let mut documents = BTreeMap::new();
+    let mut documents: BTreeMap<PathBuf, String> = BTreeMap::new();
+    let mut versions: BTreeMap<PathBuf, i64> = BTreeMap::new();
+    let incremental = project::ProjectConfig::load(root)?.is_some_and(|c| c.language == "0.6");
     let mut shutdown = false;
     loop {
         let mut length = None;
@@ -138,7 +179,7 @@ pub fn lsp(root: &Path) -> Result<()> {
         let response = (|| -> Result<Json> {
             match method {
                 "initialize" => Ok(
-                    json!({"capabilities":{"textDocumentSync":1,"hoverProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
+                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
                 ),
                 "shutdown" => {
                     shutdown = true;
@@ -155,18 +196,57 @@ pub fn lsp(root: &Path) -> Result<()> {
                     }
                     if method.ends_with("didClose") {
                         documents.remove(&path);
+                        versions.remove(&path);
                         send(
                             &mut output,
                             &json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":uri,"diagnostics":[]}}),
                         )?;
                         return Ok(Json::Null);
                     }
-                    let text = if method.ends_with("didOpen") {
-                        params["textDocument"]["text"].as_str()
-                    } else {
-                        params["contentChanges"][0]["text"].as_str()
+                    let version = params["textDocument"]["version"].as_i64().ok_or_else(|| {
+                        Error::InvalidOperation("document version required".into())
+                    })?;
+                    if versions.get(&path).is_some_and(|old| version <= *old) {
+                        return Err(Error::InvalidOperation("stale document version".into()));
                     }
-                    .ok_or_else(|| Error::InvalidOperation("full document text required".into()))?;
+                    let text = if method.ends_with("didOpen") {
+                        params["textDocument"]["text"]
+                            .as_str()
+                            .ok_or_else(|| {
+                                Error::InvalidOperation("document text required".into())
+                            })?
+                            .to_string()
+                    } else {
+                        let mut text = documents.get(&path).cloned().ok_or_else(|| {
+                            Error::InvalidOperation("document must be opened first".into())
+                        })?;
+                        let changes = params["contentChanges"].as_array().ok_or_else(|| {
+                            Error::InvalidOperation("contentChanges required".into())
+                        })?;
+                        for change in changes {
+                            let replacement = change["text"].as_str().ok_or_else(|| {
+                                Error::InvalidOperation("change text required".into())
+                            })?;
+                            if let Some(range) = change.get("range") {
+                                let start = utf16_offset(&text, &range["start"])?;
+                                let end = utf16_offset(&text, &range["end"])?;
+                                if start > end {
+                                    return Err(Error::InvalidOperation(
+                                        "reversed edit range".into(),
+                                    ));
+                                }
+                                text.replace_range(start..end, replacement);
+                            } else {
+                                text = replacement.into();
+                            }
+                            if text.len() > 512 * 1024 {
+                                return Err(Error::InvalidOperation(
+                                    "LSP document budget exceeded".into(),
+                                ));
+                            }
+                        }
+                        text
+                    };
                     if text.len() > 512 * 1024
                         || documents.len() >= 128 && !documents.contains_key(&path)
                     {
@@ -174,19 +254,20 @@ pub fn lsp(root: &Path) -> Result<()> {
                             "LSP document budget exceeded".into(),
                         ));
                     }
-                    documents.insert(path.clone(), text.into());
+                    documents.insert(path.clone(), text.clone());
+                    versions.insert(path.clone(), version);
                     let diagnostics = match program(root, &path, &documents) {
                         Ok(_) => Vec::new(),
                         Err(e) => {
                             let message = e.to_string();
-                            let location = lex(text).ok().and_then(|tokens| {
+                            let location = lex(&text).ok().and_then(|tokens| {
                                 tokens
                                     .into_iter()
                                     .find(|t| message.contains(&format!(":{}:{}:", t.line, t.col)))
                             });
                             let line = location.as_ref().map_or(0, |t| t.line.saturating_sub(1));
                             let column = utf16_column(
-                                text,
+                                &text,
                                 line,
                                 location.as_ref().map_or(0, |t| t.col.saturating_sub(1)),
                             );
