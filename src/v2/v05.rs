@@ -68,12 +68,12 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
         ));
     }
     if program.language == "0.6"
-        && ["WaitEdge", "WaitTarget"]
+        && ["WaitEdge", "WaitTarget", "Tuple"]
             .iter()
             .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
     {
         return Err(Error::InvalidOperation(
-            "WaitEdge and WaitTarget are reserved standard types".into(),
+            "WaitEdge, WaitTarget, and Tuple are reserved standard types".into(),
         ));
     }
     program.enums.insert(
@@ -606,6 +606,13 @@ pub(super) fn transfer_type(
     }
     if let Some(t) = ty.strip_prefix("Secret<").and_then(|s| s.strip_suffix('>')) {
         return transfer_type(program, t, shared, seen);
+    }
+    if program.language == "0.6" {
+        if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
+            return split_type_args(t)
+                .iter()
+                .all(|t| transfer_type(program, t, shared, seen));
+        }
     }
     if shared {
         return false;

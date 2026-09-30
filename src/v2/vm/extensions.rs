@@ -63,7 +63,7 @@ impl<R: BufRead> Vm<R> {
             v05::iterator_next(&mut self.engine.runtime, target)?
                 .ok_or_else(|| self.error(at, "not an Iterator"))?
         };
-        match value {
+        match v06::immutable_tuple(value, &self.engine.runtime) {
             Value::Option(v) => Ok(v.map(|v| *v)),
             _ => Err(self.error(at, "Iterator.next must return Option")),
         }
@@ -75,7 +75,10 @@ impl<R: BufRead> Vm<R> {
         args: &[Value],
         at: &Tok,
     ) -> Result<Option<Value>> {
-        if !matches!(method, "map" | "filter" | "take" | "fold" | "collect") {
+        if !matches!(
+            method,
+            "map" | "filter" | "take" | "fold" | "collect" | "enumerate" | "zip"
+        ) {
             return Ok(None);
         }
         let ty = value_type(target, &self.engine.runtime);
@@ -111,6 +114,23 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 ("fold", [_, f]) => acc = self.callback(f.clone(), vec![acc, item], at)?,
+                ("enumerate", []) => values.push(Value::Struct(
+                    format!("Tuple<Int,{}>", value_type(&item, &self.engine.runtime)),
+                    BTreeMap::from([("_0".into(), Value::Int(index as i64)), ("_1".into(), item)]),
+                )),
+                ("zip", [other]) => {
+                    let Some(right) = self.next_item(other, at)? else {
+                        break;
+                    };
+                    values.push(Value::Struct(
+                        format!(
+                            "Tuple<{},{}>",
+                            value_type(&item, &self.engine.runtime),
+                            value_type(&right, &self.engine.runtime)
+                        ),
+                        BTreeMap::from([("_0".into(), item), ("_1".into(), right)]),
+                    ));
+                }
                 ("collect" | "take", _) => values.push(item),
                 _ => return Err(self.error(at, "invalid iterator adapter arguments")),
             }
@@ -127,6 +147,18 @@ impl<R: BufRead> Vm<R> {
             v05::iterator_item(&ty)
                 .or(item_ty)
                 .unwrap_or_else(|| "Unknown".into())
+        };
+        let item_ty = if method == "enumerate" {
+            format!("Tuple<Int,{item_ty}>")
+        } else if method == "zip" {
+            format!(
+                "Tuple<{item_ty},{}>",
+                args.first()
+                    .and_then(|a| v05::iterator_item(&value_type(a, &self.engine.runtime)))
+                    .unwrap_or_else(|| "Unknown".into())
+            )
+        } else {
+            item_ty
         };
         let list = Value::TypedList(item_ty, values);
         if method == "collect" {

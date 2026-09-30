@@ -408,6 +408,24 @@ impl Parser {
         result
     }
     fn ty_inner(&mut self) -> Result<String> {
+        if self.eat("(") {
+            if self.eat(")") {
+                return Ok("Unit".into());
+            }
+            let first = self.ty()?;
+            if self.eat(")") {
+                return Ok(first);
+            }
+            self.need(",")?;
+            let mut items = vec![first];
+            while !self.eat(")") {
+                items.push(self.ty()?);
+                if !self.is(")") {
+                    self.need(",")?;
+                }
+            }
+            return Ok(format!("Tuple<{}>", items.join(",")));
+        }
         if self.eat("&") {
             return Ok(format!(
                 "&{}{}",
@@ -1252,8 +1270,28 @@ impl Parser {
                     }
                 } else {
                     let e = self.expr(0)?;
-                    self.need(")")?;
-                    e
+                    if self.eat(",") {
+                        let mut items = vec![e];
+                        while !self.eat(")") {
+                            items.push(self.expr(0)?);
+                            if !self.is(")") {
+                                self.need(",")?;
+                            }
+                        }
+                        Expr {
+                            kind: ExprKind::Call(
+                                Box::new(Expr {
+                                    kind: ExprKind::Name("$tuple".into()),
+                                    at: at.clone(),
+                                }),
+                                items,
+                            ),
+                            at: at.clone(),
+                        }
+                    } else {
+                        self.need(")")?;
+                        e
+                    }
                 }
             }
             "-" if self.is("9223372036854775808") => {
@@ -1278,6 +1316,23 @@ impl Parser {
                 kind: ExprKind::Unary(at.text.clone(), Box::new(self.expr(13)?)),
                 at: at.clone(),
             },
+            "capture" if self.is("value") || self.is("move") || self.is("borrow") => {
+                let mode = self.name()?;
+                if !matches!(mode.as_str(), "value" | "move" | "borrow") {
+                    return Err(diagnostic(
+                        &at,
+                        "capture mode must be value, move, or borrow",
+                    ));
+                }
+                let inner = self.expr(13)?;
+                if !matches!(inner.kind, ExprKind::Closure(..)) {
+                    return Err(diagnostic(&at, "capture requires a closure"));
+                }
+                Expr {
+                    kind: ExprKind::Unary(format!("$capture:{mode}"), Box::new(inner)),
+                    at: at.clone(),
+                }
+            }
             "true" => Expr {
                 kind: ExprKind::Value(Value::Bool(true)),
                 at: at.clone(),
@@ -3398,6 +3453,12 @@ impl Checker<'_> {
             }
             ExprKind::Unary(op, inner) => {
                 let t = self.expr(inner)?;
+                if op.starts_with("$capture:") {
+                    if self.program.language != "0.6" {
+                        return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
+                    }
+                    return Ok(t);
+                }
                 if op == "$unsecret" {
                     return Ok(t
                         .strip_prefix("Secret<")
@@ -3563,6 +3624,19 @@ impl Checker<'_> {
                     }
                 }
                 let t = self.expr(base)?;
+                if self.program.language == "0.6" {
+                    if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
+                    {
+                        let index = field
+                            .strip_prefix('_')
+                            .and_then(|n| n.parse::<usize>().ok())
+                            .ok_or_else(|| diagnostic(&e.at, "tuple field must be _0, _1, ..."))?;
+                        return split_type_args(inner)
+                            .get(index)
+                            .map(|t| t.to_string())
+                            .ok_or_else(|| diagnostic(&e.at, "tuple field out of range"));
+                    }
+                }
                 if matches!(self.program.language.as_str(), "0.5" | "0.6")
                     && t.starts_with("Frozen<")
                 {
@@ -3676,6 +3750,15 @@ impl Checker<'_> {
                     .iter()
                     .map(|a| self.expr(a))
                     .collect::<Result<Vec<_>>>()?;
+                if matches!(&target.kind,ExprKind::Name(n) if n=="$tuple") {
+                    if self.program.language != "0.6" {
+                        return Err(diagnostic(&e.at, "tuple values require language 0.6"));
+                    }
+                    if types.iter().any(|t| t.starts_with('&')) {
+                        return Err(diagnostic(&e.at, "tuple cannot contain a borrow"));
+                    }
+                    return Ok(format!("Tuple<{}>", types.join(",")));
+                }
                 if let ExprKind::Member(base, method) = &target.kind {
                     let special = matches!(&base.kind,ExprKind::Name(n) if self.program.import_aliases.keys().any(|alias| alias.starts_with(&format!("{n}."))) || matches!(n.as_str(),"Out"|"Err"|"File"|"Directory"|"Time"|"Random"|"Args"|"Env"|"Locale"|"In"));
                     if !special {
@@ -4405,6 +4488,9 @@ impl Checker<'_> {
             }
             StmtKind::Assign(lhs, _, rhs) => {
                 if let ExprKind::Member(base, _) = &lhs.kind {
+                    if self.program.language == "0.6" && self.expr(base)?.starts_with("Tuple<") {
+                        return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
+                    }
                     if self.expr(base)?.starts_with("Frozen<") {
                         return Err(diagnostic(&lhs.at, "cannot mutate Frozen<T>; use thaw"));
                     }
@@ -5412,6 +5498,21 @@ impl<R: BufRead> Engine<R> {
         self.call(name, args, at)
     }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
+        if name == "$tuple" && self.program.language == "0.6" {
+            return Ok(Value::Struct(
+                format!(
+                    "Tuple<{}>",
+                    args.iter()
+                        .map(|v| value_type(v, &self.runtime))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+                args.into_iter()
+                    .enumerate()
+                    .map(|(i, v)| (format!("_{i}"), v))
+                    .collect(),
+            ));
+        }
         if matches!(self.program.language.as_str(), "0.5" | "0.6")
             && matches!(name, "secret" | "reveal")
         {
@@ -5802,7 +5903,11 @@ impl<R: BufRead> Engine<R> {
                 if let Some(value) =
                     v05::iterator_next(&mut self.runtime, &target).map_err(Flow::Error)?
                 {
-                    return Ok(value);
+                    return Ok(if self.program.language == "0.6" {
+                        v06::immutable_tuple(value, &self.runtime)
+                    } else {
+                        value
+                    });
                 }
             }
         }
@@ -6596,7 +6701,13 @@ fn trait_method_return(
         return Ok(Some(substitute_type(&f.ret, &substitutions)));
     }
     if f.params.len() != args.len() + 1
-        || f.params.first().is_none_or(|(_, t)| t != ty)
+        || f.params.first().is_none_or(|(_, t)| {
+            if program.language == "0.6" {
+                !compatible(t, ty)
+            } else {
+                t != ty
+            }
+        })
         || f.params
             .iter()
             .skip(1)

@@ -195,10 +195,26 @@ impl Scan<'_> {
                             self.needs
                                 .extend(function_effects(self.checker.program, &symbol));
                         }
-                        if matches!(m.as_str(), "map" | "filter" | "take" | "fold" | "collect") {
+                        if matches!(
+                            m.as_str(),
+                            "map" | "filter" | "take" | "fold" | "collect" | "enumerate" | "zip"
+                        ) {
                             for symbol in matching_methods(self.checker.program, &ty, "next") {
                                 self.needs
                                     .extend(function_effects(self.checker.program, &symbol));
+                            }
+                            if m == "zip" {
+                                for arg in args {
+                                    let ty = self.checker.expr(arg)?;
+                                    for symbol in
+                                        matching_methods(self.checker.program, &ty, "next")
+                                    {
+                                        self.needs.extend(function_effects(
+                                            self.checker.program,
+                                            &symbol,
+                                        ));
+                                    }
+                                }
                             }
                         }
                         if let Some(bound) = self.checker.bounds.get(&ty) {
