@@ -1592,12 +1592,11 @@ impl Runtime {
         }
         let cursor = self.state.byte_cursor;
         if cursor == self.byte_input.len() {
+            if self.byte_eof {
+                return Ok(None);
+            }
             if self.replaying {
-                return if self.byte_eof {
-                    Ok(None)
-                } else {
-                    Err(Error::InvalidOperation("ReplayMismatch: byte input".into()))
-                };
+                return Err(Error::InvalidOperation("ReplayMismatch: byte input".into()));
             }
             let mut buffer = vec![0; limit];
             let count = loop {
@@ -1613,8 +1612,9 @@ impl Runtime {
             buffer.truncate(count);
             self.byte_input.push((limit, buffer));
             // The observation stays recorded even on failure: the Host was consumed.
-            self.enforce_budget()?;
         }
+        // A recorded observation must also stay within budget when retried/restored.
+        self.enforce_budget()?;
         let (recorded_limit, bytes) = &self.byte_input[cursor];
         if *recorded_limit != limit {
             return Err(Error::InvalidOperation(

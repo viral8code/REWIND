@@ -174,3 +174,38 @@ fn virtual_publish_keeps_a_virtual_host_baseline_without_changing_disk() {
     assert!(!p.join("dir").exists());
     fs::remove_dir_all(p).unwrap();
 }
+
+#[test]
+fn byte_input_eof_and_budget_failures_cannot_be_retried_as_new_host_reads() {
+    let (p, mut rt) = runtime();
+    let mut input = io::Cursor::new(b"ab".to_vec());
+    rt.commit("start").unwrap();
+    assert_eq!(rt.input_chunk(&mut input, 2).unwrap(), Some(b"ab".to_vec()));
+    assert_eq!(rt.input_chunk(&mut input, 2).unwrap(), None);
+    input.get_mut().extend_from_slice(b"later");
+    assert_eq!(rt.input_chunk(&mut input, 2).unwrap(), None);
+    assert_eq!(input.position(), 2);
+    rt.revert("start").unwrap();
+    assert_eq!(rt.input_chunk(&mut input, 2).unwrap(), Some(b"ab".to_vec()));
+    assert_eq!(rt.input_chunk(&mut input, 2).unwrap(), None);
+    assert_eq!(input.position(), 2);
+    fs::remove_dir_all(p).unwrap();
+
+    let (p, mut rt) = runtime();
+    rt.set_budget(ResourceBudget {
+        history_memory: 1,
+        ..ResourceBudget::default()
+    })
+    .unwrap();
+    let mut input = io::Cursor::new(b"abcd".to_vec());
+    assert!(matches!(
+        rt.input_chunk(&mut input, 2),
+        Err(Error::HistoryBudgetExceeded)
+    ));
+    assert!(matches!(
+        rt.input_chunk(&mut input, 2),
+        Err(Error::HistoryBudgetExceeded)
+    ));
+    assert_eq!(input.position(), 2);
+    fs::remove_dir_all(p).unwrap();
+}
