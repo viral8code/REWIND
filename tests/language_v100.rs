@@ -127,7 +127,11 @@ fn compiler_rejects_deep_syntax_and_oversized_source_with_diagnostics() {
         let root = project();
         let result = run(&root, &source);
         assert!(!result.status.success());
-        assert!(String::from_utf8_lossy(&result.stderr).contains("CompilerBudgetExceeded"));
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains("CompilerBudgetExceeded"),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
         fs::remove_dir_all(root).unwrap();
     }
 }
