@@ -55,6 +55,7 @@ pub(super) fn enrich(d: &mut rewind::DiagnosticRecord) {
         hint
     } else {
         match code.as_str() {
+            "InvalidArguments" => "Match the expected argument count and types; Result<T,E> is different from T.",
             "ExecutionBudgetExceeded" => "Check for a non-terminating loop; increase --steps only when the work is intentional.",
             "NativeWorkBudgetExceeded" => "Reduce input or collection work, or raise --native-work for intentional work.",
             "TaskSteps" => "Check the task loop or increase --task-steps for intentional work.",

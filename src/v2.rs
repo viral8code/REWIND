@@ -2559,7 +2559,12 @@ fn load_program_overlay(
     } else {
         let mut parser = Parser {
             toks: {
-                let mut tokens = lex(&source)?;
+                let mut tokens = lex(&source).map_err(|mut error| {
+                    if let Error::Diagnostic(d) = &mut error {
+                        d.source = module_id.clone();
+                    }
+                    error
+                })?;
                 for t in &mut tokens {
                     t.source = full
                         .strip_prefix(fs::canonicalize(root)?)
@@ -5429,6 +5434,35 @@ impl Checker<'_> {
                                     }
                                 }
                                 name.clone()
+                            }
+                            _ if self.program.language == "1.1.0"
+                                && matches!(
+                                    name.as_str(),
+                                    "assert"
+                                        | "assert_eq"
+                                        | "panic"
+                                        | "Ok"
+                                        | "Err"
+                                        | "Some"
+                                        | "TaskGroup"
+                                ) =>
+                            {
+                                let expected = match name.as_str() {
+                                    "assert" => "assert(Bool)",
+                                    "assert_eq" => "assert_eq(T, T) with compatible argument types",
+                                    "panic" => "panic(String)",
+                                    "TaskGroup" => "TaskGroup()",
+                                    "Ok" => "Ok(T)",
+                                    "Err" => "Err(E)",
+                                    _ => "Some(T)",
+                                };
+                                return Err(diagnostic(
+                                    &e.at,
+                                    format!(
+                                        "InvalidArguments: expected {expected}, found ({})",
+                                        types.join(", ")
+                                    ),
+                                ));
                             }
                             _ => return Err(diagnostic(&e.at, format!("unknown function {name}"))),
                         }
