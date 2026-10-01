@@ -2,7 +2,13 @@
 use super::*;
 
 pub(super) fn display_symbol(name: &str) -> String {
-    name.replace("$module$", "").replace('$', "::")
+    if name.starts_with("$closure") {
+        return "<closure>".into();
+    }
+    name.strip_prefix("$import$")
+        .or_else(|| name.strip_prefix("$impl$"))
+        .unwrap_or(name)
+        .replace('$', "::")
 }
 
 pub(super) fn enrich(d: &mut rewind::DiagnosticRecord) {
