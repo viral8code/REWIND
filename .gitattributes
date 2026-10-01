@@ -1,0 +1,6 @@
+# Embedded SDK sources and signed fixtures have identical bytes on both builders.
+* text=auto eol=lf
+*.zip binary
+*.gz binary
+*.png binary
+*.pdf binary
