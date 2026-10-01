@@ -1,6 +1,6 @@
-# REWIND 1.2 言語リファレンス
+# REWIND 1.3 言語リファレンス
 
-対象はcompiler/language 1.2.0です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)を基準にしてください。
+対象はcompiler/language 1.3.0です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -289,7 +289,7 @@ SDKの標準API文書は`share/rewind/doc/std/`にあります。各moduleのMar
 | `tasks` | task/channel/scheduling |
 | `locale` | locale関連操作 |
 
-単一ファイルの既定許可はinput/output/args/locale/random/tasksです。file・env・clockを使う場合はCLIで明示許可します。例えば次のプログラムには`rewind run main.rw --allow-effects fileRead,fileWrite`を使います。
+単一ファイルの既定許可はinput/output/args/locale/random/tasksです。file・env・clock・gui を使う場合はCLIで明示許可します。例えば次のプログラムには`rewind run main.rw --allow-effects fileRead,fileWrite`を使います。
 
 ```rewind
 File.writeText("state.txt","saved");
@@ -302,6 +302,23 @@ Fileのパスは実行rootからの相対パスです。OSに依存しない`/`�
 `Args.all()`等で渡した引数を読み、アプリ引数はCLIの`--`以降に置きます。Envは効果に加えて名前の許可が必要です。Secretを使っても暗号化や外部への送信防止を自動保証するわけではありません。
 
 ## Checkpointとpublish
+
+1.3.0 では、ユーザーコードの実行前に `commit begin;` 相当の初期 Checkpoint が自動保存されます。`begin` は予約名であり、変数・関数・branch の名前や `commit` / `drop` の対象にできません。
+
+`revert begin;` は変数・heap・未公開 I/O・タスク状態・通常の Checkpoint を初期化し、続く文へ進みます。消えた変数は参照できず、同じ名前を宣言し直せます。main task 内で利用し、active branch の外で実行します。関数や block の継続枠だけは保持するので、その後の return / block 終了は可能です。`resume begin;` は実行位置も先頭へ戻します。処理済み予算、Host 観測の記録、publish 済みの外部結果は保持されます。初期 Checkpoint を保持するメモリも履歴予算の対象です。
+
+```rewind
+var score=99;
+commit test;
+Out.println(score);publish;
+Out.println("discarded");
+revert begin;
+var score=10;
+commit test;
+Out.println(score);publish;
+```
+
+この例の出力は `99`、`10` です。未公開の `discarded` は消えます。GUI の View もリセット対象ですが、公開済み画面は再描画または close を publish するまで残ります。
 
 | 構文 | 意味 |
 |---|---|
@@ -439,3 +456,7 @@ source内の`runtime`設定でexecutionSteps/historyMemory/historyStorage/spillT
 Linuxではcompilerとruntimeへ既定2GiBのaddress-space上限を適用し、`--memory-mib`で指定できます。WindowsではこのOS上限を提供せず、`--memory-mib`を明示するとunsupportedエラーです。両OSともVMのlogical予算は利用できます。allocator/OSの強制終了をResultとして回復する保証はありません。
 
 sourceは1MiB/module、module数256などのcompiler上限があります。公開artifact/record形式のcompiler版をまたぐ互換性は保証しないため、アップグレード時は再生成してください。プロセス実行、ネットワーク、JVM互換、任意の外部作用の巻き戻しは提供していません。
+
+## GUI
+
+`std.gui` はネイティブの単一 canvas を提供します。`gui` effect を明示許可し、scene を present した後 publish して表示します。イベントループ、Undo、入力 replay、各 OS の要件は [GUI guide](gui.md) を参照してください。

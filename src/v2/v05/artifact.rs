@@ -140,6 +140,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
@@ -181,6 +182,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
         != serde_json::to_value(standard.structs.get("StdError")).ok()
         || program.enums.contains_key("StdError")
@@ -205,6 +207,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         for n in ["Json", "JsonError"] {
             if serde_json::to_value(program.structs.get(n)).ok()
@@ -240,6 +243,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
         || serde_json::to_value(program.enums.get("WaitTarget")).ok()
@@ -291,6 +295,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
@@ -314,6 +319,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
         return Err(invalid("Tuple is a reserved standard type"));
@@ -403,6 +409,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         v06::infer(&mut program)?;
     }

@@ -186,7 +186,7 @@ fn command_help_does_not_execute_and_application_help_argument_is_preserved() {
         assert!(out.status.success());
         let text = String::from_utf8(out.stdout).unwrap();
         assert!(text.contains(&format!("rewind {command}")));
-        assert!(text.contains("1.2.0"));
+        assert!(text.contains(env!("CARGO_PKG_VERSION")));
     }
     let out = Command::new(env!("CARGO_BIN_EXE_rewindc"))
         .arg("--help")

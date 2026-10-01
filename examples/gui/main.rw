@@ -1,0 +1,41 @@
+import std.gui as gui;
+import std.number as number;
+fn decimal(value:Int)->String effects {} {match number.formatInt(value,10){Ok(text)=>{return text;},Err(e)=>{panic(e.code);}}}
+fn checked(result:Result<Unit,gui.GuiError>)->Unit effects {} {
+ match result {Ok(_)=>{},Err(e)=>{panic(e.code);}}
+}
+match gui.window("REWIND counter",360,220) {
+ Err(e)=>{panic(e.code);},
+ Ok(view)=>{
+  var count=0;
+  checked(gui.label(&mut view,"count","0",20,20,300,40));
+  checked(gui.button(&mut view,"add","Add",20,80,140,40));
+  checked(gui.button(&mut view,"undo","Undo all",180,80,140,40));
+  checked(gui.checkbox(&mut view,"enabled","Enable counting",true,20,140,300,40));
+  var running=true;
+  commit ready;
+  checked(gui.present(&view));publish;
+  while running {
+   match gui.nextEvent() {
+    Err(e)=>{panic(e.code);},
+    Ok(event)=>{
+     match gui.dispatch(&mut view,event) {
+      Some(gui.Action::Activate(id))=>{
+       if id=="add" {
+        if gui.checked(&view,"enabled")==Ok(true) {count+=1;}
+       } else if id=="undo" {
+        revert ready;
+        gui.continueInput();
+       }
+       checked(gui.setText(&mut view,"count",decimal(count)));
+      },
+      Some(gui.Action::Close)=>{running=false;},
+      _=>{}
+     }
+    }
+   }
+   if running {checked(gui.present(&view));publish;}
+  }
+  checked(gui.close());Out.println(count);publish;
+ }
+}

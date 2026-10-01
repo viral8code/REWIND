@@ -84,6 +84,19 @@ rm "$RELEASE_WORK/conditional/main.rw"
 rm -rf "$RELEASE_WORK/conditional/.rewind"
 "$EXTRACTED/bin/rewind" "$RELEASE_WORK/conditional/main.rwc" > "$RELEASE_WORK/conditional-artifact"
 cmp "$RELEASE_WORK/conditional-expected" "$RELEASE_WORK/conditional-artifact"
+mkdir "$RELEASE_WORK/gui"
+cp "$EXTRACTED/share/rewind/examples/gui/main.rw" "$RELEASE_WORK/gui/main.rw"
+cp "$EXTRACTED/share/rewind/examples/gui/events.json" "$RELEASE_WORK/gui/events.json"
+printf '1\n' > "$RELEASE_WORK/gui-expected"
+"$EXTRACTED/bin/rewind" run "$RELEASE_WORK/gui/main.rw" --allow-effects gui --gui-events "$RELEASE_WORK/gui/events.json" --record "$RELEASE_WORK/gui/trace.json" > "$RELEASE_WORK/gui-actual"
+cmp "$RELEASE_WORK/gui-expected" "$RELEASE_WORK/gui-actual"
+"$EXTRACTED/bin/rewind" replay "$RELEASE_WORK/gui/trace.json" --root "$RELEASE_WORK/gui" --allow-effects gui > "$RELEASE_WORK/gui-replayed"
+cmp "$RELEASE_WORK/gui-expected" "$RELEASE_WORK/gui-replayed"
+"$EXTRACTED/bin/rewindc" "$RELEASE_WORK/gui/main.rw" --allow-effects gui
+rm "$RELEASE_WORK/gui/main.rw"
+rm -rf "$RELEASE_WORK/gui/.rewind"
+"$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui/main.rwc" --allow-effects gui --gui-events "$RELEASE_WORK/gui/events.json" > "$RELEASE_WORK/gui-artifact"
+cmp "$RELEASE_WORK/gui-expected" "$RELEASE_WORK/gui-artifact"
 "$EXTRACTED/bin/rewind" compile --help > /dev/null
 (cd "$RELEASE_OUTPUT" && sha256sum ./*.tar.gz ./rewind-*-sdk.pub ./GETTING_STARTED.md ./BUILD_INFO.json > SHA256SUMS)
 chmod 644 "$RELEASE_OUTPUT"/*

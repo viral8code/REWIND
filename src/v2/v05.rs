@@ -57,6 +57,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         return Ok(());
     }
@@ -108,6 +109,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
         .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
@@ -194,6 +196,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         program
             .enums
@@ -436,6 +439,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         return v06::validate(program, config);
     }
@@ -755,6 +759,7 @@ pub(super) fn transfer_type(
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         )
     {
         return true;
@@ -775,6 +780,7 @@ pub(super) fn transfer_type(
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         if let Some((base, inner)) = ty.split_once('<') {
             if matches!(base, "Option" | "Result") {
@@ -803,6 +809,7 @@ pub(super) fn transfer_type(
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
         } else {
@@ -836,6 +843,7 @@ pub(super) fn transfer_type(
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
@@ -1160,6 +1168,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     | "1.0.0"
                     | "1.1.0"
                     | "1.2.0"
+                    | "1.3.0"
             ) {
                 let checker = Checker {
                     program,

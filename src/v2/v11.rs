@@ -61,6 +61,9 @@ pub(super) fn enrich(d: &mut rewind::DiagnosticRecord) {
         hint
     } else {
         match code.as_str() {
+            "GuiUnavailable" => "Native GUI needs an interactive Win32 desktop or an X11 display with libX11/core fonts. Use --gui-events FILE for headless tests.",
+            "GuiNotPublished" => "Call std.gui.present and publish before reading a GUI event.",
+            "GuiMainTaskOnly" => "Read GUI input in the application event loop; run background computation as tasks.",
             "InvalidArguments" => "Match the expected argument count and types; Result<T,E> is different from T.",
             "InvalidContinuation" => "Revert requires the same live call frames and checkpoint scopes. Use resume to restore the saved execution position, or commit in a scope that is still active.",
             "InvalidNumericLiteral" => "Use base digits after 0x/0b/0o and place underscores only between digits. Exponents need decimal digits.",

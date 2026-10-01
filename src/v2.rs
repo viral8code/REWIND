@@ -31,6 +31,7 @@ fn program_v09(p: &Program) -> bool {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     )
 }
 mod vm;
@@ -52,6 +53,7 @@ fn program_v07(p: &Program) -> bool {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     )
 }
 thread_local! {
@@ -63,6 +65,7 @@ thread_local! {
 #[derive(Clone, Default)]
 pub struct RunOptions {
     pub standalone: bool,
+    pub gui_events: Option<PathBuf>,
     pub native_work: Option<usize>,
     pub execution_steps: Option<usize>,
     pub recorded_test: Option<String>,
@@ -130,7 +133,7 @@ fn standalone_config(
     if fs::symlink_metadata(&metadata).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error::InvalidPath(metadata.display().to_string()));
     }
-    fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":[], "dependencies":{}})).unwrap())?;
+    fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":["gui"], "dependencies":{}})).unwrap())?;
     config.imports.insert("std".into(), std_root);
     Ok(config)
 }
@@ -643,6 +646,12 @@ impl Parser {
     }
     fn name(&mut self) -> Result<String> {
         let t = self.current().clone();
+        if t.text == "begin" {
+            return Err(diagnostic(
+                &t,
+                "ReservedLabel: begin is the immutable initial checkpoint",
+            ));
+        }
         if t.text
             .chars()
             .next()
@@ -1630,11 +1639,19 @@ impl Parser {
             self.need(";")?;
             StmtKind::Commit(n)
         } else if self.eat("revert") {
-            let n = self.name()?;
+            let n = if self.eat("begin") {
+                "begin".into()
+            } else {
+                self.name()?
+            };
             self.need(";")?;
             StmtKind::Revert(n)
         } else if self.eat("resume") {
-            let n = self.name()?;
+            let n = if self.eat("begin") {
+                "begin".into()
+            } else {
+                self.name()?
+            };
             self.need(";")?;
             StmtKind::Resume(n)
         } else if self.eat("drop") {
@@ -3243,6 +3260,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         )
     });
     program.language = manifest
@@ -3271,6 +3289,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -3298,6 +3317,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) {
             v05::artifact(
                 &program,
@@ -3376,6 +3396,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         )
     });
     program.language = manifest
@@ -3404,6 +3425,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -3670,6 +3692,7 @@ pub fn lock_project(root: &Path) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         return Err(Error::InvalidOperation(
             "use 'rewind update' to update v0.4 dependencies".into(),
@@ -3834,6 +3857,7 @@ fn check_program(program: &Program) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         let entries = program.impls.iter().collect::<Vec<_>>();
         for (i, ((tr, target), methods)) in entries.iter().enumerate() {
@@ -4009,6 +4033,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
             continue;
@@ -4055,6 +4080,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) {
             v06::cache::put(root, "checked", &key, &true);
         }
@@ -4091,8 +4117,10 @@ struct Checker<'a> {
 }
 impl Checker<'_> {
     fn field_visible(&self, def: &StructDef, field: &str, at: &Tok) -> Result<()> {
-        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0")
-            && def.origin != self.origin
+        if matches!(
+            self.program.language.as_str(),
+            "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0"
+        ) && def.origin != self.origin
             && def.private_fields.contains(field)
         {
             return Err(diagnostic(
@@ -4103,8 +4131,10 @@ impl Checker<'_> {
         Ok(())
     }
     fn constructor_visible(&self, def: &StructDef, at: &Tok) -> Result<()> {
-        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0")
-            && def.origin != self.origin
+        if matches!(
+            self.program.language.as_str(),
+            "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0"
+        ) && def.origin != self.origin
             && !def.private_fields.is_empty()
         {
             return Err(diagnostic(
@@ -4137,6 +4167,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) && exposed.iter().any(|local| {
                         resolve_alias(self.program, local).split('<').next()
                             == resolve_alias(self.program, name).split('<').next()
@@ -4316,6 +4347,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) {
                         return Err(diagnostic(at, "tuple pattern requires language 0.6"));
                     }
@@ -4515,6 +4547,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) {
                         v06::borrowed_type(&binding.0).into()
                     } else {
@@ -4550,6 +4583,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) {
                         let ty = v06::fn_type(
                             &f.params,
@@ -4595,7 +4629,7 @@ impl Checker<'_> {
                     ty
                 } else {
                     return Err(
-                        if matches!(self.program.language.as_str(), "1.1.0" | "1.2.0") {
+                        if matches!(self.program.language.as_str(), "1.1.0" | "1.2.0" | "1.3.0") {
                             v11::unknown_name(
                                 &e.at,
                                 n,
@@ -4628,6 +4662,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
                     }
@@ -4680,6 +4715,7 @@ impl Checker<'_> {
                                     | "1.0.0"
                                     | "1.1.0"
                                     | "1.2.0"
+                                    | "1.3.0"
                             ) {
                                 "TaskError"
                             } else {
@@ -4707,6 +4743,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) && op != "move"
                     {
                         return Ok(format!(
@@ -4742,6 +4779,7 @@ impl Checker<'_> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) && (self.expr(a)?.starts_with("Secret<")
                     || self.expr(b)?.starts_with("Secret<"))
                 {
@@ -4838,6 +4876,7 @@ impl Checker<'_> {
                                     | "1.0.0"
                                     | "1.1.0"
                                     | "1.2.0"
+                                    | "1.3.0"
                             ) {
                                 return Ok(v06::fn_type(
                                     &f.params,
@@ -4899,6 +4938,7 @@ impl Checker<'_> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) && t.starts_with("Secret<")
                 {
                     let inner = Expr {
@@ -4929,6 +4969,7 @@ impl Checker<'_> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
                     {
@@ -4961,6 +5002,7 @@ impl Checker<'_> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) && t.starts_with("Frozen<")
                 {
                     let inner = Expr {
@@ -5030,6 +5072,7 @@ impl Checker<'_> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if let Ok(ty) = self.expr(base) {
@@ -5100,6 +5143,7 @@ impl Checker<'_> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
@@ -5155,6 +5199,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) {
                         return Err(diagnostic(&e.at, "tuple values require language 0.6"));
                     }
@@ -5185,6 +5230,7 @@ impl Checker<'_> {
                                 | "1.0.0"
                                 | "1.1.0"
                                 | "1.2.0"
+                                | "1.3.0"
                         ) {
                             if let Some(result) =
                                 v06::checker_method(self, &ty, method, &types, &e.at)?
@@ -5211,6 +5257,7 @@ impl Checker<'_> {
                                 | "1.0.0"
                                 | "1.1.0"
                                 | "1.2.0"
+                                | "1.3.0"
                         ) {
                             if method == "iter" && types.is_empty() {
                                 if let Some(item) = v05::iterator_item(&ty) {
@@ -5261,6 +5308,7 @@ impl Checker<'_> {
                                     | "1.0.0"
                                     | "1.1.0"
                                     | "1.2.0"
+                                    | "1.3.0"
                             ) {
                                 if method == "timeout" && types == ["Int"] {
                                     return Ok(ty);
@@ -5297,6 +5345,7 @@ impl Checker<'_> {
                                     | "1.0.0"
                                     | "1.1.0"
                                     | "1.2.0"
+                                    | "1.3.0"
                             ) && types.is_empty()
                             {
                                 if method == "requestCancel" {
@@ -5387,6 +5436,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     )
                 {
                     if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
@@ -5431,6 +5481,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) && matches!(name.as_str(), "secret" | "reveal")
                     {
                         if types.len() != 1 {
@@ -5465,6 +5516,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) && matches!(name.as_str(), "freeze" | "thaw")
                     {
                         if types.len() != 1 {
@@ -5645,17 +5697,19 @@ impl Checker<'_> {
                                 }
                                 name.clone()
                             }
-                            _ if matches!(self.program.language.as_str(), "1.1.0" | "1.2.0")
-                                && matches!(
-                                    name.as_str(),
-                                    "assert"
-                                        | "assert_eq"
-                                        | "panic"
-                                        | "Ok"
-                                        | "Err"
-                                        | "Some"
-                                        | "TaskGroup"
-                                ) =>
+                            _ if matches!(
+                                self.program.language.as_str(),
+                                "1.1.0" | "1.2.0" | "1.3.0"
+                            ) && matches!(
+                                name.as_str(),
+                                "assert"
+                                    | "assert_eq"
+                                    | "panic"
+                                    | "Ok"
+                                    | "Err"
+                                    | "Some"
+                                    | "TaskGroup"
+                            ) =>
                             {
                                 let expected = match name.as_str() {
                                     "assert" => "assert(Bool)",
@@ -5781,6 +5835,7 @@ impl Checker<'_> {
                                         | "1.0.0"
                                         | "1.1.0"
                                         | "1.2.0"
+                                        | "1.3.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readSecretLine") | ("Env", "getSecret")
@@ -5801,6 +5856,7 @@ impl Checker<'_> {
                                         | "1.0.0"
                                         | "1.1.0"
                                         | "1.2.0"
+                                        | "1.3.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readChunk") | ("Out", "writeBytes")
@@ -5902,6 +5958,7 @@ impl Checker<'_> {
                                     | "1.0.0"
                                     | "1.1.0"
                                     | "1.2.0"
+                                    | "1.3.0"
                             ) && base_type == "List"
                                 && method == "pop"
                                 && types.is_empty())
@@ -5982,6 +6039,7 @@ impl Checker<'_> {
                                             | "1.0.0"
                                             | "1.1.0"
                                             | "1.2.0"
+                                            | "1.3.0"
                                     ) =>
                                 {
                                     format!(
@@ -6019,6 +6077,46 @@ impl Checker<'_> {
                         }
                     } else {
                         let t = self.expr(base)?;
+                        if self.program.language == "1.3.0" {
+                            if let Some(inner) =
+                                t.strip_prefix("Map<").and_then(|s| s.strip_suffix('>'))
+                            {
+                                let parts = split_type_args(inner);
+                                if parts.len() == 2 {
+                                    let expected: Vec<&str> = match method.as_str() {
+                                        "set" => vec![parts[0], parts[1]],
+                                        "get" | "remove" => vec![parts[0]],
+                                        "len" | "keys" => vec![],
+                                        _ => {
+                                            return Err(diagnostic(
+                                                &e.at,
+                                                format!("type {t} has no method {method}"),
+                                            ))
+                                        }
+                                    };
+                                    if expected.len() != types.len()
+                                        || expected
+                                            .iter()
+                                            .zip(&types)
+                                            .any(|(needed, actual)| !compatible(needed, actual))
+                                    {
+                                        return Err(diagnostic(
+                                            &e.at,
+                                            format!(
+                                                "InvalidArguments: Map.{method} requires ({})",
+                                                expected.join(",")
+                                            ),
+                                        ));
+                                    }
+                                    return Ok(match method.as_str() {
+                                        "get" => format!("Option<{}>", parts[1]),
+                                        "keys" => format!("List<{}>", parts[0]),
+                                        "len" => "Int".into(),
+                                        _ => "Unit".into(),
+                                    });
+                                }
+                            }
+                        }
                         if let Some(ret) =
                             trait_method_return(self.program, &t, method, &types, &e.at)?
                         {
@@ -6039,6 +6137,7 @@ impl Checker<'_> {
                                         | "1.0.0"
                                         | "1.1.0"
                                         | "1.2.0"
+                                        | "1.3.0"
                                 ) =>
                             {
                                 format!(
@@ -6193,6 +6292,7 @@ impl Checker<'_> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
                     v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
@@ -6310,6 +6410,7 @@ impl Checker<'_> {
                             | "1.0.0"
                             | "1.1.0"
                             | "1.2.0"
+                            | "1.3.0"
                     ) && self.expr(base)?.starts_with("Tuple<")
                     {
                         return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
@@ -6442,6 +6543,13 @@ impl Checker<'_> {
                             }
                         ),
                     ));
+                }
+            }
+            StmtKind::Revert(name) | StmtKind::Resume(name)
+                if name == "begin" && self.program.language == "1.3.0" =>
+            {
+                for scope in &mut self.scopes {
+                    scope.clear();
                 }
             }
             StmtKind::Match(value, arms) => {
@@ -6692,7 +6800,16 @@ impl<R: BufRead> Engine<R> {
         let mut runtime = Runtime::new(root)?;
         if matches!(
             program.language.as_str(),
-            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0"
+            "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
+                | "1.0.0"
+                | "1.1.0"
+                | "1.2.0"
+                | "1.3.0"
         ) {
             runtime.enable_incremental_publish();
         }
@@ -7354,11 +7471,13 @@ impl<R: BufRead> Engine<R> {
         self.call(name, args, at)
     }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0")
-            && !self
-                .program
-                .functions
-                .contains_key(name.split('<').next().unwrap_or(name))
+        if matches!(
+            self.program.language.as_str(),
+            "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0"
+        ) && !self
+            .program
+            .functions
+            .contains_key(name.split('<').next().unwrap_or(name))
         {
             self.runtime
                 .charge_native_work(v100::call_work(name, &args, &self.runtime))
@@ -7377,13 +7496,14 @@ impl<R: BufRead> Engine<R> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) {
             if self.program.language == "0.9.9" {
                 if let Some(work) = v092::work(name, &args, &self.runtime) {
                     self.runtime.charge_native_work(work).map_err(Flow::Error)?;
                 }
             }
-            if let Some(v) = v092::call(name, &args, &self.runtime).map_err(Flow::Error)? {
+            if let Some(v) = v092::call(name, &args, &mut self.runtime).map_err(Flow::Error)? {
                 return Ok(v);
             }
         }
@@ -7401,6 +7521,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) {
             if let Some(value) = v091::call(&self.runtime, name, &args).map_err(Flow::Error)? {
                 return Ok(value);
@@ -7425,6 +7546,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.0.0"
                     | "1.1.0"
                     | "1.2.0"
+                    | "1.3.0"
             )
         {
             return Ok(Value::Struct(
@@ -7460,6 +7582,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) && matches!(name, "secret" | "reveal")
         {
             if args.len() != 1 {
@@ -7483,6 +7606,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.0.0"
                     | "1.1.0"
                     | "1.2.0"
+                    | "1.3.0"
             ) {
                 self.runtime.register_secret_value(&args[0]);
             }
@@ -7516,6 +7640,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) && matches!(name, "freeze" | "thaw")
         {
             if args.len() != 1 {
@@ -7540,6 +7665,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.0.0"
                     | "1.1.0"
                     | "1.2.0"
+                    | "1.3.0"
             ) && matches!(
                 &args[0],
                 Value::Bool(_)
@@ -7885,7 +8011,10 @@ impl<R: BufRead> Engine<R> {
         Ok(Err(position))
     }
     fn method(&mut self, target: Value, method: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0") {
+        if matches!(
+            self.program.language.as_str(),
+            "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0"
+        ) {
             self.runtime
                 .charge_native_work(v100::method_work(&target, method, &args, &self.runtime))
                 .map_err(Flow::Error)?;
@@ -7917,6 +8046,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) {
             if let Some(inner) = v05::unsecret(&target) {
                 let value = self.method(inner.clone(), method, args, at)?;
@@ -7956,6 +8086,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         ) && args.is_empty()
         {
             if method == "iter" {
@@ -7989,6 +8120,7 @@ impl<R: BufRead> Engine<R> {
                                 | "1.0.0"
                                 | "1.1.0"
                                 | "1.2.0"
+                                | "1.3.0"
                         ) {
                             v06::immutable_tuple(value, &self.runtime)
                         } else {
@@ -8197,6 +8329,7 @@ impl<R: BufRead> Engine<R> {
                                         | "1.0.0"
                                         | "1.1.0"
                                         | "1.2.0"
+                                        | "1.3.0"
                                 ) =>
                             {
                                 let value = list.pop();
@@ -8383,6 +8516,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) =>
             {
                 Ok(Value::Option(
@@ -8410,6 +8544,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) =>
             {
                 Ok(Value::Option(
@@ -8430,6 +8565,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) =>
             {
                 let Value::Int(limit) = args[0] else {
@@ -8456,6 +8592,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.0.0"
                         | "1.1.0"
                         | "1.2.0"
+                        | "1.3.0"
                 ) =>
             {
                 let Value::Bytes(bytes) = &args[0] else {
@@ -8802,6 +8939,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) && matches!(bound, "Send" | "Share")
     {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
@@ -8844,6 +8982,7 @@ fn impl_matches(
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         return false;
     }
@@ -9052,6 +9191,7 @@ fn trait_method_return(
                     | "1.0.0"
                     | "1.1.0"
                     | "1.2.0"
+                    | "1.3.0"
             ) {
                 !compatible(t, ty)
             } else {
@@ -9484,6 +9624,7 @@ pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
                 | "1.0.0"
                 | "1.1.0"
                 | "1.2.0"
+                | "1.3.0"
         )
     }) {
         v09::repl(root, record)

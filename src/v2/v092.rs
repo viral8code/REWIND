@@ -32,6 +32,10 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdShiftUnsigned",
         "stdCountBits",
         "stdMulMod",
+        "stdGuiStage",
+        "stdGuiNextEvent",
+        "stdGuiClose",
+        "stdGuiContinueInput",
     ]
 }
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
@@ -48,6 +52,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) {
         return Ok(());
     }
@@ -126,6 +131,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.0.0"
             | "1.1.0"
             | "1.2.0"
+            | "1.3.0"
     ) || !names().contains(&n)
     {
         return Ok(None);
@@ -133,12 +139,28 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if n == "stdBytesFromList"
         && !matches!(
             p.language.as_str(),
-            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0"
+            "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
+                | "1.0.0"
+                | "1.1.0"
+                | "1.2.0"
+                | "1.3.0"
         )
     {
         return Ok(None);
     }
+    if n.starts_with("stdGui") && p.language != "1.3.0" {
+        return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
+    }
     let (params, ret): (&[&str], &str) = match n {
+        "stdGuiStage" => (&["String"], "Result<Unit,StdError>"),
+        "stdGuiNextEvent" => (&[], "Result<String,StdError>"),
+        "stdGuiClose" => (&[], "Result<Unit,StdError>"),
+        "stdGuiContinueInput" => (&[], "Unit"),
         "stdTextTrim" => (&["String"], "Result<String,StdError>"),
         "stdTextSplit" => (&["String", "String"], "Result<List<String>,StdError>"),
         "stdTextTokens" => (&["String"], "Result<List<String>,StdError>"),
@@ -197,7 +219,57 @@ fn strings(
     }
     Ok(Value::TypedList("String".into(), values.into()))
 }
-pub(super) fn call(n: &str, args: &[Value], runtime: &Runtime) -> Result<Option<Value>> {
+pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if n == "stdGuiContinueInput" && args.is_empty() {
+        runtime.gui_continue_input();
+        return Ok(Some(Value::Null));
+    }
+    if n.starts_with("stdGui") {
+        let result: Result<Value> = match (n, args) {
+            ("stdGuiStage", [Value::Text(s)]) => {
+                if s.len() > LIMIT {
+                    Err(Error::InvalidOperation("GuiSceneLimit".into()))
+                } else {
+                    serde_json::from_str::<rewind::gui::Frame>(s)
+                        .map_err(|_| Error::InvalidOperation("GuiInvalidScene".into()))
+                        .and_then(|f| runtime.gui_stage(Some(f)))
+                        .map(|_| Value::Null)
+                }
+            }
+            ("stdGuiClose", []) => runtime.gui_stage(None).map(|_| Value::Null),
+            ("stdGuiNextEvent", []) => runtime.gui_next_event().and_then(|event| {
+                serde_json::to_string(&event)
+                    .map(Value::Text)
+                    .map_err(|e| Error::InvalidOperation(e.to_string()))
+            }),
+            _ => {
+                return Err(Error::InvalidOperation(
+                    "invalid GUI primitive arguments".into(),
+                ))
+            }
+        };
+        return Ok(Some(match result {
+            Ok(v) => Value::Result(Ok(Box::new(v))),
+            Err(e) => {
+                if matches!(e, Error::HistoryBudgetExceeded)
+                    || matches!(&e,Error::InvalidOperation(s) if s.starts_with("ReplayMismatch:"))
+                {
+                    return Err(e);
+                }
+                let message = match &e {
+                    Error::InvalidOperation(s) => s.clone(),
+                    _ => e.to_string(),
+                };
+                let prefix = message.split(':').next().unwrap_or("GuiBackendFailure");
+                let code = if prefix.starts_with("Gui") {
+                    prefix
+                } else {
+                    "GuiBackendFailure"
+                };
+                Value::Result(Err(Box::new(err(code, 0))))
+            }
+        }));
+    }
     if !names().contains(&n) {
         return Ok(None);
     }

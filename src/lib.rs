@@ -4,6 +4,7 @@
 //! file contents are reference counted. The external input and time observations
 //! live outside checkpoints, while their cursors live inside them.
 
+pub mod gui;
 pub mod journal;
 pub mod map_storage;
 pub mod storage;
@@ -561,6 +562,8 @@ pub struct State {
     pub stdout: Journal,
     pub stderr: Journal,
     pub stdin_cursor: usize,
+    gui_cursor: usize,
+    gui_pending: Option<gui::Request>,
     pub byte_cursor: usize,
     pub time_cursor: usize,
     pub args_cursor: usize,
@@ -588,6 +591,8 @@ impl Default for State {
             stdout: Journal::default(),
             stderr: Journal::default(),
             stdin_cursor: 0,
+            gui_cursor: 0,
+            gui_pending: None,
             byte_cursor: 0,
             time_cursor: 0,
             args_cursor: 0,
@@ -639,6 +644,11 @@ pub struct Runtime {
     observations: BTreeMap<(u64, String), Observation>,
     directory_observations: BTreeMap<(u64, String), Option<BTreeSet<String>>>,
     input: Vec<String>,
+    gui_host: Option<gui::Host>,
+    gui_displayed: Option<Arc<gui::Frame>>,
+    gui_observations: Vec<gui::Event>,
+    gui_high_water: usize,
+    gui_scripted: Option<std::collections::VecDeque<gui::Event>>,
     byte_input: Vec<(usize, Arc<Segment>)>,
     branch_roots: RefCell<Vec<Weak<State>>>,
     byte_eof: bool,
@@ -1055,6 +1065,11 @@ impl Runtime {
             observations: BTreeMap::new(),
             directory_observations: BTreeMap::new(),
             input: Vec::new(),
+            gui_host: None,
+            gui_displayed: None,
+            gui_observations: Vec::new(),
+            gui_high_water: 0,
+            gui_scripted: None,
             byte_input: Vec::new(),
             branch_roots: RefCell::new(Vec::new()),
             byte_eof: false,
@@ -1141,6 +1156,14 @@ impl Runtime {
         if !self.incremental_publish {
             return;
         }
+        if self
+            .state
+            .gui_pending
+            .as_ref()
+            .is_some_and(|r| self.published_operations.contains(&r.id))
+        {
+            self.state.gui_pending = None;
+        }
         self.state.stdout = self.state.stdout.unpublished(&self.published_operations);
         self.state.stderr = self.state.stderr.unpublished(&self.published_operations);
         let files = Arc::make_mut(&mut self.state.files);
@@ -1164,6 +1187,9 @@ impl Runtime {
         }
     }
     fn finish_publish(&mut self, next_epoch: u64) {
+        if let Some(request) = self.state.gui_pending.take() {
+            self.published_operations.insert(request.id);
+        }
         if self.incremental_publish {
             if self.virtual_publish {
                 self.virtual_files
@@ -1214,6 +1240,7 @@ impl Runtime {
             referenced.extend(state.stdout.operations());
             referenced.extend(state.stderr.operations());
             referenced.extend(state.file_operations.values());
+            referenced.extend(state.gui_pending.iter().map(|r| r.id));
             referenced.extend(state.directory_operations.values());
         }
         self.published_operations
@@ -1390,6 +1417,31 @@ impl Runtime {
                     segments.push(block.clone());
                 }
             }
+        }
+        compute_memory = compute_memory.saturating_add(
+            self.gui_observations
+                .iter()
+                .map(|e| e.key.len() + 160)
+                .sum::<usize>(),
+        );
+        compute_memory = compute_memory.saturating_add(
+            self.gui_scripted
+                .as_ref()
+                .map_or(0, |v| v.iter().map(|e| e.key.len() + 160).sum::<usize>()),
+        );
+        let mut gui_roots = HashSet::new();
+        for state in std::iter::once(&self.state)
+            .chain(self.checkpoints.values().map(|c| &c.state))
+            .chain(branch_roots.iter().map(AsRef::as_ref))
+        {
+            if let Some(frame) = state.gui_pending.as_ref().and_then(|r| r.frame.as_ref()) {
+                if gui_roots.insert(Arc::as_ptr(frame) as usize) {
+                    compute_memory = compute_memory.saturating_add(frame.bytes());
+                }
+            }
+        }
+        if let Some(frame) = &self.gui_displayed {
+            compute_memory = compute_memory.saturating_add(frame.bytes().saturating_mul(2));
         }
         if compute_memory > self.budget.history_memory {
             self.history_budget_kind.set("HistoryMemory");
@@ -1745,6 +1797,25 @@ impl Runtime {
         }
     }
 
+    /// Install the immutable language-level initial checkpoint, before user code.
+    pub fn install_begin(&mut self) -> Result<()> {
+        self.commit("begin")
+    }
+    /// Reset transactional state and discard every user checkpoint. Observed input
+    /// and published effects remain external facts, just as for ordinary revert.
+    pub fn reset_begin(&mut self) -> Result<()> {
+        self.state = self
+            .checkpoints
+            .get("begin")
+            .ok_or_else(|| Error::MissingCheckpoint("begin".into()))?
+            .state
+            .clone();
+        self.restore_pending();
+        self.current_parent = Some("begin".into());
+        self.checkpoints.retain(|name, _| name == "begin");
+        self.reclaim_operation_ledger();
+        Ok(())
+    }
     pub fn commit(&mut self, name: impl Into<String>) -> Result<()> {
         let name = name.into();
         if self.checkpoints.contains_key(&name) {
@@ -2679,6 +2750,7 @@ impl Runtime {
                 "cannot publish an output history that predates an earlier publish".into(),
             ));
         }
+        self.gui_prepare()?;
         if self.replaying || self.virtual_publish {
             if !self.virtual_publish {
                 if let Err(error) = self
@@ -2704,6 +2776,7 @@ impl Runtime {
                     ));
                 }
             }
+            self.gui_apply()?;
             self.finish_publish(next_epoch);
             return Ok(());
         }
@@ -2860,6 +2933,12 @@ impl Runtime {
                 }
                 applied.push(format!("deleted directory {}", full.display()));
             }
+        }
+        if let Err(error) = self.gui_apply() {
+            return Err(self.fail_publish("gui", None, &applied, error));
+        }
+        if self.state.gui_pending.is_some() {
+            applied.push("gui".into());
         }
         if let Err(error) = self
             .state
