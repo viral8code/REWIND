@@ -1,4 +1,4 @@
-pub struct Deque<T:Share>{values:List<Option<T>>,head:Int,count:Int,capacity:Int}
+pub struct Deque<T:Share>{private values:List<Option<T>>,private head:Int,private count:Int,private capacity:Int}
 pub fn create<T:Share>(capacity:Int)->Result<Deque<T>,String> effects {} {if capacity<1 || capacity>65536{return Err("Capacity");}let slots=List<Option<T>>();var i=0;while i<capacity{slots.add(None);i+=1;}return Ok(Deque<T>(slots,0,0,capacity));}
 pub fn pushBack<T:Share>(d:&mut Deque<T>,value:T)->Result<Unit,String> effects {} {if d.count==d.capacity{return Err("Capacity");}d.values.set((d.head+d.count)%d.capacity,Some(value));d.count+=1;return Ok(());}
 pub fn pushFront<T:Share>(d:&mut Deque<T>,value:T)->Result<Unit,String> effects {} {if d.count==d.capacity{return Err("Capacity");}d.head=(d.head+d.capacity-1)%d.capacity;d.values.set(d.head,Some(value));d.count+=1;return Ok(());}

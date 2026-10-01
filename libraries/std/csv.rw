@@ -1,5 +1,5 @@
 pub record CsvError{code:String,position:Int}
-pub struct Table{cells:List<String>,rowEnds:List<Int>}
+pub struct Table{private cells:List<String>,private rowEnds:List<Int>}
 fn byte(input:Bytes,index:Int)->Int effects {} {match stdBytesGet(input,index){Ok(v)=>{return v;},Err(_)=>{panic("byte index");}}}
 fn field(cells:&mut List<String>,pending:&mut List<Int>,position:Int)->Result<Unit,CsvError> effects {} {if cells.len()>=65536{return Err(CsvError("Capacity",position));}match stdBytesFromList(pending){Err(e)=>{return Err(CsvError(e.code,position));},Ok(bytes)=>{match stdDecode(bytes){Err(e)=>{return Err(CsvError(e.code,position));},Ok(text)=>{cells.add(text);while pending.len()>0{pending.pop();}return Ok(());}}}}
 }

@@ -1,0 +1,287 @@
+//! Stable-language elaboration. Expected factory types become explicit arguments
+//! before ownership checking and artifact generation, so execution needs no inference.
+use super::*;
+
+pub(super) fn prepare(program: &mut Program) -> Result<()> {
+    if program.language != "1.0.0" {
+        return Ok(());
+    }
+    fn expected(p: &Program, expr: &mut Expr, ty: &str) -> Result<()> {
+        let ExprKind::Call(target, _) = &mut expr.kind else {
+            return Ok(());
+        };
+        let name = match &target.kind {
+            ExprKind::Name(n) => n.clone(),
+            ExprKind::Member(base, field) => match &base.kind {
+                ExprKind::Name(n) => format!("{n}.{field}"),
+                _ => return Ok(()),
+            },
+            _ => return Ok(()),
+        };
+        if name.contains('<') {
+            return Ok(());
+        }
+        let symbol = resolve_alias(p, &name);
+        let Some(f) = p.functions.get(&symbol) else {
+            return Ok(());
+        };
+        if f.type_params.is_empty() {
+            return Ok(());
+        }
+        let params = f
+            .type_params
+            .iter()
+            .map(|(n, _)| n.clone())
+            .collect::<Vec<_>>();
+        let mut sub = BTreeMap::new();
+        let ty = rename_type(ty, &p.import_aliases);
+        let ret = if f.asynchronous {
+            format!("Task<{}>", f.ret)
+        } else {
+            f.ret.clone()
+        };
+        if unify_type(&ret, &ty, &params, &mut sub)
+            && params
+                .iter()
+                .all(|n| sub.get(n).is_some_and(|t| t != "Unknown"))
+        {
+            target.kind = ExprKind::Name(format!(
+                "{name}<{}>",
+                params
+                    .iter()
+                    .map(|n| sub[n].as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ));
+        }
+        Ok(())
+    }
+    fn body(p: &Program, stmts: &mut [Stmt], ret: Option<&str>) -> Result<()> {
+        for s in stmts {
+            match &mut s.kind {
+                StmtKind::Let(_, _, Some(ty), expr) => expected(p, expr, ty)?,
+                StmtKind::Return(Some(expr)) => {
+                    if let Some(ty) = ret {
+                        expected(p, expr, ty)?;
+                    }
+                }
+                StmtKind::Block(b)
+                | StmtKind::Branch(_, b)
+                | StmtKind::While(_, b)
+                | StmtKind::For(_, _, _, b) => body(p, b, ret)?,
+                StmtKind::If(_, a, b) => {
+                    body(p, a, ret)?;
+                    body(p, b, ret)?;
+                }
+                StmtKind::Match(_, arms) => {
+                    for (_, _, s) in arms {
+                        body(p, std::slice::from_mut(s), ret)?;
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    let p = program.clone();
+    body(&p, &mut program.stmts, None)?;
+    for f in program.functions.values_mut() {
+        body(&p, &mut f.body, Some(&f.ret))?;
+    }
+    Ok(())
+}
+
+pub(super) fn argument_work(value: &Value, runtime: &Runtime) -> usize {
+    let value = match value {
+        Value::HeapRef(id) | Value::CellRef(id) => runtime.heap_get(*id).unwrap_or(value),
+        _ => value,
+    };
+    match value {
+        Value::Text(s) => s.len().saturating_add(1),
+        Value::Bytes(s) => s.len().saturating_add(1),
+        Value::List(v) => v.len().saturating_add(Runtime::value_bytes(value)),
+        Value::TypedList(_, v) => v.len().saturating_add(v.logical_bytes()),
+        Value::Map(v) | Value::TypedMap(_, _, v) => v.len().saturating_add(v.logical_bytes()),
+        _ => Runtime::value_bytes(value).saturating_add(1),
+    }
+}
+pub(super) fn call_work(name: &str, args: &[Value], runtime: &Runtime) -> usize {
+    v092::work(name, args, runtime).unwrap_or_else(|| {
+        args.iter()
+            .fold(1usize, |n, v| n.saturating_add(argument_work(v, runtime)))
+    })
+}
+pub(super) fn method_work(
+    target: &Value,
+    method: &str,
+    args: &[Value],
+    runtime: &Runtime,
+) -> usize {
+    let value = match target {
+        Value::HeapRef(id) | Value::CellRef(id) => runtime.heap_get(*id).unwrap_or(target),
+        _ => target,
+    };
+    let base = args
+        .iter()
+        .fold(1usize, |n, v| n.saturating_add(argument_work(v, runtime)));
+    match value {
+        Value::Text(s) => base.saturating_add(s.len()),
+        Value::Bytes(_) => base,
+        Value::TypedList(_, v) => {
+            let payload = if matches!(method, "get" | "set" | "pop") {
+                let index = match args.first() {
+                    Some(Value::Int(n)) if *n >= 0 => Some(*n as usize),
+                    _ if method == "pop" => v.len().checked_sub(1),
+                    _ => None,
+                };
+                index.and_then(|i| v.get(i)).map_or(0, Runtime::value_bytes)
+            } else {
+                0
+            };
+            base.saturating_add(payload)
+                .saturating_add((usize::BITS - v.len().max(1).leading_zeros()) as usize)
+        }
+        Value::Map(v) | Value::TypedMap(_, _, v) => {
+            if method == "keys" {
+                base.saturating_add(v.logical_bytes())
+                    .saturating_add(v.len())
+            } else {
+                base.saturating_add((usize::BITS - v.len().max(1).leading_zeros()) as usize)
+            }
+        }
+        Value::OrderedMap(_, _, v) => base.saturating_add(v.len()),
+        _ => base.saturating_add(argument_work(target, runtime)),
+    }
+}
+
+pub(super) fn syntax_budget(program: &Program) -> Result<()> {
+    enum Item<'a> {
+        Stmt(&'a Stmt),
+        Expr(&'a Expr),
+        Pattern(&'a Pattern),
+    }
+    let mut pending = program
+        .stmts
+        .iter()
+        .map(|s| (Item::Stmt(s), 0))
+        .collect::<Vec<_>>();
+    pending.extend(
+        program
+            .functions
+            .values()
+            .flat_map(|f| f.body.iter())
+            .map(|s| (Item::Stmt(s), 0)),
+    );
+    while let Some((item, depth)) = pending.pop() {
+        let at = match &item {
+            Item::Stmt(s) => Some(&s.at),
+            Item::Expr(e) => Some(&e.at),
+            _ => None,
+        };
+        if depth > 128 {
+            return Err(at.map_or_else(
+                || Error::InvalidOperation("CompilerBudgetExceeded: AST nesting (128)".into()),
+                |at| diagnostic(at, "CompilerBudgetExceeded: AST nesting (128)"),
+            ));
+        }
+        let mut add = |i| pending.push((i, depth + 1));
+        match item {
+            Item::Stmt(s) => match &s.kind {
+                StmtKind::Let(_, _, _, e)
+                | StmtKind::Using(_, e)
+                | StmtKind::Expr(e)
+                | StmtKind::Defer(e) => add(Item::Expr(e)),
+                StmtKind::Assign(a, _, b) => {
+                    add(Item::Expr(a));
+                    add(Item::Expr(b));
+                }
+                StmtKind::Block(b) | StmtKind::Branch(_, b) => {
+                    for s in b {
+                        add(Item::Stmt(s));
+                    }
+                }
+                StmtKind::While(e, b) => {
+                    add(Item::Expr(e));
+                    for s in b {
+                        add(Item::Stmt(s));
+                    }
+                }
+                StmtKind::If(e, a, b) => {
+                    add(Item::Expr(e));
+                    for s in a.iter().chain(b) {
+                        add(Item::Stmt(s));
+                    }
+                }
+                StmtKind::For(_, a, b, body) => {
+                    add(Item::Expr(a));
+                    add(Item::Expr(b));
+                    for s in body {
+                        add(Item::Stmt(s));
+                    }
+                }
+                StmtKind::Return(Some(e)) => add(Item::Expr(e)),
+                StmtKind::Match(e, arms) => {
+                    add(Item::Expr(e));
+                    for (p, g, s) in arms {
+                        add(Item::Pattern(p));
+                        if let Some(e) = g {
+                            add(Item::Expr(e));
+                        }
+                        add(Item::Stmt(s));
+                    }
+                }
+                _ => {}
+            },
+            Item::Expr(e) => match &e.kind {
+                ExprKind::Unary(_, e) | ExprKind::Try(e) | ExprKind::Member(e, _) => {
+                    add(Item::Expr(e))
+                }
+                ExprKind::Binary(_, a, b) => {
+                    add(Item::Expr(a));
+                    add(Item::Expr(b));
+                }
+                ExprKind::Call(e, args) => {
+                    add(Item::Expr(e));
+                    for a in args {
+                        add(Item::Expr(a));
+                    }
+                }
+                ExprKind::Match(e, arms) => {
+                    add(Item::Expr(e));
+                    for (p, g, e) in arms {
+                        add(Item::Pattern(p));
+                        if let Some(e) = g {
+                            add(Item::Expr(e));
+                        }
+                        add(Item::Expr(e));
+                    }
+                }
+                ExprKind::Closure(_, _, body) => {
+                    for s in body {
+                        add(Item::Stmt(s));
+                    }
+                }
+                ExprKind::NamedConstructor(_, fields) => {
+                    for (_, e) in fields {
+                        add(Item::Expr(e));
+                    }
+                }
+                _ => {}
+            },
+            Item::Pattern(p) => match p {
+                Pattern::Variant(_, ps) | Pattern::List(ps) => {
+                    for p in ps {
+                        add(Item::Pattern(p));
+                    }
+                }
+                Pattern::Struct(_, fields) => {
+                    for (_, p) in fields {
+                        add(Item::Pattern(p));
+                    }
+                }
+                _ => {}
+            },
+        }
+    }
+    Ok(())
+}

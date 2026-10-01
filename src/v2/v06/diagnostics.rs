@@ -76,12 +76,16 @@ pub(in crate::v2) fn task_error(d: &rewind::DiagnosticRecord) -> Value {
                 | "IteratorItems"
                 | "EffectInference"
                 | "DependencyResolution"
+                | "NativeWorkBudgetExceeded"
+                | "CompilerBudgetExceeded"
         )
     {
         let kind = match d.code.as_str() {
             "ExecutionBudgetExceeded" => "ExecutionSteps",
             "TypeExpansionBudgetExceeded" => "TypeExpansion",
             "MonomorphizationBudgetExceeded" => "Monomorphization",
+            "NativeWorkBudgetExceeded" => "NativeWork",
+            "CompilerBudgetExceeded" => "Compiler",
             s => s,
         };
         (

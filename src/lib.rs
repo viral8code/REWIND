@@ -12,13 +12,14 @@ use storage::{HeapStore, PagedValues};
 mod replay;
 use journal::{Journal, Segment};
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
 use std::fs;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -226,6 +227,16 @@ impl fmt::Display for Value {
     }
 }
 
+/// Terminal publish failure. A failed Host call may itself have changed state.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PublishFailure {
+    pub phase: String,
+    pub path: Option<String>,
+    pub applied: Vec<String>,
+    pub cause: String,
+    pub retryable: bool,
+}
+
 #[derive(Debug)]
 pub enum Error {
     Diagnostic(Box<DiagnosticRecord>),
@@ -241,6 +252,18 @@ pub enum Error {
     InvalidOperation(String),
 }
 
+impl Error {
+    pub fn publish_report(&self) -> Option<PublishFailure> {
+        let text = match self {
+            Self::PublishPartiallyApplied(text) => text.as_str(),
+            Self::Diagnostic(d) if d.code == "PublishPartiallyApplied" => {
+                d.message.strip_prefix("publish partially applied: ")?
+            }
+            _ => return None,
+        };
+        serde_json::from_str(text).ok()
+    }
+}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -574,7 +597,7 @@ struct Checkpoint {
 
 #[derive(Clone)]
 pub struct BranchAnchor {
-    state: State,
+    state: Arc<State>,
     parent: Option<String>,
 }
 
@@ -601,7 +624,8 @@ pub struct Runtime {
     observations: BTreeMap<(u64, String), Observation>,
     directory_observations: BTreeMap<(u64, String), Option<BTreeSet<String>>>,
     input: Vec<String>,
-    byte_input: Vec<(usize, Vec<u8>)>,
+    byte_input: Vec<(usize, Arc<Segment>)>,
+    branch_roots: RefCell<Vec<Weak<State>>>,
     byte_eof: bool,
     times: Vec<u128>,
     arguments: Vec<String>,
@@ -618,6 +642,7 @@ pub struct Runtime {
     published_stderr: Journal,
     budget: ResourceBudget,
     publish_failure: Option<String>,
+    publish_failure_detail: Option<PublishFailure>,
     replaying: bool,
     input_eof: bool,
     virtual_publish: bool,
@@ -630,6 +655,8 @@ pub struct Runtime {
     storage_start: (usize, (usize, usize)),
     allocations_since_gc: usize,
     native_remaining: Option<usize>,
+    allocation_accounting: bool,
+    execution_remaining: Option<usize>,
 }
 
 impl Runtime {
@@ -917,6 +944,49 @@ impl Runtime {
         self.state.directory_cursor += 1;
         Ok(entries)
     }
+    /// Conservative admission units, not a measurement of allocator or RSS bytes.
+    pub fn allocation_bytes(value: &Value) -> usize {
+        let children = match value {
+            Value::TypedList(_, v) => v.allocation_bytes(),
+            Value::Map(v) | Value::TypedMap(_, _, v) => v.allocation_bytes(),
+            Value::List(v) => v.iter().fold(v.capacity().saturating_mul(16), |n, v| {
+                n.saturating_add(Self::allocation_bytes(v))
+            }),
+            Value::OrderedMap(_, _, v) => {
+                v.iter().fold(v.capacity().saturating_mul(16), |n, (k, v)| {
+                    n.saturating_add(Self::allocation_bytes(k))
+                        .saturating_add(Self::allocation_bytes(v))
+                })
+            }
+            Value::Struct(_, v) | Value::Closure(_, _, v) => v.iter().fold(0usize, |n, (k, v)| {
+                n.saturating_add(96)
+                    .saturating_add(k.len())
+                    .saturating_add(Self::allocation_bytes(v))
+            }),
+            Value::Enum(_, _, v) => v.iter().fold(0usize, |n, (k, v)| {
+                n.saturating_add(32)
+                    .saturating_add(k.len())
+                    .saturating_add(Self::allocation_bytes(v))
+            }),
+            Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                Self::allocation_bytes(v)
+            }
+            _ => Self::value_bytes(value),
+        };
+        children
+            .saturating_add(std::mem::size_of::<Value>())
+            .saturating_add(32)
+    }
+    pub fn enable_allocation_accounting(&mut self) {
+        self.allocation_accounting = true;
+    }
+    fn retained_value_bytes(&self, value: &Value) -> usize {
+        if self.allocation_accounting {
+            Self::allocation_bytes(value)
+        } else {
+            Self::value_bytes(value)
+        }
+    }
     pub fn value_bytes(value: &Value) -> usize {
         match value {
             Value::Text(text) => text.len(),
@@ -971,6 +1041,7 @@ impl Runtime {
             directory_observations: BTreeMap::new(),
             input: Vec::new(),
             byte_input: Vec::new(),
+            branch_roots: RefCell::new(Vec::new()),
             byte_eof: false,
             times: Vec::new(),
             arguments: Vec::new(),
@@ -987,6 +1058,7 @@ impl Runtime {
             published_stderr: Journal::default(),
             budget: ResourceBudget::default(),
             publish_failure: None,
+            publish_failure_detail: None,
             replaying: false,
             input_eof: false,
             virtual_publish: false,
@@ -999,6 +1071,8 @@ impl Runtime {
             storage_start: (map_storage::map_nodes_created(), storage::storage_work()),
             allocations_since_gc: 0,
             native_remaining: None,
+            allocation_accounting: false,
+            execution_remaining: None,
         })
     }
     pub fn storage_metrics(&self) -> (usize, usize, usize) {
@@ -1104,8 +1178,32 @@ impl Runtime {
             self.state.directories = Arc::new(BTreeMap::new());
         }
         self.state.file_epoch = next_epoch;
+        self.reclaim_operation_ledger();
     }
 
+    fn reclaim_operation_ledger(&mut self) {
+        if !self.incremental_publish {
+            return;
+        }
+        let roots = self
+            .branch_roots
+            .borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .collect::<Vec<_>>();
+        let mut referenced = BTreeSet::new();
+        for state in std::iter::once(&self.state)
+            .chain(self.checkpoints.values().map(|c| &c.state))
+            .chain(roots.iter().map(AsRef::as_ref))
+        {
+            referenced.extend(state.stdout.operations());
+            referenced.extend(state.stderr.operations());
+            referenced.extend(state.file_operations.values());
+            referenced.extend(state.directory_operations.values());
+        }
+        self.published_operations
+            .retain(|id| referenced.contains(id));
+    }
     pub fn set_budget(&mut self, budget: ResourceBudget) -> Result<()> {
         let previous = self.budget;
         self.budget = budget;
@@ -1119,11 +1217,60 @@ impl Runtime {
         let mut segments = Vec::new();
         let mut seen_segments = HashSet::new();
         let mut seen_compute = HashSet::new();
-        let mut compute_memory = self
-            .byte_input
+        let mut compute_memory = self.byte_input.len().saturating_mul(32);
+        if self.allocation_accounting {
+            compute_memory =
+                compute_memory.saturating_add(self.checkpoints.len().saturating_mul(1024));
+            compute_memory = compute_memory.saturating_add(
+                self.input
+                    .iter()
+                    .map(|s| s.len().saturating_add(32))
+                    .sum::<usize>(),
+            );
+            compute_memory = compute_memory.saturating_add(self.times.len().saturating_mul(32));
+            compute_memory = compute_memory.saturating_add(
+                self.observations
+                    .keys()
+                    .map(|(_, p)| p.len().saturating_add(128))
+                    .sum::<usize>(),
+            );
+            compute_memory = compute_memory.saturating_add(
+                self.directory_observations
+                    .iter()
+                    .map(|((_, p), entries)| {
+                        p.len().saturating_add(128).saturating_add(
+                            entries.as_ref().map_or(0, |v| {
+                                v.iter().map(|s| s.len().saturating_add(96)).sum::<usize>()
+                            }),
+                        )
+                    })
+                    .sum::<usize>(),
+            );
+            compute_memory = compute_memory.saturating_add(
+                self.entry_observations
+                    .iter()
+                    .map(|(p, entries)| {
+                        p.len().saturating_add(64).saturating_add(
+                            entries
+                                .iter()
+                                .map(|s| s.len().saturating_add(32))
+                                .sum::<usize>(),
+                        )
+                    })
+                    .sum::<usize>(),
+            );
+        }
+        for (_, bytes) in &self.byte_input {
+            if seen_segments.insert(Arc::as_ptr(bytes) as usize) {
+                segments.push(bytes.clone());
+            }
+        }
+        let branch_roots = self
+            .branch_roots
+            .borrow()
             .iter()
-            .map(|(_, bytes)| bytes.len() + 16)
-            .sum::<usize>();
+            .filter_map(Weak::upgrade)
+            .collect::<Vec<_>>();
         if self.incremental_publish {
             compute_memory =
                 compute_memory.saturating_add(self.published_operations.len().saturating_mul(32));
@@ -1135,7 +1282,9 @@ impl Runtime {
                 .saturating_mul(32),
             );
         }
-        for state in std::iter::once(&self.state).chain(self.checkpoints.values().map(|c| &c.state))
+        for state in std::iter::once(&self.state)
+            .chain(self.checkpoints.values().map(|c| &c.state))
+            .chain(branch_roots.iter().map(AsRef::as_ref))
         {
             for journal in [&state.stdout, &state.stderr] {
                 for segment in journal.segments() {
@@ -1166,16 +1315,29 @@ impl Runtime {
                     state
                         .globals
                         .iter()
-                        .map(|(k, v)| k.len() + Self::value_bytes(v))
+                        .map(|(k, v)| {
+                            k.len()
+                                + self.retained_value_bytes(v)
+                                + if self.allocation_accounting { 96 } else { 0 }
+                        })
                         .sum(),
                 );
             }
             if seen_compute.insert(Arc::as_ptr(&state.heap) as usize) {
-                compute_memory = compute_memory.saturating_add(state.heap.logical_bytes());
+                compute_memory = compute_memory.saturating_add(if self.allocation_accounting {
+                    state.heap.allocation_bytes()
+                } else {
+                    state.heap.logical_bytes()
+                });
             }
             if seen_compute.insert(Arc::as_ptr(&state.stack) as usize) {
-                compute_memory =
-                    compute_memory.saturating_add(state.stack.iter().map(Self::value_bytes).sum());
+                compute_memory = compute_memory.saturating_add(
+                    state
+                        .stack
+                        .iter()
+                        .map(|v| self.retained_value_bytes(v))
+                        .sum(),
+                );
             }
             if seen_compute.insert(Arc::as_ptr(&state.call_frames) as usize) {
                 compute_memory = compute_memory.saturating_add(
@@ -1183,7 +1345,11 @@ impl Runtime {
                         .call_frames
                         .iter()
                         .flat_map(|f| f.locals.iter())
-                        .map(|(k, v)| k.len() + Self::value_bytes(v))
+                        .map(|(k, v)| {
+                            k.len()
+                                + self.retained_value_bytes(v)
+                                + if self.allocation_accounting { 96 } else { 0 }
+                        })
                         .sum(),
                 );
             }
@@ -1344,6 +1510,20 @@ impl Runtime {
     pub fn remove_global(&mut self, name: &str) {
         Arc::make_mut(&mut self.state.globals).remove(name);
     }
+    pub fn configure_execution_work(&mut self, limit: usize) {
+        self.execution_remaining = Some(limit);
+    }
+    pub fn execution_work_remaining(&self) -> Option<usize> {
+        self.execution_remaining
+    }
+    pub fn charge_execution_work(&mut self, work: usize) -> Result<()> {
+        if let Some(remaining) = &mut self.execution_remaining {
+            *remaining = remaining.checked_sub(work).ok_or_else(|| {
+                Error::InvalidOperation("ExecutionBudgetExceeded: host ceiling".into())
+            })?;
+        }
+        Ok(())
+    }
     pub fn configure_native_work(&mut self, limit: usize) {
         self.native_remaining = Some(limit);
     }
@@ -1365,6 +1545,9 @@ impl Runtime {
         external_roots: &[Value],
         work_limit: usize,
     ) -> Result<(usize, usize)> {
+        let work_limit = self
+            .native_remaining
+            .map_or(work_limit, |n| n.min(work_limit));
         let mut live = BTreeSet::new();
         let mut pending = self
             .state
@@ -1378,13 +1561,43 @@ impl Runtime {
                     .flat_map(|f| f.locals.values()),
             )
             .chain(external_roots.iter())
+            .take(work_limit.saturating_add(1))
             .collect::<Vec<_>>();
+        if pending.len() > work_limit {
+            return Err(Error::InvalidOperation(
+                "NativeWorkBudgetExceeded: heap roots".into(),
+            ));
+        }
         let mut work = 0usize;
         while let Some(value) = pending.pop() {
             work += 1;
             if work > work_limit {
                 return Err(Error::InvalidOperation(
                     "NativeWorkBudgetExceeded: heap collection".into(),
+                ));
+            }
+            let children = match value {
+                Value::List(v) => v.len(),
+                Value::TypedList(_, v) => v.len(),
+                Value::Map(v) | Value::TypedMap(_, _, v) => v.len(),
+                Value::OrderedMap(_, _, v) => v.len().saturating_mul(2),
+                Value::Struct(_, v) | Value::Closure(_, _, v) => v.len(),
+                Value::Enum(_, _, v) => v.len(),
+                Value::Option(Some(_)) | Value::Result(_) => 1,
+                Value::HeapRef(id) | Value::CellRef(id)
+                    if !live.contains(id) && self.state.heap.get(id).is_some() =>
+                {
+                    1
+                }
+                _ => 0,
+            };
+            if children
+                > work_limit
+                    .saturating_sub(work)
+                    .saturating_sub(pending.len())
+            {
+                return Err(Error::InvalidOperation(
+                    "NativeWorkBudgetExceeded: heap children".into(),
                 ));
             }
             match value {
@@ -1532,6 +1745,10 @@ impl Runtime {
                 tainted: false,
             },
         );
+        if let Err(error) = self.enforce_budget() {
+            self.checkpoints.remove(&name);
+            return Err(error);
+        }
         self.current_parent = Some(name);
         Ok(())
     }
@@ -1561,6 +1778,7 @@ impl Runtime {
         if self.current_parent.as_deref() == Some(name) {
             self.current_parent = removed.parent;
         }
+        self.reclaim_operation_ledger();
         Ok(())
     }
     pub fn checkpoint_parent(&self, name: &str) -> Result<Option<&str>> {
@@ -1652,14 +1870,18 @@ impl Runtime {
         Ok(format!("{{\"checkpoint\":{},\"parent\":{},\"pc\":{},\"frames\":{},\"files\":[{}],\"directories\":[{}],\"stdout_bytes\":{},\"stderr_bytes\":{},\"cursors\":{{\"stdin\":{},\"time\":{},\"args\":{},\"env\":{},\"directory\":{}}},\"secret_env_count\":{}}}",quote(name),parent,state.program_counter,state.call_frames.len(),files,dirs,state.stdout.len(),state.stderr.len(),state.stdin_cursor,state.time_cursor,state.args_cursor,state.env_cursor,state.directory_cursor,self.env_secrets.len()))
     }
     pub fn begin_branch(&self) -> BranchAnchor {
+        let state = Arc::new(self.state.clone());
+        let mut roots = self.branch_roots.borrow_mut();
+        roots.retain(|root| root.strong_count() > 0);
+        roots.push(Arc::downgrade(&state));
         BranchAnchor {
-            state: self.state.clone(),
+            state,
             parent: self.current_parent.clone(),
         }
     }
     pub fn end_branch(&mut self, name: impl Into<String>, anchor: BranchAnchor) -> Result<()> {
         self.commit(name)?;
-        self.state = anchor.state;
+        self.state = (*anchor.state).clone();
         self.restore_pending();
         self.current_parent = anchor.parent;
         Ok(())
@@ -1674,6 +1896,7 @@ impl Runtime {
         self.write_output(text.as_bytes())
     }
     pub fn write_output(&mut self, bytes: &[u8]) -> Result<()> {
+        let next_operation = self.next_operation;
         let previous = self.state.stdout.clone();
         let operation = if self.incremental_publish {
             Some(self.operation()?)
@@ -1683,11 +1906,13 @@ impl Runtime {
         self.state.stdout.append_operation(bytes, operation);
         if let Err(error) = self.enforce_budget() {
             self.state.stdout = previous;
+            self.next_operation = next_operation;
             return Err(error);
         }
         Ok(())
     }
     pub fn print_err(&mut self, text: &str) -> Result<()> {
+        let next_operation = self.next_operation;
         let previous = self.state.stderr.clone();
         let operation = if self.incremental_publish {
             Some(self.operation()?)
@@ -1699,6 +1924,7 @@ impl Runtime {
             .append_operation(text.as_bytes(), operation);
         if let Err(error) = self.enforce_budget() {
             self.state.stderr = previous;
+            self.next_operation = next_operation;
             return Err(error);
         }
         Ok(())
@@ -1729,7 +1955,8 @@ impl Runtime {
                 return Ok(None);
             }
             buffer.truncate(count);
-            self.byte_input.push((limit, buffer));
+            self.byte_input
+                .push((limit, Arc::new(Segment::new(buffer))));
             // The observation stays recorded even on failure: the Host was consumed.
         }
         // A recorded observation must also stay within budget when retried/restored.
@@ -1741,7 +1968,7 @@ impl Runtime {
             ));
         }
         self.state.byte_cursor += 1;
-        Ok(Some(bytes.clone()))
+        Ok(Some(bytes.bytes()?))
     }
     pub fn input_line(&mut self, source: &mut impl io::BufRead) -> Result<Option<String>> {
         let cursor = self.state.stdin_cursor;
@@ -2361,6 +2588,28 @@ impl Runtime {
     /// Validate the complete write set before touching the host. File replacement
     /// is per-file atomic where the host supports rename; multi-file publication is
     /// not globally atomic, matching the specification's level 1 limitation.
+    pub fn publish_failure(&self) -> Option<&PublishFailure> {
+        self.publish_failure_detail.as_ref()
+    }
+    fn fail_publish(
+        &mut self,
+        phase: &str,
+        path: Option<&Path>,
+        applied: &[String],
+        error: impl fmt::Display,
+    ) -> Error {
+        let failure = PublishFailure {
+            phase: phase.into(),
+            path: path.map(|p| p.to_string_lossy().into_owned()),
+            applied: applied.to_vec(),
+            cause: error.to_string(),
+            retryable: false,
+        };
+        let detail = serde_json::to_string(&failure).expect("publish failure is serializable");
+        self.publish_failure = Some(detail.clone());
+        self.publish_failure_detail = Some(failure);
+        Error::PublishPartiallyApplied(detail)
+    }
     pub fn publish(
         &mut self,
         force: bool,
@@ -2389,12 +2638,28 @@ impl Runtime {
         }
         if self.replaying || self.virtual_publish {
             if !self.virtual_publish {
-                self.state
+                if let Err(error) = self
+                    .state
                     .stdout
-                    .write_since(&self.published_stdout, stdout)?;
-                self.state
+                    .write_since(&self.published_stdout, stdout)
+                {
+                    return Err(self.fail_publish("stdout", None, &[], error));
+                }
+                if let Err(error) = self
+                    .state
                     .stderr
-                    .write_since(&self.published_stderr, stderr)?;
+                    .write_since(&self.published_stderr, stderr)
+                {
+                    return Err(self.fail_publish("stderr", None, &["stdout".into()], error));
+                }
+                if let Err(error) = stdout.flush().and_then(|_| stderr.flush()) {
+                    return Err(self.fail_publish(
+                        "flush",
+                        None,
+                        &["stdout".into(), "stderr".into()],
+                        error,
+                    ));
+                }
             }
             self.finish_publish(next_epoch);
             return Ok(());
@@ -2447,19 +2712,42 @@ impl Runtime {
                 }
             }
         }
+        let resolved = changed
+            .iter()
+            .map(|path| Ok((path.clone(), self.checked_path(path)?)))
+            .collect::<Result<BTreeMap<_, _>>>()?;
+        let mut applied = Vec::new();
         for (path, exists) in self.state.directories.iter() {
-            let full = self.checked_path(path)?;
-            if *exists {
-                fs::create_dir_all(full)?;
+            let full = resolved[path].clone();
+            if *exists && !full.is_dir() {
+                if let Err(error) = fs::create_dir_all(&full) {
+                    return Err(self.fail_publish(
+                        "directory-create",
+                        Some(&full),
+                        &applied,
+                        error,
+                    ));
+                }
+                applied.push(format!("directory {}", full.display()));
             }
         }
         // Stage all replacement files before applying any changes.
         let mut staged = StagedFiles(Vec::new());
         for (path, content) in self.state.files.iter() {
             if let Some(content) = content {
-                let full = self.checked_path(path)?;
+                let full = resolved[path].clone();
                 if let Some(parent) = full.parent() {
-                    fs::create_dir_all(parent)?;
+                    if !parent.is_dir() {
+                        if let Err(error) = fs::create_dir_all(parent) {
+                            return Err(self.fail_publish(
+                                "parent-create",
+                                Some(parent),
+                                &applied,
+                                error,
+                            ));
+                        }
+                        applied.push(format!("directory {}", parent.display()));
+                    }
                 }
                 let (temp, mut file) = loop {
                     let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
@@ -2472,54 +2760,60 @@ impl Runtime {
                     {
                         Ok(file) => break (temp, file),
                         Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
-                        Err(e) => return Err(e.into()),
+                        Err(e) => {
+                            return Err(self.fail_publish("stage-open", Some(&temp), &applied, e))
+                        }
                     }
                 };
                 staged.0.push((temp, full));
                 for page in content.pages.values() {
-                    page.write_to(&mut file)?;
+                    if let Err(error) = page.write_to(&mut file) {
+                        return Err(self.fail_publish(
+                            "stage-write",
+                            Some(staged.0.last().unwrap().0.as_path()),
+                            &applied,
+                            error,
+                        ));
+                    }
                 }
-                file.sync_all()?;
+                if let Err(error) = file.sync_all() {
+                    return Err(self.fail_publish(
+                        "stage-sync",
+                        Some(staged.0.last().unwrap().0.as_path()),
+                        &applied,
+                        error,
+                    ));
+                }
             }
         }
-        let mut applied = Vec::new();
         for (temp, full) in &staged.0 {
             if let Err(error) = replace_file(temp, full) {
-                let detail = format!(
-                    "applied {applied:?}; file replacement {} failed: {error}",
-                    full.display()
-                );
-                self.publish_failure = Some(detail.clone());
-                return Err(Error::PublishPartiallyApplied(detail));
+                return Err(self.fail_publish("rename", Some(full), &applied, error));
             }
             applied.push(format!("file {}", full.display()));
         }
         for (path, content) in self.state.files.iter() {
             if content.is_none() {
-                let full = self.checked_path(path)?;
-                if full.exists() {
-                    if let Err(error) = fs::remove_file(&full) {
-                        let detail = format!(
-                            "applied {applied:?}; file deletion {} failed: {error}",
-                            full.display()
-                        );
-                        self.publish_failure = Some(detail.clone());
-                        return Err(Error::PublishPartiallyApplied(detail));
+                let full = resolved[path].clone();
+                match fs::remove_file(&full) {
+                    Ok(()) => applied.push(format!("deleted file {}", full.display())),
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                    Err(error) => {
+                        return Err(self.fail_publish("file-delete", Some(&full), &applied, error))
                     }
-                    applied.push(format!("deleted file {}", full.display()));
                 }
             }
         }
         for (path, exists) in self.state.directories.iter().rev() {
             if !exists {
-                let full = self.checked_path(path)?;
+                let full = resolved[path].clone();
                 if let Err(error) = fs::remove_dir(&full) {
-                    let detail = format!(
-                        "applied {applied:?}; directory deletion {} failed: {error}",
-                        full.display()
-                    );
-                    self.publish_failure = Some(detail.clone());
-                    return Err(Error::PublishPartiallyApplied(detail));
+                    return Err(self.fail_publish(
+                        "directory-delete",
+                        Some(&full),
+                        &applied,
+                        error,
+                    ));
                 }
                 applied.push(format!("deleted directory {}", full.display()));
             }
@@ -2529,23 +2823,19 @@ impl Runtime {
             .stdout
             .write_since(&self.published_stdout, stdout)
         {
-            let detail = format!("applied {applied:?}; stdout failed: {error}");
-            self.publish_failure = Some(detail.clone());
-            return Err(Error::PublishPartiallyApplied(detail));
+            return Err(self.fail_publish("stdout", None, &applied, error));
         }
+        applied.push("stdout".into());
         if let Err(error) = self
             .state
             .stderr
             .write_since(&self.published_stderr, stderr)
         {
-            let detail = format!("applied {applied:?}; stderr failed after stdout: {error}");
-            self.publish_failure = Some(detail.clone());
-            return Err(Error::PublishPartiallyApplied(detail));
+            return Err(self.fail_publish("stderr", None, &applied, error));
         }
+        applied.push("stderr".into());
         if let Err(error) = stdout.flush().and_then(|_| stderr.flush()) {
-            let detail = format!("applied {applied:?}; terminal flush failed: {error}");
-            self.publish_failure = Some(detail.clone());
-            return Err(Error::PublishPartiallyApplied(detail));
+            return Err(self.fail_publish("flush", None, &applied, error));
         }
         self.finish_publish(next_epoch);
         Ok(())

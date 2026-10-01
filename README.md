@@ -1,6 +1,6 @@
-# REWIND 開発版0.9.9
+# REWIND 1.0.0
 
-`codex/develop`は単一ファイルの`rewind run main.rw` / `rewind compile main.rw`、`rewindc`、増分publish、bounded streamingとpersistent Mapに対応しています。v0.9.5〜v0.9.9でI/O失敗復元、heap回収、文字列・区間・graph・CSV・matrix・DPを追加しました。[使い方](docs/getting-started.md)、[実装状況](docs/v0.9.9-status.md)、[1.0準備草案](docs/REWIND_v1.0.md)を参照してください。
+`rewind run main.rw` / `rewind compile main.rw`、`rewindc`、Checkpointと増分publish、署名付きLinux x86_64 SDKを提供します。1.0ではprivate field、複数generic bound/where、factoryの期待型推論、履歴回収と入力spill、実行・allocation予算、構造化publish失敗、34の標準moduleを整備しました。[使い方](docs/getting-started.md)、[1.0仕様と保証範囲](docs/REWIND_v1.0.md)、[ライブラリ](libraries/README.md)を参照してください。開発branchは`codex/develop`です。
 
 ## SDKを試す
 

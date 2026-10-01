@@ -6,6 +6,7 @@ struct Entry {
     key: Arc<MapKey>,
     value: Arc<Value>,
     bytes: usize,
+    allocation_bytes: usize,
 }
 impl Entry {
     fn new(key: Arc<MapKey>, value: Arc<Value>) -> Arc<Self> {
@@ -16,7 +17,15 @@ impl Entry {
             _ => 8,
         };
         let bytes = key_bytes + Runtime::value_bytes(&value);
-        Arc::new(Self { key, value, bytes })
+        let allocation_bytes = key_bytes
+            .saturating_add(Runtime::allocation_bytes(&value))
+            .saturating_add(192);
+        Arc::new(Self {
+            key,
+            value,
+            bytes,
+            allocation_bytes,
+        })
     }
 }
 struct Node {
@@ -26,6 +35,7 @@ struct Node {
     height: usize,
     size: usize,
     bytes: usize,
+    allocation_bytes: usize,
 }
 impl std::ops::Deref for Node {
     type Target = Entry;
@@ -52,6 +62,10 @@ fn node(entry: Arc<Entry>, left: Link, right: Link) -> Arc<Node> {
         height: 1 + height(&left).max(height(&right)),
         size: 1 + size(&left) + size(&right),
         bytes: entry.bytes + bytes(&left) + bytes(&right),
+        allocation_bytes: entry
+            .allocation_bytes
+            .saturating_add(left.as_ref().map_or(0, |n| n.allocation_bytes))
+            .saturating_add(right.as_ref().map_or(0, |n| n.allocation_bytes)),
         entry,
         left,
         right,
@@ -164,6 +178,9 @@ impl PersistentMap {
     }
     pub fn is_empty(&self) -> bool {
         self.root.is_none()
+    }
+    pub fn allocation_bytes(&self) -> usize {
+        self.root.as_ref().map_or(0, |n| n.allocation_bytes)
     }
     pub fn logical_bytes(&self) -> usize {
         bytes(&self.root)

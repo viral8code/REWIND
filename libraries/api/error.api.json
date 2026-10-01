@@ -3,105 +3,100 @@
   "kind": "rewind-api",
   "language": "1.0.0",
   "symbols": {
-    "fn:array": {
+    "fn:caused": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Json"
-      ],
-      "return": "Option<Frozen<List<Json>>>"
-    },
-    "fn:boolean": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Json"
-      ],
-      "return": "Option<Bool>"
-    },
-    "fn:floating": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Json"
-      ],
-      "return": "Option<Float>"
-    },
-    "fn:get": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Json",
+        "String",
+        "String",
         "String"
       ],
-      "return": "Option<Json>"
+      "return": "Error"
     },
-    "fn:integer": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Json"
-      ],
-      "return": "Option<Int>"
-    },
-    "fn:keys": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Json"
-      ],
-      "return": "List<String>"
-    },
-    "fn:kind": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Json"
-      ],
-      "return": "String"
-    },
-    "fn:parse": {
+    "fn:code": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
         "String"
       ],
-      "return": "Result<Json,JsonError>"
+      "return": "Error"
     },
-    "fn:parseBytes": {
+    "fn:fromDiagnostic": {
+      "async": false,
+      "cost": "O(1) envelope projection; complete cause tree remains in the original Diagnostic.",
+      "effects": [],
+      "failure": "Does not catch a fatal runtime error or grant retry permission; preserves diagnostic code and source location.",
+      "generics": [],
+      "parameters": [
+        "&Diagnostic"
+      ],
+      "return": "Error"
+    },
+    "fn:fromFile": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Bytes"
+        "FileError"
       ],
-      "return": "Result<Json,JsonError>"
+      "return": "Error"
     },
-    "fn:stringify": {
+    "fn:fromJson": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Json"
+        "JsonError",
+        "String"
       ],
-      "return": "Result<String,JsonError>"
+      "return": "Error"
     },
-    "fn:text": {
+    "fn:fromStd": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Json"
+        "StdError",
+        "String"
       ],
-      "return": "Option<String>"
+      "return": "Error"
+    },
+    "type:Error": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "message",
+          "String"
+        ],
+        [
+          "source",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ],
+        [
+          "cause",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
     },
     "type:Json": {
       "generics": [],

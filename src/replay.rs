@@ -29,6 +29,23 @@ impl Runtime {
         self.virtual_publish = true;
     }
     pub fn export_observations(&self) -> Result<Json> {
+        let raw_bytes = self.byte_input.iter().fold(0usize, |n, (_, s)| {
+            let (a, b) = s.usage();
+            n.saturating_add(a).saturating_add(b)
+        });
+        let raw_bytes = self
+            .observations
+            .values()
+            .flat_map(|o| o.blocks.values())
+            .fold(raw_bytes, |n, s| {
+                let (a, b) = s.usage();
+                n.saturating_add(a).saturating_add(b)
+            });
+        if raw_bytes > 16 * 1024 * 1024 {
+            return Err(Error::InvalidOperation(
+                "TraceBudgetExceeded: observation byte payload (16 MiB)".into(),
+            ));
+        }
         let mut files = Vec::new();
         for ((epoch, path), observation) in &self.observations {
             let mut blocks = Vec::new();
@@ -53,24 +70,33 @@ impl Runtime {
             .iter()
             .map(|((epoch, path), entries)| json!({"epoch":epoch,"path":path,"entries":entries}))
             .collect::<Vec<_>>();
+        let byte_input = self
+            .byte_input
+            .iter()
+            .map(|(limit, segment)| Ok((*limit, segment.bytes()?)))
+            .collect::<Result<Vec<_>>>()?;
         Ok(
-            json!({"format":1,"byte_input":self.byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
+            json!({"format":1,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
         )
     }
     pub fn import_observations(&mut self, data: &Json) -> Result<()> {
         if data["format"] != 1 {
             return Err(invalid("unsupported observation format"));
         }
-        self.byte_input = match data.get("byte_input") {
+        let byte_input: Vec<(usize, Vec<u8>)> = match data.get("byte_input") {
             Some(value) => serde_json::from_value(value.clone())
                 .map_err(|_| invalid("invalid byte input journal"))?,
             None => Vec::new(),
         };
-        if self.byte_input.iter().any(|(limit, bytes)| {
+        if byte_input.iter().any(|(limit, bytes)| {
             !(1..=65536).contains(limit) || bytes.is_empty() || bytes.len() > *limit
         }) {
             return Err(invalid("invalid bounded byte observation"));
         }
+        self.byte_input = byte_input
+            .into_iter()
+            .map(|(limit, bytes)| (limit, Arc::new(Segment::new(bytes))))
+            .collect();
         self.byte_eof = data["byte_eof"] == true;
         self.secret_input_indices.clear();
         let mut secret_index = 0usize;

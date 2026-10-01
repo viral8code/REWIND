@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "fn:format": {
       "async": false,
@@ -52,6 +52,7 @@
       "return": "Result<Int,CsvError>"
     },
     "type:CsvError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -109,6 +110,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -131,6 +133,7 @@
       "kind": "record"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -145,16 +148,8 @@
       "kind": "record"
     },
     "type:Table": {
-      "fields": [
-        [
-          "cells",
-          "List<String>"
-        ],
-        [
-          "rowEnds",
-          "List<Int>"
-        ]
-      ],
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "struct"
     }

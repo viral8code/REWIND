@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "fn:count": {
       "async": false,
@@ -41,6 +41,15 @@
       ],
       "return": "Result<BitSet,String>"
     },
+    "fn:length": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&BitSet"
+      ],
+      "return": "Int"
+    },
     "fn:set": {
       "async": false,
       "effects": [],
@@ -73,16 +82,8 @@
       "return": "Result<BitSet,String>"
     },
     "type:BitSet": {
-      "fields": [
-        [
-          "words",
-          "List<Int>"
-        ],
-        [
-          "length",
-          "Int"
-        ]
-      ],
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "struct"
     },
@@ -130,6 +131,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -152,6 +154,7 @@
       "kind": "record"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",

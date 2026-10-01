@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 0.9.3 / `language = "0.9.3"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.0.0 / `language = "1.0.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -92,3 +92,11 @@ source libraryの契約テストは11件。詳細は[v0.9.4実装状況](../docs
 現在のSDKは33module。追加moduleはstringSearch（byte KMP/prefix/Z）、bitset（packed bits）、range（sparse minimum）、rollbackSet（rollback DSU）、csv（bounded UTF-8 CSV）、matrix（checked product/power）、dp（LIS/0-1 knapsack）。graphにtopological/Bellman-Ford/SCC/minimumForest/ancestors/lcaを追加した。modular.inverseは正のInt64全域のmodulusを扱う。各容量・失敗・計算量は[v0.9.6](../docs/v0.9.6-status.md)、[v0.9.7](../docs/v0.9.7-status.md)、[v0.9.8](../docs/v0.9.8-status.md)を参照。
 
 標準契約テストは14件。heap回収とwork budgetは[v0.9.9](../docs/v0.9.9-status.md)。公開fieldの不変条件やphysical/native予算など、残る課題は[1.0準備草案](../docs/REWIND_v1.0.md)。
+
+## 1.0の公開境界
+
+mutable collection/parserの内部fieldとconstructorはprivateです。公開factoryとget/set/length等を使います。matrix.rows/columns、graph.vertices/edges、scanner.position等は読み取り用関数です。Forest等の公開結果fieldは利用できます。
+
+error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換を提供します。sort.tryStableとsegment.tryUpdatedはResultを返すpure callbackを受け取り、新しい結果を構築するので、callbackや予算の失敗時に元の入力を変更しません。既存in-place API全体のatomic性を追加するものではありません。費用・失敗契約をAPI snapshotにも含めます。
+
+提供する34 moduleと保証範囲は[1.0仕様](../docs/REWIND_v1.0.md)を参照してください。0.xの内部field直接操作はfactory/accessorへ移行し、lock/artifact/recordを再生成します。

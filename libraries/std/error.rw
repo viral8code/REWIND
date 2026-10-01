@@ -1,0 +1,10 @@
+// Stable application error envelope. Causes are explicit messages; fatal task diagnostics retain their full trees separately.
+pub record Error{code:String,message:String,source:String,line:Int,column:Int,offset:Int,cause:Option<String>}
+pub fn code(code:String)->Error effects {} {return Error(code,code,"",0,0,0,None);}
+pub fn caused(code:String,message:String,cause:String)->Error effects {} {return Error(code,message,"",0,0,0,Some(cause));}
+pub fn fromFile(error:FileError)->Error effects {} {return Error(error.code,error.code,error.path,0,0,0,error.cause);}
+pub fn fromJson(error:JsonError,source:String)->Error effects {} {return Error(error.code,error.code,source,error.line,error.column,error.offset,None);}
+pub fn fromStd(error:StdError,source:String)->Error effects {} {return Error(error.code,error.code,source,0,0,error.offset,None);}
+pub fn fromDiagnostic(error:&Diagnostic)->Error effects {} {var cause=None; if error.causes.len()>0{cause=Some(error.causes.get(0).message);}return Error(error.code,error.message,error.source,error.line,error.column,0,cause);}
+// @api fromDiagnostic cost O(1) envelope projection; complete cause tree remains in the original Diagnostic.
+// @api fromDiagnostic failure Does not catch a fatal runtime error or grant retry permission; preserves diagnostic code and source location.

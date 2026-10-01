@@ -13,6 +13,7 @@ mod v08;
 mod v09;
 mod v091;
 mod v092;
+mod v100;
 fn program_v09(p: &Program) -> bool {
     matches!(
         p.language.as_str(),
@@ -26,6 +27,7 @@ fn program_v09(p: &Program) -> bool {
             | "0.9.7"
             | "0.9.8"
             | "0.9.9"
+            | "1.0.0"
     )
 }
 mod vm;
@@ -44,6 +46,7 @@ fn program_v07(p: &Program) -> bool {
             | "0.9.7"
             | "0.9.8"
             | "0.9.9"
+            | "1.0.0"
     )
 }
 thread_local! {
@@ -373,6 +376,8 @@ struct Function {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct StructDef {
     #[serde(default)]
+    private_fields: BTreeSet<String>,
+    #[serde(default)]
     bounds: BTreeMap<String, String>,
     #[serde(default)]
     immutable: bool,
@@ -617,13 +622,47 @@ impl Parser {
         }
         Ok(name)
     }
+    fn bounds_list(&mut self) -> Result<String> {
+        let mut bounds = vec![self.name()?];
+        while self.eat("+") {
+            let bound = self.name()?;
+            if bounds.contains(&bound) {
+                return Err(diagnostic(self.current(), "duplicate generic bound"));
+            }
+            bounds.push(bound);
+        }
+        Ok(bounds.join("+"))
+    }
+    fn where_bounds(&mut self, params: &mut [(String, Option<String>)]) -> Result<()> {
+        if self.eat("where") {
+            loop {
+                let name = self.name()?;
+                self.need(":")?;
+                let bound = self.bounds_list()?;
+                let Some((_, current)) = params.iter_mut().find(|(p, _)| p == &name) else {
+                    return Err(diagnostic(
+                        self.current(),
+                        "where names an unknown type parameter",
+                    ));
+                };
+                *current = Some(match current.take() {
+                    Some(previous) => format!("{previous}+{bound}"),
+                    None => bound,
+                });
+                if !self.eat(",") {
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
     fn type_params(&mut self) -> Result<Vec<(String, Option<String>)>> {
         let mut params = Vec::new();
         if self.eat("<") {
             loop {
                 let name = self.name()?;
                 let bound = if self.eat(":") {
-                    Some(self.name()?)
+                    Some(self.bounds_list()?)
                 } else {
                     None
                 };
@@ -983,7 +1022,8 @@ impl Parser {
                     self.need("struct")?;
                 }
                 let name = self.name()?;
-                let parameters = self.type_params()?;
+                let mut parameters = self.type_params()?;
+                self.where_bounds(&mut parameters)?;
                 let bounds = parameters
                     .iter()
                     .filter_map(|(n, b)| b.clone().map(|b| (n.clone(), b)))
@@ -991,8 +1031,19 @@ impl Parser {
                 let type_params = parameters.into_iter().map(|(n, _)| n).collect();
                 self.need("{")?;
                 let mut fields = Vec::new();
+                let mut private_fields = BTreeSet::new();
                 while !self.eat("}") {
+                    let private = self.eat("private");
+                    if !private {
+                        self.eat("pub");
+                    }
                     let field = self.name()?;
+                    if fields.iter().any(|(n, _)| n == &field) {
+                        return Err(diagnostic(self.current(), "duplicate struct field"));
+                    }
+                    if private {
+                        private_fields.insert(field.clone());
+                    }
                     self.need(":")?;
                     let ty = self.ty()?;
                     fields.push((field, ty));
@@ -1004,6 +1055,7 @@ impl Parser {
                     .insert(
                         name.clone(),
                         StructDef {
+                            private_fields,
                             bounds,
                             immutable,
                             type_params,
@@ -1028,7 +1080,7 @@ impl Parser {
                 let at = self.current().clone();
                 self.need("fn")?;
                 let name = self.name()?;
-                let type_params = self.type_params()?;
+                let mut type_params = self.type_params()?;
                 self.need("(")?;
                 let mut params = Vec::new();
                 if !self.eat(")") {
@@ -1052,6 +1104,7 @@ impl Parser {
                 }
                 let ret = if annotated { self.ty()? } else { "Unit".into() };
                 let effects = self.effect_set()?;
+                self.where_bounds(&mut type_params)?;
                 let body = self.block()?;
                 if p.functions
                     .insert(
@@ -1113,6 +1166,18 @@ impl Parser {
         }
     }
     fn block(&mut self) -> Result<Vec<Stmt>> {
+        if self.type_depth >= 64 {
+            return Err(diagnostic(
+                self.current(),
+                "CompilerBudgetExceeded: syntax nesting (64)",
+            ));
+        }
+        self.type_depth += 1;
+        let result = self.block_inner();
+        self.type_depth -= 1;
+        result
+    }
+    fn block_inner(&mut self) -> Result<Vec<Stmt>> {
         self.need("{")?;
         let mut body = Vec::new();
         while !self.eat("}") {
@@ -1125,6 +1190,18 @@ impl Parser {
         Ok(body)
     }
     fn pattern(&mut self) -> Result<Pattern> {
+        if self.type_depth >= 64 {
+            return Err(diagnostic(
+                self.current(),
+                "CompilerBudgetExceeded: syntax nesting (64)",
+            ));
+        }
+        self.type_depth += 1;
+        let result = self.pattern_inner();
+        self.type_depth -= 1;
+        result
+    }
+    fn pattern_inner(&mut self) -> Result<Pattern> {
         let at = self.current().clone();
         if self.eat("_") {
             return Ok(Pattern::Wildcard);
@@ -1237,6 +1314,18 @@ impl Parser {
         }
     }
     fn stmt(&mut self) -> Result<Stmt> {
+        if self.type_depth >= 64 {
+            return Err(diagnostic(
+                self.current(),
+                "CompilerBudgetExceeded: syntax nesting (64)",
+            ));
+        }
+        self.type_depth += 1;
+        let result = self.stmt_inner();
+        self.type_depth -= 1;
+        result
+    }
+    fn stmt_inner(&mut self) -> Result<Stmt> {
         let at = self.current().clone();
         let kind = if self.eat("let") || self.eat("var") {
             let mutable = at.text == "var";
@@ -1522,6 +1611,18 @@ impl Parser {
         Ok(Stmt { kind, at })
     }
     fn expr(&mut self, min_bp: u8) -> Result<Expr> {
+        if self.type_depth >= 64 {
+            return Err(diagnostic(
+                self.current(),
+                "CompilerBudgetExceeded: syntax nesting (64)",
+            ));
+        }
+        self.type_depth += 1;
+        let result = self.expr_inner(min_bp);
+        self.type_depth -= 1;
+        result
+    }
+    fn expr_inner(&mut self, min_bp: u8) -> Result<Expr> {
         let at = self.current().clone();
         self.pos += 1;
         let mut lhs = match at.text.as_str() {
@@ -1753,7 +1854,15 @@ impl Parser {
             }
             _ => return Err(diagnostic(&at, "expected an expression")),
         };
+        let mut chain_length = 0usize;
         loop {
+            chain_length += 1;
+            if chain_length > 128 {
+                return Err(diagnostic(
+                    &at,
+                    "CompilerBudgetExceeded: expression chain (128)",
+                ));
+            }
             if self.eat("::") {
                 let variant = self.name()?;
                 let prefix = match &lhs.kind {
@@ -2168,6 +2277,9 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
         for (_, ty) in &mut def.fields {
             *ty = rename_type(ty, &names);
         }
+        for bound in def.bounds.values_mut() {
+            *bound = rename_type(bound, &names);
+        }
     }
     for def in program
         .enums
@@ -2401,6 +2513,20 @@ fn load_program_overlay(
     if let Some(program) = loaded.get(&full) {
         return Ok(program.clone());
     }
+    if visiting.len().saturating_add(loaded.len()) >= 256 {
+        return Err(Error::InvalidOperation(
+            "CompilerBudgetExceeded: module count (256)".into(),
+        ));
+    }
+    if match overlay.get(&full) {
+        Some(s) => s.len() as u64,
+        None => fs::metadata(&full)?.len(),
+    } > 1024 * 1024
+    {
+        return Err(Error::InvalidOperation(
+            "CompilerBudgetExceeded: module source (1 MiB)".into(),
+        ));
+    }
     visiting.insert(full.clone());
     let source = overlay
         .get(&full)
@@ -2441,6 +2567,7 @@ fn load_program_overlay(
             type_depth: 0,
         };
         let parsed = parser.program()?;
+        v100::syntax_budget(&parsed)?;
         if overlay.is_empty() {
             v06::cache::put(root, "module", &module_key, &parsed);
         }
@@ -2790,6 +2917,9 @@ fn load_program_overlay(
         for (_, ty) in &mut def.fields {
             *ty = rename_type(ty, &program.import_aliases);
         }
+        for bound in def.bounds.values_mut() {
+            *bound = rename_type(bound, &program.import_aliases);
+        }
     }
     for def in own.enums.values_mut() {
         for fields in def.variants.values_mut() {
@@ -2935,6 +3065,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         )
     });
     program.language = manifest
@@ -2960,6 +3091,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -2984,6 +3116,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             v05::artifact(
                 &program,
@@ -3059,6 +3192,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         )
     });
     program.language = manifest
@@ -3084,6 +3218,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -3140,6 +3275,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 },
                 def.fields
                     .iter()
+                    .filter(|(n, _)| !def.private_fields.contains(n))
                     .map(|(n, t)| format!("{n}: {t}"))
                     .collect::<Vec<_>>()
                     .join(", ")
@@ -3346,6 +3482,7 @@ pub fn lock_project(root: &Path) -> Result<()> {
             | "0.9.7"
             | "0.9.8"
             | "0.9.9"
+            | "1.0.0"
     ) {
         return Err(Error::InvalidOperation(
             "use 'rewind update' to update v0.4 dependencies".into(),
@@ -3489,6 +3626,7 @@ fn check_program(program: &Program) -> Result<()> {
             | "0.9.7"
             | "0.9.8"
             | "0.9.9"
+            | "1.0.0"
     ) {
         let entries = program.impls.iter().collect::<Vec<_>>();
         for (i, ((tr, target), methods)) in entries.iter().enumerate() {
@@ -3661,6 +3799,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
             continue;
@@ -3704,6 +3843,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             v06::cache::put(root, "checked", &key, &true);
         }
@@ -3739,6 +3879,30 @@ struct Checker<'a> {
     origin: PathBuf,
 }
 impl Checker<'_> {
+    fn field_visible(&self, def: &StructDef, field: &str, at: &Tok) -> Result<()> {
+        if self.program.language == "1.0.0"
+            && def.origin != self.origin
+            && def.private_fields.contains(field)
+        {
+            return Err(diagnostic(
+                at,
+                format!("field {field} is private to its module"),
+            ));
+        }
+        Ok(())
+    }
+    fn constructor_visible(&self, def: &StructDef, at: &Tok) -> Result<()> {
+        if self.program.language == "1.0.0"
+            && def.origin != self.origin
+            && !def.private_fields.is_empty()
+        {
+            return Err(diagnostic(
+                at,
+                "opaque type constructor is private to its module",
+            ));
+        }
+        Ok(())
+    }
     fn visible(&self, public: bool, origin: &Path, at: &Tok, name: &str) -> Result<()> {
         if self.program.strict_visibility && !public && origin != self.origin {
             return Err(diagnostic(at, format!("{name} is private to its module")));
@@ -3752,7 +3916,14 @@ impl Checker<'_> {
                 if !exposed.contains(name)
                     && !(matches!(
                         self.program.language.as_str(),
-                        "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+                        "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
+                            | "1.0.0"
                     ) && exposed.iter().any(|local| {
                         resolve_alias(self.program, local).split('<').next()
                             == resolve_alias(self.program, name).split('<').next()
@@ -3774,6 +3945,17 @@ impl Checker<'_> {
         at: &Tok,
         bindings: &mut BTreeMap<String, (String, bool)>,
     ) -> Result<()> {
+        if let Pattern::Struct(name, _) | Pattern::Variant(name, _) = p {
+            let head = name.split("::").next().unwrap_or(name);
+            if self.program.import_aliases.contains_key(head) {
+                return self.pattern(
+                    &resolve_pattern_alias(p, &self.program.import_aliases),
+                    ty,
+                    at,
+                    bindings,
+                );
+            }
+        }
         match p {
             Pattern::Wildcard => {}
             Pattern::Bind(name) => {
@@ -3892,6 +4074,7 @@ impl Checker<'_> {
                     .zip(args.iter().map(|s| s.to_string()))
                     .collect::<BTreeMap<_, _>>();
                 for (field, p) in fields {
+                    self.field_visible(def, field, at)?;
                     let field_ty = def
                         .fields
                         .iter()
@@ -3917,6 +4100,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) {
                         return Err(diagnostic(at, "tuple pattern requires language 0.6"));
                     }
@@ -4113,6 +4297,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) {
                         v06::borrowed_type(&binding.0).into()
                     } else {
@@ -4145,6 +4330,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) {
                         let ty = v06::fn_type(
                             &f.params,
@@ -4210,6 +4396,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
                     }
@@ -4259,6 +4446,7 @@ impl Checker<'_> {
                                     | "0.9.7"
                                     | "0.9.8"
                                     | "0.9.9"
+                                    | "1.0.0"
                             ) {
                                 "TaskError"
                             } else {
@@ -4283,6 +4471,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) && op != "move"
                     {
                         return Ok(format!(
@@ -4315,6 +4504,7 @@ impl Checker<'_> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) && (self.expr(a)?.starts_with("Secret<")
                     || self.expr(b)?.starts_with("Secret<"))
                 {
@@ -4372,7 +4562,12 @@ impl Checker<'_> {
             ExprKind::Member(base, field) => {
                 if let ExprKind::Name(n) = &base.kind {
                     let qualified = format!("{n}.{field}");
-                    if let Some(symbol) = self.program.import_aliases.get(&qualified) {
+                    if let Some(symbol) = self
+                        .program
+                        .import_aliases
+                        .get(&qualified)
+                        .filter(|_| self.find(n).is_none())
+                    {
                         if let Some((public, origin)) = self.program.const_origins.get(symbol) {
                             self.visible(*public, origin, &e.at, &qualified)?;
                             return self
@@ -4403,6 +4598,7 @@ impl Checker<'_> {
                                     | "0.9.7"
                                     | "0.9.8"
                                     | "0.9.9"
+                                    | "1.0.0"
                             ) {
                                 return Ok(v06::fn_type(
                                     &f.params,
@@ -4461,6 +4657,7 @@ impl Checker<'_> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) && t.starts_with("Secret<")
                 {
                     let inner = Expr {
@@ -4488,6 +4685,7 @@ impl Checker<'_> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
                     {
@@ -4517,6 +4715,7 @@ impl Checker<'_> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) && t.starts_with("Frozen<")
                 {
                     let inner = Expr {
@@ -4530,6 +4729,7 @@ impl Checker<'_> {
                     return Ok(v05::frozen_type_result(&self.expr(&field_expr)?));
                 }
                 if let Some(def) = self.program.structs.get(t.split('<').next().unwrap_or(&t)) {
+                    self.field_visible(def, field, &e.at)?;
                     if self.program.strict_visibility && !def.public && def.origin != self.origin {
                         return Err(diagnostic(&e.at, format!("{t} is private to its module")));
                     }
@@ -4582,6 +4782,7 @@ impl Checker<'_> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if let Ok(ty) = self.expr(base) {
@@ -4649,6 +4850,7 @@ impl Checker<'_> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
@@ -4701,6 +4903,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) {
                         return Err(diagnostic(&e.at, "tuple values require language 0.6"));
                     }
@@ -4728,6 +4931,7 @@ impl Checker<'_> {
                                 | "0.9.7"
                                 | "0.9.8"
                                 | "0.9.9"
+                                | "1.0.0"
                         ) {
                             if let Some(result) =
                                 v06::checker_method(self, &ty, method, &types, &e.at)?
@@ -4751,6 +4955,7 @@ impl Checker<'_> {
                                 | "0.9.7"
                                 | "0.9.8"
                                 | "0.9.9"
+                                | "1.0.0"
                         ) {
                             if method == "iter" && types.is_empty() {
                                 if let Some(item) = v05::iterator_item(&ty) {
@@ -4798,6 +5003,7 @@ impl Checker<'_> {
                                     | "0.9.7"
                                     | "0.9.8"
                                     | "0.9.9"
+                                    | "1.0.0"
                             ) {
                                 if method == "timeout" && types == ["Int"] {
                                     return Ok(ty);
@@ -4831,6 +5037,7 @@ impl Checker<'_> {
                                     | "0.9.7"
                                     | "0.9.8"
                                     | "0.9.9"
+                                    | "1.0.0"
                             ) && types.is_empty()
                             {
                                 if method == "requestCancel" {
@@ -4918,6 +5125,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     )
                 {
                     if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
@@ -4959,6 +5167,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) && matches!(name.as_str(), "secret" | "reveal")
                     {
                         if types.len() != 1 {
@@ -4990,6 +5199,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) && matches!(name.as_str(), "freeze" | "thaw")
                     {
                         if types.len() != 1 {
@@ -5064,7 +5274,7 @@ impl Checker<'_> {
                         for (param, bound) in &f.type_params {
                             if let Some(bound) = bound {
                                 if !trait_satisfied(self.program, bound, &substitutions[param])
-                                    && self.bounds.get(&substitutions[param]) != Some(bound)
+                                    && !bound_provided(&self.bounds, &substitutions[param], bound)
                                 {
                                     return Err(diagnostic(
                                         &e.at,
@@ -5090,6 +5300,7 @@ impl Checker<'_> {
                             .unwrap_or_else(|| name.split('<').next().unwrap_or(name)),
                     ) {
                         self.visible(s.public, &s.origin, &e.at, name)?;
+                        self.constructor_visible(s, &e.at)?;
                         let actual_name = self
                             .program
                             .import_aliases
@@ -5175,7 +5386,12 @@ impl Checker<'_> {
                 } else if let ExprKind::Member(base, method) = &target.kind {
                     if let ExprKind::Name(n) = &base.kind {
                         let qualified = format!("{n}.{method}");
-                        if let Some(symbol) = self.program.import_aliases.get(&qualified) {
+                        if let Some(symbol) = self
+                            .program
+                            .import_aliases
+                            .get(&qualified)
+                            .filter(|_| self.find(n).is_none())
+                        {
                             if let Some(f) = self.program.functions.get(symbol) {
                                 self.visible(f.public, &f.origin, &e.at, &qualified)?;
                                 let params = f
@@ -5191,9 +5407,11 @@ impl Checker<'_> {
                                             self.program,
                                             bound,
                                             &substitutions[param],
-                                        ) && self.bounds.get(&substitutions[param])
-                                            != Some(bound)
-                                        {
+                                        ) && !bound_provided(
+                                            &self.bounds,
+                                            &substitutions[param],
+                                            bound,
+                                        ) {
                                             return Err(diagnostic(
                                                 &e.at,
                                                 format!(
@@ -5213,6 +5431,7 @@ impl Checker<'_> {
                             }
                             if let Some(s) = self.program.structs.get(symbol) {
                                 self.visible(s.public, &s.origin, &e.at, &qualified)?;
+                                self.constructor_visible(s, &e.at)?;
                                 let substitutions =
                                     infer_arguments(&s.fields, &s.type_params, &types, &e.at)?;
                                 v09::record_arguments(
@@ -5265,6 +5484,7 @@ impl Checker<'_> {
                                         | "0.9.7"
                                         | "0.9.8"
                                         | "0.9.9"
+                                        | "1.0.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readSecretLine") | ("Env", "getSecret")
@@ -5276,7 +5496,13 @@ impl Checker<'_> {
                                 }
                                 if !matches!(
                                     self.program.language.as_str(),
-                                    "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+                                    "0.9.4"
+                                        | "0.9.5"
+                                        | "0.9.6"
+                                        | "0.9.7"
+                                        | "0.9.8"
+                                        | "0.9.9"
+                                        | "1.0.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readChunk") | ("Out", "writeBytes")
@@ -5368,7 +5594,14 @@ impl Checker<'_> {
                             let base_type = t.split('<').next().unwrap_or("");
                             let arity_ok = (matches!(
                                 self.program.language.as_str(),
-                                "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+                                "0.9.3"
+                                    | "0.9.4"
+                                    | "0.9.5"
+                                    | "0.9.6"
+                                    | "0.9.7"
+                                    | "0.9.8"
+                                    | "0.9.9"
+                                    | "1.0.0"
                             ) && base_type == "List"
                                 && method == "pop"
                                 && types.is_empty())
@@ -5389,11 +5622,25 @@ impl Checker<'_> {
                                 );
                             if !arity_ok {
                                 if let Some(bound) = self.bounds.get(&t) {
-                                    let standard = standard_trait(bound);
-                                    if let Some(tr) =
-                                        self.program.traits.get(bound).or(standard.as_ref())
-                                    {
-                                        if let Some((params, ret)) = tr.methods.get(method) {
+                                    let mut candidates = Vec::new();
+                                    for bound in bound.split('+') {
+                                        let standard = standard_trait(bound);
+                                        if let Some(tr) =
+                                            self.program.traits.get(bound).or(standard.as_ref())
+                                        {
+                                            if let Some(signature) = tr.methods.get(method) {
+                                                candidates.push(signature.clone());
+                                            }
+                                        }
+                                    }
+                                    if candidates.len() > 1 {
+                                        return Err(diagnostic(
+                                            &e.at,
+                                            "ambiguous method in generic bounds",
+                                        ));
+                                    }
+                                    if let Some((params, ret)) = candidates.first() {
+                                        {
                                             if params.len() == types.len() + 1
                                                 && params[1..].iter().zip(&types).all(|(e, a)| {
                                                     compatible(&e.replace("Self", &t), a)
@@ -5432,6 +5679,7 @@ impl Checker<'_> {
                                             | "0.9.7"
                                             | "0.9.8"
                                             | "0.9.9"
+                                            | "1.0.0"
                                     ) =>
                                 {
                                     format!(
@@ -5482,7 +5730,7 @@ impl Checker<'_> {
                             ("List", "pop", 0)
                                 if matches!(
                                     self.program.language.as_str(),
-                                    "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+                                    "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
                                 ) =>
                             {
                                 format!(
@@ -5634,6 +5882,7 @@ impl Checker<'_> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
                     v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
@@ -5748,6 +5997,7 @@ impl Checker<'_> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) && self.expr(base)?.starts_with("Tuple<")
                     {
                         return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
@@ -6130,7 +6380,7 @@ impl<R: BufRead> Engine<R> {
         let mut runtime = Runtime::new(root)?;
         if matches!(
             program.language.as_str(),
-            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
         ) {
             runtime.enable_incremental_publish();
         }
@@ -6204,6 +6454,7 @@ impl<R: BufRead> Engine<R> {
         ))
     }
     fn tick(&mut self, at: &Tok) -> Exec<()> {
+        self.runtime.charge_execution_work(1).map_err(Flow::Error)?;
         if self.remaining == 0 {
             return Err(self.fail(at, "ExecutionBudgetExceeded"));
         }
@@ -6791,9 +7042,19 @@ impl<R: BufRead> Engine<R> {
         self.call(name, args, at)
     }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
+        if self.program.language == "1.0.0"
+            && !self
+                .program
+                .functions
+                .contains_key(name.split('<').next().unwrap_or(name))
+        {
+            self.runtime
+                .charge_native_work(v100::call_work(name, &args, &self.runtime))
+                .map_err(Flow::Error)?;
+        }
         if matches!(
             self.program.language.as_str(),
-            "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+            "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
         ) {
             if self.program.language == "0.9.9" {
                 if let Some(work) = v092::work(name, &args, &self.runtime) {
@@ -6806,7 +7067,16 @@ impl<R: BufRead> Engine<R> {
         }
         if matches!(
             self.program.language.as_str(),
-            "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+            "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
+                | "1.0.0"
         ) {
             if let Some(value) = v091::call(&self.runtime, name, &args).map_err(Flow::Error)? {
                 return Ok(value);
@@ -6828,6 +7098,7 @@ impl<R: BufRead> Engine<R> {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             )
         {
             return Ok(Value::Struct(
@@ -6860,6 +7131,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) && matches!(name, "secret" | "reveal")
         {
             if args.len() != 1 {
@@ -6880,6 +7152,7 @@ impl<R: BufRead> Engine<R> {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             ) {
                 self.runtime.register_secret_value(&args[0]);
             }
@@ -6910,6 +7183,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) && matches!(name, "freeze" | "thaw")
         {
             if args.len() != 1 {
@@ -6923,7 +7197,15 @@ impl<R: BufRead> Engine<R> {
             // Their static type still requires thaw; scalars own no mutable state.
             let value = if matches!(
                 self.program.language.as_str(),
-                "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+                "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
+                    | "1.0.0"
             ) && matches!(
                 &args[0],
                 Value::Bool(_)
@@ -7269,6 +7551,20 @@ impl<R: BufRead> Engine<R> {
         Ok(Err(position))
     }
     fn method(&mut self, target: Value, method: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
+        if self.program.language == "1.0.0" {
+            self.runtime
+                .charge_native_work(v100::method_work(&target, method, &args, &self.runtime))
+                .map_err(Flow::Error)?;
+        }
+        self.method_inner(target, method, args, at)
+    }
+    fn method_inner(
+        &mut self,
+        target: Value,
+        method: &str,
+        args: Vec<Value>,
+        at: &Tok,
+    ) -> Exec<Value> {
         if matches!(
             self.program.language.as_str(),
             "0.6"
@@ -7284,6 +7580,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             if let Some(inner) = v05::unsecret(&target) {
                 let value = self.method(inner.clone(), method, args, at)?;
@@ -7320,6 +7617,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) && args.is_empty()
         {
             if method == "iter" {
@@ -7350,6 +7648,7 @@ impl<R: BufRead> Engine<R> {
                                 | "0.9.7"
                                 | "0.9.8"
                                 | "0.9.9"
+                                | "1.0.0"
                         ) {
                             v06::immutable_tuple(value, &self.runtime)
                         } else {
@@ -7543,48 +7842,55 @@ impl<R: BufRead> Engine<R> {
                             _ => Err(self.fail(at, "unsupported Map method")),
                         }
                     }
-                    Value::TypedList(ty, mut list) => match (method, args.as_slice()) {
-                        ("pop", [])
-                            if matches!(
-                                self.program.language.as_str(),
-                                "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
-                            ) =>
-                        {
-                            let value = list.pop();
-                            self.runtime.heap_set(id, Value::TypedList(ty, list))?;
-                            Ok(Value::Option(value.map(Box::new)))
-                        }
-                        ("add", [value]) | ("push", [value]) => {
-                            let actual = value_type(value, &self.runtime);
-                            if !compatible(&ty, &actual) {
-                                return Err(
-                                    self.fail(at, format!("List<{ty}> cannot contain {actual}"))
-                                );
+                    Value::TypedList(ty, mut list) => {
+                        match (method, args.as_slice()) {
+                            ("pop", [])
+                                if matches!(
+                                    self.program.language.as_str(),
+                                    "0.9.3"
+                                        | "0.9.4"
+                                        | "0.9.5"
+                                        | "0.9.6"
+                                        | "0.9.7"
+                                        | "0.9.8"
+                                        | "0.9.9"
+                                        | "1.0.0"
+                                ) =>
+                            {
+                                let value = list.pop();
+                                self.runtime.heap_set(id, Value::TypedList(ty, list))?;
+                                Ok(Value::Option(value.map(Box::new)))
                             }
-                            list.push(value.clone());
-                            self.runtime.heap_set(id, Value::TypedList(ty, list))?;
-                            Ok(unit)
-                        }
-                        ("get", [Value::Int(n)]) if *n >= 0 => list
-                            .get(*n as usize)
-                            .cloned()
-                            .ok_or_else(|| self.fail(at, "list index out of bounds")),
-                        ("len", []) => Ok(Value::Int(list.len() as i64)),
-                        ("set", [Value::Int(n), value])
-                            if *n >= 0 && (*n as usize) < list.len() =>
-                        {
-                            let actual = value_type(value, &self.runtime);
-                            if !compatible(&ty, &actual) {
-                                return Err(
-                                    self.fail(at, format!("List<{ty}> cannot contain {actual}"))
-                                );
+                            ("add", [value]) | ("push", [value]) => {
+                                let actual = value_type(value, &self.runtime);
+                                if !compatible(&ty, &actual) {
+                                    return Err(self
+                                        .fail(at, format!("List<{ty}> cannot contain {actual}")));
+                                }
+                                list.push(value.clone());
+                                self.runtime.heap_set(id, Value::TypedList(ty, list))?;
+                                Ok(unit)
                             }
-                            list.set(*n as usize, value.clone());
-                            self.runtime.heap_set(id, Value::TypedList(ty, list))?;
-                            Ok(unit)
+                            ("get", [Value::Int(n)]) if *n >= 0 => list
+                                .get(*n as usize)
+                                .cloned()
+                                .ok_or_else(|| self.fail(at, "list index out of bounds")),
+                            ("len", []) => Ok(Value::Int(list.len() as i64)),
+                            ("set", [Value::Int(n), value])
+                                if *n >= 0 && (*n as usize) < list.len() =>
+                            {
+                                let actual = value_type(value, &self.runtime);
+                                if !compatible(&ty, &actual) {
+                                    return Err(self
+                                        .fail(at, format!("List<{ty}> cannot contain {actual}")));
+                                }
+                                list.set(*n as usize, value.clone());
+                                self.runtime.heap_set(id, Value::TypedList(ty, list))?;
+                                Ok(unit)
+                            }
+                            _ => Err(self.fail(at, "unsupported List method")),
                         }
-                        _ => Err(self.fail(at, "unsupported List method")),
-                    },
+                    }
                     Value::TypedMap(key_ty, value_ty, mut map) => match (method, args.as_slice()) {
                         ("set", [key, value]) => {
                             let key_actual = value_type(key, &self.runtime);
@@ -7732,6 +8038,7 @@ impl<R: BufRead> Engine<R> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) =>
             {
                 Ok(Value::Option(
@@ -7756,6 +8063,7 @@ impl<R: BufRead> Engine<R> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) =>
             {
                 Ok(Value::Option(
@@ -7767,7 +8075,7 @@ impl<R: BufRead> Engine<R> {
             ("In", "readChunk", 1)
                 if matches!(
                     self.program.language.as_str(),
-                    "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+                    "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
                 ) =>
             {
                 let Value::Int(limit) = args[0] else {
@@ -7785,7 +8093,7 @@ impl<R: BufRead> Engine<R> {
             ("Out", "writeBytes", 1)
                 if matches!(
                     self.program.language.as_str(),
-                    "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+                    "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
                 ) =>
             {
                 let Value::Bytes(bytes) = &args[0] else {
@@ -8097,7 +8405,19 @@ fn infer_arguments(
     }
     Ok(substitutions)
 }
+fn bound_provided(bounds: &BTreeMap<String, String>, ty: &str, required: &str) -> bool {
+    bounds.get(ty).is_some_and(|available| {
+        required.split('+').all(|r| {
+            available
+                .split('+')
+                .any(|b| b == r || (r == "Send" && b == "Share"))
+        })
+    })
+}
 fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
+    if bound.contains('+') {
+        return bound.split('+').all(|b| trait_satisfied(program, b, ty));
+    }
     if bound == "Effect" {
         return ty.starts_with('@');
     }
@@ -8117,6 +8437,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
             | "0.9.7"
             | "0.9.8"
             | "0.9.9"
+            | "1.0.0"
     ) && matches!(bound, "Send" | "Share")
     {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
@@ -8156,6 +8477,7 @@ fn impl_matches(
             | "0.9.7"
             | "0.9.8"
             | "0.9.9"
+            | "1.0.0"
     ) {
         return false;
     }
@@ -8361,6 +8683,7 @@ fn trait_method_return(
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             ) {
                 !compatible(t, ty)
             } else {
@@ -8778,6 +9101,7 @@ pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         )
     }) {
         v09::repl(root, record)

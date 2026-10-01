@@ -20,6 +20,7 @@ enum Kind {
 struct Node {
     kind: Kind,
     bytes: usize,
+    allocation_bytes: usize,
 }
 impl Clone for Node {
     fn clone(&self) -> Self {
@@ -36,6 +37,7 @@ impl Clone for Node {
         });
         Self {
             bytes: self.bytes,
+            allocation_bytes: self.allocation_bytes,
             kind: match &self.kind {
                 Kind::Leaf(xs) => Kind::Leaf(xs.clone()),
                 Kind::Branch(a, b) => Kind::Branch(a.clone(), b.clone()),
@@ -55,6 +57,9 @@ impl PagedValues {
     }
     pub fn is_empty(&self) -> bool {
         self.len == 0
+    }
+    pub fn allocation_bytes(&self) -> usize {
+        self.root.as_ref().map_or(0, |n| n.allocation_bytes)
     }
     pub fn logical_bytes(&self) -> usize {
         self.root.as_ref().map_or(0, |n| n.bytes)
@@ -96,6 +101,7 @@ impl PagedValues {
                     Kind::Branch(None, None)
                 },
                 bytes: 0,
+                allocation_bytes: 128,
             })
         }));
         let old = match &mut n.kind {
@@ -118,6 +124,10 @@ impl PagedValues {
                     }
                 };
                 n.bytes = xs.iter().map(|v| Runtime::value_bytes(v)).sum();
+                n.allocation_bytes = xs.iter().fold(128usize, |n, v| {
+                    n.saturating_add(Runtime::allocation_bytes(v))
+                        .saturating_add(32)
+                });
                 old
             }
             Kind::Branch(a, b) => {
@@ -131,6 +141,9 @@ impl PagedValues {
                     .as_ref()
                     .map_or(0, |n| n.bytes)
                     .saturating_add(b.as_ref().map_or(0, |n| n.bytes));
+                n.allocation_bytes = 128usize
+                    .saturating_add(a.as_ref().map_or(0, |n| n.allocation_bytes))
+                    .saturating_add(b.as_ref().map_or(0, |n| n.allocation_bytes));
                 old
             }
         };
@@ -140,6 +153,7 @@ impl PagedValues {
         if self.len == 64usize << self.height {
             self.root = Some(Arc::new(Node {
                 bytes: self.logical_bytes(),
+                allocation_bytes: self.allocation_bytes().saturating_add(128),
                 kind: Kind::Branch(self.root.take(), None),
             }));
             self.height += 1;
@@ -209,6 +223,9 @@ impl<'de> Deserialize<'de> for PagedValues {
 #[derive(Clone, Default)]
 pub struct HeapStore(crate::PersistentMap);
 impl HeapStore {
+    pub fn allocation_bytes(&self) -> usize {
+        self.0.allocation_bytes()
+    }
     fn key(id: u64) -> crate::MapKey {
         crate::MapKey::Bytes(id.to_be_bytes().to_vec())
     }

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "dependency:sort.rw": {
       "fn:$import$sort$inPlace": {
@@ -42,6 +42,25 @@
           "fn(T,T)->Int!{}~{Send+Share}"
         ],
         "return": "List<T>"
+      },
+      "fn:$import$sort$tryStable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<List<T>,E>"
       }
     },
     "fn:compressed": {
@@ -159,6 +178,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -181,6 +201,7 @@
       "kind": "record"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",

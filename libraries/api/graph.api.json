@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "dependency:disjointSet.rw": {
       "fn:$import$disjointSet$create": {
@@ -57,16 +57,7 @@
       },
       "type:$import$disjointSet$DisjointSet": {
         "bounds": {},
-        "fields": [
-          [
-            "parents",
-            "List<Int>"
-          ],
-          [
-            "sizes",
-            "List<Int>"
-          ]
-        ],
+        "fields": [],
         "generics": [],
         "immutable": false
       }
@@ -238,6 +229,25 @@
           "fn(T,T)->Int!{}~{Send+Share}"
         ],
         "return": "List<T>"
+      },
+      "fn:$import$sort$tryStable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<List<T>,E>"
       }
     },
     "fn:add": {
@@ -321,6 +331,15 @@
       ],
       "return": "Result<List<Option<Int>>,String>"
     },
+    "fn:edges": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Int"
+    },
     "fn:lca": {
       "async": false,
       "effects": [],
@@ -350,29 +369,23 @@
       ],
       "return": "Result<List<Int>,String>"
     },
-    "type:Ancestors": {
-      "fields": [
-        [
-          "jumps",
-          "List<Int>"
-        ],
-        [
-          "depths",
-          "List<Int>"
-        ],
-        [
-          "length",
-          "Int"
-        ],
-        [
-          "levels",
-          "Int"
-        ]
+    "fn:vertices": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
       ],
+      "return": "Int"
+    },
+    "type:Ancestors": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "struct"
     },
     "type:Forest": {
+      "constructor": true,
       "fields": [
         [
           "weight",
@@ -395,28 +408,8 @@
       "kind": "struct"
     },
     "type:Graph": {
-      "fields": [
-        [
-          "heads",
-          "List<Int>"
-        ],
-        [
-          "destinations",
-          "List<Int>"
-        ],
-        [
-          "links",
-          "List<Int>"
-        ],
-        [
-          "weights",
-          "List<Int>"
-        ],
-        [
-          "capacity",
-          "Int"
-        ]
-      ],
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "struct"
     },
@@ -464,6 +457,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -486,6 +480,7 @@
       "kind": "record"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",

@@ -10,6 +10,7 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        ("error", include_str!("../../../libraries/std/error.rw")),
         (
             "stringSearch",
             include_str!("../../../libraries/std/stringSearch.rw"),
@@ -513,7 +514,7 @@ pub(in crate::v2) fn install(root: &Path, sdk: &Path, public: &str) -> Result<()
         project::ProjectConfig::load(&root)?.ok_or_else(|| invalid("project manifest required"))?;
     if config.language != env!("CARGO_PKG_VERSION") || config.production {
         return Err(invalid(
-            "install requires a development language 0.9.3 project",
+            "install requires a development project matching this SDK language",
         ));
     }
     if config.imports.contains_key("std")

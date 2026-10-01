@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "dependency:integer.rw": {
       "fn:$import$integer$add": {
@@ -83,6 +83,15 @@
         "return": "Result<List<Int>,String>"
       }
     },
+    "fn:columns": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Matrix"
+      ],
+      "return": "Int"
+    },
     "fn:create": {
       "async": false,
       "effects": [],
@@ -124,6 +133,15 @@
         "Int"
       ],
       "return": "Result<Matrix,String>"
+    },
+    "fn:rows": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Matrix"
+      ],
+      "return": "Int"
     },
     "type:Json": {
       "generics": [],
@@ -169,6 +187,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -191,24 +210,13 @@
       "kind": "record"
     },
     "type:Matrix": {
-      "fields": [
-        [
-          "rows",
-          "Int"
-        ],
-        [
-          "columns",
-          "Int"
-        ],
-        [
-          "values",
-          "List<Int>"
-        ]
-      ],
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "struct"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",

@@ -1,5 +1,5 @@
 record Change{child:Int,parent:Int,size:Int}
-pub struct RollbackSet{parents:List<Int>,sizes:List<Int>,history:List<Change>}
+pub struct RollbackSet{private parents:List<Int>,private sizes:List<Int>,private history:List<Change>}
 pub fn create(count:Int)->Result<RollbackSet,String> effects {} {if count<0 || count>65536{return Err("Capacity");}let p=List<Int>();let s=List<Int>();var i=0;while i<count{p.add(i);s.add(1);i+=1;}return Ok(RollbackSet(p,s,List<Change>()));}
 pub fn root(set:&RollbackSet,index:Int)->Result<Int,String> effects {} {if index<0 || index>=set.parents.len(){return Err("Range");}var p=index;while set.parents.get(p)!=p{p=set.parents.get(p);}return Ok(p);}
 pub fn same(set:&RollbackSet,a:Int,b:Int)->Result<Bool,String> effects {} {return Ok(root(set,a)?==root(set,b)?);}

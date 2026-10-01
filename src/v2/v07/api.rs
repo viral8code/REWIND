@@ -40,6 +40,7 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
             | "0.9.7"
             | "0.9.8"
             | "0.9.9"
+            | "1.0.0"
     ) {
         return Err(Error::InvalidOperation(
             "API snapshot requires language 0.7".into(),
@@ -93,7 +94,7 @@ fn document(root: &Path) -> Result<Json> {
                 "Diagnostic" | "WaitGraph" | "WaitEdge" | "PropertyFailure" | "PropertyCase"
             )
         {
-            symbols.insert(format!("type:{n}"),json!({"kind":if d.immutable{"record"}else{"struct"},"generics":d.type_params,"fields":d.fields}));
+            symbols.insert(format!("type:{n}"),json!({"kind":if d.immutable{"record"}else{"struct"},"generics":d.type_params,"constructor":d.private_fields.is_empty(),"fields":d.fields.iter().filter(|(n,_)| !d.private_fields.contains(n)).collect::<Vec<_>>()}));
         }
     }
     for (n, d) in &p.enums {
@@ -140,6 +141,33 @@ fn document(root: &Path) -> Result<Json> {
             );
         }
     }
+    if p.language == "1.0.0" {
+        let source = fs::read_to_string(&p.root_origin)?;
+        for line in source.lines() {
+            let Some(rest) = line.trim().strip_prefix("// @api ") else {
+                continue;
+            };
+            let parts = rest.splitn(3, ' ').collect::<Vec<_>>();
+            if parts.len() != 3
+                || !matches!(parts[1], "cost" | "failure")
+                || parts[2].is_empty()
+                || parts[2].len() > 1024
+            {
+                return Err(Error::InvalidOperation(
+                    "invalid @api contract annotation".into(),
+                ));
+            }
+            let Some(contract) = symbols.get_mut(&format!("fn:{}", parts[0])) else {
+                return Err(Error::InvalidOperation(
+                    "@api annotation must name a public function".into(),
+                ));
+            };
+            if !contract[parts[1]].is_null() {
+                return Err(Error::InvalidOperation("duplicate @api annotation".into()));
+            }
+            contract[parts[1]] = json!(parts[2]);
+        }
+    }
     if program_v09(&p) {
         let values = v07::constant_values(&p)?;
         for (name, value) in &values {
@@ -181,7 +209,7 @@ fn document(root: &Path) -> Result<Json> {
             }
             for (n, d) in &p.structs {
                 if d.public && &d.origin == origin {
-                    exports.insert(format!("type:{n}"),json!({"immutable":d.immutable,"generics":d.type_params,"bounds":d.bounds,"fields":d.fields}));
+                    exports.insert(format!("type:{n}"),json!({"immutable":d.immutable,"generics":d.type_params,"bounds":d.bounds,"fields":d.fields.iter().filter(|(n,_)| !d.private_fields.contains(n)).collect::<Vec<_>>()}));
                 }
             }
             for (n, d) in &p.enums {

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "fn:create": {
       "async": false,
@@ -55,16 +55,8 @@
       "return": "Result<Bool,String>"
     },
     "type:DisjointSet": {
-      "fields": [
-        [
-          "parents",
-          "List<Int>"
-        ],
-        [
-          "sizes",
-          "List<Int>"
-        ]
-      ],
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "struct"
     },
@@ -112,6 +104,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -134,6 +127,7 @@
       "kind": "record"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",
