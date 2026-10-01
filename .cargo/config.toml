@@ -1,0 +1,3 @@
+# The Windows SDK should run without a separate Visual C++ redistributable.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import struct
 import sys
 import tempfile
 import zipfile
@@ -27,6 +28,44 @@ def run(args, input=None):
     if result.returncode:
         raise RuntimeError(result.stderr.decode('utf-8', errors='replace'))
     return result.stdout
+
+def pe_imports(path):
+    """Read PE import names without requiring developer tools on the user machine."""
+    data = path.read_bytes()
+    def u32(offset):
+        return struct.unpack_from('<I', data, offset)[0]
+    pe = u32(0x3c)
+    if data[pe:pe+4] != b'PE\0\0':
+        raise RuntimeError('Not a PE executable')
+    sections = struct.unpack_from('<H', data, pe+6)[0]
+    optional_size = struct.unpack_from('<H', data, pe+20)[0]
+    optional = pe+24
+    if struct.unpack_from('<H', data, optional)[0] != 0x20b:
+        raise RuntimeError('Expected PE32+ x64 executable')
+    section_table = optional+optional_size
+    def offset(rva):
+        for i in range(sections):
+            section = section_table+i*40
+            virtual_size, virtual_address, raw_size, raw_pointer = struct.unpack_from('<IIII',data,section+8)
+            if virtual_address <= rva < virtual_address+max(virtual_size,raw_size):
+                return raw_pointer+rva-virtual_address
+        raise RuntimeError('Invalid PE RVA')
+    descriptor = offset(u32(optional+120))  # Import directory, second data-directory entry.
+    imports = []
+    for i in range(256):
+        fields = struct.unpack_from('<IIIII',data,descriptor+i*20)
+        if not any(fields):
+            break
+        name = offset(fields[3])
+        end = data.index(b'\0',name,name+256)
+        imports.append(data[name:end].decode('ascii').lower())
+    else:
+        raise RuntimeError('Too many PE imports')
+    if any(name.startswith(('vcruntime','msvcp','msvcr','api-ms-win-crt')) or name == 'ucrtbase.dll' for name in imports):
+        raise RuntimeError('Windows SDK must statically link the C runtime: '+repr(imports))
+    return sorted(set(imports))
+
+runtime_dependencies = pe_imports(binary)
 
 with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     work = Path(tmp)
@@ -76,7 +115,7 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     assert run([exe,'run-artifact',work/'app.json','--root',shortest,'--task-steps','2000000','--allow-effects','input,output'], b'4 3\n0 1 4\n0 2 1\n2 1 1\n') == expected
     (output/f'{name}-sdk.pub').write_text(public+'\n', encoding='utf-8')
     shutil.copyfile(root/'docs/getting-started.md',output/'GETTING_STARTED.windows.md')
-    (output/'BUILD_INFO.windows.json').write_text(json.dumps(dict(version=version,commit=commit,target='x86_64-pc-windows-msvc',minimum_windows='Windows 10 x64',sdk_public_key=public,signing_key_scope='this release only',rust_toolchain='1.98.1',build_command='cargo build --release --locked'),indent=2)+'\n', encoding='utf-8')
+    (output/'BUILD_INFO.windows.json').write_text(json.dumps(dict(version=version,commit=commit,target='x86_64-pc-windows-msvc',minimum_windows='Windows 10 x64',crt_linkage='static',runtime_dependencies=runtime_dependencies,sdk_public_key=public,signing_key_scope='this release only',rust_toolchain='1.98.1',build_command='cargo build --release --locked'),indent=2)+'\n', encoding='utf-8')
     checks = ''.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n' for path in sorted(output.iterdir()) if path.is_file())
     (output/'SHA256SUMS.windows').write_text(checks, encoding='utf-8')
 print(f'Verified Windows release assets: {output}')
