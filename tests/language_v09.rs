@@ -469,7 +469,13 @@ fn lsp(root: &Path, requests: Vec<Value>) -> Vec<Value> {
 fn incomplete_editor_source_has_provisional_help_and_source_free_timeline() {
     let source = "fn add(n:Int)->Int effects {}{return n+1;}\nlet value=add(1);\n";
     let root = fixture(source, "");
-    let uri = format!("file://{}", root.join("main.rw").display());
+    let uri = format!(
+        "file:///{}",
+        root.join("main.rw")
+            .to_string_lossy()
+            .replace('\\', "/")
+            .trim_start_matches('/')
+    );
     let trace = root.join("trace.json");
     success(&cmd("run", &root, &["--record", trace.to_str().unwrap()]));
     let partial = "fn add(n:Int)->Int effects {}{return n+1;}\nlet value=add(\n";
@@ -482,7 +488,7 @@ fn incomplete_editor_source_has_provisional_help_and_source_free_timeline() {
             json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{"textDocument":{"uri":uri},"position":{"line":1,"character":14}}}),
             json!({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":{"line":1,"character":11}}}),
             json!({"jsonrpc":"2.0","id":4,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":uri},"position":{"line":1,"character":14}}}),
-            json!({"jsonrpc":"2.0","id":5,"method":"rewind/timeline","params":{"uri":format!("file://{}",trace.display()),"count":2}}),
+            json!({"jsonrpc":"2.0","id":5,"method":"rewind/timeline","params":{"uri":format!("file:///{}",trace.to_string_lossy().replace('\\',"/").trim_start_matches('/')),"count":2}}),
             json!({"jsonrpc":"2.0","id":6,"method":"textDocument/rename","params":{"textDocument":{"uri":uri},"position":{"line":1,"character":11},"newName":"changed"}}),
             json!({"jsonrpc":"2.0","id":7,"method":"shutdown","params":{}}),
             json!({"jsonrpc":"2.0","method":"exit","params":{}}),

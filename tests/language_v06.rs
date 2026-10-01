@@ -416,6 +416,7 @@ fn lsp_messages(output: &Output) -> Vec<serde_json::Value> {
         .collect()
 }
 #[test]
+#[cfg(unix)] // Authenticated on-disk caches require Unix owner/mode validation.
 fn persistent_cache_rebuilds_corruption_and_preserves_artifact_bytes() {
     let root = fixture(
         "fn answer(n:Int)->Int{return n+1;}assert_eq(answer(2),3);",
@@ -552,7 +553,13 @@ fn lsp_references_rename_signature_and_quickfix_use_overlay_scopes() {
     use serde_json::json;
     let source="fn plus(n:Int)->Int effects {} {let value=n;{let value=9;assert_eq(value,9);}return value;}\nassert_eq(plus(2),2);";
     let root = fixture(source, "");
-    let uri = format!("file://{}", root.join("main.rw").display());
+    let uri = format!(
+        "file:///{}",
+        root.join("main.rw")
+            .to_string_lossy()
+            .replace('\\', "/")
+            .trim_start_matches('/')
+    );
     let pos = json!({"line":0,"character":source.find("return value").unwrap()+8});
     let incomplete = format!("{source}\nplus(");
     let requests = vec![
@@ -682,7 +689,13 @@ fn lsp_trait_rename_and_effect_related_locations_follow_contracts() {
     use serde_json::json;
     let source="struct Box{n:Int}\ntrait Read{fn read(self:&Self)->Int effects {};}\nimpl Read for Box{fn read(self:&Box)->Int effects {}{return self.n;}}\nfn use<T:Read>(box:&T)->Int effects {}{return box.read();}\nlet b=Box(7);assert_eq(use(&b),7);assert_eq(b.read(),7);";
     let root = fixture(source, "");
-    let uri = format!("file://{}", root.join("main.rw").display());
+    let uri = format!(
+        "file:///{}",
+        root.join("main.rw")
+            .to_string_lossy()
+            .replace('\\', "/")
+            .trim_start_matches('/')
+    );
     let requests = vec![
         json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
         json!({"jsonrpc":"2.0","id":2,"method":"textDocument/rename","params":{"textDocument":{"uri":uri},"position":{"line":1,"character":15},"newName":"inspect"}}),
