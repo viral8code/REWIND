@@ -57,7 +57,7 @@ impl ProjectConfig {
 
         if matches!(
             self.language.as_str(),
-            "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+            "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
         ) {
             for (name, path) in &self.lock_imports {
                 if !name.is_empty()
@@ -239,6 +239,7 @@ impl ProjectConfig {
                 | "0.9.1"
                 | "0.9.2"
                 | "0.9.3"
+                | "0.9.4"
         ) {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
@@ -247,7 +248,7 @@ impl ProjectConfig {
         if !dev_deps.is_empty()
             && !matches!(
                 language.as_str(),
-                "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+                "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
             )
         {
             return Err(Error::InvalidOperation(
@@ -256,8 +257,10 @@ impl ProjectConfig {
         }
         let production = dependency_mode == "production";
         if !dependency_mode.is_empty()
-            && (!matches!(language.as_str(), "0.9" | "0.9.1" | "0.9.2" | "0.9.3")
-                || !matches!(dependency_mode.as_str(), "production" | "development"))
+            && (!matches!(
+                language.as_str(),
+                "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            ) || !matches!(dependency_mode.as_str(), "production" | "development"))
         {
             return Err(Error::InvalidOperation(
                 "unsupported dependency_mode".into(),
@@ -309,7 +312,7 @@ impl ProjectConfig {
         imports.insert(String::new(), source_root.clone());
         if matches!(
             language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
         ) && deps
             .values()
             .chain(registry.values())
@@ -335,7 +338,7 @@ impl ProjectConfig {
             }
             if matches!(
                 language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
             ) {
                 let mut inspected = BTreeSet::new();
                 loop {
@@ -397,7 +400,7 @@ impl ProjectConfig {
         let lock_imports = imports.clone();
         if matches!(
             language.as_str(),
-            "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+            "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
         ) && !include_dev
         {
             let mut reachable = runtime_roots;
@@ -498,7 +501,7 @@ impl ProjectConfig {
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
         if matches!(
             self.language.as_str(),
-            "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+            "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
         ) {
             return self.secure_lock(root, update);
         }
@@ -606,7 +609,7 @@ impl ProjectConfig {
             let mut selected = serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()});
             if matches!(
                 self.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
             ) {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
@@ -619,7 +622,10 @@ impl ProjectConfig {
         }
         let mut document = serde_json::json!({"format":2,"language":self.language,"compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies});
         if !self.assets.is_empty() {
-            if !matches!(self.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3") {
+            if !matches!(
+                self.language.as_str(),
+                "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            ) {
                 return Err(Error::InvalidOperation(
                     "assets require language 0.9.1".into(),
                 ));
@@ -661,7 +667,7 @@ impl ProjectConfig {
         if update {
             if matches!(
                 self.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
             ) {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()

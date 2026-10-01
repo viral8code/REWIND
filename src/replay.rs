@@ -54,13 +54,24 @@ impl Runtime {
             .map(|((epoch, path), entries)| json!({"epoch":epoch,"path":path,"entries":entries}))
             .collect::<Vec<_>>();
         Ok(
-            json!({"format":1,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
+            json!({"format":1,"byte_input":self.byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
         )
     }
     pub fn import_observations(&mut self, data: &Json) -> Result<()> {
         if data["format"] != 1 {
             return Err(invalid("unsupported observation format"));
         }
+        self.byte_input = match data.get("byte_input") {
+            Some(value) => serde_json::from_value(value.clone())
+                .map_err(|_| invalid("invalid byte input journal"))?,
+            None => Vec::new(),
+        };
+        if self.byte_input.iter().any(|(limit, bytes)| {
+            !(1..=65536).contains(limit) || bytes.is_empty() || bytes.len() > *limit
+        }) {
+            return Err(invalid("invalid bounded byte observation"));
+        }
+        self.byte_eof = data["byte_eof"] == true;
         self.secret_input_indices.clear();
         let mut secret_index = 0usize;
         self.input = array(&data["input"])?
@@ -197,6 +208,21 @@ impl Runtime {
     pub fn state_digest(&self) -> Result<String> {
         use sha2::{Digest, Sha256};
         let mut hash = Sha256::new();
+        if self.incremental_publish {
+            hash.update(format!(
+                "{:?}{:?}{:?}{:?}{:?}{}{}",
+                self.published_operations,
+                self.state.stdout.operations(),
+                self.state.stderr.operations(),
+                self.state.file_operations,
+                self.state.directory_operations,
+                self.next_operation,
+                self.published_epoch
+            ));
+        }
+        if self.incremental_publish {
+            hash.update((self.state.byte_cursor as u64).to_le_bytes());
+        }
         hash.update(self.state.stdout.bytes()?);
         hash.update([0]);
         hash.update(self.state.stderr.bytes()?);
@@ -248,6 +274,6 @@ impl Runtime {
                 m + s
             })
             .sum::<usize>();
-        json!({"pc":self.state.program_counter,"heap_objects":self.state.heap.len(),"checkpoint_heap_roots":heap_roots.len(),"shared_checkpoint_heap_roots":states.len()-heap_roots.len(),"retained_heap_logical_bytes":heap_bytes,"observed_file_bytes":observed_bytes,"checkpoints":self.checkpoints.keys().collect::<Vec<_>>(),"stdout_bytes":self.state.stdout.len(),"stderr_bytes":self.state.stderr.len(),"journal_storage_bytes":self.state.stdout.storage_bytes()+self.state.stderr.storage_bytes(),"globals":self.state.globals.iter().map(|(n,v)|(n.clone(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"heap":self.state.heap.iter().map(|(id,v)|(id.to_string(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"files":self.state.files.keys().collect::<Vec<_>>(),"file_deltas":deltas,"directories":*self.state.directories,"cursors":{"input":self.state.stdin_cursor,"time":self.state.time_cursor,"env":self.state.env_cursor,"directory":self.state.directory_cursor}})
+        json!({"pc":self.state.program_counter,"heap_objects":self.state.heap.len(),"published_epoch":self.published_epoch,"published_operation_count":self.published_operations.len(),"byte_input_cursor":self.state.byte_cursor,"checkpoint_heap_roots":heap_roots.len(),"shared_checkpoint_heap_roots":states.len()-heap_roots.len(),"retained_heap_logical_bytes":heap_bytes,"observed_file_bytes":observed_bytes,"checkpoints":self.checkpoints.keys().collect::<Vec<_>>(),"stdout_bytes":self.state.stdout.len(),"stderr_bytes":self.state.stderr.len(),"journal_storage_bytes":self.state.stdout.storage_bytes()+self.state.stderr.storage_bytes(),"globals":self.state.globals.iter().map(|(n,v)|(n.clone(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"heap":self.state.heap.iter().map(|(id,v)|(id.to_string(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"files":self.state.files.keys().collect::<Vec<_>>(),"file_deltas":deltas,"directories":*self.state.directories,"cursors":{"input":self.state.stdin_cursor,"time":self.state.time_cursor,"env":self.state.env_cursor,"directory":self.state.directory_cursor}})
     }
 }

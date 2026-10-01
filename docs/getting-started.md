@@ -1,78 +1,98 @@
-# REWIND 0.9.3を試す
+# REWIND 0.9.4を試す
 
-Linux x86_64向けの開発版SDKです。Ubuntu 22.04以降などglibc 2.35以降の環境を対象とします。WindowsはWSL2のUbuntuから試せます。macOS・Windows native・ARM・Alpine向けバイナリは今回の配布には含みません。RustやJVMの導入は不要です。
+v0.9.4は`codex/develop`の開発版です。公開済み[Release v0.9.3](https://github.com/viral8code/REWIND/releases/tag/v0.9.3)には以下の簡易CLIと新しいpublish規則は含まれません。[旧Releaseの導入](getting-started-v0.9.3.md)と区別してください。
 
-## ダウンロードと展開
+## バイナリを用意する
 
-[GitHub Release v0.9.3](https://github.com/viral8code/REWIND/releases/tag/v0.9.3)から次を同じdirectoryへダウンロードします。
-
-- `rewind-0.9.3-linux-x86_64.tar.gz`：実行ファイル、25moduleの標準ライブラリ、API文書、実行例、ライセンス
-- `rewind-0.9.3-sdk.pub`：このリリースの署名検証用公開鍵
-- `SHA256SUMS`：配布ファイルのSHA-256
-- `GETTING_STARTED.md`、`BUILD_INFO.json`：この説明とビルド情報
-
-Source codeを読みたい場合は`rewind-0.9.3-source.tar.gz`もダウンロードします。GitHubが自動生成するSource codeのzip/tar.gzには実行バイナリは含まれません。
+リポジトリの`codex/develop`でRustのbuild環境から次を実行します。
 
 ```sh
-sha256sum --check --ignore-missing SHA256SUMS
-tar -xzf rewind-0.9.3-linux-x86_64.tar.gz
-SDK="$(pwd)/rewind-0.9.3-linux-x86_64"
-PUBLIC_KEY="$(cat rewind-0.9.3-sdk.pub)"
-"$SDK/bin/rewind" sdk-verify --sdk "$SDK" --public-key "$PUBLIC_KEY"
-export PATH="$SDK/bin:$PATH"
+cargo build --release --locked
+export PATH="$(pwd)/target/release:$PATH"
+rewind --version
+rewind --help
 ```
 
-`SHA256SUMS`の確認でSDK archiveと公開鍵の両方が`OK`となることを確認してください。署名鍵はリリースごとに生成し、秘密鍵は配布しません。公開鍵・checksumの信頼元はこのリポジトリのReleaseページです。SDKの場所を変えた場合はPATHも更新します。
+ビルド済みSDKを受け取った場合は、その`bin`をPATHへ追加します。実行する利用者にRustやJVMは不要です。SDKの署名・checksumは配布元の公開鍵で検証してください。現在の配布targetはLinux x86_64で、macOS/Windows native/ARM向けの動作保証はまだありません。
 
 ## 最初のプログラム
 
-```sh
-mkdir hello-rewind
-cat > hello-rewind/rewind.toml <<'TOML'
-language = "0.9.3"
-source_root = "."
-entry = "main.rw"
-effects = "output"
-TOML
-cat > hello-rewind/main.rw <<'RW'
-fn main()->Int effects {output} {
-    Out.println("Hello, REWIND!");
-    publish;
-    return 0;
-}
-RW
-rewind update --root hello-rewind
-rewind check --root hello-rewind
-rewind run --root hello-rewind
+新しいdirectoryで`main.rw`を作ります。
+
+```rewind
+Out.println("Hello, REWIND!");
+publish;
 ```
 
-`Hello, REWIND!`が表示されます。出力は`publish`時に確定します。標準ライブラリを使うprojectへは次で導入します。
-
 ```sh
-rewind sdk-install --root hello-rewind --sdk "$SDK" --public-key "$PUBLIC_KEY"
+rewind run main.rw
+rewind compile main.rw
+rewind run main.rwc
 ```
 
-## 標準ライブラリと入力を試す
+compileは`main.rwc`を生成し、runはその成果物をsourceなしでも実行できます。`rewindc main.rw`と`rewind main.rwc`も同じ操作です。run main.rwに事前compileは不要です。manifest/lock/update/--rootも不要で、内部cacheを`.rewind`へ作成します。relative importとFile pathの基準はsource directoryです。
 
-同梱の最短距離CLIを、編集できるdirectoryへコピーします。
+## Checkpointとpublish
 
-```sh
-cp -R "$SDK/share/rewind/examples/shortest" ./rewind-shortest
-rewind sdk-install --root ./rewind-shortest --sdk "$SDK" --public-key "$PUBLIC_KEY"
-printf '4 3\n0 1 4\n0 2 1\n2 1 1\n' | rewind run --root ./rewind-shortest --task-steps 2000000
+```rewind
+var score = 10;
+commit test1;
+score = 99;
+Out.println(score);
+commit test2;
+publish;
+revert test1;
+Out.println(score);
+publish;
 ```
 
-出力は4行です。
+出力は次の通りです。
 
 ```text
-0
-2
-1
-unreachable
+99
+10
 ```
 
-SDKの`share/rewind/doc/sdk-guide.md`とmoduleごとのAPI文書を参照してください。`share/rewind/examples/sum`も入力処理の小さな例です。
+commitはCheckpointの保存です。revertは計算状態と未公開I/Oを戻します。publishはpending I/Oを外部へ確定します。確定済みの99は消えず、再送もしません。最初のpublishを省くと99の未公開出力は捨てられ、10だけ表示されます。戻ってからの処理もpublishで確定するまで外部には出ません。
 
-## 現在の制約
+## stdと入力
 
-language 0.9.3のprojectで試してください。まだ開発版で、旧版のlock/artifact/replayは更新・再ビルド・再記録が必要です。入力やcollectionは容量・実行step・履歴memoryの上限があります。一般のstreaming I/O、高度なgraph/string/数値処理の一部は今後追加します。実装範囲はSDKの`share/rewind/doc/v0.9.3-status.md`に記載しています。
+単一ファイルでもstdを直接importできます。
+
+```rewind
+import std.number as number;
+fn main()->Int effects {input,output} {
+    match In.readLine() {
+        None=>{return 0;},
+        Some(text)=>{match number.decimal(text) {
+            Ok(n)=>{Out.println(n);publish;return 0;},
+            Err(_)=>{return 2;}
+        }}
+    }
+}
+```
+
+```sh
+printf '42\n' | rewind run main.rw
+```
+
+Intはchecked signed64、Floatはbinary64、StringはUTF-8、Bytesはbyte列です。List/Map/Option/Result、record/enum、generic/trait、closure、if/while/for、再帰、matchがあります。letはbindingの再代入を禁止し、varは許可します。mutable ownerはmove/borrow/freezeの規則に従います。byte chunkとpureなparser/bufferは`In.readChunk`、`Out.writeBytes`、`std.stream`を使います。[一覧と容量・費用](../libraries/README.md)を参照してください。
+
+## 権限とproject
+
+簡易モードの既定effectはinput/output/args/locale/random/tasksです。fileRead/fileWrite/env/clockは明示します。
+
+```sh
+rewind run main.rw --allow-effects fileRead,fileWrite
+rewind compile main.rw --allow-effects fileRead,fileWrite
+rewind run main.rwc --allow-effects fileRead,fileWrite
+```
+
+成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effects/依存/lockを優先します。既存projectを新仕様に移す場合はlanguageを0.9.4へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
+
+```sh
+rewind run main.rw --record trace.json
+rewind replay trace.json --root .
+```
+
+実行step、履歴memory、stream/collectionには上限があります。heap回収とnative workの完全な予算は未実装です。[実装範囲](v0.9.4-status.md)、[次の計画](REWIND_v0.9.5.md)を参照してください。

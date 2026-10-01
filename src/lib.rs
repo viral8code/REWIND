@@ -5,7 +5,9 @@
 //! live outside checkpoints, while their cursors live inside them.
 
 pub mod journal;
+pub mod map_storage;
 pub mod storage;
+use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 mod replay;
 use journal::{Journal, Segment};
@@ -129,11 +131,11 @@ pub enum Value {
     FileError(FileFailure),
     List(Vec<Value>),
     TypedList(String, PagedValues),
-    Map(#[serde(with = "value_map_pairs")] BTreeMap<MapKey, Value>),
+    Map(#[serde(with = "value_map_pairs")] PersistentMap),
     TypedMap(
         String,
         String,
-        #[serde(with = "value_map_pairs")] BTreeMap<MapKey, Value>,
+        #[serde(with = "value_map_pairs")] PersistentMap,
     ),
     OrderedMap(String, String, Vec<(Value, Value)>),
     Struct(String, BTreeMap<String, Value>),
@@ -152,21 +154,21 @@ mod value_map_pairs {
     use super::*;
     use serde::{Deserialize, Serialize};
     pub fn serialize<S: serde::Serializer>(
-        m: &BTreeMap<MapKey, Value>,
+        m: &PersistentMap,
         s: S,
     ) -> std::result::Result<S::Ok, S::Error> {
         m.iter().collect::<Vec<_>>().serialize(s)
     }
     pub fn deserialize<'de, D: serde::Deserializer<'de>>(
         d: D,
-    ) -> std::result::Result<BTreeMap<MapKey, Value>, D::Error> {
+    ) -> std::result::Result<PersistentMap, D::Error> {
         let entries = Vec::<(MapKey, Value)>::deserialize(d)?;
         let len = entries.len();
         let map = entries.into_iter().collect::<BTreeMap<_, _>>();
         if map.len() != len {
             return Err(serde::de::Error::custom("duplicate value map key"));
         }
-        Ok(map)
+        Ok(map.into())
     }
 }
 
@@ -521,11 +523,14 @@ pub struct State {
     pub stdout: Journal,
     pub stderr: Journal,
     pub stdin_cursor: usize,
+    pub byte_cursor: usize,
     pub time_cursor: usize,
     pub args_cursor: usize,
     pub env_cursor: usize,
     pub directory_cursor: usize,
     pub file_epoch: u64,
+    file_operations: Arc<BTreeMap<String, u64>>,
+    directory_operations: Arc<BTreeMap<String, u64>>,
     pub random_state: u64,
     pub next_heap_id: u64,
     pub next_handle_id: u64,
@@ -545,11 +550,14 @@ impl Default for State {
             stdout: Journal::default(),
             stderr: Journal::default(),
             stdin_cursor: 0,
+            byte_cursor: 0,
             time_cursor: 0,
             args_cursor: 0,
             env_cursor: 0,
             directory_cursor: 0,
             file_epoch: 0,
+            file_operations: Arc::new(BTreeMap::new()),
+            directory_operations: Arc::new(BTreeMap::new()),
             random_state: 0x4d595df4d0f33173,
             next_heap_id: 1,
             next_handle_id: 1,
@@ -593,6 +601,8 @@ pub struct Runtime {
     observations: BTreeMap<(u64, String), Observation>,
     directory_observations: BTreeMap<(u64, String), Option<BTreeSet<String>>>,
     input: Vec<String>,
+    byte_input: Vec<(usize, Vec<u8>)>,
+    byte_eof: bool,
     times: Vec<u128>,
     arguments: Vec<String>,
     env_allowed: BTreeSet<String>,
@@ -611,6 +621,13 @@ pub struct Runtime {
     replaying: bool,
     input_eof: bool,
     virtual_publish: bool,
+    incremental_publish: bool,
+    next_operation: u64,
+    published_operations: BTreeSet<u64>,
+    published_epoch: u64,
+    virtual_files: BTreeMap<String, Option<Arc<PagedFile>>>,
+    virtual_directories: BTreeMap<String, bool>,
+    storage_start: (usize, (usize, usize)),
 }
 
 impl Runtime {
@@ -843,9 +860,23 @@ impl Runtime {
         } else {
             self.observe_directory(path)?
         }
-        .or_else(|| (self.state.directories.get(path) == Some(&true)).then(BTreeSet::new))
+        .or_else(|| {
+            (self
+                .state
+                .directories
+                .get(path)
+                .or_else(|| self.virtual_directories.get(path))
+                == Some(&true))
+            .then(BTreeSet::new)
+        })
         .ok_or_else(|| Error::MissingFile(path.into()))?;
-        if self.state.directories.get(path) == Some(&false) {
+        if self
+            .state
+            .directories
+            .get(path)
+            .or_else(|| self.virtual_directories.get(path))
+            == Some(&false)
+        {
             return Err(Error::MissingFile(path.into()));
         }
         let prefix = if path.is_empty() || path == "." {
@@ -853,7 +884,7 @@ impl Runtime {
         } else {
             format!("{}/", path.trim_end_matches('/'))
         };
-        for (name, content) in self.state.files.iter() {
+        for (name, content) in self.virtual_files.iter().chain(self.state.files.iter()) {
             if let Some(child) = name.strip_prefix(&prefix) {
                 if !child.is_empty() && !child.contains('/') {
                     if content.is_some() {
@@ -864,7 +895,11 @@ impl Runtime {
                 }
             }
         }
-        for (name, exists) in self.state.directories.iter() {
+        for (name, exists) in self
+            .virtual_directories
+            .iter()
+            .chain(self.state.directories.iter())
+        {
             if let Some(child) = name.strip_prefix(&prefix) {
                 if !child.is_empty() && !child.contains('/') {
                     if *exists {
@@ -891,10 +926,7 @@ impl Runtime {
             }
             Value::TypedList(_, items) => items.logical_bytes(),
             Value::List(items) => items.iter().map(Self::value_bytes).sum(),
-            Value::Map(items) | Value::TypedMap(_, _, items) => items
-                .iter()
-                .map(|(key, value)| format!("{key:?}").len() + Self::value_bytes(value))
-                .sum(),
+            Value::Map(items) | Value::TypedMap(_, _, items) => items.logical_bytes(),
             Value::OrderedMap(_, _, items) => items
                 .iter()
                 .map(|(key, value)| Self::value_bytes(key) + Self::value_bytes(value))
@@ -936,6 +968,8 @@ impl Runtime {
             observations: BTreeMap::new(),
             directory_observations: BTreeMap::new(),
             input: Vec::new(),
+            byte_input: Vec::new(),
+            byte_eof: false,
             times: Vec::new(),
             arguments: Vec::new(),
             env_allowed: BTreeSet::new(),
@@ -954,7 +988,103 @@ impl Runtime {
             replaying: false,
             input_eof: false,
             virtual_publish: false,
+            incremental_publish: false,
+            next_operation: 1,
+            published_operations: BTreeSet::new(),
+            published_epoch: 0,
+            virtual_files: BTreeMap::new(),
+            virtual_directories: BTreeMap::new(),
+            storage_start: (map_storage::map_nodes_created(), storage::storage_work()),
         })
+    }
+    pub fn storage_metrics(&self) -> (usize, usize, usize) {
+        let (nodes, slots) = storage::storage_work();
+        (
+            map_storage::map_nodes_created().saturating_sub(self.storage_start.0),
+            nodes.saturating_sub(self.storage_start.1 .0),
+            slots.saturating_sub(self.storage_start.1 .1),
+        )
+    }
+    pub fn enable_incremental_publish(&mut self) {
+        self.incremental_publish = true;
+    }
+    fn operation(&mut self) -> Result<u64> {
+        let id = self.next_operation;
+        self.next_operation = id
+            .checked_add(1)
+            .ok_or_else(|| Error::InvalidOperation("operation ID exhausted".into()))?;
+        Ok(id)
+    }
+    fn file_operation(&mut self, path: &str) -> Result<()> {
+        if self.incremental_publish {
+            let id = self.operation()?;
+            Arc::make_mut(&mut self.state.file_operations).insert(path.into(), id);
+        }
+        Ok(())
+    }
+    fn directory_operation(&mut self, path: &str) -> Result<()> {
+        if self.incremental_publish {
+            let id = self.operation()?;
+            Arc::make_mut(&mut self.state.directory_operations).insert(path.into(), id);
+        }
+        Ok(())
+    }
+    fn restore_pending(&mut self) {
+        if !self.incremental_publish {
+            return;
+        }
+        self.state.stdout = self.state.stdout.unpublished(&self.published_operations);
+        self.state.stderr = self.state.stderr.unpublished(&self.published_operations);
+        let files = Arc::make_mut(&mut self.state.files);
+        for (path, id) in self.state.file_operations.iter() {
+            if self.published_operations.contains(id) {
+                files.remove(path);
+            }
+        }
+        let dirs = Arc::make_mut(&mut self.state.directories);
+        for (path, id) in self.state.directory_operations.iter() {
+            if self.published_operations.contains(id) {
+                dirs.remove(path);
+            }
+        }
+        Arc::make_mut(&mut self.state.file_operations)
+            .retain(|_, id| !self.published_operations.contains(id));
+        Arc::make_mut(&mut self.state.directory_operations)
+            .retain(|_, id| !self.published_operations.contains(id));
+        if self.state.files.is_empty() && self.state.directories.is_empty() {
+            self.state.file_epoch = self.published_epoch;
+        }
+    }
+    fn finish_publish(&mut self, next_epoch: u64) {
+        if self.incremental_publish {
+            if self.virtual_publish {
+                self.virtual_files
+                    .extend(self.state.files.iter().map(|(p, v)| (p.clone(), v.clone())));
+                self.virtual_directories
+                    .extend(self.state.directories.iter().map(|(p, v)| (p.clone(), *v)));
+            }
+            self.published_operations
+                .extend(self.state.stdout.operations());
+            self.published_operations
+                .extend(self.state.stderr.operations());
+            self.published_operations
+                .extend(self.state.file_operations.values());
+            self.published_operations
+                .extend(self.state.directory_operations.values());
+            self.state.stdout = Journal::default();
+            self.state.stderr = Journal::default();
+            self.state.file_operations = Arc::new(BTreeMap::new());
+            self.state.directory_operations = Arc::new(BTreeMap::new());
+            self.published_epoch = next_epoch;
+        } else {
+            self.published_stdout = self.state.stdout.clone();
+            self.published_stderr = self.state.stderr.clone();
+        }
+        if !self.virtual_publish || self.incremental_publish {
+            self.state.files = Arc::new(BTreeMap::new());
+            self.state.directories = Arc::new(BTreeMap::new());
+        }
+        self.state.file_epoch = next_epoch;
     }
 
     pub fn set_budget(&mut self, budget: ResourceBudget) -> Result<()> {
@@ -970,7 +1100,22 @@ impl Runtime {
         let mut segments = Vec::new();
         let mut seen_segments = HashSet::new();
         let mut seen_compute = HashSet::new();
-        let mut compute_memory = 0usize;
+        let mut compute_memory = self
+            .byte_input
+            .iter()
+            .map(|(_, bytes)| bytes.len() + 16)
+            .sum::<usize>();
+        if self.incremental_publish {
+            compute_memory =
+                compute_memory.saturating_add(self.published_operations.len().saturating_mul(32));
+            compute_memory = compute_memory.saturating_add(
+                (self.state.stdout.operations().len()
+                    + self.state.stderr.operations().len()
+                    + self.state.file_operations.len()
+                    + self.state.directory_operations.len())
+                .saturating_mul(32),
+            );
+        }
         for state in std::iter::once(&self.state).chain(self.checkpoints.values().map(|c| &c.state))
         {
             for journal in [&state.stdout, &state.stderr] {
@@ -1029,6 +1174,13 @@ impl Runtime {
                 let ptr = Arc::as_ptr(&segment) as usize;
                 if seen_segments.insert(ptr) {
                     segments.push(segment);
+                }
+            }
+        }
+        for content in self.virtual_files.values().flatten() {
+            for page in content.pages.values() {
+                if seen_segments.insert(Arc::as_ptr(page) as usize) {
+                    segments.push(page.clone());
                 }
             }
         }
@@ -1273,6 +1425,7 @@ impl Runtime {
             return Err(Error::TaintedCheckpoint(name.into()));
         }
         self.state = checkpoint.state.clone();
+        self.restore_pending();
         self.current_parent = Some(name.into());
         Ok(())
     }
@@ -1388,6 +1541,7 @@ impl Runtime {
     pub fn end_branch(&mut self, name: impl Into<String>, anchor: BranchAnchor) -> Result<()> {
         self.commit(name)?;
         self.state = anchor.state;
+        self.restore_pending();
         self.current_parent = anchor.parent;
         Ok(())
     }
@@ -1398,8 +1552,16 @@ impl Runtime {
     }
 
     pub fn print_out(&mut self, text: &str) -> Result<()> {
+        self.write_output(text.as_bytes())
+    }
+    pub fn write_output(&mut self, bytes: &[u8]) -> Result<()> {
         let previous = self.state.stdout.clone();
-        self.state.stdout.append(text.as_bytes());
+        let operation = if self.incremental_publish {
+            Some(self.operation()?)
+        } else {
+            None
+        };
+        self.state.stdout.append_operation(bytes, operation);
         if let Err(error) = self.enforce_budget() {
             self.state.stdout = previous;
             return Err(error);
@@ -1408,12 +1570,59 @@ impl Runtime {
     }
     pub fn print_err(&mut self, text: &str) -> Result<()> {
         let previous = self.state.stderr.clone();
-        self.state.stderr.append(text.as_bytes());
+        let operation = if self.incremental_publish {
+            Some(self.operation()?)
+        } else {
+            None
+        };
+        self.state
+            .stderr
+            .append_operation(text.as_bytes(), operation);
         if let Err(error) = self.enforce_budget() {
             self.state.stderr = previous;
             return Err(error);
         }
         Ok(())
+    }
+    pub fn input_chunk(&mut self, source: &mut impl Read, limit: usize) -> Result<Option<Vec<u8>>> {
+        if !(1..=65536).contains(&limit) {
+            return Err(Error::InvalidOperation(
+                "readChunk requires 1..65536 bytes".into(),
+            ));
+        }
+        let cursor = self.state.byte_cursor;
+        if cursor == self.byte_input.len() {
+            if self.replaying {
+                return if self.byte_eof {
+                    Ok(None)
+                } else {
+                    Err(Error::InvalidOperation("ReplayMismatch: byte input".into()))
+                };
+            }
+            let mut buffer = vec![0; limit];
+            let count = loop {
+                match source.read(&mut buffer) {
+                    Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                    result => break result?,
+                }
+            };
+            if count == 0 {
+                self.byte_eof = true;
+                return Ok(None);
+            }
+            buffer.truncate(count);
+            self.byte_input.push((limit, buffer));
+            // The observation stays recorded even on failure: the Host was consumed.
+            self.enforce_budget()?;
+        }
+        let (recorded_limit, bytes) = &self.byte_input[cursor];
+        if *recorded_limit != limit {
+            return Err(Error::InvalidOperation(
+                "ReplayMismatch: readChunk size differs at restored input cursor".into(),
+            ));
+        }
+        self.state.byte_cursor += 1;
+        Ok(Some(bytes.clone()))
     }
     pub fn input_line(&mut self, source: &mut impl io::BufRead) -> Result<Option<String>> {
         let cursor = self.state.stdin_cursor;
@@ -1646,7 +1855,12 @@ impl Runtime {
     }
     pub fn read_file(&mut self, path: &str) -> Result<Vec<u8>> {
         self.checked_path(path)?;
-        if let Some(entry) = self.state.files.get(path) {
+        if let Some(entry) = self
+            .state
+            .files
+            .get(path)
+            .or_else(|| self.virtual_files.get(path))
+        {
             return entry
                 .as_ref()
                 .ok_or_else(|| Error::MissingFile(path.into()))?
@@ -1670,6 +1884,7 @@ impl Runtime {
             self.state.files = previous;
             return Err(error);
         }
+        self.file_operation(path)?;
         Ok(())
     }
     pub fn append_file(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<()> {
@@ -1695,6 +1910,7 @@ impl Runtime {
             self.state.files = previous;
             return Err(error);
         }
+        self.file_operation(path)?;
         Ok(())
     }
     pub fn truncate_file(&mut self, path: &str, len: usize) -> Result<()> {
@@ -1717,11 +1933,13 @@ impl Runtime {
             self.state.files = previous;
             return Err(error);
         }
+        self.file_operation(path)?;
         Ok(())
     }
     pub fn delete_file(&mut self, path: &str) -> Result<()> {
         self.read_file(path)?;
         Arc::make_mut(&mut self.state.files).insert(path.into(), None);
+        self.file_operation(path)?;
         Ok(())
     }
     pub fn copy_file(&mut self, from: &str, to: &str) -> Result<()> {
@@ -1737,6 +1955,7 @@ impl Runtime {
                 self.state.files = previous;
                 return Err(error);
             }
+            self.file_operation(to)?;
             Ok(())
         } else {
             let content = self.read_file(from)?;
@@ -1746,6 +1965,7 @@ impl Runtime {
                 self.state.files = previous;
                 return Err(error);
             }
+            self.file_operation(to)?;
             Ok(())
         }
     }
@@ -1756,6 +1976,7 @@ impl Runtime {
     pub fn create_directory(&mut self, path: &str) -> Result<()> {
         self.observe_directory(path)?;
         Arc::make_mut(&mut self.state.directories).insert(path.into(), true);
+        self.directory_operation(path)?;
         Ok(())
     }
     pub fn delete_directory(&mut self, path: &str) -> Result<()> {
@@ -1785,6 +2006,7 @@ impl Runtime {
             )));
         }
         Arc::make_mut(&mut self.state.directories).insert(path.into(), false);
+        self.directory_operation(path)?;
         Ok(())
     }
     pub fn move_directory(&mut self, from: &str, to: &str) -> Result<()> {
@@ -1864,10 +2086,20 @@ impl Runtime {
     }
     pub fn open_file(&mut self, path: &str) -> Result<u64> {
         self.checked_path(path)?;
-        if !self.state.files.contains_key(path) {
+        if let Some(content) = self
+            .state
+            .files
+            .get(path)
+            .or_else(|| self.virtual_files.get(path))
+        {
+            if content.is_none() {
+                return Err(Error::MissingFile(path.into()));
+            }
+        } else {
             self.observe_metadata(path)?
                 .ok_or_else(|| Error::MissingFile(path.into()))?;
-        } else if self.state.files[path].is_none() {
+        }
+        if self.state.files.get(path).is_some_and(Option::is_none) {
             return Err(Error::MissingFile(path.into()));
         }
         let id = self.state.next_handle_id;
@@ -1914,7 +2146,9 @@ impl Runtime {
                 .skip(handle.position)
                 .take(count)
                 .collect()
-        } else if self.state.files.contains_key(&handle.path) {
+        } else if self.state.files.contains_key(&handle.path)
+            || self.virtual_files.contains_key(&handle.path)
+        {
             self.read_file(&handle.path)?
                 .into_iter()
                 .skip(handle.position)
@@ -1975,6 +2209,7 @@ impl Runtime {
             .get_mut(&id)
             .expect("handle exists")
             .position += bytes.len();
+        self.file_operation(&handle.path)?;
         Ok(())
     }
 
@@ -1990,10 +2225,16 @@ impl Runtime {
         if let Some(detail) = &self.publish_failure {
             return Err(Error::PublishPartiallyApplied(detail.clone()));
         }
-        let next_epoch =
-            self.state.file_epoch.checked_add(1).ok_or_else(|| {
-                Error::InvalidOperation("file observation epoch exhausted".into())
-            })?;
+        if self.incremental_publish {
+            self.enforce_budget()?;
+        }
+        let next_epoch = (if self.incremental_publish {
+            self.published_epoch
+        } else {
+            self.state.file_epoch
+        })
+        .checked_add(1)
+        .ok_or_else(|| Error::InvalidOperation("file observation epoch exhausted".into()))?;
         if !self.state.stdout.has_prefix(&self.published_stdout)
             || !self.state.stderr.has_prefix(&self.published_stderr)
         {
@@ -2010,13 +2251,7 @@ impl Runtime {
                     .stderr
                     .write_since(&self.published_stderr, stderr)?;
             }
-            self.published_stdout = self.state.stdout.clone();
-            self.published_stderr = self.state.stderr.clone();
-            if !self.virtual_publish {
-                self.state.files = Arc::new(BTreeMap::new());
-                self.state.directories = Arc::new(BTreeMap::new());
-            }
-            self.state.file_epoch = next_epoch;
+            self.finish_publish(next_epoch);
             return Ok(());
         }
         let changed: BTreeSet<_> = self
@@ -2167,11 +2402,7 @@ impl Runtime {
             self.publish_failure = Some(detail.clone());
             return Err(Error::PublishPartiallyApplied(detail));
         }
-        self.published_stdout = self.state.stdout.clone();
-        self.published_stderr = self.state.stderr.clone();
-        self.state.files = Arc::new(BTreeMap::new());
-        self.state.directories = Arc::new(BTreeMap::new());
-        self.state.file_epoch = next_epoch;
+        self.finish_publish(next_epoch);
         Ok(())
     }
 }

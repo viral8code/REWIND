@@ -21,7 +21,7 @@ pub(in crate::v2) fn inspection_trace(mut value: Json) -> Result<Json> {
         || value["executable"] != false
         || !matches!(
             value["source_compiler"].as_str(),
-            Some("0.7.0" | "0.8.0" | "0.9.0" | "0.9.1" | "0.9.2" | "0.9.3")
+            Some("0.7.0" | "0.8.0" | "0.9.0" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4")
         )
         || value["debug"]["index"]["format"] != 1
     {

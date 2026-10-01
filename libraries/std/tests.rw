@@ -1,3 +1,4 @@
+import stream as stream;
 import collections as collections;
 import math as math;
 import option as option;
@@ -105,4 +106,9 @@ test fn option_schema_paths_and_map_adapters(){
  let schema=List<args.OptionSpec>();schema.add(args.OptionSpec("verbose","v",false,false));schema.add(args.OptionSpec("count","c",true,true));let input=List<String>();input.add("-v");input.add("--count");input.add("4");match args.parseOptions(&input,&schema){Ok(v)=>{assert_eq(v.get("verbose"),Some("true"));assert_eq(v.get("count"),Some("4"));},Err(_)=>{panic("options");}}
  assert_eq(path.join("data","state.json"),Ok("data/state.json"));assert_eq(path.relative("../key"),Err("InvalidPath"));
  let lookup=Map<String,Int>();lookup.set("a",2);map.update(&mut lookup,"a",|v:Option<Int>|->Option<Int>{match v{Some(n)=>{return Some(n+1);},None=>{return Some(0);}}});assert_eq(lookup.get("a"),Some(3));let entries=map.entries(&lookup);assert_eq(entries.len(),1);assert_eq(entries.get(0)._0,"a");
+}
+
+test fn streaming_chunk_boundaries() {
+ match stdEncode("-9223372036854775808 42"){Ok(bytes)=>{match stream.tokens(32){Ok(tokens)=>{var i=0;while i<stdBytesLength(bytes){match stdBytesSlice(bytes,i,i+1){Ok(chunk)=>{assert_eq(stream.feed(&mut tokens,chunk,false),Ok(()));},Err(_)=>{panic("slice");}}i+=1;}match stdEncode(""){Ok(empty)=>{assert_eq(stream.feed(&mut tokens,empty,true),Ok(()));},Err(_)=>{panic("encode");}}assert_eq(stream.nextInt(&mut tokens),Ok(Some(-9223372036854775807-1)));assert_eq(stream.nextInt(&mut tokens),Ok(Some(42)));assert_eq(stream.nextInt(&mut tokens),Ok(None));},Err(_)=>{panic("tokens");}}},Err(_)=>{panic("encode");}}
+ let decoder=stream.utf8();match stdEncode("あ"){Ok(bytes)=>{var i=0;while i<3{match stdBytesSlice(bytes,i,i+1){Ok(chunk)=>{let result=stream.decode(&mut decoder,chunk,i==2);if i<2{assert_eq(result,Ok(""));}else{assert_eq(result,Ok("あ"));}},Err(_)=>{panic("slice");}}i+=1;}},Err(_)=>{panic("encode");}}
 }

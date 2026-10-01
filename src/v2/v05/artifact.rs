@@ -45,10 +45,12 @@ fn paths(program: &mut Program, mut map: impl FnMut(&Path) -> Result<PathBuf>) -
         .collect::<Result<_>>()?;
     Ok(())
 }
-pub fn build(program: &Program, root: &Path) -> Result<serde_json::Value> {
+pub fn build(
+    program: &Program,
+    root: &Path,
+    config: &project::ProjectConfig,
+) -> Result<serde_json::Value> {
     let build = vm::build_artifact(program, root)?;
-    let config = project::ProjectConfig::load(root)?
-        .ok_or_else(|| Error::InvalidOperation("artifact requires v0.5 manifest".into()))?;
     let mut portable = program.clone();
     let root = fs::canonicalize(root)?;
     paths(&mut portable, |p| {
@@ -121,7 +123,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         serde_json::from_value(payload["program"].clone()).map_err(|e| invalid(&e.to_string()))?;
     if !matches!(
         program.language.as_str(),
-        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
@@ -150,7 +152,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         ..Program::default()
     };
     prepare(&mut standard)?;
-    if matches!(program.language.as_str(), "0.9.2" | "0.9.3")
+    if matches!(program.language.as_str(), "0.9.2" | "0.9.3" | "0.9.4")
         && (serde_json::to_value(program.structs.get("StdError")).ok()
             != serde_json::to_value(standard.structs.get("StdError")).ok()
             || program.enums.contains_key("StdError")
@@ -161,7 +163,10 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         return Err(invalid("invalid standard primitive layout"));
     }
 
-    if matches!(program.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3") {
+    if matches!(
+        program.language.as_str(),
+        "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+    ) {
         for n in ["Json", "JsonError"] {
             if serde_json::to_value(program.structs.get(n)).ok()
                 != serde_json::to_value(standard.structs.get(n)).ok()
@@ -180,7 +185,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
         || serde_json::to_value(program.enums.get("WaitTarget")).ok()
@@ -216,7 +221,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
@@ -224,7 +229,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
         return Err(invalid("Tuple is a reserved standard type"));
@@ -298,7 +303,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) {
         v06::infer(&mut program)?;
     }

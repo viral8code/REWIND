@@ -43,7 +43,7 @@ jobs:
           cat docs/getting-started.md > "$NOTES"
           printf '\n## Build and verification\n\n' >> "$NOTES"
           printf 'Commit: `%s`\n\n' "$GITHUB_SHA" >> "$NOTES"
-          printf 'Rust regression tests, standard-library contracts, SDK signatures, 25 API baselines, archive extraction, CLI input, record/replay and source-free execution passed.\n\n' >> "$NOTES"
+          printf 'Rust regression tests, standard-library contracts, SDK signatures, 26 API baselines, archive extraction, CLI input, record/replay and source-free execution passed.\n\n' >> "$NOTES"
           printf 'SDK public key (this release only): `%s`\n' "$(cat "$RUNNER_TEMP/release-assets/rewind-"*-sdk.pub)" >> "$NOTES"
           gh release create "$RELEASE_TAG" "$RUNNER_TEMP/release-assets/"* --verify-tag --draft --prerelease --title "REWIND $RELEASE_TAG — Linux x86_64 SDK" --notes-file "$NOTES"
           gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false

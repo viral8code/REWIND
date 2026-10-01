@@ -1,6 +1,7 @@
 [package]
 name = "rewind"
-version = "0.9.3"
+default-run = "rewind"
+version = "0.9.4"
 edition = "2021"
 license = "MIT"
 description = "A transactional programming language with checkpoints and virtual I/O"
@@ -23,3 +24,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "rewind"
 path = "src/main.rs"
+
+[[bin]]
+name = "rewindc"
+path = "src/rewindc.rs"

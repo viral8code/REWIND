@@ -52,6 +52,17 @@ rm "$RELEASE_WORK/shortest/main.rw"
 rm -rf "$RELEASE_WORK/shortest/vendor"
 printf '4 3\n0 1 4\n0 2 1\n2 1 1\n' | "$EXTRACTED/bin/rewind" run-artifact "$RELEASE_WORK/app.json" --root "$RELEASE_WORK/shortest" --task-steps 2000000 --allow-effects input,output > "$RELEASE_WORK/artifact-output"
 cmp "$RELEASE_WORK/expected" "$RELEASE_WORK/artifact-output"
+# Test the short commands from the extracted SDK in a manifest-free directory.
+mkdir "$RELEASE_WORK/checkpoint"
+cp "$EXTRACTED/share/rewind/examples/checkpoint/main.rw" "$RELEASE_WORK/checkpoint/main.rw"
+printf '99\n10\n' > "$RELEASE_WORK/checkpoint-expected"
+"$EXTRACTED/bin/rewind" run "$RELEASE_WORK/checkpoint/main.rw" > "$RELEASE_WORK/checkpoint-actual"
+cmp "$RELEASE_WORK/checkpoint-expected" "$RELEASE_WORK/checkpoint-actual"
+"$EXTRACTED/bin/rewindc" "$RELEASE_WORK/checkpoint/main.rw"
+rm "$RELEASE_WORK/checkpoint/main.rw"
+rm -rf "$RELEASE_WORK/checkpoint/.rewind"
+"$EXTRACTED/bin/rewind" "$RELEASE_WORK/checkpoint/main.rwc" > "$RELEASE_WORK/checkpoint-artifact"
+cmp "$RELEASE_WORK/checkpoint-expected" "$RELEASE_WORK/checkpoint-artifact"
 (cd "$RELEASE_OUTPUT" && sha256sum ./*.tar.gz ./rewind-*-sdk.pub ./GETTING_STARTED.md ./BUILD_INFO.json > SHA256SUMS)
 chmod 644 "$RELEASE_OUTPUT"/*
 echo "Verified release assets: $RELEASE_OUTPUT"

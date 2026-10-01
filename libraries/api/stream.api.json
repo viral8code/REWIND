@@ -3,83 +3,89 @@
   "kind": "rewind-api",
   "language": "0.9.4",
   "symbols": {
-    "fn:add": {
+    "fn:decode": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Int",
-        "Int"
+        "&mut Utf8",
+        "Bytes",
+        "Bool"
       ],
-      "return": "Result<Int,String>"
+      "return": "Result<String,StreamError>"
     },
-    "fn:combination": {
+    "fn:drain": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Int",
-        "Int"
+        "&mut Writer"
       ],
-      "return": "Result<Int,String>"
+      "return": "Result<Bytes,StreamError>"
     },
-    "fn:extendedGcd": {
+    "fn:feed": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Int",
-        "Int"
+        "&mut Tokens",
+        "Bytes",
+        "Bool"
       ],
-      "return": "Result<Tuple<Int,Int,Int>,String>"
+      "return": "Result<Unit,StreamError>"
     },
-    "fn:factors": {
+    "fn:next": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Int"
+        "&mut Tokens"
       ],
-      "return": "Result<List<Int>,String>"
+      "return": "Option<Bytes>"
     },
-    "fn:gcd": {
+    "fn:nextInt": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Int",
-        "Int"
+        "&mut Tokens"
       ],
-      "return": "Result<Int,String>"
+      "return": "Result<Option<Int>,StreamError>"
     },
-    "fn:lcm": {
+    "fn:tokens": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Int",
         "Int"
       ],
-      "return": "Result<Int,String>"
+      "return": "Result<Tokens,StreamError>"
     },
-    "fn:multiply": {
+    "fn:utf8": {
       "async": false,
       "effects": [],
       "generics": [],
-      "parameters": [
-        "Int",
-        "Int"
-      ],
-      "return": "Result<Int,String>"
+      "parameters": [],
+      "return": "Utf8"
     },
-    "fn:primes": {
+    "fn:write": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Writer",
+        "Bytes"
+      ],
+      "return": "Result<Unit,StreamError>"
+    },
+    "fn:writer": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
         "Int"
       ],
-      "return": "Result<List<Int>,String>"
+      "return": "Result<Writer,StreamError>"
     },
     "type:Json": {
       "generics": [],
@@ -159,6 +165,74 @@
       ],
       "generics": [],
       "kind": "record"
+    },
+    "type:StreamError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "position",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Tokens": {
+      "fields": [
+        [
+          "pending",
+          "List<Int>"
+        ],
+        [
+          "ready",
+          "List<Bytes>"
+        ],
+        [
+          "cursor",
+          "Int"
+        ],
+        [
+          "limit",
+          "Int"
+        ],
+        [
+          "closed",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Utf8": {
+      "fields": [
+        [
+          "pending",
+          "List<Int>"
+        ],
+        [
+          "closed",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Writer": {
+      "fields": [
+        [
+          "pending",
+          "List<Int>"
+        ],
+        [
+          "capacity",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
     }
   }
 }

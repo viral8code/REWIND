@@ -1,0 +1,36 @@
+// Pure chunk parsing; the application owns In.readChunk and Out.writeBytes.
+pub record StreamError{code:String,position:Int}
+pub struct Tokens{pending:List<Int>,ready:List<Bytes>,cursor:Int,limit:Int,closed:Bool}
+fn space(v:Int)->Bool effects {} {return v==32 || (v>=9 && v<=13);}
+pub fn tokens(limit:Int)->Result<Tokens,StreamError> effects {} {if limit<1 || limit>65536{return Err(StreamError("Limit",0));}return Ok(Tokens(List<Int>(),List<Bytes>(),0,limit,false));}
+fn emit(tokens:&mut Tokens)->Result<Unit,StreamError> effects {} {if tokens.pending.len()==0{return Ok(());}match stdBytesFromList(&tokens.pending){Ok(bytes)=>{tokens.ready.add(bytes);tokens.pending=List<Int>();return Ok(());},Err(e)=>{return Err(StreamError(e.code,e.offset));}}}
+pub fn feed(tokens:&mut Tokens,chunk:Bytes,finish:Bool)->Result<Unit,StreamError> effects {} {
+ if tokens.closed{return Err(StreamError("Closed",0));}let length=stdBytesLength(chunk);if length>65536{return Err(StreamError("ChunkLimit",0));}
+ var pending=tokens.pending.len();var count=tokens.ready.len()-tokens.cursor;var i=0;
+ while i<length{match stdBytesGet(chunk,i){Ok(byte)=>{if space(byte){if pending>0{count+=1;pending=0;}}else{pending+=1;if pending>tokens.limit{return Err(StreamError("TokenLimit",i));}}},Err(e)=>{return Err(StreamError(e.code,i));}}i+=1;}
+ if finish && pending>0{count+=1;}if count>1024{return Err(StreamError("QueueLimit",length));}
+ if tokens.cursor>0{let ready=List<Bytes>();var index=tokens.cursor;while index<tokens.ready.len(){ready.add(tokens.ready.get(index));index+=1;}tokens.ready=move ready;tokens.cursor=0;}
+ i=0;while i<length{match stdBytesGet(chunk,i){Ok(byte)=>{if space(byte){emit(tokens)?;}else{tokens.pending.add(byte);}},Err(e)=>{return Err(StreamError(e.code,i));}}i+=1;}
+ if finish{emit(tokens)?;tokens.closed=true;}return Ok(());
+}
+pub fn next(tokens:&mut Tokens)->Option<Bytes> effects {} {if tokens.cursor==tokens.ready.len(){return None;}let value=tokens.ready.get(tokens.cursor);tokens.cursor+=1;return Some(value);}
+pub fn nextInt(tokens:&mut Tokens)->Result<Option<Int>,StreamError> effects {} {match next(tokens){None=>{return Ok(None);},Some(bytes)=>{match stdDecode(bytes){Err(e)=>{return Err(StreamError(e.code,e.offset));},Ok(text)=>{match stdParseInt(text,10){Ok(value)=>{return Ok(Some(value));},Err(e)=>{return Err(StreamError(e.code,e.offset));}}}}}}
+}
+pub struct Utf8{pending:List<Int>,closed:Bool}
+pub fn utf8()->Utf8 effects {} {return Utf8(List<Int>(),false);}
+pub fn decode(decoder:&mut Utf8,chunk:Bytes,finish:Bool)->Result<String,StreamError> effects {} {
+ if decoder.closed{return Err(StreamError("Closed",0));}if stdBytesLength(chunk)>65532{return Err(StreamError("ChunkLimit",0));}
+ let input=List<Int>();var i=0;while i<decoder.pending.len(){input.add(decoder.pending.get(i));i+=1;}
+ i=0;while i<stdBytesLength(chunk){match stdBytesGet(chunk,i){Ok(byte)=>{input.add(byte);},Err(e)=>{return Err(StreamError(e.code,i));}}i+=1;}
+ var remaining=0;var low=128;var high=191;var complete=0;i=0;
+ while i<input.len(){let byte=input.get(i);if remaining==0{if byte<=127{complete=i+1;}else if byte>=194 && byte<=223{remaining=1;low=128;high=191;}else if byte>=224 && byte<=239{remaining=2;low=128;high=191;if byte==224{low=160;}if byte==237{high=159;}}else if byte>=240 && byte<=244{remaining=3;low=128;high=191;if byte==240{low=144;}if byte==244{high=143;}}else{return Err(StreamError("Utf8",i));}}else{if byte<low || byte>high{return Err(StreamError("Utf8",i));}remaining-=1;low=128;high=191;if remaining==0{complete=i+1;}}i+=1;}
+ if finish && remaining!=0{return Err(StreamError("IncompleteUtf8",complete));}
+ let output=List<Int>();i=0;while i<complete{output.add(input.get(i));i+=1;}let pending=List<Int>();while i<input.len(){pending.add(input.get(i));i+=1;}
+ match stdBytesFromList(&output){Err(e)=>{return Err(StreamError(e.code,e.offset));},Ok(bytes)=>{match stdDecode(bytes){Err(e)=>{return Err(StreamError(e.code,e.offset));},Ok(text)=>{decoder.pending=move pending;decoder.closed=finish;return Ok(text);}}}
+}
+}
+// drain transfers the buffer; the caller explicitly writes bytes and publishes.
+pub struct Writer{pending:List<Int>,capacity:Int}
+pub fn writer(capacity:Int)->Result<Writer,StreamError> effects {} {if capacity<1 || capacity>65536{return Err(StreamError("Capacity",0));}return Ok(Writer(List<Int>(),capacity));}
+pub fn write(writer:&mut Writer,chunk:Bytes)->Result<Unit,StreamError> effects {} {let n=stdBytesLength(chunk);if n>writer.capacity-writer.pending.len(){return Err(StreamError("Capacity",0));}var i=0;while i<n{match stdBytesGet(chunk,i){Ok(byte)=>{writer.pending.add(byte);},Err(e)=>{return Err(StreamError(e.code,i));}}i+=1;}return Ok(());}
+pub fn drain(writer:&mut Writer)->Result<Bytes,StreamError> effects {} {match stdBytesFromList(&writer.pending){Err(e)=>{return Err(StreamError(e.code,e.offset));},Ok(bytes)=>{writer.pending=List<Int>();return Ok(bytes);}}}
