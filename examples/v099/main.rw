@@ -1,0 +1,8 @@
+import std.csv as csv;
+match stdEncode("name,score\nAda,42\n") {
+    Ok(input)=>{match csv.parse(input) {
+        Ok(table)=>{Out.println(csv.get(&table,1,0));Out.println(csv.get(&table,1,1));publish;},
+        Err(error)=>{Err.println(error.code);publish;}
+    }},
+    Err(error)=>{Err.println(error.code);publish;}
+}

@@ -1,0 +1,186 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.9",
+  "symbols": {
+    "dependency:integer.rw": {
+      "fn:$import$integer$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$combination": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$extendedGcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Tuple<Int,Int,Int>,String>"
+      },
+      "fn:$import$integer$factors": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      },
+      "fn:$import$integer$gcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$lcm": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$primes": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      }
+    },
+    "fn:knapsack": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&List<Int>",
+        "&List<Int>",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:lisLength": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&List<Int>"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

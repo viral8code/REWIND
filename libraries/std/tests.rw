@@ -118,11 +118,11 @@ test fn streaming_chunk_boundaries() {
  let decoder=stream.utf8();match stdEncode("あ"){Ok(bytes)=>{var i=0;while i<3{match stdBytesSlice(bytes,i,i+1){Ok(chunk)=>{let result=stream.decode(&mut decoder,chunk,i==2);if i<2{assert_eq(result,Ok(""));}else{assert_eq(result,Ok("あ"));}},Err(_)=>{panic("slice");}}i+=1;}},Err(_)=>{panic("encode");}}
 }
 
-@test fn exact_search_and_bitset()->Unit effects {} {
+test fn exact_search_and_bitset()->Unit effects {} {
  match stdEncode("abababa"){Ok(input)=>{match stdEncode("aba"){Ok(pattern)=>{match stringSearch.kmp(input,pattern){Ok(found)=>{assert_eq(found.len(),3);assert_eq(found.get(2),4);},Err(_)=>{panic("search");}}},Err(_)=>{panic("encode");}}},Err(_)=>{panic("encode");}}
  match bitset.create(65){Ok(set)=>{bitset.set(&mut set,63,true);assert_eq(bitset.count(&set),1);},Err(_)=>{panic("bitset");}}
 }
 
-@test fn graph_components_and_forest()->Unit effects {} {match graph.create(3,3){Ok(g)=>{graph.add(&mut g,0,1,2);graph.add(&mut g,1,0,2);graph.add(&mut g,1,2,1);match graph.components(&g){Ok(ids)=>{assert_eq(ids.get(0),ids.get(1));assert(ids.get(1)!=ids.get(2));},Err(_)=>{panic("scc");}}match graph.minimumForest(&g){Ok(f)=>{assert_eq(f.weight,3);},Err(_)=>{panic("forest");}}},Err(_)=>{panic("graph");}}}
+test fn graph_components_and_forest()->Unit effects {} {match graph.create(3,3){Ok(g)=>{graph.add(&mut g,0,1,2);graph.add(&mut g,1,0,2);graph.add(&mut g,1,2,1);match graph.components(&g){Ok(ids)=>{assert_eq(ids.get(0),ids.get(1));assert(ids.get(1)!=ids.get(2));},Err(_)=>{panic("scc");}}match graph.minimumForest(&g){Ok(f)=>{assert_eq(f.weight,3);},Err(_)=>{panic("forest");}}},Err(_)=>{panic("graph");}}}
 
-@test fn csv_roundtrip_and_dynamic_programming()->Unit effects {} {match stdEncode("a,b\n"){Ok(input)=>{match csv.parse(input){Ok(table)=>{assert_eq(csv.get(&table,0,1),Ok("b"));match csv.format(&table){Ok(output)=>{match csv.parse(output){Ok(copy)=>{assert_eq(csv.rows(&copy),1);},Err(_)=>{panic("csv");}}},Err(_)=>{panic("format");}}},Err(_)=>{panic("csv");}}},Err(_)=>{panic("encode");}}let values=List<Int>();values.add(2);values.add(1);values.add(3);assert_eq(dp.lisLength(&values),Ok(2));}
+test fn csv_roundtrip_and_dynamic_programming()->Unit effects {} {match stdEncode("a,b\n"){Ok(input)=>{match csv.parse(input){Ok(table)=>{assert_eq(csv.get(&table,0,1),Ok("b"));match csv.format(&table){Ok(output)=>{match csv.parse(output){Ok(copy)=>{assert_eq(csv.rows(&copy),1);},Err(_)=>{panic("csv");}}},Err(_)=>{panic("format");}}},Err(_)=>{panic("csv");}}},Err(_)=>{panic("encode");}}let values=List<Int>();values.add(2);values.add(1);values.add(3);assert_eq(dp.lisLength(&values),Ok(2));}

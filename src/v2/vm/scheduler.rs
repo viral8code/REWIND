@@ -96,6 +96,36 @@ impl Default for Scheduler {
     }
 }
 impl Scheduler {
+    pub(super) fn gc_roots(&self, out: &mut Vec<Value>) {
+        for task in self.tasks.values() {
+            gc_scope_roots(&task.globals, out);
+            if let Some(Ok(value)) = &task.result {
+                out.push(value.clone());
+            }
+            match &task.body {
+                TaskBody::Function(_, args) => out.extend(args.iter().cloned()),
+                TaskBody::Send(_, value) => out.push(value.clone()),
+                _ => {}
+            }
+            if let Some(context) = &task.context {
+                gc_scope_roots(&context.globals, out);
+                gc_frame_roots(&context.frames, out);
+                gc_cleanup_roots(&context.cleanups, out);
+                gc_branch_roots(&context.branches, out);
+                out.extend(context.stack.iter().cloned());
+                out.extend(context.runtime_globals.values().cloned());
+                out.extend(
+                    context
+                        .runtime_frames
+                        .iter()
+                        .flat_map(|f| f.locals.values().cloned()),
+                );
+            }
+        }
+        for channel in self.channels.values() {
+            out.extend(channel.values.iter().cloned());
+        }
+    }
     pub(super) fn wait_edges(&self) -> Vec<rewind::WaitEdge> {
         let mut edges = Vec::new();
         for (id, t) in &self.tasks {

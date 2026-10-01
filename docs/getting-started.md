@@ -1,6 +1,6 @@
-# REWIND 0.9.4を試す
+# REWIND 0.9.9を試す
 
-v0.9.4は`codex/develop`の開発版です。公開済み[Release v0.9.3](https://github.com/viral8code/REWIND/releases/tag/v0.9.3)には以下の簡易CLIと新しいpublish規則は含まれません。[旧Releaseの導入](getting-started-v0.9.3.md)と区別してください。
+v0.9.9は`codex/develop`の開発版です。公開済み[Release v0.9.3](https://github.com/viral8code/REWIND/releases/tag/v0.9.3)には以下の簡易CLIと新しいpublish規則は含まれません。[旧Releaseの導入](getting-started-v0.9.3.md)と区別してください。
 
 ## バイナリを用意する
 
@@ -88,11 +88,11 @@ rewind compile main.rw --allow-effects fileRead,fileWrite
 rewind run main.rwc --allow-effects fileRead,fileWrite
 ```
 
-成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effects/依存/lockを優先します。既存projectを新仕様に移す場合はlanguageを0.9.4へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
+成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effects/依存/lockを優先します。既存projectを新仕様に移す場合はlanguageを0.9.9へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
 
 ```sh
 rewind run main.rw --record trace.json
 rewind replay trace.json --root .
 ```
 
-実行step、履歴memory、stream/collectionには上限があります。heap回収とnative workの完全な予算は未実装です。[実装範囲](v0.9.4-status.md)、[次の計画](REWIND_v0.9.5.md)を参照してください。
+実行step、履歴memory、stream/collectionには上限があります。heap回収とbyte/text/number primitiveのwork予算を追加しました。physical memoryと全native処理の予算は継続項目です。`--steps N` / `--native-work N`で初期予算を指定できます。[実装範囲](v0.9.9-status.md)、[次の計画](REWIND_v1.0.md)を参照してください。

@@ -71,6 +71,36 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     );
     Ok(())
 }
+pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usize> {
+    if !names().contains(&name) {
+        return None;
+    }
+    let length = |value: &Value| match value {
+        Value::Text(v) => v.len(),
+        Value::Bytes(v) => v.len(),
+        Value::HeapRef(id) => match runtime.heap_get(*id) {
+            Some(Value::TypedList(_, v)) => v.len(),
+            _ => 0,
+        },
+        _ => 0,
+    };
+    let work = match name {
+        "stdBytesLength" | "stdBytesGet" | "stdBitAnd" | "stdBitOr" | "stdBitXor" | "stdBitNot"
+        | "stdCountBits" | "stdShiftLeft" | "stdShiftRight" | "stdShiftUnsigned" => 1,
+        "stdBytesSlice" => match args {
+            [Value::Bytes(bytes), Value::Int(a), Value::Int(b)]
+                if *a >= 0 && *b >= *a && (*b as u64) <= bytes.len() as u64 =>
+            {
+                (*b - *a) as usize
+            }
+            _ => 1,
+        },
+        "stdMulMod" => 64,
+        "stdFormatInt" | "stdFormatFloat" => 128,
+        _ => args.iter().map(length).fold(1usize, usize::saturating_add),
+    };
+    Some(work.max(1))
+}
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
     if !matches!(
         p.language.as_str(),

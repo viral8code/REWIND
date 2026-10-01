@@ -86,3 +86,9 @@ source libraryの契約テストは10件。詳細は[v0.9.3実装状況](../docs
 Host観測はapp側で`In.readChunk(limit)->Option<Bytes>`、出力は`Out.writeBytes(bytes)`と`publish`で明示する。EOFはNone、短いchunkを許し、revert時は記録済みbyteを再利用する。primitive keyのnative Mapはpersistent AVL treeでroot clone O(1)、更新のnode path O(log n)。payloadの生成・返却費用は別。user Ord keyのOrderedMapは従来の線形storageを維持する。
 
 source libraryの契約テストは11件。詳細は[v0.9.4実装状況](../docs/v0.9.4-status.md)、継続計画は[v0.9.5草案](../docs/REWIND_v0.9.5.md)。
+
+## v0.9.5〜v0.9.9
+
+現在のSDKは33module。追加moduleはstringSearch（byte KMP/prefix/Z）、bitset（packed bits）、range（sparse minimum）、rollbackSet（rollback DSU）、csv（bounded UTF-8 CSV）、matrix（checked product/power）、dp（LIS/0-1 knapsack）。graphにtopological/Bellman-Ford/SCC/minimumForest/ancestors/lcaを追加した。modular.inverseは正のInt64全域のmodulusを扱う。各容量・失敗・計算量は[v0.9.6](../docs/v0.9.6-status.md)、[v0.9.7](../docs/v0.9.7-status.md)、[v0.9.8](../docs/v0.9.8-status.md)を参照。
+
+標準契約テストは14件。heap回収とwork budgetは[v0.9.9](../docs/v0.9.9-status.md)。公開fieldの不変条件やphysical/native予算など、残る課題は[1.0準備草案](../docs/REWIND_v1.0.md)。
