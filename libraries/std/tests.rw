@@ -1,3 +1,6 @@
+import csv as csv;
+import matrix as matrix;
+import dp as dp;
 import stringSearch as stringSearch;
 import bitset as bitset;
 import stream as stream;
@@ -121,3 +124,5 @@ test fn streaming_chunk_boundaries() {
 }
 
 @test fn graph_components_and_forest()->Unit effects {} {match graph.create(3,3){Ok(g)=>{graph.add(&mut g,0,1,2);graph.add(&mut g,1,0,2);graph.add(&mut g,1,2,1);match graph.components(&g){Ok(ids)=>{assert_eq(ids.get(0),ids.get(1));assert(ids.get(1)!=ids.get(2));},Err(_)=>{panic("scc");}}match graph.minimumForest(&g){Ok(f)=>{assert_eq(f.weight,3);},Err(_)=>{panic("forest");}}},Err(_)=>{panic("graph");}}}
+
+@test fn csv_roundtrip_and_dynamic_programming()->Unit effects {} {match stdEncode("a,b\n"){Ok(input)=>{match csv.parse(input){Ok(table)=>{assert_eq(csv.get(&table,0,1),Ok("b"));match csv.format(&table){Ok(output)=>{match csv.parse(output){Ok(copy)=>{assert_eq(csv.rows(&copy),1);},Err(_)=>{panic("csv");}}},Err(_)=>{panic("format");}}},Err(_)=>{panic("csv");}}},Err(_)=>{panic("encode");}}let values=List<Int>();values.add(2);values.add(1);values.add(3);assert_eq(dp.lisLength(&values),Ok(2));}

@@ -1,0 +1,21 @@
+pub record CsvError{code:String,position:Int}
+pub struct Table{cells:List<String>,rowEnds:List<Int>}
+fn byte(input:Bytes,index:Int)->Int effects {} {match stdBytesGet(input,index){Ok(v)=>{return v;},Err(_)=>{panic("byte index");}}}
+fn field(cells:&mut List<String>,pending:&mut List<Int>,position:Int)->Result<Unit,CsvError> effects {} {if cells.len()>=65536{return Err(CsvError("Capacity",position));}match stdBytesFromList(pending){Err(e)=>{return Err(CsvError(e.code,position));},Ok(bytes)=>{match stdDecode(bytes){Err(e)=>{return Err(CsvError(e.code,position));},Ok(text)=>{cells.add(text);while pending.len()>0{pending.pop();}return Ok(());}}}}
+}
+pub fn parse(input:Bytes)->Result<Table,CsvError> effects {} {
+ let n=stdBytesLength(input);if n>65536{return Err(CsvError("Capacity",0));}let cells=List<String>();let rowEnds=List<Int>();let pending=List<Int>();var quoted=false;var afterQuote=false;var started=false;var i=0;
+ while i<n{let value=byte(input,i);started=true;if quoted{if value==34{if i+1<n && byte(input,i+1)==34{pending.add(34);i+=1;}else{quoted=false;afterQuote=true;}}else{pending.add(value);}}
+ else{if value==44{field(&mut cells,&mut pending,i)?;afterQuote=false;}else if value==10 || value==13{if value==13{if i+1>=n || byte(input,i+1)!=10{return Err(CsvError("Newline",i));}i+=1;}field(&mut cells,&mut pending,i)?;if rowEnds.len()>=4096{return Err(CsvError("Capacity",i));}rowEnds.add(cells.len());afterQuote=false;started=false;}
+ else if value==34{if pending.len()!=0 || afterQuote{return Err(CsvError("Quote",i));}quoted=true;}
+ else{if afterQuote{return Err(CsvError("TrailingText",i));}pending.add(value);}}
+ i+=1;}
+ if quoted{return Err(CsvError("UnclosedQuote",n));}if started{field(&mut cells,&mut pending,n)?;if rowEnds.len()>=4096{return Err(CsvError("Capacity",n));}rowEnds.add(cells.len());}return Ok(Table(cells,rowEnds));
+}
+pub fn rows(table:&Table)->Int effects {} {return table.rowEnds.len();}
+pub fn width(table:&Table,row:Int)->Result<Int,CsvError> effects {} {if row<0 || row>=rows(table){return Err(CsvError("Range",row));}var start=0;if row>0{start=table.rowEnds.get(row-1);}return Ok(table.rowEnds.get(row)-start);}
+pub fn get(table:&Table,row:Int,column:Int)->Result<String,CsvError> effects {} {let columns=width(table,row)?;if column<0 || column>=columns{return Err(CsvError("Range",column));}var start=0;if row>0{start=table.rowEnds.get(row-1);}return Ok(table.cells.get(start+column));}
+fn push(output:&mut List<Int>,value:Int)->Result<Unit,CsvError> effects {} {if output.len()>=65536{return Err(CsvError("Capacity",output.len()));}output.add(value);return Ok(());}
+pub fn format(table:&Table)->Result<Bytes,CsvError> effects {} {
+ let output=List<Int>();var start=0;var row=0;while row<rows(table){let end=table.rowEnds.get(row);if end<=start || end>table.cells.len(){return Err(CsvError("Shape",row));}var cell=start;while cell<end{if cell>start{push(&mut output,44)?;}push(&mut output,34)?;match stdEncode(table.cells.get(cell)){Err(e)=>{return Err(CsvError(e.code,cell));},Ok(bytes)=>{var i=0;while i<stdBytesLength(bytes){let value=byte(bytes,i);push(&mut output,value)?;if value==34{push(&mut output,34)?;}i+=1;}}}push(&mut output,34)?;cell+=1;}push(&mut output,10)?;start=end;row+=1;}if start!=table.cells.len(){return Err(CsvError("Shape",row));}match stdBytesFromList(&output){Ok(bytes)=>{return Ok(bytes);},Err(e)=>{return Err(CsvError(e.code,0));}}
+}
