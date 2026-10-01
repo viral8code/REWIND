@@ -119,3 +119,5 @@ test fn streaming_chunk_boundaries() {
  match stdEncode("abababa"){Ok(input)=>{match stdEncode("aba"){Ok(pattern)=>{match stringSearch.kmp(input,pattern){Ok(found)=>{assert_eq(found.len(),3);assert_eq(found.get(2),4);},Err(_)=>{panic("search");}}},Err(_)=>{panic("encode");}}},Err(_)=>{panic("encode");}}
  match bitset.create(65){Ok(set)=>{bitset.set(&mut set,63,true);assert_eq(bitset.count(&set),1);},Err(_)=>{panic("bitset");}}
 }
+
+@test fn graph_components_and_forest()->Unit effects {} {match graph.create(3,3){Ok(g)=>{graph.add(&mut g,0,1,2);graph.add(&mut g,1,0,2);graph.add(&mut g,1,2,1);match graph.components(&g){Ok(ids)=>{assert_eq(ids.get(0),ids.get(1));assert(ids.get(1)!=ids.get(2));},Err(_)=>{panic("scc");}}match graph.minimumForest(&g){Ok(f)=>{assert_eq(f.weight,3);},Err(_)=>{panic("forest");}}},Err(_)=>{panic("graph");}}}
