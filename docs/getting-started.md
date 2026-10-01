@@ -1,10 +1,30 @@
 # REWIND 1.0.0を試す
 
-1.0.0はLinux x86_64を対象とする初回安定版です。公開済み[Release v0.9.3](https://github.com/viral8code/REWIND/releases/tag/v0.9.3)には以下の簡易CLIと新しいpublish規則は含まれません。[旧Releaseの導入](getting-started-v0.9.3.md)と区別してください。
+1.0.0はLinux x86_64を対象とする初回安定版です。簡易CLIと新しいpublish規則を含みます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
 
-## バイナリを用意する
+## SDKをダウンロードする
 
-リポジトリの`codex/develop`でRustのbuild環境から次を実行します。
+[Release v1.0.0](https://github.com/viral8code/REWIND/releases/tag/v1.0.0)から次を同じdirectoryへ保存します。
+
+- `rewind-1.0.0-linux-x86_64.tar.gz`：rewind/rewindc、34 module、文書、例
+- `rewind-1.0.0-sdk.pub`：このreleaseの公開鍵
+- `SHA256SUMS`、`BUILD_INFO.json`：checksumと最低glibc等のbuild情報
+
+```sh
+sha256sum --check --ignore-missing SHA256SUMS
+tar -xzf rewind-1.0.0-linux-x86_64.tar.gz
+SDK="$(pwd)/rewind-1.0.0-linux-x86_64"
+PUBLIC_KEY="$(cat rewind-1.0.0-sdk.pub)"
+"$SDK/bin/rewind" sdk-verify --sdk "$SDK" --public-key "$PUBLIC_KEY"
+export PATH="$SDK/bin:$PATH"
+rewind --version
+```
+
+SDK archiveと公開鍵の両方がchecksum検証でOKになることを確認します。公開鍵の信頼元はこのrepositoryのReleaseページです。実行する利用者にRustやJVMは不要です。WindowsはLinux x86_64のWSL2で利用でき、macOS/Windows native/ARM/Alpine用バイナリは含みません。最低glibcはBUILD_INFO.jsonを確認してください。
+
+## sourceからビルドする
+
+`rewind-1.0.0-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
 
 ```sh
 cargo build --release --locked
@@ -13,7 +33,7 @@ rewind --version
 rewind --help
 ```
 
-ビルド済みSDKを受け取った場合は、その`bin`をPATHへ追加します。実行する利用者にRustやJVMは不要です。SDKの署名・checksumは配布元の公開鍵で検証してください。現在の配布targetはLinux x86_64で、macOS/Windows native/ARM向けの動作保証はまだありません。
+GitHubが自動生成するSource codeのzip/tar.gzには実行バイナリは含まれません。SDKの場所を変えた場合はPATHを更新します。
 
 ## 最初のプログラム
 

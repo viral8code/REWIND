@@ -2585,9 +2585,7 @@ impl Runtime {
         Ok(())
     }
 
-    /// Validate the complete write set before touching the host. File replacement
-    /// is per-file atomic where the host supports rename; multi-file publication is
-    /// not globally atomic, matching the specification's level 1 limitation.
+    /// Structured terminal publish failure, retained outside checkpoints.
     pub fn publish_failure(&self) -> Option<&PublishFailure> {
         self.publish_failure_detail.as_ref()
     }
@@ -2610,6 +2608,9 @@ impl Runtime {
         self.publish_failure_detail = Some(failure);
         Error::PublishPartiallyApplied(detail)
     }
+    /// Validate the complete write set before touching the host. File replacement
+    /// is per-file atomic where the host supports rename; multi-file publication is
+    /// not globally atomic, matching the specification's level 1 limitation.
     pub fn publish(
         &mut self,
         force: bool,
