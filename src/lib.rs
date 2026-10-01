@@ -628,6 +628,8 @@ pub struct Runtime {
     virtual_files: BTreeMap<String, Option<Arc<PagedFile>>>,
     virtual_directories: BTreeMap<String, bool>,
     storage_start: (usize, (usize, usize)),
+    allocations_since_gc: usize,
+    native_remaining: Option<usize>,
 }
 
 impl Runtime {
@@ -995,6 +997,8 @@ impl Runtime {
             virtual_files: BTreeMap::new(),
             virtual_directories: BTreeMap::new(),
             storage_start: (map_storage::map_nodes_created(), storage::storage_work()),
+            allocations_since_gc: 0,
+            native_remaining: None,
         })
     }
     pub fn storage_metrics(&self) -> (usize, usize, usize) {
@@ -1340,16 +1344,116 @@ impl Runtime {
     pub fn remove_global(&mut self, name: &str) {
         Arc::make_mut(&mut self.state.globals).remove(name);
     }
+    pub fn configure_native_work(&mut self, limit: usize) {
+        self.native_remaining = Some(limit);
+    }
+    pub fn charge_native_work(&mut self, amount: usize) -> Result<()> {
+        if let Some(remaining) = &mut self.native_remaining {
+            *remaining = remaining
+                .checked_sub(amount)
+                .ok_or_else(|| Error::InvalidOperation("NativeWorkBudgetExceeded".into()))?;
+        }
+        Ok(())
+    }
+    pub fn collection_due(&self) -> bool {
+        self.allocations_since_gc >= 256
+    }
+    /// Embedders must supply every external live Value at a safe point.
+    /// Checkpoints keep independent roots; collection never mutates those roots.
+    pub fn collect_heap(
+        &mut self,
+        external_roots: &[Value],
+        work_limit: usize,
+    ) -> Result<(usize, usize)> {
+        let mut live = BTreeSet::new();
+        let mut pending = self
+            .state
+            .globals
+            .values()
+            .chain(self.state.stack.iter())
+            .chain(
+                self.state
+                    .call_frames
+                    .iter()
+                    .flat_map(|f| f.locals.values()),
+            )
+            .chain(external_roots.iter())
+            .collect::<Vec<_>>();
+        let mut work = 0usize;
+        while let Some(value) = pending.pop() {
+            work += 1;
+            if work > work_limit {
+                return Err(Error::InvalidOperation(
+                    "NativeWorkBudgetExceeded: heap collection".into(),
+                ));
+            }
+            match value {
+                Value::HeapRef(id) | Value::CellRef(id) => {
+                    if live.insert(*id) {
+                        if let Some(value) = self.state.heap.get(id) {
+                            pending.push(value);
+                        }
+                    }
+                }
+                Value::List(values) => pending.extend(values),
+                Value::TypedList(_, values) => pending.extend(values.iter()),
+                Value::Map(values) | Value::TypedMap(_, _, values) => {
+                    pending.extend(values.values())
+                }
+                Value::OrderedMap(_, _, values) => {
+                    for (k, v) in values {
+                        pending.push(k);
+                        pending.push(v);
+                    }
+                }
+                Value::Struct(_, values) | Value::Closure(_, _, values) => {
+                    pending.extend(values.values())
+                }
+                Value::Enum(_, _, values) => pending.extend(values.iter().map(|(_, v)| v)),
+                Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                    pending.push(v)
+                }
+                _ => {}
+            }
+        }
+        work = work.saturating_add(self.state.heap.len());
+        if work > work_limit {
+            return Err(Error::InvalidOperation(
+                "NativeWorkBudgetExceeded: heap collection".into(),
+            ));
+        }
+        self.charge_native_work(work)?;
+        let dead = self
+            .state
+            .heap
+            .iter()
+            .filter(|(id, _)| !live.contains(id))
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>();
+        let previous = self.state.heap.clone();
+        for id in &dead {
+            Arc::make_mut(&mut self.state.heap).remove(*id);
+        }
+        if let Err(error) = self.enforce_budget() {
+            self.state.heap = previous;
+            return Err(error);
+        }
+        self.allocations_since_gc = 0;
+        Ok((dead.len(), work))
+    }
     pub fn alloc(&mut self, value: Value) -> Result<u64> {
         let id = self.state.next_heap_id;
         let previous = self.state.heap.clone();
-        self.state.next_heap_id += 1;
+        self.state.next_heap_id = id
+            .checked_add(1)
+            .ok_or_else(|| Error::InvalidOperation("heap ID exhausted".into()))?;
         Arc::make_mut(&mut self.state.heap).insert(id, value);
         if let Err(error) = self.enforce_budget() {
             self.state.heap = previous;
             self.state.next_heap_id = id;
             return Err(error);
         }
+        self.allocations_since_gc = self.allocations_since_gc.saturating_add(1);
         Ok(id)
     }
     pub fn heap_set(&mut self, id: u64, value: Value) -> Result<()> {

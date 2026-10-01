@@ -3,53 +3,25 @@
   "kind": "rewind-api",
   "language": "0.9.9",
   "symbols": {
-    "fn:decode": {
+    "fn:minimum": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Bytes"
-      ],
-      "return": "Result<String,StdError>"
-    },
-    "fn:encode": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "String"
-      ],
-      "return": "Result<Bytes,StdError>"
-    },
-    "fn:get": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Bytes",
-        "Int"
-      ],
-      "return": "Result<Int,StdError>"
-    },
-    "fn:length": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Bytes"
-      ],
-      "return": "Int"
-    },
-    "fn:slice": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Bytes",
+        "&SparseMin",
         "Int",
         "Int"
       ],
-      "return": "Result<Bytes,StdError>"
+      "return": "Result<Int,String>"
+    },
+    "fn:sparseMin": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&List<Int>"
+      ],
+      "return": "Result<SparseMin,String>"
     },
     "type:Json": {
       "generics": [],
@@ -115,6 +87,24 @@
       ],
       "generics": [],
       "kind": "record"
+    },
+    "type:SparseMin": {
+      "fields": [
+        [
+          "values",
+          "List<Int>"
+        ],
+        [
+          "logs",
+          "List<Int>"
+        ],
+        [
+          "length",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
     },
     "type:StdError": {
       "fields": [

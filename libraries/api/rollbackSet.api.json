@@ -3,89 +3,65 @@
   "kind": "rewind-api",
   "language": "0.9.9",
   "symbols": {
-    "fn:decode": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Utf8",
-        "Bytes",
-        "Bool"
-      ],
-      "return": "Result<String,StreamError>"
-    },
-    "fn:drain": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Writer"
-      ],
-      "return": "Result<Bytes,StreamError>"
-    },
-    "fn:feed": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Tokens",
-        "Bytes",
-        "Bool"
-      ],
-      "return": "Result<Unit,StreamError>"
-    },
-    "fn:next": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Tokens"
-      ],
-      "return": "Option<Bytes>"
-    },
-    "fn:nextInt": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Tokens"
-      ],
-      "return": "Result<Option<Int>,StreamError>"
-    },
-    "fn:tokens": {
+    "fn:create": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
         "Int"
       ],
-      "return": "Result<Tokens,StreamError>"
+      "return": "Result<RollbackSet,String>"
     },
-    "fn:utf8": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [],
-      "return": "Utf8"
-    },
-    "fn:write": {
+    "fn:mark": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "&mut Writer",
-        "Bytes"
+        "&RollbackSet"
       ],
-      "return": "Result<Unit,StreamError>"
+      "return": "Int"
     },
-    "fn:writer": {
+    "fn:rollback": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
+        "&mut RollbackSet",
         "Int"
       ],
-      "return": "Result<Writer,StreamError>"
+      "return": "Result<Unit,String>"
+    },
+    "fn:root": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&RollbackSet",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:same": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&RollbackSet",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Bool,String>"
+    },
+    "fn:unite": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut RollbackSet",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Bool,String>"
     },
     "type:Json": {
       "generics": [],
@@ -152,6 +128,24 @@
       "generics": [],
       "kind": "record"
     },
+    "type:RollbackSet": {
+      "fields": [
+        [
+          "parents",
+          "List<Int>"
+        ],
+        [
+          "sizes",
+          "List<Int>"
+        ],
+        [
+          "history",
+          "List<Change>"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
     "type:StdError": {
       "fields": [
         [
@@ -165,74 +159,6 @@
       ],
       "generics": [],
       "kind": "record"
-    },
-    "type:StreamError": {
-      "fields": [
-        [
-          "code",
-          "String"
-        ],
-        [
-          "position",
-          "Int"
-        ]
-      ],
-      "generics": [],
-      "kind": "record"
-    },
-    "type:Tokens": {
-      "fields": [
-        [
-          "pending",
-          "List<Int>"
-        ],
-        [
-          "ready",
-          "List<Bytes>"
-        ],
-        [
-          "cursor",
-          "Int"
-        ],
-        [
-          "limit",
-          "Int"
-        ],
-        [
-          "closed",
-          "Bool"
-        ]
-      ],
-      "generics": [],
-      "kind": "struct"
-    },
-    "type:Utf8": {
-      "fields": [
-        [
-          "pending",
-          "List<Int>"
-        ],
-        [
-          "closed",
-          "Bool"
-        ]
-      ],
-      "generics": [],
-      "kind": "struct"
-    },
-    "type:Writer": {
-      "fields": [
-        [
-          "pending",
-          "List<Int>"
-        ],
-        [
-          "capacity",
-          "Int"
-        ]
-      ],
-      "generics": [],
-      "kind": "struct"
     }
   }
 }

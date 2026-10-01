@@ -3,53 +3,33 @@
   "kind": "rewind-api",
   "language": "0.9.9",
   "symbols": {
-    "fn:decode": {
+    "fn:kmp": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:prefix": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
         "Bytes"
       ],
-      "return": "Result<String,StdError>"
+      "return": "Result<List<Int>,String>"
     },
-    "fn:encode": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "String"
-      ],
-      "return": "Result<Bytes,StdError>"
-    },
-    "fn:get": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Bytes",
-        "Int"
-      ],
-      "return": "Result<Int,StdError>"
-    },
-    "fn:length": {
+    "fn:z": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
         "Bytes"
       ],
-      "return": "Int"
-    },
-    "fn:slice": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Bytes",
-        "Int",
-        "Int"
-      ],
-      "return": "Result<Bytes,StdError>"
+      "return": "Result<List<Int>,String>"
     },
     "type:Json": {
       "generics": [],

@@ -281,6 +281,46 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/doc/v0.9.5-status.md",
+            include_str!("../../../docs/v0.9.5-status.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/v0.9.6-status.md",
+            include_str!("../../../docs/v0.9.6-status.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/v0.9.7-status.md",
+            include_str!("../../../docs/v0.9.7-status.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/v0.9.8-status.md",
+            include_str!("../../../docs/v0.9.8-status.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/v0.9.9-status.md",
+            include_str!("../../../docs/v0.9.9-status.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.0.md",
+            include_str!("../../../docs/REWIND_v1.0.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/csv/main.rw",
+            include_str!("../../../examples/v099/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/csv/README.md",
+            include_str!("../../../examples/v099/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/sum/main.rw",
             include_str!("../../../examples/v092/main.rw"),
         )?;

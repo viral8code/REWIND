@@ -1,8 +1,76 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.4",
+  "language": "0.9.9",
   "symbols": {
+    "dependency:disjointSet.rw": {
+      "fn:$import$disjointSet$create": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<$import$disjointSet$DisjointSet,String>"
+      },
+      "fn:$import$disjointSet$root": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$disjointSet$same": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Bool,String>"
+      },
+      "fn:$import$disjointSet$size": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$disjointSet$unite": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Bool,String>"
+      },
+      "type:$import$disjointSet$DisjointSet": {
+        "bounds": {},
+        "fields": [
+          [
+            "parents",
+            "List<Int>"
+          ],
+          [
+            "sizes",
+            "List<Int>"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      }
+    },
     "dependency:heap.rw": {
       "fn:$import$heap$peek": {
         "async": false,
@@ -131,6 +199,47 @@
         "return": "Result<List<Int>,String>"
       }
     },
+    "dependency:sort.rw": {
+      "fn:$import$sort$inPlace": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Unit"
+      },
+      "fn:$import$sort$integers": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>"
+        ],
+        "return": "List<Int>"
+      },
+      "fn:$import$sort$stable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "List<T>"
+      }
+    },
     "fn:add": {
       "async": false,
       "effects": [],
@@ -143,6 +252,26 @@
       ],
       "return": "Result<Unit,String>"
     },
+    "fn:ancestors": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<Ancestors,String>"
+    },
+    "fn:bellmanFord": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<List<Option<Int>>,String>"
+    },
     "fn:bfs": {
       "async": false,
       "effects": [],
@@ -150,6 +279,15 @@
       "parameters": [
         "&Graph",
         "Int"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:components": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
       ],
       "return": "Result<List<Int>,String>"
     },
@@ -182,6 +320,79 @@
         "Int"
       ],
       "return": "Result<List<Option<Int>>,String>"
+    },
+    "fn:lca": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Ancestors",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:minimumForest": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Result<Forest,String>"
+    },
+    "fn:topological": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "type:Ancestors": {
+      "fields": [
+        [
+          "jumps",
+          "List<Int>"
+        ],
+        [
+          "depths",
+          "List<Int>"
+        ],
+        [
+          "length",
+          "Int"
+        ],
+        [
+          "levels",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Forest": {
+      "fields": [
+        [
+          "weight",
+          "Int"
+        ],
+        [
+          "components",
+          "Int"
+        ],
+        [
+          "froms",
+          "List<Int>"
+        ],
+        [
+          "tos",
+          "List<Int>"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
     },
     "type:Graph": {
       "fields": [

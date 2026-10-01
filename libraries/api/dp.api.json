@@ -83,60 +83,25 @@
         "return": "Result<List<Int>,String>"
       }
     },
-    "fn:add": {
+    "fn:knapsack": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "&mut Fenwick",
-        "Int",
-        "Int"
-      ],
-      "return": "Result<Unit,String>"
-    },
-    "fn:create": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "Int"
-      ],
-      "return": "Result<Fenwick,String>"
-    },
-    "fn:prefix": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&Fenwick",
+        "&List<Int>",
+        "&List<Int>",
         "Int"
       ],
       "return": "Result<Int,String>"
     },
-    "fn:range": {
+    "fn:lisLength": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "&Fenwick",
-        "Int",
-        "Int"
+        "&List<Int>"
       ],
       "return": "Result<Int,String>"
-    },
-    "type:Fenwick": {
-      "fields": [
-        [
-          "values",
-          "List<Int>"
-        ],
-        [
-          "length",
-          "Int"
-        ]
-      ],
-      "generics": [],
-      "kind": "struct"
     },
     "type:Json": {
       "generics": [],

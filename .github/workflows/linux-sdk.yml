@@ -26,3 +26,10 @@ jobs:
           for BASELINE in libraries/api/*.api.json; do
             target/release/rewind api-diff "$BASELINE" "$SDK_WORK/sdk/share/rewind/doc/std/$(basename "$BASELINE")" --deny-breaking
           done
+          mkdir "$SDK_WORK/simple"
+          cp "$SDK_WORK/sdk/share/rewind/examples/checkpoint/main.rw" "$SDK_WORK/simple/main.rw"
+          "$SDK_WORK/sdk/bin/rewindc" "$SDK_WORK/simple/main.rw"
+          rm "$SDK_WORK/simple/main.rw"
+          "$SDK_WORK/sdk/bin/rewind" "$SDK_WORK/simple/main.rwc" > "$SDK_WORK/actual"
+          printf '99\n10\n' > "$SDK_WORK/expected"
+          cmp "$SDK_WORK/expected" "$SDK_WORK/actual"

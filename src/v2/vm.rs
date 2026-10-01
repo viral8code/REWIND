@@ -921,6 +921,35 @@ struct VmSnapshot {
     scheduler: Scheduler,
 }
 
+fn gc_scope_roots(scopes: &[BTreeMap<String, Binding>], out: &mut Vec<Value>) {
+    out.extend(
+        scopes
+            .iter()
+            .flat_map(|s| s.values().map(|b| b.value.clone())),
+    );
+}
+fn gc_cleanup_roots(cleanups: &[Cleanup], out: &mut Vec<Value>) {
+    for cleanup in cleanups {
+        match cleanup {
+            Cleanup::Expr(_, scopes, _) => gc_scope_roots(scopes, out),
+            Cleanup::Callable(value, _) => out.push(value.clone()),
+            _ => {}
+        }
+    }
+}
+fn gc_frame_roots(frames: &[VmFrame], out: &mut Vec<Value>) {
+    for frame in frames {
+        gc_scope_roots(&frame.scopes, out);
+        gc_cleanup_roots(&frame.defers, out);
+    }
+}
+fn gc_branch_roots(branches: &[BranchFrame], out: &mut Vec<Value>) {
+    for branch in branches {
+        gc_scope_roots(&branch.globals, out);
+        gc_frame_roots(&branch.frames, out);
+        branch.scheduler.gc_roots(out);
+    }
+}
 struct Vm<R: BufRead> {
     engine: Engine<R>,
     code: Vec<Inst>,
@@ -1036,6 +1065,14 @@ impl<R: BufRead> Vm<R> {
                 .runtime
                 .import_observations(&replay["observations"])?;
         }
+        if engine.program.language == "0.9.9" {
+            engine
+                .runtime
+                .configure_native_work(options.native_work.unwrap_or(1_000_000));
+        }
+        if let Some(limit) = options.execution_steps {
+            engine.remaining = limit;
+        }
         engine.trace = trace;
         engine.trace_json = options.trace_json;
         engine.test_mode = test_mode;
@@ -1049,7 +1086,7 @@ impl<R: BufRead> Vm<R> {
             snapshots: BTreeMap::new(),
             global_cleanups: Vec::new(),
             pc: 0,
-            steps: 1_000_000,
+            steps: options.execution_steps.unwrap_or(1_000_000),
             next_frame_id: 1,
             halt_pc,
             specializations: BTreeMap::new(),
@@ -1816,7 +1853,7 @@ impl<R: BufRead> Vm<R> {
             }
         }
         if let Some(path) = &self.options.record {
-            let mut trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"standalone":self.options.standalone,"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
+            let mut trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"standalone":self.options.standalone,"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"native_work":self.options.native_work,"execution_steps":self.options.execution_steps,"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
             if matches!(
                 self.engine.program.language.as_str(),
                 "0.6"
@@ -1914,6 +1951,17 @@ impl<R: BufRead> Vm<R> {
             }
             if self.cancellation_requested() {
                 return Err(self.error(&self.code[self.pc].at, "TaskCancelled"));
+            }
+            if self.engine.program.language == "0.9.9" && self.engine.runtime.collection_due() {
+                let mut roots = Vec::new();
+                gc_scope_roots(&self.globals, &mut roots);
+                gc_scope_roots(&self.engine.scopes, &mut roots);
+                gc_frame_roots(&self.frames, &mut roots);
+                gc_cleanup_roots(&self.global_cleanups, &mut roots);
+                gc_branch_roots(&self.branches, &mut roots);
+                self.scheduler.gc_roots(&mut roots);
+                let (_, work) = self.engine.runtime.collect_heap(&roots, self.steps)?;
+                self.steps -= work;
             }
             let scheduler_bytes = self.scheduler.storage_bytes()
                 + self
@@ -3001,6 +3049,8 @@ pub(super) fn debug_view(
     options.replay = Some(trace.clone());
     options.pause_after = Some(limit);
     options.virtual_publish = true;
+    options.native_work = trace["native_work"].as_u64().map(|v| v as usize);
+    options.execution_steps = trace["execution_steps"].as_u64().map(|v| v as usize);
     options.task_steps = trace["task_steps"]
         .as_u64()
         .and_then(|n| usize::try_from(n).ok());

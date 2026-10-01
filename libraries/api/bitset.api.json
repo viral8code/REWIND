@@ -3,89 +3,88 @@
   "kind": "rewind-api",
   "language": "0.9.9",
   "symbols": {
-    "fn:decode": {
+    "fn:count": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "&mut Utf8",
-        "Bytes",
-        "Bool"
+        "&BitSet"
       ],
-      "return": "Result<String,StreamError>"
+      "return": "Int"
     },
-    "fn:drain": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Writer"
-      ],
-      "return": "Result<Bytes,StreamError>"
-    },
-    "fn:feed": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Tokens",
-        "Bytes",
-        "Bool"
-      ],
-      "return": "Result<Unit,StreamError>"
-    },
-    "fn:next": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Tokens"
-      ],
-      "return": "Option<Bytes>"
-    },
-    "fn:nextInt": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Tokens"
-      ],
-      "return": "Result<Option<Int>,StreamError>"
-    },
-    "fn:tokens": {
+    "fn:create": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
         "Int"
       ],
-      "return": "Result<Tokens,StreamError>"
+      "return": "Result<BitSet,String>"
     },
-    "fn:utf8": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [],
-      "return": "Utf8"
-    },
-    "fn:write": {
+    "fn:get": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "&mut Writer",
-        "Bytes"
-      ],
-      "return": "Result<Unit,StreamError>"
-    },
-    "fn:writer": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
+        "&BitSet",
         "Int"
       ],
-      "return": "Result<Writer,StreamError>"
+      "return": "Result<Bool,String>"
+    },
+    "fn:intersection": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&BitSet",
+        "&BitSet"
+      ],
+      "return": "Result<BitSet,String>"
+    },
+    "fn:set": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut BitSet",
+        "Int",
+        "Bool"
+      ],
+      "return": "Result<Unit,String>"
+    },
+    "fn:shifted": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&BitSet",
+        "Int"
+      ],
+      "return": "Result<BitSet,String>"
+    },
+    "fn:union": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&BitSet",
+        "&BitSet"
+      ],
+      "return": "Result<BitSet,String>"
+    },
+    "type:BitSet": {
+      "fields": [
+        [
+          "words",
+          "List<Int>"
+        ],
+        [
+          "length",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
     },
     "type:Json": {
       "generics": [],
@@ -165,74 +164,6 @@
       ],
       "generics": [],
       "kind": "record"
-    },
-    "type:StreamError": {
-      "fields": [
-        [
-          "code",
-          "String"
-        ],
-        [
-          "position",
-          "Int"
-        ]
-      ],
-      "generics": [],
-      "kind": "record"
-    },
-    "type:Tokens": {
-      "fields": [
-        [
-          "pending",
-          "List<Int>"
-        ],
-        [
-          "ready",
-          "List<Bytes>"
-        ],
-        [
-          "cursor",
-          "Int"
-        ],
-        [
-          "limit",
-          "Int"
-        ],
-        [
-          "closed",
-          "Bool"
-        ]
-      ],
-      "generics": [],
-      "kind": "struct"
-    },
-    "type:Utf8": {
-      "fields": [
-        [
-          "pending",
-          "List<Int>"
-        ],
-        [
-          "closed",
-          "Bool"
-        ]
-      ],
-      "generics": [],
-      "kind": "struct"
-    },
-    "type:Writer": {
-      "fields": [
-        [
-          "pending",
-          "List<Int>"
-        ],
-        [
-          "capacity",
-          "Int"
-        ]
-      ],
-      "generics": [],
-      "kind": "struct"
     }
   }
 }

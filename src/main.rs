@@ -566,7 +566,7 @@ fn main() {
         .first()
         .is_some_and(|a| a == "--help" || a == "-h")
     {
-        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment and clock access require explicit permission.", env!("CARGO_PKG_VERSION"));
+        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nBudgets: --steps N, --native-work N, --task-steps N.\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment and clock access require explicit permission.", env!("CARGO_PKG_VERSION"));
         return;
     }
     if arguments.first().is_some_and(|a| a == "--version") {
@@ -1196,6 +1196,23 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                         ));
                     }
                     options.explore = limit;
+                }
+                "--native-work" | "--steps" => {
+                    let option = remaining[index].clone();
+                    index += 1;
+                    let limit = remaining
+                        .get(index)
+                        .ok_or_else(|| Error::InvalidOperation(format!("missing {option} budget")))?
+                        .parse::<usize>()
+                        .map_err(|_| Error::InvalidOperation(format!("invalid {option} budget")))?;
+                    if limit == 0 {
+                        return Err(Error::InvalidOperation("budget must be positive".into()));
+                    }
+                    if option == "--native-work" {
+                        options.native_work = Some(limit);
+                    } else {
+                        options.execution_steps = Some(limit);
+                    }
                 }
                 "--task-steps" => {
                     index += 1;

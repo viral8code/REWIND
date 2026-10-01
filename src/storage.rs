@@ -205,10 +205,13 @@ impl<'de> Deserialize<'de> for PagedValues {
         Ok(Vec::<Value>::deserialize(d)?.into())
     }
 }
-/// Heap IDs are allocated consecutively and restored together with this root.
+/// Sparse persistent heap; collection removes unreachable IDs without renumbering.
 #[derive(Clone, Default)]
-pub struct HeapStore(PagedValues);
+pub struct HeapStore(crate::PersistentMap);
 impl HeapStore {
+    fn key(id: u64) -> crate::MapKey {
+        crate::MapKey::Bytes(id.to_be_bytes().to_vec())
+    }
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -216,29 +219,36 @@ impl HeapStore {
         self.0.is_empty()
     }
     pub fn logical_bytes(&self) -> usize {
-        self.0.logical_bytes()
+        self.0
+            .logical_bytes()
+            .saturating_sub(self.len().saturating_mul(8))
     }
     pub fn get(&self, id: &u64) -> Option<&Value> {
-        id.checked_sub(1)
-            .and_then(|n| usize::try_from(n).ok())
-            .and_then(|i| self.0.get(i))
+        self.0.get(&Self::key(*id))
     }
     pub fn contains_key(&self, id: &u64) -> bool {
         self.get(id).is_some()
     }
     pub fn insert(&mut self, id: u64, value: Value) {
-        let i = usize::try_from(id - 1).expect("heap ID");
-        if i == self.0.len() {
-            self.0.push(value);
-        } else {
-            self.0.set(i, value);
-        }
+        assert!(id != 0);
+        self.0.set(Self::key(id), value);
+    }
+    pub fn remove(&mut self, id: u64) {
+        self.0.delete(&Self::key(id));
     }
     pub fn values(&self) -> impl Iterator<Item = &Value> {
-        self.0.iter()
+        self.0.values()
     }
     pub fn iter(&self) -> impl Iterator<Item = (u64, &Value)> {
-        self.0.iter().enumerate().map(|(i, v)| (i as u64 + 1, v))
+        self.0.iter().map(|(key, value)| {
+            let crate::MapKey::Bytes(bytes) = key else {
+                unreachable!()
+            };
+            (
+                u64::from_be_bytes(bytes.as_slice().try_into().unwrap()),
+                value,
+            )
+        })
     }
 }
 impl Serialize for HeapStore {
@@ -251,8 +261,8 @@ impl<'de> Deserialize<'de> for HeapStore {
         let xs = std::collections::BTreeMap::<u64, Value>::deserialize(d)?;
         let mut out = Self::default();
         for (id, v) in xs {
-            if id != out.len() as u64 + 1 {
-                return Err(serde::de::Error::custom("nonconsecutive heap IDs"));
+            if id == 0 {
+                return Err(serde::de::Error::custom("zero heap ID"));
             }
             out.insert(id, v);
         }

@@ -55,6 +55,8 @@ thread_local! {
 #[derive(Clone, Default)]
 pub struct RunOptions {
     pub standalone: bool,
+    pub native_work: Option<usize>,
+    pub execution_steps: Option<usize>,
     pub recorded_test: Option<String>,
     pub arguments: Vec<String>,
     pub allowed_env: BTreeSet<String>,
@@ -2074,7 +2076,7 @@ fn rename_stmt(stmt: &mut Stmt, names: &BTreeMap<String, String>) {
 }
 fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, String> {
     let prefix = format!("$import${}$", module.replace('/', "$"));
-    let names = program
+    let mut names = program
         .functions
         .iter()
         .filter(|(_, f)| f.origin == program.root_origin)
@@ -2116,6 +2118,19 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
         )
         .map(|name| (name.clone(), format!("{prefix}{name}")))
         .collect::<BTreeMap<_, _>>();
+    // Imported aliases are lexical to this module, including selected imports.
+    let scoped_aliases = program
+        .import_aliases
+        .keys()
+        .filter(|n| !n.starts_with("$import$"))
+        .cloned()
+        .collect::<Vec<_>>();
+    for alias in &scoped_aliases {
+        let base = alias.split('.').next().unwrap();
+        names
+            .entry(base.to_string())
+            .or_insert_with(|| format!("{prefix}{base}"));
+    }
     for f in program
         .functions
         .values_mut()
@@ -2311,6 +2326,37 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
             }
         }
     }
+    let scoped = |alias: &str| {
+        if let Some((base, member)) = alias.split_once('.') {
+            format!(
+                "{}.{}",
+                names.get(base).map(String::as_str).unwrap_or(base),
+                member
+            )
+        } else {
+            names
+                .get(alias)
+                .cloned()
+                .unwrap_or_else(|| alias.to_string())
+        }
+    };
+    let aliases = std::mem::take(&mut program.import_aliases);
+    program.import_aliases = aliases
+        .into_iter()
+        .map(|(name, target)| {
+            let name = if scoped_aliases.contains(&name) {
+                scoped(&name)
+            } else {
+                name
+            };
+            (name, rename_symbol(&target, &names))
+        })
+        .collect();
+    for ((origin, _), exposure) in &mut program.import_exposure {
+        if *origin == program.root_origin {
+            *exposure = exposure.iter().map(|name| scoped(name)).collect();
+        }
+    }
     names
 }
 fn load_program(
@@ -2494,7 +2540,15 @@ fn load_program_overlay(
                 let renamed = if alias.is_empty() && selected.is_empty() {
                     BTreeMap::new()
                 } else {
-                    namespace_symbols(&mut imported, module)
+                    let package = imports
+                        .iter()
+                        .filter(|(name, path)| !name.is_empty() && *path == base)
+                        .map(|(name, _)| name.as_str())
+                        .next();
+                    let canonical = package
+                        .map(|name| format!("{name}/{relative}"))
+                        .unwrap_or_else(|| relative.to_string());
+                    namespace_symbols(&mut imported, &canonical)
                 };
                 let original = |name: &String| {
                     renamed
@@ -6741,6 +6795,11 @@ impl<R: BufRead> Engine<R> {
             self.program.language.as_str(),
             "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
         ) {
+            if self.program.language == "0.9.9" {
+                if let Some(work) = v092::work(name, &args, &self.runtime) {
+                    self.runtime.charge_native_work(work).map_err(Flow::Error)?;
+                }
+            }
             if let Some(v) = v092::call(name, &args, &self.runtime).map_err(Flow::Error)? {
                 return Ok(v);
             }

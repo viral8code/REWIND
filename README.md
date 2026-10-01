@@ -1,6 +1,6 @@
-# REWIND 開発版0.9.4
+# REWIND 開発版0.9.9
 
-`codex/develop`は単一ファイルの`rewind run main.rw` / `rewind compile main.rw`、`rewindc`、増分publish、bounded streamingとpersistent Mapを実装しています。[使い方](docs/getting-started.md)、[実装状況](docs/v0.9.4-status.md)、[v0.9.5草案](docs/REWIND_v0.9.5.md)を参照してください。
+`codex/develop`は単一ファイルの`rewind run main.rw` / `rewind compile main.rw`、`rewindc`、増分publish、bounded streamingとpersistent Mapに対応しています。v0.9.5〜v0.9.9でI/O失敗復元、heap回収、文字列・区間・graph・CSV・matrix・DPを追加しました。[使い方](docs/getting-started.md)、[実装状況](docs/v0.9.9-status.md)、[1.0準備草案](docs/REWIND_v1.0.md)を参照してください。
 
 ## SDKを試す
 

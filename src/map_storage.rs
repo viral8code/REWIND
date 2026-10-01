@@ -197,6 +197,11 @@ impl PersistentMap {
         }
         previous
     }
+    pub fn delete(&mut self, key: &MapKey) {
+        if self.contains_key(key) {
+            self.root = remove(&self.root, key);
+        }
+    }
     pub fn iter(&self) -> Iter<'_> {
         let mut it = Iter { stack: Vec::new() };
         it.descend(self.root.as_deref());

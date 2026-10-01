@@ -7,6 +7,7 @@ REWIND_BINARY=${REWIND_BINARY:-"$REPO_ROOT/target/release/rewind"}
 RELEASE_OUTPUT=${1:?usage: package-sdk.sh NEW_OUTPUT_DIRECTORY}
 VERSION=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml | head -n 1)
 COMMIT=$(git rev-parse HEAD)
+ARCHIVE_EPOCH=$(git show -s --format=%ct HEAD)
 [[ -z $(git status --porcelain --untracked-files=no) ]] || { echo 'Tracked files must be clean' >&2; exit 1; }
 mkdir "$RELEASE_OUTPUT"
 RELEASE_OUTPUT=$(cd "$RELEASE_OUTPUT" && pwd)
@@ -17,11 +18,20 @@ PUBLIC_KEY=$("$REWIND_BINARY" keygen "$RELEASE_WORK/signing-seed")
 SDK_NAME="rewind-$VERSION-linux-x86_64"
 "$REWIND_BINARY" sdk-build --output "$RELEASE_WORK/$SDK_NAME" --key "$RELEASE_WORK/signing-seed"
 "$REWIND_BINARY" sdk-verify --sdk "$RELEASE_WORK/$SDK_NAME" --public-key "$PUBLIC_KEY"
+# Stable public read/execute permissions, independent of the builder's umask.
+python3 - "$RELEASE_WORK/$SDK_NAME" <<'PYMODES'
+import pathlib, sys
+root=pathlib.Path(sys.argv[1])
+root.chmod(0o755)
+for path in root.rglob('*'):
+    if path.is_dir(): path.chmod(0o755)
+    else: path.chmod(0o755 if path.parent == root/'bin' else 0o644)
+PYMODES
 for BASELINE in libraries/api/*.api.json; do
   "$REWIND_BINARY" api-diff "$BASELINE" "$RELEASE_WORK/$SDK_NAME/share/rewind/doc/std/$(basename "$BASELINE")" --deny-breaking > /dev/null
 done
 # The private seed stays outside all distribution directories.
-tar -czf "$RELEASE_OUTPUT/$SDK_NAME.tar.gz" -C "$RELEASE_WORK" "$SDK_NAME"
+tar --sort=name --mtime="@$ARCHIVE_EPOCH" --owner=0 --group=0 --numeric-owner -cf - -C "$RELEASE_WORK" "$SDK_NAME" | gzip -n > "$RELEASE_OUTPUT/$SDK_NAME.tar.gz"
 git archive --format=tar.gz --prefix="rewind-$VERSION-source/" --output="$RELEASE_OUTPUT/rewind-$VERSION-source.tar.gz" HEAD
 printf '%s\n' "$PUBLIC_KEY" > "$RELEASE_OUTPUT/rewind-$VERSION-sdk.pub"
 cp docs/getting-started.md "$RELEASE_OUTPUT/GETTING_STARTED.md"

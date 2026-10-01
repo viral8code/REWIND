@@ -83,60 +83,47 @@
         "return": "Result<List<Int>,String>"
       }
     },
-    "fn:add": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Fenwick",
-        "Int",
-        "Int"
-      ],
-      "return": "Result<Unit,String>"
-    },
     "fn:create": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "Int"
+        "Int",
+        "Int",
+        "&List<Int>"
       ],
-      "return": "Result<Fenwick,String>"
+      "return": "Result<Matrix,String>"
     },
-    "fn:prefix": {
+    "fn:get": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "&Fenwick",
-        "Int"
-      ],
-      "return": "Result<Int,String>"
-    },
-    "fn:range": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&Fenwick",
+        "&Matrix",
         "Int",
         "Int"
       ],
       "return": "Result<Int,String>"
     },
-    "type:Fenwick": {
-      "fields": [
-        [
-          "values",
-          "List<Int>"
-        ],
-        [
-          "length",
-          "Int"
-        ]
-      ],
+    "fn:multiply": {
+      "async": false,
+      "effects": [],
       "generics": [],
-      "kind": "struct"
+      "parameters": [
+        "&Matrix",
+        "&Matrix"
+      ],
+      "return": "Result<Matrix,String>"
+    },
+    "fn:power": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Matrix",
+        "Int"
+      ],
+      "return": "Result<Matrix,String>"
     },
     "type:Json": {
       "generics": [],
@@ -202,6 +189,24 @@
       ],
       "generics": [],
       "kind": "record"
+    },
+    "type:Matrix": {
+      "fields": [
+        [
+          "rows",
+          "Int"
+        ],
+        [
+          "columns",
+          "Int"
+        ],
+        [
+          "values",
+          "List<Int>"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
     },
     "type:StdError": {
       "fields": [

@@ -3,119 +3,67 @@
   "kind": "rewind-api",
   "language": "0.9.9",
   "symbols": {
-    "fn:all": {
+    "fn:format": {
       "async": false,
       "effects": [],
-      "generics": [
-        [
-          "T",
-          "Share"
-        ]
-      ],
+      "generics": [],
       "parameters": [
-        "&List<T>",
-        "fn(T)->Bool!{}~{Send+Share}"
+        "&Table"
       ],
-      "return": "Bool"
+      "return": "Result<Bytes,CsvError>"
     },
-    "fn:any": {
+    "fn:get": {
       "async": false,
       "effects": [],
-      "generics": [
-        [
-          "T",
-          "Share"
-        ]
-      ],
+      "generics": [],
       "parameters": [
-        "&List<T>",
-        "fn(T)->Bool!{}~{Send+Share}"
+        "&Table",
+        "Int",
+        "Int"
       ],
-      "return": "Bool"
+      "return": "Result<String,CsvError>"
     },
-    "fn:count": {
+    "fn:parse": {
       "async": false,
       "effects": [],
-      "generics": [
-        [
-          "T",
-          "Share"
-        ]
-      ],
+      "generics": [],
       "parameters": [
-        "&List<T>",
-        "fn(T)->Bool!{}~{Send+Share}"
+        "Bytes"
+      ],
+      "return": "Result<Table,CsvError>"
+    },
+    "fn:rows": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
       ],
       "return": "Int"
     },
-    "fn:filter": {
+    "fn:width": {
       "async": false,
       "effects": [],
-      "generics": [
-        [
-          "T",
-          "Share"
-        ]
-      ],
+      "generics": [],
       "parameters": [
-        "&List<T>",
-        "fn(T)->Bool!{}~{Send+Share}"
+        "&Table",
+        "Int"
       ],
-      "return": "List<T>"
+      "return": "Result<Int,CsvError>"
     },
-    "fn:find": {
-      "async": false,
-      "effects": [],
-      "generics": [
+    "type:CsvError": {
+      "fields": [
         [
-          "T",
-          "Share"
-        ]
-      ],
-      "parameters": [
-        "&List<T>",
-        "fn(T)->Bool!{}~{Send+Share}"
-      ],
-      "return": "Option<T>"
-    },
-    "fn:fold": {
-      "async": false,
-      "effects": [],
-      "generics": [
-        [
-          "T",
-          "Share"
+          "code",
+          "String"
         ],
         [
-          "U",
-          "Share"
+          "position",
+          "Int"
         ]
       ],
-      "parameters": [
-        "&List<T>",
-        "U",
-        "fn(U,T)->U!{}~{Send+Share}"
-      ],
-      "return": "U"
-    },
-    "fn:map": {
-      "async": false,
-      "effects": [],
-      "generics": [
-        [
-          "T",
-          "Share"
-        ],
-        [
-          "U",
-          "Share"
-        ]
-      ],
-      "parameters": [
-        "&List<T>",
-        "fn(T)->U!{}~{Send+Share}"
-      ],
-      "return": "List<U>"
+      "generics": [],
+      "kind": "record"
     },
     "type:Json": {
       "generics": [],
@@ -195,6 +143,20 @@
       ],
       "generics": [],
       "kind": "record"
+    },
+    "type:Table": {
+      "fields": [
+        [
+          "cells",
+          "List<String>"
+        ],
+        [
+          "rowEnds",
+          "List<Int>"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
     }
   }
 }
