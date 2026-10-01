@@ -63,6 +63,25 @@ fn restore_reuses_results_and_fresh_appends_without_repeating_effects() {
     replay.exit_external().unwrap();
 }
 #[test]
+fn different_tasks_cannot_reuse_each_others_identical_host_request() {
+    let mut r = runtime();
+    r.commit("start").unwrap();
+    r.enter_external_task(false, 1).unwrap();
+    assert_eq!(
+        r.external_operation("request", b"same", 128, || Ok(json!(1)))
+            .unwrap(),
+        Ok(json!(1))
+    );
+    r.exit_external().unwrap();
+    r.revert("start").unwrap();
+    r.enter_external_task(false, 2).unwrap();
+    assert!(r
+        .external_operation("request", b"same", 128, || panic!("must not resend"))
+        .unwrap_err()
+        .to_string()
+        .contains("ExternalRequestMismatch"));
+}
+#[test]
 fn unknown_outcome_and_host_failure_are_not_retried() {
     let mut r = runtime();
     r.commit("a").unwrap();

@@ -11,6 +11,7 @@ pub mod storage;
 use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 pub mod external;
+pub mod network;
 mod replay;
 use journal::{Journal, Segment};
 
@@ -565,6 +566,7 @@ pub struct State {
     pub stdin_cursor: usize,
     gui_cursor: usize,
     external_cursor: usize,
+    external_poll_cursor: usize,
     gui_pending: Option<gui::Request>,
     pub byte_cursor: usize,
     pub time_cursor: usize,
@@ -595,6 +597,7 @@ impl Default for State {
             stdin_cursor: 0,
             gui_cursor: 0,
             external_cursor: 0,
+            external_poll_cursor: 0,
             gui_pending: None,
             byte_cursor: 0,
             time_cursor: 0,
@@ -654,7 +657,14 @@ pub struct Runtime {
     external_entries: Vec<external::Entry>,
     external_high_water: usize,
     external_memory_bytes: usize,
+    external_pending: usize,
+    external_poll_high_water: usize,
+    external_polls: Vec<external::Poll>,
+    external_buffers: BTreeMap<usize, Vec<u8>>,
+    network_host: Option<network::Host>,
+    network_credentials: BTreeMap<String, Arc<str>>,
     external_depth: usize,
+    external_owner: u64,
     gui_scripted: Option<std::collections::VecDeque<gui::Event>>,
     byte_input: Vec<(usize, Arc<Segment>)>,
     branch_roots: RefCell<Vec<Weak<State>>>,
@@ -1079,7 +1089,14 @@ impl Runtime {
             external_entries: Vec::new(),
             external_high_water: 0,
             external_memory_bytes: 0,
+            external_pending: 0,
+            external_poll_high_water: 0,
+            external_polls: Vec::new(),
+            external_buffers: BTreeMap::new(),
+            network_host: None,
+            network_credentials: BTreeMap::new(),
             external_depth: 0,
+            external_owner: 0,
             gui_scripted: None,
             byte_input: Vec::new(),
             branch_roots: RefCell::new(Vec::new()),
@@ -1440,7 +1457,20 @@ impl Runtime {
                 .as_ref()
                 .map_or(0, |v| v.iter().map(|e| e.key.len() + 160).sum::<usize>()),
         );
-        compute_memory = compute_memory.saturating_add(self.external_memory_bytes);
+        compute_memory = compute_memory
+            .saturating_add(
+                self.network_credentials
+                    .iter()
+                    .map(|(a, v)| a.len() + v.len() + 128)
+                    .sum::<usize>(),
+            )
+            .saturating_add(self.external_memory_bytes)
+            .saturating_add(self.external_polls.len().saturating_mul(32))
+            .saturating_add(
+                self.network_host
+                    .as_ref()
+                    .map_or(0, network::Host::reserved_bytes),
+            );
         let mut gui_roots = HashSet::new();
         for state in std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))

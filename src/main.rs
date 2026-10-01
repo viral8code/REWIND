@@ -636,7 +636,7 @@ fn main() {
             );
             return;
         }
-        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nBudgets: --steps N, --native-work N, --task-steps N, --memory-mib N (Linux).\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment and clock access require explicit permission.", env!("CARGO_PKG_VERSION"));
+        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nBudgets: --steps N, --native-work N, --task-steps N, --memory-mib N (Linux).\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment, clock, GUI and external network access require explicit permission.", env!("CARGO_PKG_VERSION"));
         return;
     }
     if arguments.first().is_some_and(|a| a == "--version") {

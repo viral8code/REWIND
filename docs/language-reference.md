@@ -1,6 +1,6 @@
 # REWIND 1.5 言語リファレンス
 
-対象はcompiler/language 1.5.0です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象はcompiler/language 1.6.0です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -289,7 +289,7 @@ SDKの標準API文書は`share/rewind/doc/std/`にあります。各moduleのMar
 | `tasks` | task/channel/scheduling |
 | `locale` | locale関連操作 |
 
-単一ファイルの既定許可はinput/output/args/locale/random/tasksです。file・env・clock・gui を使う場合はCLIで明示許可します。例えば次のプログラムには`rewind run main.rw --allow-effects fileRead,fileWrite`を使います。
+単一ファイルの既定許可はinput/output/args/locale/random/tasksです。file・env・clock・gui・external・network を使う場合はCLIで明示許可します。例えば次のプログラムには`rewind run main.rw --allow-effects fileRead,fileWrite`を使います。
 
 ```rewind
 File.writeText("state.txt","saved");
@@ -455,7 +455,7 @@ source内の`runtime`設定でexecutionSteps/historyMemory/historyStorage/spillT
 
 Linuxではcompilerとruntimeへ既定2GiBのaddress-space上限を適用し、`--memory-mib`で指定できます。WindowsではこのOS上限を提供せず、`--memory-mib`を明示するとunsupportedエラーです。両OSともVMのlogical予算は利用できます。allocator/OSの強制終了をResultとして回復する保証はありません。
 
-sourceは1MiB/module、module数256などのcompiler上限があります。公開artifact/record形式のcompiler版をまたぐ互換性は保証しないため、アップグレード時は再生成してください。プロセス実行、ネットワーク、JVM互換、任意の外部作用の巻き戻しは提供していません。
+sourceは1MiB/module、module数256などのcompiler上限があります。公開artifact/record形式のcompiler版をまたぐ互換性は保証しないため、アップグレード時は再生成してください。プロセス実行、JVM互換、任意の外部作用の巻き戻しは提供していません。HTTP/HTTPS は明示的な外部領域と権限で利用できます。
 
 ## GUI
 
@@ -465,4 +465,6 @@ sourceは1MiB/module、module数256などのcompiler上限があります。公�
 
 `external { ... }` は外部操作の結果を記録し、同じ checkpoint に戻った際は再利用します。`external fresh { ... }` は新しい操作です。結果は巻き戻さず、通常の変数と読取り位置だけを戻します。region の終了は publish ではありません。
 
-main task の active branch 外で使用します。領域内の checkpoint / publish、領域を抜ける制御フロー、task switching は拒否します。`std.external.millis` は `external,clock` の明示許可が必要です。HTTP / DB はまだ利用できません。例・容量・失敗は [1.5仕様](REWIND_v1.5.md) を参照してください。
+v1.6 では async task も active branch 外で外部領域を使用できます。領域内の checkpoint / publish、領域を抜ける制御フロー、await / task switching は拒否します。通信を領域内で送信し、領域を出てから await します。`std.external.millis` は `external,clock`、`std.http` の送信は `external,network,tasks` の明示許可が必要です。DB はまだ利用できません。例・容量・失敗は [1.5仕様](REWIND_v1.5.md) と [1.6仕様](REWIND_v1.6.md) を参照してください。
+
+v1.6 の main task は子 Task が動作中でも publish できます。その時点の仮想出力・file・GUI の差分を確定し、未完了の通信を完了扱いにしません。`task.isDone()` は待機せず完了を確認します。`Task.timeout` は従来どおり論理 step の上限です。HTTP の実時間上限は request の deadlineMillis / timeoutMillis で指定します。

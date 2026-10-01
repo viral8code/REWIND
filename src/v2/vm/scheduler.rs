@@ -14,6 +14,7 @@ pub(super) enum TaskPhase {
 #[derive(Clone)]
 enum TaskBody {
     Main,
+    HostOperation(usize),
     Function(String, Vec<Value>),
     Send(u64, Value),
     Receive(u64),
@@ -490,6 +491,67 @@ impl<R: BufRead> Vm<R> {
         args: &[Value],
         at: &Tok,
     ) -> Result<Option<Value>> {
+        if matches!(
+            name,
+            "stdExternalHttpStart" | "stdExternalHttpConfigured" | "stdExternalHttpAuthenticated"
+        ) {
+            let [Value::Text(method), Value::Text(url), Value::Bytes(body), Value::Int(timeout), Value::Int(limit)] =
+                &args[..5]
+            else {
+                return Err(self.error(at, "invalid HTTP arguments"));
+            };
+            let (headers, ca) = if name != "stdExternalHttpStart" {
+                let [header_value, Value::Bytes(ca)] = &args[5..7] else {
+                    return Err(self.error(at, "invalid HTTP configuration"));
+                };
+                let inner = v05::unfrozen(header_value)
+                    .ok_or_else(|| self.error(at, "HTTP headers require Frozen list"))?;
+                let Value::TypedList(_, values) = inner else {
+                    return Err(self.error(at, "HTTP headers require list"));
+                };
+                let mut headers = Vec::new();
+                for value in values.iter() {
+                    let Value::Struct(_, fields) = value else {
+                        return Err(self.error(at, "invalid HTTP header"));
+                    };
+                    let (Some(Value::Text(name)), Some(Value::Bytes(value))) =
+                        (fields.get("name"), fields.get("value"))
+                    else {
+                        return Err(self.error(at, "invalid HTTP header"));
+                    };
+                    headers.push((name.clone(), value.as_ref().clone()));
+                }
+                (headers, ca.clone())
+            } else {
+                (vec![], Arc::new(vec![]))
+            };
+            // Allocate the Task before any host operation can begin.
+            let task = self.new_action(
+                TaskBody::HostOperation(usize::MAX),
+                "Result<HttpResponse,HttpError>".into(),
+                Vec::new(),
+                at,
+            )?;
+            let task_id = handle_id(&task).unwrap();
+            let operation = self.engine.runtime.start_http(rewind::network::Request {
+                method: method.clone(),
+                url: url.clone(),
+                body: body.clone(),
+                timeout_ms: u64::try_from(*timeout).unwrap_or(0),
+                limit: usize::try_from(*limit).unwrap_or(usize::MAX),
+                headers,
+                ca,
+                credential: if let Some(Value::Text(alias)) = args.get(7) {
+                    alias.clone()
+                } else {
+                    String::new()
+                },
+            })?;
+            let state = self.scheduler.tasks.get_mut(&task_id).unwrap();
+            state.body = TaskBody::HostOperation(operation);
+            state.phase = TaskPhase::Ready;
+            return Ok(Some(task));
+        }
         if name == "TaskGroup" {
             if !args.is_empty() {
                 return Err(self.error(at, "TaskGroup takes no arguments"));
@@ -589,6 +651,21 @@ impl<R: BufRead> Vm<R> {
             }));
         }
         if ty.starts_with("Task<") {
+            if method == "isDone"
+                && args.is_empty()
+                && language_at_least(&self.engine.program.language, "1.6.0")
+            {
+                self.engine.runtime.require_internal()?;
+                self.pump_actions()?;
+                return Ok(Some(Value::Bool(
+                    self.scheduler
+                        .tasks
+                        .get(&id)
+                        .ok_or_else(|| diagnostic(at, "unknown Task"))?
+                        .phase
+                        == TaskPhase::Done,
+                )));
+            }
             match (method, args) {
                 ("ignore" | "detach", [])
                     if matches!(
@@ -1099,7 +1176,7 @@ impl<R: BufRead> Vm<R> {
         }
         Ok(())
     }
-    fn pump_actions(&mut self) {
+    fn pump_actions(&mut self) -> Result<()> {
         loop {
             let mut progress = false;
             let actions = self
@@ -1144,13 +1221,26 @@ impl<R: BufRead> Vm<R> {
                             | TaskBody::Join(..)
                             | TaskBody::Select(..)
                             | TaskBody::Timeout(..)
+                            | TaskBody::HostOperation(..)
                     )
                 {
+                    if let TaskBody::HostOperation(operation) = body {
+                        self.engine.runtime.cancel_http(*operation)?;
+                    }
                     self.complete_task(*id, Err("TaskCancelled".into()));
                     progress = true;
                     continue;
                 }
                 let result = match body {
+                    TaskBody::HostOperation(operation) => self
+                        .engine
+                        .runtime
+                        .poll_external(*operation)?
+                        .map(|value| match value {
+                            Ok(value) => http_value(value, &mut self.engine.runtime)
+                                .map_err(|_| "HttpRecordedResult".into()),
+                            Err(code) => Err(code),
+                        }),
                     TaskBody::Send(channel, value) => {
                         let c = self.scheduler.channels.get_mut(channel).unwrap();
                         if c.closed {
@@ -1343,6 +1433,7 @@ impl<R: BufRead> Vm<R> {
                 break;
             }
         }
+        Ok(())
     }
     pub(super) fn schedule(&mut self, at: &Tok) -> Result<bool> {
         let active = self.scheduler.active;
@@ -1351,7 +1442,7 @@ impl<R: BufRead> Vm<R> {
             self.scheduler.tasks.get_mut(&active).unwrap().context = Some(context);
         }
         self.expire_timeouts(at)?;
-        self.pump_actions();
+        self.pump_actions()?;
         if !self.scheduler.tasks.values().any(|t| {
             t.phase == TaskPhase::Ready && matches!(t.body, TaskBody::Main | TaskBody::Function(..))
         }) {
@@ -1373,8 +1464,19 @@ impl<R: BufRead> Vm<R> {
             {
                 self.scheduler.ticks = self.scheduler.ticks.max(deadline);
                 self.expire_timeouts(at)?;
-                self.pump_actions();
+                self.pump_actions()?;
             }
+        }
+        while !self.scheduler.tasks.values().any(|t| {
+            t.phase == TaskPhase::Ready && matches!(t.body, TaskBody::Main | TaskBody::Function(..))
+        }) && self
+            .scheduler
+            .tasks
+            .values()
+            .any(|t| t.phase != TaskPhase::Done && matches!(t.body, TaskBody::HostOperation(_)))
+        {
+            self.engine.runtime.wait_external_completion();
+            self.pump_actions()?;
         }
         let mut candidates = self
             .scheduler
@@ -1663,6 +1765,9 @@ impl<R: BufRead> Vm<R> {
         if task.phase == TaskPhase::Done {
             return Ok(());
         }
+        if let TaskBody::HostOperation(operation) = task.body {
+            self.engine.runtime.cancel_http(operation)?;
+        }
         self.scheduler.tasks.get_mut(&id).unwrap().ignored = true;
         let children = self
             .scheduler
@@ -1772,4 +1877,66 @@ impl<R: BufRead> Vm<R> {
         self.complete_task(id, Err(error));
         Ok(())
     }
+}
+
+fn http_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let invalid = || Error::InvalidOperation("ReplayMismatch: invalid HTTP response".into());
+    if let Some(error) = json.get("error") {
+        return Ok(Value::Result(Err(Box::new(Value::Struct(
+            "HttpError".into(),
+            BTreeMap::from([
+                (
+                    "code".into(),
+                    Value::Text(error["code"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "phase".into(),
+                    Value::Text(error["phase"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "status".into(),
+                    Value::Int(error["status"].as_i64().ok_or_else(invalid)?),
+                ),
+            ]),
+        )))));
+    }
+    let body = STANDARD
+        .decode(json["body"].as_str().ok_or_else(invalid)?)
+        .map_err(|_| invalid())?;
+    let mut headers = Vec::new();
+    for header in json["headers"].as_array().ok_or_else(invalid)? {
+        headers.push(Value::Struct(
+            "HttpHeader".into(),
+            BTreeMap::from([
+                (
+                    "name".into(),
+                    Value::Text(header["name"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "value".into(),
+                    Value::Bytes(Arc::new(
+                        STANDARD
+                            .decode(header["value"].as_str().ok_or_else(invalid)?)
+                            .map_err(|_| invalid())?,
+                    )),
+                ),
+            ]),
+        ));
+    }
+    let headers = v05::frozen(
+        Value::TypedList("HttpHeader".into(), headers.into()),
+        runtime,
+    );
+    Ok(Value::Result(Ok(Box::new(Value::Struct(
+        "HttpResponse".into(),
+        BTreeMap::from([
+            (
+                "status".into(),
+                Value::Int(json["status"].as_i64().ok_or_else(invalid)?),
+            ),
+            ("headers".into(), headers),
+            ("body".into(), Value::Bytes(Arc::new(body))),
+        ]),
+    )))))
 }

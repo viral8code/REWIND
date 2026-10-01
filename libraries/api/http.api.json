@@ -1,0 +1,279 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "1.6.0",
+  "symbols": {
+    "fn:component": {
+      "async": false,
+      "cost": "O(UTF-8 bytes); percent-encodes a query value or path component.",
+      "effects": [],
+      "failure": "Limit when the encoded component would exceed 1 MiB; does not encode an entire URL.",
+      "generics": [],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<String,StdError>"
+    },
+    "fn:configured": {
+      "async": false,
+      "cost": "O(request bytes + response bytes); reuses connections for the same CA.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError after awaiting; PEM CA adds trust, certificate and hostname verification remain enabled.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "String",
+        "Bytes",
+        "Int",
+        "Int",
+        "Frozen<List<HttpHeader>>",
+        "Bytes"
+      ],
+      "return": "Task<Result<HttpResponse,HttpError>>"
+    },
+    "fn:credential": {
+      "async": false,
+      "cost": "O(secret bytes); retains at most 64 immutable credential aliases.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpCredential/HttpCredentialImmutable/HttpCredentialLimit; accepts Secret<String>, never journals the private value.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Secret<String>"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:get": {
+      "async": false,
+      "cost": "O(response bytes); submits immediately and returns a Task.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError after awaiting; no automatic redirect or retry.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Int",
+        "Int"
+      ],
+      "return": "Task<Result<HttpResponse,HttpError>>"
+    },
+    "fn:request": {
+      "async": false,
+      "cost": "O(request bytes + response bytes); at most eight native operations run concurrently.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError after awaiting; requires external region, deadline 1..120000 ms and body limit 1..4194304 bytes.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "String",
+        "Bytes",
+        "Int",
+        "Int"
+      ],
+      "return": "Task<Result<HttpResponse,HttpError>>"
+    },
+    "fn:send": {
+      "async": false,
+      "cost": "O(request bytes + response bytes); public request uses a credential alias.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError after awaiting; fingerprint contains the public credential alias, never the private value.",
+      "generics": [],
+      "parameters": [
+        "Request"
+      ],
+      "return": "Task<Result<HttpResponse,HttpError>>"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Request": {
+      "constructor": true,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "url",
+          "String"
+        ],
+        [
+          "body",
+          "Bytes"
+        ],
+        [
+          "timeoutMillis",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "ca",
+          "Bytes"
+        ],
+        [
+          "credential",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

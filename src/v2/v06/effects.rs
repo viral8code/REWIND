@@ -41,7 +41,13 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
                 let n = resolve_alias(program, n);
                 if n.starts_with("stdExternal") {
                     needs.insert("external".into());
-                    needs.insert("clock".into());
+                    if n == "stdExternalClock" {
+                        needs.insert("clock".into());
+                    }
+                    if n.starts_with("stdExternalHttp") {
+                        needs.insert("network".into());
+                        needs.insert("tasks".into());
+                    }
                 }
                 if n.starts_with("stdGui") && n != "stdGuiEdit" {
                     needs.insert("gui".into());
@@ -142,7 +148,13 @@ impl Scan<'_> {
                     let base = n.split('<').next().unwrap_or(n);
                     if base.starts_with("stdExternal") {
                         self.needs.insert("external".into());
-                        self.needs.insert("clock".into());
+                        if base == "stdExternalClock" {
+                            self.needs.insert("clock".into());
+                        }
+                        if base.starts_with("stdExternalHttp") {
+                            self.needs.insert("network".into());
+                            self.needs.insert("tasks".into());
+                        }
                     }
                     if base.starts_with("stdGui") && base != "stdGuiEdit" {
                         self.needs.insert("gui".into());

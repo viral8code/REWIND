@@ -23,3 +23,5 @@ target
 
 # Standalone embedded standard-library cache
 **/.rewind/
+__pycache__/
+*.pyc

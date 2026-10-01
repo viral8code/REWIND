@@ -101,6 +101,7 @@ pub struct RunOptions {
     pub virtual_publish: bool,
     pub task_steps: Option<usize>,
     pub artifact: Option<serde_json::Value>,
+    pub artifact_path: Option<String>,
     pub allowed_effects: BTreeSet<String>,
     pub verify_key: Option<String>,
     pub pause_after: Option<usize>,
@@ -153,7 +154,7 @@ fn standalone_config(
     if fs::symlink_metadata(&metadata).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error::InvalidPath(metadata.display().to_string()));
     }
-    fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":["gui","external","clock"], "dependencies":{}})).unwrap())?;
+    fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":["gui","external","clock","network","tasks"], "dependencies":{}})).unwrap())?;
     config.imports.insert("std".into(), std_root);
     Ok(config)
 }
@@ -3673,8 +3674,16 @@ pub fn replay_trace(path: &Path, root: &Path, mut options: RunOptions) -> Result
             "ReplayMismatch: trace format/compiler".into(),
         ));
     }
-    let file = trace["entry"]
-        .as_str()
+    if trace.get("artifact_entry").is_some_and(|v| !v.is_string()) {
+        return Err(Error::InvalidOperation(
+            "ReplayMismatch: invalid artifact entry".into(),
+        ));
+    }
+    let artifact = trace
+        .get("artifact_entry")
+        .and_then(serde_json::Value::as_str);
+    let file = artifact
+        .or_else(|| trace["entry"].as_str())
         .ok_or_else(|| Error::InvalidOperation("ReplayMismatch: missing entry".into()))?;
     let relative = Path::new(file);
     if relative.is_absolute()
@@ -3685,6 +3694,7 @@ pub fn replay_trace(path: &Path, root: &Path, mut options: RunOptions) -> Result
         return Err(Error::InvalidPath(file.into()));
     }
     let entry = root.join(relative).to_string_lossy().into_owned();
+    let artifact_replay = artifact.is_some();
     let task_steps = trace["task_steps"]
         .as_u64()
         .and_then(|n| usize::try_from(n).ok())
@@ -3717,7 +3727,11 @@ pub fn replay_trace(path: &Path, root: &Path, mut options: RunOptions) -> Result
     options.standalone = trace["standalone"] == true;
     options.replay = Some(trace);
     options.virtual_publish = options.replay.as_ref().unwrap()["virtual_publish"] == true;
-    cli(mode, &entry, root, false, options)
+    if artifact_replay {
+        run_compiled(Path::new(&entry), root, options)
+    } else {
+        cli(mode, &entry, root, false, options)
+    }
 }
 pub fn debug_trace(path: &Path) -> Result<()> {
     if fs::metadata(path)?.len() > 128 * 1024 * 1024 {
@@ -5608,6 +5622,11 @@ impl Checker<'_> {
                                     | "2.0.0"
                             ) && types.is_empty()
                             {
+                                if method == "isDone"
+                                    && language_at_least(&self.program.language, "1.6.0")
+                                {
+                                    return Ok("Bool".into());
+                                }
                                 if method == "requestCancel" {
                                     return Ok("Unit".into());
                                 }

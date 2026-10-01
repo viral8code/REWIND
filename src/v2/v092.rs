@@ -32,7 +32,12 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdShiftUnsigned",
         "stdCountBits",
         "stdMulMod",
+        "stdHttpComponent",
         "stdExternalClock",
+        "stdExternalHttpStart",
+        "stdExternalHttpConfigured",
+        "stdExternalHttpAuthenticated",
+        "stdExternalHttpCredential",
         "stdGuiStage",
         "stdGuiPollEvent",
         "stdGuiEdit",
@@ -95,6 +100,40 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             ],
         },
     );
+    for (name, fields) in [
+        ("HttpHeader", vec![("name", "String"), ("value", "Bytes")]),
+        (
+            "HttpResponse",
+            vec![
+                ("status", "Int"),
+                ("headers", "Frozen<List<HttpHeader>>"),
+                ("body", "Bytes"),
+            ],
+        ),
+        (
+            "HttpError",
+            vec![("code", "String"), ("phase", "String"), ("status", "Int")],
+        ),
+    ] {
+        if p.structs.contains_key(name) || p.enums.contains_key(name) {
+            return Err(Error::InvalidOperation("reserved HTTP type".into()));
+        }
+        p.structs.insert(
+            name.into(),
+            StructDef {
+                private_fields: BTreeSet::new(),
+                bounds: BTreeMap::new(),
+                immutable: true,
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                fields: fields
+                    .into_iter()
+                    .map(|(a, b)| (a.into(), b.into()))
+                    .collect(),
+            },
+        );
+    }
     Ok(())
 }
 pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usize> {
@@ -180,6 +219,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if n.starts_with("stdExternal") && !language_at_least(&p.language, "1.5.0") {
         return Err(diagnostic(at, "external operations require language 1.5.0"));
     }
+    if n.starts_with("stdExternalHttp") && !language_at_least(&p.language, "1.6.0") {
+        return Err(diagnostic(at, "HTTP requires language 1.6.0"));
+    }
     if n.starts_with("stdGui") && !language_at_least(&p.language, "1.3.0") {
         return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
     }
@@ -190,7 +232,38 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         ));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdHttpComponent" => (&["String"], "Result<String,StdError>"),
         "stdExternalClock" => (&[], "Result<Int,StdError>"),
+        "stdExternalHttpCredential" => (&["String", "Secret<String>"], "Result<Unit,StdError>"),
+        "stdExternalHttpAuthenticated" => (
+            &[
+                "String",
+                "String",
+                "Bytes",
+                "Int",
+                "Int",
+                "Frozen<List<HttpHeader>>",
+                "Bytes",
+                "String",
+            ],
+            "Task<Result<HttpResponse,HttpError>>",
+        ),
+        "stdExternalHttpConfigured" => (
+            &[
+                "String",
+                "String",
+                "Bytes",
+                "Int",
+                "Int",
+                "Frozen<List<HttpHeader>>",
+                "Bytes",
+            ],
+            "Task<Result<HttpResponse,HttpError>>",
+        ),
+        "stdExternalHttpStart" => (
+            &["String", "String", "Bytes", "Int", "Int"],
+            "Task<Result<HttpResponse,HttpError>>",
+        ),
         "stdGuiEdit" => (
             &["String", "Int", "Int", "String", "String", "Bool"],
             "Result<String,StdError>",
@@ -259,6 +332,42 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if n == "stdHttpComponent" {
+        let [Value::Text(value)] = args else {
+            return Err(Error::InvalidOperation("invalid HTTP component".into()));
+        };
+        if value.len() > LIMIT / 3 {
+            return Ok(Some(outcome(Err(("Limit", 0)))));
+        }
+        let mut output = String::with_capacity(value.len() * 3);
+        const HEX: &[u8] = b"0123456789ABCDEF";
+        for byte in value.bytes() {
+            if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
+                output.push(byte as char);
+            } else {
+                output.push('%');
+                output.push(HEX[(byte >> 4) as usize] as char);
+                output.push(HEX[(byte & 15) as usize] as char);
+            }
+        }
+        return Ok(Some(outcome(Ok(Value::Text(output)))));
+    }
+    if n == "stdExternalHttpCredential" {
+        let [Value::Text(alias), secret] = args else {
+            return Err(Error::InvalidOperation(
+                "invalid credential arguments".into(),
+            ));
+        };
+        let Some(Value::Text(value)) = v05::unsecret(secret) else {
+            return Err(Error::InvalidOperation(
+                "credential requires Secret<String>".into(),
+            ));
+        };
+        let result = runtime.register_http_credential(alias, value)?;
+        return Ok(Some(outcome(
+            result.map(|_| Value::Null).map_err(|e| (e, 0)),
+        )));
+    }
     if n == "stdExternalClock" && args.is_empty() {
         let result = runtime.external_operation("clock.millis", b"", 128, || {
             std::time::SystemTime::now()

@@ -77,7 +77,7 @@ impl Runtime {
             .map(|(limit, segment)| Ok((*limit, segment.bytes()?)))
             .collect::<Result<Vec<_>>>()?;
         Ok(
-            json!({"format":1,"external_format":1,"external_entries":external_entries,"gui_events":self.gui_observations,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
+            json!({"format":1,"external_format":2,"external_entries":external_entries,"external_polls":self.external_polls,"gui_events":self.gui_observations,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
         )
     }
     pub fn import_observations(&mut self, data: &Json) -> Result<()> {
@@ -87,7 +87,10 @@ impl Runtime {
         if data["format"] != 1 {
             return Err(invalid("unsupported observation format"));
         }
-        if data.get("external_format").is_some_and(|v| v != 1) {
+        if data
+            .get("external_format")
+            .is_some_and(|v| v != 1 && v != 2)
+        {
             return Err(invalid("unsupported external observation format"));
         }
         let external_entries: Vec<external::Entry> = data
@@ -103,6 +106,21 @@ impl Runtime {
             .iter()
             .map(external::Entry::bytes)
             .fold(0usize, usize::saturating_add);
+        self.external_polls = data
+            .get("external_polls")
+            .map(|v| serde_json::from_value(v.clone()))
+            .transpose()
+            .map_err(|_| invalid("invalid external completion tape"))?
+            .unwrap_or_default();
+        if self.external_polls.len() > 1_000_000
+            || self
+                .external_polls
+                .iter()
+                .any(|p| p.operation >= external_entries.len())
+        {
+            return Err(invalid("invalid external completion tape"));
+        }
+        self.state.external_poll_cursor = 0;
         self.external_entries = external_entries;
         self.external_high_water = 0;
         self.state.external_cursor = 0;
@@ -288,6 +306,8 @@ impl Runtime {
             hash.update((self.state.external_cursor as u64).to_le_bytes());
             hash.update((self.external_high_water as u64).to_le_bytes());
             hash.update((self.external_depth as u64).to_le_bytes());
+            hash.update(self.external_owner.to_le_bytes());
+            hash.update((self.state.external_poll_cursor as u64).to_le_bytes());
         }
         if self.incremental_publish {
             hash.update((self.state.byte_cursor as u64).to_le_bytes());

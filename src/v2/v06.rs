@@ -22,6 +22,7 @@ pub(super) const KNOWN: &[&str] = &[
     "tasks",
     "gui",
     "external",
+    "network",
 ];
 pub(super) fn borrowed_type(t: &str) -> &str {
     t.strip_prefix("&mut ")

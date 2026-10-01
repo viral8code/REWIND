@@ -485,6 +485,10 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     {
         return Err(invalid("bytecode/type IR mismatch"));
     }
+    options.artifact_path = fs::canonicalize(path)?
+        .strip_prefix(&root)
+        .ok()
+        .map(|p| p.to_string_lossy().replace('\\', "/"));
     options.artifact = Some(payload["build"].clone());
     vm::execute(program, &root, false, "run", options)
 }

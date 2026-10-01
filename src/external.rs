@@ -3,21 +3,24 @@ use crate::{Error, Result, Runtime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-const LIMIT: usize = 1024 * 1024;
+const LIMIT: usize = 16 * 1024 * 1024;
 const ENTRIES: usize = 1_000_000;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Entry {
     fingerprint: String,
     // None denotes an operation whose outcome could not be recorded. Never retry it.
     outcome: Option<String>,
-    reservation: usize,
+    pub(crate) reservation: usize,
+    #[serde(default)]
+    pub(crate) pending: bool,
 }
 impl Entry {
     pub(crate) fn bytes(&self) -> usize {
         self.reservation + 192
     }
     pub(crate) fn validate(&self) -> bool {
-        self.fingerprint.len() == 64
+        !self.pending
+            && self.fingerprint.len() == 64
             && self.fingerprint.bytes().all(|b| b.is_ascii_hexdigit())
             && self.reservation <= LIMIT
             && self.outcome.as_ref().is_none_or(|s| {
@@ -38,6 +41,11 @@ impl Runtime {
             ));
         }
         for entry in &self.external_entries {
+            if entry.pending {
+                return Err(invalid(
+                    "TraceIncompleteExternal: await or cancel pending operations before exporting",
+                ));
+            }
             if let Some(s) = &entry.outcome {
                 let value: Value = serde_json::from_str(s)
                     .map_err(|_| invalid("ReplayMismatch: invalid external result"))?;
@@ -61,8 +69,15 @@ impl Runtime {
         self.require_internal()?;
         if fresh {
             self.state.external_cursor = self.external_high_water;
+            self.state.external_poll_cursor = self.external_poll_high_water;
         }
         self.external_depth = 1;
+        self.external_owner = 0;
+        Ok(())
+    }
+    pub fn enter_external_task(&mut self, fresh: bool, owner: u64) -> Result<()> {
+        self.enter_external(fresh)?;
+        self.external_owner = owner;
         Ok(())
     }
     pub fn exit_external(&mut self) -> Result<()> {
@@ -70,6 +85,7 @@ impl Runtime {
             return Err(invalid("ExternalBoundary: no active external region"));
         }
         self.external_depth = 0;
+        self.external_owner = 0;
         Ok(())
     }
     pub fn external_operation(
@@ -95,6 +111,10 @@ impl Runtime {
             }
         }
         let mut hash = Sha256::new();
+        if self.external_owner != 0 {
+            hash.update(b"task-external-v1");
+            hash.update(self.external_owner.to_le_bytes());
+        }
         hash.update((kind.len() as u64).to_le_bytes());
         hash.update(kind.as_bytes());
         hash.update(request);
@@ -133,6 +153,7 @@ impl Runtime {
             fingerprint,
             outcome: None,
             reservation: max_result,
+            pending: false,
         });
         self.external_memory_bytes = self.external_memory_bytes.saturating_add(max_result + 192);
         if let Err(e) = self.enforce_budget() {
@@ -259,5 +280,209 @@ impl<T> Resources<T> {
     }
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct Poll {
+    pub(crate) operation: usize,
+    pub(crate) ready: bool,
+}
+impl Runtime {
+    pub(crate) fn begin_async_external(
+        &mut self,
+        kind: &str,
+        request: &[u8],
+        max_result: usize,
+    ) -> Result<(usize, bool)> {
+        if self.external_depth != 1 {
+            return Err(invalid(
+                "ExternalBoundary: operation requires external region",
+            ));
+        }
+        if max_result == 0 || max_result > LIMIT || request.len() > LIMIT {
+            return Err(invalid("ExternalLimit"));
+        }
+        let mut hash = Sha256::new();
+        if self.external_owner != 0 {
+            hash.update(b"task-external-v1");
+            hash.update(self.external_owner.to_le_bytes());
+        }
+        hash.update((kind.len() as u64).to_le_bytes());
+        hash.update(kind.as_bytes());
+        hash.update(request);
+        let fingerprint = format!("{:x}", hash.finalize());
+        let cursor = self.state.external_cursor;
+        let fresh = if let Some(e) = self.external_entries.get(cursor) {
+            if e.fingerprint != fingerprint {
+                return Err(invalid(
+                    "ExternalRequestMismatch: use external fresh for a new operation",
+                ));
+            }
+            if !e.pending && e.outcome.is_none() {
+                return Err(invalid(
+                    "ExternalOutcomeUnknown: automatic retry is forbidden",
+                ));
+            }
+            false
+        } else {
+            if self.replaying {
+                return Err(invalid("ReplayMismatch: external journal exhausted"));
+            }
+            if cursor != self.external_entries.len() || cursor >= ENTRIES {
+                return Err(invalid("ExternalLimit"));
+            }
+            self.external_entries
+                .try_reserve(1)
+                .map_err(|_| invalid("ExternalAllocation"))?;
+            let mut buffer = Vec::new();
+            buffer
+                .try_reserve_exact(max_result)
+                .map_err(|_| invalid("ExternalAllocation"))?;
+            self.external_buffers.insert(cursor, buffer);
+            self.external_entries.push(Entry {
+                fingerprint,
+                outcome: None,
+                reservation: max_result,
+                pending: true,
+            });
+            self.external_memory_bytes =
+                self.external_memory_bytes.saturating_add(max_result + 192);
+            if let Err(e) = self.enforce_budget() {
+                self.external_buffers.remove(&cursor);
+                self.external_entries.pop();
+                self.external_memory_bytes =
+                    self.external_memory_bytes.saturating_sub(max_result + 192);
+                return Err(e);
+            }
+            true
+        };
+        if fresh {
+            self.external_pending += 1;
+        }
+        self.state.external_cursor += 1;
+        self.external_high_water = self.external_high_water.max(self.state.external_cursor);
+        Ok((cursor, fresh))
+    }
+    pub(crate) fn finish_async_external(
+        &mut self,
+        id: usize,
+        result: std::result::Result<Value, String>,
+    ) -> Result<()> {
+        let entry = self
+            .external_entries
+            .get_mut(id)
+            .ok_or_else(|| invalid("ExternalOperationUnknown"))?;
+        if !entry.pending {
+            return Ok(());
+        }
+        entry.pending = false;
+        self.external_pending = self.external_pending.saturating_sub(1);
+        let mut buffer = self
+            .external_buffers
+            .remove(&id)
+            .ok_or_else(|| invalid("ExternalOutcomeUnknown"))?;
+        struct Bounded<'a>(&'a mut Vec<u8>, usize);
+        impl std::io::Write for Bounded<'_> {
+            fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+                if self.0.len().saturating_add(b.len()) > self.1 {
+                    return Err(std::io::Error::other("external result limit"));
+                }
+                self.0.extend_from_slice(b);
+                Ok(b.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        serde_json::to_writer(Bounded(&mut buffer, entry.reservation), &result)
+            .map_err(|_| invalid("ExternalOutcomeUnknown: result recording failed"))?;
+        let text = String::from_utf8(buffer).map_err(|_| invalid("ExternalOutcomeUnknown"))?;
+        self.external_memory_bytes = self
+            .external_memory_bytes
+            .saturating_sub(entry.reservation)
+            .saturating_add(text.capacity());
+        entry.reservation = text.capacity();
+        entry.outcome = Some(text);
+        Ok(())
+    }
+    pub fn poll_external(
+        &mut self,
+        id: usize,
+    ) -> Result<Option<std::result::Result<Value, String>>> {
+        if id >= self.external_entries.len() {
+            return Err(invalid("ExternalOperationUnknown"));
+        }
+        let cursor = self.state.external_poll_cursor;
+        let ready = if let Some(p) = self.external_polls.get(cursor) {
+            if p.operation != id {
+                return Err(invalid("ReplayMismatch: external completion order changed"));
+            }
+            p.ready
+        } else {
+            if self.replaying {
+                return Err(invalid(
+                    "ReplayMismatch: external completion tape exhausted",
+                ));
+            }
+            if cursor >= ENTRIES {
+                return Err(invalid("ExternalLimit: completion polls"));
+            }
+            self.external_polls
+                .try_reserve(1)
+                .map_err(|_| invalid("ExternalAllocation"))?;
+            self.external_polls.push(Poll {
+                operation: id,
+                ready: false,
+            });
+            if let Err(e) = self.enforce_budget() {
+                self.external_polls.pop();
+                return Err(e);
+            }
+            if self.external_entries[id].pending {
+                let result = self.network_host.as_mut().and_then(|h| h.poll(id));
+                if let Some(mut result) = result {
+                    if crate::network::protects_secret(&result, &self.sensitive_values) {
+                        result = crate::network::failure(
+                            "HttpSecretResponse",
+                            "ResponseReceived",
+                            result["status"].as_u64().unwrap_or(0) as u16,
+                        );
+                    }
+                    self.finish_async_external(id, Ok(result))?;
+                }
+            }
+            let ready = !self.external_entries[id].pending;
+            self.external_polls[cursor].ready = ready;
+            ready
+        };
+        self.state.external_poll_cursor += 1;
+        self.external_poll_high_water = self
+            .external_poll_high_water
+            .max(self.state.external_poll_cursor);
+        if ready {
+            let work = self.external_entries[id]
+                .outcome
+                .as_ref()
+                .map_or(1, |s| s.len().saturating_add(1));
+            self.charge_native_work(work)?;
+            let s = self.external_entries[id]
+                .outcome
+                .as_ref()
+                .ok_or_else(|| invalid("ExternalOutcomeUnknown: automatic retry is forbidden"))?;
+            Ok(Some(serde_json::from_str(s).map_err(|_| {
+                invalid("ReplayMismatch: invalid external result")
+            })?))
+        } else {
+            Ok(None)
+        }
+    }
+    pub fn external_waiting(&self) -> bool {
+        self.external_pending != 0
+    }
+    pub fn wait_external_completion(&self) {
+        if !self.replaying {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
     }
 }

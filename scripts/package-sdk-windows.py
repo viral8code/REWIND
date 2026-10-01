@@ -136,6 +136,7 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     (external/'main.rw').unlink()
     shutil.rmtree(external/'.rewind')
     lines=run([exe,external/'main.rwc','--allow-effects','external,clock']).splitlines()
+    run([sys.executable,root/'scripts/smoke-http-sdk.py',exe,work/'http'])
     assert len(lines)==2 and lines[0]==lines[1] and int(lines[0])>0
     assert b'rewind compile' in run([exe,'compile','--help'])
     # Existing-file replacement and checkpoint restore are exercised on the host OS.
