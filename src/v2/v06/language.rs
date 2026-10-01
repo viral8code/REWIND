@@ -296,6 +296,7 @@ pub(in crate::v2) fn prepare(program: &mut Program) -> Result<()> {
             | "0.9.8"
             | "0.9.9"
             | "1.0.0"
+            | "1.1.0"
     ) {
         if !program.aliases.is_empty() || uses_defaults {
             return Err(Error::InvalidOperation(

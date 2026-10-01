@@ -344,7 +344,7 @@ fn signed_sdk_is_reproducible_installable_and_detects_tampering() {
         "REWIND_COUNT",
     ]));
     assert!(production.join("state.json").exists());
-    let binary = sdk.join("bin/rewind");
+    let binary = sdk.join(format!("bin/rewind{}", std::env::consts::EXE_SUFFIX));
     let original = fs::read(&binary).unwrap();
     fs::write(&binary, b"tampered").unwrap();
     assert!(!verify().status.success());

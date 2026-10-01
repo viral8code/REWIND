@@ -44,6 +44,7 @@ impl Segment {
             .create_new(true)
             .open(&path)?;
         if let Err(e) = file.write_all(bytes).and_then(|_| file.sync_all()) {
+            drop(file);
             let _ = fs::remove_file(&path);
             return Err(e.into());
         }

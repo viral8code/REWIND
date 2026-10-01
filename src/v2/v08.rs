@@ -35,6 +35,7 @@ pub(in crate::v2) fn inspection_trace(mut value: Json) -> Result<Json> {
                     | "0.9.8"
                     | "0.9.9"
                     | "1.0.0"
+                    | "1.1.0"
             )
         )
         || value["debug"]["index"]["format"] != 1

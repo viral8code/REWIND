@@ -649,8 +649,15 @@ pub(super) fn request(
 }
 
 pub(super) fn diagnostics(root: &Path, path: &Path, text: &str, error: &Error) -> Vec<Json> {
+    let mut enriched = match error {
+        Error::Diagnostic(d) => Some((**d).clone()),
+        _ => None,
+    };
+    if let Some(d) = &mut enriched {
+        v11::enrich(d);
+    }
     let d = match error {
-        Error::Diagnostic(d) => Some(d.as_ref()),
+        Error::Diagnostic(_) => enriched.as_ref(),
         _ => None,
     };
     let location = d
@@ -668,6 +675,10 @@ pub(super) fn diagnostics(root: &Path, path: &Path, text: &str, error: &Error) -
     let col = utf16_column(&source, location.0, location.1);
     let mut result = json!({"range":{"start":{"line":location.0,"character":col},"end":{"line":location.0,"character":col+1}},"severity":1,"source":"rewind","message":error.to_string(),"code":d.map(|d|d.code.as_str()).unwrap_or("Error")});
     if let Some(d) = d {
+        result["data"] = json!({"hints":d.hints,"frames":d.frames});
+        if !d.hints.is_empty() {
+            result["message"] = json!(format!("{}\n{}", d.message, d.hints.join("\n")));
+        }
         fn causes<'a>(
             d: &'a rewind::DiagnosticRecord,
             out: &mut Vec<&'a rewind::DiagnosticRecord>,

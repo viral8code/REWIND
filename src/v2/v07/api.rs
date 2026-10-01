@@ -41,6 +41,7 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
             | "0.9.8"
             | "0.9.9"
             | "1.0.0"
+            | "1.1.0"
     ) {
         return Err(Error::InvalidOperation(
             "API snapshot requires language 0.7".into(),
@@ -141,7 +142,7 @@ fn document(root: &Path) -> Result<Json> {
             );
         }
     }
-    if p.language == "1.0.0" {
+    if matches!(p.language.as_str(), "1.0.0" | "1.1.0") {
         let source = fs::read_to_string(&p.root_origin)?;
         for line in source.lines() {
             let Some(rest) = line.trim().strip_prefix("// @api ") else {

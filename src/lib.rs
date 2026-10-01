@@ -322,9 +322,24 @@ pub struct DiagnosticRecord {
     pub line: usize,
     pub column: usize,
     pub task_id: Option<u64>,
+    /// Innermost failure first, followed by caller locations. No local values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub frames: Vec<DiagnosticFrame>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hints: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub frames_truncated: bool,
     pub causes: Vec<DiagnosticRecord>,
     pub wait_edges: Vec<WaitEdge>,
 }
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DiagnosticFrame {
+    pub function: String,
+    pub source: String,
+    pub line: usize,
+    pub column: usize,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum WaitTarget {
     Task(u64),
@@ -2851,6 +2866,7 @@ fn replace_file(from: &Path, to: &Path) -> io::Result<()> {
 #[cfg(windows)]
 fn replace_file(from: &Path, to: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
     unsafe extern "system" {
         fn MoveFileExW(from: *const u16, to: *const u16, flags: u32) -> i32;
     }

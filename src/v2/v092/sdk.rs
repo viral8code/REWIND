@@ -133,9 +133,9 @@ fn inventory(root: &Path) -> Result<J> {
     Ok(J::Object(files))
 }
 pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
-    if target() != "x86_64-linux" {
+    if !matches!(target().as_str(), "x86_64-linux" | "x86_64-windows") {
         return Err(invalid(
-            "SDK assembly currently requires the tested x86_64-linux target",
+            "SDK assembly supports Linux x86_64 and Windows x86_64",
         ));
     }
     // Read/check the caller's seed before creating an owned new directory.
@@ -152,14 +152,23 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         let output = fs::canonicalize(output)?;
         let binary = std::env::current_exe()?;
         fs::create_dir(output.join("bin"))?;
-        fs::copy(&binary, output.join("bin/rewind"))?;
-        fs::copy(&binary, output.join("bin/rewindc"))?;
+        fs::copy(
+            &binary,
+            output.join(format!("bin/rewind{}", std::env::consts::EXE_SUFFIX)),
+        )?;
+        fs::copy(
+            &binary,
+            output.join(format!("bin/rewindc{}", std::env::consts::EXE_SUFFIX)),
+        )?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(output.join("bin/rewind"), fs::Permissions::from_mode(0o755))?;
             fs::set_permissions(
-                output.join("bin/rewindc"),
+                output.join(format!("bin/rewind{}", std::env::consts::EXE_SUFFIX)),
+                fs::Permissions::from_mode(0o755),
+            )?;
+            fs::set_permissions(
+                output.join(format!("bin/rewindc{}", std::env::consts::EXE_SUFFIX)),
                 fs::Permissions::from_mode(0o755),
             )?;
         }
@@ -371,7 +380,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "licenses/third-party.md",
-            include_bytes!("../../../licenses/third-party-linux-x86_64.md"),
+            include_bytes!("../../../licenses/third-party-sdk.md"),
         )?;
         write(
             &output,
@@ -425,8 +434,8 @@ pub(in crate::v2) fn verify(sdk: &Path, public: &str) -> Result<()> {
         return Err(invalid("version, target or file inventory mismatch"));
     }
     for required in [
-        "bin/rewind",
-        "bin/rewindc",
+        &format!("bin/rewind{}", std::env::consts::EXE_SUFFIX),
+        &format!("bin/rewindc{}", std::env::consts::EXE_SUFFIX),
         "lib/rewind/std/rewind.package.json",
         "share/rewind/doc/std-api.json",
         "licenses/REWIND-MIT.txt",

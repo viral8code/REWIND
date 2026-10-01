@@ -20,6 +20,7 @@ pub(in crate::v2) fn stamp() -> String {
                 include_str!("../../v2.rs"),
                 include_str!("../v05.rs"),
                 include_str!("../v100.rs"),
+                include_str!("../v11.rs"),
                 include_str!("../vm.rs"),
                 include_str!("../vm/scheduler.rs"),
                 include_str!("../vm/extensions.rs"),

@@ -1,0 +1,22 @@
+name: Windows SDK
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  sdk:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          components: rustfmt
+      - run: cargo fmt --check
+      - run: cargo test --locked
+      - run: cargo build --release --locked
+      - run: target/release/rewind.exe test --root libraries/std
+      - name: Verify extracted Windows SDK
+        run: python scripts/package-sdk-windows.py "${{ runner.temp }}/windows-assets"
