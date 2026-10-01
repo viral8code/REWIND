@@ -57,6 +57,7 @@ struct FunctionChunk {
     code: Vec<Inst>,
     closures: BTreeMap<String, Function>,
     hidden: usize,
+    closure_typing: BTreeMap<String, Vec<BTreeMap<String, (String, bool)>>>,
 }
 fn relocate(code: &mut [Inst], base: usize, relative: bool) {
     for inst in code {
@@ -91,8 +92,93 @@ struct Compiler {
     closure_defs: BTreeMap<String, Function>,
     aliases: BTreeMap<String, String>,
     type_params: Vec<(String, Option<String>)>,
+    typing_program: Program,
+    typing_scopes: Vec<BTreeMap<String, (String, bool)>>,
+    typing_origin: PathBuf,
+    closure_typing: BTreeMap<String, Vec<BTreeMap<String, (String, bool)>>>,
 }
 impl Compiler {
+    fn expression_type(&self, e: &Expr) -> Option<String> {
+        if self.typing_program.language != "0.9.2" {
+            return None;
+        }
+        let checker = Checker {
+            program: &self.typing_program,
+            scopes: self.typing_scopes.clone(),
+            return_ty: None,
+            loop_depth: 0,
+            bounds: self
+                .type_params
+                .iter()
+                .filter_map(|(n, b)| b.as_ref().map(|b| (n.clone(), b.clone())))
+                .collect(),
+            origin: self.typing_origin.clone(),
+        };
+        checker.expr(e).ok()
+    }
+    fn call_name(&self, name: &str, args: &[Expr], at: &Tok) -> String {
+        if self.typing_program.language != "0.9.2" || name.contains('<') {
+            return name.into();
+        }
+        let Some(f) = self.typing_program.functions.get(name) else {
+            return name.into();
+        };
+        if f.type_params.is_empty() {
+            return name.into();
+        }
+        let Some(types) = args
+            .iter()
+            .map(|e| self.expression_type(e))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return name.into();
+        };
+        let params = f
+            .type_params
+            .iter()
+            .map(|(n, _)| n.clone())
+            .collect::<Vec<_>>();
+        let Ok(sub) = infer_call_arguments(name, &f.params, &params, &types, at) else {
+            return name.into();
+        };
+        format!(
+            "{name}<{}>",
+            params
+                .iter()
+                .map(|p| sub[p].clone())
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+    fn pattern_types(&mut self, pattern: &Pattern, ty: Option<&str>, at: &Tok) {
+        let Some(ty) = ty else {
+            return;
+        };
+        let checker = Checker {
+            program: &self.typing_program,
+            scopes: self.typing_scopes.clone(),
+            return_ty: None,
+            loop_depth: 0,
+            bounds: self
+                .type_params
+                .iter()
+                .filter_map(|(n, b)| b.as_ref().map(|b| (n.clone(), b.clone())))
+                .collect(),
+            origin: self.typing_origin.clone(),
+        };
+        let mut bindings = BTreeMap::new();
+        if checker
+            .pattern(
+                &resolve_pattern_alias(pattern, &self.aliases),
+                ty,
+                at,
+                &mut bindings,
+            )
+            .is_ok()
+        {
+            self.typing_scopes.last_mut().unwrap().extend(bindings);
+        }
+    }
     fn aliased(&self, name: &str) -> String {
         if let Some((head, tail)) = name.split_once("::") {
             let base = head.split('<').next().unwrap_or(head);
@@ -119,6 +205,10 @@ impl Compiler {
             hidden: 0,
             closure_defs: BTreeMap::new(),
             aliases: BTreeMap::new(),
+            typing_program: Program::default(),
+            typing_scopes: vec![BTreeMap::new()],
+            typing_origin: PathBuf::new(),
+            closure_typing: BTreeMap::new(),
             type_params: Vec::new(),
         }
     }
@@ -138,10 +228,12 @@ impl Compiler {
         }
     }
     fn enter(&mut self, at: &Tok) {
+        self.typing_scopes.push(BTreeMap::new());
         self.emit(Op::Enter, at);
         self.depth += 1;
     }
     fn exit(&mut self, at: &Tok) {
+        self.typing_scopes.pop();
         self.emit(Op::Exit, at);
         self.depth -= 1;
     }
@@ -156,8 +248,12 @@ impl Compiler {
     fn compile(program: &Program) -> Result<Self> {
         let mut c = Self::new();
         c.aliases = program.import_aliases.clone();
+        c.typing_program = program.clone();
+        c.typing_origin = program.root_origin.clone();
         for stmt in &program.stmts {
-            let guard = if program.language == "0.9.1" && stmt.at.text == "@application-entry" {
+            let guard = if matches!(program.language.as_str(), "0.9.1" | "0.9.2")
+                && stmt.at.text == "@application-entry"
+            {
                 Some(c.emit(Op::ApplicationEntry(0), &stmt.at))
             } else {
                 None
@@ -176,7 +272,7 @@ impl Compiler {
         c.emit(Op::Halt, &end);
         for (name, f) in &program.functions {
             c.functions.insert(name.clone(), c.code.len());
-            c.compile_function(f, program)?;
+            c.compile_function(name, f, program)?;
         }
         let mut compiled = BTreeSet::new();
         loop {
@@ -191,30 +287,52 @@ impl Compiler {
             }
             for (name, f) in pending {
                 compiled.insert(name.clone());
-                c.functions.insert(name, c.code.len());
-                c.compile_function(&f, program)?;
+                c.functions.insert(name.clone(), c.code.len());
+                c.compile_function(&name, &f, program)?;
             }
         }
         Ok(c)
     }
-    fn compile_function(&mut self, f: &Function, program: &Program) -> Result<()> {
+    fn compile_function(&mut self, name: &str, f: &Function, program: &Program) -> Result<()> {
         let root = program.root_origin.parent().unwrap_or(Path::new("."));
-        let key = v06::cache::key(&(f, &self.aliases, self.hidden, &program.language))
-            .unwrap_or_default();
+        let key = v06::cache::key(&(
+            f,
+            &self.aliases,
+            self.hidden,
+            &program.language,
+            (program.language == "0.9.2").then_some(program),
+            self.closure_typing.get(name),
+        ))
+        .unwrap_or_default();
         let base = self.code.len();
         if matches!(
             program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
                 relocate(&mut chunk.code, base, false);
                 self.code.extend(chunk.code);
                 self.closure_defs.extend(chunk.closures);
+                self.closure_typing.extend(chunk.closure_typing);
                 self.hidden = chunk.hidden;
                 return Ok(());
             }
         }
         let before = self.closure_defs.keys().cloned().collect::<BTreeSet<_>>();
+        let typing_scopes = self.typing_scopes.clone();
+        let typing_origin = self.typing_origin.clone();
+        if let Some(context) = self.closure_typing.get(name) {
+            self.typing_scopes = context.clone();
+        } else {
+            self.typing_scopes.truncate(1);
+        }
+        self.typing_scopes.push(
+            f.params
+                .iter()
+                .map(|(n, t)| (n.clone(), (t.clone(), false)))
+                .collect(),
+        );
+        self.typing_origin = f.origin.clone();
         self.type_params = f.type_params.clone();
         self.depth = 1;
         for stmt in &f.body {
@@ -223,9 +341,11 @@ impl Compiler {
         self.emit(Op::Push(Value::Null), &f.at);
         self.emit(Op::Return, &f.at);
         self.depth = 0;
+        self.typing_scopes = typing_scopes;
+        self.typing_origin = typing_origin;
         if matches!(
             program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
         ) {
             let mut code = self.code[base..].to_vec();
             relocate(&mut code, base, true);
@@ -243,6 +363,7 @@ impl Compiler {
                     code,
                     closures,
                     hidden: self.hidden,
+                    closure_typing: self.closure_typing.clone(),
                 },
             );
         }
@@ -252,7 +373,17 @@ impl Compiler {
         let at = &stmt.at;
         match &stmt.kind {
             StmtKind::Let(name, mutable, ty, value) => {
+                let inferred = ty
+                    .as_ref()
+                    .map(|ty| rename_type(ty, &self.aliases))
+                    .or_else(|| self.expression_type(value));
                 self.expr(value)?;
+                if let Some(ty) = inferred {
+                    self.typing_scopes
+                        .last_mut()
+                        .unwrap()
+                        .insert(name.clone(), (ty, *mutable));
+                }
                 self.emit(
                     Op::Declare(
                         name.clone(),
@@ -338,6 +469,10 @@ impl Compiler {
                 self.enter(at);
                 self.emit(Op::Load(current.clone()), at);
                 self.emit(Op::Declare(name.clone(), false, Some("Int".into())), at);
+                self.typing_scopes
+                    .last_mut()
+                    .unwrap()
+                    .insert(name.clone(), ("Int".into(), false));
                 for s in body {
                     self.stmt(s)?;
                 }
@@ -418,6 +553,7 @@ impl Compiler {
                 self.emit(Op::Runtime(*budget, *steps), at);
             }
             StmtKind::Match(value, arms) => {
+                let value_type = self.expression_type(value);
                 self.hidden += 1;
                 let hidden = format!("$match{}", self.hidden);
                 self.enter(at);
@@ -426,6 +562,7 @@ impl Compiler {
                 let mut ends = Vec::new();
                 for (pattern, guard, body) in arms {
                     self.enter(at);
+                    self.pattern_types(pattern, value_type.as_deref(), at);
                     self.emit(Op::Load(hidden.clone()), at);
                     let miss = self.emit(
                         Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0),
@@ -517,7 +654,8 @@ impl Compiler {
                             for arg in args {
                                 self.expr(arg)?;
                             }
-                            self.emit(Op::Call(symbol, args.len()), &e.at);
+                            let call = self.call_name(&symbol, args, &e.at);
+                            self.emit(Op::Call(call, args.len()), &e.at);
                             return Ok(());
                         }
                         if matches!(
@@ -552,7 +690,8 @@ impl Compiler {
                     for arg in args {
                         self.expr(arg)?;
                     }
-                    self.emit(Op::Call(self.aliased(name), args.len()), &e.at);
+                    let call = self.call_name(&self.aliased(name), args, &e.at);
+                    self.emit(Op::Call(call, args.len()), &e.at);
                 } else {
                     self.expr(target)?;
                     for arg in args {
@@ -566,6 +705,7 @@ impl Compiler {
                 self.emit(Op::Try, &e.at);
             }
             ExprKind::Match(value, arms) => {
+                let value_type = self.expression_type(value);
                 self.hidden += 1;
                 let hidden = format!("$match{}", self.hidden);
                 self.enter(&e.at);
@@ -574,6 +714,7 @@ impl Compiler {
                 let mut ends = Vec::new();
                 for (pattern, guard, arm) in arms {
                     self.enter(&e.at);
+                    self.pattern_types(pattern, value_type.as_deref(), &e.at);
                     self.emit(Op::Load(hidden.clone()), &e.at);
                     let miss = self.emit(
                         Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0),
@@ -605,6 +746,8 @@ impl Compiler {
             ExprKind::Closure(params, ret, body) => {
                 self.hidden += 1;
                 let name = format!("$closure{}", self.hidden);
+                self.closure_typing
+                    .insert(name.clone(), self.typing_scopes.clone());
                 let ty = format!(
                     "fn({})->{ret}",
                     params
@@ -625,7 +768,7 @@ impl Compiler {
                         at: e.at.clone(),
                         test: false,
                         public: false,
-                        origin: PathBuf::new(),
+                        origin: self.typing_origin.clone(),
                     },
                 );
                 let callable = if self.type_params.is_empty() {
@@ -859,7 +1002,7 @@ impl<R: BufRead> Vm<R> {
     fn error(&self, at: &Tok, message: impl AsRef<str>) -> Error {
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
         ) {
             let message = self
                 .engine
@@ -1159,7 +1302,7 @@ impl<R: BufRead> Vm<R> {
         }
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
         ) {
             return first_error.map_or(Ok(()), |e| {
                 let mut d = self.record_error(&e, at, self.scheduler.active);
@@ -1169,7 +1312,7 @@ impl<R: BufRead> Vm<R> {
         }
         if matches!(
             self.engine.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
         ) {
             first_error.map_or(Ok(()), |e| {
                 let mut message = e.to_string();
@@ -1382,12 +1525,12 @@ impl<R: BufRead> Vm<R> {
         if result.is_ok()
             && matches!(
                 self.engine.program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
             )
         {
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
                     result = Err(Error::Diagnostic(Box::new(error)));
@@ -1449,7 +1592,7 @@ impl<R: BufRead> Vm<R> {
             }
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
             ) {
                 let mut failure =
                     self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
@@ -1457,7 +1600,7 @@ impl<R: BufRead> Vm<R> {
                 result = Err(Error::Diagnostic(Box::new(failure)));
             } else if matches!(
                 self.engine.program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
             ) && !causes.is_empty()
             {
                 let mut message = result.unwrap_err().to_string();
@@ -1475,7 +1618,7 @@ impl<R: BufRead> Vm<R> {
         let mut outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string())))});
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
         ) {
             outcome["diagnostic"] = execution_error
                 .and_then(|e| {
@@ -1503,7 +1646,7 @@ impl<R: BufRead> Vm<R> {
             let mut trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
             ) {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
@@ -1568,7 +1711,7 @@ impl<R: BufRead> Vm<R> {
             }
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
             }
@@ -1628,14 +1771,14 @@ impl<R: BufRead> Vm<R> {
                     .to_string();
                 if matches!(
                     self.engine.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                 ) {
                     self.index_state(&inst.at)?;
                 }
                 let mut event = serde_json::json!({"task":self.scheduler.active,"pc":self.pc,"operation":operation});
                 if matches!(
                     self.engine.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
                     event["line"] = serde_json::json!(inst.at.line);
@@ -1693,7 +1836,7 @@ impl<R: BufRead> Vm<R> {
                             name.clone(),
                             if matches!(
                                 self.engine.program.language.as_str(),
-                                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                             ) {
                                 let ty = v06::fn_type(
                                     &f.params,
@@ -1893,7 +2036,7 @@ impl<R: BufRead> Vm<R> {
                     let args = self.args(count)?;
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                     ) && name == "reveal"
                     {
                         self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
@@ -1910,7 +2053,7 @@ impl<R: BufRead> Vm<R> {
                     if name == "propertyInt"
                         && matches!(
                             self.engine.program.language.as_str(),
-                            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                         )
                     {
                         let value = self.property_int(&args, &inst.at)?;
@@ -1969,7 +2112,7 @@ impl<R: BufRead> Vm<R> {
                         for (name, binding) in scope {
                             if matches!(
                                 self.engine.program.language.as_str(),
-                                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                             ) && !needed.contains(name)
                             {
                                 continue;
@@ -1989,7 +2132,7 @@ impl<R: BufRead> Vm<R> {
                             for (name, binding) in scope {
                                 if matches!(
                                     self.engine.program.language.as_str(),
-                                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                                 ) && !needed.contains(name)
                                 {
                                     continue;
@@ -2007,7 +2150,7 @@ impl<R: BufRead> Vm<R> {
                     }
                     let ty = if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                     ) {
                         let f =
                             &self.engine.program.functions[name.split('<').next().unwrap_or(&name)];
@@ -2062,7 +2205,7 @@ impl<R: BufRead> Vm<R> {
                     let target = self.pop()?;
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                     ) {
                         if let Some(value) =
                             self.result_adapter(&target, &method, &args, &inst.at)?
@@ -2103,7 +2246,7 @@ impl<R: BufRead> Vm<R> {
                     let args = self.args(count)?;
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
                         ("Env", "getSecret") | ("In", "readSecretLine")
@@ -2192,7 +2335,7 @@ impl<R: BufRead> Vm<R> {
                 Op::Return => {
                     let failed = matches!(
                         self.engine.program.language.as_str(),
-                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
                         Some(Value::Result(Err(_)))
@@ -2308,7 +2451,7 @@ impl<R: BufRead> Vm<R> {
                 Op::Publish(force) => {
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
                             return Err(self.error(&inst.at, error));
@@ -2433,7 +2576,7 @@ pub(super) fn execute(
             if result.is_ok()
                 || matches!(
                     program.language.as_str(),
-                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
                 )
             {
                 vm.finish_tools(result.as_ref().err())?;
@@ -2454,7 +2597,7 @@ pub(super) fn execute(
         if result.is_ok()
             || matches!(
                 vm.engine.program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
             )
             || options.inspect
             || options.profile
@@ -2601,7 +2744,7 @@ fn explore_test(
         if run.is_err()
             && matches!(
                 program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
             )
         {
             vm.options.record = options.record.clone();

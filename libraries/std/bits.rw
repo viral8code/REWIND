@@ -1,0 +1,8 @@
+pub fn and(a:Int,b:Int)->Int effects {} {return stdBitAnd(a,b);}
+pub fn or(a:Int,b:Int)->Int effects {} {return stdBitOr(a,b);}
+pub fn xor(a:Int,b:Int)->Int effects {} {return stdBitXor(a,b);}
+pub fn not(a:Int)->Int effects {} {return stdBitNot(a);}
+pub fn count(a:Int)->Int effects {} {return stdCountBits(a);}
+pub fn shiftLeft(a:Int,n:Int)->Result<Int,StdError> effects {} {return stdShiftLeft(a,n);}
+pub fn shiftRight(a:Int,n:Int)->Result<Int,StdError> effects {} {return stdShiftRight(a,n);}
+pub fn shiftUnsigned(a:Int,n:Int)->Result<Int,StdError> effects {} {return stdShiftUnsigned(a,n);}

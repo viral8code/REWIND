@@ -26,7 +26,10 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
     let config = project::ProjectConfig::load(root)?
         .ok_or_else(|| Error::InvalidOperation("API snapshot requires a manifest".into()))?;
     config.lock(root, false)?;
-    if !matches!(config.language.as_str(), "0.7" | "0.8" | "0.9" | "0.9.1") {
+    if !matches!(
+        config.language.as_str(),
+        "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+    ) {
         return Err(Error::InvalidOperation(
             "API snapshot requires language 0.7".into(),
         ));

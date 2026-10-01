@@ -589,6 +589,41 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
     let script = args
         .next()
         .ok_or_else(|| Error::InvalidOperation("usage: rewind <script.rw> [--root DIR]".into()))?;
+    if matches!(script.as_str(), "sdk-build" | "sdk-install" | "sdk-verify") {
+        let mut root = env::current_dir()?;
+        let mut sdk = None;
+        let mut output = None;
+        let mut key = None;
+        let mut public = None;
+        while let Some(option) = args.next() {
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing SDK option value".into()))?;
+            match option.as_str() {
+                "--root" => root = PathBuf::from(value),
+                "--sdk" => sdk = Some(PathBuf::from(value)),
+                "--output" => output = Some(PathBuf::from(value)),
+                "--key" => key = Some(PathBuf::from(value)),
+                "--public-key" => public = Some(value),
+                _ => return Err(Error::InvalidOperation("unknown SDK option".into())),
+            }
+        }
+        return match script.as_str() {
+            "sdk-build" => v2::sdk_build(
+                &output.ok_or_else(|| Error::InvalidOperation("--output required".into()))?,
+                &key.ok_or_else(|| Error::InvalidOperation("--key required".into()))?,
+            ),
+            "sdk-install" => v2::sdk_install(
+                &root,
+                &sdk.ok_or_else(|| Error::InvalidOperation("--sdk required".into()))?,
+                &public.ok_or_else(|| Error::InvalidOperation("--public-key required".into()))?,
+            ),
+            _ => v2::sdk_verify(
+                &sdk.ok_or_else(|| Error::InvalidOperation("--sdk required".into()))?,
+                &public.ok_or_else(|| Error::InvalidOperation("--public-key required".into()))?,
+            ),
+        };
+    }
     if script == "lsp" {
         let mut root = env::current_dir()?;
         if let Some(option) = args.next() {

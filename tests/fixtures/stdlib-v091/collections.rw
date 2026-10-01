@@ -1,0 +1,17 @@
+// Collection algorithms live in the library; storage and ownership stay native.
+pub fn filter<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {Send,Share})->List<T> effects {} {
+    let output=List<T>();var i=0;
+    while i<values.len() {let value=values.get(i);if predicate(value) {output.add(value);}i+=1;}
+    return output;
+}
+pub fn map<T:Share,U:Share>(values:&List<T>,transform:fn(T)->U effects {} captures {Send,Share})->List<U> effects {} {
+    let output=List<U>();var i=0;
+    while i<values.len() {output.add(transform(values.get(i)));i+=1;}
+    return output;
+}
+pub fn any<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {Send,Share})->Bool effects {} {
+    var i=0;while i<values.len() {if predicate(values.get(i)) {return true;}i+=1;}return false;
+}
+pub fn all<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {Send,Share})->Bool effects {} {
+    var i=0;while i<values.len() {if !predicate(values.get(i)) {return false;}i+=1;}return true;
+}

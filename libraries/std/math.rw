@@ -4,3 +4,4 @@ pub fn clamp(value:Int,low:Int,high:Int)->Result<Int,String> effects {} {
     if low>high {return Err("InvalidRange");}
     if value<low {return Ok(low);}if value>high {return Ok(high);}return Ok(value);
 }
+pub fn mulMod(a:Int,b:Int,modulus:Int)->Result<Int,StdError> effects {} {return stdMulMod(a,b,modulus);}

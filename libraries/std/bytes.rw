@@ -1,0 +1,5 @@
+pub fn length(value:Bytes)->Int effects {} {return stdBytesLength(value);}
+pub fn encode(value:String)->Result<Bytes,StdError> effects {} {return stdEncode(value);}
+pub fn decode(value:Bytes)->Result<String,StdError> effects {} {return stdDecode(value);}
+pub fn get(value:Bytes,index:Int)->Result<Int,StdError> effects {} {return stdBytesGet(value,index);}
+pub fn slice(value:Bytes,start:Int,end:Int)->Result<Bytes,StdError> effects {} {return stdBytesSlice(value,start,end);}

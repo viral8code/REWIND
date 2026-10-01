@@ -121,7 +121,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         serde_json::from_value(payload["program"].clone()).map_err(|e| invalid(&e.to_string()))?;
     if !matches!(
         program.language.as_str(),
-        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
@@ -150,7 +150,18 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         ..Program::default()
     };
     prepare(&mut standard)?;
-    if program.language == "0.9.1" {
+    if program.language == "0.9.2"
+        && (serde_json::to_value(program.structs.get("StdError")).ok()
+            != serde_json::to_value(standard.structs.get("StdError")).ok()
+            || program.enums.contains_key("StdError")
+            || v092::names()
+                .iter()
+                .any(|n| program.functions.contains_key(*n)))
+    {
+        return Err(invalid("invalid standard primitive layout"));
+    }
+
+    if matches!(program.language.as_str(), "0.9.1" | "0.9.2") {
         for n in ["Json", "JsonError"] {
             if serde_json::to_value(program.structs.get(n)).ok()
                 != serde_json::to_value(standard.structs.get(n)).ok()
@@ -169,7 +180,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
         || serde_json::to_value(program.enums.get("WaitTarget")).ok()
@@ -205,7 +216,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
@@ -213,7 +224,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
         return Err(invalid("Tuple is a reserved standard type"));
@@ -287,7 +298,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
     ) {
         v06::infer(&mut program)?;
     }

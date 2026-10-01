@@ -1,0 +1,17 @@
+// JSON syntax, budgets and AST layout are compiler primitives; this module is
+// the public library facade used by applications.
+pub fn parse(text:String)->Result<Json,JsonError> effects {} {return jsonParse(text);}
+pub fn parseBytes(bytes:Bytes)->Result<Json,JsonError> effects {} {return jsonParseBytes(bytes);}
+pub fn stringify(value:Json)->Result<String,JsonError> effects {} {return jsonStringify(value);}
+pub fn get(value:Json,key:String)->Option<Json> effects {} {return jsonGet(value,key);}
+pub fn keys(value:Json)->List<String> effects {} {return jsonKeys(value);}
+pub fn kind(value:Json)->String effects {} {return jsonKind(value);}
+pub fn integer(value:Json)->Option<Int> effects {} {return jsonInt(value);}
+pub fn text(value:Json)->Option<String> effects {} {return jsonText(value);}
+pub fn boolean(value:Json)->Option<Bool> effects {} {return jsonBool(value);}
+pub fn floating(value:Json)->Option<Float> effects {} {
+    match value {Json::Float(v)=>{return Some(v);},_=>{return None;}}
+}
+pub fn array(value:Json)->Option<Frozen<List<Json>>> effects {} {
+    match value {Json::Array(v)=>{return Some(v);},_=>{return None;}}
+}

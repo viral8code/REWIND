@@ -117,7 +117,7 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
         let installed = project::ProjectConfig::load(output)?
             .ok_or_else(|| Error::InvalidOperation("missing installed manifest".into()))?;
         installed.lock(output, false)?;
-        if p.language == "0.9.1" {
+        if matches!(p.language.as_str(), "0.9.1" | "0.9.2") {
             v091::write_release(output, &installed)?;
         }
         println!(
