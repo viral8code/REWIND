@@ -10,6 +10,16 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        (
+            "stringSearch",
+            include_str!("../../../libraries/std/stringSearch.rw"),
+        ),
+        ("bitset", include_str!("../../../libraries/std/bitset.rw")),
+        ("range", include_str!("../../../libraries/std/range.rw")),
+        (
+            "rollbackSet",
+            include_str!("../../../libraries/std/rollbackSet.rw"),
+        ),
         ("args", include_str!("../../../libraries/std/args.rw")),
         ("bits", include_str!("../../../libraries/std/bits.rw")),
         ("bytes", include_str!("../../../libraries/std/bytes.rw")),

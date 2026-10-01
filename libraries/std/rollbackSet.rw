@@ -1,0 +1,8 @@
+record Change{child:Int,parent:Int,size:Int}
+pub struct RollbackSet{parents:List<Int>,sizes:List<Int>,history:List<Change>}
+pub fn create(count:Int)->Result<RollbackSet,String> effects {} {if count<0 || count>65536{return Err("Capacity");}let p=List<Int>();let s=List<Int>();var i=0;while i<count{p.add(i);s.add(1);i+=1;}return Ok(RollbackSet(p,s,List<Change>()));}
+pub fn root(set:&RollbackSet,index:Int)->Result<Int,String> effects {} {if index<0 || index>=set.parents.len(){return Err("Range");}var p=index;while set.parents.get(p)!=p{p=set.parents.get(p);}return Ok(p);}
+pub fn same(set:&RollbackSet,a:Int,b:Int)->Result<Bool,String> effects {} {return Ok(root(set,a)?==root(set,b)?);}
+pub fn mark(set:&RollbackSet)->Int effects {} {return set.history.len();}
+pub fn unite(set:&mut RollbackSet,a:Int,b:Int)->Result<Bool,String> effects {} {var x=root(set,a)?;var y=root(set,b)?;if x==y{return Ok(false);}if set.history.len()>=65536{return Err("Capacity");}if set.sizes.get(x)<set.sizes.get(y){let t=x;x=y;y=t;}set.history.add(Change(y,x,set.sizes.get(x)));set.parents.set(y,x);set.sizes.set(x,set.sizes.get(x)+set.sizes.get(y));return Ok(true);}
+pub fn rollback(set:&mut RollbackSet,mark:Int)->Result<Unit,String> effects {} {if mark<0 || mark>set.history.len(){return Err("Range");}while set.history.len()>mark{match set.history.pop(){Some(change)=>{set.parents.set(change.child,change.child);set.sizes.set(change.parent,change.size);},None=>{panic("history");}}}return Ok(());}

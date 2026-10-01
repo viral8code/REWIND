@@ -1,0 +1,9 @@
+pub struct BitSet{words:List<Int>,length:Int}
+pub fn create(length:Int)->Result<BitSet,String> effects {} {if length<0 || length>65536{return Err("Capacity");}let words=List<Int>();var i=0;while i<(length+62)/63{words.add(0);i+=1;}return Ok(BitSet(words,length));}
+fn mask(index:Int)->Int effects {} {var m=1;var i=0;while i<index%63{m*=2;i+=1;}return m;}
+pub fn get(set:&BitSet,index:Int)->Result<Bool,String> effects {} {if index<0 || index>=set.length{return Err("Range");}return Ok(stdBitAnd(set.words.get(index/63),mask(index))!=0);}
+pub fn set(set:&mut BitSet,index:Int,value:Bool)->Result<Unit,String> effects {} {if index<0 || index>=set.length{return Err("Range");}let word=set.words.get(index/63);let m=mask(index);if value{set.words.set(index/63,stdBitOr(word,m));}else{set.words.set(index/63,stdBitAnd(word,stdBitNot(m)));}return Ok(());}
+pub fn count(set:&BitSet)->Int effects {} {var total=0;var i=0;while i<set.words.len(){total+=stdCountBits(set.words.get(i));i+=1;}return total;}
+pub fn union(a:&BitSet,b:&BitSet)->Result<BitSet,String> effects {} {if a.length!=b.length{return Err("Dimension");}let out=create(a.length)?;var i=0;while i<a.words.len(){out.words.set(i,stdBitOr(a.words.get(i),b.words.get(i)));i+=1;}return Ok(out);}
+pub fn intersection(a:&BitSet,b:&BitSet)->Result<BitSet,String> effects {} {if a.length!=b.length{return Err("Dimension");}let out=create(a.length)?;var i=0;while i<a.words.len(){out.words.set(i,stdBitAnd(a.words.get(i),b.words.get(i)));i+=1;}return Ok(out);}
+pub fn shifted(input:&BitSet,distance:Int)->Result<BitSet,String> effects {} {if distance<0{return Err("Range");}let out=create(input.length)?;if distance>=input.length{return Ok(out);}var i=0;while i<input.length-distance{if get(input,i)?{set(&mut out,i+distance,true)?;}i+=1;}return Ok(out);}

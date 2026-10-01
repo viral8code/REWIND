@@ -1,3 +1,5 @@
+import stringSearch as stringSearch;
+import bitset as bitset;
 import stream as stream;
 import collections as collections;
 import math as math;
@@ -111,4 +113,9 @@ test fn option_schema_paths_and_map_adapters(){
 test fn streaming_chunk_boundaries() {
  match stdEncode("-9223372036854775808 42"){Ok(bytes)=>{match stream.tokens(32){Ok(tokens)=>{var i=0;while i<stdBytesLength(bytes){match stdBytesSlice(bytes,i,i+1){Ok(chunk)=>{assert_eq(stream.feed(&mut tokens,chunk,false),Ok(()));},Err(_)=>{panic("slice");}}i+=1;}match stdEncode(""){Ok(empty)=>{assert_eq(stream.feed(&mut tokens,empty,true),Ok(()));},Err(_)=>{panic("encode");}}assert_eq(stream.nextInt(&mut tokens),Ok(Some(-9223372036854775807-1)));assert_eq(stream.nextInt(&mut tokens),Ok(Some(42)));assert_eq(stream.nextInt(&mut tokens),Ok(None));},Err(_)=>{panic("tokens");}}},Err(_)=>{panic("encode");}}
  let decoder=stream.utf8();match stdEncode("あ"){Ok(bytes)=>{var i=0;while i<3{match stdBytesSlice(bytes,i,i+1){Ok(chunk)=>{let result=stream.decode(&mut decoder,chunk,i==2);if i<2{assert_eq(result,Ok(""));}else{assert_eq(result,Ok("あ"));}},Err(_)=>{panic("slice");}}i+=1;}},Err(_)=>{panic("encode");}}
+}
+
+@test fn exact_search_and_bitset()->Unit effects {} {
+ match stdEncode("abababa"){Ok(input)=>{match stdEncode("aba"){Ok(pattern)=>{match stringSearch.kmp(input,pattern){Ok(found)=>{assert_eq(found.len(),3);assert_eq(found.get(2),4);},Err(_)=>{panic("search");}}},Err(_)=>{panic("encode");}}},Err(_)=>{panic("encode");}}
+ match bitset.create(65){Ok(set)=>{bitset.set(&mut set,63,true);assert_eq(bitset.count(&set),1);},Err(_)=>{panic("bitset");}}
 }
