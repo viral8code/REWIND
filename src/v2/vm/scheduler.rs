@@ -325,7 +325,20 @@ impl<R: BufRead> Vm<R> {
         let ty = substitute_type(&def.ret, &substitutions);
         let v5 = matches!(
             self.engine.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.5"
+                | "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
         if v5 {
@@ -487,6 +500,11 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.2"
                             | "0.9.3"
                             | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
                     } else {
@@ -525,6 +543,11 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.2"
                             | "0.9.3"
                             | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) =>
                 {
                     self.scheduler
@@ -536,7 +559,19 @@ impl<R: BufRead> Vm<R> {
                 ("timeout", [Value::Int(steps)])
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) =>
                 {
                     if *steps < 0 {
@@ -558,7 +593,19 @@ impl<R: BufRead> Vm<R> {
                 ("select", [other])
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) =>
                 {
                     let other =
@@ -580,7 +627,19 @@ impl<R: BufRead> Vm<R> {
                 ("requestCancel", [])
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) =>
                 {
                     let task = self
@@ -599,7 +658,19 @@ impl<R: BufRead> Vm<R> {
                 ("cancelAndJoin", [])
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) =>
                 {
                     self.cancel_task(id, at)?;
@@ -644,7 +715,19 @@ impl<R: BufRead> Vm<R> {
     pub(super) fn task_result(&mut self, id: u64) -> Option<Value> {
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
                 self.scheduler.tasks.get_mut(&id)?.observed = true;
@@ -672,6 +755,11 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.2"
                             | "0.9.3"
                             | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) =>
                 {
                     v05::task_copy(&mut self.engine.runtime, &value)
@@ -688,6 +776,11 @@ impl<R: BufRead> Vm<R> {
                                         | "0.9.2"
                                         | "0.9.3"
                                         | "0.9.4"
+                                        | "0.9.5"
+                                        | "0.9.6"
+                                        | "0.9.7"
+                                        | "0.9.8"
+                                        | "0.9.9"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
                                         &e,
@@ -718,6 +811,11 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.2"
                             | "0.9.3"
                             | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) {
                         v05::task_error(&error)
                     } else {
@@ -731,7 +829,19 @@ impl<R: BufRead> Vm<R> {
         let task = self.scheduler.tasks.get_mut(&id).unwrap();
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) && task.failure.is_none()
         {
             if let Err(message) = &result {
@@ -761,7 +871,19 @@ impl<R: BufRead> Vm<R> {
     pub(super) fn set_task_failure(&mut self, failure: rewind::DiagnosticRecord) {
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             self.scheduler
                 .tasks
@@ -807,7 +929,19 @@ impl<R: BufRead> Vm<R> {
             for (id, body) in &actions {
                 if matches!(
                     self.engine.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                    "0.6"
+                        | "0.7"
+                        | "0.8"
+                        | "0.9"
+                        | "0.9.1"
+                        | "0.9.2"
+                        | "0.9.3"
+                        | "0.9.4"
+                        | "0.9.5"
+                        | "0.9.6"
+                        | "0.9.7"
+                        | "0.9.8"
+                        | "0.9.9"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
                         body,
@@ -934,7 +1068,19 @@ impl<R: BufRead> Vm<R> {
                 if let Some(result) = result {
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) {
                         if let TaskBody::Join(group) = body {
                             let failures = self
@@ -1123,7 +1269,20 @@ impl<R: BufRead> Vm<R> {
             Ok(value) => Ok(
                 if matches!(
                     self.engine.program.language.as_str(),
-                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                    "0.5"
+                        | "0.6"
+                        | "0.7"
+                        | "0.8"
+                        | "0.9"
+                        | "0.9.1"
+                        | "0.9.2"
+                        | "0.9.3"
+                        | "0.9.4"
+                        | "0.9.5"
+                        | "0.9.6"
+                        | "0.9.7"
+                        | "0.9.8"
+                        | "0.9.9"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
                 } else {
@@ -1184,7 +1343,20 @@ impl<R: BufRead> Vm<R> {
     pub(super) fn drain_scope_groups(&mut self, depth: Option<usize>, at: &Tok) -> Result<bool> {
         if !matches!(
             self.engine.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.5"
+                | "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             return Ok(false);
         }
@@ -1270,7 +1442,20 @@ impl<R: BufRead> Vm<R> {
         if id == self.scheduler.active {
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.5"
+                    | "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
                 return Ok(());
@@ -1308,7 +1493,19 @@ impl<R: BufRead> Vm<R> {
         }
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
         }

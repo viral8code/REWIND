@@ -35,7 +35,10 @@ pub(super) fn names() -> &'static [&'static str] {
     ]
 }
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !matches!(p.language.as_str(), "0.9.2" | "0.9.3" | "0.9.4") {
+    if !matches!(
+        p.language.as_str(),
+        "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+    ) {
         return Ok(());
     }
     if p.structs.contains_key("StdError")
@@ -69,10 +72,19 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !matches!(p.language.as_str(), "0.9.2" | "0.9.3" | "0.9.4") || !names().contains(&n) {
+    if !matches!(
+        p.language.as_str(),
+        "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+    ) || !names().contains(&n)
+    {
         return Ok(None);
     }
-    if n == "stdBytesFromList" && p.language != "0.9.4" {
+    if n == "stdBytesFromList"
+        && !matches!(
+            p.language.as_str(),
+            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+        )
+    {
         return Ok(None);
     }
     let (params, ret): (&[&str], &str) = match n {

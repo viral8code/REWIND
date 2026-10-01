@@ -102,7 +102,7 @@ impl Compiler {
     fn expression_type(&self, e: &Expr) -> Option<String> {
         if !matches!(
             self.typing_program.language.as_str(),
-            "0.9.2" | "0.9.3" | "0.9.4"
+            "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
         ) {
             return None;
         }
@@ -123,7 +123,7 @@ impl Compiler {
     fn call_name(&self, name: &str, args: &[Expr], at: &Tok) -> String {
         if !matches!(
             self.typing_program.language.as_str(),
-            "0.9.2" | "0.9.3" | "0.9.4"
+            "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
         ) || name.contains('<')
         {
             return name.into();
@@ -262,7 +262,15 @@ impl Compiler {
         for stmt in &program.stmts {
             let guard = if matches!(
                 program.language.as_str(),
-                "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             ) && stmt.at.text == "@application-entry"
             {
                 Some(c.emit(Op::ApplicationEntry(0), &stmt.at))
@@ -281,7 +289,10 @@ impl Compiler {
             col: 1,
         });
         c.emit(Op::Halt, &end);
-        if matches!(program.language.as_str(), "0.9.3" | "0.9.4") {
+        if matches!(
+            program.language.as_str(),
+            "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+        ) {
             let signatures = program
                 .functions
                 .iter()
@@ -346,7 +357,19 @@ impl Compiler {
         let base = self.code.len();
         if matches!(
             program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
                 relocate(&mut chunk.code, base, false);
@@ -384,7 +407,19 @@ impl Compiler {
         self.typing_origin = typing_origin;
         if matches!(
             program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             let mut code = self.code[base..].to_vec();
             relocate(&mut code, base, true);
@@ -1041,7 +1076,19 @@ impl<R: BufRead> Vm<R> {
     fn error(&self, at: &Tok, message: impl AsRef<str>) -> Error {
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             let message = self
                 .engine
@@ -1341,7 +1388,19 @@ impl<R: BufRead> Vm<R> {
         }
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             return first_error.map_or(Ok(()), |e| {
                 let mut d = self.record_error(&e, at, self.scheduler.active);
@@ -1351,7 +1410,20 @@ impl<R: BufRead> Vm<R> {
         }
         if matches!(
             self.engine.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.5"
+                | "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             first_error.map_or(Ok(()), |e| {
                 let mut message = e.to_string();
@@ -1564,12 +1636,37 @@ impl<R: BufRead> Vm<R> {
         if result.is_ok()
             && matches!(
                 self.engine.program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.5"
+                    | "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             )
         {
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
                     result = Err(Error::Diagnostic(Box::new(error)));
@@ -1631,7 +1728,19 @@ impl<R: BufRead> Vm<R> {
             }
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             ) {
                 let mut failure =
                     self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
@@ -1639,7 +1748,20 @@ impl<R: BufRead> Vm<R> {
                 result = Err(Error::Diagnostic(Box::new(failure)));
             } else if matches!(
                 self.engine.program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.5"
+                    | "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             ) && !causes.is_empty()
             {
                 let mut message = result.unwrap_err().to_string();
@@ -1657,7 +1779,19 @@ impl<R: BufRead> Vm<R> {
         let mut outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string())))});
         if matches!(
             self.engine.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             outcome["diagnostic"] = execution_error
                 .and_then(|e| {
@@ -1685,7 +1819,19 @@ impl<R: BufRead> Vm<R> {
             let mut trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"standalone":self.options.standalone,"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             ) {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
@@ -1750,7 +1896,19 @@ impl<R: BufRead> Vm<R> {
             }
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
             }
@@ -1810,14 +1968,38 @@ impl<R: BufRead> Vm<R> {
                     .to_string();
                 if matches!(
                     self.engine.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                    "0.6"
+                        | "0.7"
+                        | "0.8"
+                        | "0.9"
+                        | "0.9.1"
+                        | "0.9.2"
+                        | "0.9.3"
+                        | "0.9.4"
+                        | "0.9.5"
+                        | "0.9.6"
+                        | "0.9.7"
+                        | "0.9.8"
+                        | "0.9.9"
                 ) {
                     self.index_state(&inst.at)?;
                 }
                 let mut event = serde_json::json!({"task":self.scheduler.active,"pc":self.pc,"operation":operation});
                 if matches!(
                     self.engine.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                    "0.6"
+                        | "0.7"
+                        | "0.8"
+                        | "0.9"
+                        | "0.9.1"
+                        | "0.9.2"
+                        | "0.9.3"
+                        | "0.9.4"
+                        | "0.9.5"
+                        | "0.9.6"
+                        | "0.9.7"
+                        | "0.9.8"
+                        | "0.9.9"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
                     event["line"] = serde_json::json!(inst.at.line);
@@ -1883,6 +2065,11 @@ impl<R: BufRead> Vm<R> {
                                     | "0.9.2"
                                     | "0.9.3"
                                     | "0.9.4"
+                                    | "0.9.5"
+                                    | "0.9.6"
+                                    | "0.9.7"
+                                    | "0.9.8"
+                                    | "0.9.9"
                             ) {
                                 let ty = v06::fn_type(
                                     &f.params,
@@ -2082,7 +2269,19 @@ impl<R: BufRead> Vm<R> {
                     let args = self.args(count)?;
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) && name == "reveal"
                     {
                         self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
@@ -2099,7 +2298,19 @@ impl<R: BufRead> Vm<R> {
                     if name == "propertyInt"
                         && matches!(
                             self.engine.program.language.as_str(),
-                            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                            "0.6"
+                                | "0.7"
+                                | "0.8"
+                                | "0.9"
+                                | "0.9.1"
+                                | "0.9.2"
+                                | "0.9.3"
+                                | "0.9.4"
+                                | "0.9.5"
+                                | "0.9.6"
+                                | "0.9.7"
+                                | "0.9.8"
+                                | "0.9.9"
                         )
                     {
                         let value = self.property_int(&args, &inst.at)?;
@@ -2167,6 +2378,11 @@ impl<R: BufRead> Vm<R> {
                                     | "0.9.2"
                                     | "0.9.3"
                                     | "0.9.4"
+                                    | "0.9.5"
+                                    | "0.9.6"
+                                    | "0.9.7"
+                                    | "0.9.8"
+                                    | "0.9.9"
                             ) && !needed.contains(name)
                             {
                                 continue;
@@ -2195,6 +2411,11 @@ impl<R: BufRead> Vm<R> {
                                         | "0.9.2"
                                         | "0.9.3"
                                         | "0.9.4"
+                                        | "0.9.5"
+                                        | "0.9.6"
+                                        | "0.9.7"
+                                        | "0.9.8"
+                                        | "0.9.9"
                                 ) && !needed.contains(name)
                                 {
                                     continue;
@@ -2212,7 +2433,19 @@ impl<R: BufRead> Vm<R> {
                     }
                     let ty = if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) {
                         let f =
                             &self.engine.program.functions[name.split('<').next().unwrap_or(&name)];
@@ -2267,7 +2500,19 @@ impl<R: BufRead> Vm<R> {
                     let target = self.pop()?;
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) {
                         if let Some(value) =
                             self.result_adapter(&target, &method, &args, &inst.at)?
@@ -2308,7 +2553,19 @@ impl<R: BufRead> Vm<R> {
                     let args = self.args(count)?;
                     if matches!(
                         self.engine.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                        "0.6"
+                            | "0.7"
+                            | "0.8"
+                            | "0.9"
+                            | "0.9.1"
+                            | "0.9.2"
+                            | "0.9.3"
+                            | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
                         ("Env", "getSecret") | ("In", "readSecretLine")
@@ -2406,6 +2663,11 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.2"
                             | "0.9.3"
                             | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
                         Some(Value::Result(Err(_)))
@@ -2530,6 +2792,11 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.2"
                             | "0.9.3"
                             | "0.9.4"
+                            | "0.9.5"
+                            | "0.9.6"
+                            | "0.9.7"
+                            | "0.9.8"
+                            | "0.9.9"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
                             return Err(self.error(&inst.at, error));
@@ -2654,7 +2921,20 @@ pub(super) fn execute(
             if result.is_ok()
                 || matches!(
                     program.language.as_str(),
-                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                    "0.5"
+                        | "0.6"
+                        | "0.7"
+                        | "0.8"
+                        | "0.9"
+                        | "0.9.1"
+                        | "0.9.2"
+                        | "0.9.3"
+                        | "0.9.4"
+                        | "0.9.5"
+                        | "0.9.6"
+                        | "0.9.7"
+                        | "0.9.8"
+                        | "0.9.9"
                 )
             {
                 vm.finish_tools(result.as_ref().err())?;
@@ -2675,7 +2955,20 @@ pub(super) fn execute(
         if result.is_ok()
             || matches!(
                 vm.engine.program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.5"
+                    | "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             )
             || options.inspect
             || options.profile
@@ -2754,7 +3047,11 @@ fn build_artifact_mode(
         .collect::<Result<BTreeMap<_, _>>>()?;
     let functions=program.functions.iter().map(|(name,f)| (name.clone(),serde_json::json!({"async":f.asynchronous,"type_params":f.type_params,"parameters":f.params,"return":f.ret}))).collect::<BTreeMap<_,_>>();
     let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"module":inst.at.source,"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
-    let document = if program.language == "0.9.4" && !root.join("rewind.toml").exists() {
+    let document = if matches!(
+        program.language.as_str(),
+        "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+    ) && !root.join("rewind.toml").exists()
+    {
         serde_json::to_string(&functions).map_err(|e| Error::InvalidOperation(e.to_string()))?
     } else {
         super::documentation_mode(&program.root_origin.to_string_lossy(), root, include_dev)?
@@ -2825,7 +3122,20 @@ fn explore_test(
         if run.is_err()
             && matches!(
                 program.language.as_str(),
-                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+                "0.5"
+                    | "0.6"
+                    | "0.7"
+                    | "0.8"
+                    | "0.9"
+                    | "0.9.1"
+                    | "0.9.2"
+                    | "0.9.3"
+                    | "0.9.4"
+                    | "0.9.5"
+                    | "0.9.6"
+                    | "0.9.7"
+                    | "0.9.8"
+                    | "0.9.9"
             )
         {
             vm.options.record = options.record.clone();

@@ -18,7 +18,10 @@ const NAMES: &[&str] = &[
 ];
 
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !matches!(p.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4") {
+    if !matches!(
+        p.language.as_str(),
+        "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+    ) {
         return Ok(());
     }
     for n in NAMES {
@@ -120,7 +123,10 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !matches!(p.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4") || !NAMES.contains(&n)
+    if !matches!(
+        p.language.as_str(),
+        "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+    ) || !NAMES.contains(&n)
     {
         return Ok(None);
     }
