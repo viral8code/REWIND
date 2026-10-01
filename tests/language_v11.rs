@@ -41,6 +41,7 @@ fn runtime_failure_keeps_leaf_and_callers_after_cleanup_and_without_sources() {
     let d = &d["diagnostic"];
     assert_eq!(d["code"], "DivisionByZero");
     assert_eq!(d["source"], "math.rw");
+    assert_eq!(d["frames"][0]["function"], "math::divide");
     assert_eq!(d["line"], 1);
     assert_eq!(d["frames"].as_array().unwrap().len(), 3);
     assert_eq!(d["frames"][1]["source"], "main.rw");
