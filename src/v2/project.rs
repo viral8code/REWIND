@@ -72,6 +72,13 @@ impl ProjectConfig {
                 | "1.1.0"
                 | "1.2.0"
                 | "1.3.0"
+                | "1.4.0"
+                | "1.5.0"
+                | "1.6.0"
+                | "1.7.0"
+                | "1.8.0"
+                | "1.9.0"
+                | "2.0.0"
         ) {
             for (name, path) in &self.lock_imports {
                 if !name.is_empty()
@@ -240,6 +247,13 @@ impl ProjectConfig {
         }
         let language = language
             .ok_or_else(|| Error::InvalidOperation("rewind.toml: language is required".into()))?;
+        if semver::Version::parse(&language).is_ok_and(|v| {
+            v > semver::Version::parse(env!("CARGO_PKG_VERSION")).expect("compiler version")
+        }) {
+            return Err(Error::InvalidOperation(format!(
+                "language {language} requires a newer compiler"
+            )));
+        }
         if !matches!(
             language.as_str(),
             "0.2"
@@ -263,6 +277,13 @@ impl ProjectConfig {
                 | "1.1.0"
                 | "1.2.0"
                 | "1.3.0"
+                | "1.4.0"
+                | "1.5.0"
+                | "1.6.0"
+                | "1.7.0"
+                | "1.8.0"
+                | "1.9.0"
+                | "2.0.0"
         ) {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
@@ -286,6 +307,13 @@ impl ProjectConfig {
                     | "1.1.0"
                     | "1.2.0"
                     | "1.3.0"
+                    | "1.4.0"
+                    | "1.5.0"
+                    | "1.6.0"
+                    | "1.7.0"
+                    | "1.8.0"
+                    | "1.9.0"
+                    | "2.0.0"
             )
         {
             return Err(Error::InvalidOperation(
@@ -310,6 +338,13 @@ impl ProjectConfig {
                     | "1.1.0"
                     | "1.2.0"
                     | "1.3.0"
+                    | "1.4.0"
+                    | "1.5.0"
+                    | "1.6.0"
+                    | "1.7.0"
+                    | "1.8.0"
+                    | "1.9.0"
+                    | "2.0.0"
             ) || !matches!(dependency_mode.as_str(), "production" | "development"))
         {
             return Err(Error::InvalidOperation(
@@ -379,6 +414,13 @@ impl ProjectConfig {
                 | "1.1.0"
                 | "1.2.0"
                 | "1.3.0"
+                | "1.4.0"
+                | "1.5.0"
+                | "1.6.0"
+                | "1.7.0"
+                | "1.8.0"
+                | "1.9.0"
+                | "2.0.0"
         ) && deps
             .values()
             .chain(registry.values())
@@ -422,6 +464,13 @@ impl ProjectConfig {
                     | "1.1.0"
                     | "1.2.0"
                     | "1.3.0"
+                    | "1.4.0"
+                    | "1.5.0"
+                    | "1.6.0"
+                    | "1.7.0"
+                    | "1.8.0"
+                    | "1.9.0"
+                    | "2.0.0"
             ) {
                 let mut inspected = BTreeSet::new();
                 loop {
@@ -498,6 +547,13 @@ impl ProjectConfig {
                 | "1.1.0"
                 | "1.2.0"
                 | "1.3.0"
+                | "1.4.0"
+                | "1.5.0"
+                | "1.6.0"
+                | "1.7.0"
+                | "1.8.0"
+                | "1.9.0"
+                | "2.0.0"
         ) && !include_dev
         {
             let mut reachable = runtime_roots;
@@ -617,6 +673,13 @@ impl ProjectConfig {
                 | "1.1.0"
                 | "1.2.0"
                 | "1.3.0"
+                | "1.4.0"
+                | "1.5.0"
+                | "1.6.0"
+                | "1.7.0"
+                | "1.8.0"
+                | "1.9.0"
+                | "2.0.0"
         ) {
             return self.secure_lock(root, update);
         }
@@ -742,6 +805,13 @@ impl ProjectConfig {
                     | "1.1.0"
                     | "1.2.0"
                     | "1.3.0"
+                    | "1.4.0"
+                    | "1.5.0"
+                    | "1.6.0"
+                    | "1.7.0"
+                    | "1.8.0"
+                    | "1.9.0"
+                    | "2.0.0"
             ) {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
@@ -769,6 +839,13 @@ impl ProjectConfig {
                     | "1.1.0"
                     | "1.2.0"
                     | "1.3.0"
+                    | "1.4.0"
+                    | "1.5.0"
+                    | "1.6.0"
+                    | "1.7.0"
+                    | "1.8.0"
+                    | "1.9.0"
+                    | "2.0.0"
             ) {
                 return Err(Error::InvalidOperation(
                     "assets require language 0.9.1".into(),
@@ -829,6 +906,13 @@ impl ProjectConfig {
                     | "1.1.0"
                     | "1.2.0"
                     | "1.3.0"
+                    | "1.4.0"
+                    | "1.5.0"
+                    | "1.6.0"
+                    | "1.7.0"
+                    | "1.8.0"
+                    | "1.9.0"
+                    | "2.0.0"
             ) {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()

@@ -1,5 +1,6 @@
 //! Native single-window surfaces. Scenes are data; only publish touches a surface.
 use serde::{Deserialize, Serialize};
+pub mod edit;
 mod runtime;
 pub(crate) use runtime::Request;
 use std::collections::BTreeSet;
@@ -23,6 +24,12 @@ pub struct Item {
     pub enabled: bool,
     pub checked: bool,
     pub focused: bool,
+    #[serde(default)]
+    pub cursor: usize,
+    #[serde(default)]
+    pub anchor: usize,
+    #[serde(default)]
+    pub scroll: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -46,13 +53,18 @@ impl Frame {
             return Err(invalid("GuiInvalidScene"));
         }
         for v in &self.items {
-            if !matches!(v.kind.as_str(), "label" | "button" | "checkbox" | "rect")
-                || v.id.is_empty()
+            if !matches!(
+                v.kind.as_str(),
+                "label" | "button" | "checkbox" | "rect" | "textbox" | "textarea"
+            ) || v.id.is_empty()
                 || v.id.len() > 128
                 || v.id.contains('\0')
                 || !ids.insert(&v.id)
                 || v.text.len() > 4096
                 || v.text.contains('\0')
+                || v.scroll > 4096
+                || v.cursor > v.text.chars().count()
+                || v.anchor > v.text.chars().count()
                 || v.foreground > 0xffffff
                 || v.background > 0xffffff
                 || v.x < 0
@@ -99,8 +111,10 @@ impl Event {
         }
     }
     pub fn validate(&self) -> io::Result<()> {
-        if !matches!(self.kind.as_str(), "pointer" | "key" | "resize" | "close")
-            || self.key.len() > 64
+        if !matches!(
+            self.kind.as_str(),
+            "pointer" | "key" | "resize" | "close" | "text" | "idle" | "wheel"
+        ) || self.key.len() > if self.kind == "text" { 4096 } else { 64 }
             || self.key.contains('\0')
             || !(-4096..=8192).contains(&self.x)
             || !(-4096..=8192).contains(&self.y)
@@ -161,6 +175,16 @@ impl Host {
             Err(invalid("GuiUnsupportedPlatform"))
         }
     }
+    pub fn poll(&mut self) -> io::Result<Option<Event>> {
+        #[cfg(any(target_os = "linux", windows))]
+        {
+            self.backend.poll()
+        }
+        #[cfg(not(any(target_os = "linux", windows)))]
+        {
+            Err(invalid("GuiUnsupportedPlatform"))
+        }
+    }
     pub fn close(&mut self) {
         #[cfg(any(target_os = "linux", windows))]
         self.backend.close();
@@ -200,6 +224,9 @@ mod tests {
                     enabled: true,
                     checked: false,
                     focused: true,
+                    cursor: 0,
+                    anchor: 0,
+                    scroll: 0,
                 }],
             };
             host.present(&frame).unwrap();

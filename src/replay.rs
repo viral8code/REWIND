@@ -210,7 +210,7 @@ impl Runtime {
                 .map_err(|_| invalid("invalid GUI event journal"))?,
             None => Vec::new(),
         };
-        if self.gui_observations.len() > 65536 {
+        if self.gui_observations.len() > 1_000_000 {
             return Err(invalid("GUI event journal too large"));
         }
         for e in &self.gui_observations {

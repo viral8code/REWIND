@@ -1,0 +1,10 @@
+[
+ {"kind":"pointer","x":20,"y":20,"key":"","width":0,"height":0},
+ {"kind":"text","x":0,"y":0,"key":"日本語😀","width":0,"height":0},
+ {"kind":"key","x":0,"y":0,"key":"Backspace","width":0,"height":0},
+ {"kind":"key","x":0,"y":0,"key":"Enter","width":0,"height":0},
+ {"kind":"text","x":0,"y":0,"key":"notes","width":0,"height":0},
+ {"kind":"resize","x":0,"y":0,"key":"","width":640,"height":480},
+ {"kind":"pointer","x":30,"y":450,"key":"","width":0,"height":0},
+ {"kind":"close","x":0,"y":0,"key":"","width":0,"height":0}
+]

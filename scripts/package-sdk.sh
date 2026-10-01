@@ -97,6 +97,18 @@ rm "$RELEASE_WORK/gui/main.rw"
 rm -rf "$RELEASE_WORK/gui/.rewind"
 "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui/main.rwc" --allow-effects gui --gui-events "$RELEASE_WORK/gui/events.json" > "$RELEASE_WORK/gui-artifact"
 cmp "$RELEASE_WORK/gui-expected" "$RELEASE_WORK/gui-artifact"
+mkdir "$RELEASE_WORK/notes"
+cp "$EXTRACTED/share/rewind/examples/notes/main.rw" "$RELEASE_WORK/notes/main.rw"
+cp "$EXTRACTED/share/rewind/examples/notes/events.json" "$RELEASE_WORK/notes/events.json"
+"$EXTRACTED/bin/rewind" run "$RELEASE_WORK/notes/main.rw" --allow-effects gui,fileRead,fileWrite --gui-events "$RELEASE_WORK/notes/events.json" --record "$RELEASE_WORK/notes/trace.json"
+printf '日本語\nnotes' > "$RELEASE_WORK/notes-expected"
+cmp "$RELEASE_WORK/notes-expected" "$RELEASE_WORK/notes/notes.txt"
+"$EXTRACTED/bin/rewind" replay "$RELEASE_WORK/notes/trace.json" --root "$RELEASE_WORK/notes" --allow-effects gui,fileRead,fileWrite
+"$EXTRACTED/bin/rewindc" "$RELEASE_WORK/notes/main.rw" --allow-effects gui,fileRead,fileWrite
+rm "$RELEASE_WORK/notes/main.rw" "$RELEASE_WORK/notes/notes.txt"
+rm -rf "$RELEASE_WORK/notes/.rewind"
+"$EXTRACTED/bin/rewind" "$RELEASE_WORK/notes/main.rwc" --allow-effects gui,fileRead,fileWrite --gui-events "$RELEASE_WORK/notes/events.json"
+cmp "$RELEASE_WORK/notes-expected" "$RELEASE_WORK/notes/notes.txt"
 "$EXTRACTED/bin/rewind" compile --help > /dev/null
 (cd "$RELEASE_OUTPUT" && sha256sum ./*.tar.gz ./rewind-*-sdk.pub ./GETTING_STARTED.md ./BUILD_INFO.json > SHA256SUMS)
 chmod 644 "$RELEASE_OUTPUT"/*

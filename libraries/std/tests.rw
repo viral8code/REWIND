@@ -161,3 +161,18 @@ test fn gui_controls_hit_testing_focus_and_validation() {
  }}
  assert_eq(gui.window("bad",63,200),Err(StdError("GuiInvalidSize",0)));
 }
+
+test fn gui_unicode_editing_layout_and_selection() {
+ match gui.window("edit",320,240){Err(e)=>{panic(e.code);},Ok(view)=>{
+ assert_eq(gui.textArea(&mut view,"body","a😀界",10,10,200,120),Ok(()));
+ assert_eq(gui.setSelection(&mut view,"body",3,1),Ok(()));
+ assert_eq(gui.edit(&mut view,"body",gui.Event("text",0,0,"日本語",0,0)),Ok(()));
+ assert_eq(gui.text(&view,"body"),Ok("a日本語"));assert_eq(gui.selection(&view,"body"),Ok((4,4)));
+ assert_eq(gui.edit(&mut view,"body",gui.Event("key",0,0,"Backspace",0,0)),Ok(()));assert_eq(gui.text(&view,"body"),Ok("a日本"));
+ assert_eq(gui.button(&mut view,"save","Save",10,160,90,40),Ok(()));
+ let ids=List<String>();ids.add("body");ids.add("save");assert_eq(gui.arrange(&mut view,&ids,gui.Rect(10,10,300,220),1,10),Ok(()));
+ ids.add("missing");assert_eq(gui.arrange(&mut view,&ids,gui.Rect(10,10,300,220),1,10),Err(StdError("GuiUnknownId",0)));
+ assert_eq(gui.setSelection(&mut view,"body",99,0),Err(StdError("GuiInvalidSelection",0)));
+ assert_eq(gui.textBox(&mut view,"single","a\nb",0,0,100,20),Err(StdError("GuiSingleLine",0)));
+ }}
+}

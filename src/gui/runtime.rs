@@ -8,7 +8,7 @@ pub(crate) struct Request {
 }
 impl Runtime {
     pub fn configure_gui_events(&mut self, events: Vec<Event>) -> Result<()> {
-        if events.len() > 65536 {
+        if events.len() > 1_000_000 {
             return Err(Error::InvalidOperation("GuiEventLimit".into()));
         }
         for e in &events {
@@ -38,13 +38,20 @@ impl Runtime {
         })
     }
     pub fn gui_next_event(&mut self) -> Result<Event> {
+        self.gui_read_event(false)
+    }
+    pub fn gui_poll_event(&mut self) -> Result<Option<Event>> {
+        let e = self.gui_read_event(true)?;
+        Ok(if e.kind == "idle" { None } else { Some(e) })
+    }
+    fn gui_read_event(&mut self, poll: bool) -> Result<Event> {
         if self.gui_displayed.is_none() {
             return Err(Error::InvalidOperation(
                 "GuiNotPublished: publish a GUI scene before reading input".into(),
             ));
         }
         let cursor = self.state.gui_cursor;
-        if cursor >= 65536 {
+        if cursor >= 1_000_000 {
             return Err(Error::InvalidOperation("GuiEventLimit".into()));
         }
         let event = if let Some(e) = self.gui_observations.get(cursor) {
@@ -59,10 +66,15 @@ impl Runtime {
                 tape.pop_front()
                     .ok_or_else(|| Error::InvalidOperation("GuiEventTapeEnd".into()))?
             } else {
-                self.gui_host
+                let host = self
+                    .gui_host
                     .as_mut()
-                    .ok_or_else(|| Error::InvalidOperation("GuiNotPublished".into()))?
-                    .event()?
+                    .ok_or_else(|| Error::InvalidOperation("GuiNotPublished".into()))?;
+                if poll {
+                    host.poll()?.unwrap_or_else(|| Event::simple("idle"))
+                } else {
+                    host.event()?
+                }
             };
             e.validate()?;
             self.gui_observations.push(e.clone());
@@ -72,6 +84,11 @@ impl Runtime {
             }
             e
         };
+        if !poll && event.kind == "idle" {
+            return Err(Error::InvalidOperation(
+                "ReplayMismatch: polling mode differs from recording".into(),
+            ));
+        }
         self.state.gui_cursor += 1;
         self.gui_high_water = self.gui_high_water.max(self.state.gui_cursor);
         Ok(event)

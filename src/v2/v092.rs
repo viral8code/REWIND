@@ -33,6 +33,8 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdCountBits",
         "stdMulMod",
         "stdGuiStage",
+        "stdGuiPollEvent",
+        "stdGuiEdit",
         "stdGuiNextEvent",
         "stdGuiClose",
         "stdGuiContinueInput",
@@ -53,6 +55,13 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.1.0"
             | "1.2.0"
             | "1.3.0"
+            | "1.4.0"
+            | "1.5.0"
+            | "1.6.0"
+            | "1.7.0"
+            | "1.8.0"
+            | "1.9.0"
+            | "2.0.0"
     ) {
         return Ok(());
     }
@@ -132,6 +141,13 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.1.0"
             | "1.2.0"
             | "1.3.0"
+            | "1.4.0"
+            | "1.5.0"
+            | "1.6.0"
+            | "1.7.0"
+            | "1.8.0"
+            | "1.9.0"
+            | "2.0.0"
     ) || !names().contains(&n)
     {
         return Ok(None);
@@ -149,14 +165,32 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.1.0"
                 | "1.2.0"
                 | "1.3.0"
+                | "1.4.0"
+                | "1.5.0"
+                | "1.6.0"
+                | "1.7.0"
+                | "1.8.0"
+                | "1.9.0"
+                | "2.0.0"
         )
     {
         return Ok(None);
     }
-    if n.starts_with("stdGui") && p.language != "1.3.0" {
+    if n.starts_with("stdGui") && !language_at_least(&p.language, "1.3.0") {
         return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
     }
+    if matches!(n, "stdGuiEdit" | "stdGuiPollEvent") && !language_at_least(&p.language, "1.4.0") {
+        return Err(diagnostic(
+            at,
+            "GUI editing and polling require language 1.4.0",
+        ));
+    }
     let (params, ret): (&[&str], &str) = match n {
+        "stdGuiEdit" => (
+            &["String", "Int", "Int", "String", "String", "Bool"],
+            "Result<String,StdError>",
+        ),
+        "stdGuiPollEvent" => (&[], "Result<Option<String>,StdError>"),
         "stdGuiStage" => (&["String"], "Result<Unit,StdError>"),
         "stdGuiNextEvent" => (&[], "Result<String,StdError>"),
         "stdGuiClose" => (&[], "Result<Unit,StdError>"),
@@ -226,6 +260,22 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
     }
     if n.starts_with("stdGui") {
         let result: Result<Value> = match (n, args) {
+            (
+                "stdGuiEdit",
+                [Value::Text(text), Value::Int(cursor), Value::Int(anchor), Value::Text(key), Value::Text(typed), Value::Bool(multiline)],
+            ) => rewind::gui::edit::apply(text, *cursor, *anchor, key, typed, *multiline)
+                .map_err(|e| Error::InvalidOperation(e.into()))
+                .and_then(|v| {
+                    serde_json::to_string(&serde_json::json!({"text":v.text,"cursor":v.cursor,"anchor":v.anchor,"line":v.text.chars().take(v.cursor).filter(|c|*c=='\n').count()}))
+                        .map(Value::Text)
+                        .map_err(|e| Error::InvalidOperation(e.to_string()))
+                }),
+            ("stdGuiPollEvent", []) => runtime.gui_poll_event().and_then(|e| match e {
+                None => Ok(Value::Option(None)),
+                Some(e) => serde_json::to_string(&e)
+                    .map(|s| Value::Option(Some(Box::new(Value::Text(s)))))
+                    .map_err(|e| Error::InvalidOperation(e.to_string())),
+            }),
             ("stdGuiStage", [Value::Text(s)]) => {
                 if s.len() > LIMIT {
                     Err(Error::InvalidOperation("GuiSceneLimit".into()))

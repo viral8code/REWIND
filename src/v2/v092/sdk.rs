@@ -243,6 +243,36 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/doc/REWIND_v1.4.md",
+            include_str!("../../../docs/REWIND_v1.4.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.5.md",
+            include_str!("../../../docs/REWIND_v1.5.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/ROADMAP_v2.md",
+            include_str!("../../../docs/ROADMAP_v2.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/notes/main.rw",
+            include_str!("../../../examples/notes/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/notes/events.json",
+            include_str!("../../../examples/notes/events.json"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/notes/README.md",
+            include_str!("../../../examples/notes/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/doc/REWIND_v1.3.md",
             include_str!("../../../docs/REWIND_v1.3.md"),
         )?;
