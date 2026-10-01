@@ -220,3 +220,73 @@ fn text_slice_scalar_boundaries_and_task_failure_metadata() {
     );
     fs::remove_dir_all(path).unwrap();
 }
+#[test]
+fn language_reference_examples_execute_as_documented() {
+    let reference = include_str!("../docs/language-reference.md");
+    for (index, part) in reference.split("```rewind\n").skip(1).enumerate() {
+        let source = part.split("```").next().unwrap();
+        let path = root();
+        fs::write(path.join("main.rw"), source).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+            .arg("run")
+            .arg(path.join("main.rw"))
+            .args(["--allow-effects", "fileRead,fileWrite"])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "Reference example {} failed:\n{}\n{}",
+            index + 1,
+            source,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(path).unwrap();
+    }
+}
+#[test]
+fn stack_is_bounded_failure_replay_matches_and_secrets_remain_masked() {
+    let path = root();
+    let source="let password=secret(\"hidden-password-42\");fn descend(n:Int)->Int effects {} {if n==0{return 1/0;}return descend(n-1);}descend(40);";
+    fs::write(path.join("main.rw"), source).unwrap();
+    let trace = path.join("trace.json");
+    let first = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .arg("run")
+        .arg(path.join("main.rw"))
+        .arg("--record")
+        .arg(&trace)
+        .args(["--diagnostic-format", "json"])
+        .output()
+        .unwrap();
+    assert!(!first.status.success());
+    let d: serde_json::Value = serde_json::from_slice(&first.stderr).unwrap();
+    assert_eq!(d["diagnostic"]["frames"].as_array().unwrap().len(), 32);
+    assert_eq!(d["diagnostic"]["frames_truncated"], true);
+    let bytes = fs::read(&trace).unwrap();
+    assert!(!String::from_utf8_lossy(&bytes).contains("hidden-password-42"));
+    assert!(!String::from_utf8_lossy(&first.stderr).contains("hidden-password-42"));
+    let replay = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .arg("replay")
+        .arg(&trace)
+        .arg("--root")
+        .arg(&path)
+        .args(["--diagnostic-format", "json"])
+        .output()
+        .unwrap();
+    assert!(!replay.status.success());
+    let actual: serde_json::Value = serde_json::from_slice(&replay.stderr).unwrap();
+    assert_eq!(actual["diagnostic"], d["diagnostic"]);
+    fs::remove_dir_all(path).unwrap();
+}
+#[test]
+fn lexical_errors_keep_source_and_builtin_type_errors_show_expected_signature() {
+    let path = root();
+    let d = run(&path, "let text=\"unterminated");
+    assert_eq!(d["diagnostic"]["source"], "main.rw");
+    let d = run(&path, "assert_eq(1,\"one\");");
+    assert_eq!(d["diagnostic"]["code"], "InvalidArguments");
+    assert!(d["diagnostic"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Int, String"));
+    fs::remove_dir_all(path).unwrap();
+}

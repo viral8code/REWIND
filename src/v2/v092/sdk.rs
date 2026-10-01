@@ -231,6 +231,17 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/doc/language-reference.md",
+            include_str!("../../../docs/language-reference.md")
+                .replace("../libraries/README.md", "libraries.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.1.md",
+            include_str!("../../../docs/REWIND_v1.1.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/doc/language.md",
             include_str!("../../../docs/sdk-guide.md"),
         )?;

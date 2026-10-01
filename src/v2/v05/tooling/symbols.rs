@@ -616,7 +616,16 @@ pub(super) fn request(
         let mut changes: BTreeMap<String, Vec<Json>> = BTreeMap::new();
         for o in &occurrences {
             changes
-                .entry(file_uri(&o.path))
+                // Preserve the editor's URI spelling for the requested document
+                // (Windows short/long paths can canonicalize to the same file).
+                .entry(if o.path == path {
+                    params["textDocument"]["uri"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string()
+                } else {
+                    file_uri(&o.path)
+                })
                 .or_default()
                 .push(json!({"range":index.range(o),"newText":name}));
         }
