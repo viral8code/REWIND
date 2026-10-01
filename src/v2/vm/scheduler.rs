@@ -25,6 +25,7 @@ enum TaskBody {
 struct Context {
     pc: usize,
     globals: Vec<BTreeMap<String, Binding>>,
+    global_scope_ids: Vec<u64>,
     frames: Vec<VmFrame>,
     branches: Vec<BranchFrame>,
     cleanups: Vec<Cleanup>,
@@ -46,6 +47,7 @@ struct Task {
     result: Option<std::result::Result<Value, String>>,
     failure: Option<rewind::DiagnosticRecord>,
     globals: Vec<BTreeMap<String, Binding>>,
+    global_scope_ids: Vec<u64>,
     parent: u64,
 }
 #[derive(Clone)]
@@ -83,6 +85,7 @@ impl Default for Scheduler {
             result: None,
             failure: None,
             globals: Vec::new(),
+            global_scope_ids: Vec::new(),
             parent: 0,
         };
         Self {
@@ -277,6 +280,7 @@ impl<R: BufRead> Vm<R> {
         Context {
             pc: self.pc,
             globals: self.globals.clone(),
+            global_scope_ids: self.global_scope_ids.clone(),
             frames: self.frames.clone(),
             branches: self.branches.clone(),
             cleanups: self.global_cleanups.clone(),
@@ -288,6 +292,7 @@ impl<R: BufRead> Vm<R> {
     fn install_context(&mut self, context: Context) -> Result<()> {
         self.pc = context.pc;
         self.globals = context.globals;
+        self.global_scope_ids = context.global_scope_ids;
         self.frames = context.frames;
         self.branches = context.branches;
         self.global_cleanups = context.cleanups;
@@ -330,6 +335,7 @@ impl<R: BufRead> Vm<R> {
                 result: None,
                 failure: None,
                 globals,
+                global_scope_ids: self.global_scope_ids.clone(),
                 parent: self.scheduler.active,
             },
         );
@@ -371,6 +377,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
         if v5 {
@@ -539,6 +546,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
                     } else {
@@ -584,6 +592,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) =>
                 {
                     self.scheduler
@@ -610,6 +619,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) =>
                 {
                     if *steps < 0 {
@@ -646,6 +656,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) =>
                 {
                     let other =
@@ -682,6 +693,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) =>
                 {
                     let task = self
@@ -715,6 +727,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) =>
                 {
                     self.cancel_task(id, at)?;
@@ -774,6 +787,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
                 self.scheduler.tasks.get_mut(&id)?.observed = true;
@@ -808,6 +822,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) =>
                 {
                     v05::task_copy(&mut self.engine.runtime, &value)
@@ -831,6 +846,7 @@ impl<R: BufRead> Vm<R> {
                                         | "0.9.9"
                                         | "1.0.0"
                                         | "1.1.0"
+                                        | "1.2.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
                                         &e,
@@ -868,6 +884,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         v05::task_error(&error)
                     } else {
@@ -896,6 +913,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) && task.failure.is_none()
         {
             if let Err(message) = &result {
@@ -943,6 +961,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             self.scheduler
                 .tasks
@@ -1003,6 +1022,7 @@ impl<R: BufRead> Vm<R> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
                         body,
@@ -1147,6 +1167,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         if let TaskBody::Join(group) = body {
                             let failures = self
@@ -1295,6 +1316,7 @@ impl<R: BufRead> Vm<R> {
                 return Err(self.error(at, "missing task context"));
             };
             self.globals = task.globals.clone();
+            self.global_scope_ids = task.global_scope_ids.clone();
             self.frames.clear();
             self.branches.clear();
             self.global_cleanups.clear();
@@ -1351,6 +1373,7 @@ impl<R: BufRead> Vm<R> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
                 } else {
@@ -1430,6 +1453,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             return Ok(false);
         }
@@ -1531,6 +1555,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
                 return Ok(());
@@ -1586,6 +1611,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
         }

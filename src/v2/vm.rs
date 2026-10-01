@@ -112,6 +112,7 @@ impl Compiler {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             return None;
         }
@@ -142,6 +143,7 @@ impl Compiler {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) || name.contains('<')
         {
             return name.into();
@@ -291,6 +293,7 @@ impl Compiler {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) && stmt.at.text == "@application-entry"
             {
                 Some(c.emit(Op::ApplicationEntry(0), &stmt.at))
@@ -311,7 +314,16 @@ impl Compiler {
         c.emit(Op::Halt, &end);
         if matches!(
             program.language.as_str(),
-            "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0"
+            "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
+                | "1.0.0"
+                | "1.1.0"
+                | "1.2.0"
         ) {
             let signatures = program
                 .functions
@@ -392,6 +404,7 @@ impl Compiler {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
                 relocate(&mut chunk.code, base, false);
@@ -444,6 +457,7 @@ impl Compiler {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             let mut code = self.code[base..].to_vec();
             relocate(&mut code, base, true);
@@ -937,12 +951,14 @@ struct VmFrame {
     return_pc: usize,
     call_site: Tok,
     scopes: Vec<BTreeMap<String, Binding>>,
+    scope_ids: Vec<u64>,
     defers: Vec<Cleanup>,
 }
 #[derive(Clone)]
 struct BranchFrame {
     anchor: BranchAnchor,
     globals: Vec<BTreeMap<String, Binding>>,
+    global_scope_ids: Vec<u64>,
     frames: Vec<VmFrame>,
     scheduler: Scheduler,
 }
@@ -952,6 +968,7 @@ struct VmSnapshot {
     pc: usize,
     stack_len: usize,
     globals: Vec<BTreeMap<String, Binding>>,
+    global_scope_ids: Vec<u64>,
     frames: Vec<VmFrame>,
     branches: Vec<BranchFrame>,
     global_cleanups: Vec<Cleanup>,
@@ -992,6 +1009,7 @@ struct Vm<R: BufRead> {
     code: Vec<Inst>,
     functions: BTreeMap<String, usize>,
     globals: Vec<BTreeMap<String, Binding>>,
+    global_scope_ids: Vec<u64>,
     frames: Vec<VmFrame>,
     branches: Vec<BranchFrame>,
     snapshots: BTreeMap<String, VmSnapshot>,
@@ -999,6 +1017,7 @@ struct Vm<R: BufRead> {
     pc: usize,
     steps: usize,
     next_frame_id: u64,
+    next_scope_id: u64,
     halt_pc: usize,
     specializations: BTreeMap<(String, Vec<String>), usize>,
     template_ends: BTreeMap<String, usize>,
@@ -1103,7 +1122,10 @@ impl<R: BufRead> Vm<R> {
                 .runtime
                 .import_observations(&replay["observations"])?;
         }
-        if matches!(engine.program.language.as_str(), "1.0.0" | "1.1.0") {
+        if matches!(
+            engine.program.language.as_str(),
+            "1.0.0" | "1.1.0" | "1.2.0"
+        ) {
             engine.runtime.enable_allocation_accounting();
             if let Some(limit) = options.execution_steps {
                 engine.runtime.configure_execution_work(limit);
@@ -1111,7 +1133,7 @@ impl<R: BufRead> Vm<R> {
         }
         if matches!(
             engine.program.language.as_str(),
-            "0.9.9" | "1.0.0" | "1.1.0"
+            "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0"
         ) {
             engine
                 .runtime
@@ -1128,6 +1150,7 @@ impl<R: BufRead> Vm<R> {
             code: compiled.code,
             functions: compiled.functions,
             globals: vec![BTreeMap::new()],
+            global_scope_ids: vec![0],
             frames: Vec::new(),
             branches: Vec::new(),
             snapshots: BTreeMap::new(),
@@ -1135,6 +1158,7 @@ impl<R: BufRead> Vm<R> {
             pc: 0,
             steps: options.execution_steps.unwrap_or(1_000_000),
             next_frame_id: 1,
+            next_scope_id: 1,
             halt_pc,
             specializations: BTreeMap::new(),
             template_ends,
@@ -1176,6 +1200,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             let message = self
                 .engine
@@ -1251,7 +1276,7 @@ impl<R: BufRead> Vm<R> {
         if matches!(error, Error::HistoryBudgetExceeded) {
             d.code = self.engine.runtime.history_budget_kind().into();
         }
-        if self.engine.program.language == "1.1.0" {
+        if matches!(self.engine.program.language.as_str(), "1.1.0" | "1.2.0") {
             v11::enrich(&mut d);
         }
         d
@@ -1376,6 +1401,7 @@ impl<R: BufRead> Vm<R> {
             pc: self.pc,
             stack_len: self.engine.runtime.state().stack.len(),
             globals: self.globals.clone(),
+            global_scope_ids: self.global_scope_ids.clone(),
             frames: self.frames.clone(),
             branches: self.branches.clone(),
             global_cleanups: self.global_cleanups.clone(),
@@ -1385,6 +1411,7 @@ impl<R: BufRead> Vm<R> {
     fn restore(&mut self, snap: VmSnapshot) {
         self.pc = snap.pc;
         self.globals = snap.globals;
+        self.global_scope_ids = snap.global_scope_ids;
         self.frames = snap.frames;
         self.branches = snap.branches;
         self.global_cleanups = snap.global_cleanups;
@@ -1496,6 +1523,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             return first_error.map_or(Ok(()), |e| {
                 let mut d = self.record_error(&e, at, self.scheduler.active);
@@ -1521,6 +1549,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             first_error.map_or(Ok(()), |e| {
                 let mut message = e.to_string();
@@ -1653,6 +1682,7 @@ impl<R: BufRead> Vm<R> {
             return_pc: self.pc,
             call_site: at.clone(),
             scopes: vec![scope],
+            scope_ids: vec![0],
             defers: Vec::new(),
         });
         self.next_frame_id += 1;
@@ -1750,6 +1780,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             )
         {
             if matches!(
@@ -1769,6 +1800,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
                     result = Err(Error::Diagnostic(Box::new(error)));
@@ -1845,6 +1877,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) {
                 let mut failure =
                     self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
@@ -1868,6 +1901,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) && !causes.is_empty()
             {
                 let mut message = result.unwrap_err().to_string();
@@ -1900,6 +1934,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             outcome["diagnostic"] = execution_error
                 .and_then(|e| {
@@ -1942,6 +1977,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
@@ -1996,7 +2032,7 @@ impl<R: BufRead> Vm<R> {
             self.current_pc = caller_pc;
         }
         result.map_err(|error| {
-            if self.engine.program.language != "1.1.0" {
+            if !matches!(self.engine.program.language.as_str(), "1.1.0" | "1.2.0") {
                 return error;
             }
             let at = self
@@ -2075,6 +2111,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
             }
@@ -2083,7 +2120,7 @@ impl<R: BufRead> Vm<R> {
             }
             if matches!(
                 self.engine.program.language.as_str(),
-                "0.9.9" | "1.0.0" | "1.1.0"
+                "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0"
             ) && self.engine.runtime.collection_due()
             {
                 let mut roots = Vec::new();
@@ -2171,6 +2208,7 @@ impl<R: BufRead> Vm<R> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     self.index_state(&inst.at)?;
                 }
@@ -2192,6 +2230,7 @@ impl<R: BufRead> Vm<R> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
                     event["line"] = serde_json::json!(inst.at.line);
@@ -2264,6 +2303,7 @@ impl<R: BufRead> Vm<R> {
                                     | "0.9.9"
                                     | "1.0.0"
                                     | "1.1.0"
+                                    | "1.2.0"
                             ) {
                                 let ty = v06::fn_type(
                                     &f.params,
@@ -2398,9 +2438,11 @@ impl<R: BufRead> Vm<R> {
                 Op::Binary(op) => {
                     let rhs = self.pop()?;
                     let lhs = self.pop()?;
-                    if matches!(self.engine.program.language.as_str(), "1.0.0" | "1.1.0")
-                        && (matches!(lhs, Value::Text(_) | Value::Bytes(_))
-                            || matches!(rhs, Value::Text(_) | Value::Bytes(_)))
+                    if matches!(
+                        self.engine.program.language.as_str(),
+                        "1.0.0" | "1.1.0" | "1.2.0"
+                    ) && (matches!(lhs, Value::Text(_) | Value::Bytes(_))
+                        || matches!(rhs, Value::Text(_) | Value::Bytes(_)))
                     {
                         let work = v100::argument_work(&lhs, &self.engine.runtime)
                             .saturating_add(v100::argument_work(&rhs, &self.engine.runtime));
@@ -2486,6 +2528,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && name == "reveal"
                     {
                         self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
@@ -2517,6 +2560,7 @@ impl<R: BufRead> Vm<R> {
                                 | "0.9.9"
                                 | "1.0.0"
                                 | "1.1.0"
+                                | "1.2.0"
                         )
                     {
                         let value = self.property_int(&args, &inst.at)?;
@@ -2591,6 +2635,7 @@ impl<R: BufRead> Vm<R> {
                                     | "0.9.9"
                                     | "1.0.0"
                                     | "1.1.0"
+                                    | "1.2.0"
                             ) && !needed.contains(name)
                             {
                                 continue;
@@ -2626,6 +2671,7 @@ impl<R: BufRead> Vm<R> {
                                         | "0.9.9"
                                         | "1.0.0"
                                         | "1.1.0"
+                                        | "1.2.0"
                                 ) && !needed.contains(name)
                                 {
                                     continue;
@@ -2658,6 +2704,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         let f =
                             &self.engine.program.functions[name.split('<').next().unwrap_or(&name)];
@@ -2710,7 +2757,10 @@ impl<R: BufRead> Vm<R> {
                 Op::Method(method, count) => {
                     let mut args = self.args(count)?;
                     let target = self.pop()?;
-                    if matches!(self.engine.program.language.as_str(), "1.0.0" | "1.1.0") {
+                    if matches!(
+                        self.engine.program.language.as_str(),
+                        "1.0.0" | "1.1.0" | "1.2.0"
+                    ) {
                         self.engine.runtime.charge_native_work(v100::method_work(
                             &target,
                             &method,
@@ -2735,6 +2785,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         if let Some(value) =
                             self.result_adapter(&target, &method, &args, &inst.at)?
@@ -2773,7 +2824,10 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Builtin(receiver, method, count) => {
                     let args = self.args(count)?;
-                    if matches!(self.engine.program.language.as_str(), "1.0.0" | "1.1.0") {
+                    if matches!(
+                        self.engine.program.language.as_str(),
+                        "1.0.0" | "1.1.0" | "1.2.0"
+                    ) {
                         self.engine.runtime.charge_native_work(v100::call_work(
                             &format!("{receiver}.{method}"),
                             &args,
@@ -2797,6 +2851,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
                         ("Env", "getSecret") | ("In", "readSecretLine")
@@ -2820,10 +2875,16 @@ impl<R: BufRead> Vm<R> {
                     self.pop()?;
                 }
                 Op::Enter => {
+                    let id = self.next_scope_id;
+                    self.next_scope_id = id.checked_add(1).ok_or_else(|| {
+                        self.error(&inst.at, "ScopeBudgetExceeded: scope identities")
+                    })?;
                     if let Some(frame) = self.frames.last_mut() {
                         frame.scopes.push(BTreeMap::new());
+                        frame.scope_ids.push(id);
                     } else {
                         self.globals.push(BTreeMap::new());
+                        self.global_scope_ids.push(id);
                     }
                 }
                 Op::Exit => {
@@ -2840,6 +2901,7 @@ impl<R: BufRead> Vm<R> {
                             return Err(self.error(&inst.at, "scope underflow"));
                         }
                         let removed = frame.scopes.pop().unwrap();
+                        frame.scope_ids.pop();
                         for name in removed.keys() {
                             if let Some(value) = frame.scopes.iter().rev().find_map(|s| s.get(name))
                             {
@@ -2852,6 +2914,7 @@ impl<R: BufRead> Vm<R> {
                         }
                     } else if self.globals.len() > 1 {
                         let removed = self.globals.pop().unwrap();
+                        self.global_scope_ids.pop();
                         for name in removed.keys() {
                             if let Some(value) = self.globals.iter().rev().find_map(|s| s.get(name))
                             {
@@ -2901,6 +2964,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
                         Some(Value::Result(Err(_)))
@@ -2980,12 +3044,12 @@ impl<R: BufRead> Vm<R> {
                     })?;
                     let saved_ids = snap.frames.iter().map(|f| f.id).collect::<Vec<_>>();
                     let current_ids = self.frames.iter().map(|f| f.id).collect::<Vec<_>>();
-                    let scopes_match = snap.globals.len() <= self.globals.len()
+                    let scopes_match = self.global_scope_ids.starts_with(&snap.global_scope_ids)
                         && snap
                             .frames
                             .iter()
                             .zip(&self.frames)
-                            .all(|(a, b)| a.scopes.len() <= b.scopes.len());
+                            .all(|(a, b)| b.scope_ids.starts_with(&a.scope_ids));
                     if saved_ids != current_ids
                         || !scopes_match
                         || snap.stack_len != self.engine.runtime.state().stack.len()
@@ -3001,10 +3065,12 @@ impl<R: BufRead> Vm<R> {
                     // instructions still unwind the correct number of scopes. Bindings
                     // and cleanups created after the checkpoint must not survive.
                     snap.globals.resize_with(self.globals.len(), BTreeMap::new);
+                    snap.global_scope_ids = self.global_scope_ids.clone();
                     for (saved, current) in snap.frames.iter_mut().zip(&self.frames) {
                         saved
                             .scopes
                             .resize_with(current.scopes.len(), BTreeMap::new);
+                        saved.scope_ids = current.scope_ids.clone();
                     }
                     let after = self.pc;
                     self.engine.runtime.revert(&name)?;
@@ -3042,6 +3108,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
                             return Err(self.error(&inst.at, error));
@@ -3065,6 +3132,7 @@ impl<R: BufRead> Vm<R> {
                     self.branches.push(BranchFrame {
                         anchor: self.engine.runtime.begin_branch(),
                         globals: self.globals.clone(),
+                        global_scope_ids: self.global_scope_ids.clone(),
                         frames: self.frames.clone(),
                         scheduler: self.scheduler.clone(),
                     });
@@ -3080,6 +3148,7 @@ impl<R: BufRead> Vm<R> {
                         .runtime
                         .end_branch(name.clone(), branch.anchor)?;
                     self.globals = branch.globals;
+                    self.global_scope_ids = branch.global_scope_ids;
                     self.frames = branch.frames;
                     self.scheduler = branch.scheduler;
                     if self.engine.trace {
@@ -3182,6 +3251,7 @@ pub(super) fn execute(
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 )
             {
                 vm.finish_tools(result.as_ref().err())?;
@@ -3218,6 +3288,7 @@ pub(super) fn execute(
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             )
             || options.inspect
             || options.profile
@@ -3300,7 +3371,7 @@ fn build_artifact_mode(
     let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"module":inst.at.source,"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
     let document = if matches!(
         program.language.as_str(),
-        "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0"
+        "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0"
     ) && !root.join("rewind.toml").exists()
     {
         serde_json::to_string(&functions).map_err(|e| Error::InvalidOperation(e.to_string()))?
@@ -3389,6 +3460,7 @@ fn explore_test(
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             )
         {
             vm.options.record = options.record.clone();

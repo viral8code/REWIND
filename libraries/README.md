@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.1.0 / `language = "1.1.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.2.0 / `language = "1.2.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -102,3 +102,5 @@ error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換�
 提供する34 moduleと保証範囲は[1.0仕様](../docs/REWIND_v1.0.md)を参照してください。0.xの内部field直接操作はfactory/accessorへ移行し、lock/artifact/recordを再生成します。
 
 1.1では[言語リファレンス](../docs/language-reference.md)とWindows SDKを追加し、std.text.sliceのoffset表allocationを削除しています。公開APIの基準は1.0のsnapshotを維持します。
+
+1.2では条件分岐内のCheckpoint復元と数値・文字列・コメントの表記を改善しています。既存の34module APIを維持します。

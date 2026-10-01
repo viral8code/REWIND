@@ -155,6 +155,7 @@ fn path(root: &Path, kind: &str, key: &str) -> Option<(PathBuf, Vec<u8>)> {
                         | "\"0.9.9\""
                         | "\"1.0.0\""
                         | "\"1.1.0\""
+                        | "\"1.2.0\""
                 )
         })
     }) {

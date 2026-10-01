@@ -74,7 +74,14 @@ jobs:
         run: |
           set -euo pipefail
           NOTES="$RUNNER_TEMP/release-notes.md"
-          cat docs/getting-started.md > "$NOTES"
+          VERSION_DOC="docs/REWIND_${RELEASE_TAG%.*}.md"
+          if [[ -f "$VERSION_DOC" ]]; then
+            cat "$VERSION_DOC" > "$NOTES"
+            printf '\n' >> "$NOTES"
+          else
+            : > "$NOTES"
+          fi
+          cat docs/getting-started.md >> "$NOTES"
           printf '\n## Build and verification\n\nCommit: `%s`\n\n' "$GITHUB_SHA" >> "$NOTES"
           printf 'Linux and Windows regression tests, standard-library contracts, SDK signatures, 34 API baselines, extraction, input, record/replay and source-free execution passed.\n\n' >> "$NOTES"
           for KEY in release-assets/*-sdk.pub; do

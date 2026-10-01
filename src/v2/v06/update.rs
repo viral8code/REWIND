@@ -23,6 +23,7 @@ fn proposal(root: &Path) -> Result<Json> {
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     ) {
         return Err(Error::InvalidOperation(
             "update preview/apply requires language 0.6".into(),

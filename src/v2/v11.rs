@@ -18,7 +18,7 @@ pub(super) fn enrich(d: &mut rewind::DiagnosticRecord) {
             "DivisionByZero",
             "Check the divisor before division or remainder.",
         )
-    } else if m == "integer overflow" {
+    } else if m == "integer overflow" || m == "integer literal overflow" {
         (
             "IntegerOverflow",
             "Int is signed 64-bit. Check the operands or use std.integer checked operations.",
@@ -62,6 +62,10 @@ pub(super) fn enrich(d: &mut rewind::DiagnosticRecord) {
     } else {
         match code.as_str() {
             "InvalidArguments" => "Match the expected argument count and types; Result<T,E> is different from T.",
+            "InvalidContinuation" => "Revert requires the same live call frames and checkpoint scopes. Use resume to restore the saved execution position, or commit in a scope that is still active.",
+            "InvalidNumericLiteral" => "Use base digits after 0x/0b/0o and place underscores only between digits. Exponents need decimal digits.",
+            "UnterminatedComment" => "Close every /* comment with */; block comments may be nested.",
+            "InvalidUnicodeEscape" => "Use \\u{HEX} with 1 to 6 hex digits for a valid Unicode scalar; surrogate code points are invalid.",
             "ExecutionBudgetExceeded" => "Check for a non-terminating loop; increase --steps only when the work is intentional.",
             "NativeWorkBudgetExceeded" => "Reduce input or collection work, or raise --native-work for intentional work.",
             "TaskSteps" => "Check the task loop or increase --task-steps for intentional work.",
