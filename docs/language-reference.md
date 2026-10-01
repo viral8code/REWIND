@@ -1,6 +1,6 @@
-# REWIND 1.1 言語リファレンス
+# REWIND 1.2 言語リファレンス
 
-対象はcompiler/language 1.1.0です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)を基準にしてください。
+対象はcompiler/language 1.2.0です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -44,11 +44,13 @@ compileは既定で同じ場所に`main.rwc`を生成します。成果物はソ
 | 記録の再生 | `rewind replay trace.json --root DIR` |
 | JSON診断 | コマンドに`--diagnostic-format json`を付ける |
 
+`rewind run --help`など主要コマンドの`--help` / `-h`でも使用方法を確認できます。`--`以降の`--help`はapplication引数です。
+
 formatterは既存の改行を保ちながらインデントを整えます。任意のコードを一行ずつ分割するformatterではありません。LSPは診断、補完、hover、定義・参照、rename、signature help、既存のquick fix、整形に対応します。エディタ側にはstdio LSPクライアントの設定が必要です。
 
 ## 字句と基本型
 
-文末は`;`、ブロックは`{ ... }`です。行コメントは`//`を使います。文字列は二重引用符で囲み、`\n`、`\r`、`\t`、`\"`、`\\`を使えます。識別子や型名は大文字・小文字を区別します。
+文末は`;`、ブロックは`{ ... }`です。行コメントは`//`、入れ子にできるブロックコメントは`/* ... */`を使います。文字列は二重引用符で囲み、`\n`、`\r`、`\t`、`\"`、`\\`を使えます。`\0`と`\u{HEX}`も使えます。Unicode escapeは1〜6桁のhexで有効なUnicode scalarを指定します（例：`"\u{754c}"`は`"界"`）。識別子や型名は大文字・小文字を区別します。
 
 | 型 | 意味 |
 |---|---|
@@ -65,6 +67,8 @@ formatterは既存の改行を保ちながらインデントを整えます。�
 | `Frozen<T>` | 共有可能な不変snapshot |
 | `Secret<T>` | 診断・記録で値を伏せるための型 |
 
+数値は`1_000`のように数字の間を`_`で区切れます。整数には`0xff`、`0b1010`、`0o755`も使えます。Floatの例は`1_2.5_0e+0_1`です。Intの範囲は表記にかかわらずsigned 64-bitです。
+
 暗黙に任意の型へ変換する仕組みはありません。整数と浮動小数点の境界では`toFloatChecked`、`toIntChecked`等の明示変換を使います。
 
 ```rewind
@@ -77,6 +81,17 @@ assert_eq("界".byteLen(),3);
 assert_eq("界".charLen(),1);
 Out.println("Hello, REWIND!");
 publish;
+```
+
+```rewind
+/* 表記の例。 /* コメントは入れ子にできる */ */
+let limit = 1_000;
+let mask = 0xff;
+assert_eq(limit,1000);
+assert_eq(mask,255);
+assert_eq(0b1010,10);
+assert_eq(0o755,493);
+assert_eq("\u{754c}\u{1f600}","界😀");
 ```
 
 ## 変数と演算
@@ -107,7 +122,7 @@ assert_eq(values.get(0),15);
 
 ## 制御構文
 
-`if`、`while`、半開区間の`for`、`break`、`continue`、`return`があります。条件はBoolです。
+`if` / `else if` / `else`、`while`、半開区間の`for`、`break`、`continue`、`return`があります。条件はBoolです。
 
 ```rewind
 var sum = 0;

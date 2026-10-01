@@ -65,6 +65,7 @@ impl Flow<'_> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             v06::captures::names(&self.checker(), params, body)
         } else {
@@ -77,7 +78,16 @@ impl Flow<'_> {
     fn owned_call(&self, e: &Expr) -> bool {
         if !matches!(
             self.program.language.as_str(),
-            "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0"
+            "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
+                | "1.0.0"
+                | "1.1.0"
+                | "1.2.0"
         ) {
             return false;
         }
@@ -107,7 +117,7 @@ impl Flow<'_> {
                 }
                 if matches!(
                     self.program.language.as_str(),
-                    "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0"
+                    "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0"
                 ) && self.program.structs.contains_key(base)
                 {
                     return args.iter().all(|arg| self.shareable(arg) || self.owned_call(arg) || matches!(&arg.kind, ExprKind::Name(n) if self.vars.get(n).is_some_and(|v| v.borrow.is_none()) && !self.borrowed(n)));
@@ -131,6 +141,7 @@ impl Flow<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) && matches!(&callee.kind,ExprKind::Name(n) if matches!(n.as_str(),"Ok"|"Err"|"Some")) =>
             {
                 args.iter().all(|v| self.shareable(v))
@@ -174,6 +185,7 @@ impl Flow<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) && matches!(&callee.kind,ExprKind::Name(n) if matches!(n.as_str(),"Ok"|"Err"|"Some")) =>
             {
                 args.iter().all(|v| self.sendable(v))
@@ -257,6 +269,7 @@ impl Flow<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         Self::overlaps(target, n)
                     } else {
@@ -283,6 +296,7 @@ impl Flow<'_> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             return self.use_place(n, at);
         }
@@ -327,6 +341,7 @@ impl Flow<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     v06::captures::names(&self.checker(), params, body)
                 } else {
@@ -408,6 +423,7 @@ impl Flow<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     if let Some(place) = Self::place(v).filter(|p| p.contains('.')) {
                         self.use_place(&place, &e.at)?;
@@ -456,6 +472,7 @@ impl Flow<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     if let Some(place) = Self::place(v) {
                         self.use_place(&place, &e.at)?;
@@ -523,6 +540,7 @@ impl Flow<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) && Self::place(e).is_some() =>
             {
                 self.use_place(&Self::place(e).unwrap(), &e.at)?
@@ -550,6 +568,7 @@ impl Flow<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     if matches!(&target.kind,ExprKind::Unary(op,_) if op=="$capture:borrow") {
                         return Err(diagnostic(
@@ -705,6 +724,7 @@ impl Flow<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         let imported = if let ExprKind::Name(n) = &base.kind {
@@ -766,7 +786,7 @@ impl Flow<'_> {
                                 .as_ref()
                                 .and_then(|(p, _)| p.get(index).map(String::as_str))
                         })
-                        .or_else(|| (matches!(self.program.language.as_str(), "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0") && index == 0 && matches!(&target.kind, ExprKind::Name(n) if n == "stdBytesFromList")).then_some("&List<Int>"));
+                        .or_else(|| (matches!(self.program.language.as_str(), "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0") && index == 0 && matches!(&target.kind, ExprKind::Name(n) if n == "stdBytesFromList")).then_some("&List<Int>"));
                     let borrowing = matches!(
                         self.program.language.as_str(),
                         "0.6"
@@ -784,6 +804,7 @@ impl Flow<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && expected.is_some_and(|t| t.starts_with('&'));
                     if borrowing {
                         if asynchronous || send {
@@ -986,7 +1007,7 @@ impl Flow<'_> {
                             ));
                         }
                     } else if (function.is_some()
-                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple" || matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0") && (n=="secret"||n=="reveal")))
+                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple" || matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0") && (n=="secret"||n=="reveal")))
                         && !self.shareable(arg)
                         && matches!(&arg.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
                     {
@@ -1046,6 +1067,7 @@ impl Flow<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && self
                         .vars
                         .get(&n)
@@ -1096,6 +1118,7 @@ impl Flow<'_> {
                                         | "0.9.9"
                                         | "1.0.0"
                                         | "1.1.0"
+                                        | "1.2.0"
                                 ) && !self.transfer_ty(&ty, true)
                                 {
                                     Self::place(v).map(|p| (p, false))
@@ -1143,6 +1166,7 @@ impl Flow<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && self.checker().expr(v).is_ok_and(|t| t.starts_with('&'))
                     {
                         return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
@@ -1190,6 +1214,7 @@ impl Flow<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         match &s.kind {
                             StmtKind::Let(_, _, Some(annotation), _) => annotation.clone(),
@@ -1211,6 +1236,7 @@ impl Flow<'_> {
                                 | "0.9.9"
                                 | "1.0.0"
                                 | "1.1.0"
+                                | "1.2.0"
                         ) && self.transfer_ty(&ty, false));
                     let shareable = self.shareable(e)
                         || (matches!(
@@ -1225,6 +1251,7 @@ impl Flow<'_> {
                                 | "0.9.9"
                                 | "1.0.0"
                                 | "1.1.0"
+                                | "1.2.0"
                         ) && self.transfer_ty(&ty, true));
                     if let ExprKind::Name(name) = &e.kind {
                         if self.vars.get(name).is_some_and(|v| !v.shareable) {
@@ -1256,6 +1283,7 @@ impl Flow<'_> {
                                     | "0.9.9"
                                     | "1.0.0"
                                     | "1.1.0"
+                                    | "1.2.0"
                             ) {
                                 Self::place(v).map(|p| (p, op == "borrowMut"))
                             } else {
@@ -1310,6 +1338,7 @@ impl Flow<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && borrow.is_none()
                         && !shareable
                         && !self.owned_call(e)
@@ -1421,6 +1450,7 @@ impl Flow<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && !self.shareable(e)
                         && !self.owned_call(e)
                     {
@@ -1571,6 +1601,7 @@ impl Flow<'_> {
                                             | "0.9.9"
                                             | "1.0.0"
                                             | "1.1.0"
+                                            | "1.2.0"
                                     ) && !self.transfer_ty(&t, true)
                                     {
                                         Self::place(e).map(|p| (p, false))
@@ -1652,6 +1683,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) && f.ret.contains('&')
         {
             return Err(diagnostic(&f.at, "borrowed return types are not supported"));
@@ -1691,6 +1723,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && ty.starts_with('&')
                     {
                         Some((format!("$parameter:{n}"), ty.starts_with("&mut ")))

@@ -242,6 +242,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/doc/REWIND_v1.2.md",
+            include_str!("../../../docs/REWIND_v1.2.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/conditional-revert/main.rw",
+            include_str!("../../../examples/v12/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/conditional-revert/README.md",
+            include_str!("../../../examples/v12/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/doc/language.md",
             include_str!("../../../docs/sdk-guide.md"),
         )?;

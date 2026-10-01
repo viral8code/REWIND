@@ -1,6 +1,6 @@
-# REWIND 1.1.0
+# REWIND 1.2.0
 
-`rewind run main.rw` / `rewind compile main.rw`、`rewindc`、Checkpointと増分publish、署名付きLinux / Windows x64 SDKを提供します。1.1では呼び出しスタック・エラーコード・対処ヒント、単一ファイルのLSP、Windows実機検証を整備しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[1.1の変更点](docs/REWIND_v1.1.md)、[ライブラリ](libraries/README.md)を参照してください。開発branchは`codex/develop`です。
+`rewind run main.rw` / `rewind compile main.rw`、`rewindc`、Checkpointと増分publish、署名付きLinux / Windows x64 SDKを提供します。1.2では条件分岐内のrevert、数値の基数・桁区切り、ブロックコメント、Unicodeエスケープ、コマンド別ヘルプを整備しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[1.2の変更点](docs/REWIND_v1.2.md)、[ライブラリ](libraries/README.md)を参照してください。開発branchは`codex/develop`です。
 
 ## SDKを試す
 

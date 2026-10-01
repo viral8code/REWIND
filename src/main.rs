@@ -578,6 +578,19 @@ fn process_memory_limit(mib: usize) -> Result<()> {
     }
 }
 
+fn command_help(command: &str) -> Option<&'static str> {
+    Some(match command {
+        "run" => "rewind run FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--record TRACE.json] [--steps N] [--native-work N] [--task-steps N] [-- ARGS...]\nRuns a source file or compiled artifact. Pending output requires publish;.",
+        "compile" => "rewind compile FILE.rw [--output FILE.rwc] [--root DIR] [--allow-effects EFFECTS]\nrewindc FILE.rw [--output FILE.rwc]\nChecks and compiles source; defaults to FILE.rwc. It does not execute the program.",
+        "check" => "rewind check [FILE.rw...] [--root DIR]\nChecks types, ownership and effects without executing source.",
+        "test" => "rewind test --root DIR [--filter NAME]\nRuns the project's test contracts; publish is unavailable in tests.",
+        "fmt" => "rewind fmt FILE.rw [--check]\nFormats indentation while preserving strings and comments. --check reports differences without writing.",
+        "lsp" => "rewind lsp --root DIR\nStarts a language server over stdin/stdout. Supports projects and standalone files.",
+        "replay" => "rewind replay TRACE.json [--root DIR]\nReplays recorded observations and verifies execution using the matching compiler version.",
+        _ => return None,
+    })
+}
+
 fn main() {
     let mut arguments = Vec::new();
     let mut format = "text".to_string();
@@ -615,6 +628,14 @@ fn main() {
         .first()
         .is_some_and(|a| a == "--help" || a == "-h")
     {
+        if compiler_entry {
+            println!(
+                "REWIND {}\n{}",
+                env!("CARGO_PKG_VERSION"),
+                command_help("compile").unwrap()
+            );
+            return;
+        }
         println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nBudgets: --steps N, --native-work N, --task-steps N, --memory-mib N (Linux).\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment and clock access require explicit permission.", env!("CARGO_PKG_VERSION"));
         return;
     }
@@ -627,6 +648,20 @@ fn main() {
     }
     if !compiler_entry && arguments.first().is_some_and(|a| a.ends_with(".rwc")) {
         arguments.insert(0, "run".into());
+    }
+    if let Some(help) = arguments.first().and_then(|command| command_help(command)) {
+        if arguments
+            .iter()
+            .skip(1)
+            .take_while(|arg| arg.as_str() != "--")
+            .any(|arg| arg == "--help" || arg == "-h")
+        {
+            println!(
+                "REWIND {}\n{help}\nUse --diagnostic-format json for machine-readable failures.",
+                env!("CARGO_PKG_VERSION")
+            );
+            return;
+        }
     }
     let result = if matches!(format.as_str(), "text" | "json") {
         memory_limit.and_then(|limit| {

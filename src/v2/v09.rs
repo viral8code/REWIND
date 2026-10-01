@@ -12,7 +12,7 @@ pub(in crate::v2) fn record_arguments(
     for (param, bound) in s
         .bounds
         .iter()
-        .filter(|_| matches!(p.language.as_str(), "1.0.0" | "1.1.0"))
+        .filter(|_| matches!(p.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0"))
     {
         if let Some(ty) = sub.get(param) {
             if !trait_satisfied(p, bound, ty) && !bound_provided(bounds, ty, bound) {
@@ -141,6 +141,7 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             v091::write_release(output, &installed)?;
         }

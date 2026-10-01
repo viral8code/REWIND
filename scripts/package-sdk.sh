@@ -73,6 +73,18 @@ rm "$RELEASE_WORK/checkpoint/main.rw"
 rm -rf "$RELEASE_WORK/checkpoint/.rewind"
 "$EXTRACTED/bin/rewind" "$RELEASE_WORK/checkpoint/main.rwc" > "$RELEASE_WORK/checkpoint-artifact"
 cmp "$RELEASE_WORK/checkpoint-expected" "$RELEASE_WORK/checkpoint-artifact"
+# Verify the new syntax and conditional restore from the actual shipped SDK.
+mkdir "$RELEASE_WORK/conditional"
+cp "$EXTRACTED/share/rewind/examples/conditional-revert/main.rw" "$RELEASE_WORK/conditional/main.rw"
+printf 'Odd\n' > "$RELEASE_WORK/conditional-expected"
+"$EXTRACTED/bin/rewind" run "$RELEASE_WORK/conditional/main.rw" > "$RELEASE_WORK/conditional-actual"
+cmp "$RELEASE_WORK/conditional-expected" "$RELEASE_WORK/conditional-actual"
+"$EXTRACTED/bin/rewindc" "$RELEASE_WORK/conditional/main.rw"
+rm "$RELEASE_WORK/conditional/main.rw"
+rm -rf "$RELEASE_WORK/conditional/.rewind"
+"$EXTRACTED/bin/rewind" "$RELEASE_WORK/conditional/main.rwc" > "$RELEASE_WORK/conditional-artifact"
+cmp "$RELEASE_WORK/conditional-expected" "$RELEASE_WORK/conditional-artifact"
+"$EXTRACTED/bin/rewind" compile --help > /dev/null
 (cd "$RELEASE_OUTPUT" && sha256sum ./*.tar.gz ./rewind-*-sdk.pub ./GETTING_STARTED.md ./BUILD_INFO.json > SHA256SUMS)
 chmod 644 "$RELEASE_OUTPUT"/*
 echo "Verified release assets: $RELEASE_OUTPUT"

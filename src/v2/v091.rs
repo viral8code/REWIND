@@ -31,6 +31,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     ) {
         return Ok(());
     }
@@ -147,6 +148,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     ) || !NAMES.contains(&n)
     {
         return Ok(None);

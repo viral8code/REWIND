@@ -30,6 +30,7 @@ fn program_v09(p: &Program) -> bool {
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     )
 }
 mod vm;
@@ -50,6 +51,7 @@ fn program_v07(p: &Program) -> bool {
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     )
 }
 thread_local! {
@@ -157,6 +159,39 @@ fn diagnostic(t: &Tok, message: impl AsRef<str>) -> Error {
     }))
 }
 
+fn integer_magnitude(text: &str) -> Option<u64> {
+    let (digits, radix) = if text.starts_with("0x") || text.starts_with("0X") {
+        (&text[2..], 16)
+    } else if text.starts_with("0b") || text.starts_with("0B") {
+        (&text[2..], 2)
+    } else if text.starts_with("0o") || text.starts_with("0O") {
+        (&text[2..], 8)
+    } else {
+        (text, 10)
+    };
+    if !digits.contains('_') {
+        return u64::from_str_radix(digits, radix).ok();
+    }
+    digits
+        .bytes()
+        .filter(|b| *b != b'_')
+        .try_fold(0u64, |value, byte| {
+            value
+                .checked_mul(radix as u64)?
+                .checked_add((byte as char).to_digit(radix)? as u64)
+        })
+}
+fn integer_literal(at: &Tok, negative: bool) -> Result<i64> {
+    let magnitude =
+        integer_magnitude(&at.text).ok_or_else(|| diagnostic(at, "integer literal overflow"))?;
+    let value = if negative {
+        -(magnitude as i128)
+    } else {
+        magnitude as i128
+    };
+    i64::try_from(value).map_err(|_| diagnostic(at, "integer literal overflow"))
+}
+
 fn lex(src: &str) -> Result<Vec<Tok>> {
     let mut out = Vec::new();
     let mut it = src.chars().peekable();
@@ -183,6 +218,43 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
             }
             continue;
         }
+        if c == '/' && it.peek() == Some(&'*') {
+            it.next();
+            col += 1;
+            let mut depth = 1usize;
+            while let Some(n) = it.next() {
+                if n == '\n' {
+                    line += 1;
+                    col = 1;
+                } else {
+                    col += 1;
+                }
+                if n == '/' && it.peek() == Some(&'*') {
+                    it.next();
+                    col += 1;
+                    depth += 1;
+                } else if n == '*' && it.peek() == Some(&'/') {
+                    it.next();
+                    col += 1;
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+            }
+            if depth != 0 {
+                return Err(diagnostic(
+                    &Tok {
+                        source: String::new(),
+                        text: "/*".into(),
+                        line: start_line,
+                        col: start_col,
+                    },
+                    "UnterminatedComment: close the block comment with */",
+                ));
+            }
+            continue;
+        }
         let mut text = c.to_string();
         if c == '"' {
             let mut closed = false;
@@ -197,7 +269,12 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
                 if n == '\\' {
                     if let Some(e) = it.next() {
                         text.push(e);
-                        col += 1;
+                        if e == '\n' {
+                            line += 1;
+                            col = 1;
+                        } else {
+                            col += 1;
+                        }
                     } else {
                         break;
                     }
@@ -218,39 +295,101 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
                 ));
             }
         } else if c.is_ascii_digit() {
-            while it.peek().is_some_and(|n| n.is_ascii_digit()) {
-                text.push(it.next().unwrap());
+            if c == '0' && matches!(it.peek(), Some('x' | 'X' | 'b' | 'B' | 'o' | 'O')) {
+                let prefix = it.next().unwrap();
+                text.push(prefix);
                 col += 1;
-            }
-            if it.peek() == Some(&'.') {
-                let mut look = it.clone();
-                look.next();
-                if look.peek().is_some_and(|n| n.is_ascii_digit()) {
+                while it
+                    .peek()
+                    .is_some_and(|n| n.is_ascii_alphanumeric() || *n == '_')
+                {
                     text.push(it.next().unwrap());
                     col += 1;
-                    while it.peek().is_some_and(|n| n.is_ascii_digit()) {
+                }
+                let radix = match prefix {
+                    'x' | 'X' => 16,
+                    'b' | 'B' => 2,
+                    _ => 8,
+                };
+                let digits = &text[2..];
+                let chars = digits.as_bytes();
+                let valid = !chars.is_empty()
+                    && chars.iter().enumerate().all(|(i, c)| {
+                        (*c as char).is_digit(radix)
+                            || (*c == b'_'
+                                && i > 0
+                                && i + 1 < chars.len()
+                                && (chars[i - 1] as char).is_digit(radix)
+                                && (chars[i + 1] as char).is_digit(radix))
+                    });
+                let token = Tok {
+                    source: String::new(),
+                    text: text.clone(),
+                    line: start_line,
+                    col: start_col,
+                };
+                if !valid {
+                    return Err(diagnostic(&token,"InvalidNumericLiteral: expected base digits, with underscores only between digits"));
+                }
+                integer_magnitude(&text)
+                    .ok_or_else(|| diagnostic(&token, "integer literal overflow"))?;
+            } else {
+                while it.peek().is_some_and(|n| n.is_ascii_digit() || *n == '_') {
+                    text.push(it.next().unwrap());
+                    col += 1;
+                }
+                if it.peek() == Some(&'.') {
+                    let mut look = it.clone();
+                    look.next();
+                    if look.peek().is_some_and(|n| n.is_ascii_digit()) {
                         text.push(it.next().unwrap());
                         col += 1;
+                        while it.peek().is_some_and(|n| n.is_ascii_digit() || *n == '_') {
+                            text.push(it.next().unwrap());
+                            col += 1;
+                        }
                     }
                 }
-            }
-            if matches!(it.peek(), Some('e' | 'E')) {
-                let mut look = it.clone();
-                look.next();
-                if matches!(look.peek(), Some('+' | '-')) {
-                    look.next();
-                }
-                if look.peek().is_some_and(|n| n.is_ascii_digit()) {
+                if matches!(it.peek(), Some('e' | 'E')) {
                     text.push(it.next().unwrap());
                     col += 1;
                     if matches!(it.peek(), Some('+' | '-')) {
                         text.push(it.next().unwrap());
                         col += 1;
                     }
-                    while it.peek().is_some_and(|n| n.is_ascii_digit()) {
+                    while it.peek().is_some_and(|n| n.is_ascii_digit() || *n == '_') {
                         text.push(it.next().unwrap());
                         col += 1;
                     }
+                    if !text.chars().last().is_some_and(|n| n.is_ascii_digit()) {
+                        return Err(diagnostic(
+                            &Tok {
+                                source: String::new(),
+                                text,
+                                line: start_line,
+                                col: start_col,
+                            },
+                            "InvalidNumericLiteral: exponent requires digits",
+                        ));
+                    }
+                }
+                let chars = text.as_bytes();
+                if chars.iter().enumerate().any(|(i, c)| {
+                    *c == b'_'
+                        && (i == 0
+                            || i + 1 == chars.len()
+                            || !chars[i - 1].is_ascii_digit()
+                            || !chars[i + 1].is_ascii_digit())
+                }) {
+                    return Err(diagnostic(
+                        &Tok {
+                            source: String::new(),
+                            text,
+                            line: start_line,
+                            col: start_col,
+                        },
+                        "InvalidNumericLiteral: underscores must separate digits",
+                    ));
                 }
             }
         } else if c.is_alphabetic() || c == '_' {
@@ -1251,22 +1390,12 @@ impl Parser {
             let negative = self.eat("-");
             let token = self.current().clone();
             self.pos += 1;
-            let mut first = token
-                .text
-                .parse::<i64>()
-                .map_err(|_| diagnostic(&token, "expected integer pattern"))?;
-            if negative {
-                first = -first;
-            }
+            let first = integer_literal(&token, negative)?;
             if self.eat("..") {
+                let negative = self.eat("-");
                 let end = self.current().clone();
                 self.pos += 1;
-                return Ok(Pattern::Range(
-                    first,
-                    end.text
-                        .parse()
-                        .map_err(|_| diagnostic(&end, "expected range end"))?,
-                ));
+                return Ok(Pattern::Range(first, integer_literal(&end, negative)?));
             }
             return Ok(Pattern::Literal(Value::Int(first)));
         }
@@ -1664,7 +1793,7 @@ impl Parser {
                     }
                 }
             }
-            "-" if self.is("9223372036854775808") => {
+            "-" if integer_magnitude(&self.current().text) == Some(1u64 << 63) => {
                 self.pos += 1;
                 Expr {
                     kind: ExprKind::Value(Value::Int(i64::MIN)),
@@ -1775,6 +1904,37 @@ impl Parser {
                             Some('t') => s.push('\t'),
                             Some('"') => s.push('"'),
                             Some('\\') => s.push('\\'),
+                            Some('0') => s.push('\0'),
+                            Some('u') => {
+                                if it.next() != Some('{') {
+                                    return Err(diagnostic(
+                                        &at,
+                                        "InvalidUnicodeEscape: expected \\u{HEX}",
+                                    ));
+                                }
+                                let mut digits = String::new();
+                                let mut closed = false;
+                                for c in it.by_ref() {
+                                    if c == '}' {
+                                        closed = true;
+                                        break;
+                                    }
+                                    if !c.is_ascii_hexdigit() || digits.len() >= 6 {
+                                        return Err(diagnostic(&at,"InvalidUnicodeEscape: use 1 to 6 hex digits for a Unicode scalar"));
+                                    }
+                                    digits.push(c);
+                                }
+                                let scalar = u32::from_str_radix(&digits, 16)
+                                    .ok()
+                                    .and_then(char::from_u32);
+                                if !closed || scalar.is_none() {
+                                    return Err(diagnostic(
+                                        &at,
+                                        "InvalidUnicodeEscape: invalid Unicode scalar",
+                                    ));
+                                }
+                                s.push(scalar.unwrap());
+                            }
                             _ => return Err(diagnostic(&at, "invalid escape")),
                         }
                     } else {
@@ -1787,19 +1947,23 @@ impl Parser {
                 }
             }
             _ if at.text.chars().next().is_some_and(|c| c.is_ascii_digit()) => {
-                let v = if at.text.contains('.') || at.text.contains('e') || at.text.contains('E') {
+                let v = if !(at.text.starts_with("0x")
+                    || at.text.starts_with("0X")
+                    || at.text.starts_with("0b")
+                    || at.text.starts_with("0B")
+                    || at.text.starts_with("0o")
+                    || at.text.starts_with("0O"))
+                    && (at.text.contains('.') || at.text.contains('e') || at.text.contains('E'))
+                {
                     Value::Float(
                         at.text
+                            .replace('_', "")
                             .parse::<f64>()
                             .map_err(|_| diagnostic(&at, "invalid float"))?
                             .to_bits(),
                     )
                 } else {
-                    Value::Int(
-                        at.text
-                            .parse::<i64>()
-                            .map_err(|_| diagnostic(&at, "integer literal overflow"))?,
-                    )
+                    Value::Int(integer_literal(&at, false)?)
                 };
                 Expr {
                     kind: ExprKind::Value(v),
@@ -3078,6 +3242,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         )
     });
     program.language = manifest
@@ -3105,6 +3270,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -3131,6 +3297,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             v05::artifact(
                 &program,
@@ -3208,6 +3375,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         )
     });
     program.language = manifest
@@ -3235,6 +3403,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -3500,6 +3669,7 @@ pub fn lock_project(root: &Path) -> Result<()> {
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     ) {
         return Err(Error::InvalidOperation(
             "use 'rewind update' to update v0.4 dependencies".into(),
@@ -3586,14 +3756,15 @@ pub fn format_source(source: &str) -> Result<String> {
     let mut out = String::new();
     let mut depth = 0usize;
     let mut quoted = false;
+    let mut comment_depth = 0usize;
     for line in source.lines() {
         // Preserve whitespace inside multiline String literals.
-        let line = if quoted || line.contains('"') {
+        let line = if quoted || comment_depth != 0 || line.contains('"') {
             line
         } else {
             line.trim_end()
         };
-        if quoted {
+        if quoted || comment_depth != 0 {
             out.push_str(line);
             out.push('\n');
         } else if line.trim().is_empty() {
@@ -3607,6 +3778,18 @@ pub fn format_source(source: &str) -> Result<String> {
         }
         let mut chars = line.chars().peekable();
         while let Some(c) = chars.next() {
+            if !quoted && c == '/' && chars.peek() == Some(&'*') {
+                chars.next();
+                comment_depth += 1;
+                continue;
+            }
+            if comment_depth != 0 {
+                if c == '*' && chars.peek() == Some(&'/') {
+                    chars.next();
+                    comment_depth -= 1;
+                }
+                continue;
+            }
             if c == '\\' && quoted {
                 chars.next();
                 continue;
@@ -3650,6 +3833,7 @@ fn check_program(program: &Program) -> Result<()> {
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     ) {
         let entries = program.impls.iter().collect::<Vec<_>>();
         for (i, ((tr, target), methods)) in entries.iter().enumerate() {
@@ -3824,6 +4008,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
             continue;
@@ -3869,6 +4054,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             v06::cache::put(root, "checked", &key, &true);
         }
@@ -3905,7 +4091,7 @@ struct Checker<'a> {
 }
 impl Checker<'_> {
     fn field_visible(&self, def: &StructDef, field: &str, at: &Tok) -> Result<()> {
-        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0")
+        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0")
             && def.origin != self.origin
             && def.private_fields.contains(field)
         {
@@ -3917,7 +4103,7 @@ impl Checker<'_> {
         Ok(())
     }
     fn constructor_visible(&self, def: &StructDef, at: &Tok) -> Result<()> {
-        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0")
+        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0")
             && def.origin != self.origin
             && !def.private_fields.is_empty()
         {
@@ -3950,6 +4136,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && exposed.iter().any(|local| {
                         resolve_alias(self.program, local).split('<').next()
                             == resolve_alias(self.program, name).split('<').next()
@@ -4128,6 +4315,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         return Err(diagnostic(at, "tuple pattern requires language 0.6"));
                     }
@@ -4326,6 +4514,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         v06::borrowed_type(&binding.0).into()
                     } else {
@@ -4360,6 +4549,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         let ty = v06::fn_type(
                             &f.params,
@@ -4404,15 +4594,17 @@ impl Checker<'_> {
                     }
                     ty
                 } else {
-                    return Err(if self.program.language == "1.1.0" {
-                        v11::unknown_name(
-                            &e.at,
-                            n,
-                            self.scopes.iter().rev().flat_map(|s| s.keys().cloned()),
-                        )
-                    } else {
-                        diagnostic(&e.at, format!("unknown name {n}"))
-                    });
+                    return Err(
+                        if matches!(self.program.language.as_str(), "1.1.0" | "1.2.0") {
+                            v11::unknown_name(
+                                &e.at,
+                                n,
+                                self.scopes.iter().rev().flat_map(|s| s.keys().cloned()),
+                            )
+                        } else {
+                            diagnostic(&e.at, format!("unknown name {n}"))
+                        },
+                    );
                 }
             }
             ExprKind::Unary(op, inner) => {
@@ -4435,6 +4627,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
                     }
@@ -4486,6 +4679,7 @@ impl Checker<'_> {
                                     | "0.9.9"
                                     | "1.0.0"
                                     | "1.1.0"
+                                    | "1.2.0"
                             ) {
                                 "TaskError"
                             } else {
@@ -4512,6 +4706,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && op != "move"
                     {
                         return Ok(format!(
@@ -4546,6 +4741,7 @@ impl Checker<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) && (self.expr(a)?.starts_with("Secret<")
                     || self.expr(b)?.starts_with("Secret<"))
                 {
@@ -4641,6 +4837,7 @@ impl Checker<'_> {
                                     | "0.9.9"
                                     | "1.0.0"
                                     | "1.1.0"
+                                    | "1.2.0"
                             ) {
                                 return Ok(v06::fn_type(
                                     &f.params,
@@ -4701,6 +4898,7 @@ impl Checker<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) && t.starts_with("Secret<")
                 {
                     let inner = Expr {
@@ -4730,6 +4928,7 @@ impl Checker<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
                     {
@@ -4761,6 +4960,7 @@ impl Checker<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) && t.starts_with("Frozen<")
                 {
                     let inner = Expr {
@@ -4829,6 +5029,7 @@ impl Checker<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if let Ok(ty) = self.expr(base) {
@@ -4898,6 +5099,7 @@ impl Checker<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
@@ -4952,6 +5154,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) {
                         return Err(diagnostic(&e.at, "tuple values require language 0.6"));
                     }
@@ -4981,6 +5184,7 @@ impl Checker<'_> {
                                 | "0.9.9"
                                 | "1.0.0"
                                 | "1.1.0"
+                                | "1.2.0"
                         ) {
                             if let Some(result) =
                                 v06::checker_method(self, &ty, method, &types, &e.at)?
@@ -5006,6 +5210,7 @@ impl Checker<'_> {
                                 | "0.9.9"
                                 | "1.0.0"
                                 | "1.1.0"
+                                | "1.2.0"
                         ) {
                             if method == "iter" && types.is_empty() {
                                 if let Some(item) = v05::iterator_item(&ty) {
@@ -5055,6 +5260,7 @@ impl Checker<'_> {
                                     | "0.9.9"
                                     | "1.0.0"
                                     | "1.1.0"
+                                    | "1.2.0"
                             ) {
                                 if method == "timeout" && types == ["Int"] {
                                     return Ok(ty);
@@ -5090,6 +5296,7 @@ impl Checker<'_> {
                                     | "0.9.9"
                                     | "1.0.0"
                                     | "1.1.0"
+                                    | "1.2.0"
                             ) && types.is_empty()
                             {
                                 if method == "requestCancel" {
@@ -5179,6 +5386,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     )
                 {
                     if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
@@ -5222,6 +5430,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && matches!(name.as_str(), "secret" | "reveal")
                     {
                         if types.len() != 1 {
@@ -5255,6 +5464,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && matches!(name.as_str(), "freeze" | "thaw")
                     {
                         if types.len() != 1 {
@@ -5435,7 +5645,7 @@ impl Checker<'_> {
                                 }
                                 name.clone()
                             }
-                            _ if self.program.language == "1.1.0"
+                            _ if matches!(self.program.language.as_str(), "1.1.0" | "1.2.0")
                                 && matches!(
                                     name.as_str(),
                                     "assert"
@@ -5570,6 +5780,7 @@ impl Checker<'_> {
                                         | "0.9.9"
                                         | "1.0.0"
                                         | "1.1.0"
+                                        | "1.2.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readSecretLine") | ("Env", "getSecret")
@@ -5589,6 +5800,7 @@ impl Checker<'_> {
                                         | "0.9.9"
                                         | "1.0.0"
                                         | "1.1.0"
+                                        | "1.2.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readChunk") | ("Out", "writeBytes")
@@ -5689,6 +5901,7 @@ impl Checker<'_> {
                                     | "0.9.9"
                                     | "1.0.0"
                                     | "1.1.0"
+                                    | "1.2.0"
                             ) && base_type == "List"
                                 && method == "pop"
                                 && types.is_empty())
@@ -5768,6 +5981,7 @@ impl Checker<'_> {
                                             | "0.9.9"
                                             | "1.0.0"
                                             | "1.1.0"
+                                            | "1.2.0"
                                     ) =>
                                 {
                                     format!(
@@ -5818,7 +6032,13 @@ impl Checker<'_> {
                             ("List", "pop", 0)
                                 if matches!(
                                     self.program.language.as_str(),
-                                    "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0"
+                                    "0.9.6"
+                                        | "0.9.7"
+                                        | "0.9.8"
+                                        | "0.9.9"
+                                        | "1.0.0"
+                                        | "1.1.0"
+                                        | "1.2.0"
                                 ) =>
                             {
                                 format!(
@@ -5972,6 +6192,7 @@ impl Checker<'_> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
                     v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
@@ -6088,6 +6309,7 @@ impl Checker<'_> {
                             | "0.9.9"
                             | "1.0.0"
                             | "1.1.0"
+                            | "1.2.0"
                     ) && self.expr(base)?.starts_with("Tuple<")
                     {
                         return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
@@ -6470,7 +6692,7 @@ impl<R: BufRead> Engine<R> {
         let mut runtime = Runtime::new(root)?;
         if matches!(
             program.language.as_str(),
-            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0"
+            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0"
         ) {
             runtime.enable_incremental_publish();
         }
@@ -7132,7 +7354,7 @@ impl<R: BufRead> Engine<R> {
         self.call(name, args, at)
     }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0")
+        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0")
             && !self
                 .program
                 .functions
@@ -7154,6 +7376,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             if self.program.language == "0.9.9" {
                 if let Some(work) = v092::work(name, &args, &self.runtime) {
@@ -7177,6 +7400,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             if let Some(value) = v091::call(&self.runtime, name, &args).map_err(Flow::Error)? {
                 return Ok(value);
@@ -7200,6 +7424,7 @@ impl<R: BufRead> Engine<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             )
         {
             return Ok(Value::Struct(
@@ -7234,6 +7459,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) && matches!(name, "secret" | "reveal")
         {
             if args.len() != 1 {
@@ -7256,6 +7482,7 @@ impl<R: BufRead> Engine<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) {
                 self.runtime.register_secret_value(&args[0]);
             }
@@ -7288,6 +7515,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) && matches!(name, "freeze" | "thaw")
         {
             if args.len() != 1 {
@@ -7311,6 +7539,7 @@ impl<R: BufRead> Engine<R> {
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) && matches!(
                 &args[0],
                 Value::Bool(_)
@@ -7656,7 +7885,7 @@ impl<R: BufRead> Engine<R> {
         Ok(Err(position))
     }
     fn method(&mut self, target: Value, method: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0") {
+        if matches!(self.program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0") {
             self.runtime
                 .charge_native_work(v100::method_work(&target, method, &args, &self.runtime))
                 .map_err(Flow::Error)?;
@@ -7687,6 +7916,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) {
             if let Some(inner) = v05::unsecret(&target) {
                 let value = self.method(inner.clone(), method, args, at)?;
@@ -7725,6 +7955,7 @@ impl<R: BufRead> Engine<R> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         ) && args.is_empty()
         {
             if method == "iter" {
@@ -7757,6 +7988,7 @@ impl<R: BufRead> Engine<R> {
                                 | "0.9.9"
                                 | "1.0.0"
                                 | "1.1.0"
+                                | "1.2.0"
                         ) {
                             v06::immutable_tuple(value, &self.runtime)
                         } else {
@@ -7964,6 +8196,7 @@ impl<R: BufRead> Engine<R> {
                                         | "0.9.9"
                                         | "1.0.0"
                                         | "1.1.0"
+                                        | "1.2.0"
                                 ) =>
                             {
                                 let value = list.pop();
@@ -8149,6 +8382,7 @@ impl<R: BufRead> Engine<R> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) =>
             {
                 Ok(Value::Option(
@@ -8175,6 +8409,7 @@ impl<R: BufRead> Engine<R> {
                         | "0.9.9"
                         | "1.0.0"
                         | "1.1.0"
+                        | "1.2.0"
                 ) =>
             {
                 Ok(Value::Option(
@@ -8186,7 +8421,15 @@ impl<R: BufRead> Engine<R> {
             ("In", "readChunk", 1)
                 if matches!(
                     self.program.language.as_str(),
-                    "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0"
+                    "0.9.4"
+                        | "0.9.5"
+                        | "0.9.6"
+                        | "0.9.7"
+                        | "0.9.8"
+                        | "0.9.9"
+                        | "1.0.0"
+                        | "1.1.0"
+                        | "1.2.0"
                 ) =>
             {
                 let Value::Int(limit) = args[0] else {
@@ -8204,7 +8447,15 @@ impl<R: BufRead> Engine<R> {
             ("Out", "writeBytes", 1)
                 if matches!(
                     self.program.language.as_str(),
-                    "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0"
+                    "0.9.4"
+                        | "0.9.5"
+                        | "0.9.6"
+                        | "0.9.7"
+                        | "0.9.8"
+                        | "0.9.9"
+                        | "1.0.0"
+                        | "1.1.0"
+                        | "1.2.0"
                 ) =>
             {
                 let Value::Bytes(bytes) = &args[0] else {
@@ -8550,6 +8801,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     ) && matches!(bound, "Send" | "Share")
     {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
@@ -8591,6 +8843,7 @@ fn impl_matches(
             | "0.9.9"
             | "1.0.0"
             | "1.1.0"
+            | "1.2.0"
     ) {
         return false;
     }
@@ -8798,6 +9051,7 @@ fn trait_method_return(
                     | "0.9.9"
                     | "1.0.0"
                     | "1.1.0"
+                    | "1.2.0"
             ) {
                 !compatible(t, ty)
             } else {
@@ -9229,6 +9483,7 @@ pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
                 | "0.9.9"
                 | "1.0.0"
                 | "1.1.0"
+                | "1.2.0"
         )
     }) {
         v09::repl(root, record)

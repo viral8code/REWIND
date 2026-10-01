@@ -98,6 +98,13 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     source.unlink()
     shutil.rmtree(app/'.rewind')
     assert run([exe, app/'main.rwc']) == b'99\n10\n'
+    shutil.copyfile(sdk/'share/rewind/examples/conditional-revert/main.rw',source)
+    assert run([exe,'run',source]) == b'Odd\n'
+    run([compiler,source])
+    source.unlink()
+    shutil.rmtree(app/'.rewind')
+    assert run([exe,app/'main.rwc']) == b'Odd\n'
+    assert b'rewind compile' in run([exe,'compile','--help'])
     # Existing-file replacement and checkpoint restore are exercised on the host OS.
     source.write_text('File.writeText("state.txt","old");publish;commit old;File.writeText("state.txt","new");publish;revert old;File.writeText("state.txt","last");publish;', encoding='utf-8')
     run([exe, 'run', source, '--allow-effects', 'fileRead,fileWrite'])

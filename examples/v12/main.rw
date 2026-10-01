@@ -1,0 +1,15 @@
+/* 表記と巻き戻しの例。 /* コメントは入れ子にできます */ */
+assert_eq(1_000,1000);
+assert_eq(0xff,255);
+assert_eq(0o755,493);
+assert_eq("\u{754c}","界");
+
+var num = 0b1101;
+commit start;
+Out.println("Even");
+if num%2 == 1 {
+    revert start;
+    Out.println("\u{4f}dd");
+}
+publish;
+drop start;
