@@ -1,0 +1,151 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.3",
+  "symbols": {
+    "fn:create": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Result<DisjointSet,String>"
+    },
+    "fn:root": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut DisjointSet",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:same": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut DisjointSet",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Bool,String>"
+    },
+    "fn:size": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut DisjointSet",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:unite": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut DisjointSet",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Bool,String>"
+    },
+    "type:DisjointSet": {
+      "fields": [
+        [
+          "parents",
+          "List<Int>"
+        ],
+        [
+          "sizes",
+          "List<Int>"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

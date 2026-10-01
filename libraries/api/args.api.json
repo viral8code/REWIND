@@ -1,8 +1,17 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.2",
+  "language": "0.9.3",
   "symbols": {
+    "fn:help": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&List<OptionSpec>"
+      ],
+      "return": "Result<String,ArgError>"
+    },
     "fn:parse": {
       "async": false,
       "effects": [],
@@ -10,6 +19,16 @@
       "parameters": [
         "&List<String>",
         "&List<String>"
+      ],
+      "return": "Result<Map<String,String>,ArgError>"
+    },
+    "fn:parseOptions": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&List<String>",
+        "&List<OptionSpec>"
       ],
       "return": "Result<Map<String,String>,ArgError>"
     },
@@ -83,6 +102,28 @@
         [
           "offset",
           "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:OptionSpec": {
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "short",
+          "String"
+        ],
+        [
+          "takesValue",
+          "Bool"
+        ],
+        [
+          "required",
+          "Bool"
         ]
       ],
       "generics": [],

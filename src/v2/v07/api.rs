@@ -28,7 +28,7 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
     config.lock(root, false)?;
     if !matches!(
         config.language.as_str(),
-        "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) {
         return Err(Error::InvalidOperation(
             "API snapshot requires language 0.7".into(),

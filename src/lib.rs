@@ -5,6 +5,8 @@
 //! live outside checkpoints, while their cursors live inside them.
 
 pub mod journal;
+pub mod storage;
+use storage::{HeapStore, PagedValues};
 mod replay;
 use journal::{Journal, Segment};
 
@@ -62,7 +64,7 @@ impl MapKey {
             Value::Int(v) => Self::Int(*v),
             Value::Float(v) => Self::Float(*v),
             Value::Text(v) => Self::Text(v.clone()),
-            Value::Bytes(v) => Self::Bytes(v.clone()),
+            Value::Bytes(v) => Self::Bytes(v.as_ref().clone()),
             _ => return None,
         })
     }
@@ -72,7 +74,7 @@ impl MapKey {
             Self::Int(v) => Value::Int(*v),
             Self::Float(v) => Value::Float(*v),
             Self::Text(v) => Value::Text(v.clone()),
-            Self::Bytes(v) => Value::Bytes(v.clone()),
+            Self::Bytes(v) => Value::Bytes(v.clone().into()),
         }
     }
 }
@@ -123,10 +125,10 @@ pub enum Value {
     Int(i64),
     Float(u64),
     Text(String),
-    Bytes(Vec<u8>),
+    Bytes(Arc<Vec<u8>>),
     FileError(FileFailure),
     List(Vec<Value>),
-    TypedList(String, Vec<Value>),
+    TypedList(String, PagedValues),
     Map(#[serde(with = "value_map_pairs")] BTreeMap<MapKey, Value>),
     TypedMap(
         String,
@@ -177,7 +179,17 @@ impl fmt::Display for Value {
             Value::Text(s) => write!(f, "{s}"),
             Value::Bytes(v) => write!(f, "{v:?}"),
             Value::FileError(v) => write!(f, "{v}"),
-            Value::List(v) | Value::TypedList(_, v) => {
+            Value::List(v) => {
+                write!(f, "[")?;
+                for (i, item) in v.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                write!(f, "]")
+            }
+            Value::TypedList(_, v) => {
                 write!(f, "[")?;
                 for (i, item) in v.iter().enumerate() {
                     if i > 0 {
@@ -502,7 +514,7 @@ pub struct State {
     pub stack: Arc<Vec<Value>>,
     pub call_frames: Arc<Vec<CallFrame>>,
     pub globals: Arc<BTreeMap<String, Value>>,
-    pub heap: Arc<BTreeMap<u64, Value>>,
+    pub heap: Arc<HeapStore>,
     files: Arc<BTreeMap<String, Option<Arc<PagedFile>>>>,
     directories: Arc<BTreeMap<String, bool>>,
     pub handles: Arc<BTreeMap<u64, FileHandle>>,
@@ -526,7 +538,7 @@ impl Default for State {
             stack: Arc::new(Vec::new()),
             call_frames: Arc::new(Vec::new()),
             globals: Arc::new(BTreeMap::new()),
-            heap: Arc::new(BTreeMap::new()),
+            heap: Arc::new(HeapStore::default()),
             files: Arc::new(BTreeMap::new()),
             directories: Arc::new(BTreeMap::new()),
             handles: Arc::new(BTreeMap::new()),
@@ -626,8 +638,13 @@ impl Runtime {
                         visit(rt, v, out, seen, depth + 1);
                     }
                 }
-                Value::List(items) | Value::TypedList(_, items) => {
-                    for v in items {
+                Value::List(items) => {
+                    for v in items.iter() {
+                        visit(rt, v, out, seen, depth + 1);
+                    }
+                }
+                Value::TypedList(_, items) => {
+                    for v in items.iter() {
                         visit(rt, v, out, seen, depth + 1);
                     }
                 }
@@ -655,7 +672,7 @@ impl Runtime {
                 _ => {
                     out.insert(v.to_string());
                     if let Value::Bytes(bytes) = v {
-                        if let Ok(text) = String::from_utf8(bytes.clone()) {
+                        if let Ok(text) = String::from_utf8(bytes.to_vec()) {
                             out.insert(text);
                         }
                     }
@@ -872,9 +889,8 @@ impl Runtime {
                     + error.path.len()
                     + error.causes.iter().map(String::len).sum::<usize>()
             }
-            Value::List(items) | Value::TypedList(_, items) => {
-                items.iter().map(Self::value_bytes).sum()
-            }
+            Value::TypedList(_, items) => items.logical_bytes(),
+            Value::List(items) => items.iter().map(Self::value_bytes).sum(),
             Value::Map(items) | Value::TypedMap(_, _, items) => items
                 .iter()
                 .map(|(key, value)| format!("{key:?}").len() + Self::value_bytes(value))
@@ -991,8 +1007,7 @@ impl Runtime {
                 );
             }
             if seen_compute.insert(Arc::as_ptr(&state.heap) as usize) {
-                compute_memory =
-                    compute_memory.saturating_add(state.heap.values().map(Self::value_bytes).sum());
+                compute_memory = compute_memory.saturating_add(state.heap.logical_bytes());
             }
             if seen_compute.insert(Arc::as_ptr(&state.stack) as usize) {
                 compute_memory =
@@ -1201,9 +1216,8 @@ impl Runtime {
                             .heap_get(*id)
                             .is_some_and(|v| secret(rt, v, seen, depth + 1))
                 }
-                Value::List(v) | Value::TypedList(_, v) => {
-                    v.iter().any(|v| secret(rt, v, seen, depth + 1))
-                }
+                Value::List(v) => v.iter().any(|v| secret(rt, v, seen, depth + 1)),
+                Value::TypedList(_, v) => v.iter().any(|v| secret(rt, v, seen, depth + 1)),
                 Value::Struct(_, v) | Value::Closure(_, _, v) => {
                     v.values().any(|v| secret(rt, v, seen, depth + 1))
                 }

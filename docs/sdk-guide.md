@@ -1,4 +1,4 @@
-# REWIND SDK 0.9.2
+# REWIND SDK 0.9.3
 
 Linux x86_64 の開発用配布。bin/rewind は compiler と runtime を兼ね、check/test/doc/build/run/debug/LSP を提供する。stdlib の公開APIは [std-api.json](std-api.json)、module ごとの文書は [text](std/text.md)、[number](std/number.md)、[collections](std/collections.md)、[json](std/json.md) などを参照。
 
@@ -13,7 +13,7 @@ Linux x86_64 の開発用配布。bin/rewind は compiler と runtime を兼ね�
 /path/to/sdk/bin/rewind run --root /path/to/project
 ```
 
-project の rewind.toml は language="0.9.2"、source_root="."、entry="main.rw"、effects を宣言する。導入は署名付き std を project の vendor に固定し、lock を更新する。SDK の場所を後から変えても project は動く。SDK 内の例を writable directory にコピーしてから sdk-install する。
+project の rewind.toml は language="0.9.3"、source_root="."、entry="main.rw"、effects を宣言する。導入は署名付き std を project の vendor に固定し、lock を更新する。SDK の場所を後から変えても project は動く。SDK 内の例を writable directory にコピーしてから sdk-install する。
 
 ## 言語と実行
 
@@ -34,3 +34,5 @@ commit/revert/resume は計算状態と仮想I/Oの履歴を扱う。Out/File �
 `run --record TRACE` と `replay TRACE` で観測を検証する。`build --output ARTIFACT` の結果は `run-artifact ARTIFACT --allow-effects EFFECTS` で source なしに実行できる。artifact/replay/lock は exact compiler に依存するため、更新時に rebuild/update/再記録する。
 
 runtime の executionSteps と CLI の --task-steps は有限の実行予算を指定する。大きな入力の費用はデータ構造と履歴に依存する。64-bit 以上の任意精度整数、HTTP/DB/GUI、無制限の再帰は提供しない。
+
+主要な処理としてsort/search/sequence、heap/deque/Union-Find、整数/剰余演算、Fenwick/segment tree、BFS/DFS/Dijkstra、byte scannerを同梱する。shortest実行例でsource0の最短距離を求める。native配列はpersistentなページ単位で保持し、get/writeの木探索と返すpayloadの費用がかかる。Mapのuser Ord keyと更新は別の費用契約に従う。

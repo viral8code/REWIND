@@ -33,7 +33,7 @@ pub(super) fn names() -> &'static [&'static str] {
     ]
 }
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if p.language != "0.9.2" {
+    if !matches!(p.language.as_str(), "0.9.2" | "0.9.3") {
         return Ok(());
     }
     if p.structs.contains_key("StdError")
@@ -67,7 +67,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if p.language != "0.9.2" || !names().contains(&n) {
+    if !matches!(p.language.as_str(), "0.9.2" | "0.9.3") || !names().contains(&n) {
         return Ok(None);
     }
     let (params, ret): (&[&str], &str) = match n {
@@ -126,7 +126,7 @@ fn strings(
         }
         values.push(Value::Text(s));
     }
-    Ok(Value::TypedList("String".into(), values))
+    Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value]) -> Result<Option<Value>> {
     if !names().contains(&n) {
@@ -227,7 +227,7 @@ pub(super) fn call(n: &str, args: &[Value]) -> Result<Option<Value>> {
                     if s.len() > LIMIT {
                         Err(("Limit", 0))
                     } else {
-                        Ok(Value::Bytes(s.as_bytes().to_vec()))
+                        Ok(Value::Bytes(s.as_bytes().to_vec().into()))
                     }
                 }
                 "stdDecode" => {
@@ -260,7 +260,9 @@ pub(super) fn call(n: &str, args: &[Value]) -> Result<Option<Value>> {
                     } else if end - start > LIMIT as i64 {
                         Err(("Limit", 0))
                     } else {
-                        Ok(Value::Bytes(b[start as usize..end as usize].to_vec()))
+                        Ok(Value::Bytes(
+                            b[start as usize..end as usize].to_vec().into(),
+                        ))
                     }
                 }
                 "stdParseInt" => {

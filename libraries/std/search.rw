@@ -1,0 +1,9 @@
+pub fn lowerBound<T:Share>(values:&List<T>,key:T,compare:fn(T,T)->Int effects {} captures {Send,Share})->Int effects {} {
+    var l=0;var r=values.len();while l<r {let m=l+(r-l)/2;if compare(values.get(m),key)<0{l=m+1;}else{r=m;}}return l;
+}
+pub fn upperBound<T:Share>(values:&List<T>,key:T,compare:fn(T,T)->Int effects {} captures {Send,Share})->Int effects {} {
+    var l=0;var r=values.len();while l<r {let m=l+(r-l)/2;if compare(values.get(m),key)<=0{l=m+1;}else{r=m;}}return l;
+}
+pub fn binary<T:Share>(values:&List<T>,key:T,compare:fn(T,T)->Int effects {} captures {Send,Share})->Option<Int> effects {} {
+    let p=lowerBound(values,key,compare);if p<values.len(){if compare(values.get(p),key)==0{return Some(p);}}return None;
+}

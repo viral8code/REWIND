@@ -92,3 +92,7 @@ JSON・設定/引数・application entry/exit status・asset 付き production �
 ## v0.9.2
 
 署名付き SDK の組立て・検証・std の project 導入と、text/bytes/number/bits/result/map を追加しました。[実装状況](docs/v0.9.2-status.md)、[SDK仕様](docs/REWIND_v0.9.2.md)、[利用例](examples/v092/README.md)を参照してください。主要な処理・データ構造・アルゴリズムと性能改善の次段階を [v0.9.3草案](docs/REWIND_v0.9.3.md)にまとめています。
+
+## v0.9.3
+
+List/heapのpersistent storageと、基本アルゴリズム・データ構造・区間/グラフ処理・byte scannerを追加しました。[実装状況](docs/v0.9.3-status.md)、[最短距離CLI](examples/v093/README.md)、[v0.9.4計画](docs/REWIND_v0.9.4.md)を参照してください。今後の作業branchは`codex/develop`です。

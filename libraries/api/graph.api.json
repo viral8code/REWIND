@@ -1,0 +1,292 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.3",
+  "symbols": {
+    "dependency:heap.rw": {
+      "fn:$import$heap$peek": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>"
+        ],
+        "return": "Option<T>"
+      },
+      "fn:$import$heap$pop": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Option<T>"
+      },
+      "fn:$import$heap$push": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "T",
+          "Int",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Result<Unit,String>"
+      }
+    },
+    "dependency:integer.rw": {
+      "fn:$import$integer$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$combination": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$extendedGcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Tuple<Int,Int,Int>,String>"
+      },
+      "fn:$import$integer$factors": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      },
+      "fn:$import$integer$gcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$lcm": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$primes": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      }
+    },
+    "fn:add": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Graph",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,String>"
+    },
+    "fn:bfs": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:create": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Graph,String>"
+    },
+    "fn:dfs": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:dijkstra": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<List<Option<Int>>,String>"
+    },
+    "type:Graph": {
+      "fields": [
+        [
+          "heads",
+          "List<Int>"
+        ],
+        [
+          "destinations",
+          "List<Int>"
+        ],
+        [
+          "links",
+          "List<Int>"
+        ],
+        [
+          "weights",
+          "List<Int>"
+        ],
+        [
+          "capacity",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

@@ -69,3 +69,40 @@ test fn folds_maps_and_result_branches() {
     assert_eq(result.map(good,|n:Int|->Int{return n*2;}),Ok(6));assert_eq(result.map(bad,|n:Int|->Int{return n*2;}),Err("failed"));
     assert_eq(result.mapError(good,|s:String|->String{return "mapped";}),Ok(3));assert_eq(result.mapError(bad,|s:String|->String{return "mapped";}),Err("mapped"));
 }
+
+import sort as sort;
+import search as search;
+import sequence as sequence;
+import heap as heap;
+import deque.{create as createDeque,pushBack,pushFront,popFront,popBack,length as dequeLength};
+import disjointSet as disjointSet;
+import integer as integer;
+import modular as modular;
+test fn sorting_sequences_and_heap() {
+ let cmp=|a:Int,b:Int|->Int{if a<b{return -1;}if a>b{return 1;}return 0;};let values=List<Int>();values.add(3);values.add(1);values.add(1);values.add(2);
+ let sorted=sort.stable(&values,cmp);assert_eq(sorted.get(0),1);assert_eq(sorted.get(3),3);assert_eq(search.lowerBound(&sorted,1,cmp),0);assert_eq(search.upperBound(&sorted,1,cmp),2);assert_eq(search.binary(&sorted,5,cmp),None);
+ sort.inPlace(&mut values,cmp);sequence.reverse(&mut values);assert_eq(values.get(0),3);let rotated=sequence.rotate(&values,-1);assert_eq(rotated.get(0),1);let distinct=sequence.compressed(&values);assert_eq(distinct.len(),3);
+ let h=List<Int>();assert_eq(heap.push(&mut h,3,4,cmp),Ok(()));assert_eq(heap.push(&mut h,1,4,cmp),Ok(()));assert_eq(heap.push(&mut h,2,4,cmp),Ok(()));assert_eq(heap.pop(&mut h,cmp),Some(1));assert_eq(heap.pop(&mut h,cmp),Some(2));assert_eq(heap.pop(&mut h,cmp),Some(3));assert_eq(heap.pop(&mut h,cmp),None);
+}
+test fn deque_dsu_and_number_theory(){
+ match createDeque<Int>(3){Ok(d)=>{assert_eq(pushBack(&mut d,2),Ok(()));assert_eq(pushFront(&mut d,1),Ok(()));assert_eq(popFront(&mut d),Some(1));assert_eq(popBack(&mut d),Some(2));assert_eq(dequeLength(&d),0);},Err(_)=>{panic("deque");}}
+ match disjointSet.create(4){Ok(d)=>{assert_eq(disjointSet.unite(&mut d,1,2),Ok(true));assert_eq(disjointSet.same(&mut d,1,2),Ok(true));assert_eq(disjointSet.size(&mut d,1),Ok(2));},Err(_)=>{panic("dsu");}}
+ assert_eq(integer.gcd(-24,18),Ok(6));assert_eq(integer.gcd(-9223372036854775807-1,2),Ok(2));assert_eq(integer.lcm(6,8),Ok(24));assert_eq(integer.combination(10,3),Ok(120));assert_eq(integer.multiply(-1,-9223372036854775807-1),Err("Overflow"));assert_eq(modular.power(2,10,1000),Ok(24));assert_eq(modular.inverse(3,11),Ok(4));assert_eq(modular.inverse(2,4),Err("NonInvertible"));
+}
+import fenwick as fenwick;
+import segment as segment;
+import graph as graph;
+test fn ranges_and_graphs(){
+ match fenwick.create(4){Ok(t)=>{assert_eq(fenwick.add(&mut t,0,2),Ok(()));assert_eq(fenwick.add(&mut t,2,5),Ok(()));assert_eq(fenwick.range(&t,0,3),Ok(7));assert_eq(fenwick.range(&t,1,3),Ok(5));},Err(_)=>{panic("fenwick");}}
+ let xs=List<String>();xs.add("a");xs.add("b");xs.add("c");let combine=|a:String,b:String|->String{return a+b;};
+ match segment.build(&xs,"",combine){Ok(t)=>{assert_eq(segment.query(&t,0,3,combine),Ok("abc"));assert_eq(segment.set(&mut t,1,"B",combine),Ok(()));assert_eq(segment.query(&t,1,3,combine),Ok("Bc"));},Err(_)=>{panic("segment");}}
+ match graph.create(4,4){Ok(g)=>{assert_eq(graph.add(&mut g,0,1,4),Ok(()));assert_eq(graph.add(&mut g,0,2,1),Ok(()));assert_eq(graph.add(&mut g,2,1,1),Ok(()));match graph.bfs(&g,0){Ok(d)=>{assert_eq(d.get(1),1);assert_eq(d.get(3),-1);},Err(_)=>{panic("bfs");}}match graph.dijkstra(&g,0){Ok(d)=>{assert_eq(d.get(1),Some(2));assert_eq(d.get(3),None);},Err(_)=>{panic("dijkstra");}}},Err(_)=>{panic("graph");}}
+}
+import scanner as scanner;
+test fn bounded_byte_scanner(){match scanner.fromBytes(Bytes(" 12 -9223372036854775808\t+3 ")){Ok(s)=>{assert_eq(scanner.nextInt(&mut s),Ok(Some(12)));assert_eq(scanner.nextInt(&mut s),Ok(Some(-9223372036854775807-1)));assert_eq(scanner.nextInt(&mut s),Ok(Some(3)));assert_eq(scanner.nextInt(&mut s),Ok(None));},Err(_)=>{panic("scanner");}}}
+import path as path;
+test fn option_schema_paths_and_map_adapters(){
+ let schema=List<args.OptionSpec>();schema.add(args.OptionSpec("verbose","v",false,false));schema.add(args.OptionSpec("count","c",true,true));let input=List<String>();input.add("-v");input.add("--count");input.add("4");match args.parseOptions(&input,&schema){Ok(v)=>{assert_eq(v.get("verbose"),Some("true"));assert_eq(v.get("count"),Some("4"));},Err(_)=>{panic("options");}}
+ assert_eq(path.join("data","state.json"),Ok("data/state.json"));assert_eq(path.relative("../key"),Err("InvalidPath"));
+ let lookup=Map<String,Int>();lookup.set("a",2);map.update(&mut lookup,"a",|v:Option<Int>|->Option<Int>{match v{Some(n)=>{return Some(n+1);},None=>{return Some(0);}}});assert_eq(lookup.get("a"),Some(3));let entries=map.entries(&lookup);assert_eq(entries.len(),1);assert_eq(entries.get(0)._0,"a");
+}

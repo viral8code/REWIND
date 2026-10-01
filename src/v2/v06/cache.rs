@@ -13,6 +13,7 @@ pub(in crate::v2) fn stamp() -> String {
                 include_str!("../../../Cargo.toml"),
                 include_str!("../../../Cargo.lock"),
                 include_str!("../../lib.rs"),
+                include_str!("../../storage.rs"),
                 include_str!("../../replay.rs"),
                 include_str!("../../journal.rs"),
                 include_str!("../../v2.rs"),
@@ -136,7 +137,13 @@ fn path(root: &Path, kind: &str, key: &str) -> Option<(PathBuf, Vec<u8>)> {
             key.trim() == "language"
                 && matches!(
                     value.trim(),
-                    "\"0.6\"" | "\"0.7\"" | "\"0.8\"" | "\"0.9\"" | "\"0.9.1\"" | "\"0.9.2\""
+                    "\"0.6\""
+                        | "\"0.7\""
+                        | "\"0.8\""
+                        | "\"0.9\""
+                        | "\"0.9.1\""
+                        | "\"0.9.2\""
+                        | "\"0.9.3\""
                 )
         })
     }) {

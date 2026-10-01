@@ -18,3 +18,12 @@ pub fn parse(values:&List<String>,names:&List<String>)->Result<Map<String,String
     }
     return Ok(result);
 }
+
+pub record OptionSpec{name:String,short:String,takesValue:Bool,required:Bool}
+pub fn parseOptions(values:&List<String>,schema:&List<OptionSpec>)->Result<Map<String,String>,ArgError> effects {} {
+ if values.len()>256 || schema.len()>128{return Err(ArgError("Limit"));}var i=0;
+ while i<schema.len(){let spec=schema.get(i);if spec.name=="" || stdTextFind(spec.name,"-")==Some(0){return Err(ArgError("InvalidSchema"));}if stdTextLength(spec.short)>1{return Err(ArgError("InvalidSchema"));}var j=0;while j<i{let previous=schema.get(j);if previous.name==spec.name || (spec.short!="" && previous.short==spec.short){return Err(ArgError("DuplicateSchema"));}j+=1;}i+=1;}
+ let out=Map<String,String>();i=0;while i<values.len(){let token=values.get(i);var selected=-1;var j=0;while j<schema.len(){let spec=schema.get(j);if token=="--"+spec.name || (spec.short!="" && token=="-"+spec.short){selected=j;break;}j+=1;}if selected<0{return Err(ArgError("UnknownOption"));}let spec=schema.get(selected);if out.get(spec.name)!=None{return Err(ArgError("DuplicateOption"));}if spec.takesValue{if i+1>=values.len(){return Err(ArgError("MissingValue"));}out.set(spec.name,values.get(i+1));i+=2;}else{out.set(spec.name,"true");i+=1;}}
+ i=0;while i<schema.len(){let spec=schema.get(i);if spec.required && out.get(spec.name)==None{return Err(ArgError("MissingOption"));}i+=1;}return Ok(out);
+}
+pub fn help(schema:&List<OptionSpec>)->Result<String,ArgError> effects {} {if schema.len()>128{return Err(ArgError("Limit"));}var out="";var i=0;while i<schema.len(){let s=schema.get(i);out+="--"+s.name;if s.short!=""{out+=" (-"+s.short+")";}if s.takesValue{out+=" VALUE";}if s.required{out+=" [required]";}out+="\n";i+=1;}match stdEncode(out){Ok(_)=>{return Ok(out);},Err(_)=>{return Err(ArgError("Limit"));}}}

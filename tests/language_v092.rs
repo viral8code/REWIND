@@ -133,6 +133,11 @@ fn mutable_payloads_cannot_be_aliased_by_result_annotation() {
         .success());
     fs::remove_dir_all(root).unwrap();
 }
+fn sdk_project(root: &Path, source: &str, effects: &str) {
+    project(root, source, effects);
+    let manifest = fs::read_to_string(root.join("rewind.toml")).unwrap();
+    fs::write(root.join("rewind.toml"), manifest.replace("0.9.2", "0.9.3")).unwrap();
+}
 #[test]
 fn signed_sdk_is_reproducible_installable_and_detects_tampering() {
     let root = temp();
@@ -187,9 +192,12 @@ fn signed_sdk_is_reproducible_installable_and_detects_tampering() {
     success(&verify());
     let consumer = root.join("consumer");
     fs::create_dir(&consumer).unwrap();
-    project(
+    sdk_project(
         &consumer,
-        include_str!("../examples/v092/main.rw"),
+        &format!(
+            "import std.graph as graph;{}",
+            include_str!("../examples/v092/main.rw")
+        ),
         "input,output",
     );
     success(&cmd(&[
@@ -204,7 +212,7 @@ fn signed_sdk_is_reproducible_installable_and_detects_tampering() {
     let lock: Value =
         serde_json::from_slice(&fs::read(consumer.join("rewind.lock")).unwrap()).unwrap();
     assert!(lock.to_string().contains("rewind-sdk"));
-    assert!(lock.to_string().contains("0.9.2"));
+    assert!(lock.to_string().contains(env!("CARGO_PKG_VERSION")));
     let manifest = fs::read(consumer.join("rewind.toml")).unwrap();
     assert!(!cmd(&[
         "sdk-install",
@@ -351,7 +359,7 @@ fn signed_sdk_is_reproducible_installable_and_detects_tampering() {
         use std::os::unix::fs::symlink;
         let collision = root.join("collision");
         fs::create_dir(&collision).unwrap();
-        project(&collision, "", "");
+        sdk_project(&collision, "", "");
         symlink(root.join("missing"), collision.join("vendor")).unwrap();
         assert!(!cmd(&[
             "sdk-install",

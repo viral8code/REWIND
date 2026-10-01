@@ -1,0 +1,6 @@
+import integer as integer;
+pub struct Fenwick{values:List<Int>,length:Int}
+pub fn create(length:Int)->Result<Fenwick,String> effects {} {if length<0 || length>65535{return Err("Capacity");}let xs=List<Int>();var i=0;while i<=length{xs.add(0);i+=1;}return Ok(Fenwick(xs,length));}
+pub fn add(tree:&mut Fenwick,index:Int,delta:Int)->Result<Unit,String> effects {} {if index<0 || index>=tree.length{return Err("Range");}let positions=List<Int>();let sums=List<Int>();var p=index+1;while p<=tree.length{positions.add(p);sums.add(integer.add(tree.values.get(p),delta)?);p+=stdBitAnd(p,-p);}var i=0;while i<positions.len(){tree.values.set(positions.get(i),sums.get(i));i+=1;}return Ok(());}
+pub fn prefix(tree:&Fenwick,end:Int)->Result<Int,String> effects {} {if end<0 || end>tree.length{return Err("Range");}var sum=0;var p=end;while p>0{sum=integer.add(sum,tree.values.get(p))?;p-=stdBitAnd(p,-p);}return Ok(sum);}
+pub fn range(tree:&Fenwick,start:Int,end:Int)->Result<Int,String> effects {} {if start<0 || end<start || end>tree.length{return Err("Range");}let a=prefix(tree,end)?;let b=prefix(tree,start)?;if b==(-9223372036854775807-1){if a>=0{return Err("Overflow");}return Ok((a+9223372036854775807)+1);}return integer.add(a,-b);}

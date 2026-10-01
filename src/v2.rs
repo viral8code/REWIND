@@ -14,13 +14,13 @@ mod v09;
 mod v091;
 mod v092;
 fn program_v09(p: &Program) -> bool {
-    matches!(p.language.as_str(), "0.9" | "0.9.1" | "0.9.2")
+    matches!(p.language.as_str(), "0.9" | "0.9.1" | "0.9.2" | "0.9.3")
 }
 mod vm;
 fn program_v07(p: &Program) -> bool {
     matches!(
         p.language.as_str(),
-        "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     )
 }
 thread_local! {
@@ -1777,6 +1777,9 @@ fn rename_symbol(name: &str, names: &BTreeMap<String, String>) -> String {
     if let Some(replacement) = names.get(name) {
         return replacement.clone();
     }
+    if name.contains('<') {
+        return rename_type(name, names);
+    }
     let split = name.find(['<', ':']).unwrap_or(name.len());
     if let Some(replacement) = names.get(&name[..split]) {
         return format!("{replacement}{}", &name[split..]);
@@ -2363,7 +2366,14 @@ fn load_program_overlay(
                 let (base, relative) = module
                     .split_once('/')
                     .and_then(|(name, rest)| imports.get(name).map(|root| (root, rest)))
-                    .unwrap_or((&imports[""], module));
+                    .unwrap_or_else(|| {
+                        let local = imports
+                            .values()
+                            .filter(|base| full.starts_with(base))
+                            .max_by_key(|base| base.components().count())
+                            .unwrap_or(&imports[""]);
+                        (local, module)
+                    });
                 let mut imported = load_program_overlay(
                     &base.join(format!("{relative}.rw")),
                     root,
@@ -2739,7 +2749,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     program.strict_visibility = manifest.as_ref().is_some_and(|m| {
         matches!(
             m.language.as_str(),
-            "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         )
     });
     program.language = manifest
@@ -2751,7 +2761,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     if let Some(config) = &manifest {
         if matches!(
             config.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -2762,7 +2772,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     if mode == "build" {
         let artifact = if matches!(
             program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) {
             v05::artifact(&program, root)?
         } else {
@@ -2816,7 +2826,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
     program.strict_visibility = manifest.as_ref().is_some_and(|m| {
         matches!(
             m.language.as_str(),
-            "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.3" | "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         )
     });
     program.language = manifest
@@ -2828,7 +2838,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
     if let Some(config) = &manifest {
         if matches!(
             config.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -3066,7 +3076,7 @@ pub fn lock_project(root: &Path) -> Result<()> {
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
     if matches!(
         project.language.as_str(),
-        "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.4" | "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) {
         return Err(Error::InvalidOperation(
             "use 'rewind update' to update v0.4 dependencies".into(),
@@ -3196,7 +3206,7 @@ fn check_program(program: &Program) -> Result<()> {
     v09::record_signatures(program)?;
     if matches!(
         program.language.as_str(),
-        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) {
         let entries = program.impls.iter().collect::<Vec<_>>();
         for (i, ((tr, target), methods)) in entries.iter().enumerate() {
@@ -3356,7 +3366,7 @@ fn check_program(program: &Program) -> Result<()> {
         let key = v06::cache::key(&(f, &interface_key)).unwrap_or_default();
         if matches!(
             program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
             continue;
@@ -3387,7 +3397,7 @@ fn check_program(program: &Program) -> Result<()> {
         }
         if matches!(
             program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) {
             v06::cache::put(root, "checked", &key, &true);
         }
@@ -3433,7 +3443,13 @@ impl Checker<'_> {
                 .import_exposure
                 .get(&(self.origin.clone(), origin.to_path_buf()))
             {
-                if !exposed.contains(name) {
+                if !exposed.contains(name)
+                    && !(self.program.language == "0.9.3"
+                        && exposed.iter().any(|local| {
+                            resolve_alias(self.program, local).split('<').next()
+                                == resolve_alias(self.program, name).split('<').next()
+                        }))
+                {
                     return Err(diagnostic(
                         at,
                         format!("{name} is not imported into this module"),
@@ -3580,7 +3596,7 @@ impl Checker<'_> {
                 let (head, field_types) = if name == "$tuple" {
                     if !matches!(
                         self.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) {
                         return Err(diagnostic(at, "tuple pattern requires language 0.6"));
                     }
@@ -3764,7 +3780,7 @@ impl Checker<'_> {
                 if let Some(binding) = self.find(&resolved) {
                     if matches!(
                         self.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) {
                         v06::borrowed_type(&binding.0).into()
                     } else {
@@ -3784,7 +3800,7 @@ impl Checker<'_> {
                     }
                     if matches!(
                         self.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) {
                         let ty = v06::fn_type(
                             &f.params,
@@ -3837,7 +3853,7 @@ impl Checker<'_> {
                 if op.starts_with("$capture:") {
                     if !matches!(
                         self.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
                     }
@@ -3873,7 +3889,7 @@ impl Checker<'_> {
                             "Result<{inner},{}>",
                             if matches!(
                                 self.program.language.as_str(),
-                                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                                "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                             ) {
                                 "TaskError"
                             } else {
@@ -3885,7 +3901,7 @@ impl Checker<'_> {
                 if matches!(op.as_str(), "move" | "borrow" | "borrowMut") {
                     if matches!(
                         self.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) && op != "move"
                     {
                         return Ok(format!(
@@ -3904,7 +3920,7 @@ impl Checker<'_> {
             ExprKind::Binary(op, a, b) => {
                 if matches!(
                     self.program.language.as_str(),
-                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) && (self.expr(a)?.starts_with("Secret<")
                     || self.expr(b)?.starts_with("Secret<"))
                 {
@@ -3980,7 +3996,7 @@ impl Checker<'_> {
                             }
                             if matches!(
                                 self.program.language.as_str(),
-                                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                             ) {
                                 return Ok(v06::fn_type(
                                     &f.params,
@@ -4026,7 +4042,7 @@ impl Checker<'_> {
                 let t = self.expr(base)?;
                 if matches!(
                     self.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) && t.starts_with("Secret<")
                 {
                     let inner = Expr {
@@ -4041,7 +4057,7 @@ impl Checker<'_> {
                 }
                 if matches!(
                     self.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
                     {
@@ -4057,7 +4073,7 @@ impl Checker<'_> {
                 }
                 if matches!(
                     self.program.language.as_str(),
-                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) && t.starts_with("Frozen<")
                 {
                     let inner = Expr {
@@ -4110,7 +4126,7 @@ impl Checker<'_> {
             ExprKind::Call(target, args) => {
                 if matches!(
                     self.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if let Ok(ty) = self.expr(base) {
@@ -4164,7 +4180,7 @@ impl Checker<'_> {
                 }
                 if matches!(
                     self.program.language.as_str(),
-                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
@@ -4204,7 +4220,7 @@ impl Checker<'_> {
                 if matches!(&target.kind,ExprKind::Name(n) if n=="$tuple") {
                     if !matches!(
                         self.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) {
                         return Err(diagnostic(&e.at, "tuple values require language 0.6"));
                     }
@@ -4219,7 +4235,7 @@ impl Checker<'_> {
                         let ty = self.expr(base)?;
                         if matches!(
                             self.program.language.as_str(),
-                            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                         ) {
                             if let Some(result) =
                                 v06::checker_method(self, &ty, method, &types, &e.at)?
@@ -4229,7 +4245,7 @@ impl Checker<'_> {
                         }
                         if matches!(
                             self.program.language.as_str(),
-                            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                         ) {
                             if method == "iter" && types.is_empty() {
                                 if let Some(item) = v05::iterator_item(&ty) {
@@ -4264,7 +4280,7 @@ impl Checker<'_> {
                         if ty.starts_with("Task<") {
                             if matches!(
                                 self.program.language.as_str(),
-                                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                             ) {
                                 if method == "timeout" && types == ["Int"] {
                                     return Ok(ty);
@@ -4285,7 +4301,7 @@ impl Checker<'_> {
                             }
                             if matches!(
                                 self.program.language.as_str(),
-                                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                             ) && types.is_empty()
                             {
                                 if method == "requestCancel" {
@@ -4360,7 +4376,7 @@ impl Checker<'_> {
                 if matches!(&target.kind, ExprKind::Name(n) if n == "propertyInt")
                     && matches!(
                         self.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     )
                 {
                     if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
@@ -4388,7 +4404,7 @@ impl Checker<'_> {
                     }
                     if matches!(
                         self.program.language.as_str(),
-                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) && matches!(name.as_str(), "secret" | "reveal")
                     {
                         if types.len() != 1 {
@@ -4406,7 +4422,7 @@ impl Checker<'_> {
                     }
                     if matches!(
                         self.program.language.as_str(),
-                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) && matches!(name.as_str(), "freeze" | "thaw")
                     {
                         if types.len() != 1 {
@@ -4669,7 +4685,7 @@ impl Checker<'_> {
                             {
                                 if !matches!(
                                     self.program.language.as_str(),
-                                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readSecretLine") | ("Env", "getSecret")
@@ -4759,21 +4775,25 @@ impl Checker<'_> {
                                 }
                             }
                             let base_type = t.split('<').next().unwrap_or("");
-                            let arity_ok = matches!(
-                                (base_type, method.as_str(), types.len()),
-                                ("List", "add" | "push" | "get", 1)
-                                    | ("List", "set", 2)
-                                    | ("List", "len", 0)
-                                    | ("Map", "set", 2)
-                                    | ("Map", "get" | "remove", 1)
-                                    | ("Map", "keys" | "len", 0)
-                                    | (
-                                        "FileHandle",
-                                        "read" | "readBytes" | "seek" | "write" | "writeBytes",
-                                        1,
-                                    )
-                                    | ("FileHandle", "close", 0)
-                            );
+                            let arity_ok = (self.program.language == "0.9.3"
+                                && base_type == "List"
+                                && method == "pop"
+                                && types.is_empty())
+                                || matches!(
+                                    (base_type, method.as_str(), types.len()),
+                                    ("List", "add" | "push" | "get", 1)
+                                        | ("List", "set", 2)
+                                        | ("List", "len", 0)
+                                        | ("Map", "set", 2)
+                                        | ("Map", "get" | "remove", 1)
+                                        | ("Map", "keys" | "len", 0)
+                                        | (
+                                            "FileHandle",
+                                            "read" | "readBytes" | "seek" | "write" | "writeBytes",
+                                            1,
+                                        )
+                                        | ("FileHandle", "close", 0)
+                                );
                             if !arity_ok {
                                 if let Some(bound) = self.bounds.get(&t) {
                                     let standard = standard_trait(bound);
@@ -4809,6 +4829,12 @@ impl Checker<'_> {
                                     .and_then(|inner| split_type_args(inner).get(1).copied())
                                     .map(|inner| format!("Option<{inner}>"))
                                     .unwrap_or("Option<Unknown>".into()),
+                                ("List", "pop") if self.program.language == "0.9.3" => format!(
+                                    "Option<{}>",
+                                    t.strip_prefix("List<")
+                                        .and_then(|s| s.strip_suffix('>'))
+                                        .unwrap_or("Unknown")
+                                ),
                                 ("List", "get") => t
                                     .strip_prefix("List<")
                                     .and_then(|s| s.strip_suffix('>'))
@@ -4976,7 +5002,7 @@ impl Checker<'_> {
                 }
                 if matches!(
                     self.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
                     v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
@@ -5078,7 +5104,7 @@ impl Checker<'_> {
                 if let ExprKind::Member(base, _) = &lhs.kind {
                     if matches!(
                         self.program.language.as_str(),
-                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                     ) && self.expr(base)?.starts_with("Tuple<")
                     {
                         return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
@@ -6113,12 +6139,12 @@ impl<R: BufRead> Engine<R> {
         self.call(name, args, at)
     }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if self.program.language == "0.9.2" {
+        if matches!(self.program.language.as_str(), "0.9.2" | "0.9.3") {
             if let Some(v) = v092::call(name, &args).map_err(Flow::Error)? {
                 return Ok(v);
             }
         }
-        if matches!(self.program.language.as_str(), "0.9.1" | "0.9.2") {
+        if matches!(self.program.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3") {
             if let Some(value) = v091::call(&self.runtime, name, &args).map_err(Flow::Error)? {
                 return Ok(value);
             }
@@ -6126,7 +6152,7 @@ impl<R: BufRead> Engine<R> {
         if name == "$tuple"
             && matches!(
                 self.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
             )
         {
             return Ok(Value::Struct(
@@ -6145,7 +6171,7 @@ impl<R: BufRead> Engine<R> {
         }
         if matches!(
             self.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) && matches!(name, "secret" | "reveal")
         {
             if args.len() != 1 {
@@ -6153,7 +6179,7 @@ impl<R: BufRead> Engine<R> {
             }
             if matches!(
                 self.program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
             ) {
                 self.runtime.register_secret_value(&args[0]);
             }
@@ -6170,7 +6196,7 @@ impl<R: BufRead> Engine<R> {
         }
         if matches!(
             self.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) && matches!(name, "freeze" | "thaw")
         {
             if args.len() != 1 {
@@ -6182,7 +6208,7 @@ impl<R: BufRead> Engine<R> {
             }
             // Frozen generic reads preserve scalar values without a wrapper.
             // Their static type still requires thaw; scalars own no mutable state.
-            let value = if self.program.language == "0.9.2"
+            let value = if matches!(self.program.language.as_str(), "0.9.2" | "0.9.3")
                 && matches!(
                     &args[0],
                     Value::Bool(_)
@@ -6226,7 +6252,7 @@ impl<R: BufRead> Engine<R> {
             }
             return Ok(Value::HeapRef(
                 self.runtime
-                    .alloc(Value::TypedList(inner.into(), Vec::new()))?,
+                    .alloc(Value::TypedList(inner.into(), Vec::new().into()))?,
             ));
         }
         if let Some(inner) = name.strip_prefix("Map<").and_then(|s| s.strip_suffix('>')) {
@@ -6263,7 +6289,7 @@ impl<R: BufRead> Engine<R> {
                 ))
             }
             "Bytes" if args.len() == 1 => match &args[0] {
-                Value::Text(s) => return Ok(Value::Bytes(s.as_bytes().to_vec())),
+                Value::Text(s) => return Ok(Value::Bytes(s.as_bytes().to_vec().into())),
                 _ => return Err(self.fail(at, "Bytes expects a String")),
             },
             "Ok" if args.len() == 1 => return Ok(Value::Result(Ok(Box::new(args[0].clone())))),
@@ -6530,7 +6556,7 @@ impl<R: BufRead> Engine<R> {
     fn method(&mut self, target: Value, method: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
         if matches!(
             self.program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) {
             if let Some(inner) = v05::unsecret(&target) {
                 let value = self.method(inner.clone(), method, args, at)?;
@@ -6553,7 +6579,7 @@ impl<R: BufRead> Engine<R> {
         }
         if matches!(
             self.program.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) && args.is_empty()
         {
             if method == "iter" {
@@ -6571,7 +6597,7 @@ impl<R: BufRead> Engine<R> {
                     return Ok(
                         if matches!(
                             self.program.language.as_str(),
-                            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                         ) {
                             v06::immutable_tuple(value, &self.runtime)
                         } else {
@@ -6663,6 +6689,56 @@ impl<R: BufRead> Engine<R> {
                 _ => Err(self.fail(at, "unsupported immutable Map method")),
             },
             Value::HeapRef(id) => {
+                // Read only the requested element; never clone the collection root's payload.
+                if method == "len" && args.is_empty() {
+                    let length = match self.runtime.heap_get(id) {
+                        Some(Value::List(xs)) => Some(xs.len()),
+                        Some(Value::TypedList(_, xs)) => Some(xs.len()),
+                        Some(Value::Map(xs)) => Some(xs.len()),
+                        Some(Value::TypedMap(_, _, xs)) => Some(xs.len()),
+                        Some(Value::OrderedMap(_, _, xs)) => Some(xs.len()),
+                        _ => None,
+                    };
+                    if let Some(n) = length {
+                        return Ok(Value::Int(n as i64));
+                    }
+                }
+                if method == "get" && args.len() == 1 {
+                    match self.runtime.heap_get(id) {
+                        Some(Value::TypedList(_, xs)) => {
+                            let Value::Int(i) = args[0] else {
+                                return Err(self.fail(at, "list index must be Int"));
+                            };
+                            return xs
+                                .get(i as usize)
+                                .cloned()
+                                .ok_or_else(|| self.fail(at, "list index out of bounds"));
+                        }
+                        Some(Value::TypedMap(_, _, xs)) => {
+                            let key = MapKey::from_value(&args[0])
+                                .ok_or_else(|| self.fail(at, "unsupported Map key type"))?;
+                            return Ok(Value::Option(xs.get(&key).cloned().map(Box::new)));
+                        }
+                        Some(Value::OrderedMap(ty, _, xs)) => {
+                            let ty = ty.clone();
+                            let length = xs.len();
+                            let key = self.ordered_key(&args[0], at)?;
+                            for i in 0..length {
+                                let (k, v) = match self.runtime.heap_get(id) {
+                                    Some(Value::OrderedMap(_, _, xs)) => xs[i].clone(),
+                                    _ => unreachable!(),
+                                };
+                                match self.ordered_position(&ty, &[(k, Value::Null)], &key, at)? {
+                                    Ok(_) => return Ok(Value::Option(Some(Box::new(v)))),
+                                    Err(0) => return Ok(Value::Option(None)),
+                                    Err(_) => {}
+                                }
+                            }
+                            return Ok(Value::Option(None));
+                        }
+                        _ => {}
+                    }
+                }
                 let old = self
                     .runtime
                     .heap_get(id)
@@ -6717,6 +6793,11 @@ impl<R: BufRead> Engine<R> {
                     }
                     Value::TypedList(ty, mut list) => {
                         match (method, args.as_slice()) {
+                            ("pop", []) if self.program.language == "0.9.3" => {
+                                let value = list.pop();
+                                self.runtime.heap_set(id, Value::TypedList(ty, list))?;
+                                Ok(Value::Option(value.map(Box::new)))
+                            }
                             ("add", [value]) | ("push", [value]) => {
                                 let actual = value_type(value, &self.runtime);
                                 if !compatible(&ty, &actual) {
@@ -6740,7 +6821,7 @@ impl<R: BufRead> Engine<R> {
                                     return Err(self
                                         .fail(at, format!("List<{ty}> cannot contain {actual}")));
                                 }
-                                list[*n as usize] = value.clone();
+                                list.set(*n as usize, value.clone());
                                 self.runtime.heap_set(id, Value::TypedList(ty, list))?;
                                 Ok(unit)
                             }
@@ -6838,9 +6919,9 @@ impl<R: BufRead> Engine<R> {
                         .map(Value::Text)
                         .map_err(|e| self.fail(at, e.to_string()))
                 }
-                ("readBytes", [Value::Int(n)]) if *n >= 0 => {
-                    Ok(Value::Bytes(self.runtime.read_handle(id, *n as usize)?))
-                }
+                ("readBytes", [Value::Int(n)]) if *n >= 0 => Ok(Value::Bytes(
+                    self.runtime.read_handle(id, *n as usize)?.into(),
+                )),
                 ("write", [v]) => {
                     match v {
                         Value::Bytes(bytes) => self.runtime.write_handle(id, bytes)?,
@@ -6881,7 +6962,7 @@ impl<R: BufRead> Engine<R> {
             ("In", "readSecretLine", 0)
                 if matches!(
                     self.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) =>
             {
                 Ok(Value::Option(
@@ -6893,7 +6974,7 @@ impl<R: BufRead> Engine<R> {
             ("Env", "getSecret", 1)
                 if matches!(
                     self.program.language.as_str(),
-                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                    "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
                 ) =>
             {
                 Ok(Value::Option(
@@ -6910,7 +6991,7 @@ impl<R: BufRead> Engine<R> {
             ("Time", "now", 0) => Ok(Value::Int(self.runtime.now_millis()? as i64)),
             ("Random", "next", 0) => Ok(Value::Int(self.runtime.random_u64() as i64)),
             ("Args", "all", 0) => {
-                let values = self
+                let values: Vec<_> = self
                     .runtime
                     .arguments()
                     .into_iter()
@@ -6918,7 +6999,7 @@ impl<R: BufRead> Engine<R> {
                     .collect();
                 Ok(Value::HeapRef(
                     self.runtime
-                        .alloc(Value::TypedList("String".into(), values))?,
+                        .alloc(Value::TypedList("String".into(), values.into()))?,
                 ))
             }
             ("Env", "get", 1) => Ok(Value::Option(
@@ -6928,7 +7009,7 @@ impl<R: BufRead> Engine<R> {
             )),
             ("Locale", "current", 0) => Ok(Value::Text(self.runtime.locale().into())),
             ("Directory", "entries", 1) => {
-                let values = self
+                let values: Vec<_> = self
                     .runtime
                     .directory_entries(&strings()[0])?
                     .into_iter()
@@ -6936,7 +7017,7 @@ impl<R: BufRead> Engine<R> {
                     .collect();
                 Ok(Value::HeapRef(
                     self.runtime
-                        .alloc(Value::TypedList("String".into(), values))?,
+                        .alloc(Value::TypedList("String".into(), values.into()))?,
                 ))
             }
             ("File", "readText", 1) => {
@@ -6951,7 +7032,7 @@ impl<R: BufRead> Engine<R> {
                 })
             }
             ("File", "readBytes", 1) => Ok(match self.runtime.read_file(&strings()[0]) {
-                Ok(v) => Value::Result(Ok(Box::new(Value::Bytes(v)))),
+                Ok(v) => Value::Result(Ok(Box::new(Value::Bytes(v.into())))),
                 Err(e) => Value::Result(Err(Box::new(Value::FileError(FileFailure::from_error(
                     &e,
                     &strings()[0],
@@ -6966,7 +7047,7 @@ impl<R: BufRead> Engine<R> {
                 let Value::Bytes(bytes) = &args[1] else {
                     return Err(self.fail(at, "writeBytes expects Bytes"));
                 };
-                self.runtime.write_file(&strings()[0], bytes)?;
+                self.runtime.write_file(&strings()[0], bytes.as_slice())?;
                 Ok(unit)
             }
             ("File", "create", 1) => {
@@ -7211,7 +7292,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
     }
     if matches!(
         program.language.as_str(),
-        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) && matches!(bound, "Send" | "Share")
     {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
@@ -7237,7 +7318,7 @@ fn impl_matches(
     }
     if !matches!(
         program.language.as_str(),
-        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) {
         return false;
     }
@@ -7430,7 +7511,7 @@ fn trait_method_return(
         || f.params.first().is_none_or(|(_, t)| {
             if matches!(
                 program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
             ) {
                 !compatible(t, ty)
             } else {
@@ -7599,7 +7680,8 @@ fn pattern_matches(
         Pattern::Range(start, end) => matches!(resolved, Value::Int(n) if n >= start && n < end),
         Pattern::List(parts) => {
             let values = match resolved {
-                Value::List(v) | Value::TypedList(_, v) => v,
+                Value::List(v) => v.iter().collect::<Vec<_>>(),
+                Value::TypedList(_, v) => v.iter().collect::<Vec<_>>(),
                 _ => return false,
             };
             parts.len() == values.len()
@@ -7836,7 +7918,7 @@ pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
     let config = project::ProjectConfig::load(root)?;
     if config
         .as_ref()
-        .is_some_and(|c| matches!(c.language.as_str(), "0.9" | "0.9.1" | "0.9.2"))
+        .is_some_and(|c| matches!(c.language.as_str(), "0.9" | "0.9.1" | "0.9.2" | "0.9.3"))
     {
         v09::repl(root, record)
     } else if record.is_some() {

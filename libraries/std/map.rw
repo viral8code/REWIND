@@ -4,3 +4,5 @@ pub fn getOr<K:Ord,V:Share>(values:&Map<K,V>,key:K,fallback:V)->V effects {} {
 pub fn contains<K:Ord,V:Share>(values:&Map<K,V>,key:K)->Bool effects {} {
     match values.get(key) {Some(_)=>{return true;},None=>{return false;}}
 }
+pub fn entries<V:Share>(values:&Map<String,V>)->List<Tuple<String,V>> effects {} {let out=List<Tuple<String,V>>();let keys=values.keys();var i=0;while i<keys.len(){let key=keys.get(i);match values.get(key){Some(v)=>{out.add((key,v));},None=>{}}i+=1;}return out;}
+pub fn update<V:Share>(values:&mut Map<String,V>,key:String,change:fn(Option<V>)->Option<V> effects {} captures {Send,Share})->Unit effects {} {let value=change(values.get(key));match value{Some(v)=>{values.set(key,v);},None=>{values.remove(key);}}}
