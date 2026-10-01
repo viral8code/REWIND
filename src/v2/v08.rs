@@ -8,8 +8,10 @@ pub(super) use repl::repl;
 pub(in crate::v2) fn readable_trace(trace: &Json) -> bool {
     trace["format"] == 1
         && (trace["compiler"] == env!("CARGO_PKG_VERSION")
-            || (matches!(trace["compiler"].as_str(), Some("0.8.0" | "0.9.0"))
-                && trace["debug"]["index"]["format"] == 1))
+            || (matches!(
+                trace["compiler"].as_str(),
+                Some("0.8.0" | "0.9.0" | "0.9.1")
+            ) && trace["debug"]["index"]["format"] == 1))
 }
 pub(in crate::v2) fn inspection_trace(mut value: Json) -> Result<Json> {
     if value["kind"] != "rewind-inspection" {
@@ -19,7 +21,7 @@ pub(in crate::v2) fn inspection_trace(mut value: Json) -> Result<Json> {
         || value["executable"] != false
         || !matches!(
             value["source_compiler"].as_str(),
-            Some("0.7.0" | "0.8.0" | "0.9.0" | "0.9.1")
+            Some("0.7.0" | "0.8.0" | "0.9.0" | "0.9.1" | "0.9.2")
         )
         || value["debug"]["index"]["format"] != 1
     {

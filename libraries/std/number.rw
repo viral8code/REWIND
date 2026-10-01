@@ -1,0 +1,5 @@
+pub fn integer(value:String,radix:Int)->Result<Int,StdError> effects {} {return stdParseInt(value,radix);}
+pub fn decimal(value:String)->Result<Int,StdError> effects {} {return stdParseInt(value,10);}
+pub fn floating(value:String)->Result<Float,StdError> effects {} {return stdParseFloat(value);}
+pub fn formatInt(value:Int,radix:Int)->Result<String,StdError> effects {} {return stdFormatInt(value,radix);}
+pub fn formatFloat(value:Float)->Result<String,StdError> effects {} {return stdFormatFloat(value);}

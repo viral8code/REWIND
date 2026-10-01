@@ -1,87 +1,44 @@
-# REWIND v0.9.2 草案 — SDK 配布と標準ライブラリ
+# REWIND v0.9.2 — SDK と標準ライブラリ
 
-作成日: 2026-10-01。状態: **草案・未実装**。基準は [v0.9.1 実装状況](v0.9.1-status.md)。OpenJDK のように、言語処理系だけでなく、開発ツール・標準ライブラリ・API 文書・source・license を揃えた配布を目指す。Java/JVM の互換実装、OpenJDK の license の採用を意味しない。
+更新日: 2026-10-01。状態: **初回実装済み**。compiler/package 0.9.2、language 0.9.2。[実装状況](v0.9.2-status.md) と [ライブラリ一覧](../libraries/README.md) を参照。
 
-## 1. いまある土台
+## 配布単位
 
-v0.9.1 で JSON AST/codec、config/args、collection algorithms、Int math、Option の REWIND library module を実装した。[libraries/README.md](../libraries/README.md) に API と利用方法を記載する。設定検証・引数解釈・map/filter の方針を compiler へ閉じ込めず、検査・文書化・artifact 化できる `.rw` として保つ。
-
-List/Map の storage、ownership、型、効果、Checkpoint、Secret、native JSON parser のような基盤は compiler/runtime の責務。便利な API を全て builtin として増やす必要はない。必要な UTF-8/数値変換/OS adapter の primitive は小さく公開し、上位 API と policy を library に置く。
-
-## 2. 配布物を分ける
-
-| 配布物 | 内容 | 用途 |
-|---|---|---|
-| REWIND SDK | compiler/runner、build/test/doc/LSP/debug/profile、std source、API docs、examples、license、release manifest | 開発・CI |
-| application runtime image | verified artifact、必要な std の compiled code、allowlist asset、runner、effect/budget policy、release/signature | アプリ利用者 |
-| source distribution | compiler/runtime/std の source、lock、生成手順、tests、第三者 license | 再ビルド・保守・監査 |
-
-初版は現在の同じ `rewind` binary を SDK/runtime image へ配置する。compiler を除いた小さい runner を既に持つと説明しない。compiler と runtime の分離、静的リンク、embedding は後の実装単位にする。stdlib は artifact の typed IR/bytecode に取り込めるので、アプリ実行時に source を必須としない。
-
-SDK の候補 layout:
+compiler/runtime・開発ツール・std source・API 文書・実行例・license を一つの SDK directory として組み立てる。初回の対象は Linux x86_64。同じ `rewind` binary が check/test/doc/build/run/LSP/debug/profile を提供する。runtime-only binary の分離と他 OS/architecture は後続の検証単位とする。
 
 ```text
-rewind-sdk-0.9.2-<target>/
+rewind-sdk-0.9.2/
   bin/rewind
-  lib/rewind/std/            # .rw source + public API snapshot
-  share/rewind/doc/          # API / language / diagnostics
-  share/rewind/examples/
-  licenses/                 # MIT + dependency licenses
-  release.json              # compiler, language, std, target, file hashes
-  release.json.signature
+  lib/rewind/std/                 # source, manifest, lock, package metadata/signature
+  share/rewind/doc/std/           # module API docs
+  share/rewind/doc/std-api.json
+  share/rewind/examples/{sum,app}/
+  share/rewind/Cargo.lock
+  licenses/
+  sdk.json
+  sdk.json.signature
 ```
 
-初回の target は CI で実行検証できた Linux x86_64 を採用する。Linux aarch64 / Windows / macOS は実機または CI の smoke test が通った後に追加する。cross-compile に成功しただけでは「対応済み」としない。
+`sdk-build --output NEW_DIRECTORY --key SEED_FILE` は同梱 std の契約テストを実行し、API 文書と snapshot を生成して署名する。ファイル一覧・SHA-256・size・実行権限・target・compiler/language/std の版を sdk.json に固定する。同じ binary と同じ seed による二回の組立ては同じ manifest/signature になる。Rust binary 自体の再現ビルド、archive の生成、公式公開は別の手順であり、このコマンドには含めない。
 
-## 3. std の探索・版・信頼
+## std の導入と信頼
 
-- `import std.json as json;` を SDK の std に解決する。project が指定する mirror/package と SDK std の衝突はエラーとし、探索順で静かに置き換えない。
-- SDK を明示する option / REWIND_SDK_ROOT と default SDK path を定義する。project の source root から自由に外へ import する緩和とは分ける。
-- std の version、compiler compatibility、public API snapshot、source/package digest、signer を project lock と artifact の fingerprint に残す。SDK 変更だけで過去の lock を書き換えない。
-- SDK 全体の署名と、app artifact/release の署名を分ける。official key は release 時に管理し、private key を repository / SDK に含めない。利用者は許可した signer と失効・rotation を指定できる。
-- offline mirror を第一にし、ネットワーク fetch は別途 opt-in の設計にする。未署名 fallback、自動 trust、無通知の std 更新を導入しない。
+`sdk-verify --sdk DIRECTORY --public-key KEY` で SDK 全体と std package の署名を検証する。SDK と app release/artifact は署名 domain が異なる。秘密鍵は SDK に含めない。配布者の公開鍵は利用者が別経路で確認する。
 
-現在の project 内 source-copy を維持しながら、まず一つの std package を SDK へ同梱する。細かな std module の個別 version 解決は初版で要求しない。
+`sdk-install --root PROJECT --sdk DIRECTORY --public-key KEY` は明示した SDK を検証し、std を project の `vendor/` へコピーする。`import std.text as text;` などが通常の署名付き dependency として解決される。manifest に exact version・signer/public key を明示し、lock に source/package digest と版を固定する。通常の build/run は SDK の配置場所に依存しない。SDK を置き換えても既存 project の std を更新しない。
 
-## 4. 開発で使うライブラリを揃える
+この project 内 snapshot 方式を初回の探索仕様として採用する。環境変数/default path による自動探索を導入せず、source root の外への自由な import を許可しない。既存の std namespace、signer entry、コピー先、symlink は衝突として拒否し、探索順で置き換えない。依存更新の失敗時は manifest/lock を復元する。全操作は offline で完結する。
 
-| 優先 | module 候補 | 最初の API と検証 |
-|---|---|---|
-| P0 | text / bytes / number | UTF-8 decode、split/trim/search/slice、数値 parse/format。byte offset と Unicode scalar index を区別し、overflow/invalid input/出力上限を Result で返す |
-| P0 | collections / option / result | fold/find/count、Map の getOr/entries/update、Result の map/mapError/valueOr、immutable view。空 collection、順序、所有権、callback 効果を検証 |
-| P0 | config / cli | 長短 option、bool flag、help、必須/default、未知項目、schema の重複名、秘密項目。既存の小さな API を壊さず拡張 |
-| P0 | path / io / storage | root 内 path の検証・join、bounded read、単一文書 store の schema version/migration、optimistic conflict。process lock と atomic replacement の契約を追加 |
-| P1 | json / csv | Json record/enum の明示 codec、CSV quoting/newline、streaming/予算、位置付きエラー。任意 reflection は不要 |
-| P1 | time / decimal | Instant/Duration と観測、timezone の版、decimal 精度/丸め/overflow。金額を Float へ暗黙変換しない |
-| P1 | diagnostics / logging / testing | 構造化 log、機密値の伏せ方、typed failure の表示、fixtures/property generators、retention |
-| P2 | HTTP / database / UI adapter | Host protocol と別 package。capability、journal、timeout、idempotency、publish の不可逆性を先に定義 |
+## ライブラリと処理系
 
-全 module に、公開 signature、効果、所有権、予算、失敗、順序、秘密値、Checkpoint/replay への影響を記載する。純粋なアルゴリズムは `.rw` で実装し、Host native code は必要な境界に限定する。外部 API の retry や DB commit を普通の関数へ隠さない。
+既存 json/config/args/collections/math/option に text/bytes/number/bits/result/map を追加した。fold/find/count、Map getOr/contains、Result map/mapError/valueOr は `.rw` の関数で実装する。UTF-8、Unicode scalar の位置、数値変換、64-bit bit 操作、overflow を避ける mulMod は小さな pure native primitive を土台にする。
 
-## 5. library を便利にする compiler の補修
+Option/Result の Share/Send は中身の型に従う。mutable owner の複製は許可しない。generic Result の存在しない分岐の型引数は、型検査した呼出しを bytecode に保持して失われないようにする。generic Frozen collection から読み出した scalar の thaw も扱う。
 
-v0.9.1 の整備で、`None` の generic 推論と import alias 経由の generic borrow parameter を補修した。次は generic Frozen collection の要素読取り、enum の bound、callback の効果 parameter、module API の namespace と資料生成を実例で確認する。
+API の所有権・効果・失敗・予算・順序は [libraries/README.md](../libraries/README.md) に記載する。Host observation、publish、Secret の公開判断をライブラリへ隠さない。
 
-借用戻り値は library が必要とする具体的な用例から採否を決める。初版は新しい owner/immutable snapshot を返せば実装できる API を優先する。動的 trait object、FFI、macro、reflection を SDK 配布の前提にしない。
+## 継続する設計項目
 
-## 6. SDK を作る・更新する手順
+初回完了条件は、署名可能な SDK を生成し、同梱 std を固定して CLI アプリを build/replay/source-free run できることとする。設定 schema と JSON 保存には v0.9.1 の実装を利用する。
 
-1. 固定した Rust dependency と source から offline build し、compiler/runtime/stdlib の契約テストを実行する。
-2. std の API snapshot/doctest/doc を生成し、公開 API の破壊を diff で検査する。
-3. allowlist で SDK ファイルを列挙し、相対 path・hash・size・target・license・compiler/std version を release manifest へ固定する。
-4. 同じ input の二回の組立てで同じ manifest と内容を得る。archive の timestamp/permission/order と executable bits を正規化する。binary の完全再現性は toolchain/target の条件と分けて検証する。
-5. staging directory を検証してから新規 version directory へ配置する。既存 SDK を上書きせず、current の切替えと rollback を別操作にする。
-6. 公式公開は署名鍵と配布先を設定した release 手順で行う。今回の source push を SDK の公開と扱わない。
-
-SDK smoke test は別 directory の利用者 project を作り、SDK std import、型検査、test/doc/build、asset 付き install、署名検証、source-free run、record/replay まで実行する。秘密鍵/cache/trace/開発依存の混入、改変、symlink、path traversal、版不一致を拒否する。
-
-## 7. 初回の完了条件
-
-v0.9.2 の最初の実装単位を「署名可能な SDK directory を生成し、同梱 std を固定して CLI アプリを作れる」とする。
-
-- SDK layout/manifest/検証/新規 directory への組立てを実装する。
-- `std.*` の明示探索と lock/compiler/std 互換検査を実装する。
-- text/bytes/number と collections/Option/Result の日常的な API を揃え、schema 付き CLI と JSON 保存アプリの例に使う。
-- std source/API docs/examples/license を配布し、target の smoke test と API の互換差分を CI へ追加する。
-
-HTTP/DB/GUI と runtime-only binary の分離は別段階。v0.9.1 の publish は複数ファイル/stream を globally atomic にしないため、SDK や library の名称で transaction 保証を広げない。
+元の候補一覧のうち bool/短い option/help、Map entries/update facade、path join、process 間 lock、schema migration、CSV、日時/decimal、構造化 log、HTTP/DB/UI adapter は未実装。今回の SDK 完了と区別し、[v0.9.3 草案](REWIND_v0.9.3.md) と後続の library 計画へ引き継ぐ。複数ファイル/stream の publish を globally atomic にする保証は追加しない。

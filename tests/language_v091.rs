@@ -135,7 +135,9 @@ fn application_main_status_diagnostics_and_secret_redaction() {
 #[test]
 fn libraries_are_compiled_and_their_contract_tests_execute() {
     let root = fixture("", "");
-    for entry in fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("libraries/std")).unwrap()
+    for entry in
+        fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/stdlib-v091"))
+            .unwrap()
     {
         let p = entry.unwrap().path();
         if p.extension().is_some_and(|e| e == "rw") {
@@ -148,7 +150,7 @@ fn libraries_are_compiled_and_their_contract_tests_execute() {
         assert_eq!(
             fs::read(
                 Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("libraries/std")
+                    .join("tests/fixtures/stdlib-v091")
                     .join(name)
             )
             .unwrap(),

@@ -1,0 +1,6 @@
+pub fn length(value:String)->Int effects {} {return stdTextLength(value);}
+pub fn trim(value:String)->Result<String,StdError> effects {} {return stdTextTrim(value);}
+pub fn split(value:String,delimiter:String)->Result<List<String>,StdError> effects {} {return stdTextSplit(value,delimiter);}
+pub fn tokens(value:String)->Result<List<String>,StdError> effects {} {return stdTextTokens(value);}
+pub fn slice(value:String,start:Int,end:Int)->Result<String,StdError> effects {} {return stdTextSlice(value,start,end);}
+pub fn find(value:String,needle:String)->Option<Int> effects {} {return stdTextFind(value,needle);}

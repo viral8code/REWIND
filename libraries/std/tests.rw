@@ -42,3 +42,30 @@ test fn configuration_defaults_required_and_types() {
     let unknown=List<String>();unknown.add("--unknown");unknown.add("secret-value");
     match args.parse(&unknown,&names) {Err(e)=>{assert_eq(e.code,"UnknownOption");},Ok(_)=>{panic("expected unknown option");}}
 }
+
+import text as text;
+import bytes as bytes;
+import number as number;
+import bits as bits;
+import result as result;
+import map as map;
+test fn codecs_and_scalar_indices() {
+    assert_eq(text.length("a日本"),3);assert_eq(text.slice("a日本",1,3),Ok("日本"));assert_eq(text.find("a日本","本"),Some(2));assert_eq(text.trim("  x\n"),Ok("x"));
+    match text.split("a,,b",","){Ok(v)=>{assert_eq(v.len(),3);assert_eq(v.get(1),"");},Err(_)=>{panic("unexpected split");}}
+    match text.tokens("  2\t3\n-4 "){Ok(v)=>{assert_eq(v.len(),3);assert_eq(v.get(2),"-4");},Err(_)=>{panic("unexpected tokens");}}
+    assert_eq(bytes.decode(Bytes("日本")),Ok("日本"));assert_eq(bytes.encode("日本"),Ok(Bytes("日本")));assert_eq(bytes.get(Bytes("abc"),1),Ok(98));assert_eq(bytes.slice(Bytes("abc"),1,3),Ok(Bytes("bc")));
+    assert_eq(number.integer("-ff",16),Ok(-255));assert_eq(number.formatInt(-255,16),Ok("-ff"));assert_eq(number.floating("1.5"),Ok(1.5));assert_eq(number.formatFloat(1.5),Ok("1.5"));
+    match number.decimal("9223372036854775808"){Err(e)=>{assert_eq(e.code,"NumberRange");},Ok(_)=>{panic("expected overflow");}}
+    assert_eq(bits.and(6,3),2);assert_eq(bits.or(6,3),7);assert_eq(bits.xor(6,3),5);assert_eq(bits.count(-1),64);assert_eq(bits.shiftUnsigned(-1,1),Ok(9223372036854775807));
+    match bits.shiftLeft(1,64){Err(e)=>{assert_eq(e.code,"ShiftRange");},Ok(_)=>{panic("expected shift range");}}
+    assert_eq(math.mulMod(9223372036854775807,9223372036854775807,1000000007),Ok(737564071));
+}
+test fn folds_maps_and_result_branches() {
+    let values=List<Int>();values.add(1);values.add(2);values.add(3);
+    assert_eq(collections.fold(&values,0,|a:Int,b:Int|->Int{return a+b;}),6);assert_eq(collections.find(&values,|n:Int|->Bool{return n>1;}),Some(2));assert_eq(collections.count(&values,|n:Int|->Bool{return n>1;}),2);
+    let lookup=Map<Int,String>();lookup.set(1,"one");assert_eq(map.getOr(&lookup,1,"none"),"one");assert_eq(map.getOr(&lookup,2,"none"),"none");assert(map.contains(&lookup,1));
+    let good:Result<Int,String>=Ok(3);let bad:Result<Int,String>=Err("failed");
+    assert_eq(result.valueOr(good,0),3);assert_eq(result.valueOr(bad,0),0);
+    assert_eq(result.map(good,|n:Int|->Int{return n*2;}),Ok(6));assert_eq(result.map(bad,|n:Int|->Int{return n*2;}),Err("failed"));
+    assert_eq(result.mapError(good,|s:String|->String{return "mapped";}),Ok(3));assert_eq(result.mapError(bad,|s:String|->String{return "mapped";}),Err("mapped"));
+}

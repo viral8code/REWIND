@@ -88,3 +88,7 @@ Publish validates observed host state, stages file replacements, applies file ch
 ## v0.9.1
 
 JSON・設定/引数・application entry/exit status・asset 付き production 配布と最初の標準ライブラリを実装しました。[実装状況](docs/v0.9.1-status.md)、[ライブラリ](libraries/README.md)、[オフライン CLI 例](examples/v091/README.md)、[SDK と library の v0.9.2 草案](docs/REWIND_v0.9.2.md) を参照してください。
+
+## v0.9.2
+
+署名付き SDK の組立て・検証・std の project 導入と、text/bytes/number/bits/result/map を追加しました。[実装状況](docs/v0.9.2-status.md)、[SDK仕様](docs/REWIND_v0.9.2.md)、[利用例](examples/v092/README.md)を参照してください。主要な処理・データ構造・アルゴリズムと性能改善の次段階を [v0.9.3草案](docs/REWIND_v0.9.3.md)にまとめています。

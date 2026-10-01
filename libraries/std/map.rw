@@ -1,0 +1,6 @@
+pub fn getOr<K:Ord,V:Share>(values:&Map<K,V>,key:K,fallback:V)->V effects {} {
+    match values.get(key) {Some(v)=>{return v;},None=>{return fallback;}}
+}
+pub fn contains<K:Ord,V:Share>(values:&Map<K,V>,key:K)->Bool effects {} {
+    match values.get(key) {Some(_)=>{return true;},None=>{return false;}}
+}

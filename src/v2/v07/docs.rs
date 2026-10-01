@@ -8,7 +8,10 @@ pub(in crate::v2) fn doctest(root: &Path, path: &Path) -> Result<()> {
     let config = project::ProjectConfig::load_for_test(root)?
         .ok_or_else(|| Error::InvalidOperation("doctest requires a manifest".into()))?;
     config.lock(root, false)?;
-    if !matches!(config.language.as_str(), "0.7" | "0.8" | "0.9" | "0.9.1") {
+    if !matches!(
+        config.language.as_str(),
+        "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+    ) {
         return Err(Error::InvalidOperation(
             "doctest requires language 0.7".into(),
         ));

@@ -15,3 +15,12 @@ pub fn any<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {S
 pub fn all<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {Send,Share})->Bool effects {} {
     var i=0;while i<values.len() {if !predicate(values.get(i)) {return false;}i+=1;}return true;
 }
+pub fn fold<T:Share,U:Share>(values:&List<T>,initial:U,combine:fn(U,T)->U effects {} captures {Send,Share})->U effects {} {
+    var result=initial;var i=0;while i<values.len(){result=combine(result,values.get(i));i+=1;}return result;
+}
+pub fn find<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {Send,Share})->Option<T> effects {} {
+    var i=0;while i<values.len(){let value=values.get(i);if predicate(value){return Some(value);}i+=1;}return None;
+}
+pub fn count<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {Send,Share})->Int effects {} {
+    var result=0;var i=0;while i<values.len(){if predicate(values.get(i)){result+=1;}i+=1;}return result;
+}

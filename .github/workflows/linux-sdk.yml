@@ -1,0 +1,28 @@
+name: Linux SDK
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fmt --check
+      - run: cargo test --locked
+      - run: cargo build --release --locked
+      - name: Standard library contracts and SDK API compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_WORK=$(mktemp -d)
+          trap 'rm -rf "$SDK_WORK"' EXIT
+          target/release/rewind test --root libraries/std
+          PUBLIC_KEY=$(target/release/rewind keygen "$SDK_WORK/key")
+          target/release/rewind sdk-build --output "$SDK_WORK/sdk" --key "$SDK_WORK/key"
+          target/release/rewind sdk-verify --sdk "$SDK_WORK/sdk" --public-key "$PUBLIC_KEY"
+          for BASELINE in libraries/api/*.api.json; do
+            target/release/rewind api-diff "$BASELINE" "$SDK_WORK/sdk/share/rewind/doc/std/$(basename "$BASELINE")" --deny-breaking
+          done

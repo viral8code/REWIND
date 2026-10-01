@@ -1,0 +1,144 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.2",
+  "symbols": {
+    "fn:find": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String",
+        "String"
+      ],
+      "return": "Option<Int>"
+    },
+    "fn:length": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String"
+      ],
+      "return": "Int"
+    },
+    "fn:slice": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<String,StdError>"
+    },
+    "fn:split": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String",
+        "String"
+      ],
+      "return": "Result<List<String>,StdError>"
+    },
+    "fn:tokens": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<List<String>,StdError>"
+    },
+    "fn:trim": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<String,StdError>"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

@@ -101,10 +101,10 @@ fn file_message(path: &Path, kind: &str) -> Result<String> {
     }
     if !matches!(
         kind,
-        "artifact" | "trace" | "inspection" | "session" | "release"
+        "artifact" | "trace" | "inspection" | "session" | "release" | "sdk"
     ) {
         return Err(Error::InvalidOperation(
-            "signature kind must be artifact, trace, inspection, session or release".into(),
+            "signature kind must be artifact, trace, inspection, session, release or sdk".into(),
         ));
     }
     Ok(format!(

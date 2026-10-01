@@ -1,0 +1,9 @@
+pub fn valueOr<T:Share,E:Share>(value:Result<T,E>,fallback:T)->T effects {} {
+    match value {Ok(v)=>{return v;},Err(_)=>{return fallback;}}
+}
+pub fn map<T:Share,U:Share,E:Share>(value:Result<T,E>,transform:fn(T)->U effects {} captures {Send,Share})->Result<U,E> effects {} {
+    match value {Ok(v)=>{return Ok(transform(v));},Err(e)=>{return Err(e);}}
+}
+pub fn mapError<T:Share,E:Share,F:Share>(value:Result<T,E>,transform:fn(E)->F effects {} captures {Send,Share})->Result<T,F> effects {} {
+    match value {Ok(v)=>{return Ok(v);},Err(e)=>{return Err(transform(e));}}
+}

@@ -33,6 +33,8 @@ pub(in crate::v2) fn stamp() -> String {
                 include_str!("../v08/repl.rs"),
                 include_str!("../v09.rs"),
                 include_str!("../v091.rs"),
+                include_str!("../v092.rs"),
+                include_str!("../v092/sdk.rs"),
                 include_str!("../v09/session.rs"),
                 include_str!("effects.rs"),
                 include_str!("captures.rs"),
@@ -134,7 +136,7 @@ fn path(root: &Path, kind: &str, key: &str) -> Option<(PathBuf, Vec<u8>)> {
             key.trim() == "language"
                 && matches!(
                     value.trim(),
-                    "\"0.6\"" | "\"0.7\"" | "\"0.8\"" | "\"0.9\"" | "\"0.9.1\""
+                    "\"0.6\"" | "\"0.7\"" | "\"0.8\"" | "\"0.9\"" | "\"0.9.1\"" | "\"0.9.2\""
                 )
         })
     }) {
