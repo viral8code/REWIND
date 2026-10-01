@@ -89,13 +89,25 @@ jobs:
           fi
           cat docs/getting-started.md >> "$NOTES"
           printf '\n## Build and verification\n\nCommit: `%s`\n\n' "$GITHUB_SHA" >> "$NOTES"
-          printf 'Linux and Windows regression tests, standard-library contracts, SDK signatures, 34 API baselines, extraction, input, record/replay and source-free execution passed.\n\n' >> "$NOTES"
+          BASELINE_COUNT=$(python -c "import glob; print(len(glob.glob('libraries/api/*.api.json')))")
+          printf 'Linux and Windows regression tests, standard-library contracts, SDK signatures, %s API baselines, extraction, input, record/replay and source-free execution passed.\n\n' "$BASELINE_COUNT" >> "$NOTES"
           for KEY in release-assets/*-sdk.pub; do
             printf '%s (this release only): `%s`\n\n' "$(basename "$KEY")" "$(cat "$KEY")" >> "$NOTES"
           done
           gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "REWIND $RELEASE_TAG — Linux / Windows x86_64 SDK" --notes-file "$NOTES"
-          if [[ "$RELEASE_TAG" == v1.* ]]; then
+          if [[ "$RELEASE_TAG" == v1.* || "$RELEASE_TAG" == v2.* ]]; then
             gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest
           else
             gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
           fi
+      - name: Integrate the published version into main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --unshallow origin || git fetch origin
+          git fetch origin main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            exit 0
+          fi
+          git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+          git push origin "$GITHUB_SHA:refs/heads/main"

@@ -1,5 +1,5 @@
 use super::*;
-use std::{cell::UnsafeCell, collections::VecDeque, ffi::c_void};
+use std::{cell::UnsafeCell, collections::VecDeque, ffi::c_void, sync::Arc};
 type Handle = isize;
 #[repr(C)]
 struct Rect {
@@ -80,6 +80,8 @@ unsafe extern "system" {
     ) -> i32;
     fn InvalidateRect(hwnd: Handle, rect: *const Rect, erase: i32) -> i32;
     fn UpdateWindow(hwnd: Handle) -> i32;
+    fn PeekMessageW(message: *mut Message, hwnd: Handle, min: u32, max: u32, remove: u32) -> i32;
+    fn GetKeyState(key: i32) -> i16;
     fn GetMessageW(message: *mut Message, hwnd: Handle, min: u32, max: u32) -> i32;
     fn TranslateMessage(message: *const Message) -> i32;
     fn DispatchMessageW(message: *const Message) -> isize;
@@ -96,6 +98,9 @@ unsafe extern "system" {
     fn SaveDC(dc: Handle) -> i32;
     fn RestoreDC(dc: Handle, saved: i32) -> i32;
     fn IntersectClipRect(dc: Handle, left: i32, top: i32, right: i32, bottom: i32) -> i32;
+    fn GetTextExtentPoint32W(dc: Handle, text: *const u16, len: i32, size: *mut Point) -> i32;
+    fn MoveToEx(dc: Handle, x: i32, y: i32, old: *mut Point) -> i32;
+    fn LineTo(dc: Handle, x: i32, y: i32) -> i32;
     fn CreateSolidBrush(color: u32) -> Handle;
     fn DeleteObject(object: Handle) -> i32;
     fn SetTextColor(dc: Handle, color: u32) -> u32;
@@ -115,7 +120,7 @@ fn color(rgb: u32) -> u32 {
     ((rgb & 0xff) << 16) | (rgb & 0xff00) | (rgb >> 16)
 }
 struct State {
-    frame: Option<Frame>,
+    frame: Option<Arc<Frame>>,
     events: VecDeque<Event>,
     closed: bool,
     overflow: bool,
@@ -145,7 +150,7 @@ unsafe extern "system" fn procedure(
         0x0f => {
             let frame = unsafe { (&*ptr).frame.clone() };
             unsafe {
-                draw(hwnd, frame.as_ref());
+                draw(hwnd, frame.as_deref());
             }
             0
         }
@@ -181,6 +186,10 @@ unsafe extern "system" fn procedure(
                 0x09 => "Tab",
                 0x1b => "Escape",
                 0x08 => "Backspace",
+                0x2e => "Delete",
+                0x24 => "Home",
+                0x23 => "End",
+                0x41 if unsafe { GetKeyState(0x11) } < 0 => "Ctrl+A",
                 0x20 => "Space",
                 0x25 => "Left",
                 0x26 => "Up",
@@ -190,7 +199,24 @@ unsafe extern "system" fn procedure(
             };
             let state = unsafe { &mut *ptr };
             let mut e = Event::simple("key");
-            e.key = key.into();
+            e.key = if unsafe { GetKeyState(0x10) } < 0
+                && matches!(key, "Left" | "Right" | "Home" | "End" | "Up" | "Down")
+            {
+                format!("Shift+{key}")
+            } else {
+                key.into()
+            };
+            state.push(e);
+            0
+        }
+        0x20a => {
+            let state = unsafe { &mut *ptr };
+            let mut e = Event::simple("wheel");
+            e.y = if ((wparam >> 16) as u16 as i16) > 0 {
+                -1
+            } else {
+                1
+            };
             state.push(e);
             0
         }
@@ -212,7 +238,7 @@ unsafe extern "system" fn procedure(
                 char::from_u32(unit as u32)
             };
             if let Some(c) = c.filter(|c| !c.is_control() && *c != ' ') {
-                let mut e = Event::simple("key");
+                let mut e = Event::simple("text");
                 e.key = c.to_string();
                 state.push(e);
             }
@@ -230,6 +256,54 @@ unsafe fn fill(dc: Handle, r: &Rect, rgb: u32, border: bool) {
             FillRect(dc, r, brush);
         }
         DeleteObject(brush);
+    }
+}
+unsafe fn draw_edit(dc: Handle, item: &Item) {
+    unsafe {
+        let mut offset = 0usize;
+        let start = item.cursor.min(item.anchor);
+        let end = item.cursor.max(item.anchor);
+        for (row, line) in item.text.split('\n').enumerate() {
+            let count = line.chars().count();
+            if row >= item.scroll && row < item.scroll + (item.height as usize / 18).max(1) {
+                let mut x = item.x + 6;
+                let y = item.y + 6 + ((row - item.scroll) * 18) as i32;
+                let width = |n: usize| {
+                    let text = wide(&line.chars().take(n).collect::<String>());
+                    let mut size = Point { x: 0, y: 0 };
+                    GetTextExtentPoint32W(dc, text.as_ptr(), (text.len() - 1) as i32, &mut size);
+                    size.x
+                };
+                if item.cursor >= offset && item.cursor <= offset + count {
+                    let caret = width(item.cursor - offset);
+                    x -= (caret - (item.width - 14)).max(0);
+                }
+                if start < end && end > offset && start < offset + count {
+                    let left = width(start.saturating_sub(offset).min(count));
+                    let right = width(end.saturating_sub(offset).min(count));
+                    fill(
+                        dc,
+                        &Rect {
+                            left: x + left,
+                            top: y,
+                            right: x + right,
+                            bottom: y + 18,
+                        },
+                        0xbfdbfe,
+                        false,
+                    );
+                }
+                let text = wide(line);
+                SetTextColor(dc, color(item.foreground));
+                TextOutW(dc, x, y, text.as_ptr(), (text.len() - 1) as i32);
+                if item.focused && item.cursor >= offset && item.cursor <= offset + count {
+                    let caret = x + width(item.cursor - offset);
+                    MoveToEx(dc, caret, y, std::ptr::null_mut());
+                    LineTo(dc, caret, y + 16);
+                }
+            }
+            offset += count + 1;
+        }
     }
 }
 unsafe fn draw(hwnd: Handle, frame: Option<&Frame>) {
@@ -277,6 +351,11 @@ unsafe fn draw(hwnd: Handle, frame: Option<&Frame>) {
                 let text = wide(&text);
                 let saved = SaveDC(dc);
                 IntersectClipRect(dc, rect.left, rect.top, rect.right, rect.bottom);
+                if matches!(item.kind.as_str(), "textbox" | "textarea") {
+                    draw_edit(dc, item);
+                    RestoreDC(dc, saved);
+                    continue;
+                }
                 SetTextColor(
                     dc,
                     color(if item.enabled {
@@ -379,7 +458,7 @@ impl Surface {
                 }
                 SetWindowLongPtrW(self.window, -21, self.state.get() as isize);
             }
-            self.state_mut().frame = Some(frame.clone());
+            self.state_mut().frame = Some(Arc::new(frame.clone()));
             self.state_mut().closed = false;
             let title = wide(&frame.title);
             if SetWindowTextW(self.window, title.as_ptr()) == 0 {
@@ -427,6 +506,34 @@ impl Surface {
                 DispatchMessageW(&message);
             }
         }
+    }
+    pub fn poll(&mut self) -> io::Result<Option<Event>> {
+        if self.state().overflow {
+            return Err(invalid("GuiEventQueueLimit"));
+        }
+        if let Some(event) = self.state_mut().events.pop_front() {
+            return Ok(Some(event));
+        }
+        if self.window == 0 || self.state().closed {
+            return Err(invalid("GuiClosed"));
+        }
+        unsafe {
+            let mut message: Message = std::mem::zeroed();
+            for _ in 0..4096 {
+                if PeekMessageW(&mut message, 0, 0, 0, 1) == 0 {
+                    return Ok(None);
+                }
+                if message.message == 0x12 {
+                    return Ok(Some(Event::simple("close")));
+                }
+                TranslateMessage(&message);
+                DispatchMessageW(&message);
+                if let Some(event) = self.state_mut().events.pop_front() {
+                    return Ok(Some(event));
+                }
+            }
+        }
+        Ok(None)
     }
     pub fn close(&mut self) {
         if self.window != 0 {

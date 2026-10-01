@@ -1,6 +1,8 @@
 use super::*;
 use libc::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ffi::CString;
+use std::sync::Once;
+static LOCALE: Once = Once::new();
 type Window = c_ulong;
 #[repr(C)]
 struct Rectangle {
@@ -75,15 +77,24 @@ impl Drop for Library {
 }
 macro_rules! xapi {
     ($(fn $name:ident($($arg:ty),*) -> $ret:ty;)*) => {
-        #[allow(non_snake_case,dead_code)] struct Api {_library:Library,$($name:unsafe extern "C" fn($($arg),*)->$ret,)*}
+        #[allow(non_snake_case,dead_code)] struct Api {_library:Library,create_ic:unsafe extern "C" fn(*mut c_void,...)->*mut c_void,$($name:unsafe extern "C" fn($($arg),*)->$ret,)*}
         impl Api {fn load()->io::Result<Self> {unsafe {
             let lib=Library(libc::dlopen(c"libX11.so.6".as_ptr(),libc::RTLD_NOW|libc::RTLD_LOCAL));
             if lib.0.is_null(){return Err(invalid("GuiUnavailable: libX11.so.6 is required for native GUI"));}
-            Ok(Self {$($name:{let symbol=libc::dlsym(lib.0,concat!(stringify!($name),"\0").as_ptr().cast());if symbol.is_null(){return Err(invalid("GuiUnavailable: X11 symbol missing"));}std::mem::transmute::<*mut c_void,unsafe extern "C" fn($($arg),*)->$ret>(symbol)},)*_library:lib})
+            Ok(Self {create_ic:{let symbol=libc::dlsym(lib.0,c"XCreateIC".as_ptr());if symbol.is_null(){return Err(invalid("GuiUnavailable: XCreateIC missing"));}std::mem::transmute::<*mut c_void,unsafe extern "C" fn(*mut c_void,...)->*mut c_void>(symbol)},$($name:{let symbol=libc::dlsym(lib.0,concat!(stringify!($name),"\0").as_ptr().cast());if symbol.is_null(){return Err(invalid("GuiUnavailable: X11 symbol missing"));}std::mem::transmute::<*mut c_void,unsafe extern "C" fn($($arg),*)->$ret>(symbol)},)*_library:lib})
         }}}
     }
 }
 xapi! {
+fn XOpenIM(*mut c_void,*mut c_void,*mut c_char,*mut c_char)->*mut c_void;
+fn XCloseIM(*mut c_void)->c_int;
+fn XDestroyIC(*mut c_void)->();
+fn XSetICFocus(*mut c_void)->();
+fn XFilterEvent(*mut XEvent,Window)->c_int;
+fn Xutf8LookupString(*mut c_void,*mut Button,*mut c_char,c_int,*mut c_ulong,*mut c_int)->c_int;
+fn Xutf8TextEscapement(*mut c_void,*const c_char,c_int)->c_int;
+fn XDrawLine(*mut c_void,Window,*mut c_void,c_int,c_int,c_int,c_int)->c_int;
+fn XSetLocaleModifiers(*const c_char)->*mut c_char;
 fn XOpenDisplay(*const c_char)->*mut c_void;
 fn XCloseDisplay(*mut c_void)->c_int;
 fn XDefaultScreen(*mut c_void)->c_int;
@@ -109,6 +120,7 @@ fn XFreeFontSet(*mut c_void,*mut c_void)->();
 fn Xutf8DrawString(*mut c_void,Window,*mut c_void,*mut c_void,c_int,c_int,*const c_char,c_int)->();
 fn XInternAtom(*mut c_void,*const c_char,c_int)->c_ulong;
 fn XSetWMProtocols(*mut c_void,Window,*mut c_ulong,c_int)->c_int;
+fn XPending(*mut c_void)->c_int;
 fn XNextEvent(*mut c_void,*mut XEvent)->c_int;
 fn XLookupKeysym(*mut Button,c_int)->c_ulong;
 fn XKeysymToKeycode(*mut c_void,c_ulong)->u8;
@@ -123,11 +135,17 @@ pub(super) struct Surface {
     font: *mut c_void,
     delete: c_ulong,
     frame: Option<Frame>,
+    im: *mut c_void,
+    ic: *mut c_void,
 }
 impl Surface {
     pub fn new() -> io::Result<Self> {
         unsafe {
+            LOCALE.call_once(|| {
+                libc::setlocale(libc::LC_CTYPE, c"C.UTF-8".as_ptr());
+            });
             let api = Api::load()?;
+            (api.XSetLocaleModifiers)(c"".as_ptr());
             let display = (api.XOpenDisplay)(std::ptr::null());
             if display.is_null() {
                 return Err(invalid("GuiUnavailable: no X11 display; set DISPLAY or use --gui-events for headless testing"));
@@ -156,6 +174,12 @@ impl Surface {
                 return Err(invalid("GuiUnavailable: install X11 core fonts (fixed)"));
             }
             let delete = (api.XInternAtom)(display, c"WM_DELETE_WINDOW".as_ptr(), 0);
+            let im = (api.XOpenIM)(
+                display,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            );
             Ok(Self {
                 api,
                 display,
@@ -164,6 +188,8 @@ impl Surface {
                 font,
                 delete,
                 frame: None,
+                im,
+                ic: std::ptr::null_mut(),
             })
         }
     }
@@ -185,6 +211,21 @@ impl Surface {
                 );
                 if self.window == 0 {
                     return Err(invalid("GuiUnavailable: window creation failed"));
+                }
+                if !self.im.is_null() {
+                    self.ic = (self.api.create_ic)(
+                        self.im,
+                        c"inputStyle".as_ptr(),
+                        0x408 as c_ulong,
+                        c"clientWindow".as_ptr(),
+                        self.window,
+                        c"focusWindow".as_ptr(),
+                        self.window,
+                        std::ptr::null::<c_char>(),
+                    );
+                    if !self.ic.is_null() {
+                        (self.api.XSetICFocus)(self.ic);
+                    }
                 }
                 self.gc = (self.api.XCreateGC)(self.display, self.window, 0, std::ptr::null_mut());
                 if self.gc.is_null() {
@@ -223,6 +264,68 @@ impl Surface {
             self.paint();
             (self.api.XFlush)(self.display);
             Ok(())
+        }
+    }
+    unsafe fn draw_edit(&self, item: &Item) {
+        unsafe {
+            let mut offset = 0usize;
+            let start = item.cursor.min(item.anchor);
+            let end = item.cursor.max(item.anchor);
+            for (row, line) in item.text.split('\n').enumerate() {
+                let count = line.chars().count();
+                if row >= item.scroll && row < item.scroll + (item.height as usize / 18).max(1) {
+                    let y = item.y + 6 + ((row - item.scroll) * 18) as i32;
+                    let mut x = item.x + 6;
+                    let prefix = |n: usize| line.chars().take(n).collect::<String>();
+                    let width = |s: &str| {
+                        (self.api.Xutf8TextEscapement)(self.font, s.as_ptr().cast(), s.len() as i32)
+                    };
+                    if item.cursor >= offset && item.cursor <= offset + count {
+                        let caret = width(&prefix(item.cursor - offset));
+                        x -= (caret - (item.width - 14)).max(0);
+                    }
+                    if start < end && end > offset && start < offset + count {
+                        let a = prefix(start.saturating_sub(offset).min(count));
+                        let b = prefix(end.saturating_sub(offset).min(count));
+                        let left = width(&a);
+                        let right = width(&b);
+                        (self.api.XSetForeground)(self.display, self.gc, 0xbfdbfe);
+                        (self.api.XFillRectangle)(
+                            self.display,
+                            self.window,
+                            self.gc,
+                            x + left,
+                            y,
+                            (right - left).max(1) as u32,
+                            18,
+                        );
+                    }
+                    (self.api.XSetForeground)(self.display, self.gc, item.foreground as c_ulong);
+                    (self.api.Xutf8DrawString)(
+                        self.display,
+                        self.window,
+                        self.font,
+                        self.gc,
+                        x,
+                        y + 13,
+                        line.as_ptr().cast(),
+                        line.len() as i32,
+                    );
+                    if item.focused && item.cursor >= offset && item.cursor <= offset + count {
+                        let caret = x + width(&prefix(item.cursor - offset));
+                        (self.api.XDrawLine)(
+                            self.display,
+                            self.window,
+                            self.gc,
+                            caret,
+                            y,
+                            caret,
+                            y + 16,
+                        );
+                    }
+                }
+                offset += count + 1;
+            }
         }
     }
     fn paint(&self) {
@@ -291,6 +394,11 @@ impl Surface {
                     height: item.height as u16,
                 };
                 (self.api.XSetClipRectangles)(self.display, self.gc, 0, 0, &mut clip, 1, 0);
+                if matches!(item.kind.as_str(), "textbox" | "textarea") {
+                    self.draw_edit(item);
+                    (self.api.XSetClipMask)(self.display, self.gc, 0);
+                    continue;
+                }
                 (self.api.Xutf8DrawString)(
                     self.display,
                     self.window,
@@ -306,13 +414,25 @@ impl Surface {
         }
     }
     pub fn event(&mut self) -> io::Result<Event> {
+        self.read(true)?.ok_or_else(|| invalid("GuiClosed"))
+    }
+    pub fn poll(&mut self) -> io::Result<Option<Event>> {
+        self.read(false)
+    }
+    fn read(&mut self, blocking: bool) -> io::Result<Option<Event>> {
         if self.window == 0 {
             return Err(invalid("GuiNotPublished"));
         }
         loop {
             unsafe {
+                if !blocking && (self.api.XPending)(self.display) == 0 {
+                    return Ok(None);
+                }
                 let mut e = XEvent { pad: [0; 24] };
                 (self.api.XNextEvent)(self.display, &mut e);
+                if !self.ic.is_null() && (self.api.XFilterEvent)(&mut e, 0) != 0 {
+                    continue;
+                }
                 match e.kind {
                     12 => {
                         self.paint();
@@ -320,22 +440,57 @@ impl Surface {
                     }
                     4 => {
                         let b = e.button;
+                        if b.button == 4 || b.button == 5 {
+                            let mut out = Event::simple("wheel");
+                            out.y = if b.button == 4 { -1 } else { 1 };
+                            return Ok(Some(out));
+                        }
                         if b.button == 1 {
                             let mut out = Event::simple("pointer");
                             out.x = b.x;
                             out.y = b.y;
-                            return Ok(out);
+                            return Ok(Some(out));
                         }
                     }
                     2 => {
                         let mut b = e.button;
                         let key =
                             (self.api.XLookupKeysym)(&mut b, if b.state & 1 != 0 { 1 } else { 0 });
+                        if !self.ic.is_null()
+                            && b.state & 4 == 0
+                            && key != 0x20
+                            && !(0xff00..=0xffff).contains(&key)
+                        {
+                            let mut buffer = vec![0u8; 4096];
+                            let mut symbol = 0;
+                            let mut status = 0;
+                            let count = (self.api.Xutf8LookupString)(
+                                self.ic,
+                                &mut b,
+                                buffer.as_mut_ptr().cast(),
+                                buffer.len() as i32,
+                                &mut symbol,
+                                &mut status,
+                            );
+                            if count > 0 && count <= 4096 && status != -1 {
+                                if let Ok(text) = std::str::from_utf8(&buffer[..count as usize]) {
+                                    if !text.chars().any(char::is_control) {
+                                        let mut out = Event::simple("text");
+                                        out.key = text.into();
+                                        return Ok(Some(out));
+                                    }
+                                }
+                            }
+                        }
                         let name = match key {
                             0xff0d => "Enter".into(),
                             0xff09 => "Tab".into(),
                             0xff1b => "Escape".into(),
                             0xff08 => "Backspace".into(),
+                            0xffff => "Delete".into(),
+                            0xff50 => "Home".into(),
+                            0xff57 => "End".into(),
+                            0x61 | 0x41 if b.state & 4 != 0 => "Ctrl+A".into(),
                             0xff51 => "Left".into(),
                             0xff52 => "Up".into(),
                             0xff53 => "Right".into(),
@@ -350,19 +505,30 @@ impl Surface {
                             _ => continue,
                         };
                         let mut out = Event::simple("key");
-                        out.key = name;
-                        return Ok(out);
+                        if name.chars().count() == 1 {
+                            out.kind = "text".into();
+                        }
+                        out.key = if b.state & 1 != 0
+                            && matches!(
+                                name.as_str(),
+                                "Left" | "Right" | "Home" | "End" | "Up" | "Down"
+                            ) {
+                            format!("Shift+{name}")
+                        } else {
+                            name
+                        };
+                        return Ok(Some(out));
                     }
                     22 => {
                         let c = e.configure;
                         let mut out = Event::simple("resize");
                         out.width = c.width;
                         out.height = c.height;
-                        return Ok(out);
+                        return Ok(Some(out));
                     }
                     33 if e.client.data[0] as c_ulong == self.delete => {
                         self.close();
-                        return Ok(Event::simple("close"));
+                        return Ok(Some(Event::simple("close")));
                     }
                     _ => {}
                 }
@@ -371,6 +537,10 @@ impl Surface {
     }
     pub fn close(&mut self) {
         unsafe {
+            if !self.ic.is_null() {
+                (self.api.XDestroyIC)(self.ic);
+                self.ic = std::ptr::null_mut();
+            }
             if self.window != 0 {
                 if !self.gc.is_null() {
                     (self.api.XFreeGC)(self.display, self.gc);
@@ -442,6 +612,9 @@ impl Drop for Surface {
     fn drop(&mut self) {
         self.close();
         unsafe {
+            if !self.im.is_null() {
+                (self.api.XCloseIM)(self.im);
+            }
             (self.api.XFreeFontSet)(self.display, self.font);
             (self.api.XCloseDisplay)(self.display);
         }

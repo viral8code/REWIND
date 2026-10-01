@@ -1,11 +1,25 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.3.0",
+  "language": "1.4.0",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
       "target": "StdError"
+    },
+    "fn:arrange": {
+      "async": false,
+      "cost": "O(ids); prevalidates geometry and IDs before mutating the view.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "&List<String>",
+        "Rect",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
     },
     "fn:background": {
       "async": false,
@@ -88,6 +102,17 @@
       ],
       "return": "Option<Action>"
     },
+    "fn:edit": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "Event"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:label": {
       "async": false,
       "effects": [],
@@ -112,6 +137,15 @@
       "generics": [],
       "parameters": [],
       "return": "Result<Event,StdError>"
+    },
+    "fn:pollEvent": {
+      "async": false,
+      "effects": [
+        "gui"
+      ],
+      "generics": [],
+      "parameters": [],
+      "return": "Result<Option<Event>,StdError>"
     },
     "fn:present": {
       "async": false,
@@ -140,6 +174,17 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:resize": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:scene": {
       "async": false,
       "cost": "O(widget count + caption bytes); serialized scene at most 1 MiB.",
@@ -150,6 +195,16 @@
       ],
       "return": "Result<String,StdError>"
     },
+    "fn:selection": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&View",
+        "String"
+      ],
+      "return": "Result<Tuple<Int,Int>,StdError>"
+    },
     "fn:setEnabled": {
       "async": false,
       "effects": [],
@@ -158,6 +213,18 @@
         "&mut View",
         "String",
         "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:setSelection": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "Int",
+        "Int"
       ],
       "return": "Result<Unit,StdError>"
     },
@@ -181,6 +248,37 @@
         "String"
       ],
       "return": "Result<String,StdError>"
+    },
+    "fn:textArea": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:textBox": {
+      "async": false,
+      "effects": [],
+      "failure": "Single-line editing with Unicode-scalar selection; 4096 UTF-8 bytes.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
     },
     "fn:window": {
       "async": false,
@@ -328,6 +426,29 @@
         ],
         [
           "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Rect": {
+      "constructor": true,
+      "fields": [
+        [
+          "x",
+          "Int"
+        ],
+        [
+          "y",
+          "Int"
+        ],
+        [
+          "width",
+          "Int"
+        ],
+        [
+          "height",
           "Int"
         ]
       ],

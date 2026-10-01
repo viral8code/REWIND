@@ -114,6 +114,18 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     (gui/'main.rw').unlink()
     shutil.rmtree(gui/'.rewind')
     assert run([exe,gui/'main.rwc','--allow-effects','gui','--gui-events',gui/'events.json']) == b'1\n'
+    notes = work/'notes'
+    shutil.copytree(sdk/'share/rewind/examples/notes',notes)
+    permission='gui,fileRead,fileWrite'
+    run([exe,'run',notes/'main.rw','--allow-effects',permission,'--gui-events',notes/'events.json','--record',notes/'trace.json'])
+    assert (notes/'notes.txt').read_text(encoding='utf-8') == '日本語\nnotes'
+    run([exe,'replay',notes/'trace.json','--root',notes,'--allow-effects',permission])
+    run([compiler,notes/'main.rw','--allow-effects',permission])
+    (notes/'main.rw').unlink()
+    (notes/'notes.txt').unlink()
+    shutil.rmtree(notes/'.rewind')
+    run([exe,notes/'main.rwc','--allow-effects',permission,'--gui-events',notes/'events.json'])
+    assert (notes/'notes.txt').read_text(encoding='utf-8') == '日本語\nnotes'
     assert b'rewind compile' in run([exe,'compile','--help'])
     # Existing-file replacement and checkpoint restore are exercised on the host OS.
     source.write_text('File.writeText("state.txt","old");publish;commit old;File.writeText("state.txt","new");publish;revert old;File.writeText("state.txt","last");publish;', encoding='utf-8')

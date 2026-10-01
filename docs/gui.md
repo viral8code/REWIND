@@ -1,4 +1,4 @@
-# ネイティブ GUI（REWIND 1.3.0）
+# ネイティブ GUI（REWIND 1.4.0）
 
 `std.gui` は一つのネイティブウィンドウにラベル、ボタン、チェックボックス、色付き矩形を描画します。REWIND のイベントループでクリックとキー入力に応答できます。Windows x64 は Win32/GDI、Linux x86_64 は X11 を使います。ブラウザ、JVM、外部 GUI toolkit は不要です。
 
@@ -58,8 +58,18 @@ rewind replay trace.json --root . --allow-effects gui
 
 ## 制限と失敗
 
-ウィンドウの canvas は各辺 64..4096 pixels、最大 2048 widgets、ID は一意で 128 UTF-8 bytes 以下、text は 4096 bytes 以下、scene は最大 1 MiB（JSON 側の予算も適用）。widget は canvas の内側に収めます。text は widget の矩形でクリップします。重なった操作可能 widget は後から追加したものが優先されます。色は `0xRRGGBB` です。イベントは最大 65536 件、fixture は最大 1 MiB。履歴予算も適用されます。
+ウィンドウの canvas は各辺 64..4096 pixels、最大 2048 widgets、ID は一意で 128 UTF-8 bytes 以下、text は 4096 bytes 以下、scene は最大 1 MiB（JSON 側の予算も適用）。widget は canvas の内側に収めます。text は widget の矩形でクリップします。重なった操作可能 widget は後から追加したものが優先されます。色は `0xRRGGBB` です。イベントは最大 100 万件、fixture は最大 1 MiB。履歴予算も適用されます。
 
 GUI 操作は main task に限ります。`gui` effect が必要な処理を async 関数へ置くと検査で拒否されます。初回 publish 前の入力は `GuiNotPublished`、表示環境がない場合は publish が `GuiUnavailable` になります。公開中に OS の描画が失敗した場合、通常の publish と同じく部分適用として扱われる可能性があります。X11 server の切断のようなプロセス外の障害も巻き戻せません。
 
-1.3 は固定座標の単一 canvas です。resize イベントは通知しますが自動レイアウトは行わず、次の present は View の寸法を適用します。editable textbox、IME 編集、メニュー、file dialog、複数ウィンドウ、アクセシビリティ連携、macOS/native Wayland は未対応です。
+1.3 は固定座標の単一 canvas です。resize イベントは通知しますが自動レイアウトは行わず、次の present は View の寸法を適用します。clipboard、メニュー、file dialog、複数ウィンドウ、アクセシビリティ連携、macOS/native Wayland は未対応です。
+
+## 1.4 の文字編集と配置
+
+`textBox` は一行、`textArea` は複数行の文字編集を行います。`dispatch` が focus と確定文字の挿入を処理し、`Action::Key(id,"TextChanged")` を通知します。`edit` を直接呼ぶ場合は Result で上限・選択のエラーを扱えます。選択は `selection` / `setSelection`、Unicode scalar 単位です。Shift+矢印、Home/End、Backspace/Delete、Ctrl+A、複数行の上下移動に対応します。IME の preedit は OS の状態であり、確定した文字だけが `Event("text",...,key,...)` として VM に入ります。OS の IME service と fonts が必要です。
+
+`resize` で canvas 寸法を変え、`arrange(view,ids,Rect(...),columns,gap)` で grid を配置できます。寸法と ID をすべて検査してから配置するので、エラー時は元の配置を保持します。scroll は focus した textarea を wheel で動かし、編集時は caret の行を表示します。長い行は caret が見えるよう横方向の表示を調整します。
+
+`pollEvent` は入力がなければ `Ok(None)` を返します。短い計算の間に入力を処理できます。入力がない結果も journal に残るため replay は同じ polling の順序で実行します。fixture では `kind:"idle"` を使います。無制限な busy loop は避け、実行・入力記録の予算を指定してください。協調 task の自動進行を、この API だけで保証しません。
+
+SDK の `share/rewind/examples/notes` は編集、Save、Undo all、resize のサンプルです。`--allow-effects gui,fileRead,fileWrite` で利用できます。Save は publish してファイルを確定し、Undo は表示モデルだけを戻します。Undo 後にも確定済みファイルは残ります。record/replay、fixture、コンパイル済み配布にも対応します。

@@ -49,7 +49,7 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
             };
             if let Some(name) = name {
                 let base = name.split('<').next().unwrap_or(&name);
-                if base.starts_with("stdGui") {
+                if base.starts_with("stdGui") && base != "stdGuiEdit" {
                     required.insert("gui".into());
                 }
                 if base == "Channel" || base == "TaskGroup" {

@@ -39,7 +39,7 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
             }
             ExprKind::Name(n) => {
                 let n = resolve_alias(program, n);
-                if n.starts_with("stdGui") {
+                if n.starts_with("stdGui") && n != "stdGuiEdit" {
                     needs.insert("gui".into());
                 }
                 if program.functions.contains_key(&n) {
@@ -136,7 +136,7 @@ impl Scan<'_> {
                 };
                 if let Some(n) = &name {
                     let base = n.split('<').next().unwrap_or(n);
-                    if base.starts_with("stdGui") {
+                    if base.starts_with("stdGui") && base != "stdGuiEdit" {
                         self.needs.insert("gui".into());
                     }
                     if let Some(f) = self.checker.program.functions.get(base) {

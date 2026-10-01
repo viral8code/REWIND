@@ -1,0 +1,26 @@
+import std.gui as gui;
+fn checked(value:Result<Unit,gui.GuiError>)->Unit effects {} {match value {Ok(_)=>{},Err(e)=>{panic(e.code);}}}
+fn layout(view:&mut gui.View,width:Int,height:Int)->Unit effects {} {
+ checked(gui.resize(view,width,height));
+ let body=List<String>();body.add("body");checked(gui.arrange(view,&body,gui.Rect(10,10,width-20,height-70),1,0));
+ let buttons=List<String>();buttons.add("save");buttons.add("undo");checked(gui.arrange(view,&buttons,gui.Rect(10,height-50,width-20,40),2,10));
+}
+match gui.window("REWIND notes",480,360){Err(e)=>{panic(e.code);},Ok(view)=>{
+ var initial="";match File.readText("notes.txt"){Ok(value)=>{initial=value;},Err(_)=>{}}
+ checked(gui.textArea(&mut view,"body",initial,10,10,460,290));checked(gui.button(&mut view,"save","Save",10,310,220,40));checked(gui.button(&mut view,"undo","Undo all",250,310,220,40));
+ var running=true;commit opening;checked(gui.present(&view));publish;
+ while running {
+  match gui.nextEvent(){Err(e)=>{panic(e.code);},Ok(event)=>{
+   match gui.dispatch(&mut view,event){
+    Some(gui.Action::Activate(id))=>{
+     if id=="undo" {revert opening;gui.continueInput();}
+     else if id=="save" {match gui.text(&view,"body"){Ok(value)=>{File.writeText("notes.txt",value);},Err(e)=>{panic(e.code);}}}
+    },
+    Some(gui.Action::Resize(width,height))=>{if width>=160 && height>=160 && width<=4096 && height<=4096 {layout(&mut view,width,height);}},
+    Some(gui.Action::Close)=>{running=false;},_=>{}
+   }
+  }}
+  if running {checked(gui.present(&view));publish;}
+ }
+ checked(gui.close());publish;
+}}
