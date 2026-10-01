@@ -6,6 +6,17 @@ edition = "2021"
 license = "MIT"
 description = "A transactional programming language with checkpoints and virtual I/O"
 
+# Preserve REWIND source locations for Rust debugging without distributing all
+# transport dependency debug data twice in debug-built test SDKs.
+[profile.dev]
+debug = 1
+
+[profile.dev.package."*"]
+debug = 0
+
+[profile.test]
+debug = 1
+
 [dependencies]
 ed25519-dalek = "=2.2.0"
 sha2 = "=0.10.9"
