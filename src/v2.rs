@@ -5425,6 +5425,19 @@ impl Checker<'_> {
                             method.as_str(),
                             types.len(),
                         ) {
+                            ("List", "pop", 0)
+                                if matches!(
+                                    self.program.language.as_str(),
+                                    "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+                                ) =>
+                            {
+                                format!(
+                                    "Option<{}>",
+                                    t.strip_prefix("List<")
+                                        .and_then(|s| s.strip_suffix('>'))
+                                        .unwrap_or("Unknown")
+                                )
+                            }
                             ("List", "get", 1) => t
                                 .strip_prefix("List<")
                                 .and_then(|s| s.strip_suffix('>'))

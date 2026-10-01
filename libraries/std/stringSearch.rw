@@ -1,0 +1,14 @@
+// Byte offsets, exact matching, bounded input. UTF-8 decoding is separate.
+fn byte(input:Bytes,index:Int)->Int effects {} {match stdBytesGet(input,index){Ok(v)=>{return v;},Err(_)=>{panic("byte index");}}}
+pub fn prefix(input:Bytes)->Result<List<Int>,String> effects {} {
+ let n=stdBytesLength(input);if n>65536{return Err("Capacity");}let pi=List<Int>();var i=0;while i<n{pi.add(0);i+=1;}
+ i=1;while i<n{var j=pi.get(i-1);while j>0 && byte(input,i)!=byte(input,j){j=pi.get(j-1);}if byte(input,i)==byte(input,j){j+=1;}pi.set(i,j);i+=1;}return Ok(pi);
+}
+pub fn kmp(input:Bytes,pattern:Bytes)->Result<List<Int>,String> effects {} {
+ let n=stdBytesLength(input);let m=stdBytesLength(pattern);if n>65536 || m>65536{return Err("Capacity");}let found=List<Int>();if m==0{var i=0;while i<=n{found.add(i);i+=1;}return Ok(found);}
+ let pi=prefix(pattern)?;var i=0;var j=0;while i<n{while j>0 && byte(input,i)!=byte(pattern,j){j=pi.get(j-1);}if byte(input,i)==byte(pattern,j){j+=1;}if j==m{found.add(i+1-m);j=pi.get(j-1);}i+=1;}return Ok(found);
+}
+pub fn z(input:Bytes)->Result<List<Int>,String> effects {} {
+ let n=stdBytesLength(input);if n>65536{return Err("Capacity");}let values=List<Int>();var i=0;while i<n{values.add(0);i+=1;}if n==0{return Ok(values);}values.set(0,n);var left=0;var right=0;i=1;
+ while i<n{var length=0;if i<right{length=values.get(i-left);if length>right-i{length=right-i;}}while i+length<n && byte(input,length)==byte(input,i+length){length+=1;}values.set(i,length);if i+length>right{left=i;right=i+length;}i+=1;}return Ok(values);
+}
