@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.5.0 / `language = "1.5.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.6.0 / `language = "1.6.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -112,3 +112,7 @@ error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換�
 ## std.external（1.5）
 
 `millis` は external 領域での UTC milliseconds 観測。操作位置ごとに結果を記録し、revert 後に再利用します。`external,clock` を明示許可してください。[1.5仕様](../docs/REWIND_v1.5.md) を参照。
+
+## std.http（1.6）
+
+`get` / `request` / `configured` / `send` は external 領域で送信して Task を返します。await は領域外で行います。verified TLS、bounded body、複数 header、CA、credential alias に対応し、revert / replay で再送しません。権限・上限・失敗区分は [1.6仕様](../docs/REWIND_v1.6.md) を参照。

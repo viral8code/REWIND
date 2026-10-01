@@ -1,0 +1,26 @@
+import std.http as http;
+import std.bytes as bytes;
+let arguments=Args.all();
+if arguments.len()!=1 {Err.println("usage: rewind run main.rw --allow-effects external,network,tasks -- URL");publish;}
+else {
+    var pending:Option<Task<Result<HttpResponse,HttpError>>>=None;
+    external {pending=Some(http.get(arguments.get(0),10000,65536));}
+    match pending {
+        None=>{panic("missing HTTP task");},
+        Some(task)=>{
+            match await task {
+                Err(_)=>{Err.println("HTTP task cancelled");},
+                Ok(response)=>{
+                    match response {
+                        Err(e)=>{Err.println(e.code+" ("+e.phase+")");},
+                        Ok(r)=>{
+                            Out.println(r.status);
+                            match bytes.decode(r.body) {Ok(text)=>{Out.println(text);},Err(e)=>{Err.println(e.code);}}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    publish;
+}

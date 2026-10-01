@@ -2176,6 +2176,9 @@ impl<R: BufRead> Vm<R> {
                     .runtime
                     .mask_debug_json(&serde_json::json!(self.audit));
                 trace["artifact_sha256"] = serde_json::json!(self.fingerprint);
+                if let Some(path) = &self.options.artifact_path {
+                    trace["artifact_entry"] = serde_json::json!(path);
+                }
             }
             let bytes = serde_json::to_string_pretty(&trace)
                 .map_err(|e| Error::InvalidOperation(e.to_string()))?
@@ -3194,13 +3197,18 @@ impl<R: BufRead> Vm<R> {
                     self.pop()?;
                 }
                 Op::EnterExternal(fresh) => {
-                    if self.scheduler.active != 0 || !self.branches.is_empty() {
+                    if (self.scheduler.active != 0
+                        && !language_at_least(&self.engine.program.language, "1.6.0"))
+                        || !self.branches.is_empty()
+                    {
                         return Err(self.error(
                             &inst.at,
                             "ExternalBoundary: external requires the main task outside branches",
                         ));
                     }
-                    self.engine.runtime.enter_external(fresh)?;
+                    self.engine
+                        .runtime
+                        .enter_external_task(fresh, self.scheduler.active)?;
                 }
                 Op::ExitExternal => self.engine.runtime.exit_external()?,
                 Op::Enter => {
@@ -3504,7 +3512,10 @@ impl<R: BufRead> Vm<R> {
                             return Err(self.error(&inst.at, error));
                         }
                     }
-                    if self.scheduler.active != 0 || self.scheduler.has_live_tasks() {
+                    if self.scheduler.active != 0
+                        || (self.scheduler.has_live_tasks()
+                            && !language_at_least(&self.engine.program.language, "1.6.0"))
+                    {
                         return Err(self.error(&inst.at,"publish requires the application task and completed/cancelled children"));
                     }
                     if self.engine.test_mode {

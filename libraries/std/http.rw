@@ -1,0 +1,30 @@
+effects {external,network,tasks};
+pub record Request {method:String,url:String,body:Bytes,timeoutMillis:Int,maxBytes:Int,headers:Frozen<List<HttpHeader>>,ca:Bytes,credential:String}
+// @api component cost O(UTF-8 bytes); percent-encodes a query value or path component.
+// @api component failure Limit when the encoded component would exceed 1 MiB; does not encode an entire URL.
+pub fn component(value:String)->Result<String,StdError> effects {} {return stdHttpComponent(value);}
+// @api credential cost O(secret bytes); retains at most 64 immutable credential aliases.
+// @api credential failure HttpCredential/HttpCredentialImmutable/HttpCredentialLimit; accepts Secret<String>, never journals the private value.
+pub fn credential(alias:String,value:Secret<String>)->Result<Unit,StdError> effects {external,network,tasks} {
+    return stdExternalHttpCredential(alias,value);
+}
+// @api send cost O(request bytes + response bytes); public request uses a credential alias.
+// @api send failure HttpError after awaiting; fingerprint contains the public credential alias, never the private value.
+pub fn send(value:Request)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {
+    return stdExternalHttpAuthenticated(value.method,value.url,value.body,value.timeoutMillis,value.maxBytes,value.headers,value.ca,value.credential);
+}
+// @api request cost O(request bytes + response bytes); at most eight native operations run concurrently.
+// @api request failure HttpError after awaiting; requires external region, deadline 1..120000 ms and body limit 1..4194304 bytes.
+pub fn request(method:String,url:String,body:Bytes,deadlineMillis:Int,maxBytes:Int)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {
+    return stdExternalHttpStart(method,url,body,deadlineMillis,maxBytes);
+}
+// @api get cost O(response bytes); submits immediately and returns a Task.
+// @api get failure HttpError after awaiting; no automatic redirect or retry.
+pub fn get(url:String,deadlineMillis:Int,maxBytes:Int)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {
+    match stdEncode("") {Ok(body)=>{return stdExternalHttpStart("GET",url,body,deadlineMillis,maxBytes);},Err(_)=>{panic("empty encoding failed");}}
+}
+// @api configured cost O(request bytes + response bytes); reuses connections for the same CA.
+// @api configured failure HttpError after awaiting; PEM CA adds trust, certificate and hostname verification remain enabled.
+pub fn configured(method:String,url:String,body:Bytes,deadlineMillis:Int,maxBytes:Int,headers:Frozen<List<HttpHeader>>,ca:Bytes)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {
+    return stdExternalHttpConfigured(method,url,body,deadlineMillis,maxBytes,headers,ca);
+}

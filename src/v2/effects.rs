@@ -12,6 +12,7 @@ const KNOWN: &[&str] = &[
     "tasks",
     "gui",
     "external",
+    "network",
 ];
 fn task_type(program: &Program, ty: &str, seen: &mut BTreeSet<String>) -> bool {
     if ty.contains("Task<") || ty.contains("TaskGroup") || ty.contains("Channel<") {
@@ -52,7 +53,13 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
                 let base = name.split('<').next().unwrap_or(&name);
                 if base.starts_with("stdExternal") {
                     required.insert("external".into());
-                    required.insert("clock".into());
+                    if base == "stdExternalClock" {
+                        required.insert("clock".into());
+                    }
+                    if base.starts_with("stdExternalHttp") {
+                        required.insert("network".into());
+                        required.insert("tasks".into());
+                    }
                 }
                 if base.starts_with("stdGui") && base != "stdGuiEdit" {
                     required.insert("gui".into());
