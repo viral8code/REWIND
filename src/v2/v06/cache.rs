@@ -14,6 +14,7 @@ pub(in crate::v2) fn stamp() -> String {
                 include_str!("../../../Cargo.lock"),
                 include_str!("../../lib.rs"),
                 include_str!("../../storage.rs"),
+                include_str!("../../map_storage.rs"),
                 include_str!("../../replay.rs"),
                 include_str!("../../journal.rs"),
                 include_str!("../../v2.rs"),

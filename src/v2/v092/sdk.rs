@@ -8,7 +8,7 @@ fn invalid(s: &str) -> Error {
 fn target() -> String {
     format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS)
 }
-fn modules() -> BTreeMap<&'static str, &'static str> {
+pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
         ("args", include_str!("../../../libraries/std/args.rw")),
         ("bits", include_str!("../../../libraries/std/bits.rw")),
@@ -43,6 +43,7 @@ fn modules() -> BTreeMap<&'static str, &'static str> {
         ("segment", include_str!("../../../libraries/std/segment.rw")),
         ("graph", include_str!("../../../libraries/std/graph.rw")),
         ("scanner", include_str!("../../../libraries/std/scanner.rw")),
+        ("stream", include_str!("../../../libraries/std/stream.rw")),
         ("path", include_str!("../../../libraries/std/path.rw")),
         ("tests", include_str!("../../../libraries/std/tests.rw")),
     ])
@@ -138,10 +139,15 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         let binary = std::env::current_exe()?;
         fs::create_dir(output.join("bin"))?;
         fs::copy(&binary, output.join("bin/rewind"))?;
+        fs::copy(&binary, output.join("bin/rewindc"))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(output.join("bin/rewind"), fs::Permissions::from_mode(0o755))?;
+            fs::set_permissions(
+                output.join("bin/rewindc"),
+                fs::Permissions::from_mode(0o755),
+            )?;
         }
         for (name, source) in modules() {
             write(&output, &format!("lib/rewind/std/{name}.rw"), source)?;
@@ -151,7 +157,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "lib/rewind/std/rewind.toml",
             include_str!("../../../libraries/std/rewind.toml"),
         )?;
-        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":"0.9.3","effects":[],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
+        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":"0.9.4","effects":[],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
         let std_root = output.join("lib/rewind/std");
         update_project(&std_root)?;
         // A distribution is only assembled after its embedded standard library
@@ -183,7 +189,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         }
         fs::write(std_root.join("rewind.toml"), std_manifest)?;
         update_project(&std_root)?;
-        write(&output,"share/rewind/doc/std-api.json",serde_json::to_vec_pretty(&json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"language":"0.9.3","modules":api_index})).map_err(|e|invalid(&e.to_string()))?)?;
+        write(&output,"share/rewind/doc/std-api.json",serde_json::to_vec_pretty(&json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"language":"0.9.4","modules":api_index})).map_err(|e|invalid(&e.to_string()))?)?;
         let cache = std_root.join(".rewind");
         if cache.exists() {
             fs::remove_dir_all(cache)?;
@@ -230,13 +236,45 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/doc/v0.9.4-status.md",
+            include_str!("../../../docs/v0.9.4-status.md")
+                .replace("../libraries/README.md", "libraries.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v0.9.5.md",
+            include_str!("../../../docs/REWIND_v0.9.5.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/getting-started.md",
+            include_str!("../../../docs/getting-started.md")
+                .replace("../libraries/README.md", "libraries.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/getting-started-v0.9.3.md",
+            include_str!("../../../docs/getting-started-v0.9.3.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/checkpoint/main.rw",
+            include_str!("../../../examples/v094/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/checkpoint/README.md",
+            include_str!("../../../examples/v094/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/sum/main.rw",
             include_str!("../../../examples/v092/main.rw"),
         )?;
         write(
             &output,
             "share/rewind/examples/sum/rewind.toml",
-            include_str!("../../../examples/v092/rewind.toml").replace("0.9.2", "0.9.3"),
+            include_str!("../../../examples/v092/rewind.toml").replace("0.9.2", "0.9.4"),
         )?;
         write(
             &output,
@@ -246,7 +284,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/examples/app/rewind.toml",
-            include_str!("../../../examples/v091/rewind.toml").replace("0.9.1", "0.9.3"),
+            include_str!("../../../examples/v091/rewind.toml").replace("0.9.1", "0.9.4"),
         )?;
         write(
             &output,
@@ -261,7 +299,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/examples/shortest/rewind.toml",
-            include_str!("../../../examples/v093/rewind.toml"),
+            include_str!("../../../examples/v093/rewind.toml").replace("0.9.3", "0.9.4"),
         )?;
         write(
             &output,
@@ -283,7 +321,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/Cargo.lock",
             include_bytes!("../../../Cargo.lock"),
         )?;
-        let manifest = json!({"format":1,"kind":"rewind-sdk","compiler":env!("CARGO_PKG_VERSION"),"language":"0.9.3","std_version":env!("CARGO_PKG_VERSION"),"target":target(),"std_sha256":packages::package_hash(&std_root)?,"files":inventory(&output)?});
+        let manifest = json!({"format":1,"kind":"rewind-sdk","compiler":env!("CARGO_PKG_VERSION"),"language":"0.9.4","std_version":env!("CARGO_PKG_VERSION"),"target":target(),"std_sha256":packages::package_hash(&std_root)?,"files":inventory(&output)?});
         write(
             &output,
             "sdk.json",
@@ -322,7 +360,7 @@ pub(in crate::v2) fn verify(sdk: &Path, public: &str) -> Result<()> {
     if manifest["format"] != 1
         || manifest["kind"] != "rewind-sdk"
         || manifest["compiler"] != env!("CARGO_PKG_VERSION")
-        || manifest["language"] != "0.9.3"
+        || manifest["language"] != "0.9.4"
         || manifest["std_version"] != env!("CARGO_PKG_VERSION")
         || manifest["target"] != target()
         || manifest["files"] != inventory(&sdk)?
@@ -331,6 +369,7 @@ pub(in crate::v2) fn verify(sdk: &Path, public: &str) -> Result<()> {
     }
     for required in [
         "bin/rewind",
+        "bin/rewindc",
         "lib/rewind/std/rewind.package.json",
         "share/rewind/doc/std-api.json",
         "licenses/REWIND-MIT.txt",
@@ -416,7 +455,7 @@ pub(in crate::v2) fn install(root: &Path, sdk: &Path, public: &str) -> Result<()
     let root = fs::canonicalize(root)?;
     let config =
         project::ProjectConfig::load(&root)?.ok_or_else(|| invalid("project manifest required"))?;
-    if config.language != "0.9.3" || config.production {
+    if config.language != "0.9.4" || config.production {
         return Err(invalid(
             "install requires a development language 0.9.3 project",
         ));

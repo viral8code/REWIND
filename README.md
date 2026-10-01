@@ -1,6 +1,10 @@
+# REWIND 開発版0.9.4
+
+`codex/develop`は単一ファイルの`rewind run main.rw` / `rewind compile main.rw`、`rewindc`、増分publish、bounded streamingとpersistent Mapを実装しています。[使い方](docs/getting-started.md)、[実装状況](docs/v0.9.4-status.md)、[v0.9.5草案](docs/REWIND_v0.9.5.md)を参照してください。
+
 ## SDKを試す
 
-[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v0.9.3)でLinux x86_64向けSDKを配布します。[ダウンロード・導入・実行手順](docs/getting-started.md)を参照してください。
+[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v0.9.3)でLinux x86_64向けSDKを配布します。[旧Releaseの導入](docs/getting-started-v0.9.3.md)を参照してください。
 
 v0.9 adds multiline REPL sessions with verified transcripts, API contracts for implementations and dependencies, production-only installs, Share generic records, ordered property shrinkers, and signed inspection timelines. Select `language = "0.9"`; see [implementation and limits](docs/v0.9-status.md) and the [v0.9.1 application proposal](docs/REWIND_v0.9.1.md).
 

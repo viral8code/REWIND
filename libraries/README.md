@@ -78,3 +78,11 @@ List/heapのstorage操作はO(log(max(1,n/64)))、writeは最大64slotを共有c
 Generic factoryはselected importを使う：`import std.deque.{create as createDeque}; createDeque<Int>(4)`。Host inputはappで読み、Bytesへ変換してscannerへ渡す。chunkをまたぐ一般のstreaming decoderは未実装。SDKのshortest例を参照。
 
 source libraryの契約テストは10件。詳細は[v0.9.3実装状況](../docs/v0.9.3-status.md)、次段階は[v0.9.4草案](../docs/REWIND_v0.9.4.md)。
+
+## v0.9.4 streamingとMap
+
+26番目のmodule `std.stream` はpureなchunk処理を提供する。`tokens(limit)` / `feed(&mut tokens,chunk,finish)` / `next` / `nextInt`、`utf8` / `decode`、`writer(capacity)` / `write` / `drain`を使う。失敗は`StreamError{code,position}`。tokenは最大65,536 byte、待機queueは1,024 token、writerは最大65,536 byte。UTF-8 decoderのchunkは65,532 byte以下、境界の未完文字は最大3 byte保持する。positionは当該chunk（UTF-8は前回のcarryを含む）または変換対象token内の位置であり、入力全体のoffsetではない。容量・UTF-8検査の失敗前に状態を変えないが、runtime budget失敗までatomicにする保証はない。
+
+Host観測はapp側で`In.readChunk(limit)->Option<Bytes>`、出力は`Out.writeBytes(bytes)`と`publish`で明示する。EOFはNone、短いchunkを許し、revert時は記録済みbyteを再利用する。primitive keyのnative Mapはpersistent AVL treeでroot clone O(1)、更新のnode path O(log n)。payloadの生成・返却費用は別。user Ord keyのOrderedMapは従来の線形storageを維持する。
+
+source libraryの契約テストは11件。詳細は[v0.9.4実装状況](../docs/v0.9.4-status.md)、継続計画は[v0.9.5草案](../docs/REWIND_v0.9.5.md)。

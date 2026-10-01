@@ -39,7 +39,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     v092::prepare(program)?;
     if !matches!(
         program.language.as_str(),
-        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) {
         return Ok(());
     }
@@ -75,7 +75,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
         .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
@@ -144,7 +144,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     );
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) {
         program
             .enums
@@ -366,7 +366,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
     ownership::validate(program)?;
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) {
         return v06::validate(program, config);
     }
@@ -671,13 +671,18 @@ pub(super) fn transfer_type(
     {
         return true;
     }
-    if ty == "Json" && matches!(program.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3") {
+    if ty == "Json"
+        && matches!(
+            program.language.as_str(),
+            "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+        )
+    {
         return true;
     }
     if ty == "FileError" {
         return true;
     }
-    if matches!(program.language.as_str(), "0.9.2" | "0.9.3") {
+    if matches!(program.language.as_str(), "0.9.2" | "0.9.3" | "0.9.4") {
         if let Some((base, inner)) = ty.split_once('<') {
             if matches!(base, "Option" | "Result") {
                 return split_type_args(outer_type_end(inner))
@@ -689,7 +694,7 @@ pub(super) fn transfer_type(
     if ty.starts_with("fn(") {
         return if matches!(
             program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
         ) {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
         } else {
@@ -707,7 +712,7 @@ pub(super) fn transfer_type(
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
@@ -1013,7 +1018,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
             });
             if matches!(
                 program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
             ) {
                 let checker = Checker {
                     program,

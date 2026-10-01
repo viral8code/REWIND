@@ -558,6 +558,27 @@ fn main() {
             arguments.push(arg);
         }
     }
+    let compiler_entry = env::current_exe()
+        .ok()
+        .and_then(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .is_some_and(|s| s == "rewindc");
+    if arguments
+        .first()
+        .is_some_and(|a| a == "--help" || a == "-h")
+    {
+        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment and clock access require explicit permission.", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    if arguments.first().is_some_and(|a| a == "--version") {
+        println!("rewind {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    if compiler_entry && arguments.first().is_none_or(|a| a != "compile") {
+        arguments.insert(0, "compile".into());
+    }
+    if !compiler_entry && arguments.first().is_some_and(|a| a.ends_with(".rwc")) {
+        arguments.insert(0, "run".into());
+    }
     let result = if matches!(format.as_str(), "text" | "json") {
         run_cli(arguments)
     } else {
@@ -1072,6 +1093,7 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             | "test"
             | "trace"
             | "build"
+            | "compile"
             | "debug"
             | "profile"
             | "replay"
@@ -1090,6 +1112,7 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             file.clone()
         };
         let mut root = env::current_dir()?;
+        let mut explicit_root = false;
         let mut trace = script == "trace";
         let mut options = v2::RunOptions {
             inspect: script == "debug",
@@ -1110,6 +1133,7 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                     break;
                 }
                 "--root" => {
+                    explicit_root = true;
                     index += 1;
                     root = remaining
                         .get(index)
@@ -1234,6 +1258,31 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             index += 1;
         }
         let file = if default_file { String::new() } else { file };
+        if !explicit_root && !file.is_empty() {
+            let full = std::fs::canonicalize(&file)?;
+            let mut ancestor = full.parent();
+            let mut project_root = None;
+            while let Some(dir) = ancestor {
+                if dir.join("rewind.toml").exists() {
+                    project_root = Some(dir.to_path_buf());
+                    break;
+                }
+                ancestor = dir.parent();
+            }
+            root = project_root.unwrap_or_else(|| full.parent().unwrap().to_path_buf());
+            options.standalone = !root.join("rewind.toml").exists();
+        }
+        if script == "compile" && options.output.is_none() {
+            let source = if file.is_empty() {
+                root.join("main.rw")
+            } else {
+                PathBuf::from(&file)
+            };
+            options.output = Some(source.with_extension("rwc"));
+        }
+        if script == "run" && file.ends_with(".rwc") {
+            return v2::run_compiled(Path::new(&file), &root, options);
+        }
         if script == "run-artifact" {
             return v2::run_artifact(Path::new(&file), &root, options);
         }
@@ -1255,7 +1304,17 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             }
             return Ok(());
         }
-        return v2::cli(&script, &file, &root, trace, options);
+        return v2::cli(
+            if script == "compile" {
+                "build"
+            } else {
+                &script
+            },
+            &file,
+            &root,
+            trace,
+            options,
+        );
     }
     let mut root = env::current_dir()?;
     if let Some(flag) = args.next() {

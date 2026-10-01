@@ -8,7 +8,7 @@ fn proposal(root: &Path) -> Result<Json> {
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
     if !matches!(
         config.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
     ) {
         return Err(Error::InvalidOperation(
             "update preview/apply requires language 0.6".into(),

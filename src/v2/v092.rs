@@ -1,6 +1,7 @@
 //! Small deterministic primitives for the source standard library.
 use super::*;
 mod sdk;
+pub(super) use sdk::modules as std_modules;
 pub(super) use sdk::{build as sdk_build, install as sdk_install, verify as sdk_verify};
 const LIMIT: usize = 1024 * 1024;
 const ITEMS: usize = 65_536;
@@ -17,6 +18,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdBytesGet",
         "stdBytesSlice",
         "stdBytesLength",
+        "stdBytesFromList",
         "stdParseInt",
         "stdParseFloat",
         "stdFormatInt",
@@ -33,7 +35,7 @@ pub(super) fn names() -> &'static [&'static str] {
     ]
 }
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !matches!(p.language.as_str(), "0.9.2" | "0.9.3") {
+    if !matches!(p.language.as_str(), "0.9.2" | "0.9.3" | "0.9.4") {
         return Ok(());
     }
     if p.structs.contains_key("StdError")
@@ -67,7 +69,10 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !matches!(p.language.as_str(), "0.9.2" | "0.9.3") || !names().contains(&n) {
+    if !matches!(p.language.as_str(), "0.9.2" | "0.9.3" | "0.9.4") || !names().contains(&n) {
+        return Ok(None);
+    }
+    if n == "stdBytesFromList" && p.language != "0.9.4" {
         return Ok(None);
     }
     let (params, ret): (&[&str], &str) = match n {
@@ -82,6 +87,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdBytesGet" => (&["Bytes", "Int"], "Result<Int,StdError>"),
         "stdBytesSlice" => (&["Bytes", "Int", "Int"], "Result<Bytes,StdError>"),
         "stdBytesLength" => (&["Bytes"], "Int"),
+        "stdBytesFromList" => (&["&List<Int>"], "Result<Bytes,StdError>"),
         "stdParseInt" => (&["String", "Int"], "Result<Int,StdError>"),
         "stdParseFloat" => (&["String"], "Result<Float,StdError>"),
         "stdFormatInt" => (&["Int", "Int"], "Result<String,StdError>"),
@@ -128,7 +134,7 @@ fn strings(
     }
     Ok(Value::TypedList("String".into(), values.into()))
 }
-pub(super) fn call(n: &str, args: &[Value]) -> Result<Option<Value>> {
+pub(super) fn call(n: &str, args: &[Value], runtime: &Runtime) -> Result<Option<Value>> {
     if !names().contains(&n) {
         return Ok(None);
     }
@@ -228,6 +234,37 @@ pub(super) fn call(n: &str, args: &[Value]) -> Result<Option<Value>> {
                         Err(("Limit", 0))
                     } else {
                         Ok(Value::Bytes(s.as_bytes().to_vec().into()))
+                    }
+                }
+                "stdBytesFromList" => {
+                    let target = match args.first() {
+                        Some(Value::HeapRef(id)) => runtime.heap_get(*id),
+                        other => other,
+                    };
+                    match target {
+                        Some(Value::TypedList(_, values)) if values.len() <= ITEMS => {
+                            let mut output = Vec::with_capacity(values.len());
+                            let mut failure = None;
+                            for (index, value) in values.iter().enumerate() {
+                                match value {
+                                    Value::Int(v) if (0..=255).contains(v) => output.push(*v as u8),
+                                    _ => {
+                                        failure = Some(("ByteRange", index));
+                                        break;
+                                    }
+                                }
+                            }
+                            match failure {
+                                Some(e) => Err(e),
+                                None => Ok(Value::Bytes(output.into())),
+                            }
+                        }
+                        Some(Value::TypedList(_, _)) => Err(("Limit", 0)),
+                        _ => {
+                            return Err(Error::InvalidOperation(
+                                "expected borrowed List<Int>".into(),
+                            ))
+                        }
                     }
                 }
                 "stdDecode" => {

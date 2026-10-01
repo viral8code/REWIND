@@ -136,7 +136,7 @@ fn mutable_payloads_cannot_be_aliased_by_result_annotation() {
 fn sdk_project(root: &Path, source: &str, effects: &str) {
     project(root, source, effects);
     let manifest = fs::read_to_string(root.join("rewind.toml")).unwrap();
-    fs::write(root.join("rewind.toml"), manifest.replace("0.9.2", "0.9.3")).unwrap();
+    fs::write(root.join("rewind.toml"), manifest.replace("0.9.2", "0.9.4")).unwrap();
 }
 #[test]
 fn signed_sdk_is_reproducible_installable_and_detects_tampering() {

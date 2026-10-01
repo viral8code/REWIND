@@ -1,0 +1,9 @@
+var score = 10;
+commit test1;
+score = 99;
+Out.println(score);
+commit test2;
+publish;
+revert test1;
+Out.println(score);
+publish;

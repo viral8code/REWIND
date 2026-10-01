@@ -8,7 +8,7 @@ pub(super) mod language;
 mod library;
 pub(super) mod resolver;
 pub(super) mod update;
-pub(super) use effects::{closure_effects, function_effects, infer, validate};
+pub(super) use self::effects::{closure_effects, function_effects, infer, validate};
 pub(super) const KNOWN: &[&str] = &[
     "fileRead",
     "fileWrite",

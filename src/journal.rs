@@ -77,6 +77,7 @@ impl Drop for Segment {
 struct Node {
     prev: Option<Arc<Node>>,
     segment: Arc<Segment>,
+    operation: Option<u64>,
 }
 
 #[derive(Clone, Default)]
@@ -97,6 +98,9 @@ impl Journal {
         self.len == 0
     }
     pub fn append(&mut self, bytes: &[u8]) {
+        self.append_operation(bytes, None);
+    }
+    pub(crate) fn append_operation(&mut self, bytes: &[u8], operation: Option<u64>) {
         if bytes.is_empty() {
             return;
         }
@@ -104,8 +108,41 @@ impl Journal {
         self.tail = Some(Arc::new(Node {
             prev: self.tail.take(),
             segment,
+            operation,
         }));
         self.len += bytes.len();
+    }
+    pub(crate) fn unpublished(&self, published: &std::collections::BTreeSet<u64>) -> Self {
+        let mut nodes = Vec::new();
+        let mut cursor = self.tail.as_ref();
+        while let Some(node) = cursor {
+            if !node.operation.is_some_and(|id| published.contains(&id)) {
+                nodes.push(node);
+            }
+            cursor = node.prev.as_ref();
+        }
+        let mut out = Self::default();
+        for node in nodes.into_iter().rev() {
+            let (memory, spill) = node.segment.usage();
+            out.len += memory + spill;
+            out.tail = Some(Arc::new(Node {
+                prev: out.tail.take(),
+                segment: node.segment.clone(),
+                operation: node.operation,
+            }));
+        }
+        out
+    }
+    pub(crate) fn operations(&self) -> Vec<u64> {
+        let mut ids = Vec::new();
+        let mut cursor = self.tail.as_ref();
+        while let Some(node) = cursor {
+            if let Some(id) = node.operation {
+                ids.push(id);
+            }
+            cursor = node.prev.as_ref();
+        }
+        ids
     }
     pub(crate) fn segments(&self) -> Vec<Arc<Segment>> {
         let mut segments = Vec::new();

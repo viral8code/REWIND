@@ -1,0 +1,238 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.4",
+  "symbols": {
+    "fn:decode": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Utf8",
+        "Bytes",
+        "Bool"
+      ],
+      "return": "Result<String,StreamError>"
+    },
+    "fn:drain": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Writer"
+      ],
+      "return": "Result<Bytes,StreamError>"
+    },
+    "fn:feed": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tokens",
+        "Bytes",
+        "Bool"
+      ],
+      "return": "Result<Unit,StreamError>"
+    },
+    "fn:next": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tokens"
+      ],
+      "return": "Option<Bytes>"
+    },
+    "fn:nextInt": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tokens"
+      ],
+      "return": "Result<Option<Int>,StreamError>"
+    },
+    "fn:tokens": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Result<Tokens,StreamError>"
+    },
+    "fn:utf8": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [],
+      "return": "Utf8"
+    },
+    "fn:write": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Writer",
+        "Bytes"
+      ],
+      "return": "Result<Unit,StreamError>"
+    },
+    "fn:writer": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Result<Writer,StreamError>"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StreamError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "position",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Tokens": {
+      "fields": [
+        [
+          "pending",
+          "List<Int>"
+        ],
+        [
+          "ready",
+          "List<Bytes>"
+        ],
+        [
+          "cursor",
+          "Int"
+        ],
+        [
+          "limit",
+          "Int"
+        ],
+        [
+          "closed",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Utf8": {
+      "fields": [
+        [
+          "pending",
+          "List<Int>"
+        ],
+        [
+          "closed",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Writer": {
+      "fields": [
+        [
+          "pending",
+          "List<Int>"
+        ],
+        [
+          "capacity",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    }
+  }
+}

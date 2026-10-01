@@ -1,6 +1,6 @@
 # REWIND v0.9.4 草案 — 言語とライブラリの抜けを埋める
 
-作成日: 2026-10-01。状態: **草案・未実装**。基準は[v0.9.3実装状況](v0.9.3-status.md)。言語の表現力、実用的なlibrary、実行の費用を揃える。既存のgeneric/trait/closure/async、効果/ownership、Checkpoint/replay、SDKを再実装項目にしない。
+作成日: 2026-10-01。状態: **初回実装済み・継続項目あり**。実装範囲は[v0.9.4実装状況](v0.9.4-status.md)、未完了項目と追加課題は[v0.9.5草案](REWIND_v0.9.5.md)を参照。以下は策定時の計画であり、全項目の完了を意味しない。基準は[v0.9.3実装状況](v0.9.3-status.md)。言語の表現力、実用的なlibrary、実行の費用を揃える。既存のgeneric/trait/closure/async、効果/ownership、Checkpoint/replay、SDKを再実装項目にしない。
 
 ## 0. P0: 単一ファイルを手軽にコンパイル・実行する
 
