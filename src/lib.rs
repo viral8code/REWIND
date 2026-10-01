@@ -2040,7 +2040,8 @@ impl Runtime {
 
     fn checked_path(&self, path: &str) -> Result<PathBuf> {
         let relative = Path::new(path);
-        if path.contains('\\')
+        if path.contains('\0')
+            || path.contains('\\')
             || path.contains(':')
             || relative.as_os_str().is_empty()
             || relative
@@ -2048,6 +2049,32 @@ impl Runtime {
                 .any(|c| !matches!(c, Component::Normal(_)))
         {
             return Err(Error::InvalidPath(path.into()));
+        }
+        #[cfg(windows)]
+        for part in path.split('/') {
+            let base = part
+                .split('.')
+                .next()
+                .unwrap_or("")
+                .trim_end()
+                .to_uppercase();
+            let device = matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+                || ["COM", "LPT"].iter().any(|prefix| {
+                    base.strip_prefix(prefix).is_some_and(|suffix| {
+                        matches!(
+                            suffix,
+                            "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+                        )
+                    })
+                });
+            if device
+                || part.ends_with(['.', ' '])
+                || part
+                    .chars()
+                    .any(|c| c.is_control() || "<>\"|?*".contains(c))
+            {
+                return Err(Error::InvalidPath(path.into()));
+            }
         }
         let full = self.root.join(relative);
         // Existing symlinks (including parent directories) may not escape the root.

@@ -222,7 +222,8 @@ fn text_slice_scalar_boundaries_and_task_failure_metadata() {
 }
 #[test]
 fn language_reference_examples_execute_as_documented() {
-    let reference = include_str!("../docs/language-reference.md");
+    let reference = include_str!("../docs/language-reference.md").replace("\r\n", "\n");
+    assert_eq!(reference.matches("```rewind\n").count(), 15);
     for (index, part) in reference.split("```rewind\n").skip(1).enumerate() {
         let source = part.split("```").next().unwrap();
         let path = root();
@@ -288,5 +289,43 @@ fn lexical_errors_keep_source_and_builtin_type_errors_show_expected_signature() 
         .as_str()
         .unwrap()
         .contains("Int, String"));
+    fs::remove_dir_all(path).unwrap();
+}
+#[test]
+fn published_file_replacement_survives_restore_and_rejects_nul_paths() {
+    let path = root();
+    let source="assert_eq(File.writeText(\"state.txt\",\"old\"),());publish;commit old;assert_eq(File.writeText(\"state.txt\",\"new\"),());publish;revert old;assert_eq(File.writeText(\"state.txt\",\"last\"),());publish;";
+    fs::write(path.join("main.rw"), source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .arg("run")
+        .arg(path.join("main.rw"))
+        .args(["--allow-effects", "fileRead,fileWrite"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read_to_string(path.join("state.txt")).unwrap(), "last");
+    let mut runtime = rewind::Runtime::new(&path).unwrap();
+    assert!(matches!(
+        runtime.write_file("state.txt\0hidden", b"bad"),
+        Err(rewind::Error::InvalidPath(_))
+    ));
+    #[cfg(windows)]
+    for name in [
+        "NUL",
+        "con.txt",
+        "COM1.log",
+        "LPT³",
+        "trailing.",
+        "trailing ",
+    ] {
+        assert!(matches!(
+            runtime.write_file(name, b"bad"),
+            Err(rewind::Error::InvalidPath(_))
+        ));
+    }
     fs::remove_dir_all(path).unwrap();
 }

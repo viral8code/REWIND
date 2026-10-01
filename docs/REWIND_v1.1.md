@@ -22,7 +22,7 @@ formatterは複数行String内部の末尾空白を保持します。インデ�
 
 Linux x86_64に加えてWindows x64 MSVCのZIPをReleaseへ配布します。bin/rewind.exe・rewindc.exe、34module、署名、API文書、言語リファレンス、例を含めます。Windows runnerで全適用可能な回帰テスト、標準契約、署名/API、展開後のCLI、空白・日本語path、CRLF入力、record/replay、source-free実行、既存fileの置換を検証します。片方のbuildが失敗した場合Releaseは公開しません。
 
-sourceのFile pathは従来どおりroot相対の`/`区切り。Windowsでは大小文字の区別や共有・権限はHost filesystemに従います。複数fileの一括atomic性は追加しません。journal spill失敗時はopen fileを閉じてから削除します。MoveFileExWのkernel32 linkageを明示します。
+sourceのFile pathは従来どおりroot相対の`/`区切り。Windowsでは大小文字の区別や共有・権限はHost filesystemに従います。複数fileの一括atomic性は追加しません。journal spill失敗時はopen fileを閉じてから削除します。MoveFileExWのkernel32 linkageを明示します。NUL入りpathとWindowsのdevice名・末尾dot/space等を拒否し、Win32のpath解釈で別の対象へ書き込まないようにします。
 
 WindowsではUnix owner/modeの検証を前提にするdisk cache認証を無効にし、sourceを再検査します。Linuxの認証付きcacheは1.1 manifestも対象にします。WindowsのOS memory ceilingは今回追加せず、--memory-mibはunsupported。VM予算は両OSで有効です。署名鍵は各platformのrelease単位で、各checksumと公開鍵を分けて配布します。
 

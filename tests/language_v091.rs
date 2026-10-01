@@ -280,6 +280,7 @@ fn production_assets_release_signature_and_source_free_artifact_verify_integrity
             .unwrap()
     };
     success(&verify());
+    let original_asset = fs::read(output.join("assets/config.json")).unwrap();
     fs::write(output.join("assets/config.json"), "{\"count\":99}").unwrap();
     assert!(!verify().status.success());
     assert!(!cmd("run", &output, &["--allow-env", "REWIND_COUNT"])
@@ -299,7 +300,7 @@ fn production_assets_release_signature_and_source_free_artifact_verify_integrity
             .unwrap()
     };
     assert!(!run().status.success());
-    fs::write(output.join("assets/config.json"), "{\"count\":0}\n").unwrap();
+    fs::write(output.join("assets/config.json"), original_asset).unwrap();
     success(&verify());
     fs::remove_file(output.join("main.rw")).unwrap();
     success(&run());
