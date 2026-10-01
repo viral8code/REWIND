@@ -103,6 +103,11 @@ impl Flow<'_> {
                 if matches!(base, "Ok" | "Err" | "Some") {
                     return args.iter().all(|a| self.shareable(a) || self.owned_call(a));
                 }
+                if matches!(self.program.language.as_str(), "0.9.8" | "0.9.9")
+                    && self.program.structs.contains_key(base)
+                {
+                    return args.iter().all(|arg| self.shareable(arg) || self.owned_call(arg) || matches!(&arg.kind, ExprKind::Name(n) if self.vars.get(n).is_some_and(|v| v.borrow.is_none()) && !self.borrowed(n)));
+                }
                 base == "thaw" || self.program.functions.contains_key(base)
             }
             _ => false,
