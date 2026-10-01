@@ -1,0 +1,14 @@
+import std.graph as graph;
+import std.scanner as scanner;
+fn header()->Result<Tuple<Int,Int>,String> effects {input} {
+ match In.readLine(){Some(line)=>{match stdEncode(line){Ok(bytes)=>{let s=scanner.fromBytes(bytes)?;var n=0;var m=0;match scanner.nextInt(&mut s)?{Some(v)=>{n=v;},None=>{return Err("Header");}}match scanner.nextInt(&mut s)?{Some(v)=>{m=v;},None=>{return Err("Header");}}return Ok((n,m));},Err(_)=>{return Err("Limit");}}},None=>{return Err("Header");}}
+}
+fn edge()->Result<Tuple<Int,Int,Int>,String> effects {input} {
+ match In.readLine(){Some(line)=>{match stdEncode(line){Ok(bytes)=>{let s=scanner.fromBytes(bytes)?;var a=0;var b=0;var w=0;match scanner.nextInt(&mut s)?{Some(v)=>{a=v;},None=>{return Err("Edge");}}match scanner.nextInt(&mut s)?{Some(v)=>{b=v;},None=>{return Err("Edge");}}match scanner.nextInt(&mut s)?{Some(v)=>{w=v;},None=>{return Err("Edge");}}return Ok((a,b,w));},Err(_)=>{return Err("Limit");}}},None=>{return Err("Edge");}}
+}
+fn main()->Int effects {input,output} {
+ var n=0;var m=0;match header(){Ok(value)=>{n=value._0;m=value._1;},Err(_)=>{return 2;}}
+ match graph.create(n,m){Ok(g)=>{var i=0;while i<m{match edge(){Ok(value)=>{match graph.add(&mut g,value._0,value._1,value._2){Ok(_)=>{},Err(_)=>{return 2;}}},Err(_)=>{return 2;}}i+=1;}
+ match graph.dijkstra(&g,0){Ok(distances)=>{i=0;while i<distances.len(){match distances.get(i){Some(v)=>{Out.println(v);},None=>{Out.println("unreachable");}}i+=1;}publish;return 0;},Err(_)=>{return 2;}}
+ },Err(_)=>{return 2;}}
+}

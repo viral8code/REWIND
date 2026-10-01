@@ -18,7 +18,7 @@ const NAMES: &[&str] = &[
 ];
 
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !matches!(p.language.as_str(), "0.9.1" | "0.9.2") {
+    if !matches!(p.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3") {
         return Ok(());
     }
     for n in NAMES {
@@ -120,7 +120,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !matches!(p.language.as_str(), "0.9.1" | "0.9.2") || !NAMES.contains(&n) {
+    if !matches!(p.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3") || !NAMES.contains(&n) {
         return Ok(None);
     }
     let (params, ret): (&[&str], &str) = match n {
@@ -281,7 +281,7 @@ impl Parser<'_> {
                     "Array",
                     Some(frozen(
                         "List<Json>",
-                        Value::TypedList("Json".into(), values),
+                        Value::TypedList("Json".into(), values.into()),
                     )),
                 ))
             }

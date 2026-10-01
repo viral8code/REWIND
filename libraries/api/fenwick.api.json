@@ -1,0 +1,221 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.3",
+  "symbols": {
+    "dependency:integer.rw": {
+      "fn:$import$integer$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$combination": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$extendedGcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Tuple<Int,Int,Int>,String>"
+      },
+      "fn:$import$integer$factors": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      },
+      "fn:$import$integer$gcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$lcm": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$primes": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      }
+    },
+    "fn:add": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Fenwick",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,String>"
+    },
+    "fn:create": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Result<Fenwick,String>"
+    },
+    "fn:prefix": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Fenwick",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:range": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Fenwick",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "type:Fenwick": {
+      "fields": [
+        [
+          "values",
+          "List<Int>"
+        ],
+        [
+          "length",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

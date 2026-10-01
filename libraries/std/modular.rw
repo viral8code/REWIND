@@ -1,0 +1,7 @@
+import math as math;
+import integer as integer;
+pub fn normalize(value:Int,modulus:Int)->Result<Int,String> effects {} {if modulus<=0{return Err("Modulus");}var n=value%modulus;if n<0{n+=modulus;}return Ok(n);}
+pub fn add(a:Int,b:Int,modulus:Int)->Result<Int,String> effects {} {let x=normalize(a,modulus)?;let y=normalize(b,modulus)?;if x>=modulus-y{return Ok(x-(modulus-y));}return Ok(x+y);}
+pub fn multiply(a:Int,b:Int,modulus:Int)->Result<Int,String> effects {} {if modulus<=0{return Err("Modulus");}match math.mulMod(a,b,modulus){Ok(v)=>{return Ok(v);},Err(_)=>{return Err("Modulus");}}}
+pub fn power(base:Int,exponent:Int,modulus:Int)->Result<Int,String> effects {} {if exponent<0{return Err("Exponent");}var a=normalize(base,modulus)?;var result=1%modulus;var e=exponent;while e>0{if e%2==1{result=multiply(result,a,modulus)?;}e/=2;if e>0{a=multiply(a,a,modulus)?;}}return Ok(result);}
+pub fn inverse(value:Int,modulus:Int)->Result<Int,String> effects {} {if modulus<=1{return Err("Modulus");}let a=normalize(value,modulus)?;let (g,x,y)=integer.extendedGcd(a,modulus)?;if g!=1{return Err("NonInvertible");}return normalize(x,modulus);}

@@ -1,0 +1,10 @@
+// The caller keeps the same ordering callback throughout a heap's lifetime.
+pub fn push<T:Share>(values:&mut List<T>,value:T,capacity:Int,compare:fn(T,T)->Int effects {} captures {Send,Share})->Result<Unit,String> effects {} {
+    if capacity<0 || values.len()>=capacity{return Err("Capacity");}values.add(value);var i=values.len()-1;while i>0{let p=(i-1)/2;if compare(values.get(p),values.get(i))<=0{break;}let v=values.get(p);values.set(p,values.get(i));values.set(i,v);i=p;}return Ok(());
+}
+pub fn peek<T:Share>(values:&List<T>)->Option<T> effects {} {if values.len()==0{return None;}return Some(values.get(0));}
+pub fn pop<T:Share>(values:&mut List<T>,compare:fn(T,T)->Int effects {} captures {Send,Share})->Option<T> effects {} {
+    if values.len()==0{return None;}let first=values.get(0);var last=first;match values.pop(){Some(v)=>{last=v;},None=>{return None;}}
+    if values.len()>0{values.set(0,last);var i=0;while i*2+1<values.len(){var c=i*2+1;if c+1<values.len(){if compare(values.get(c+1),values.get(c))<0{c+=1;}}if compare(values.get(i),values.get(c))<=0{break;}let v=values.get(i);values.set(i,values.get(c));values.set(c,v);i=c;}}
+    return Some(first);
+}

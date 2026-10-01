@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 0.9.2 / `language = "0.9.2"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 0.9.3 / `language = "0.9.3"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -51,4 +51,30 @@ rewind doc libraries/std/text.rw --root libraries/std --output /tmp/text-api.md
 rewind api-snapshot --root libraries/std --output /tmp/std-api.json
 ```
 
-5契約テストで codec、Unicode index、bit/number 境界、Result の両分岐、collections、設定優先順位と引数失敗を検証する。SDK の組立てもこのテストを実行する。Host I/O は app で許可・観測・publish を明示する。SDK の例は sum と JSON 保存 app。配布手順は [v0.9.2仕様](../docs/REWIND_v0.9.2.md)、主要なアルゴリズムと性能改善は [v0.9.3草案](../docs/REWIND_v0.9.3.md) を参照。
+10契約テストで codec、Unicode index、bit/number 境界、Result の両分岐、collections、設定優先順位と引数失敗を検証する。SDK の組立てもこのテストを実行する。Host I/O は app で許可・観測・publish を明示する。SDK の例は sum と JSON 保存 app。配布手順は [v0.9.2仕様](../docs/REWIND_v0.9.2.md)、主要なアルゴリズムと性能改善は [v0.9.3草案](../docs/REWIND_v0.9.3.md) を参照。
+
+## v0.9.3 アルゴリズムと周辺API
+
+| module | 主要API | 契約 |
+|---|---|---|
+| sort/search | stable, inPlace, integers / lowerBound, upperBound, binary | Share要素、pure Send+Share comparator、stableは入力を変更しない。searchは同じ順序で整列済みの入力 |
+| sequence | reverse, rotate, unique, compressed, prefix, nextPermutation | rotateは左向き・負数対応、uniqueは連続重複、compressedはIntの昇順distinct、prefixは初期0を含む。permutationの最後は昇順へ戻す |
+| heap | push, peek, pop | borrowed List<T>、同じcomparatorを継続使用、pushは明示capacity、equal orderはcomparatorでtie-break |
+| deque | create, pushBack/Front, popBack/Front, length | ring buffer、1..65,536slot、emptyはNone、fullはErr(Capacity) |
+| disjointSet | create, root, unite, same, size | 0..65,536要素、path compression+union by size、範囲を検査 |
+| integer/modular | add, multiply, gcd, lcm, extendedGcd, primes, factors, combination / normalize, add, multiply, power, inverse | signed64、overflowはResult、modulus正、inverseはmodulus>1とgcd=1。extendedGcdは非負入力・中間演算もsigned64 |
+| fenwick | create, add, prefix, range | 0..65,535要素、prefix[0,end)、range[start,end)、updateはoverflowをpreflight |
+| segment | build, set, query | Share要素、0..32,768要素、associative combineとidentityをcallerが保証。順序を保持する半開区間query |
+| graph | create, add, bfs, dfs, dijkstra | directed adjacency、0..65,536vertex/edge。bfs未到達=-1、dijkstra未到達=None、負辺/overflow拒否。adjacency traversalは挿入の逆順 |
+| scanner | fromBytes, nextInt, nextToken | 1MiBまで、ASCII whitespace、signed64、nextTokenはBytes、error時のcursorは解析済み位置に進む。Host effectは持たない |
+| path | relative, join | lexical relative path、空/dot/parent/absolute/backslash/colon/NULを拒否。symlink/root境界はHostが検査 |
+
+argsにOptionSpec/parseOptions/helpを追加した。bool flagは"true"、short optionは1 scalar、required/duplicate/unknownを検査する。--name=value、option bundling、positional schemaは未対応。Map entries/updateはString keyとShare valueに限定する。
+
+全algorithmはpure。Result errorは主にString code（Range/Capacity/Overflow/Modulus/NegativeWeight/NonInvertible等）。panicや予算超過は通常の実行失敗となる。prime sieve上限65,535、trial factorization入力1..10^12、combination反復上限65,536。graph distance加算もchecked。mutable構造の公開fieldを直接改変せず、同じmonoid/comparatorで操作する。
+
+List/heapのstorage操作はO(log(max(1,n/64)))、writeは最大64slotを共有copyする。この費用を通常のalgorithm計算量へ掛ける。stable sortはO(n log n)比較、heapはO(log n)比較、binary searchはO(log n)比較、Fenwick/segmentはO(log n)演算、BFS/DFSはO(V+E)走査、DijkstraはO((V+E)log(E+1)) heap操作を土台とする。返すpayloadとcallbackの費用は別。DSUの圧縮はCheckpointで復元でき、通常の経路圧縮後の状態を維持する。Map更新とuser Ord Mapに同じstorage計算量を適用しない。
+
+Generic factoryはselected importを使う：`import std.deque.{create as createDeque}; createDeque<Int>(4)`。Host inputはappで読み、Bytesへ変換してscannerへ渡す。chunkをまたぐ一般のstreaming decoderは未実装。SDKのshortest例を参照。
+
+source libraryの契約テストは10件。詳細は[v0.9.3実装状況](../docs/v0.9.3-status.md)、次段階は[v0.9.4草案](../docs/REWIND_v0.9.4.md)。

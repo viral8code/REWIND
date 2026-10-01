@@ -1,0 +1,263 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.3",
+  "symbols": {
+    "dependency:integer.rw": {
+      "fn:$import$integer$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$combination": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$extendedGcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Tuple<Int,Int,Int>,String>"
+      },
+      "fn:$import$integer$factors": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      },
+      "fn:$import$integer$gcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$lcm": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$primes": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      }
+    },
+    "dependency:math.rw": {
+      "fn:$import$math$clamp": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$math$max": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Int"
+      },
+      "fn:$import$math$min": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Int"
+      },
+      "fn:$import$math$mulMod": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,StdError>"
+      }
+    },
+    "fn:add": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:inverse": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:multiply": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:normalize": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:power": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

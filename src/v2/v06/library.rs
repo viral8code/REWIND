@@ -168,8 +168,8 @@ pub(in crate::v2) fn primitive_method(
         (Value::Text(s), "charLen", []) => Value::Int(s.chars().count() as i64),
         (Value::Text(s), "utf16Len", []) => Value::Int(s.encode_utf16().count() as i64),
         (Value::Bytes(b), "byteLen", []) => Value::Int(b.len() as i64),
-        (Value::Text(s), "encodeUtf8", []) => Value::Bytes(s.as_bytes().to_vec()),
-        (Value::Bytes(b), "decodeUtf8", []) => match String::from_utf8(b.clone()) {
+        (Value::Text(s), "encodeUtf8", []) => Value::Bytes(s.as_bytes().to_vec().into()),
+        (Value::Bytes(b), "decodeUtf8", []) => match String::from_utf8(b.to_vec()) {
             Ok(s) => success(Value::Text(s)),
             Err(_) => failure("InvalidUtf8"),
         },
@@ -195,7 +195,7 @@ pub(in crate::v2) fn primitive_method(
         (Value::Bytes(s), "slice", [Value::Int(a), Value::Int(b)]) => {
             if *a >= 0 && *b >= *a {
                 s.get(*a as usize..*b as usize)
-                    .map(|s| success(Value::Bytes(s.to_vec())))
+                    .map(|s| success(Value::Bytes(s.to_vec().into())))
                     .unwrap_or_else(|| failure("InvalidRange"))
             } else {
                 failure("InvalidRange")

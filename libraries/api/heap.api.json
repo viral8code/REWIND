@@ -1,0 +1,132 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.3",
+  "symbols": {
+    "fn:peek": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&List<T>"
+      ],
+      "return": "Option<T>"
+    },
+    "fn:pop": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&mut List<T>",
+        "fn(T,T)->Int!{}~{Send+Share}"
+      ],
+      "return": "Option<T>"
+    },
+    "fn:push": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&mut List<T>",
+        "T",
+        "Int",
+        "fn(T,T)->Int!{}~{Send+Share}"
+      ],
+      "return": "Result<Unit,String>"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

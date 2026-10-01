@@ -1,0 +1,198 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "0.9.3",
+  "symbols": {
+    "dependency:sort.rw": {
+      "fn:$import$sort$inPlace": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Unit"
+      },
+      "fn:$import$sort$integers": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>"
+        ],
+        "return": "List<Int>"
+      },
+      "fn:$import$sort$stable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "List<T>"
+      }
+    },
+    "fn:compressed": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&List<Int>"
+      ],
+      "return": "List<Int>"
+    },
+    "fn:nextPermutation": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut List<Int>"
+      ],
+      "return": "Bool"
+    },
+    "fn:prefix": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&List<Int>"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:reverse": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&mut List<T>"
+      ],
+      "return": "Unit"
+    },
+    "fn:rotate": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&List<T>",
+        "Int"
+      ],
+      "return": "List<T>"
+    },
+    "fn:unique": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&List<T>",
+        "fn(T,T)->Int!{}~{Send+Share}"
+      ],
+      "return": "List<T>"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

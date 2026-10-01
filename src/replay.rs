@@ -226,7 +226,7 @@ impl Runtime {
     }
     pub fn debug_state(&self) -> Json {
         let deltas=self.state.files.iter().map(|(path,file)| {
-            let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>(),"content":if file.len<=65536 {file.to_vec().ok().map(|bytes|self.masked_value(&String::from_utf8(bytes.clone()).map(Value::Text).unwrap_or(Value::Bytes(bytes))))}else{None}})}else{json!({"operation":"delete"})};(path.clone(),delta)
+            let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>(),"content":if file.len<=65536 {file.to_vec().ok().map(|bytes|self.masked_value(&String::from_utf8(bytes.clone()).map(Value::Text).unwrap_or(Value::Bytes(bytes.into()))))}else{None}})}else{json!({"operation":"delete"})};(path.clone(),delta)
         }).collect::<BTreeMap<_,_>>();
         let states = std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
@@ -237,7 +237,7 @@ impl Runtime {
             .collect::<BTreeMap<_, _>>();
         let heap_bytes = heap_roots
             .values()
-            .map(|h| h.values().map(Self::value_bytes).sum::<usize>())
+            .map(|h| h.logical_bytes())
             .sum::<usize>();
         let observed_bytes = self
             .observations

@@ -101,9 +101,10 @@ impl<R: BufRead> Vm<R> {
                         value.clone()
                     };
                     match value {
-                        Value::TypedList(_, items) | Value::List(items) if items.len() <= 64 => {
-                            items
+                        Value::TypedList(_, items) if items.len() <= 64 => {
+                            items.into_iter().collect::<Vec<_>>()
                         }
+                        Value::List(items) if items.len() <= 64 => items,
                         _ => return Err(self.error(at, "shrinker candidates exceed budget (64)")),
                     }
                 } else {
@@ -320,7 +321,7 @@ impl<R: BufRead> Vm<R> {
         } else {
             item_ty
         };
-        let list = Value::TypedList(item_ty, values);
+        let list = Value::TypedList(item_ty, values.into());
         if method == "collect" {
             return Ok(Some(Value::HeapRef(self.engine.runtime.alloc(list)?)));
         }

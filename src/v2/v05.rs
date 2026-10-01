@@ -39,7 +39,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     v092::prepare(program)?;
     if !matches!(
         program.language.as_str(),
-        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) {
         return Ok(());
     }
@@ -75,7 +75,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
         .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
@@ -144,7 +144,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     );
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) {
         program
             .enums
@@ -366,7 +366,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
     ownership::validate(program)?;
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) {
         return v06::validate(program, config);
     }
@@ -449,7 +449,8 @@ pub(super) fn new_iterator(rt: &mut Runtime, value: &Value) -> Result<Option<Val
         return Ok(None);
     };
     let values = match value {
-        Value::List(v) | Value::TypedList(_, v) => v.clone(),
+        Value::List(v) => v.clone(),
+        Value::TypedList(_, v) => v.iter().cloned().collect(),
         Value::Map(v) | Value::TypedMap(_, _, v) => v.keys().map(MapKey::value).collect(),
         Value::OrderedMap(_, _, v) => v.iter().map(|(k, _)| k.clone()).collect(),
         Value::Text(s) => s.chars().map(|c| Value::Text(c.to_string())).collect(),
@@ -468,7 +469,7 @@ pub(super) fn new_iterator(rt: &mut Runtime, value: &Value) -> Result<Option<Val
     Ok(Some(Value::HeapRef(rt.alloc(Value::Struct(
         format!("Iterator<{item}>"),
         BTreeMap::from([
-            ("$values".into(), Value::TypedList(item, values)),
+            ("$values".into(), Value::TypedList(item, values.into())),
             ("$index".into(), Value::Int(0)),
         ]),
     ))?)))
@@ -670,13 +671,13 @@ pub(super) fn transfer_type(
     {
         return true;
     }
-    if ty == "Json" && matches!(program.language.as_str(), "0.9.1" | "0.9.2") {
+    if ty == "Json" && matches!(program.language.as_str(), "0.9.1" | "0.9.2" | "0.9.3") {
         return true;
     }
     if ty == "FileError" {
         return true;
     }
-    if program.language == "0.9.2" {
+    if matches!(program.language.as_str(), "0.9.2" | "0.9.3") {
         if let Some((base, inner)) = ty.split_once('<') {
             if matches!(base, "Option" | "Result") {
                 return split_type_args(outer_type_end(inner))
@@ -688,7 +689,7 @@ pub(super) fn transfer_type(
     if ty.starts_with("fn(") {
         return if matches!(
             program.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
         ) {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
         } else {
@@ -706,7 +707,7 @@ pub(super) fn transfer_type(
     }
     if matches!(
         program.language.as_str(),
-        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+        "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
     ) {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
@@ -1012,7 +1013,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
             });
             if matches!(
                 program.language.as_str(),
-                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2"
+                "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3"
             ) {
                 let checker = Checker {
                     program,

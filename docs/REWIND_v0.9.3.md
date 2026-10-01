@@ -1,6 +1,6 @@
 # REWIND v0.9.3 草案 — 主要な処理とアルゴリズム基盤
 
-作成日: 2026-10-01。状態: **草案・未実装**。基準は [v0.9.2実装状況](v0.9.2-status.md)。大量の入力、典型的なデータ構造、複雑なアルゴリズムを REWIND で記述し、予算と計算量を説明できる状態へ進める。処理系の必要な補修と、source library として提供する処理を分ける。
+作成日: 2026-10-01。状態: **初回実装済み**。実装範囲は[v0.9.3実装状況](v0.9.3-status.md)、継続計画は[v0.9.4草案](REWIND_v0.9.4.md)を参照。基準は [v0.9.2実装状況](v0.9.2-status.md)。大量の入力、典型的なデータ構造、複雑なアルゴリズムを REWIND で記述し、予算と計算量を説明できる状態へ進める。処理系の必要な補修と、source library として提供する処理を分ける。
 
 ## 1. すでに使えるもの
 
@@ -8,11 +8,11 @@ if/while/for、再帰、関数/closure、generic と trait bound、enum/match、
 
 Int は checked signed64、Float は binary64。v0.9.2 で64-bit bit 演算・shift・popcount、radix変換、overflow を避ける mulMod、Unicode scalar/byte を分けた文字列 codec、ASCII token 分割を実装した。JSON/config/args、fold/find/count、Map getOr/contains、Option/Result adapter、署名付き SDK もある。これらを再実装項目にしない。
 
-一方、sort/search、heap/deque、graph、数論などの標準 module はない。現時点で、小さい入力で動作することと大きい入力で要求する計算量を満たすことを同一視しない。
+以下は実装開始時の不足と採用した計画である。sort/search、heap/deque、graphの基本形、数論はv0.9.3で追加した。現時点で、小さい入力で動作することと大きい入力で要求する計算量を満たすことを同一視しない。
 
 ## 2. 最初に直す処理系のコスト
 
-List/Map の HeapRef 読取り経路には `heap_get(...).cloned()` があり、get/len の前に collection 全体を複製する経路が残る。List 更新も Vec 複製を伴う。n回の単純な走査や O(log n) の更新を library に書いても、storage の費用で期待する計算量にならない場合がある。
+実装開始時、List/Map の HeapRef 読取り経路には `heap_get(...).cloned()` があり、get/len の前に collection 全体を複製する経路が残る。List 更新も Vec 複製を伴う。n回の単純な走査や O(log n) の更新を library に書いても、storage の費用で期待する計算量にならない場合があった。List/heapのページ共有と読取り経路を補修し、残るMap/native費用はv0.9.4へ引き継ぐ。
 
 | 必要な補修 | 受入条件 |
 |---|---|
