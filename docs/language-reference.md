@@ -1,6 +1,6 @@
-# REWIND 1.4 言語リファレンス
+# REWIND 1.5 言語リファレンス
 
-対象はcompiler/language 1.4.0です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象はcompiler/language 1.5.0です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -460,3 +460,9 @@ sourceは1MiB/module、module数256などのcompiler上限があります。公�
 ## GUI
 
 `std.gui` はネイティブの単一 canvas を提供します。`gui` effect を明示許可し、scene を present した後 publish して表示します。イベントループ、Undo、入力 replay、各 OS の要件は [GUI guide](gui.md) を参照してください。
+
+## 即時外部操作（1.5）
+
+`external { ... }` は外部操作の結果を記録し、同じ checkpoint に戻った際は再利用します。`external fresh { ... }` は新しい操作です。結果は巻き戻さず、通常の変数と読取り位置だけを戻します。region の終了は publish ではありません。
+
+main task の active branch 外で使用します。領域内の checkpoint / publish、領域を抜ける制御フロー、task switching は拒否します。`std.external.millis` は `external,clock` の明示許可が必要です。HTTP / DB はまだ利用できません。例・容量・失敗は [1.5仕様](REWIND_v1.5.md) を参照してください。

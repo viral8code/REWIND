@@ -32,6 +32,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdShiftUnsigned",
         "stdCountBits",
         "stdMulMod",
+        "stdExternalClock",
         "stdGuiStage",
         "stdGuiPollEvent",
         "stdGuiEdit",
@@ -176,6 +177,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     {
         return Ok(None);
     }
+    if n.starts_with("stdExternal") && !language_at_least(&p.language, "1.5.0") {
+        return Err(diagnostic(at, "external operations require language 1.5.0"));
+    }
     if n.starts_with("stdGui") && !language_at_least(&p.language, "1.3.0") {
         return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
     }
@@ -186,6 +190,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         ));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdExternalClock" => (&[], "Result<Int,StdError>"),
         "stdGuiEdit" => (
             &["String", "Int", "Int", "String", "String", "Bool"],
             "Result<String,StdError>",
@@ -254,6 +259,18 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if n == "stdExternalClock" && args.is_empty() {
+        let result = runtime.external_operation("clock.millis", b"", 128, || {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|t| serde_json::json!(t.as_millis() as u64))
+                .map_err(|_| "ClockBeforeEpoch".into())
+        })?;
+        return Ok(Some(match result {
+            Ok(v) => outcome(v.as_i64().map(Value::Int).ok_or(("ClockRange", 0))),
+            Err(_) => outcome(Err(("ExternalFailure", 0))),
+        }));
+    }
     if n == "stdGuiContinueInput" && args.is_empty() {
         runtime.gui_continue_input();
         return Ok(Some(Value::Null));

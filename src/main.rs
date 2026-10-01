@@ -586,7 +586,7 @@ fn command_help(command: &str) -> Option<&'static str> {
         "test" => "rewind test --root DIR [--filter NAME]\nRuns the project's test contracts; publish is unavailable in tests.",
         "fmt" => "rewind fmt FILE.rw [--check]\nFormats indentation while preserving strings and comments. --check reports differences without writing.",
         "lsp" => "rewind lsp --root DIR\nStarts a language server over stdin/stdout. Supports projects and standalone files.",
-        "replay" => "rewind replay TRACE.json [--root DIR]\nReplays recorded observations and verifies execution using the matching compiler version.",
+        "replay" => "rewind replay TRACE.json [--root DIR] [--allow-effects EFFECTS]\nReplays recorded observations and verifies execution using the matching compiler version.",
         _ => return None,
     })
 }

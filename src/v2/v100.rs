@@ -78,7 +78,8 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
                         expected(p, expr, ty)?;
                     }
                 }
-                StmtKind::Block(b)
+                StmtKind::External(_, b)
+                | StmtKind::Block(b)
                 | StmtKind::Branch(_, b)
                 | StmtKind::While(_, b)
                 | StmtKind::For(_, _, _, b) => body(p, b, ret)?,
@@ -208,7 +209,7 @@ pub(super) fn syntax_budget(program: &Program) -> Result<()> {
                     add(Item::Expr(a));
                     add(Item::Expr(b));
                 }
-                StmtKind::Block(b) | StmtKind::Branch(_, b) => {
+                StmtKind::External(_, b) | StmtKind::Block(b) | StmtKind::Branch(_, b) => {
                     for s in b {
                         add(Item::Stmt(s));
                     }

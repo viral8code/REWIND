@@ -1,6 +1,6 @@
 # REWIND v2.0 までの実装計画
 
-この文書は計画であり、後続版の実装完了を示さない。基準は v1.4.0（`97e9670`）。今回の変更は文書化のみとし、処理系・標準ライブラリ・バージョン番号は変更しない。
+この文書は計画であり、後続版の実装完了を示さない。基準は v1.4.0（`97e9670`）。初期計画を基準に各版の実装を進め、実装内容は各版の仕様と検証記録に反映する。
 
 設計、変更対象、失敗時の扱い、検証条件は [詳細設計](v2-design.md) にまとめる。外部作用の初期設計は [v1.5 草案](REWIND_v1.5.md) を参照する。
 
@@ -63,7 +63,7 @@ v2.0 は次の条件をすべて確認してから公開する。機能名が存
 1. 各版の実装前に現状を照合し、必要な API・保証・受入ケースを確定する。
 2. 変更を compiler / VM / source std / tooling / examples に反映する。変更する名前・wire format・公開 API には移行方針を添える。
 3. 回帰、標準契約、外部 adapter、性能・memory、Linux / Windows SDK を検証する。
-4. compiler / language / std / lock と docs を揃え、署名・checksum・展開後実行・source-free を検証して Release を公開する。
-5. 公開成功後にその tag の commit を `main` に統合する。未公開の後続作業は含めない。公開失敗時は main へ反映しない。
+4. compiler / language / std / lock と docs を揃え、署名・checksum・展開後実行・source-free を検証して Release 用の成果物を準備する。
+5. 両 OS の Release 検証成功後、その tag の commit を `main` に統合してから Release を公開する。後続版の作業は含めない。公開処理の失敗時は同じ tag を再利用し、検証・統合済みであることと公開状態を区別して報告する。
 
-今回は計画文書を develop に保存する。実装再開と版更新・Release 公開は別の作業とする。
+計画の更新と実装は develop で進め、版ごとの検証・main 統合・Release 公開を完了してから、その版を公開済みとして記録する。

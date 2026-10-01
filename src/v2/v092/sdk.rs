@@ -24,6 +24,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("matrix", include_str!("../../../libraries/std/matrix.rw")),
         ("dp", include_str!("../../../libraries/std/dp.rw")),
         ("csv", include_str!("../../../libraries/std/csv.rw")),
+        (
+            "external",
+            include_str!("../../../libraries/std/external.rw"),
+        ),
         ("gui", include_str!("../../../libraries/std/gui.rw")),
         ("args", include_str!("../../../libraries/std/args.rw")),
         ("bits", include_str!("../../../libraries/std/bits.rw")),
@@ -181,7 +185,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "lib/rewind/std/rewind.toml",
             include_str!("../../../libraries/std/rewind.toml"),
         )?;
-        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":env!("CARGO_PKG_VERSION"),"effects":["gui"],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
+        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":env!("CARGO_PKG_VERSION"),"effects":["gui","external","clock"],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
         let std_root = output.join("lib/rewind/std");
         update_project(&std_root)?;
         // A distribution is only assembled after its embedded standard library
@@ -250,6 +254,26 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/doc/REWIND_v1.5.md",
             include_str!("../../../docs/REWIND_v1.5.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.6.md",
+            include_str!("../../../docs/REWIND_v1.6.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/v2-design.md",
+            include_str!("../../../docs/v2-design.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/external/main.rw",
+            include_str!("../../../examples/external/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/external/README.md",
+            include_str!("../../../examples/external/README.md"),
         )?;
         write(
             &output,

@@ -109,6 +109,24 @@ rm "$RELEASE_WORK/notes/main.rw" "$RELEASE_WORK/notes/notes.txt"
 rm -rf "$RELEASE_WORK/notes/.rewind"
 "$EXTRACTED/bin/rewind" "$RELEASE_WORK/notes/main.rwc" --allow-effects gui,fileRead,fileWrite --gui-events "$RELEASE_WORK/notes/events.json"
 cmp "$RELEASE_WORK/notes-expected" "$RELEASE_WORK/notes/notes.txt"
+cp -R "$EXTRACTED/share/rewind/examples/external" "$RELEASE_WORK/external"
+"$EXTRACTED/bin/rewind" run "$RELEASE_WORK/external/main.rw" --allow-effects external,clock --record "$RELEASE_WORK/external/trace.json" > "$RELEASE_WORK/external/actual"
+python3 - "$RELEASE_WORK/external/actual" <<'PYCLOCK'
+import pathlib,sys
+lines=pathlib.Path(sys.argv[1]).read_text().splitlines()
+assert len(lines)==2 and lines[0]==lines[1] and int(lines[0])>0
+PYCLOCK
+"$EXTRACTED/bin/rewind" replay "$RELEASE_WORK/external/trace.json" --root "$RELEASE_WORK/external" --allow-effects external,clock > "$RELEASE_WORK/external/replayed"
+cmp "$RELEASE_WORK/external/actual" "$RELEASE_WORK/external/replayed"
+"$EXTRACTED/bin/rewindc" "$RELEASE_WORK/external/main.rw" --allow-effects external,clock
+rm "$RELEASE_WORK/external/main.rw"
+rm -rf "$RELEASE_WORK/external/.rewind"
+"$EXTRACTED/bin/rewind" "$RELEASE_WORK/external/main.rwc" --allow-effects external,clock > "$RELEASE_WORK/external/compiled"
+python3 - "$RELEASE_WORK/external/compiled" <<'PYCLOCK'
+import pathlib,sys
+lines=pathlib.Path(sys.argv[1]).read_text().splitlines()
+assert len(lines)==2 and lines[0]==lines[1] and int(lines[0])>0
+PYCLOCK
 "$EXTRACTED/bin/rewind" compile --help > /dev/null
 (cd "$RELEASE_OUTPUT" && sha256sum ./*.tar.gz ./rewind-*-sdk.pub ./GETTING_STARTED.md ./BUILD_INFO.json > SHA256SUMS)
 chmod 644 "$RELEASE_OUTPUT"/*

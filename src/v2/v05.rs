@@ -1030,7 +1030,9 @@ pub(super) fn expressions(body: &[Stmt], visit: &mut impl FnMut(&Expr)) {
                 expr(a, visit);
                 expr(b, visit);
             }
-            StmtKind::Block(b) | StmtKind::Branch(_, b) => expressions(b, visit),
+            StmtKind::External(_, b) | StmtKind::Block(b) | StmtKind::Branch(_, b) => {
+                expressions(b, visit)
+            }
             StmtKind::If(e, a, b) => {
                 expr(e, visit);
                 expressions(a, visit);
@@ -1144,7 +1146,9 @@ pub(super) fn free_names(body: &[Stmt], params: &[(String, String)]) -> BTreeSet
                 StmtKind::Expr(e) | StmtKind::Defer(e) | StmtKind::Return(Some(e)) => {
                     expr(e, locals, out)
                 }
-                StmtKind::Block(b) | StmtKind::Branch(_, b) => stmts(b, &mut locals.clone(), out),
+                StmtKind::External(_, b) | StmtKind::Block(b) | StmtKind::Branch(_, b) => {
+                    stmts(b, &mut locals.clone(), out)
+                }
                 StmtKind::If(e, a, b) => {
                     expr(e, locals, out);
                     stmts(a, &mut locals.clone(), out);

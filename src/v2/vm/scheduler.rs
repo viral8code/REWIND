@@ -453,6 +453,7 @@ impl<R: BufRead> Vm<R> {
         self.new_action(TaskBody::Function(name.into(), args), ty, globals, at)
     }
     pub(super) fn start_task(&mut self, value: &Value, at: &Tok) -> Result<u64> {
+        self.engine.runtime.require_internal()?;
         let id = handle_id(value).ok_or_else(|| self.error(at, "expected Task"))?;
         let task = self
             .scheduler
@@ -1451,6 +1452,7 @@ impl<R: BufRead> Vm<R> {
         Ok(true)
     }
     pub(super) fn wait_task(&mut self, value: Value, at: &Tok) -> Result<()> {
+        self.engine.runtime.require_internal()?;
         let id = self.start_task(&value, at)?;
         if let Some(result) = self.task_result(id) {
             self.push(result)?;

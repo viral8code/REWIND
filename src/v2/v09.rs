@@ -376,7 +376,8 @@ pub(in crate::v2) fn record_signatures(p: &Program) -> Result<()> {
         for s in stmts {
             match &s.kind {
                 StmtKind::Let(_, _, Some(ty), _) => record_type(p, ty, bounds, &s.at, 0)?,
-                StmtKind::Block(b)
+                StmtKind::External(_, b)
+                | StmtKind::Block(b)
                 | StmtKind::Branch(_, b)
                 | StmtKind::While(_, b)
                 | StmtKind::For(_, _, _, b) => body(p, b, bounds)?,

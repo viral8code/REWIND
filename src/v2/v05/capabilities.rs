@@ -38,7 +38,8 @@ fn analyze(
         for s in body {
             let mut head = s.clone();
             match &mut head.kind {
-                StmtKind::Block(b)
+                StmtKind::External(_, b)
+                | StmtKind::Block(b)
                 | StmtKind::Branch(_, b)
                 | StmtKind::While(_, b)
                 | StmtKind::For(_, _, _, b) => b.clear(),
@@ -89,7 +90,10 @@ fn analyze(
                         variables.insert(n.clone(), (t, false));
                     }
                 }
-                StmtKind::Block(b) | StmtKind::Branch(_, b) | StmtKind::While(_, b) => walk(
+                StmtKind::External(_, b)
+                | StmtKind::Block(b)
+                | StmtKind::Branch(_, b)
+                | StmtKind::While(_, b) => walk(
                     program,
                     b,
                     &mut variables.clone(),
@@ -203,7 +207,8 @@ fn analyze_flat(
                 ) => {
                     aliases.insert(n.clone(), v.clone());
                 }
-                StmtKind::Block(b)
+                StmtKind::External(_, b)
+                | StmtKind::Block(b)
                 | StmtKind::Branch(_, b)
                 | StmtKind::While(_, b)
                 | StmtKind::For(_, _, _, b) => declarations(b, aliases),
@@ -236,7 +241,8 @@ fn analyze_flat(
                 ) => {
                     out.insert(n.clone());
                 }
-                StmtKind::Block(b)
+                StmtKind::External(_, b)
+                | StmtKind::Block(b)
                 | StmtKind::Branch(_, b)
                 | StmtKind::While(_, b)
                 | StmtKind::For(_, _, _, b) => assigned(b, out),
@@ -274,7 +280,8 @@ fn analyze_flat(
                         );
                     }
                 }
-                StmtKind::Block(b)
+                StmtKind::External(_, b)
+                | StmtKind::Block(b)
                 | StmtKind::Branch(_, b)
                 | StmtKind::While(_, b)
                 | StmtKind::For(_, _, _, b) => locals(program, b, variables),
@@ -423,7 +430,8 @@ fn analyze_flat(
     fn publish(body: &[Stmt]) -> bool {
         body.iter().any(|s| match &s.kind {
             StmtKind::Publish(_) => true,
-            StmtKind::Block(b)
+            StmtKind::External(_, b)
+            | StmtKind::Block(b)
             | StmtKind::Branch(_, b)
             | StmtKind::While(_, b)
             | StmtKind::For(_, _, _, b) => publish(b),
