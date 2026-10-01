@@ -104,6 +104,16 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     source.unlink()
     shutil.rmtree(app/'.rewind')
     assert run([exe,app/'main.rwc']) == b'Odd\n'
+    gui = work/'gui'
+    gui.mkdir()
+    shutil.copyfile(sdk/'share/rewind/examples/gui/main.rw',gui/'main.rw')
+    shutil.copyfile(sdk/'share/rewind/examples/gui/events.json',gui/'events.json')
+    assert run([exe,'run',gui/'main.rw','--allow-effects','gui','--gui-events',gui/'events.json','--record',gui/'trace.json']) == b'1\n'
+    assert run([exe,'replay',gui/'trace.json','--root',gui,'--allow-effects','gui']) == b'1\n'
+    run([compiler,gui/'main.rw','--allow-effects','gui'])
+    (gui/'main.rw').unlink()
+    shutil.rmtree(gui/'.rewind')
+    assert run([exe,gui/'main.rwc','--allow-effects','gui','--gui-events',gui/'events.json']) == b'1\n'
     assert b'rewind compile' in run([exe,'compile','--help'])
     # Existing-file replacement and checkpoint restore are exercised on the host OS.
     source.write_text('File.writeText("state.txt","old");publish;commit old;File.writeText("state.txt","new");publish;revert old;File.writeText("state.txt","last");publish;', encoding='utf-8')

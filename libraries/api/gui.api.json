@@ -1,0 +1,359 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "1.3.0",
+  "symbols": {
+    "alias:GuiError": {
+      "generics": [],
+      "target": "StdError"
+    },
+    "fn:background": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:button": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:checkbox": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "String",
+        "Bool",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:checked": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&View",
+        "String"
+      ],
+      "return": "Result<Bool,StdError>"
+    },
+    "fn:close": {
+      "async": false,
+      "effects": [
+        "gui"
+      ],
+      "generics": [],
+      "parameters": [],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:continueInput": {
+      "async": false,
+      "effects": [
+        "gui"
+      ],
+      "failure": "After revert, skips only events already delivered in this execution, including during replay.",
+      "generics": [],
+      "parameters": [],
+      "return": "Unit"
+    },
+    "fn:dispatch": {
+      "async": false,
+      "cost": "Pointer scans in reverse draw order, at most 2048 widgets; Tab traverses controls.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "Event"
+      ],
+      "return": "Option<Action>"
+    },
+    "fn:label": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:nextEvent": {
+      "async": false,
+      "effects": [
+        "gui"
+      ],
+      "failure": "GUI must be published first; input is journaled, blocking, and replayable.",
+      "generics": [],
+      "parameters": [],
+      "return": "Result<Event,StdError>"
+    },
+    "fn:present": {
+      "async": false,
+      "effects": [
+        "gui"
+      ],
+      "failure": "Queues a scene; publish may fail with GuiUnavailable or PublishPartiallyApplied.",
+      "generics": [],
+      "parameters": [
+        "&View"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:rectangle": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:scene": {
+      "async": false,
+      "cost": "O(widget count + caption bytes); serialized scene at most 1 MiB.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&View"
+      ],
+      "return": "Result<String,StdError>"
+    },
+    "fn:setEnabled": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:setText": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:text": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&View",
+        "String"
+      ],
+      "return": "Result<String,StdError>"
+    },
+    "fn:window": {
+      "async": false,
+      "effects": [],
+      "failure": "InvalidSize/InvalidTitle; 64..4096 client pixels per axis.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<View,StdError>"
+    },
+    "type:Action": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Activate": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Changed": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Bool"
+          ]
+        ],
+        "Close": [],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "String"
+          ]
+        ],
+        "Resize": [
+          [
+            "0",
+            "Int"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:Event": {
+      "constructor": true,
+      "fields": [
+        [
+          "kind",
+          "String"
+        ],
+        [
+          "x",
+          "Int"
+        ],
+        [
+          "y",
+          "Int"
+        ],
+        [
+          "key",
+          "String"
+        ],
+        [
+          "width",
+          "Int"
+        ],
+        [
+          "height",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:View": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
+    }
+  }
+}

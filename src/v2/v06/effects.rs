@@ -39,6 +39,9 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
             }
             ExprKind::Name(n) => {
                 let n = resolve_alias(program, n);
+                if n.starts_with("stdGui") {
+                    needs.insert("gui".into());
+                }
                 if program.functions.contains_key(&n) {
                     needs.extend(summary(program, &n, seen));
                 }
@@ -133,6 +136,9 @@ impl Scan<'_> {
                 };
                 if let Some(n) = &name {
                     let base = n.split('<').next().unwrap_or(n);
+                    if base.starts_with("stdGui") {
+                        self.needs.insert("gui".into());
+                    }
                     if let Some(f) = self.checker.program.functions.get(base) {
                         let types = args
                             .iter()
@@ -641,6 +647,12 @@ pub(in crate::v2) fn validate(program: &Program, config: &project::ProjectConfig
         );
         scan.body(&f.body)?;
         let declared = function_effects(program, name);
+        if f.asynchronous && (declared.contains("gui") || scan.needs.contains("gui")) {
+            return Err(diagnostic(
+                &f.at,
+                "GuiMainTaskOnly: GUI input and staging require the application task",
+            ));
+        }
         let effect_vars = f
             .type_params
             .iter()

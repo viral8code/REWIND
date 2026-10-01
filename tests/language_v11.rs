@@ -224,7 +224,7 @@ fn text_slice_scalar_boundaries_and_task_failure_metadata() {
 #[test]
 fn language_reference_examples_execute_as_documented() {
     let reference = include_str!("../docs/language-reference.md").replace("\r\n", "\n");
-    assert_eq!(reference.matches("```rewind\n").count(), 16);
+    assert_eq!(reference.matches("```rewind\n").count(), 17);
     for (index, part) in reference.split("```rewind\n").skip(1).enumerate() {
         let source = part.split("```").next().unwrap();
         let path = root();

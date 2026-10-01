@@ -15,6 +15,11 @@ jobs:
           components: rustfmt
       - run: cargo fmt --check
       - run: cargo test --locked
+      - name: Native X11 window and pointer events
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xfonts-base
+          xvfb-run -a cargo test --locked --lib native_gui_surface -- --nocapture
       - run: cargo build --release --locked
       - name: Standard library contracts and SDK API compatibility
         shell: bash

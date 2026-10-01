@@ -76,7 +76,7 @@ impl Runtime {
             .map(|(limit, segment)| Ok((*limit, segment.bytes()?)))
             .collect::<Result<Vec<_>>>()?;
         Ok(
-            json!({"format":1,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
+            json!({"format":1,"gui_events":self.gui_observations,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
         )
     }
     pub fn import_observations(&mut self, data: &Json) -> Result<()> {
@@ -205,6 +205,17 @@ impl Runtime {
                 Observation { version, blocks },
             );
         }
+        self.gui_observations = match data.get("gui_events") {
+            Some(v) => serde_json::from_value(v.clone())
+                .map_err(|_| invalid("invalid GUI event journal"))?,
+            None => Vec::new(),
+        };
+        if self.gui_observations.len() > 65536 {
+            return Err(invalid("GUI event journal too large"));
+        }
+        for e in &self.gui_observations {
+            e.validate().map_err(|_| invalid("invalid GUI event"))?;
+        }
         self.enforce_budget()?;
         self.replaying = true;
         Ok(())
@@ -300,6 +311,13 @@ impl Runtime {
                 m + s
             })
             .sum::<usize>();
-        json!({"pc":self.state.program_counter,"heap_objects":self.state.heap.len(),"published_epoch":self.published_epoch,"published_operation_count":self.published_operations.len(),"byte_input_cursor":self.state.byte_cursor,"checkpoint_heap_roots":heap_roots.len(),"shared_checkpoint_heap_roots":states.len()-heap_roots.len(),"retained_heap_logical_bytes":heap_bytes,"observed_file_bytes":observed_bytes,"checkpoints":self.checkpoints.keys().collect::<Vec<_>>(),"stdout_bytes":self.state.stdout.len(),"stderr_bytes":self.state.stderr.len(),"journal_storage_bytes":self.state.stdout.storage_bytes()+self.state.stderr.storage_bytes(),"globals":self.state.globals.iter().map(|(n,v)|(n.clone(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"heap":self.state.heap.iter().map(|(id,v)|(id.to_string(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"files":self.state.files.keys().collect::<Vec<_>>(),"file_deltas":deltas,"directories":*self.state.directories,"cursors":{"input":self.state.stdin_cursor,"time":self.state.time_cursor,"env":self.state.env_cursor,"directory":self.state.directory_cursor}})
+        let mut state = json!({"pc":self.state.program_counter,"heap_objects":self.state.heap.len(),"published_epoch":self.published_epoch,"published_operation_count":self.published_operations.len(),"byte_input_cursor":self.state.byte_cursor,"checkpoint_heap_roots":heap_roots.len(),"shared_checkpoint_heap_roots":states.len()-heap_roots.len(),"retained_heap_logical_bytes":heap_bytes,"observed_file_bytes":observed_bytes,"checkpoints":self.checkpoints.keys().collect::<Vec<_>>(),"stdout_bytes":self.state.stdout.len(),"stderr_bytes":self.state.stderr.len(),"journal_storage_bytes":self.state.stdout.storage_bytes()+self.state.stderr.storage_bytes(),"globals":self.state.globals.iter().map(|(n,v)|(n.clone(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"heap":self.state.heap.iter().map(|(id,v)|(id.to_string(),self.masked_value(v))).collect::<BTreeMap<_,_>>(),"files":self.state.files.keys().collect::<Vec<_>>(),"file_deltas":deltas,"directories":*self.state.directories,"cursors":{"input":self.state.stdin_cursor,"time":self.state.time_cursor,"env":self.state.env_cursor,"directory":self.state.directory_cursor}});
+        if self.state.gui_pending.is_some()
+            || self.gui_displayed.is_some()
+            || !self.gui_observations.is_empty()
+        {
+            state["gui"] = json!({"cursor":self.state.gui_cursor,"pending":self.state.gui_pending.is_some(),"published":self.gui_displayed.is_some(),"widgets":self.gui_displayed.as_ref().map(|f|f.items.len())});
+        }
+        state
     }
 }

@@ -139,3 +139,25 @@ test fn fallible_callbacks_leave_originals_unchanged()->Unit effects {} {
  }}
  let converted=error.fromStd(StdError("Range",7),"input");assert_eq(converted.code,"Range");assert_eq(converted.offset,7);assert_eq(converted.source,"input");
 }
+
+import gui as gui;
+test fn gui_controls_hit_testing_focus_and_validation() {
+ match gui.window("test",320,200) {Err(_)=>{panic("window");},Ok(view)=>{
+ assert_eq(gui.button(&mut view,"add","Add",10,10,100,30),Ok(()));
+ assert_eq(gui.checkbox(&mut view,"check","Enabled",false,10,50,100,30),Ok(()));
+ assert_eq(gui.button(&mut view,"add","duplicate",10,90,100,30),Err(StdError("GuiDuplicateId",0)));
+ assert_eq(gui.rectangle(&mut view,"bad",310,0,20,20,0),Err(StdError("GuiInvalidBounds",0)));
+ assert_eq(gui.background(&mut view,0x1000000),Err(StdError("GuiInvalidColor",0)));
+ assert_eq(gui.dispatch(&mut view,gui.Event("pointer",10,10,"",0,0)),Some(gui.Action::Activate("add")));
+ assert_eq(gui.dispatch(&mut view,gui.Event("pointer",110,10,"",0,0)),None);
+ assert_eq(gui.dispatch(&mut view,gui.Event("key",0,0,"Tab",0,0)),None);
+ assert_eq(gui.dispatch(&mut view,gui.Event("key",0,0,"Space",0,0)),Some(gui.Action::Changed("check",true)));
+ assert_eq(gui.checked(&view,"check"),Ok(true));
+ assert_eq(gui.setEnabled(&mut view,"check",false),Ok(()));
+ assert_eq(gui.dispatch(&mut view,gui.Event("pointer",20,60,"",0,0)),None);
+ assert_eq(gui.dispatch(&mut view,gui.Event("close",0,0,"",0,0)),Some(gui.Action::Close));
+ assert_eq(gui.setText(&mut view,"add","hello"),Ok(()));assert_eq(gui.text(&view,"add"),Ok("hello"));
+ match gui.scene(&view){Ok(value)=>{match json.parse(value){Ok(_)=>{},Err(_)=>{panic("scene JSON");}}},Err(_)=>{panic("scene");}}
+ }}
+ assert_eq(gui.window("bad",63,200),Err(StdError("GuiInvalidSize",0)));
+}

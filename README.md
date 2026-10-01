@@ -1,10 +1,10 @@
-# REWIND 1.2.0
+# REWIND 1.3.0
 
-`rewind run main.rw` / `rewind compile main.rw`、`rewindc`、Checkpointと増分publish、署名付きLinux / Windows x64 SDKを提供します。1.2では条件分岐内のrevert、数値の基数・桁区切り、ブロックコメント、Unicodeエスケープ、コマンド別ヘルプを整備しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[1.2の変更点](docs/REWIND_v1.2.md)、[ライブラリ](libraries/README.md)を参照してください。開発branchは`codex/develop`です。
+`rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.3 ではネイティブウィンドウを操作する `std.gui` と、実行直後の初期状態を保存する予約チェックポイント `begin` を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.3 の変更点](docs/REWIND_v1.3.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。
 
 ## SDKを試す
 
-[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v0.9.3)でLinux x86_64向けSDKを配布します。[旧Releaseの導入](docs/getting-started-v0.9.3.md)を参照してください。
+[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.3.0)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
 
 v0.9 adds multiline REPL sessions with verified transcripts, API contracts for implementations and dependencies, production-only installs, Share generic records, ordered property shrinkers, and signed inspection timelines. Select `language = "0.9"`; see [implementation and limits](docs/v0.9-status.md) and the [v0.9.1 application proposal](docs/REWIND_v0.9.1.md).
 

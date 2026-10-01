@@ -580,7 +580,7 @@ fn process_memory_limit(mib: usize) -> Result<()> {
 
 fn command_help(command: &str) -> Option<&'static str> {
     Some(match command {
-        "run" => "rewind run FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--record TRACE.json] [--steps N] [--native-work N] [--task-steps N] [-- ARGS...]\nRuns a source file or compiled artifact. Pending output requires publish;.",
+        "run" => "rewind run FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--record TRACE.json] [--gui-events EVENTS.json] [--steps N] [--native-work N] [--task-steps N] [-- ARGS...]\nRuns a source file or compiled artifact. Pending output requires publish;.",
         "compile" => "rewind compile FILE.rw [--output FILE.rwc] [--root DIR] [--allow-effects EFFECTS]\nrewindc FILE.rw [--output FILE.rwc]\nChecks and compiles source; defaults to FILE.rwc. It does not execute the program.",
         "check" => "rewind check [FILE.rw...] [--root DIR]\nChecks types, ownership and effects without executing source.",
         "test" => "rewind test --root DIR [--filter NAME]\nRuns the project's test contracts; publish is unavailable in tests.",
@@ -1348,6 +1348,17 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                             .get(index)
                             .ok_or_else(|| Error::InvalidOperation("missing locale".into()))?
                             .clone(),
+                    );
+                }
+                "--gui-events" => {
+                    index += 1;
+                    options.gui_events = Some(
+                        remaining
+                            .get(index)
+                            .ok_or_else(|| {
+                                Error::InvalidOperation("missing GUI event script".into())
+                            })?
+                            .into(),
                     );
                 }
                 "--filter" => {

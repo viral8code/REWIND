@@ -1,0 +1,73 @@
+effects {gui};
+pub type GuiError = StdError;
+pub record Event {kind:String,x:Int,y:Int,key:String,width:Int,height:Int}
+pub enum Action {Activate(String),Changed(String,Bool),Key(String,String),Resize(Int,Int),Close}
+record Widget {id:String,kind:String,x:Int,y:Int,width:Int,height:Int,caption:String,foreground:Int,background:Int,enabled:Bool,checked:Bool}
+pub struct View {private title:String,private width:Int,private height:Int,private background:Int,private widgets:List<Widget>,private indices:Map<String,Int>,private focus:Int}
+// @api window failure InvalidSize/InvalidTitle; 64..4096 client pixels per axis.
+pub fn window(title:String,width:Int,height:Int)->Result<View,GuiError> effects {} {
+ if width<64 || width>4096 || height<64 || height>4096{return Err(StdError("GuiInvalidSize",0));}
+ if title.byteLen()>1024 || stdTextFind(title,"\0")!=None{return Err(StdError("GuiInvalidTitle",0));}
+ return Ok(View(title,width,height,0xffffff,List<Widget>(),Map<String,Int>(),-1));
+}
+fn add(view:&mut View,id:String,kind:String,caption:String,x:Int,y:Int,width:Int,height:Int,color:Int,checked:Bool)->Result<Unit,GuiError> effects {} {
+ if view.widgets.len()>=2048{return Err(StdError("GuiWidgetLimit",0));}
+ if id=="" || id.byteLen()>128 || stdTextFind(id,"\0")!=None{return Err(StdError("GuiInvalidId",0));}
+ if view.indices.get(id)!=None{return Err(StdError("GuiDuplicateId",0));}
+ if caption.byteLen()>4096 || stdTextFind(caption,"\0")!=None{return Err(StdError("GuiInvalidText",0));}
+ if x<0 || y<0 || width<1 || height<1 || x>4096 || y>4096 || width>4096 || height>4096 || x+width>view.width || y+height>view.height{return Err(StdError("GuiInvalidBounds",0));}
+ if color<0 || color>0xffffff{return Err(StdError("GuiInvalidColor",0));}
+ view.indices.set(id,view.widgets.len());view.widgets.add(Widget(id,kind,x,y,width,height,caption,0x111827,color,true,checked));return Ok(());
+}
+pub fn label(view:&mut View,id:String,caption:String,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"label",caption,x,y,width,height,0xffffff,false);}
+pub fn button(view:&mut View,id:String,caption:String,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"button",caption,x,y,width,height,0xe5e7eb,false);}
+pub fn checkbox(view:&mut View,id:String,caption:String,checked:Bool,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"checkbox",caption,x,y,width,height,0xf3f4f6,checked);}
+pub fn rectangle(view:&mut View,id:String,x:Int,y:Int,width:Int,height:Int,color:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"rect","",x,y,width,height,color,false);}
+pub fn background(view:&mut View,color:Int)->Result<Unit,GuiError> effects {} {if color<0 || color>0xffffff{return Err(StdError("GuiInvalidColor",0));}view.background=color;return Ok(());}
+pub fn setText(view:&mut View,id:String,caption:String)->Result<Unit,GuiError> effects {} {
+ if caption.byteLen()>4096 || stdTextFind(caption,"\0")!=None{return Err(StdError("GuiInvalidText",0));}
+ match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,caption,w.foreground,w.background,w.enabled,w.checked));}}
+ return Ok(());
+}
+pub fn text(view:&View,id:String)->Result<String,GuiError> effects {} {match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{return Ok(view.widgets.get(i).caption);}}}
+pub fn checked(view:&View,id:String)->Result<Bool,GuiError> effects {} {match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);if w.kind!="checkbox"{return Err(StdError("GuiNotCheckbox",0));}return Ok(w.checked);}}}
+pub fn setEnabled(view:&mut View,id:String,enabled:Bool)->Result<Unit,GuiError> effects {} {match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,w.foreground,w.background,enabled,w.checked));}}return Ok(());}
+fn interactive(w:Widget)->Bool effects {} {return w.enabled && (w.kind=="button" || w.kind=="checkbox");}
+fn activate(view:&mut View,i:Int)->Option<Action> effects {} {
+ let w=view.widgets.get(i);if !interactive(w){return None;}view.focus=i;
+ if w.kind=="checkbox"{view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,w.foreground,w.background,w.enabled,!w.checked));return Some(Action::Changed(w.id,!w.checked));}
+ return Some(Action::Activate(w.id));
+}
+// @api dispatch cost Pointer scans in reverse draw order, at most 2048 widgets; Tab traverses controls.
+pub fn dispatch(view:&mut View,event:Event)->Option<Action> effects {} {
+ if event.kind=="close"{return Some(Action::Close);}
+ if event.kind=="resize"{return Some(Action::Resize(event.width,event.height));}
+ if event.kind=="pointer"{var i=view.widgets.len();while i>0{i-=1;let w=view.widgets.get(i);if interactive(w) && event.x>=w.x && event.x<w.x+w.width && event.y>=w.y && event.y<w.y+w.height{return activate(view,i);}}return None;}
+ if event.kind=="key"{
+  if event.key=="Tab"{let count=view.widgets.len();if count==0{return None;}var n=0;var i=view.focus;while n<count{i=(i+1)%count;if interactive(view.widgets.get(i)){view.focus=i;return None;}n+=1;}return None;}
+  if view.focus>=0 && interactive(view.widgets.get(view.focus)){if event.key=="Enter" || event.key=="Space"{return activate(view,view.focus);}return Some(Action::Key(view.widgets.get(view.focus).id,event.key));}
+ }
+ return None;
+}
+fn itemJson(w:Widget,focused:Bool)->Json effects {} {
+ let m=Map<String,Json>();m.set("id",Json::Text(w.id));m.set("kind",Json::Text(w.kind));m.set("x",Json::Int(w.x));m.set("y",Json::Int(w.y));m.set("width",Json::Int(w.width));m.set("height",Json::Int(w.height));m.set("text",Json::Text(w.caption));m.set("foreground",Json::Int(w.foreground));m.set("background",Json::Int(w.background));m.set("enabled",Json::Bool(w.enabled));m.set("checked",Json::Bool(w.checked));m.set("focused",Json::Bool(focused));return Json::Object(freeze(m));
+}
+// @api scene cost O(widget count + caption bytes); serialized scene at most 1 MiB.
+pub fn scene(view:&View)->Result<String,GuiError> effects {} {
+ let items=List<Json>();for i in 0..view.widgets.len(){items.add(itemJson(view.widgets.get(i),view.focus==i));}
+ let m=Map<String,Json>();m.set("title",Json::Text(view.title));m.set("width",Json::Int(view.width));m.set("height",Json::Int(view.height));m.set("background",Json::Int(view.background));m.set("items",Json::Array(freeze(items)));
+ match jsonStringify(Json::Object(freeze(m))){Ok(s)=>{return Ok(s);},Err(e)=>{return Err(StdError(e.code,e.offset));}}
+}
+// @api present failure Queues a scene; publish may fail with GuiUnavailable or PublishPartiallyApplied.
+pub fn present(view:&View)->Result<Unit,GuiError> effects {gui} {return stdGuiStage(scene(view)?);}
+fn integer(value:Json,key:String)->Int effects {} {match jsonGet(value,key){Some(Json::Int(v))=>{return v;},_=>{return 0;}}}
+fn string(value:Json,key:String)->String effects {} {match jsonGet(value,key){Some(Json::Text(v))=>{return v;},_=>{return "";}}}
+// @api nextEvent failure GUI must be published first; input is journaled, blocking, and replayable.
+pub fn nextEvent()->Result<Event,GuiError> effects {gui} {
+ let caption=stdGuiNextEvent()?;
+ match jsonParse(caption){Err(e)=>{return Err(StdError(e.code,e.offset));},Ok(j)=>{return Ok(Event(string(j,"kind"),integer(j,"x"),integer(j,"y"),string(j,"key"),integer(j,"width"),integer(j,"height")));}}
+}
+pub fn close()->Result<Unit,GuiError> effects {gui} {return stdGuiClose();}
+
+// @api continueInput failure After revert, skips only events already delivered in this execution, including during replay.
+pub fn continueInput()->Unit effects {gui} {stdGuiContinueInput();}

@@ -3,7 +3,10 @@
 use super::*;
 
 pub(super) fn prepare(program: &mut Program) -> Result<()> {
-    if !matches!(program.language.as_str(), "1.0.0" | "1.1.0" | "1.2.0") {
+    if !matches!(
+        program.language.as_str(),
+        "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0"
+    ) {
         return Ok(());
     }
     fn expected(p: &Program, expr: &mut Expr, ty: &str) -> Result<()> {
