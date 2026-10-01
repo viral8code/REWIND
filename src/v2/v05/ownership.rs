@@ -1677,7 +1677,7 @@ impl Flow<'_> {
                     }
                     self.expr(e)?;
                 }
-                StmtKind::Block(b) => self.scope(b)?,
+                StmtKind::External(_, b) | StmtKind::Block(b) => self.scope(b)?,
                 StmtKind::Branch(_, b) => {
                     let old = self.clone();
                     self.scope(b)?;

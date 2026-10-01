@@ -1,0 +1,4 @@
+effects {external,clock};
+// @api millis cost O(1) clock observation; recorded once per external ledger position.
+// @api millis failure ExternalFailure/ClockRange; requires an external region.
+pub fn millis()->Result<Int,StdError> effects {external,clock} {return stdExternalClock();}

@@ -11,6 +11,7 @@ const KNOWN: &[&str] = &[
     "locale",
     "tasks",
     "gui",
+    "external",
 ];
 fn task_type(program: &Program, ty: &str, seen: &mut BTreeSet<String>) -> bool {
     if ty.contains("Task<") || ty.contains("TaskGroup") || ty.contains("Channel<") {
@@ -49,6 +50,10 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
             };
             if let Some(name) = name {
                 let base = name.split('<').next().unwrap_or(&name);
+                if base.starts_with("stdExternal") {
+                    required.insert("external".into());
+                    required.insert("clock".into());
+                }
                 if base.starts_with("stdGui") && base != "stdGuiEdit" {
                     required.insert("gui".into());
                 }
@@ -174,7 +179,9 @@ fn body(
                 body(program, a, seen, required);
                 body(program, b, seen, required);
             }
-            StmtKind::Block(b) | StmtKind::Branch(_, b) => body(program, b, seen, required),
+            StmtKind::External(_, b) | StmtKind::Block(b) | StmtKind::Branch(_, b) => {
+                body(program, b, seen, required)
+            }
             StmtKind::While(e, b) => {
                 expr(program, e, seen, required);
                 body(program, b, seen, required);

@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.4.0 / `language = "1.4.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.5.0 / `language = "1.5.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -108,3 +108,7 @@ error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換�
 ## std.gui（1.3）
 
 ネイティブウィンドウ、ラベル、ボタン、チェックボックス、矩形、クリックとキー入力、publish による描画確定、入力 replay を提供します。`gui` effect の明示許可が必要です。[GUI guide](../docs/gui.md) と [counter sample](../examples/gui/README.md) を参照してください。
+
+## std.external（1.5）
+
+`millis` は external 領域での UTC milliseconds 観測。操作位置ごとに結果を記録し、revert 後に再利用します。`external,clock` を明示許可してください。[1.5仕様](../docs/REWIND_v1.5.md) を参照。

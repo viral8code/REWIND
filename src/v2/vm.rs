@@ -26,6 +26,8 @@ enum Op {
     Try,
     Pop,
     Enter,
+    EnterExternal(bool),
+    ExitExternal,
     Exit,
     Jump(usize),
     JumpFalse(usize),
@@ -573,6 +575,11 @@ impl Compiler {
             StmtKind::Expr(e) => {
                 self.expr(e)?;
                 self.emit(Op::Pop, at);
+            }
+            StmtKind::External(fresh, body) => {
+                self.emit(Op::EnterExternal(*fresh), at);
+                self.block(body, at)?;
+                self.emit(Op::ExitExternal, at);
             }
             StmtKind::Block(body) => self.block(body, at)?,
             StmtKind::If(cond, yes, no) => {
@@ -2487,11 +2494,13 @@ impl<R: BufRead> Vm<R> {
                     return Ok(());
                 }
                 Op::Spawn => {
+                    self.engine.runtime.require_internal()?;
                     let task = self.pop()?;
                     self.start_task(&task, &inst.at)?;
                     self.push(task)?;
                 }
                 Op::Await => {
+                    self.engine.runtime.require_internal()?;
                     let task = self.pop()?;
                     self.wait_task(task, &inst.at)?;
                 }
@@ -3184,6 +3193,16 @@ impl<R: BufRead> Vm<R> {
                 Op::Pop => {
                     self.pop()?;
                 }
+                Op::EnterExternal(fresh) => {
+                    if self.scheduler.active != 0 || !self.branches.is_empty() {
+                        return Err(self.error(
+                            &inst.at,
+                            "ExternalBoundary: external requires the main task outside branches",
+                        ));
+                    }
+                    self.engine.runtime.enter_external(fresh)?;
+                }
+                Op::ExitExternal => self.engine.runtime.exit_external()?,
                 Op::Enter => {
                     let id = self.next_scope_id;
                     self.next_scope_id = id.checked_add(1).ok_or_else(|| {
@@ -3357,6 +3376,7 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::Revert(name) => {
+                    self.engine.runtime.require_internal()?;
                     let mut snap = self.snapshots.get(&name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
@@ -3433,6 +3453,7 @@ impl<R: BufRead> Vm<R> {
                     self.engine.runtime.set_program_counter(after);
                 }
                 Op::Resume(name) => {
+                    self.engine.runtime.require_internal()?;
                     let snap = self.snapshots.get(&name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
@@ -3450,6 +3471,7 @@ impl<R: BufRead> Vm<R> {
                     self.snapshots.remove(&name);
                 }
                 Op::Publish(force) => {
+                    self.engine.runtime.require_internal()?;
                     if matches!(
                         self.engine.program.language.as_str(),
                         "0.5"
@@ -3497,6 +3519,7 @@ impl<R: BufRead> Vm<R> {
                     )?;
                 }
                 Op::BeginBranch => {
+                    self.engine.runtime.require_internal()?;
                     self.branches.push(BranchFrame {
                         anchor: self.engine.runtime.begin_branch(),
                         globals: self.globals.clone(),

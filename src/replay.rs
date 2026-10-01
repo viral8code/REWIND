@@ -29,6 +29,7 @@ impl Runtime {
         self.virtual_publish = true;
     }
     pub fn export_observations(&self) -> Result<Json> {
+        let external_entries = self.export_external_entries()?;
         let raw_bytes = self.byte_input.iter().fold(0usize, |n, (_, s)| {
             let (a, b) = s.usage();
             n.saturating_add(a).saturating_add(b)
@@ -76,10 +77,35 @@ impl Runtime {
             .map(|(limit, segment)| Ok((*limit, segment.bytes()?)))
             .collect::<Result<Vec<_>>>()?;
         Ok(
-            json!({"format":1,"gui_events":self.gui_observations,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
+            json!({"format":1,"external_format":1,"external_entries":external_entries,"gui_events":self.gui_observations,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
         )
     }
     pub fn import_observations(&mut self, data: &Json) -> Result<()> {
+        if !self.external_entries.is_empty() {
+            return Err(invalid("external observations require a fresh runtime"));
+        }
+        if data["format"] != 1 {
+            return Err(invalid("unsupported observation format"));
+        }
+        if data.get("external_format").is_some_and(|v| v != 1) {
+            return Err(invalid("unsupported external observation format"));
+        }
+        let external_entries: Vec<external::Entry> = data
+            .get("external_entries")
+            .map(|v| serde_json::from_value(v.clone()))
+            .transpose()
+            .map_err(|_| invalid("invalid external ledger"))?
+            .unwrap_or_default();
+        if external_entries.len() > 1_000_000 || external_entries.iter().any(|e| !e.validate()) {
+            return Err(invalid("invalid bounded external ledger"));
+        }
+        self.external_memory_bytes = external_entries
+            .iter()
+            .map(external::Entry::bytes)
+            .fold(0usize, usize::saturating_add);
+        self.external_entries = external_entries;
+        self.external_high_water = 0;
+        self.state.external_cursor = 0;
         if data["format"] != 1 {
             return Err(invalid("unsupported observation format"));
         }
@@ -256,6 +282,12 @@ impl Runtime {
                 self.next_operation,
                 self.published_epoch
             ));
+        }
+        if self.external_high_water != 0 {
+            hash.update(b"external.v1");
+            hash.update((self.state.external_cursor as u64).to_le_bytes());
+            hash.update((self.external_high_water as u64).to_le_bytes());
+            hash.update((self.external_depth as u64).to_le_bytes());
         }
         if self.incremental_publish {
             hash.update((self.state.byte_cursor as u64).to_le_bytes());

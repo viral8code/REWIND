@@ -131,9 +131,10 @@ pub(in crate::v2) fn constant_values(program: &Program) -> Result<BTreeMap<Strin
                     | StmtKind::Using(_, _)
                     | StmtKind::Runtime(_, _)
                     | StmtKind::Branch(_, _) => true,
-                    StmtKind::Block(b) | StmtKind::While(_, b) | StmtKind::For(_, _, _, b) => {
-                        boundary(b)
-                    }
+                    StmtKind::External(_, b)
+                    | StmtKind::Block(b)
+                    | StmtKind::While(_, b)
+                    | StmtKind::For(_, _, _, b) => boundary(b),
                     StmtKind::If(_, a, b) => boundary(a) || boundary(b),
                     StmtKind::Match(_, arms) => arms
                         .iter()

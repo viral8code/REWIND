@@ -15,6 +15,7 @@ mod v091;
 mod v092;
 mod v100;
 mod v11;
+mod v15;
 fn program_v09(p: &Program) -> bool {
     matches!(
         p.language.as_str(),
@@ -152,7 +153,7 @@ fn standalone_config(
     if fs::symlink_metadata(&metadata).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error::InvalidPath(metadata.display().to_string()));
     }
-    fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":["gui"], "dependencies":{}})).unwrap())?;
+    fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":["gui","external","clock"], "dependencies":{}})).unwrap())?;
     config.imports.insert("std".into(), std_root);
     Ok(config)
 }
@@ -511,6 +512,7 @@ enum StmtKind {
     Assign(Expr, String, Expr),
     Expr(Expr),
     Block(Vec<Stmt>),
+    External(bool, Vec<Stmt>),
     If(Expr, Vec<Stmt>, Vec<Stmt>),
     While(Expr, Vec<Stmt>),
     For(String, Expr, Expr, Vec<Stmt>),
@@ -1653,6 +1655,15 @@ impl Parser {
             let expr = self.expr(0)?;
             self.need(";")?;
             StmtKind::Defer(expr)
+        } else if self.is("external")
+            && self
+                .toks
+                .get(self.pos + 1)
+                .is_some_and(|t| matches!(t.text.as_str(), "{" | "fresh"))
+        {
+            self.pos += 1;
+            let fresh = self.eat("fresh");
+            StmtKind::External(fresh, self.block()?)
         } else if self.eat("commit") {
             let n = self.name()?;
             self.need(";")?;
@@ -2245,9 +2256,10 @@ fn collect_local_bindings(body: &[Stmt], out: &mut BTreeSet<String>) {
                 out.insert(name.clone());
                 collect_local_bindings(body, out);
             }
-            StmtKind::Block(body) | StmtKind::While(_, body) | StmtKind::Branch(_, body) => {
-                collect_local_bindings(body, out)
-            }
+            StmtKind::External(_, body)
+            | StmtKind::Block(body)
+            | StmtKind::While(_, body)
+            | StmtKind::Branch(_, body) => collect_local_bindings(body, out),
             StmtKind::If(_, a, b) => {
                 collect_local_bindings(a, out);
                 collect_local_bindings(b, out);
@@ -2351,7 +2363,7 @@ fn rename_stmt(stmt: &mut Stmt, names: &BTreeMap<String, String>) {
             rename_expr(a, names);
             rename_expr(b, names);
         }
-        StmtKind::Block(body) | StmtKind::Branch(_, body) => {
+        StmtKind::External(_, body) | StmtKind::Block(body) | StmtKind::Branch(_, body) => {
             for stmt in body {
                 rename_stmt(stmt, names);
             }
@@ -3897,6 +3909,7 @@ pub fn format_source(source: &str) -> Result<String> {
 }
 
 fn check_program(program: &Program) -> Result<()> {
+    v15::validate(program)?;
     v07::validate_records(program)?;
     v09::record_signatures(program)?;
     if matches!(
@@ -4173,7 +4186,7 @@ fn check_program(program: &Program) -> Result<()> {
 fn guarantees_return(body: &[Stmt]) -> bool {
     body.iter().any(|stmt| match &stmt.kind {
         StmtKind::Return(_) => true,
-        StmtKind::Block(body) => guarantees_return(body),
+        StmtKind::External(_, body) | StmtKind::Block(body) => guarantees_return(body),
         StmtKind::If(_, yes, no) => guarantees_return(yes) && guarantees_return(no),
         StmtKind::Match(_, arms) => {
             !arms.is_empty()
@@ -6812,7 +6825,9 @@ impl Checker<'_> {
                 }
                 self.expr(expr)?;
             }
-            StmtKind::Block(body) | StmtKind::Branch(_, body) => self.block(body)?,
+            StmtKind::External(_, body) | StmtKind::Block(body) | StmtKind::Branch(_, body) => {
+                self.block(body)?
+            }
             StmtKind::If(cond, yes, no) => {
                 if self.expr(cond)? != "Bool" {
                     return Err(diagnostic(&cond.at, "condition must be Bool"));
@@ -6937,7 +6952,8 @@ fn cleanup_safe(body: &[Stmt]) -> bool {
         | StmtKind::Revert(_)
         | StmtKind::Resume(_)
         | StmtKind::Drop(_)
-        | StmtKind::Branch(_, _) => false,
+        | StmtKind::Branch(_, _)
+        | StmtKind::External(_, _) => false,
         StmtKind::Block(body) | StmtKind::While(_, body) | StmtKind::For(_, _, _, body) => {
             cleanup_safe(body)
         }
@@ -7045,7 +7061,7 @@ fn cleanup_calls_publish(program: &Program, body: &[Stmt], seen: &mut BTreeSet<S
         | StmtKind::Defer(e)
         | StmtKind::Return(Some(e)) => expr(program, e, seen),
         StmtKind::Assign(a, _, b) => expr(program, a, seen) || expr(program, b, seen),
-        StmtKind::Block(body) | StmtKind::Branch(_, body) => {
+        StmtKind::External(_, body) | StmtKind::Block(body) | StmtKind::Branch(_, body) => {
             cleanup_calls_publish(program, body, seen)
         }
         StmtKind::If(e, a, b) => {
@@ -7410,6 +7426,12 @@ impl<R: BufRead> Engine<R> {
             StmtKind::Expr(e) => {
                 self.eval(e)?;
                 Ok(())
+            }
+            StmtKind::External(fresh, body) => {
+                self.runtime.enter_external(*fresh)?;
+                let result = self.block(body);
+                self.runtime.exit_external()?;
+                result
             }
             StmtKind::Block(body) => self.block(body),
             StmtKind::If(cond, yes, no) => match self.eval(cond)? {

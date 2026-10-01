@@ -10,6 +10,7 @@ pub mod map_storage;
 pub mod storage;
 use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
+pub mod external;
 mod replay;
 use journal::{Journal, Segment};
 
@@ -563,6 +564,7 @@ pub struct State {
     pub stderr: Journal,
     pub stdin_cursor: usize,
     gui_cursor: usize,
+    external_cursor: usize,
     gui_pending: Option<gui::Request>,
     pub byte_cursor: usize,
     pub time_cursor: usize,
@@ -592,6 +594,7 @@ impl Default for State {
             stderr: Journal::default(),
             stdin_cursor: 0,
             gui_cursor: 0,
+            external_cursor: 0,
             gui_pending: None,
             byte_cursor: 0,
             time_cursor: 0,
@@ -648,6 +651,10 @@ pub struct Runtime {
     gui_displayed: Option<Arc<gui::Frame>>,
     gui_observations: Vec<gui::Event>,
     gui_high_water: usize,
+    external_entries: Vec<external::Entry>,
+    external_high_water: usize,
+    external_memory_bytes: usize,
+    external_depth: usize,
     gui_scripted: Option<std::collections::VecDeque<gui::Event>>,
     byte_input: Vec<(usize, Arc<Segment>)>,
     branch_roots: RefCell<Vec<Weak<State>>>,
@@ -1069,6 +1076,10 @@ impl Runtime {
             gui_displayed: None,
             gui_observations: Vec::new(),
             gui_high_water: 0,
+            external_entries: Vec::new(),
+            external_high_water: 0,
+            external_memory_bytes: 0,
+            external_depth: 0,
             gui_scripted: None,
             byte_input: Vec::new(),
             branch_roots: RefCell::new(Vec::new()),
@@ -1429,6 +1440,7 @@ impl Runtime {
                 .as_ref()
                 .map_or(0, |v| v.iter().map(|e| e.key.len() + 160).sum::<usize>()),
         );
+        compute_memory = compute_memory.saturating_add(self.external_memory_bytes);
         let mut gui_roots = HashSet::new();
         for state in std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
@@ -1804,6 +1816,7 @@ impl Runtime {
     /// Reset transactional state and discard every user checkpoint. Observed input
     /// and published effects remain external facts, just as for ordinary revert.
     pub fn reset_begin(&mut self) -> Result<()> {
+        self.require_internal()?;
         self.state = self
             .checkpoints
             .get("begin")
@@ -1817,6 +1830,7 @@ impl Runtime {
         Ok(())
     }
     pub fn commit(&mut self, name: impl Into<String>) -> Result<()> {
+        self.require_internal()?;
         let name = name.into();
         if self.checkpoints.contains_key(&name) {
             return Err(Error::InvalidOperation(format!(
@@ -1839,6 +1853,7 @@ impl Runtime {
         Ok(())
     }
     pub fn revert(&mut self, name: &str) -> Result<()> {
+        self.require_internal()?;
         let checkpoint = self
             .checkpoints
             .get(name)
@@ -1852,6 +1867,7 @@ impl Runtime {
         Ok(())
     }
     pub fn drop_checkpoint(&mut self, name: &str) -> Result<()> {
+        self.require_internal()?;
         let removed = self
             .checkpoints
             .remove(name)
@@ -2730,6 +2746,7 @@ impl Runtime {
         stdout: &mut impl Write,
         stderr: &mut impl Write,
     ) -> Result<()> {
+        self.require_internal()?;
         if let Some(detail) = &self.publish_failure {
             return Err(Error::PublishPartiallyApplied(detail.clone()));
         }

@@ -24,7 +24,8 @@ pub(in crate::v2) fn load(
     fn restricted(body: &[Stmt]) -> bool {
         body.iter().any(|s| match &s.kind {
             StmtKind::Runtime(_, _) | StmtKind::Defer(_) | StmtKind::Using(_, _) => true,
-            StmtKind::Block(b)
+            StmtKind::External(_, b)
+            | StmtKind::Block(b)
             | StmtKind::While(_, b)
             | StmtKind::For(_, _, _, b)
             | StmtKind::Branch(_, b) => restricted(b),

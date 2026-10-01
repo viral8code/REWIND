@@ -240,7 +240,9 @@ impl Expand<'_> {
                     self.expr(a)?;
                     self.expr(b)?;
                 }
-                StmtKind::Block(b) | StmtKind::Branch(_, b) => self.body(b)?,
+                StmtKind::External(_, b) | StmtKind::Block(b) | StmtKind::Branch(_, b) => {
+                    self.body(b)?
+                }
                 StmtKind::If(e, a, b) => {
                     self.expr(e)?;
                     self.body(a)?;

@@ -39,6 +39,10 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
             }
             ExprKind::Name(n) => {
                 let n = resolve_alias(program, n);
+                if n.starts_with("stdExternal") {
+                    needs.insert("external".into());
+                    needs.insert("clock".into());
+                }
                 if n.starts_with("stdGui") && n != "stdGuiEdit" {
                     needs.insert("gui".into());
                 }
@@ -136,6 +140,10 @@ impl Scan<'_> {
                 };
                 if let Some(n) = &name {
                     let base = n.split('<').next().unwrap_or(n);
+                    if base.starts_with("stdExternal") {
+                        self.needs.insert("external".into());
+                        self.needs.insert("clock".into());
+                    }
                     if base.starts_with("stdGui") && base != "stdGuiEdit" {
                         self.needs.insert("gui".into());
                     }
@@ -368,7 +376,9 @@ impl Scan<'_> {
                         self.expr(e)?;
                     }
                 }
-                StmtKind::Block(b) | StmtKind::Branch(_, b) => self.scope(b)?,
+                StmtKind::External(_, b) | StmtKind::Block(b) | StmtKind::Branch(_, b) => {
+                    self.scope(b)?
+                }
                 StmtKind::If(e, a, b) => {
                     self.expr(e)?;
                     self.scope(a)?;
