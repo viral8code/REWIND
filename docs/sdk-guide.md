@@ -1,6 +1,6 @@
 # REWIND SDK 0.9.9
 
-Linux x86_64 の開発用配布。bin/rewind は compiler と runtime を兼ね、check/test/doc/build/run/debug/LSP を提供する。stdlib の公開APIは [std-api.json](std-api.json)、module ごとの文書は [text](std/text.md)、[number](std/number.md)、[collections](std/collections.md)、[json](std/json.md) などを参照。
+REWIND 1.0.0、Linux x86_64 のSDK。bin/rewind は compiler と runtime を兼ね、check/test/doc/build/run/debug/LSP を提供する。stdlib の公開APIは [std-api.json](std-api.json)、module ごとの文書は [text](std/text.md)、[number](std/number.md)、[collections](std/collections.md)、[json](std/json.md) などを参照。
 
 ## 単一ファイル
 
@@ -42,3 +42,5 @@ runtime の executionSteps と CLI の --task-steps は有限の実行予算を�
 主要な処理としてsort/search/sequence、heap/deque/Union-Find、整数/剰余演算、Fenwick/segment tree、BFS/DFS/Dijkstra、byte scannerを同梱する。shortest実行例でsource0の最短距離を求める。native配列はpersistentなページ単位で保持し、get/writeの木探索と返すpayloadの費用がかかる。primitive Mapはpersistent AVL、user Ord Mapは線形の費用契約に従う。std.streamのtoken/UTF-8/writerとIn.readChunk/Out.writeBytesを追加した。publish済み操作はrevert後も再送せず、新しいpending操作だけを確定する。
 
 33moduleを同梱する。KMP/Z、bitset/sparse min/rollback DSU、topological/Bellman-Ford/SCC/MST/LCA、CSV/matrix/DPを追加した。heapはsparse persistent AVLでlanguage0.9.9のVMがsafe pointで回収する。`--steps`と`--native-work`、予算と未保証範囲は[v0.9.9実装状況](v0.9.9-status.md)を参照。
+
+1.0のprivate field、where/factory推論、累積予算、構造化publish失敗、互換性の範囲は [1.0仕様](REWIND_v1.0.md) を参照してください。

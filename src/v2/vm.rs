@@ -102,7 +102,7 @@ impl Compiler {
     fn expression_type(&self, e: &Expr) -> Option<String> {
         if !matches!(
             self.typing_program.language.as_str(),
-            "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+            "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
         ) {
             return None;
         }
@@ -123,7 +123,7 @@ impl Compiler {
     fn call_name(&self, name: &str, args: &[Expr], at: &Tok) -> String {
         if !matches!(
             self.typing_program.language.as_str(),
-            "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+            "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
         ) || name.contains('<')
         {
             return name.into();
@@ -271,6 +271,7 @@ impl Compiler {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             ) && stmt.at.text == "@application-entry"
             {
                 Some(c.emit(Op::ApplicationEntry(0), &stmt.at))
@@ -291,7 +292,7 @@ impl Compiler {
         c.emit(Op::Halt, &end);
         if matches!(
             program.language.as_str(),
-            "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+            "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
         ) {
             let signatures = program
                 .functions
@@ -370,6 +371,7 @@ impl Compiler {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
                 relocate(&mut chunk.code, base, false);
@@ -420,6 +422,7 @@ impl Compiler {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             let mut code = self.code[base..].to_vec();
             relocate(&mut code, base, true);
@@ -712,7 +715,12 @@ impl Compiler {
             }
             ExprKind::Member(base, field) => {
                 if let ExprKind::Name(name) = &base.kind {
-                    if let Some(symbol) = self.aliases.get(&format!("{name}.{field}")).cloned() {
+                    if let Some(symbol) = self
+                        .aliases
+                        .get(&format!("{name}.{field}"))
+                        .filter(|_| !self.typing_scopes.iter().any(|s| s.contains_key(name)))
+                        .cloned()
+                    {
                         self.emit(Op::Load(symbol), &e.at);
                         return Ok(());
                     }
@@ -724,7 +732,14 @@ impl Compiler {
                 if let ExprKind::Member(base, method) = &target.kind {
                     if let ExprKind::Name(receiver) = &base.kind {
                         let qualified = format!("{receiver}.{method}");
-                        if let Some(symbol) = self.aliases.get(&qualified).cloned() {
+                        if let Some(symbol) = self
+                            .aliases
+                            .get(&qualified)
+                            .filter(|_| {
+                                !self.typing_scopes.iter().any(|s| s.contains_key(receiver))
+                            })
+                            .cloned()
+                        {
                             for arg in args {
                                 self.expr(arg)?;
                             }
@@ -1065,7 +1080,13 @@ impl<R: BufRead> Vm<R> {
                 .runtime
                 .import_observations(&replay["observations"])?;
         }
-        if engine.program.language == "0.9.9" {
+        if engine.program.language == "1.0.0" {
+            engine.runtime.enable_allocation_accounting();
+            if let Some(limit) = options.execution_steps {
+                engine.runtime.configure_execution_work(limit);
+            }
+        }
+        if matches!(engine.program.language.as_str(), "0.9.9" | "1.0.0") {
             engine
                 .runtime
                 .configure_native_work(options.native_work.unwrap_or(1_000_000));
@@ -1126,6 +1147,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             let message = self
                 .engine
@@ -1438,6 +1460,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             return first_error.map_or(Ok(()), |e| {
                 let mut d = self.record_error(&e, at, self.scheduler.active);
@@ -1461,6 +1484,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             first_error.map_or(Ok(()), |e| {
                 let mut message = e.to_string();
@@ -1687,6 +1711,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             )
         {
             if matches!(
@@ -1704,6 +1729,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
                     result = Err(Error::Diagnostic(Box::new(error)));
@@ -1778,6 +1804,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             ) {
                 let mut failure =
                     self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
@@ -1799,6 +1826,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             ) && !causes.is_empty()
             {
                 let mut message = result.unwrap_err().to_string();
@@ -1829,6 +1857,7 @@ impl<R: BufRead> Vm<R> {
                 | "0.9.7"
                 | "0.9.8"
                 | "0.9.9"
+                | "1.0.0"
         ) {
             outcome["diagnostic"] = execution_error
                 .and_then(|e| {
@@ -1869,6 +1898,7 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             ) {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
@@ -1946,13 +1976,16 @@ impl<R: BufRead> Vm<R> {
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
             }
             if self.cancellation_requested() {
                 return Err(self.error(&self.code[self.pc].at, "TaskCancelled"));
             }
-            if self.engine.program.language == "0.9.9" && self.engine.runtime.collection_due() {
+            if matches!(self.engine.program.language.as_str(), "0.9.9" | "1.0.0")
+                && self.engine.runtime.collection_due()
+            {
                 let mut roots = Vec::new();
                 gc_scope_roots(&self.globals, &mut roots);
                 gc_scope_roots(&self.engine.scopes, &mut roots);
@@ -1960,7 +1993,13 @@ impl<R: BufRead> Vm<R> {
                 gc_cleanup_roots(&self.global_cleanups, &mut roots);
                 gc_branch_roots(&self.branches, &mut roots);
                 self.scheduler.gc_roots(&mut roots);
-                let (_, work) = self.engine.runtime.collect_heap(&roots, self.steps)?;
+                let limit = self
+                    .engine
+                    .runtime
+                    .execution_work_remaining()
+                    .map_or(self.steps, |n| n.min(self.steps));
+                let (_, work) = self.engine.runtime.collect_heap(&roots, limit)?;
+                self.engine.runtime.charge_execution_work(work)?;
                 self.steps -= work;
             }
             let scheduler_bytes = self.scheduler.storage_bytes()
@@ -1983,6 +2022,7 @@ impl<R: BufRead> Vm<R> {
             if self.steps == 0 {
                 return Err(self.error(&self.code[self.pc].at, "ExecutionBudgetExceeded"));
             }
+            self.engine.runtime.charge_execution_work(1)?;
             self.steps -= 1;
             self.scheduler.ticks = self.scheduler.ticks.saturating_add(1);
             let inst = self.code.get(self.pc).cloned().ok_or_else(|| {
@@ -2029,6 +2069,7 @@ impl<R: BufRead> Vm<R> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) {
                     self.index_state(&inst.at)?;
                 }
@@ -2048,6 +2089,7 @@ impl<R: BufRead> Vm<R> {
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
                     event["line"] = serde_json::json!(inst.at.line);
@@ -2118,6 +2160,7 @@ impl<R: BufRead> Vm<R> {
                                     | "0.9.7"
                                     | "0.9.8"
                                     | "0.9.9"
+                                    | "1.0.0"
                             ) {
                                 let ty = v06::fn_type(
                                     &f.params,
@@ -2252,6 +2295,14 @@ impl<R: BufRead> Vm<R> {
                 Op::Binary(op) => {
                     let rhs = self.pop()?;
                     let lhs = self.pop()?;
+                    if self.engine.program.language == "1.0.0"
+                        && (matches!(lhs, Value::Text(_) | Value::Bytes(_))
+                            || matches!(rhs, Value::Text(_) | Value::Bytes(_)))
+                    {
+                        let work = v100::argument_work(&lhs, &self.engine.runtime)
+                            .saturating_add(v100::argument_work(&rhs, &self.engine.runtime));
+                        self.engine.runtime.charge_native_work(work)?;
+                    }
                     self.push(unflow(binary(&op, lhs, rhs, &inst.at), &inst.at)?)?;
                 }
                 Op::Property(field) => {
@@ -2330,6 +2381,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) && name == "reveal"
                     {
                         self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
@@ -2359,6 +2411,7 @@ impl<R: BufRead> Vm<R> {
                                 | "0.9.7"
                                 | "0.9.8"
                                 | "0.9.9"
+                                | "1.0.0"
                         )
                     {
                         let value = self.property_int(&args, &inst.at)?;
@@ -2431,6 +2484,7 @@ impl<R: BufRead> Vm<R> {
                                     | "0.9.7"
                                     | "0.9.8"
                                     | "0.9.9"
+                                    | "1.0.0"
                             ) && !needed.contains(name)
                             {
                                 continue;
@@ -2464,6 +2518,7 @@ impl<R: BufRead> Vm<R> {
                                         | "0.9.7"
                                         | "0.9.8"
                                         | "0.9.9"
+                                        | "1.0.0"
                                 ) && !needed.contains(name)
                                 {
                                     continue;
@@ -2494,6 +2549,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) {
                         let f =
                             &self.engine.program.functions[name.split('<').next().unwrap_or(&name)];
@@ -2546,6 +2602,14 @@ impl<R: BufRead> Vm<R> {
                 Op::Method(method, count) => {
                     let mut args = self.args(count)?;
                     let target = self.pop()?;
+                    if self.engine.program.language == "1.0.0" {
+                        self.engine.runtime.charge_native_work(v100::method_work(
+                            &target,
+                            &method,
+                            &args,
+                            &self.engine.runtime,
+                        ))?;
+                    }
                     if matches!(
                         self.engine.program.language.as_str(),
                         "0.6"
@@ -2561,6 +2625,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) {
                         if let Some(value) =
                             self.result_adapter(&target, &method, &args, &inst.at)?
@@ -2592,13 +2657,20 @@ impl<R: BufRead> Vm<R> {
                         continue;
                     }
                     let value = unflow(
-                        self.engine.method(target, &method, args, &inst.at),
+                        self.engine.method_inner(target, &method, args, &inst.at),
                         &inst.at,
                     )?;
                     self.push(value)?;
                 }
                 Op::Builtin(receiver, method, count) => {
                     let args = self.args(count)?;
+                    if self.engine.program.language == "1.0.0" {
+                        self.engine.runtime.charge_native_work(v100::call_work(
+                            &format!("{receiver}.{method}"),
+                            &args,
+                            &self.engine.runtime,
+                        ))?;
+                    }
                     if matches!(
                         self.engine.program.language.as_str(),
                         "0.6"
@@ -2614,6 +2686,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
                         ("Env", "getSecret") | ("In", "readSecretLine")
@@ -2716,6 +2789,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
                         Some(Value::Result(Err(_)))
@@ -2845,6 +2919,7 @@ impl<R: BufRead> Vm<R> {
                             | "0.9.7"
                             | "0.9.8"
                             | "0.9.9"
+                            | "1.0.0"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
                             return Err(self.error(&inst.at, error));
@@ -2983,6 +3058,7 @@ pub(super) fn execute(
                         | "0.9.7"
                         | "0.9.8"
                         | "0.9.9"
+                        | "1.0.0"
                 )
             {
                 vm.finish_tools(result.as_ref().err())?;
@@ -3017,6 +3093,7 @@ pub(super) fn execute(
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             )
             || options.inspect
             || options.profile
@@ -3099,7 +3176,7 @@ fn build_artifact_mode(
     let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"module":inst.at.source,"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
     let document = if matches!(
         program.language.as_str(),
-        "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+        "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
     ) && !root.join("rewind.toml").exists()
     {
         serde_json::to_string(&functions).map_err(|e| Error::InvalidOperation(e.to_string()))?
@@ -3186,6 +3263,7 @@ fn explore_test(
                     | "0.9.7"
                     | "0.9.8"
                     | "0.9.9"
+                    | "1.0.0"
             )
         {
             vm.options.record = options.record.clone();

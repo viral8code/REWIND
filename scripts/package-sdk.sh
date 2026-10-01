@@ -42,7 +42,7 @@ symbols = subprocess.check_output(['objdump', '-T', binary], text=True)
 versions = re.findall(r'GLIBC_(\d+\.\d+)', symbols)
 minimum = max(versions, key=lambda s: tuple(map(int, s.split('.'))))
 with open(output, 'w') as f:
-    json.dump(dict(version=version, commit=commit, target='x86_64-unknown-linux-gnu', minimum_glibc=minimum, sdk_public_key=public, signing_key_scope='this release only', build_command='cargo build --release --locked'), f, indent=2)
+    json.dump(dict(version=version, commit=commit, target='x86_64-unknown-linux-gnu', minimum_glibc=minimum, sdk_public_key=public, signing_key_scope='this release only', rust_toolchain='1.98.1', build_command='cargo build --release --locked'), f, indent=2)
     f.write('\n')
 PY
 # Smoke-test the actual archive after extraction, including recorded input.

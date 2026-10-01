@@ -1,0 +1,183 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "1.0.0",
+  "symbols": {
+    "fn:caused": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String",
+        "String",
+        "String"
+      ],
+      "return": "Error"
+    },
+    "fn:code": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String"
+      ],
+      "return": "Error"
+    },
+    "fn:fromDiagnostic": {
+      "async": false,
+      "cost": "O(1) envelope projection; complete cause tree remains in the original Diagnostic.",
+      "effects": [],
+      "failure": "Does not catch a fatal runtime error or grant retry permission; preserves diagnostic code and source location.",
+      "generics": [],
+      "parameters": [
+        "&Diagnostic"
+      ],
+      "return": "Error"
+    },
+    "fn:fromFile": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "FileError"
+      ],
+      "return": "Error"
+    },
+    "fn:fromJson": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "JsonError",
+        "String"
+      ],
+      "return": "Error"
+    },
+    "fn:fromStd": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "StdError",
+        "String"
+      ],
+      "return": "Error"
+    },
+    "type:Error": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "message",
+          "String"
+        ],
+        [
+          "source",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ],
+        [
+          "cause",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

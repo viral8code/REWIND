@@ -1,4 +1,4 @@
-pub struct DisjointSet{parents:List<Int>,sizes:List<Int>}
+pub struct DisjointSet{private parents:List<Int>,private sizes:List<Int>}
 pub fn create(count:Int)->Result<DisjointSet,String> effects {} {if count<0 || count>65536{return Err("Capacity");}let p=List<Int>();let s=List<Int>();var i=0;while i<count{p.add(i);s.add(1);i+=1;}return Ok(DisjointSet(p,s));}
 pub fn root(d:&mut DisjointSet,index:Int)->Result<Int,String> effects {} {if index<0 || index>=d.parents.len(){return Err("Range");}var r=index;while d.parents.get(r)!=r{r=d.parents.get(r);}var i=index;while d.parents.get(i)!=i{let next=d.parents.get(i);d.parents.set(i,r);i=next;}return Ok(r);}
 pub fn unite(d:&mut DisjointSet,a:Int,b:Int)->Result<Bool,String> effects {} {if a<0 || b<0 || a>=d.parents.len() || b>=d.parents.len(){return Err("Range");}var x=root(d,a)?;var y=root(d,b)?;if x==y{return Ok(false);}if d.sizes.get(x)<d.sizes.get(y){let t=x;x=y;y=t;}d.parents.set(y,x);d.sizes.set(x,d.sizes.get(x)+d.sizes.get(y));return Ok(true);}

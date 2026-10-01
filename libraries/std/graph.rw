@@ -2,7 +2,7 @@ import sort as sort;
 import disjointSet as disjointSet;
 import heap as heap;
 import integer as integer;
-pub struct Graph{heads:List<Int>,destinations:List<Int>,links:List<Int>,weights:List<Int>,capacity:Int}
+pub struct Graph{private heads:List<Int>,private destinations:List<Int>,private links:List<Int>,private weights:List<Int>,private capacity:Int}
 record Candidate{distance:Int,vertex:Int}
 fn compare(a:Candidate,b:Candidate)->Int effects {} {if a.distance<b.distance{return -1;}if a.distance>b.distance{return 1;}if a.vertex<b.vertex{return -1;}if a.vertex>b.vertex{return 1;}return 0;}
 pub fn create(vertices:Int,capacity:Int)->Result<Graph,String> effects {} {if vertices<0 || vertices>65536 || capacity<0 || capacity>65536{return Err("Capacity");}let heads=List<Int>();var i=0;while i<vertices{heads.add(-1);i+=1;}return Ok(Graph(heads,List<Int>(),List<Int>(),List<Int>(),capacity));}
@@ -38,7 +38,7 @@ pub fn minimumForest(graph:&Graph)->Result<Forest,String> effects {} {
  let n=graph.heads.len();let candidates=List<WeightedEdge>();var v=0;while v<n{var edge=graph.heads.get(v);while edge!=-1{candidates.add(WeightedEdge(graph.weights.get(edge),v,graph.destinations.get(edge)));edge=graph.links.get(edge);}v+=1;}
  let sorted=sort.stable(&candidates,compareEdge);let set=disjointSet.create(n)?;let froms=List<Int>();let tos=List<Int>();var count=n;var weight=0;var i=0;while i<sorted.len(){let edge=sorted.get(i);if disjointSet.unite(&mut set,edge.from,edge.to)?{weight=integer.add(weight,edge.weight)?;count-=1;froms.add(edge.from);tos.add(edge.to);}i+=1;}return Ok(Forest(weight,count,froms,tos));
 }
-pub struct Ancestors{jumps:List<Int>,depths:List<Int>,length:Int,levels:Int}
+pub struct Ancestors{private jumps:List<Int>,private depths:List<Int>,private length:Int,private levels:Int}
 // A directed rooted tree: root has no incoming edge, every other vertex has one.
 pub fn ancestors(graph:&Graph,root:Int)->Result<Ancestors,String> effects {} {
  let n=graph.heads.len();if root<0 || root>=n{return Err("Range");}if n>4096{return Err("Capacity");}if graph.destinations.len()!=n-1{return Err("Tree");}let parents=List<Int>();let depths=List<Int>();var i=0;while i<n{parents.add(-1);depths.add(-1);i+=1;}
@@ -48,3 +48,6 @@ pub fn ancestors(graph:&Graph,root:Int)->Result<Ancestors,String> effects {} {
 pub fn lca(tree:&Ancestors,a:Int,b:Int)->Result<Int,String> effects {} {
  if a<0 || b<0 || a>=tree.length || b>=tree.length{return Err("Range");}var x=a;var y=b;if tree.depths.get(x)<tree.depths.get(y){let t=x;x=y;y=t;}var distance=tree.depths.get(x)-tree.depths.get(y);var level=0;while distance>0{if distance%2==1{x=tree.jumps.get(level*tree.length+x);}distance/=2;level+=1;}if x==y{return Ok(x);}level=tree.levels;while level>0{level-=1;let px=tree.jumps.get(level*tree.length+x);let py=tree.jumps.get(level*tree.length+y);if px!=py{x=px;y=py;}}return Ok(tree.jumps.get(x));
 }
+
+pub fn vertices(graph:&Graph)->Int effects {} {return graph.heads.len();}
+pub fn edges(graph:&Graph)->Int effects {} {return graph.destinations.len();}

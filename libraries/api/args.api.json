@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "fn:help": {
       "async": false,
@@ -33,6 +33,7 @@
       "return": "Result<Map<String,String>,ArgError>"
     },
     "type:ArgError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -86,6 +87,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -108,6 +110,7 @@
       "kind": "record"
     },
     "type:OptionSpec": {
+      "constructor": true,
       "fields": [
         [
           "name",
@@ -130,6 +133,7 @@
       "kind": "record"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",

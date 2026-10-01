@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "fn:build": {
       "async": false,
@@ -18,6 +18,20 @@
         "fn(T,T)->T!{}~{Send+Share}"
       ],
       "return": "Result<Segment<T>,String>"
+    },
+    "fn:length": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Segment<T>"
+      ],
+      "return": "Int"
     },
     "fn:query": {
       "async": false,
@@ -52,6 +66,30 @@
         "fn(T,T)->T!{}~{Send+Share}"
       ],
       "return": "Result<Unit,String>"
+    },
+    "fn:tryUpdated": {
+      "async": false,
+      "cost": "O(n) copy plus O(log n) callback evaluations; n <= 32768.",
+      "effects": [],
+      "failure": "Range returns rangeError; first callback Err(E) is returned; borrowed tree remains unchanged on all failures.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Segment<T>",
+        "Int",
+        "T",
+        "E",
+        "fn(T,T)->Result<T,E>!{}~{Send+Share}"
+      ],
+      "return": "Result<Segment<T>,E>"
     },
     "type:Json": {
       "generics": [],
@@ -97,6 +135,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -122,30 +161,15 @@
       "bounds": {
         "T": "Share"
       },
-      "fields": [
-        [
-          "values",
-          "List<T>"
-        ],
-        [
-          "length",
-          "Int"
-        ],
-        [
-          "size",
-          "Int"
-        ],
-        [
-          "identity",
-          "T"
-        ]
-      ],
+      "constructor": false,
+      "fields": [],
       "generics": [
         "T"
       ],
       "kind": "struct"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",

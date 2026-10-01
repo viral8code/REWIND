@@ -543,9 +543,48 @@ fn exit_status(error: &Error) -> i32 {
         _ => 64,
     }
 }
+/// Address-space admission applies to compiler and runtime, including native allocations.
+fn process_memory_limit(mib: usize) -> Result<()> {
+    if mib < 64 || mib > 1024 * 1024 {
+        return Err(Error::InvalidOperation(
+            "ProcessMemoryBudget: --memory-mib must be 64..1048576".into(),
+        ));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let bytes = mib
+            .checked_mul(1024 * 1024)
+            .ok_or_else(|| Error::InvalidOperation("ProcessMemoryBudget: overflow".into()))?;
+        let mut limit = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        if unsafe { libc::getrlimit(libc::RLIMIT_AS, &mut limit) } != 0 {
+            return Err(io::Error::last_os_error().into());
+        }
+        limit.rlim_cur = (bytes as libc::rlim_t)
+            .min(limit.rlim_max)
+            .min(limit.rlim_cur);
+        if unsafe { libc::setrlimit(libc::RLIMIT_AS, &limit) } != 0 {
+            return Err(io::Error::last_os_error().into());
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err(Error::InvalidOperation(
+            "ProcessMemoryBudget: --memory-mib requires Linux".into(),
+        ))
+    }
+}
+
 fn main() {
     let mut arguments = Vec::new();
     let mut format = "text".to_string();
+    #[cfg(target_os = "linux")]
+    let mut memory_limit = Ok(Some(2048));
+    #[cfg(not(target_os = "linux"))]
+    let mut memory_limit = Ok(None);
     let mut raw = env::args().skip(1);
     let mut application = false;
     while let Some(arg) = raw.next() {
@@ -554,6 +593,16 @@ fn main() {
         }
         if !application && arg == "--diagnostic-format" {
             format = raw.next().unwrap_or_default();
+        } else if !application && arg == "--memory-mib" {
+            memory_limit = raw
+                .next()
+                .and_then(|s| s.parse::<usize>().ok())
+                .map(Some)
+                .ok_or_else(|| {
+                    Error::InvalidOperation(
+                        "ProcessMemoryBudget: --memory-mib requires an integer".into(),
+                    )
+                });
         } else {
             arguments.push(arg);
         }
@@ -566,7 +615,7 @@ fn main() {
         .first()
         .is_some_and(|a| a == "--help" || a == "-h")
     {
-        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nBudgets: --steps N, --native-work N, --task-steps N.\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment and clock access require explicit permission.", env!("CARGO_PKG_VERSION"));
+        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nBudgets: --steps N, --native-work N, --task-steps N, --memory-mib N (Linux).\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment and clock access require explicit permission.", env!("CARGO_PKG_VERSION"));
         return;
     }
     if arguments.first().is_some_and(|a| a == "--version") {
@@ -580,7 +629,12 @@ fn main() {
         arguments.insert(0, "run".into());
     }
     let result = if matches!(format.as_str(), "text" | "json") {
-        run_cli(arguments)
+        memory_limit.and_then(|limit| {
+            if let Some(mib) = limit {
+                process_memory_limit(mib)?;
+            }
+            run_cli(arguments)
+        })
     } else {
         Err(Error::InvalidOperation(
             "diagnostic format must be text or json".into(),
@@ -596,7 +650,7 @@ fn main() {
             };
             eprintln!(
                 "{}",
-                serde_json::json!({"exit_status":status,"message":error.to_string(),"diagnostic":diagnostic,"retryable":false,"retry_hint":if status==72 {"reload_and_decide"}else{"none"}})
+                serde_json::json!({"exit_status":status,"message":error.to_string(),"diagnostic":diagnostic,"publish_failure":error.publish_report(),"retryable":false,"retry_hint":if status==72 {"reload_and_decide"}else{"none"}})
             );
         } else {
             eprintln!("rewind: {error}");

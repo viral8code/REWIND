@@ -1,3 +1,6 @@
+import error as error;
+import sort as sort;
+import segment as segment;
 import csv as csv;
 import matrix as matrix;
 import dp as dp;
@@ -76,7 +79,6 @@ test fn folds_maps_and_result_branches() {
     assert_eq(result.mapError(good,|s:String|->String{return "mapped";}),Ok(3));assert_eq(result.mapError(bad,|s:String|->String{return "mapped";}),Err("mapped"));
 }
 
-import sort as sort;
 import search as search;
 import sequence as sequence;
 import heap as heap;
@@ -96,7 +98,6 @@ test fn deque_dsu_and_number_theory(){
  assert_eq(integer.gcd(-24,18),Ok(6));assert_eq(integer.gcd(-9223372036854775807-1,2),Ok(2));assert_eq(integer.lcm(6,8),Ok(24));assert_eq(integer.combination(10,3),Ok(120));assert_eq(integer.multiply(-1,-9223372036854775807-1),Err("Overflow"));assert_eq(modular.power(2,10,1000),Ok(24));assert_eq(modular.inverse(3,11),Ok(4));assert_eq(modular.inverse(2,4),Err("NonInvertible"));
 }
 import fenwick as fenwick;
-import segment as segment;
 import graph as graph;
 test fn ranges_and_graphs(){
  match fenwick.create(4){Ok(t)=>{assert_eq(fenwick.add(&mut t,0,2),Ok(()));assert_eq(fenwick.add(&mut t,2,5),Ok(()));assert_eq(fenwick.range(&t,0,3),Ok(7));assert_eq(fenwick.range(&t,1,3),Ok(5));},Err(_)=>{panic("fenwick");}}
@@ -126,3 +127,15 @@ test fn exact_search_and_bitset()->Unit effects {} {
 test fn graph_components_and_forest()->Unit effects {} {match graph.create(3,3){Ok(g)=>{graph.add(&mut g,0,1,2);graph.add(&mut g,1,0,2);graph.add(&mut g,1,2,1);match graph.components(&g){Ok(ids)=>{assert_eq(ids.get(0),ids.get(1));assert(ids.get(1)!=ids.get(2));},Err(_)=>{panic("scc");}}match graph.minimumForest(&g){Ok(f)=>{assert_eq(f.weight,3);},Err(_)=>{panic("forest");}}},Err(_)=>{panic("graph");}}}
 
 test fn csv_roundtrip_and_dynamic_programming()->Unit effects {} {match stdEncode("a,b\n"){Ok(input)=>{match csv.parse(input){Ok(table)=>{assert_eq(csv.get(&table,0,1),Ok("b"));match csv.format(&table){Ok(output)=>{match csv.parse(output){Ok(copy)=>{assert_eq(csv.rows(&copy),1);},Err(_)=>{panic("csv");}}},Err(_)=>{panic("format");}}},Err(_)=>{panic("csv");}}},Err(_)=>{panic("encode");}}let values=List<Int>();values.add(2);values.add(1);values.add(3);assert_eq(dp.lisLength(&values),Ok(2));}
+
+test fn fallible_callbacks_leave_originals_unchanged()->Unit effects {} {
+ let values=List<Int>();values.add(3);values.add(1);values.add(2);
+ assert_eq(sort.tryStable(&values,|a:Int,b:Int|->Result<Int,String>{return Err("Compare");}),Err("Compare"));assert_eq(values.get(0),3);
+ match sort.tryStable(&values,|a:Int,b:Int|->Result<Int,String>{if a<b{return Ok(-1);}if a>b{return Ok(1);}return Ok(0);}){Ok(sorted)=>{assert_eq(sorted.get(0),1);assert_eq(sorted.get(2),3);},Err(_)=>{panic("sort");}}
+ match segment.build(&values,0,|a:Int,b:Int|->Int{return a+b;}){Err(_)=>{panic("tree");},Ok(tree)=>{
+ assert_eq(segment.tryUpdated(&tree,1,9,"Range",|a:Int,b:Int|->Result<Int,String>{return Err("Combine");}),Err("Combine"));
+ assert_eq(segment.query(&tree,0,3,|a:Int,b:Int|->Int{return a+b;}),Ok(6));
+ match segment.tryUpdated(&tree,1,9,"Range",|a:Int,b:Int|->Result<Int,String>{return Ok(a+b);}){Err(_)=>{panic("update");},Ok(updated)=>{assert_eq(segment.query(&updated,0,3,|a:Int,b:Int|->Int{return a+b;}),Ok(14));assert_eq(segment.query(&tree,0,3,|a:Int,b:Int|->Int{return a+b;}),Ok(6));}}
+ }}
+ let converted=error.fromStd(StdError("Range",7),"input");assert_eq(converted.code,"Range");assert_eq(converted.offset,7);assert_eq(converted.source,"input");
+}

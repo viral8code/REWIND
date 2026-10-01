@@ -20,7 +20,16 @@ const NAMES: &[&str] = &[
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
     if !matches!(
         p.language.as_str(),
-        "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+        "0.9.1"
+            | "0.9.2"
+            | "0.9.3"
+            | "0.9.4"
+            | "0.9.5"
+            | "0.9.6"
+            | "0.9.7"
+            | "0.9.8"
+            | "0.9.9"
+            | "1.0.0"
     ) {
         return Ok(());
     }
@@ -64,6 +73,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     p.structs.insert(
         "JsonError".into(),
         StructDef {
+            private_fields: BTreeSet::new(),
             type_params: vec![],
             bounds: BTreeMap::new(),
             immutable: true,
@@ -125,7 +135,16 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
     if !matches!(
         p.language.as_str(),
-        "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+        "0.9.1"
+            | "0.9.2"
+            | "0.9.3"
+            | "0.9.4"
+            | "0.9.5"
+            | "0.9.6"
+            | "0.9.7"
+            | "0.9.8"
+            | "0.9.9"
+            | "1.0.0"
     ) || !NAMES.contains(&n)
     {
         return Ok(None);

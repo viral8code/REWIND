@@ -135,16 +135,18 @@ fn publication_ledger_is_charged_to_history_budget() {
     .unwrap();
     let mut out = vec![];
     let mut err = vec![];
-    for _ in 0..3 {
+    for i in 0..3 {
         rt.print_out("x").unwrap();
+        rt.commit(format!("retained-{i}")).unwrap();
         rt.publish(false, &mut out, &mut err).unwrap();
     }
     let mut failed = false;
-    for _ in 0..4 {
+    for i in 0..4 {
         if rt.print_out("x").is_err() {
             failed = true;
             break;
         }
+        rt.commit(format!("more-{i}")).unwrap();
         rt.publish(false, &mut out, &mut err).unwrap();
     }
     assert!(failed);

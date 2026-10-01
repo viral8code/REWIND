@@ -408,7 +408,7 @@ fn analyze_flat(
                     needs.calls.extend(matching_methods(program, &ty, m));
                     if let Some(bound) = bounds.get(&ty) {
                         for ((trait_name, _), methods) in &program.impls {
-                            if trait_name == bound {
+                            if bound.split('+').any(|b| b == trait_name) {
                                 if let Some(symbol) = methods.get(m) {
                                     needs.calls.insert(symbol.clone());
                                 }

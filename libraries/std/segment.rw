@@ -1,4 +1,16 @@
-pub struct Segment<T:Share>{values:List<T>,length:Int,size:Int,identity:T}
+pub struct Segment<T:Share>{private values:List<T>,private length:Int,private size:Int,private identity:T}
 pub fn build<T:Share>(input:&List<T>,identity:T,combine:fn(T,T)->T effects {} captures {Send,Share})->Result<Segment<T>,String> effects {} {if input.len()>32768{return Err("Capacity");}var size=1;while size<input.len(){size*=2;}let xs=List<T>();var i=0;while i<size*2{xs.add(identity);i+=1;}i=0;while i<input.len(){xs.set(size+i,input.get(i));i+=1;}i=size-1;while i>0{xs.set(i,combine(xs.get(i*2),xs.get(i*2+1)));i-=1;}let length=input.len();return Ok(Segment<T>(xs,length,size,identity));}
 pub fn set<T:Share>(tree:&mut Segment<T>,index:Int,value:T,combine:fn(T,T)->T effects {} captures {Send,Share})->Result<Unit,String> effects {} {if index<0 || index>=tree.length{return Err("Range");}var p=tree.size+index;tree.values.set(p,value);p/=2;while p>0{tree.values.set(p,combine(tree.values.get(p*2),tree.values.get(p*2+1)));p/=2;}return Ok(());}
 pub fn query<T:Share>(tree:&Segment<T>,start:Int,end:Int,combine:fn(T,T)->T effects {} captures {Send,Share})->Result<T,String> effects {} {if start<0 || end<start || end>tree.length{return Err("Range");}var l=start+tree.size;var r=end+tree.size;var left=tree.identity;var right=tree.identity;while l<r{if l%2==1{left=combine(left,tree.values.get(l));l+=1;}if r%2==1{r-=1;right=combine(tree.values.get(r),right);}l/=2;r/=2;}return Ok(combine(left,right));}
+
+pub fn length<T:Share>(tree:&Segment<T>)->Int effects {} {return tree.length;}
+
+// @api tryUpdated cost O(n) copy plus O(log n) callback evaluations; n <= 32768.
+// @api tryUpdated failure Range returns rangeError; first callback Err(E) is returned; borrowed tree remains unchanged on all failures.
+pub fn tryUpdated<T:Share,E:Share>(tree:&Segment<T>,index:Int,value:T,rangeError:E,combine:fn(T,T)->Result<T,E> effects {} captures {Send,Share})->Result<Segment<T>,E> effects {} {
+ if index<0 || index>=tree.length{return Err(rangeError);}let values=List<T>();var i=0;while i<tree.values.len(){values.add(tree.values.get(i));i+=1;}
+ var p=tree.size+index;values.set(p,value);p/=2;while p>0{let combined=combine(values.get(p*2),values.get(p*2+1))?;values.set(p,combined);p/=2;}
+ return Ok(assemble(move values,tree.length,tree.size,tree.identity));
+}
+
+fn assemble<T:Share>(values:List<T>,length:Int,size:Int,identity:T)->Segment<T> effects {} {return Segment<T>(values,length,size,identity);}

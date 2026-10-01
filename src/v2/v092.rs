@@ -37,7 +37,7 @@ pub(super) fn names() -> &'static [&'static str] {
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
     if !matches!(
         p.language.as_str(),
-        "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+        "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
     ) {
         return Ok(());
     }
@@ -58,6 +58,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     p.structs.insert(
         "StdError".into(),
         StructDef {
+            private_fields: BTreeSet::new(),
             bounds: BTreeMap::new(),
             immutable: true,
             type_params: vec![],
@@ -104,7 +105,7 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
     if !matches!(
         p.language.as_str(),
-        "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+        "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
     ) || !names().contains(&n)
     {
         return Ok(None);
@@ -112,7 +113,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if n == "stdBytesFromList"
         && !matches!(
             p.language.as_str(),
-            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+            "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0"
         )
     {
         return Ok(None);

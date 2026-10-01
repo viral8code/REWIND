@@ -1,8 +1,17 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
+    "fn:length": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&SparseMin"
+      ],
+      "return": "Int"
+    },
     "fn:minimum": {
       "async": false,
       "effects": [],
@@ -67,6 +76,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -89,24 +99,13 @@
       "kind": "record"
     },
     "type:SparseMin": {
-      "fields": [
-        [
-          "values",
-          "List<Int>"
-        ],
-        [
-          "logs",
-          "List<Int>"
-        ],
-        [
-          "length",
-          "Int"
-        ]
-      ],
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "struct"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",

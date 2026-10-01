@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "0.9.9",
+  "language": "1.0.0",
   "symbols": {
     "fn:inPlace": {
       "async": false,
@@ -41,6 +41,27 @@
         "fn(T,T)->Int!{}~{Send+Share}"
       ],
       "return": "List<T>"
+    },
+    "fn:tryStable": {
+      "async": false,
+      "cost": "O(n log n) comparisons and temporary elements; caller work budget applies.",
+      "effects": [],
+      "failure": "First callback Err(E) is returned; borrowed input is unchanged, including on fatal budget failure.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&List<T>",
+        "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
+      ],
+      "return": "Result<List<T>,E>"
     },
     "type:Json": {
       "generics": [],
@@ -86,6 +107,7 @@
       }
     },
     "type:JsonError": {
+      "constructor": true,
       "fields": [
         [
           "code",
@@ -108,6 +130,7 @@
       "kind": "record"
     },
     "type:StdError": {
+      "constructor": true,
       "fields": [
         [
           "code",

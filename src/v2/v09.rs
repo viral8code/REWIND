@@ -9,6 +9,13 @@ pub(in crate::v2) fn record_arguments(
     bounds: &BTreeMap<String, String>,
     at: &Tok,
 ) -> Result<()> {
+    for (param, bound) in s.bounds.iter().filter(|_| p.language == "1.0.0") {
+        if let Some(ty) = sub.get(param) {
+            if !trait_satisfied(p, bound, ty) && !bound_provided(bounds, ty, bound) {
+                return Err(diagnostic(at, format!("{ty} does not implement {bound}")));
+            }
+        }
+    }
     if program_v09(p) && s.immutable {
         for param in &s.type_params {
             if !sub
@@ -119,7 +126,16 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
         installed.lock(output, false)?;
         if matches!(
             p.language.as_str(),
-            "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9"
+            "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
+                | "1.0.0"
         ) {
             v091::write_release(output, &installed)?;
         }
