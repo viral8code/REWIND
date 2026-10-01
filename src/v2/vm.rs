@@ -2975,17 +2975,17 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::Revert(name) => {
-                    let snap = self.snapshots.get(&name).cloned().ok_or_else(|| {
+                    let mut snap = self.snapshots.get(&name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
                     let saved_ids = snap.frames.iter().map(|f| f.id).collect::<Vec<_>>();
                     let current_ids = self.frames.iter().map(|f| f.id).collect::<Vec<_>>();
-                    let scopes_match = snap.globals.len() == self.globals.len()
+                    let scopes_match = snap.globals.len() <= self.globals.len()
                         && snap
                             .frames
                             .iter()
                             .zip(&self.frames)
-                            .all(|(a, b)| a.scopes.len() == b.scopes.len());
+                            .all(|(a, b)| a.scopes.len() <= b.scopes.len());
                     if saved_ids != current_ids
                         || !scopes_match
                         || snap.stack_len != self.engine.runtime.state().stack.len()
@@ -2993,8 +2993,18 @@ impl<R: BufRead> Vm<R> {
                     {
                         return Err(self.error(
                             &inst.at,
-                            "InvalidContinuation: call frame is no longer present",
+                            "InvalidContinuation: checkpoint call frames, scopes, stack or branch context are incompatible with the current continuation",
                         ));
+                    }
+                    // Revert restores data, but continues at the current instruction.
+                    // Keep the active block structure so subsequent Exit/break/return
+                    // instructions still unwind the correct number of scopes. Bindings
+                    // and cleanups created after the checkpoint must not survive.
+                    snap.globals.resize_with(self.globals.len(), BTreeMap::new);
+                    for (saved, current) in snap.frames.iter_mut().zip(&self.frames) {
+                        saved
+                            .scopes
+                            .resize_with(current.scopes.len(), BTreeMap::new);
                     }
                     let after = self.pc;
                     self.engine.runtime.revert(&name)?;
