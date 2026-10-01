@@ -1,3 +1,5 @@
+import sort as sort;
+import disjointSet as disjointSet;
 import heap as heap;
 import integer as integer;
 pub struct Graph{heads:List<Int>,destinations:List<Int>,links:List<Int>,weights:List<Int>,capacity:Int}
@@ -11,4 +13,38 @@ pub fn dijkstra(graph:&Graph,source:Int)->Result<List<Option<Int>>,String> effec
  while queue.len()>0{var current=Candidate(0,source);match heap.pop(&mut queue,compare){Some(v)=>{current=v;},None=>{break;}}var known=-1;match distance.get(current.vertex){Some(v)=>{known=v;},None=>{}}
   if known==current.distance{var edge=graph.heads.get(current.vertex);while edge!=-1{let next=graph.destinations.get(edge);let candidate=integer.add(current.distance,graph.weights.get(edge))?;var improve=false;match distance.get(next){None=>{improve=true;},Some(old)=>{improve=candidate<old;}}if improve{distance.set(next,Some(candidate));heap.push(&mut queue,Candidate(candidate,next),graph.capacity+1,compare)?;}edge=graph.links.get(edge);}}
  }return Ok(distance);
+}
+// Deterministic Kahn order; ties follow vertex initialization and adjacency order.
+pub fn topological(graph:&Graph)->Result<List<Int>,String> effects {} {
+ let n=graph.heads.len();let degree=List<Int>();let queue=List<Int>();let out=List<Int>();var i=0;while i<n{degree.add(0);i+=1;}i=0;while i<graph.destinations.len(){let to=graph.destinations.get(i);degree.set(to,degree.get(to)+1);i+=1;}i=0;while i<n{if degree.get(i)==0{queue.add(i);}i+=1;}var cursor=0;
+ while cursor<queue.len(){let v=queue.get(cursor);cursor+=1;out.add(v);var edge=graph.heads.get(v);while edge!=-1{let to=graph.destinations.get(edge);degree.set(to,degree.get(to)-1);if degree.get(to)==0{queue.add(to);}edge=graph.links.get(edge);}}if out.len()!=n{return Err("Cycle");}return Ok(out);
+}
+pub fn bellmanFord(graph:&Graph,source:Int)->Result<List<Option<Int>>,String> effects {} {
+ let n=graph.heads.len();if source<0 || source>=n{return Err("Range");}let distance=List<Option<Int>>();var i=0;while i<n{distance.add(None);i+=1;}distance.set(source,Some(0));var round=0;
+ while round<n{var changed=false;var v=0;while v<n{match distance.get(v){None=>{},Some(d)=>{var edge=graph.heads.get(v);while edge!=-1{let to=graph.destinations.get(edge);let candidate=integer.add(d,graph.weights.get(edge))?;var improve=false;match distance.get(to){None=>{improve=true;},Some(old)=>{improve=candidate<old;}}if improve{if round==n-1{return Err("NegativeCycle");}distance.set(to,Some(candidate));changed=true;}edge=graph.links.get(edge);}}}v+=1;}if !changed{return Ok(distance);}round+=1;}return Ok(distance);
+}
+// Iterative Kosaraju; component identifiers are dense from zero.
+pub fn components(graph:&Graph)->Result<List<Int>,String> effects {} {
+ let n=graph.heads.len();let reverse=create(n,graph.destinations.len())?;var v=0;while v<n{var edge=graph.heads.get(v);while edge!=-1{add(&mut reverse,graph.destinations.get(edge),v,0)?;edge=graph.links.get(edge);}v+=1;}
+ let seen=List<Bool>();let ids=List<Int>();let order=List<Int>();v=0;while v<n{seen.add(false);ids.add(-1);v+=1;}let vertices=List<Int>();let edges=List<Int>();v=0;
+ while v<n{if !seen.get(v){seen.set(v,true);vertices.add(v);edges.add(graph.heads.get(v));while vertices.len()>0{let p=vertices.len()-1;let current=vertices.get(p);let edge=edges.get(p);if edge==-1{vertices.pop();edges.pop();order.add(current);}else{edges.set(p,graph.links.get(edge));let to=graph.destinations.get(edge);if !seen.get(to){seen.set(to,true);vertices.add(to);edges.add(graph.heads.get(to));}}}}v+=1;}
+ var component=0;var cursor=order.len();while cursor>0{cursor-=1;let start=order.get(cursor);if ids.get(start)==-1{ids.set(start,component);vertices.add(start);while vertices.len()>0{var current=0;match vertices.pop(){Some(x)=>{current=x;},None=>{panic("stack");}}var edge=reverse.heads.get(current);while edge!=-1{let to=reverse.destinations.get(edge);if ids.get(to)==-1{ids.set(to,component);vertices.add(to);}edge=reverse.links.get(edge);}}component+=1;}}return Ok(ids);
+}
+record WeightedEdge{weight:Int,from:Int,to:Int}
+fn compareEdge(a:WeightedEdge,b:WeightedEdge)->Int effects {} {if a.weight<b.weight{return -1;}if a.weight>b.weight{return 1;}if a.from<b.from{return -1;}if a.from>b.from{return 1;}if a.to<b.to{return -1;}if a.to>b.to{return 1;}return 0;}
+pub struct Forest{weight:Int,components:Int,froms:List<Int>,tos:List<Int>}
+// Each directed edge is interpreted as an undirected candidate, including duplicates.
+pub fn minimumForest(graph:&Graph)->Result<Forest,String> effects {} {
+ let n=graph.heads.len();let candidates=List<WeightedEdge>();var v=0;while v<n{var edge=graph.heads.get(v);while edge!=-1{candidates.add(WeightedEdge(graph.weights.get(edge),v,graph.destinations.get(edge)));edge=graph.links.get(edge);}v+=1;}
+ let sorted=sort.stable(&candidates,compareEdge);let set=disjointSet.create(n)?;let froms=List<Int>();let tos=List<Int>();var count=n;var weight=0;var i=0;while i<sorted.len(){let edge=sorted.get(i);if disjointSet.unite(&mut set,edge.from,edge.to)?{weight=integer.add(weight,edge.weight)?;count-=1;froms.add(edge.from);tos.add(edge.to);}i+=1;}return Ok(Forest(weight,count,froms,tos));
+}
+pub struct Ancestors{jumps:List<Int>,depths:List<Int>,length:Int,levels:Int}
+// A directed rooted tree: root has no incoming edge, every other vertex has one.
+pub fn ancestors(graph:&Graph,root:Int)->Result<Ancestors,String> effects {} {
+ let n=graph.heads.len();if root<0 || root>=n{return Err("Range");}if n>4096{return Err("Capacity");}if graph.destinations.len()!=n-1{return Err("Tree");}let parents=List<Int>();let depths=List<Int>();var i=0;while i<n{parents.add(-1);depths.add(-1);i+=1;}
+ var v=0;while v<n{var edge=graph.heads.get(v);while edge!=-1{let to=graph.destinations.get(edge);if to==root || parents.get(to)!=-1{return Err("Tree");}parents.set(to,v);edge=graph.links.get(edge);}v+=1;}parents.set(root,root);depths.set(root,0);let queue=List<Int>();queue.add(root);var cursor=0;while cursor<queue.len(){let current=queue.get(cursor);cursor+=1;var edge=graph.heads.get(current);while edge!=-1{let to=graph.destinations.get(edge);if depths.get(to)!=-1{return Err("Tree");}depths.set(to,depths.get(current)+1);queue.add(to);edge=graph.links.get(edge);}}if queue.len()!=n{return Err("Tree");}
+ let jumps=List<Int>();i=0;while i<n{jumps.add(parents.get(i));i+=1;}var levels=1;var width=2;while width<=n{i=0;while i<n{let parent=jumps.get((levels-1)*n+i);jumps.add(jumps.get((levels-1)*n+parent));i+=1;}levels+=1;width*=2;}return Ok(Ancestors(jumps,depths,n,levels));
+}
+pub fn lca(tree:&Ancestors,a:Int,b:Int)->Result<Int,String> effects {} {
+ if a<0 || b<0 || a>=tree.length || b>=tree.length{return Err("Range");}var x=a;var y=b;if tree.depths.get(x)<tree.depths.get(y){let t=x;x=y;y=t;}var distance=tree.depths.get(x)-tree.depths.get(y);var level=0;while distance>0{if distance%2==1{x=tree.jumps.get(level*tree.length+x);}distance/=2;level+=1;}if x==y{return Ok(x);}level=tree.levels;while level>0{level-=1;let px=tree.jumps.get(level*tree.length+x);let py=tree.jumps.get(level*tree.length+y);if px!=py{x=px;y=py;}}return Ok(tree.jumps.get(x));
 }
