@@ -29,7 +29,48 @@ rewind main.rwc
 
 受入条件は、新しいdirectoryで`main.rw`だけを書き、上のコマンドで実行できること。Hello World、標準入力、stdのsort/graph、隣接moduleのimport、別directoryからの起動、空白を含むpath、ソース/依存変更後の再実行、source-free成果物、型エラーと終了コードを確認する。manifest付きprojectのlock/trust/capability拒否とrecord/replayも回帰検証する。
 
-この項目は起動・コンパイル操作の簡略化を対象とする。言語内の`publish`と仮想I/Oの確定規則は維持し、入門文書で説明する。
+この項目は起動・コンパイル操作の簡略化を対象とする。言語内の`publish`は明示操作として維持する。publishをまたぐ巻き戻しの規則は次項で改修し、入門文書で説明する。
+
+### P0: publishで確定した履歴と、巻き戻せる作業状態を分ける
+
+利用者の意図はGitのbranchに近い。保存した地点から計算をやり直せる一方、`publish`で外部へ反映した部分は確定し、以後の作業を次の`publish`で追加確定する。言語の`commit NAME`はCheckpointの保存であり、外部への確定は`publish`が担う。Gitの用語とこの違いを入門文書で説明する。
+
+v0.9.3はstdout/stderrの履歴をCheckpointごと復元し、以前のpublishより短い履歴の再publishを拒否する。このため以下は`99`の表示後、最後のpublishで失敗する。v0.9.4では正常に完了し、`99`と`10`を一度ずつ順に表示することを必須の受入条件とする。
+
+```rewind
+var score = 10;
+commit test1;
+
+score = 99;
+Out.println(score);
+commit test2;
+publish;
+
+revert test1;
+Out.println(score);
+publish;
+```
+
+```text
+99
+10
+```
+
+採用する意味を次のように定義する。
+
+- **確定済み履歴**：実際に公開した出力・file変更と、その公開済み範囲を示すledger。Checkpointの復元対象から分離する。`revert`・`resume`で表示済みの行を消したり、既存の公開を未公開へ戻したりしない。
+- **作業状態**：変数・heap・実行位置・task等と、未公開の仮想I/O。Checkpointで保存・復元する。`revert`後に新たに実行した出力やfile変更は未公開の作業となり、次の`publish`で確定する。
+- **追加確定**：`publish`は現在の作業にある未公開部分だけを外部へ反映する。以前の出力履歴全体とのprefix一致を条件にしない。変更がない連続publishは出力を再送しない。
+- **未公開の巻き戻し**：publish前に`revert`した場合、そのCheckpointより後の未公開出力・変更は破棄する。最初の例のように一度もpublishせず戻した`99`は表示されず、`10`だけになる。
+- **Checkpointに残る公開済み操作**：`test2`には`99`の出力が保存されているが、公開後に`revert test2`しても再送しない。操作の識別子と公開済みledgerで除外する。復元後に同じ命令を新たに実行した出力は別操作として扱い、同じ文字列だからという理由では除外しない。
+
+実装は、確定済みledgerとCheckpoint内のpending journalを分離し、復元時にpendingから公開済み操作を除く方式を第一候補にする。操作IDの採番と公開世代は巻き戻さず、同じcheckpointから分岐した操作を混同しない。Checkpointの内容自体を書き換えて過去のinspectionを失う方式は避ける。`branch`は候補の未公開状態を保存するが、branch内部でのpublishの可否は既存の制約を維持する。この改修を暗黙のbranch mergeや自動publishにしない。
+
+fileについても、確定済みHost変更はrevertだけでは戻さない。古いCheckpointに含まれる公開済みwrite/deleteを再適用せず、復元した変数等を使って新たに実行した明示write/deleteを次のpublishの対象にする。既存の観測snapshotと最新の公開baselineを区別し、残る未公開file差分が古いbaselineに依存する場合は、競合を検出して具体的に診断する。最新fileを古いsnapshotへ暗黙に上書きしない。他processの変更検出とfile handle/観測epochの整合性も維持する。
+
+record/replayでは公開世代・操作ID・pending差分を記録し、Hostを変更せず同じ確定順序を再現する。複数file/streamの一括atomic性はこの改修で追加しない。partial publishの失敗では、反映済み部分を再送・再適用しない診断と再試行規則を定め、既存の自動再試行禁止を弱めない。旧language modeの意味を維持し、新しい意味はlanguage0.9.4に限定する。artifact/traceの形式変更と互換診断も実装計画に含める。
+
+受入試験は上の`99 → 10`、publishなしの`10`、`test2`への復元による再送防止、Checkpoint以前の未公開出力の保持、同じ文字列の新規出力、連続publish、複数branch/繰り返しrevert/resume、stderr、file write/delete、外部競合、部分失敗、record/replay/source-free artifactを含める。確定ledgerとpendingのmemory予算も計測する。
 
 ## 1. 他言語から見た不足
 
@@ -77,7 +118,7 @@ v0.9.3のscannerは最大1 MiBのBytesをcursorで読む。appはIn.readLineを�
 - borrowed slice/read-only viewを先に設計し、部分文字列やBytesの読み出しのために全体を複製しない。borrowed returnを導入する場合はescaping capture/task/Checkpointの禁止条件を明示する。
 - fixed-size array、bitset、checked UInt/wide integerの必要な演算を揃える。BigIntは桁/演算work予算を必須にする。decimalはscale/丸めを持つ別型とする。
 
-初回は単一ファイルの簡易compile/run、bounded byte I/O、chunk境界をまたぐUTF-8/整数とwriter、Map費用改善、memoryの観測、generic/error基盤までを完了単位とする。下記P1/P2は独立した小さな追加単位として管理する。
+初回は単一ファイルの簡易compile/run、publishをまたぐ作業状態の巻き戻し、bounded byte I/O、chunk境界をまたぐUTF-8/整数とwriter、Map費用改善、memoryの観測、generic/error基盤までを完了単位とする。下記P1/P2は独立した小さな追加単位として管理する。
 
 ## 4. P1: 主要なアルゴリズムの残り
 
@@ -105,6 +146,7 @@ SDKはRust toolchainのpin、API互換proposal、明示std upgradeとrollback、
 ## 6. 受入試験と開発手順
 
 - manifest/lockなしの単一ファイルcompile/run、SDK同梱std、成果物/cacheの更新、既存projectのlock/trust/capabilityを確認し、CLI例と入門文書を実行試験する。
+- publish済み履歴の保持と未公開操作の巻き戻しを分け、Checkpoint復元後の追加publish、重複送信防止、file競合/部分失敗、旧language modeとreplayを確認する。
 - expected type/generic/borrow/alias/recursive typeを正常例と拒否例で検証し、source-free artifactとcache invalidationを確認する。
 - Mapとheap回収をn/2n/4n、checkpoint有無、old rootへの復元で測る。allocation失敗とnative work超過はpartial mutationを残さない。
 - streamingを1-byte chunk、UTF-8分割、符号/数字/EOF境界、token超過、短いwrite、cancel、replayで検証する。
