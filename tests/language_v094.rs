@@ -192,7 +192,10 @@ fn nearest_manifest_and_embedded_std_cache_preserve_validation() {
         "import std.number as number;assert_eq(number.decimal(\"42\"),Ok(42));",
     );
     ok(call(&["run", &p], b""));
-    let cached = r.join(".rewind/std-0.9.4/number.rw");
+    let cached = r.join(format!(
+        ".rewind/std-{}/number.rw",
+        env!("CARGO_PKG_VERSION")
+    ));
     fs::write(&cached, "invalid cached std").unwrap();
     ok(call(&["run", &p], b""));
     assert!(!fs::read_to_string(&cached)

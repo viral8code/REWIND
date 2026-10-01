@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "rewind"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "ed25519-dalek",
  "getrandom",

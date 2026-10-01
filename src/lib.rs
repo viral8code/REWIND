@@ -1015,6 +1015,21 @@ impl Runtime {
             .ok_or_else(|| Error::InvalidOperation("operation ID exhausted".into()))?;
         Ok(id)
     }
+    fn pending_transaction<T>(&mut self, action: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
+        let previous = self.state.clone();
+        let next_operation = self.next_operation;
+        let result = action(self).and_then(|value| {
+            if self.incremental_publish {
+                self.enforce_budget()?;
+            }
+            Ok(value)
+        });
+        if result.is_err() {
+            self.state = previous;
+            self.next_operation = next_operation;
+        }
+        result
+    }
     fn file_operation(&mut self, path: &str) -> Result<()> {
         if self.incremental_publish {
             let id = self.operation()?;
@@ -1874,6 +1889,10 @@ impl Runtime {
         self.read_observed_range(path, 0, len)
     }
     pub fn write_file(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<()> {
+        let data = data.as_ref();
+        self.pending_transaction(|rt| rt.write_file_inner(path, data))
+    }
+    fn write_file_inner(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<()> {
         self.observe_metadata(path)?;
         let previous = self.state.files.clone();
         Arc::make_mut(&mut self.state.files).insert(
@@ -1888,6 +1907,10 @@ impl Runtime {
         Ok(())
     }
     pub fn append_file(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<()> {
+        let data = data.as_ref();
+        self.pending_transaction(|rt| rt.append_file_inner(path, data))
+    }
+    fn append_file_inner(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<()> {
         let previous = self.state.files.clone();
         self.checked_path(path)?;
         if !self.state.files.contains_key(path) {
@@ -1914,6 +1937,9 @@ impl Runtime {
         Ok(())
     }
     pub fn truncate_file(&mut self, path: &str, len: usize) -> Result<()> {
+        self.pending_transaction(|rt| rt.truncate_file_inner(path, len))
+    }
+    fn truncate_file_inner(&mut self, path: &str, len: usize) -> Result<()> {
         let previous = self.state.files.clone();
         self.checked_path(path)?;
         if !self.state.files.contains_key(path) {
@@ -1937,12 +1963,18 @@ impl Runtime {
         Ok(())
     }
     pub fn delete_file(&mut self, path: &str) -> Result<()> {
+        self.pending_transaction(|rt| rt.delete_file_inner(path))
+    }
+    fn delete_file_inner(&mut self, path: &str) -> Result<()> {
         self.read_file(path)?;
         Arc::make_mut(&mut self.state.files).insert(path.into(), None);
         self.file_operation(path)?;
         Ok(())
     }
     pub fn copy_file(&mut self, from: &str, to: &str) -> Result<()> {
+        self.pending_transaction(|rt| rt.copy_file_inner(from, to))
+    }
+    fn copy_file_inner(&mut self, from: &str, to: &str) -> Result<()> {
         let previous = self.state.files.clone();
         self.checked_path(from)?;
         self.observe_metadata(to)?;
@@ -1970,37 +2002,26 @@ impl Runtime {
         }
     }
     pub fn move_file(&mut self, from: &str, to: &str) -> Result<()> {
+        self.pending_transaction(|rt| rt.move_file_inner(from, to))
+    }
+    fn move_file_inner(&mut self, from: &str, to: &str) -> Result<()> {
         self.copy_file(from, to)?;
         self.delete_file(from)
     }
     pub fn create_directory(&mut self, path: &str) -> Result<()> {
+        self.pending_transaction(|rt| rt.create_directory_inner(path))
+    }
+    fn create_directory_inner(&mut self, path: &str) -> Result<()> {
         self.observe_directory(path)?;
         Arc::make_mut(&mut self.state.directories).insert(path.into(), true);
         self.directory_operation(path)?;
         Ok(())
     }
     pub fn delete_directory(&mut self, path: &str) -> Result<()> {
-        let host_entries = self.observe_directory(path)?;
-        if host_entries.is_none() && self.state.directories.get(path) != Some(&true) {
-            return Err(Error::InvalidPath(path.into()));
-        }
-        let prefix = format!("{path}/");
-        let virtual_file = self
-            .state
-            .files
-            .iter()
-            .any(|(p, content)| p.starts_with(&prefix) && content.is_some());
-        let virtual_dir = self
-            .state
-            .directories
-            .iter()
-            .any(|(p, exists)| p.starts_with(&prefix) && *exists);
-        let host_remaining = host_entries.unwrap_or_default().into_iter().any(|name| {
-            let child = format!("{path}/{name}");
-            !matches!(self.state.files.get(&child), Some(None))
-                && self.state.directories.get(&child) != Some(&false)
-        });
-        if virtual_file || virtual_dir || host_remaining {
+        self.pending_transaction(|rt| rt.delete_directory_inner(path))
+    }
+    fn delete_directory_inner(&mut self, path: &str) -> Result<()> {
+        if !self.directory_entries(path)?.is_empty() {
             return Err(Error::InvalidOperation(format!(
                 "directory is not empty: {path}"
             )));
@@ -2010,12 +2031,7 @@ impl Runtime {
         Ok(())
     }
     pub fn move_directory(&mut self, from: &str, to: &str) -> Result<()> {
-        let previous = self.state.clone();
-        if let Err(error) = self.move_directory_inner(from, to) {
-            self.state = previous;
-            return Err(error);
-        }
-        Ok(())
+        self.pending_transaction(|rt| rt.move_directory_inner(from, to))
     }
     fn move_directory_inner(&mut self, from: &str, to: &str) -> Result<()> {
         if to == from || to.starts_with(&format!("{from}/")) {
@@ -2025,7 +2041,14 @@ impl Runtime {
         }
         self.checked_path(from)?;
         self.checked_path(to)?;
-        if self.state.directories.get(to) == Some(&true) || self.observe_directory(to)?.is_some() {
+        if self
+            .state
+            .directories
+            .get(to)
+            .or_else(|| self.virtual_directories.get(to))
+            == Some(&true)
+            || self.observe_directory(to)?.is_some()
+        {
             return Err(Error::InvalidOperation(format!(
                 "destination already exists: {to}"
             )));
@@ -2065,21 +2088,36 @@ impl Runtime {
         dirs: &mut BTreeSet<String>,
         files: &mut BTreeSet<String>,
     ) -> Result<()> {
-        let entries = self.observe_directory(path)?;
-        if entries.is_none() && self.state.directories.get(path) != Some(&true) {
-            return Err(Error::InvalidPath(path.into()));
-        }
+        let entries = self.directory_entries(path)?;
         dirs.insert(path.into());
-        for name in entries.unwrap_or_default() {
+        for name in entries {
             let child = format!("{path}/{name}");
             let full = self.checked_path(&child)?;
-            if fs::symlink_metadata(&full)?.file_type().is_symlink() {
-                return Err(Error::InvalidPath(child));
-            }
-            if full.is_dir() {
+            let is_dir = self
+                .state
+                .directories
+                .get(&child)
+                .or_else(|| self.virtual_directories.get(&child))
+                .copied();
+            let is_file = self
+                .state
+                .files
+                .get(&child)
+                .or_else(|| self.virtual_files.get(&child));
+            if is_dir == Some(true) {
                 self.collect_directory(&child, dirs, files)?;
-            } else if full.is_file() {
+            } else if is_file.is_some_and(|v| v.is_some()) {
                 files.insert(child);
+            } else {
+                let metadata = fs::symlink_metadata(&full)?;
+                if metadata.file_type().is_symlink() {
+                    return Err(Error::InvalidPath(child));
+                }
+                if metadata.is_dir() {
+                    self.collect_directory(&child, dirs, files)?;
+                } else if metadata.is_file() {
+                    files.insert(child);
+                }
             }
         }
         Ok(())
@@ -2181,6 +2219,9 @@ impl Runtime {
         Ok(id)
     }
     pub fn write_handle(&mut self, id: u64, bytes: &[u8]) -> Result<()> {
+        self.pending_transaction(|rt| rt.write_handle_inner(id, bytes))
+    }
+    fn write_handle_inner(&mut self, id: u64, bytes: &[u8]) -> Result<()> {
         let handle = self.handle(id)?.clone();
         if handle.mode == FileMode::Read {
             return Err(Error::InvalidOperation("handle is read-only".into()));

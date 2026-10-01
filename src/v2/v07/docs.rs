@@ -10,7 +10,18 @@ pub(in crate::v2) fn doctest(root: &Path, path: &Path) -> Result<()> {
     config.lock(root, false)?;
     if !matches!(
         config.language.as_str(),
-        "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+        "0.7"
+            | "0.8"
+            | "0.9"
+            | "0.9.1"
+            | "0.9.2"
+            | "0.9.3"
+            | "0.9.4"
+            | "0.9.5"
+            | "0.9.6"
+            | "0.9.7"
+            | "0.9.8"
+            | "0.9.9"
     ) {
         return Err(Error::InvalidOperation(
             "doctest requires language 0.7".into(),

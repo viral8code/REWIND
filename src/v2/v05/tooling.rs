@@ -85,7 +85,20 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
     if let Some(c) = &config {
         if matches!(
             c.language.as_str(),
-            "0.5" | "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.5"
+                | "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         ) {
             validate(&program, c)?;
         } else if c.language == "0.4" {
@@ -163,14 +176,35 @@ pub fn lsp(root: &Path) -> Result<()> {
     let modern = project::ProjectConfig::load(root)?.is_some_and(|c| {
         matches!(
             c.language.as_str(),
-            "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         )
     });
     let mut checked: BTreeMap<PathBuf, Program> = BTreeMap::new();
     let incremental = project::ProjectConfig::load(root)?.is_some_and(|c| {
         matches!(
             c.language.as_str(),
-            "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4"
+            "0.6"
+                | "0.7"
+                | "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
         )
     });
     let mut shutdown = false;
