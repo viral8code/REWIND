@@ -1,6 +1,6 @@
 # REWIND 1.3.0
 
-`rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.3 ではネイティブウィンドウを操作する `std.gui` と、実行直後の初期状態を保存する予約チェックポイント `begin` を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.3 の変更点](docs/REWIND_v1.3.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。
+`rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.3 ではネイティブウィンドウを操作する `std.gui` と、実行直後の初期状態を保存する予約チェックポイント `begin` を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.3 の変更点](docs/REWIND_v1.3.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。Release 公開後、その版を `main` に統合します。
 
 ## SDKを試す
 

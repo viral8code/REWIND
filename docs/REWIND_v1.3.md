@@ -25,4 +25,4 @@ rewind main.rwc --allow-effects gui
 
 固定座標の単一 canvas と基本コントロールを対象とする。自動レイアウト、editable textbox、IME 編集、メニュー、file dialog、複数ウィンドウ、アクセシビリティ連携、macOS、native Wayland は未対応。Linux は 24-bit 以上の X11 display と core fonts を要求する。文字表示は OS / fonts に依存する。OS や X11 server の障害、すでに公開した表示や出力は巻き戻せない。
 
-既存の v1.2.0 は main に統合済み。v1.3.0 の開発・配布は codex/develop で行う。
+v1.3.0 は Release 公開後に main へ統合済み。今後も codex/develop で開発・配布し、公開した版を main に統合する。
