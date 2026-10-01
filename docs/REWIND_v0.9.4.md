@@ -2,6 +2,35 @@
 
 作成日: 2026-10-01。状態: **草案・未実装**。基準は[v0.9.3実装状況](v0.9.3-status.md)。言語の表現力、実用的なlibrary、実行の費用を揃える。既存のgeneric/trait/closure/async、効果/ownership、Checkpoint/replay、SDKを再実装項目にしない。
 
+## 0. P0: 単一ファイルを手軽にコンパイル・実行する
+
+単一ファイルを試すために、利用者が`rewind.toml`を作り、`rewind update --root ...`を実行する手順は煩雑である。Javaのように、ソースファイルを渡すだけでコンパイル・実行できる操作を初回完了条件に追加する。以下は目標の構文であり、v0.9.3では未実装。
+
+```sh
+rewind compile main.rw
+rewind run main.rw
+```
+
+- `compile`は構文・型・効果を検査して実行成果物を生成する。既定の出力はソースと同じdirectoryの`main.rwc`とする案。拡張子は実装時に確定する。成果物は既存の検証済みartifact形式を利用し、機械語の単独実行ファイルとは区別する。
+- `run main.rw`は必要なコンパイルと実行を行う。事前の`compile`は必須にしない。ソース・依存・compiler版が一致する成果物/cacheは再利用し、変更時は再コンパイルする。別途`run main.rwc`でソースなし実行も可能にする。
+- manifestがない場合、ソースdirectoryを基準に一時的なproject設定を組み立てる。`rewind.toml`・`rewind.lock`の手書きや初回`update`、`--root`指定を要求しない。内部cache以外のproject設定を勝手に生成しない。実行基準directory、relative import、file accessの範囲を一貫させる。
+- SDK同梱のstdを、compilerと対応する版で解決する。`import std...`を使う小さなプログラムでも、事前の`vendor`作成や`sdk-install`を不要にする。stdの署名・版・内容検証は維持し、外部packageの自動取得は行わない。
+- manifestがあるprojectは既存の設定・署名付き依存・lock検査を優先する。単一ファイルの簡易モードを、依存変更や権限検査を迂回する経路にしない。初期設定が必要な場合は次の操作を具体的に診断する。
+- 関数の`effects`宣言から実行に必要な効果を検査し、通常のstdin/stdoutの例にCLIでの重複指定を要求しない。file/env等のHost access、実行予算、artifact検証の既定値と許可範囲を明文化する。追加権限は明示操作で扱う。
+
+コンパイラを`rewindc`、実行側を`rewind`として配布する形も採用候補とする。
+
+```sh
+rewindc main.rw
+rewind main.rwc
+```
+
+まず`rewindc`を同じcompiler処理へ接続する専用entryとして実現できるか検証する。compiler/runtimeの内部実装や配布物を完全に分割することは、この手軽さの前提条件にしない。コマンド形式を確定したらSDK・PATH・help・入門文書を揃え、複数の操作体系を利用者が理解しないと起動できない状態を避ける。
+
+受入条件は、新しいdirectoryで`main.rw`だけを書き、上のコマンドで実行できること。Hello World、標準入力、stdのsort/graph、隣接moduleのimport、別directoryからの起動、空白を含むpath、ソース/依存変更後の再実行、source-free成果物、型エラーと終了コードを確認する。manifest付きprojectのlock/trust/capability拒否とrecord/replayも回帰検証する。
+
+この項目は起動・コンパイル操作の簡略化を対象とする。言語内の`publish`と仮想I/Oの確定規則は維持し、入門文書で説明する。
+
 ## 1. 他言語から見た不足
 
 特定言語の互換実装を目指さず、開発者が実装を組み立てるための機能を比較する。
@@ -48,7 +77,7 @@ v0.9.3のscannerは最大1 MiBのBytesをcursorで読む。appはIn.readLineを�
 - borrowed slice/read-only viewを先に設計し、部分文字列やBytesの読み出しのために全体を複製しない。borrowed returnを導入する場合はescaping capture/task/Checkpointの禁止条件を明示する。
 - fixed-size array、bitset、checked UInt/wide integerの必要な演算を揃える。BigIntは桁/演算work予算を必須にする。decimalはscale/丸めを持つ別型とする。
 
-初回はbounded byte I/O、chunk境界をまたぐUTF-8/整数とwriter、Map費用改善、memoryの観測、generic/error基盤までを完了単位とする。下記P1/P2は独立した小さな追加単位として管理する。
+初回は単一ファイルの簡易compile/run、bounded byte I/O、chunk境界をまたぐUTF-8/整数とwriter、Map費用改善、memoryの観測、generic/error基盤までを完了単位とする。下記P1/P2は独立した小さな追加単位として管理する。
 
 ## 4. P1: 主要なアルゴリズムの残り
 
@@ -75,6 +104,7 @@ SDKはRust toolchainのpin、API互換proposal、明示std upgradeとrollback、
 
 ## 6. 受入試験と開発手順
 
+- manifest/lockなしの単一ファイルcompile/run、SDK同梱std、成果物/cacheの更新、既存projectのlock/trust/capabilityを確認し、CLI例と入門文書を実行試験する。
 - expected type/generic/borrow/alias/recursive typeを正常例と拒否例で検証し、source-free artifactとcache invalidationを確認する。
 - Mapとheap回収をn/2n/4n、checkpoint有無、old rootへの復元で測る。allocation失敗とnative work超過はpartial mutationを残さない。
 - streamingを1-byte chunk、UTF-8分割、符号/数字/EOF境界、token超過、短いwrite、cancel、replayで検証する。
