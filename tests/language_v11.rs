@@ -330,3 +330,85 @@ fn published_file_replacement_survives_restore_and_rejects_nul_paths() {
     }
     fs::remove_dir_all(path).unwrap();
 }
+
+fn run_success(path: &std::path::Path, source: &str, expected: &[u8]) {
+    fs::write(path.join("main.rw"), source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .arg("run")
+        .arg(path.join("main.rw"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.stdout, expected);
+}
+
+#[test]
+fn revert_from_if_restores_pending_output_and_runs_source_free() {
+    let path = root();
+    let source = "var num=13;commit start;Out.println(\"Even\");if num%2==1 {revert start;Out.println(\"Odd\");}publish;";
+    run_success(&path, source, b"Odd\n");
+    run_success(&path, &source.replace("num=13", "num=12"), b"Even\n");
+    run_success(&path, source, b"Odd\n");
+    let compiled = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .arg("compile")
+        .arg(path.join("main.rw"))
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    fs::remove_file(path.join("main.rw")).unwrap();
+    fs::remove_dir_all(path.join(".rewind")).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .arg(path.join("main.rwc"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"Odd\n");
+    fs::remove_dir_all(path).unwrap();
+}
+
+#[test]
+fn nested_revert_restores_values_and_preserves_scope_unwinding() {
+    let path = root();
+    run_success(&path, "var n=10;commit start;n=99;Out.println(n);publish;if true {{let n=7;revert start;assert_eq(n,10);let fresh=3;assert_eq(fresh,3);Out.println(n);}}n+=1;Out.println(n);publish;", b"99\n10\n11\n");
+    run_success(&path, "fn work()->Int effects {} {var n=10;commit start;n=99;while true {if true {revert start;break;}}if true {revert start;return n;}return 0;}Out.println(work());publish;", b"10\n");
+    run_success(&path, "var n=0;while n<2 {commit start;n+=10;if true {revert start;}drop start;n+=1;continue;}Out.println(n);publish;", b"2\n");
+    fs::remove_dir_all(path).unwrap();
+}
+
+#[test]
+fn nested_revert_discards_new_cleanup_and_keeps_saved_cleanup() {
+    let path = root();
+    run_success(&path, "fn work()->Unit effects {output} {defer ||->Unit{Out.println(\"saved\");};commit start;if true {defer ||->Unit{Out.println(\"discarded\");};revert start;defer ||->Unit{Out.println(\"new\");};}}work();publish;", b"new\nsaved\n");
+    let d = run(
+        &path,
+        "commit start;if true {let later=List<Int>();revert start;later.len();}",
+    );
+    assert_eq!(d["diagnostic"]["code"], "UseAfterMove");
+    fs::remove_dir_all(path).unwrap();
+}
+
+#[test]
+fn revert_rejects_exited_checkpoint_scope_and_different_call_frame() {
+    let path = root();
+    for source in [
+        "{commit inside;}revert inside;",
+        "commit outside;fn work()->Unit effects {} {revert outside;}work();",
+        "fn work()->Unit effects {} {commit inside;}work();revert inside;",
+    ] {
+        let d = run(&path, source);
+        assert_eq!(d["diagnostic"]["code"], "InvalidContinuation", "{d}");
+    }
+    fs::remove_dir_all(path).unwrap();
+}

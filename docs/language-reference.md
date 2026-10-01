@@ -313,6 +313,8 @@ drop test1;
 
 出力は`99`、`10`です。既にpublishした出力はrevertで消えず、再送もしません。最初のpublishがない場合、99のpending出力はrevertで破棄されます。commitは外部への確定操作ではありません。
 
+`revert`は実行位置を維持します。同じ関数呼び出しの中では、`if`や入れ子のブロックから外側で作成したCheckpointへ戻せます。変数と未公開I/Oを復元し、Checkpoint後に追加した変数やcleanup登録は破棄しますが、実行中のブロックの枠は残すため、その後の処理やブロック終了を続けられます。既に終了した内側のスコープや別の関数呼び出しのCheckpointへの`revert`は`InvalidContinuation`になります。実行位置も戻す場合は`resume`を使います。
+
 Checkpointはheap、変数、仮想file、Iterator cursor、task状態等を含みます。保持するCheckpointが多いほど履歴が残ります。乱数状態は戻せますが、消費済み予算・記録済みのHost観測・確定済み外部作用は戻しません。branchやasync/libraryの内部からpublishすることには制限があります。
 
 publish前に外部fileの変更等を検査します。適用途中の失敗は`PublishPartiallyApplied`です。複数file・directory・streamの一括atomic性は保証しません。成功確認済みの操作と失敗phaseを調べ、外部状態を確認して判断します。同じruntimeでの盲目的な再publishは拒否します。
