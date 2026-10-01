@@ -9,11 +9,17 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  release:
-    runs-on: ubuntu-22.04
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+          - os: windows-2022
+            platform: windows
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -23,8 +29,9 @@ jobs:
       - name: Match tag to compiler version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
         run: |
-          python3 - <<'PY'
+          python - <<'PY'
           import os, re
           version = re.search(r'^version = "([^"]+)"', open('Cargo.toml').read(), re.M)[1]
           assert os.environ['RELEASE_TAG'] == 'v' + version
@@ -32,9 +39,33 @@ jobs:
       - run: cargo fmt --check
       - run: cargo test --locked
       - run: cargo build --release --locked
-      - name: Package and smoke-test SDK and source archives
+      - name: Linux SDK, API and archive tests
+        if: matrix.platform == 'linux'
         run: scripts/package-sdk.sh "$RUNNER_TEMP/release-assets"
-      - name: Publish verified release
+      - name: Windows standard library contracts
+        if: matrix.platform == 'windows'
+        run: target/release/rewind.exe test --root libraries/std
+      - name: Windows SDK, API and archive tests
+        if: matrix.platform == 'windows'
+        run: python scripts/package-sdk-windows.py "${{ runner.temp }}/release-assets"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-assets/*
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish both verified SDKs
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -44,14 +75,14 @@ jobs:
           set -euo pipefail
           NOTES="$RUNNER_TEMP/release-notes.md"
           cat docs/getting-started.md > "$NOTES"
-          printf '\n## Build and verification\n\n' >> "$NOTES"
-          printf 'Commit: `%s`\n\n' "$GITHUB_SHA" >> "$NOTES"
-          printf 'Rust regression tests, standard-library contracts, SDK signatures, 34 API baselines, archive extraction, CLI input, record/replay and source-free execution passed.\n\n' >> "$NOTES"
-          printf 'SDK public key (this release only): `%s`\n' "$(cat "$RUNNER_TEMP/release-assets/rewind-"*-sdk.pub)" >> "$NOTES"
-          if [[ "$RELEASE_TAG" == v1.0.0 ]]; then
-            gh release create "$RELEASE_TAG" "$RUNNER_TEMP/release-assets/"* --verify-tag --draft --title "REWIND $RELEASE_TAG — Linux x86_64 SDK" --notes-file "$NOTES"
+          printf '\n## Build and verification\n\nCommit: `%s`\n\n' "$GITHUB_SHA" >> "$NOTES"
+          printf 'Linux and Windows regression tests, standard-library contracts, SDK signatures, 34 API baselines, extraction, input, record/replay and source-free execution passed.\n\n' >> "$NOTES"
+          for KEY in release-assets/*-sdk.pub; do
+            printf '%s (this release only): `%s`\n\n' "$(basename "$KEY")" "$(cat "$KEY")" >> "$NOTES"
+          done
+          gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "REWIND $RELEASE_TAG — Linux / Windows x86_64 SDK" --notes-file "$NOTES"
+          if [[ "$RELEASE_TAG" == v1.* ]]; then
             gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest
           else
-            gh release create "$RELEASE_TAG" "$RUNNER_TEMP/release-assets/"* --verify-tag --draft --prerelease --title "REWIND $RELEASE_TAG — Linux x86_64 SDK" --notes-file "$NOTES"
             gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
           fi

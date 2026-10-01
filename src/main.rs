@@ -640,7 +640,8 @@ fn main() {
             "diagnostic format must be text or json".into(),
         ))
     };
-    if let Err(error) = result {
+    if let Err(mut error) = result {
+        v2::enrich_diagnostic(&mut error);
         let status = exit_status(&error);
         if format == "json" {
             let diagnostic = if let Error::Diagnostic(d) = &error {
@@ -653,7 +654,7 @@ fn main() {
                 serde_json::json!({"exit_status":status,"message":error.to_string(),"diagnostic":diagnostic,"publish_failure":error.publish_report(),"retryable":false,"retry_hint":if status==72 {"reload_and_decide"}else{"none"}})
             );
         } else {
-            eprintln!("rewind: {error}");
+            eprintln!("{}", v2::render_diagnostic(&error));
         }
         std::process::exit(status);
     }

@@ -2,7 +2,9 @@ use super::*;
 pub(in crate::v2) fn record(error: &Error, at: &Tok, task_id: u64) -> rewind::DiagnosticRecord {
     if let Error::Diagnostic(d) = error {
         let mut d = (**d).clone();
-        d.task_id = Some(task_id);
+        if d.task_id.is_none() {
+            d.task_id = Some(task_id);
+        }
         if d.line == 0 {
             d.source = at.source.clone();
             d.line = at.line;
@@ -27,6 +29,9 @@ pub(in crate::v2) fn record(error: &Error, at: &Tok, task_id: u64) -> rewind::Di
         line: at.line,
         column: at.col,
         task_id: Some(task_id),
+        frames: vec![],
+        hints: vec![],
+        frames_truncated: false,
         causes: vec![],
         wait_edges: vec![],
     }

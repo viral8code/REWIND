@@ -9,7 +9,11 @@ pub(in crate::v2) fn record_arguments(
     bounds: &BTreeMap<String, String>,
     at: &Tok,
 ) -> Result<()> {
-    for (param, bound) in s.bounds.iter().filter(|_| p.language == "1.0.0") {
+    for (param, bound) in s
+        .bounds
+        .iter()
+        .filter(|_| matches!(p.language.as_str(), "1.0.0" | "1.1.0"))
+    {
         if let Some(ty) = sub.get(param) {
             if !trait_satisfied(p, bound, ty) && !bound_provided(bounds, ty, bound) {
                 return Err(diagnostic(at, format!("{ty} does not implement {bound}")));
@@ -136,6 +140,7 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
                 | "0.9.8"
                 | "0.9.9"
                 | "1.0.0"
+                | "1.1.0"
         ) {
             v091::write_release(output, &installed)?;
         }

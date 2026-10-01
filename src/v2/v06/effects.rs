@@ -535,6 +535,9 @@ fn effect_route(
             line: expr.at.line,
             column: expr.at.col,
             task_id: None,
+            frames: vec![],
+            hints: vec![],
+            frames_truncated: false,
             causes: Vec::new(),
             wait_edges: Vec::new(),
         };

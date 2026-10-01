@@ -30,6 +30,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "0.9.8"
             | "0.9.9"
             | "1.0.0"
+            | "1.1.0"
     ) {
         return Ok(());
     }
@@ -145,6 +146,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "0.9.8"
             | "0.9.9"
             | "1.0.0"
+            | "1.1.0"
     ) || !NAMES.contains(&n)
     {
         return Ok(None);
@@ -520,6 +522,9 @@ pub(super) fn call(rt: &Runtime, n: &str, args: &[Value]) -> Result<Option<Value
                     line: 0,
                     column: 0,
                     task_id: None,
+                    frames: vec![],
+                    hints: vec![],
+                    frames_truncated: false,
                     causes: vec![],
                     wait_edges: vec![],
                 })));

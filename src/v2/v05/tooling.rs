@@ -23,19 +23,40 @@ fn uri_path(uri: &str) -> Result<PathBuf> {
     }
     let text = String::from_utf8(bytes).map_err(|_| Error::InvalidPath(uri.into()))?;
     #[cfg(windows)]
-    let text = text.strip_prefix('/').unwrap_or(&text).to_string();
+    let text = if text.starts_with('/') {
+        text.strip_prefix('/').unwrap_or(&text).to_string()
+    } else if text.starts_with("localhost/") {
+        text.trim_start_matches("localhost/").to_string()
+    } else {
+        format!("//{text}")
+    };
     Ok(PathBuf::from(text))
 }
 fn file_uri(path: &Path) -> String {
-    format!(
-        "file:///{}",
-        path.to_string_lossy()
-            .replace('\\', "/")
-            .trim_start_matches('/')
-            .replace('%', "%25")
-            .replace(' ', "%20")
-            .replace('#', "%23")
-    )
+    let mut text = path.to_string_lossy().into_owned();
+    #[cfg(windows)]
+    {
+        if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+            text = format!(r"\\{unc}");
+        } else if let Some(local) = text.strip_prefix(r"\\?\") {
+            text = local.into();
+        }
+    }
+    text = text.replace('\\', "/");
+    let mut encoded = String::new();
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || b"/-._~:".contains(&byte) {
+            encoded.push(byte as char);
+        } else {
+            use std::fmt::Write;
+            let _ = write!(encoded, "%{byte:02X}");
+        }
+    }
+    if encoded.starts_with("//") {
+        format!("file:{encoded}")
+    } else {
+        format!("file:///{}", encoded.trim_start_matches('/'))
+    }
 }
 fn document_path(uri: &str) -> Result<PathBuf> {
     let path = uri_path(uri)?;
@@ -62,7 +83,10 @@ fn utf16_column(source: &str, line: usize, column: usize) -> usize {
         .sum()
 }
 fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> Result<Program> {
-    let config = project::ProjectConfig::load(root)?;
+    let config = Some(match project::ProjectConfig::load(root)? {
+        Some(config) => config,
+        None => standalone_config(root, path.to_path_buf(), &BTreeSet::new())?,
+    });
     let mut imports = BTreeMap::from([(String::new(), fs::canonicalize(root)?)]);
     if let Some(c) = &config {
         imports.extend(c.imports.clone());
@@ -100,6 +124,7 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
                 | "0.9.8"
                 | "0.9.9"
                 | "1.0.0"
+                | "1.1.0"
         ) {
             validate(&program, c)?;
         } else if c.language == "0.4" {
@@ -174,7 +199,7 @@ pub fn lsp(root: &Path) -> Result<()> {
     let mut output = stdout.lock();
     let mut documents: BTreeMap<PathBuf, String> = BTreeMap::new();
     let mut versions: BTreeMap<PathBuf, i64> = BTreeMap::new();
-    let modern = project::ProjectConfig::load(root)?.is_some_and(|c| {
+    let modern = project::ProjectConfig::load(root)?.is_none_or(|c| {
         matches!(
             c.language.as_str(),
             "0.9"
@@ -188,10 +213,11 @@ pub fn lsp(root: &Path) -> Result<()> {
                 | "0.9.8"
                 | "0.9.9"
                 | "1.0.0"
+                | "1.1.0"
         )
     });
     let mut checked: BTreeMap<PathBuf, Program> = BTreeMap::new();
-    let incremental = project::ProjectConfig::load(root)?.is_some_and(|c| {
+    let incremental = project::ProjectConfig::load(root)?.is_none_or(|c| {
         matches!(
             c.language.as_str(),
             "0.6"
@@ -208,6 +234,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                 | "0.9.8"
                 | "0.9.9"
                 | "1.0.0"
+                | "1.1.0"
         )
     });
     let mut shutdown = false;
@@ -245,7 +272,7 @@ pub fn lsp(root: &Path) -> Result<()> {
         let response = (|| -> Result<Json> {
             match method {
                 "initialize" => Ok(
-                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental,"experimental":{"rewindTimeline":modern,"provisionalDeclarations":modern}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
+                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"documentFormattingProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental,"experimental":{"rewindTimeline":modern,"provisionalDeclarations":modern}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
                 ),
                 "shutdown" => {
                     shutdown = true;
@@ -373,6 +400,34 @@ pub fn lsp(root: &Path) -> Result<()> {
                         result["data"] = json!({"provisional":provisional});
                     }
                     Ok(result)
+                }
+                "textDocument/formatting" => {
+                    let uri = params["textDocument"]["uri"]
+                        .as_str()
+                        .ok_or_else(|| Error::InvalidOperation("missing document URI".into()))?;
+                    let path = document_path(uri)?;
+                    if !path.starts_with(fs::canonicalize(root)?) {
+                        return Err(Error::InvalidPath(uri.into()));
+                    }
+                    let text = documents
+                        .get(&path)
+                        .cloned()
+                        .map(Ok)
+                        .unwrap_or_else(|| fs::read_to_string(&path))?;
+                    let formatted = format_source(&text)?;
+                    if text == formatted {
+                        return Ok(json!([]));
+                    }
+                    let line = text.chars().filter(|c| *c == '\n').count();
+                    let column = text
+                        .rsplit('\n')
+                        .next()
+                        .unwrap_or("")
+                        .encode_utf16()
+                        .count();
+                    Ok(
+                        json!([{"range":{"start":{"line":0,"character":0},"end":{"line":line,"character":column}},"newText":formatted}]),
+                    )
                 }
                 "textDocument/codeAction" => {
                     if !incremental {
