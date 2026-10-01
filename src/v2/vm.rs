@@ -1990,7 +1990,11 @@ impl<R: BufRead> Vm<R> {
         Ok(())
     }
     fn run_inner(&mut self) -> Result<()> {
+        let caller_pc = self.current_pc;
         let result = self.run_inner_body();
+        if result.is_ok() {
+            self.current_pc = caller_pc;
+        }
         result.map_err(|error| {
             if self.engine.program.language != "1.1.0" {
                 return error;

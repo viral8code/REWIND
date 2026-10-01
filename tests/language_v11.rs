@@ -203,3 +203,20 @@ fn standalone_lsp_supports_std_incremental_edits_hints_and_formatting() {
     );
     fs::remove_dir_all(path).unwrap();
 }
+#[test]
+fn text_slice_scalar_boundaries_and_task_failure_metadata() {
+    let path = root();
+    let source="import std.text as text;assert_eq(text.slice(\"a😀界\",1,3),Ok(\"😀界\"));assert_eq(text.slice(\"a😀界\",3,3),Ok(\"\"));assert_eq(text.slice(\"\",0,0),Ok(\"\"));match text.slice(\"a😀界\",3,4){Err(_)=>{},_=>{panic(\"range\");}}async fn fail()->Int effects {} {return 1/0;}let task=spawn fail();match await task {Err(TaskError::Failed(d))=>{assert_eq(d.code,\"DivisionByZero\");assert_eq(d.taskId,Some(1));},_=>{panic(\"diagnostic\");}}";
+    fs::write(path.join("main.rw"), source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .arg("run")
+        .arg(path.join("main.rw"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fs::remove_dir_all(path).unwrap();
+}

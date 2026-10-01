@@ -278,13 +278,26 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &Runtime) -> Result<Option<
                     } else if start < 0 || end < start {
                         Err(("Range", 0))
                     } else {
-                        let positions = s
+                        // Locate only the two scalar boundaries; avoid a full O(n)
+                        // offset table and stop as soon as the requested end is found.
+                        let mut begin = None;
+                        let mut finish = None;
+                        for (index, byte) in s
                             .char_indices()
                             .map(|(i, _)| i)
                             .chain(std::iter::once(s.len()))
-                            .collect::<Vec<_>>();
-                        match (positions.get(start as usize), positions.get(end as usize)) {
-                            (Some(a), Some(b)) => Ok(Value::Text(s[*a..*b].into())),
+                            .enumerate()
+                        {
+                            if index == start as usize {
+                                begin = Some(byte);
+                            }
+                            if index == end as usize {
+                                finish = Some(byte);
+                                break;
+                            }
+                        }
+                        match (begin, finish) {
+                            (Some(a), Some(b)) => Ok(Value::Text(s[a..b].into())),
                             _ => Err(("Range", 0)),
                         }
                     }
