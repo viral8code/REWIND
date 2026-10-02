@@ -1,4 +1,11 @@
 effects {external,db,tasks};
+// @api credentials cost O(connection-string and certificate bytes); immutable alias outside VM checkpoints.
+// @api credentials failure DbError; remote connections require verified TLS; certificate is DER, empty Bytes uses OS roots.
+pub fn credentials(alias:String,connectionString:Secret<String>,caCertificate:Bytes)->Result<Unit,DbError> effects {external,db,tasks} {return stdExternalDbCredentials(alias,connectionString,caCertificate);}
+// @api postgres cost O(DNS + one TLS connection); no reconnect, failover or write retry.
+// @api postgres failure DbError; uses a registered opaque alias, never stores a connection string in trace fingerprints.
+pub fn postgres(alias:String,timeoutMillis:Int)->Task<Result<DbConnection,DbError>> effects {external,db,tasks} {return stdExternalDbPostgres(alias,timeoutMillis);}
+
 // @api waitForCleanup cost O(closed resources); waits without blocking the VM on native cleanup.
 // @api waitForCleanup failure DbError; preserves rollback/close failures from scope-owned resources.
 pub fn waitForCleanup(timeoutMillis:Int)->Task<Result<Unit,DbError>> effects {external,db,tasks} {return stdExternalDbCleanup(timeoutMillis);}

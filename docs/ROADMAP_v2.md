@@ -73,3 +73,5 @@ v2.0 は次の条件をすべて確認してから公開する。機能名が存
 ## 段階の補足
 
 v1.5.0 は外部領域の基盤を実装済み。v1.6.0 は上限付き HTTP body と Task / GUI の連携を提供する。大容量の逐次 download / upload と接続型資源の共通 lifetime は v1.6.1 で安定化し、v1.7 の DB に進む前に検証する。元の到達条件は維持する。
+
+v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は PostgreSQL / SCRAM / verified TLS と実 server の source-free replay を追加し、公開前に両 OS の SDK で検証する。後続の数値・GC・GUI・統合の到達条件は維持する。

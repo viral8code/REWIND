@@ -290,6 +290,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/doc/REWIND_v1.7.1.md",
+            include_str!("../../../docs/REWIND_v1.7.1.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/postgres/main.rw",
+            include_str!("../../../examples/postgres/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/postgres/README.md",
+            include_str!("../../../examples/postgres/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/doc/REWIND_v1.7.md",
             include_str!("../../../docs/REWIND_v1.7.md"),
         )?;

@@ -306,6 +306,7 @@ pub(in crate::v2) fn prepare(program: &mut Program) -> Result<()> {
             | "1.6.0"
             | "1.6.1"
             | "1.7.0"
+            | "1.7.1"
             | "1.8.0"
             | "1.9.0"
             | "2.0.0"

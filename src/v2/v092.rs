@@ -56,6 +56,8 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdHttpComponent",
         "stdExternalClock",
         "stdExternalDbSqlite",
+        "stdExternalDbPostgres",
+        "stdExternalDbCredentials",
         "stdExternalDbPrivateParameter",
         "stdExternalDbCleanup",
         "stdExternalDbPrepare",
@@ -110,6 +112,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.6.0"
             | "1.6.1"
             | "1.7.0"
+            | "1.7.1"
             | "1.8.0"
             | "1.9.0"
             | "2.0.0"
@@ -307,6 +310,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.6.0"
             | "1.6.1"
             | "1.7.0"
+            | "1.7.1"
             | "1.8.0"
             | "1.9.0"
             | "2.0.0"
@@ -332,6 +336,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.6.0"
                 | "1.6.1"
                 | "1.7.0"
+                | "1.7.1"
                 | "1.8.0"
                 | "1.9.0"
                 | "2.0.0"
@@ -344,6 +349,14 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternalHttp") && !language_at_least(&p.language, "1.6.0") {
         return Err(diagnostic(at, "HTTP requires language 1.6.0"));
+    }
+    if matches!(n, "stdExternalDbPostgres" | "stdExternalDbCredentials")
+        && !language_at_least(&p.language, "1.7.1")
+    {
+        return Err(diagnostic(
+            at,
+            "PostgreSQL primitives require language 1.7.1",
+        ));
     }
     if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
         return Err(diagnostic(at, "database primitives require language 1.7.0"));
@@ -380,6 +393,11 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             ],
             "Task<Result<Int,DbError>>",
         ),
+        "stdExternalDbCredentials" => (
+            &["String", "Secret<String>", "Bytes"],
+            "Result<Unit,DbError>",
+        ),
+        "stdExternalDbPostgres" => (&["String", "Int"], "Task<Result<DbConnection,DbError>>"),
         "stdExternalDbCleanup" => (&["Int"], "Task<Result<Unit,DbError>>"),
         "stdExternalDbPrivateParameter" => {
             (&["String", "Secret<DbValue>"], "Result<DbValue,DbError>")
@@ -568,6 +586,32 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if n == "stdExternalDbCredentials" {
+        let [Value::Text(alias), secret, Value::Bytes(certificate)] = args else {
+            return Err(Error::InvalidOperation(
+                "invalid DB credentials arguments".into(),
+            ));
+        };
+        let Some(Value::Text(dsn)) = v05::unsecret(secret) else {
+            return Err(Error::InvalidOperation(
+                "DB connection string requires Secret<String>".into(),
+            ));
+        };
+        let result = runtime.register_postgres_credentials(alias, dsn, certificate)?;
+        return Ok(Some(Value::Result(
+            result.map(|_| Box::new(Value::Null)).map_err(|code| {
+                Box::new(Value::Struct(
+                    "DbError".into(),
+                    BTreeMap::from([
+                        ("code".into(), Value::Text(code.into())),
+                        ("phase".into(), Value::Text("NotSent".into())),
+                        ("sqlCode".into(), Value::Option(None)),
+                        ("sqlState".into(), Value::Option(None)),
+                    ]),
+                ))
+            }),
+        )));
+    }
     if n == "stdExternalDbPrivateParameter" {
         use rewind::database::Parameter;
         let [Value::Text(alias), secret] = args else {

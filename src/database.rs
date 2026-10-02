@@ -1,4 +1,6 @@
 //! Native database adapters. Workers own connections and never access VM values.
+mod adapter;
+mod postgres;
 mod sqlite;
 
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -48,6 +50,9 @@ fn canonical_location(path: &std::path::Path) -> PathBuf {
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub enum Operation {
+    Postgres {
+        alias: String,
+    },
     ExecuteMany {
         connection: usize,
         sql: String,
@@ -108,11 +113,12 @@ pub enum Operation {
 enum Job {
     Cleanup(std::time::Instant),
     Open {
-        receiver: mpsc::Receiver<std::result::Result<sqlite::Worker, sqlite::Error>>,
+        receiver: mpsc::Receiver<std::result::Result<adapter::Worker, adapter::Error>>,
         deadline: std::time::Instant,
+        reservation: usize,
     },
     Command {
-        pending: sqlite::Pending,
+        pending: adapter::Pending,
         connection: usize,
         cursor: Option<usize>,
         closing: bool,
@@ -120,20 +126,21 @@ enum Job {
 }
 
 pub(crate) struct Host {
-    connections: BTreeMap<usize, sqlite::Worker>,
+    connections: BTreeMap<usize, adapter::Worker>,
     cursors: BTreeMap<usize, usize>,
     statements: BTreeMap<usize, (usize, String)>,
     preparing: BTreeMap<usize, (usize, String)>,
     jobs: BTreeMap<usize, Job>,
-    cleanup: BTreeMap<usize, sqlite::Pending>,
-    retired: Vec<(usize, sqlite::Worker)>,
+    cleanup: BTreeMap<usize, adapter::Pending>,
+    retired: Vec<(usize, adapter::Worker)>,
     aborted_opens: Vec<(
         usize,
-        mpsc::Receiver<std::result::Result<sqlite::Worker, sqlite::Error>>,
+        mpsc::Receiver<std::result::Result<adapter::Worker, adapter::Error>>,
     )>,
     paths: BTreeMap<usize, PathBuf>,
     private_parameters: BTreeMap<String, Parameter>,
-    cleanup_errors: Vec<sqlite::Error>,
+    postgres_credentials: BTreeMap<String, postgres::Credentials>,
+    cleanup_errors: Vec<adapter::Error>,
     pub(crate) admission: usize,
 }
 impl Host {
@@ -149,6 +156,7 @@ impl Host {
             aborted_opens: Vec::new(),
             paths: BTreeMap::new(),
             private_parameters: BTreeMap::new(),
+            postgres_credentials: BTreeMap::new(),
             cleanup_errors: Vec::new(),
             admission: 0,
         }
@@ -188,14 +196,28 @@ impl Host {
                 .iter()
                 .map(|(alias, value)| alias.len() + parameter_size(value) + 128)
                 .sum::<usize>()
-            + (self.connections.len() + self.retired.len() + self.aborted_opens.len())
-                * (75 * 1024 * 1024)
+            + self
+                .postgres_credentials
+                .values()
+                .map(postgres::Credentials::retained_bytes)
+                .sum::<usize>()
+            + self
+                .connections
+                .values()
+                .map(adapter::Worker::reserved_bytes)
+                .sum::<usize>()
+            + self
+                .retired
+                .iter()
+                .map(|(_, worker)| worker.reserved_bytes())
+                .sum::<usize>()
+            + self.aborted_opens.len() * (192 * 1024 * 1024)
             + self
                 .jobs
                 .values()
                 .map(|job| {
-                    if matches!(job, Job::Open { .. }) {
-                        87 * 1024 * 1024
+                    if let Job::Open { reservation, .. } = job {
+                        *reservation
                     } else {
                         12 * 1024 * 1024
                     }
@@ -243,7 +265,10 @@ impl Host {
                 .insert(id, Job::Cleanup(std::time::Instant::now() + timeout));
             return Ok(());
         }
-        if let Operation::Sqlite { read_only, .. } = operation {
+        if matches!(
+            operation,
+            Operation::Sqlite { .. } | Operation::Postgres { .. }
+        ) {
             if self.connections.len()
                 + self.retired.len()
                 + self.aborted_opens.len()
@@ -256,16 +281,39 @@ impl Host {
             {
                 return Err("DbConnectionLimit");
             }
-            let path = path.ok_or("DbPath")?;
-            if path != std::path::Path::new(":memory:") {
-                self.paths.insert(id, path.clone());
-            }
+            let reservation = if matches!(operation, Operation::Postgres { .. }) {
+                192 * 1024 * 1024
+            } else {
+                87 * 1024 * 1024
+            };
+            let opener: Box<
+                dyn FnOnce() -> std::result::Result<adapter::Worker, adapter::Error> + Send,
+            > = match operation {
+                Operation::Sqlite { read_only, .. } => {
+                    let path = path.ok_or("DbPath")?;
+                    if path != std::path::Path::new(":memory:") {
+                        self.paths.insert(id, path.clone());
+                    }
+                    Box::new(move || adapter::Worker::sqlite(path, read_only))
+                }
+                Operation::Postgres { alias } => {
+                    let credentials = self
+                        .postgres_credentials
+                        .get(&alias)
+                        .ok_or("DbCredentialUnknown")?
+                        .clone();
+                    Box::new(move || {
+                        postgres::Worker::open(credentials, timeout).map(adapter::Worker::Postgres)
+                    })
+                }
+                _ => unreachable!(),
+            };
             let (sender, receiver) = mpsc::channel();
             std::thread::Builder::new()
                 .name("rewind-db-open".into())
                 .stack_size(512 * 1024)
                 .spawn(move || {
-                    let _ = sender.send(sqlite::Worker::open(path, read_only));
+                    let _ = sender.send(opener());
                 })
                 .map_err(|_| {
                     self.paths.remove(&id);
@@ -276,6 +324,7 @@ impl Host {
                 Job::Open {
                     receiver,
                     deadline: std::time::Instant::now() + timeout,
+                    reservation,
                 },
             );
             return Ok(());
@@ -288,7 +337,7 @@ impl Host {
             } => (
                 connection,
                 None,
-                sqlite::Command::ExecuteMany {
+                adapter::Command::ExecuteMany {
                     sql,
                     params: parameters
                         .into_iter()
@@ -302,7 +351,7 @@ impl Host {
                     return Err("DbStatementLimit");
                 }
                 self.preparing.insert(id, (connection, sql.clone()));
-                (connection, None, sqlite::Command::Prepare { sql }, false)
+                (connection, None, adapter::Command::Prepare { sql }, false)
             }
             Operation::Execute {
                 connection,
@@ -311,7 +360,7 @@ impl Host {
             } => (
                 connection,
                 None,
-                sqlite::Command::Execute {
+                adapter::Command::Execute {
                     sql,
                     params: self.bind(parameters)?,
                 },
@@ -324,7 +373,7 @@ impl Host {
             } => (
                 connection,
                 Some(id),
-                sqlite::Command::Query {
+                adapter::Command::Query {
                     sql,
                     params: self.bind(parameters)?,
                 },
@@ -337,21 +386,21 @@ impl Host {
             } => (
                 *self.cursors.get(&cursor).ok_or("DbClosed")?,
                 Some(cursor),
-                sqlite::Command::Next { rows, bytes },
+                adapter::Command::Next { rows, bytes },
                 false,
             ),
             Operation::CloseCursor { cursor } => (
                 *self.cursors.get(&cursor).ok_or("DbClosed")?,
                 Some(cursor),
-                sqlite::Command::CloseCursor,
+                adapter::Command::CloseCursor,
                 false,
             ),
-            Operation::Begin { connection } => (connection, None, sqlite::Command::Begin, false),
-            Operation::Commit { connection } => (connection, None, sqlite::Command::Commit, false),
+            Operation::Begin { connection } => (connection, None, adapter::Command::Begin, false),
+            Operation::Commit { connection } => (connection, None, adapter::Command::Commit, false),
             Operation::Rollback { connection } => {
-                (connection, None, sqlite::Command::Rollback, false)
+                (connection, None, adapter::Command::Rollback, false)
             }
-            Operation::Close { connection } => (connection, None, sqlite::Command::Close, true),
+            Operation::Close { connection } => (connection, None, adapter::Command::Close, true),
             _ => unreachable!(),
         };
         let pending = match self
@@ -396,15 +445,9 @@ impl Host {
                     }
                     failure("DbDeadline", "Unknown", None)
                 } else if let Some(error) = self.cleanup_errors.first() {
-                    failure(
-                        "DbCleanup",
-                        "Unknown",
-                        if let sqlite::Error::Sql(code) = error {
-                            Some(*code)
-                        } else {
-                            None
-                        },
-                    )
+                    let mut result = error_failure(*error, "Unknown");
+                    result["error"]["code"] = json!("DbCleanup");
+                    result
                 } else {
                     json!({"adapter":"db","unit":true})
                 }
@@ -413,16 +456,17 @@ impl Host {
                 let result = match receiver.try_recv() {
                     Ok(result) => result,
                     Err(mpsc::TryRecvError::Empty) => return None,
-                    Err(_) => Err(sqlite::Error::Worker),
+                    Err(_) => Err(adapter::Error::Worker),
                 };
                 match result {
                     Ok(worker) => {
+                        let backend = worker.backend();
                         self.connections.insert(id, worker);
-                        json!({"adapter":"db","connection":id,"backend":"sqlite"})
+                        json!({"adapter":"db","connection":id,"backend":backend})
                     }
                     Err(error) => {
                         self.paths.remove(&id);
-                        failure(error_code(error), "NotSent", None)
+                        error_failure(error, "NotSent")
                     }
                 }
             }
@@ -438,14 +482,14 @@ impl Host {
                     self.close_resource(connection);
                 }
                 match result {
-                    Ok(sqlite::Reply::Unit) => {
+                    Ok(adapter::Reply::Unit) => {
                         if let Some(cursor) = cursor {
                             self.cursors.remove(&cursor);
                         }
                         json!({"adapter":"db","unit":true})
                     }
-                    Ok(sqlite::Reply::Changed(count)) => json!({"adapter":"db","changed":count}),
-                    Ok(sqlite::Reply::Statement {
+                    Ok(adapter::Reply::Changed(count)) => json!({"adapter":"db","changed":count}),
+                    Ok(adapter::Reply::Statement {
                         columns,
                         parameters,
                     }) => {
@@ -454,11 +498,11 @@ impl Host {
                         }
                         json!({"adapter":"db","statement":id,"columns":columns,"parameters":parameters})
                     }
-                    Ok(sqlite::Reply::Cursor(columns)) => {
+                    Ok(adapter::Reply::Cursor(columns)) => {
                         self.cursors.insert(id, connection);
                         json!({"adapter":"db","cursor":id,"columns":columns})
                     }
-                    Ok(sqlite::Reply::Batch { rows, done }) => {
+                    Ok(adapter::Reply::Batch { rows, done }) => {
                         if done {
                             if let Some(cursor) = cursor {
                                 self.cursors.remove(&cursor);
@@ -472,26 +516,23 @@ impl Host {
                     }
                     Err(error) => {
                         if let Some(cursor) = cursor {
-                            if !matches!(error, sqlite::Error::Busy) {
+                            if !matches!(error, adapter::Error::Busy) {
                                 self.cursors.remove(&cursor);
                             }
                         }
-                        let sql_code = if let sqlite::Error::Sql(code) = error {
-                            Some(code)
-                        } else {
-                            None
-                        };
-                        failure(error_code(error), "Unknown", sql_code)
+                        error_failure(error, "Unknown")
                     }
                 }
             }
         };
-        if let Some(Job::Command { connection, .. }) = self.jobs.get(&id) {
-            if let Some(worker) = self.connections.get(connection) {
-                let transaction = worker.transaction();
-                if transaction & 1 != 0 {
-                    result["dbConnection"] = json!(connection);
-                    result["dbTransaction"] = json!(transaction);
+        if result.get("error").is_none() {
+            if let Some(Job::Command { connection, .. }) = self.jobs.get(&id) {
+                if let Some(worker) = self.connections.get(connection) {
+                    let transaction = worker.transaction();
+                    if transaction & 1 != 0 {
+                        result["dbConnection"] = json!(connection);
+                        result["dbTransaction"] = json!(transaction);
+                    }
                 }
             }
         }
@@ -514,7 +555,7 @@ impl Host {
             match self
                 .connections
                 .get(&parent)
-                .map(|worker| worker.submit(sqlite::Command::CloseCursor, Duration::from_secs(1)))
+                .map(|worker| worker.submit(adapter::Command::CloseCursor, Duration::from_secs(1)))
             {
                 Some(Ok(pending)) => {
                     self.cleanup.insert(id, pending);
@@ -564,7 +605,7 @@ impl Host {
     fn bind(
         &self,
         parameters: Vec<Parameter>,
-    ) -> std::result::Result<Vec<rusqlite::types::Value>, &'static str> {
+    ) -> std::result::Result<Vec<Parameter>, &'static str> {
         parameters
             .into_iter()
             .map(|value| {
@@ -576,7 +617,7 @@ impl Host {
                 } else {
                     value
                 };
-                Ok(value.sqlite())
+                Ok(value)
             })
             .collect()
     }
@@ -598,32 +639,121 @@ impl Host {
         failure("DbCancelled", "Unknown", None)
     }
 }
-fn error_code(error: sqlite::Error) -> &'static str {
+fn error_code(error: adapter::Error) -> &'static str {
     match error {
-        sqlite::Error::Closed => "DbClosed",
-        sqlite::Error::Busy => "DbBusy",
-        sqlite::Error::Limit => "DbLimit",
-        sqlite::Error::Deadline => "DbDeadline",
-        sqlite::Error::Cancelled => "DbCancelled",
-        sqlite::Error::Sql(_) => "DbSql",
-        sqlite::Error::Worker => "DbWorker",
+        adapter::Error::Closed => "DbClosed",
+        adapter::Error::Busy => "DbBusy",
+        adapter::Error::Limit => "DbLimit",
+        adapter::Error::Deadline => "DbDeadline",
+        adapter::Error::Cancelled => "DbCancelled",
+        adapter::Error::Sql(_) => "DbSql",
+        adapter::Error::Worker => "DbWorker",
+        adapter::Error::SqlState(_) => "DbSql",
+        adapter::Error::Configuration => "DbConfiguration",
+        adapter::Error::Tls => "DbTls",
+        adapter::Error::Authentication(_) => "DbAuthentication",
+        adapter::Error::Disconnected => "DbDisconnected",
+        adapter::Error::Type => "DbType",
     }
 }
-fn wire_value(value: rusqlite::types::Value) -> Value {
-    use rusqlite::types::Value as V;
+fn wire_value(value: Parameter) -> Value {
     match value {
-        V::Null => json!({"type":"Null"}),
-        V::Integer(v) => json!({"type":"Int","value":v}),
-        V::Real(v) => json!({"type":"Float","bits":v.to_bits()}),
-        V::Text(v) => json!({"type":"Text","value":v}),
-        V::Blob(v) => json!({"type":"Bytes","value":STANDARD.encode(v)}),
+        Parameter::Null => json!({"type":"Null"}),
+        Parameter::Bool(v) => json!({"type":"Bool","value":v}),
+        Parameter::Int(v) => json!({"type":"Int","value":v}),
+        Parameter::Float(v) => json!({"type":"Float","bits":v.to_bits()}),
+        Parameter::Text(v) => json!({"type":"Text","value":v}),
+        Parameter::Bytes(v) => json!({"type":"Bytes","value":STANDARD.encode(v)}),
+        Parameter::Private(_) => unreachable!("native results cannot contain private aliases"),
     }
+}
+fn error_failure(error: adapter::Error, phase: &str) -> Value {
+    let code = if let adapter::Error::Sql(code) = error {
+        Some(code)
+    } else {
+        None
+    };
+    let mut result = failure(error_code(error), phase, code);
+    if let adapter::Error::SqlState(state) | adapter::Error::Authentication(state) = error {
+        result["error"]["sqlState"] = json!(std::str::from_utf8(&state).unwrap_or("XXXXX"));
+    }
+    result
 }
 fn failure(code: &str, phase: &str, sql_code: Option<i32>) -> Value {
     json!({"adapter":"db","error":{"code":code,"phase":phase,"sqlCode":sql_code,"sqlState":null}})
 }
 
 impl crate::Runtime {
+    /// Register an immutable connection alias outside checkpoints. Neither DSN nor password enters replay fingerprints.
+    pub fn register_postgres_credentials(
+        &mut self,
+        alias: &str,
+        dsn: &str,
+        certificate: &[u8],
+    ) -> crate::Result<std::result::Result<(), &'static str>> {
+        if self.external_depth != 1 {
+            return Err(crate::Error::InvalidOperation(
+                "ExternalBoundary: DB credentials require external region".into(),
+            ));
+        }
+        if alias.is_empty()
+            || alias.len() > 128
+            || !alias
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        {
+            return Ok(Err("DbCredentialAlias"));
+        }
+        self.charge_native_work(
+            dsn.len()
+                .saturating_add(certificate.len())
+                .saturating_add(alias.len())
+                .saturating_add(1),
+        )?;
+        let credentials = match postgres::Credentials::parse(dsn, certificate) {
+            Ok(c) => c,
+            Err(e) => return Ok(Err(error_code(e))),
+        };
+        let host = self.database_host.get_or_insert_with(Host::new);
+        if let Some(old) = host.postgres_credentials.get(alias) {
+            return Ok(if old == &credentials {
+                Ok(())
+            } else {
+                Err("DbCredentialImmutable")
+            });
+        }
+        if host.postgres_credentials.len() >= 16
+            || host
+                .postgres_credentials
+                .values()
+                .map(postgres::Credentials::retained_bytes)
+                .sum::<usize>()
+                + credentials.retained_bytes()
+                > 2 * 1024 * 1024
+        {
+            return Ok(Err("DbCredentialLimit"));
+        }
+        self.register_secret_value(&crate::Value::Text(dsn.into()));
+        if let Some(password) = credentials.secret_password() {
+            self.register_secret_value(&crate::Value::Bytes(std::sync::Arc::new(
+                password.to_vec(),
+            )));
+        }
+        self.database_host
+            .as_mut()
+            .unwrap()
+            .postgres_credentials
+            .insert(alias.into(), credentials);
+        if let Err(error) = self.enforce_budget() {
+            self.database_host
+                .as_mut()
+                .unwrap()
+                .postgres_credentials
+                .remove(alias);
+            return Err(error);
+        }
+        Ok(Ok(()))
+    }
     pub fn register_database_parameter(
         &mut self,
         alias: &str,
@@ -740,6 +870,7 @@ impl crate::Runtime {
             .collect::<Vec<_>>();
         let mut fields: Vec<&[u8]> = match &operation {
             Operation::Sqlite { path, .. } => vec![path.as_bytes()],
+            Operation::Postgres { alias } => vec![alias.as_bytes()],
             Operation::Prepare { sql, .. } => vec![sql.as_bytes()],
             Operation::ExecuteMany {
                 sql, parameters, ..
@@ -878,10 +1009,10 @@ impl crate::Runtime {
                     None
                 };
                 let host = self.database_host.get_or_insert_with(Host::new);
-                host.admission = if matches!(operation, Operation::Sqlite { .. }) {
-                    87 * 1024 * 1024
-                } else {
-                    12 * 1024 * 1024
+                host.admission = match operation {
+                    Operation::Postgres { .. } => 192 * 1024 * 1024,
+                    Operation::Sqlite { .. } => 87 * 1024 * 1024,
+                    _ => 12 * 1024 * 1024,
                 };
                 let budget = self.enforce_budget();
                 self.database_host.as_mut().unwrap().admission = 0;
@@ -970,6 +1101,13 @@ pub(crate) fn protect_result(
                         .ok_or("DbDecode")?
                         .as_bytes()
                         .to_vec(),
+                    Some("Bool") => {
+                        if value["value"].as_bool().ok_or("DbDecode")? {
+                            b"1".to_vec()
+                        } else {
+                            b"0".to_vec()
+                        }
+                    }
                     Some("Int") => value["value"]
                         .as_i64()
                         .ok_or("DbDecode")?

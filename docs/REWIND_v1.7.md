@@ -1,6 +1,6 @@
 # REWIND v1.7 — DB
 
-v1.7.0 は SQLite adapter、`std.db`、パラメータ束縛、prepared statement、逐次 cursor、DB transaction を提供する。PostgreSQL の実接続・TLS は v1.7.1 の次の工程であり、SQLite だけで v1.7 の DB 計画全体を完了としない。
+v1.7.0 は SQLite adapter、`std.db`、パラメータ束縛、prepared statement、逐次 cursor、DB transaction を提供する。PostgreSQL の実接続・TLS・認証は [v1.7.1](REWIND_v1.7.1.md) で追加する。SQLite だけで v1.7 の DB 計画全体を完了としない。
 
 ## 実行
 

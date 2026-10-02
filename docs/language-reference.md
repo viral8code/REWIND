@@ -474,3 +474,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 `std.http.download(Request)` は `Task<Result<HttpDownload,HttpError>>`、`read(&mut connection,maxBytes)` は `Task<Result<Option<Bytes>,HttpError>>`。EOF は `None`。`upload(Request,maxUploadBytes)` で `HttpUpload` を開き、`write(&mut connection,Bytes)` と `finish(&mut connection)` で送信・応答取得を行います。呼出しは external 内、await は外です。接続を取り出す際は `match move result` 等で所有権を移します。通常の `match result` は接続の共有借用なので、書込みや mutable borrow はできません。
 
 接続はスコープ終了で閉じます。`close` / `closeUpload` は明示的な非同期 close。`using connection=move owner;` も使えます。`HttpDownload` / `HttpUpload` は Send、Share ではなく freeze できません。接続を含む Task の完了値は一度だけ取り出せます。ignore した接続結果は解放されます。checkpoint は token と所有情報を復元し、閉じた実接続は復活させません。詳しい制限は [1.6.1仕様](REWIND_v1.6.1.md) を参照してください。
+
+## PostgreSQL adapter（1.7.1）
+
+`std.db.credentials` は `Secret<String>` の接続文字列を immutable な opaque alias に登録し、`std.db.postgres` は verified TLS 接続の hot Task を返す。これらは `external` 内で呼び、Task の await は領域外で行う。SQLite と同じ affine な DbConnection / DbStatement / DbCursor と独立した DB transaction API を使う。column の型と DB error の SQLSTATE、期限・切断・cleanup の契約は [PostgreSQL 仕様](REWIND_v1.7.1.md) を参照。

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.7.0",
+  "language": "1.7.1",
   "symbols": {
     "fn:beginTransaction": {
       "async": false,
@@ -134,6 +134,23 @@
       ],
       "return": "Task<Result<Unit,DbError>>"
     },
+    "fn:credentials": {
+      "async": false,
+      "cost": "O(connection-string and certificate bytes); immutable alias outside VM checkpoints.",
+      "effects": [
+        "db",
+        "external",
+        "tasks"
+      ],
+      "failure": "DbError; remote connections require verified TLS; certificate is DER, empty Bytes uses OS roots.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Secret<String>",
+        "Bytes"
+      ],
+      "return": "Result<Unit,DbError>"
+    },
     "fn:execute": {
       "async": false,
       "cost": "O(SQL work + parameter bytes); binds values without SQL interpolation.",
@@ -225,6 +242,22 @@
         "Int"
       ],
       "return": "Task<Result<DbBatch,DbError>>"
+    },
+    "fn:postgres": {
+      "async": false,
+      "cost": "O(DNS + one TLS connection); no reconnect, failover or write retry.",
+      "effects": [
+        "db",
+        "external",
+        "tasks"
+      ],
+      "failure": "DbError; uses a registered opaque alias, never stores a connection string in trace fingerprints.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Int"
+      ],
+      "return": "Task<Result<DbConnection,DbError>>"
     },
     "fn:prepare": {
       "async": false,
