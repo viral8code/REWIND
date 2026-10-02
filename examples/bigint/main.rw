@@ -1,0 +1,13 @@
+import std.bigint as big;
+import std.json as json;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("exact integer operation failed");}}}
+let two=take(big.fromInt(2));
+var value=take(big.pow(&two,100));
+commit saved;
+value=take(big.add(&value,&two));
+Out.println(take(big.format(&value,10)));publish;
+revert saved;
+Out.println(take(big.format(&value,10)));publish;
+let encoded=take(big.toJson(&value));
+Out.println(take(json.stringify(encoded)));
+let m=Map<BigInt,String>();m.set(value,"exact");Out.println(m.len());publish;

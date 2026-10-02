@@ -486,3 +486,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 ### 線形代数・追加統計と分布（1.8.1）
 
 `std.numeric` は列 pivot QR、QR による最小二乗、対称行列の固有値・固有ベクトル、共分散・相関・分位点・histogram、サンプルを保持しない OnlineMoments を提供する。結果の shape、rank、convergence と maximum work は [仕様](REWIND_v1.8.1.md) を参照。`std.distributions` は独立した random 効果の module で、uniform、normal、exponential、Bernoulli を VM の checkpointed generator から生成する。
+
+### v1.8.2 BigInt
+
+`std.bigint` の不変な native 値は64 bitを超える整数の正確な計算、bit operation、Map key、checkpoint に対応する。[容量・算術・JSON 契約](REWIND_v1.8.2.md)を参照。
