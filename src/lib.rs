@@ -16,6 +16,7 @@ pub mod database;
 pub mod datetime;
 pub mod decimal;
 pub mod external;
+pub mod json_stream;
 pub mod native_resources;
 pub mod network;
 pub mod numeric;
@@ -179,6 +180,7 @@ pub enum Value {
     NumericArray(numeric::Array),
     Regex(regular::Pattern),
     CsvStream(csv_stream::Reader),
+    JsonStream(json_stream::Reader),
     Instant(datetime::Instant),
     Duration(datetime::Duration),
     BigInt(bigint::IntegerValue),
@@ -239,6 +241,7 @@ impl fmt::Display for Value {
             Value::BigInt(v) => write!(f, "{v}"),
             Value::Regex(v) => write!(f, "{v}"),
             Value::CsvStream(v) => write!(f, "{v}"),
+            Value::JsonStream(v) => write!(f, "{v}"),
             Value::Instant(v) => write!(f, "{v}"),
             Value::Duration(v) => write!(f, "{v}"),
             Value::Decimal(v) => write!(f, "{v}"),
@@ -1123,6 +1126,7 @@ impl Runtime {
             Value::NumericArray(array) => array.retained_bytes(),
             Value::Regex(v) => v.retained_bytes(),
             Value::CsvStream(v) => v.retained_bytes(),
+            Value::JsonStream(v) => v.retained_bytes(),
             Value::Instant(_) | Value::Duration(_) => 16,
             Value::BigInt(integer) => integer.retained_bytes(),
             Value::Decimal(value) => value.retained_bytes(),

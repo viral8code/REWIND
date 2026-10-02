@@ -29,6 +29,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("clock", include_str!("../../../libraries/std/clock.rw")),
         ("regex", include_str!("../../../libraries/std/regex.rw")),
         (
+            "jsonStream",
+            include_str!("../../../libraries/std/jsonStream.rw"),
+        ),
+        (
             "csvStream",
             include_str!("../../../libraries/std/csvStream.rw"),
         ),
@@ -329,7 +333,36 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/doc/REWIND_v1.8.7.md",
             include_str!("../../../docs/REWIND_v1.8.7.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.8.8.md",
+            include_str!("../../../docs/REWIND_v1.8.8.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.8.1.md",
+                include_str!("../../../docs/REWIND_v1.8.1.md"),
+            ),
+            (
+                "REWIND_v1.8.2.md",
+                include_str!("../../../docs/REWIND_v1.8.2.md"),
+            ),
+            (
+                "REWIND_v1.8.4.md",
+                include_str!("../../../docs/REWIND_v1.8.4.md"),
+            ),
+            (
+                "REWIND_v1.8.5.md",
+                include_str!("../../../docs/REWIND_v1.8.5.md"),
+            ),
+        ] {
+            write(&output, &format!("share/rewind/doc/{name}"), doc)?;
+        }
+        for (name, doc) in [
+            (
+                "json-stream",
+                include_str!("../../../examples/json-stream/README.md"),
+            ),
             (
                 "csv-stream",
                 include_str!("../../../examples/csv-stream/README.md"),
@@ -372,6 +405,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         }
         for (name, source) in [
             ("regex", include_str!("../../../examples/regex/main.rw")),
+            (
+                "json-stream",
+                include_str!("../../../examples/json-stream/main.rw"),
+            ),
             (
                 "csv-stream",
                 include_str!("../../../examples/csv-stream/main.rw"),

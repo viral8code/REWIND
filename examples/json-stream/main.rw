@@ -1,0 +1,17 @@
+import std.jsonStream as json;
+import std.bigint as bigint;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("JSON stream operation failed");}}}
+let reader=take(json.reader());
+let input=take(stdEncode("{\"items\":[1267650600228229401496703205376,2,3],\"name\":\"日\\u672c\"}"));
+var offset=0;
+while offset<stdBytesLength(input){take(json.feed(&mut reader,take(stdBytesSlice(input,offset,offset+1)),false));offset+=1;}
+take(json.finish(&mut reader));
+commit events;
+var reading=true;var count=0;
+while reading{match take(json.next(&mut reader)){None=>{reading=false;},Some(event)=>{
+match event{JsonStreamEvent::Number(raw,_)=>{let number=take(bigint.parse(raw,10));Out.println(take(bigint.format(&number,10)));count+=1;},JsonStreamEvent::Text(value,_)=>{Out.println(value);},_=>{}}
+}}}
+Out.println(count);publish;
+revert events;
+match take(json.next(&mut reader)){None=>{panic("checkpoint lost event");},Some(event)=>{match event{JsonStreamEvent::ObjectStart(position)=>{Out.println(position);},_=>{panic("expected opening event");}}}}
+publish;

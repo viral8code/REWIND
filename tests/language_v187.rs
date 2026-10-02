@@ -46,7 +46,7 @@ fn csv_chunks_checkpoint_and_source_free_replay() {
     fs::remove_dir_all(root).unwrap();
 }
 #[test]
-fn csv_file_chunks_drain_without_retaining_whole_file() {
+fn csv_file_chunk_boundaries_and_offline_replay() {
     let root = dir();
     fs::write(root.join("data.csv"), b"1,2\r\n3,4\n").unwrap();
     fs::write(root.join("main.rw"),r#"

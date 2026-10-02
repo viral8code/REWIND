@@ -15,11 +15,12 @@ received = []
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        received.append(("GET", b""))
+        received.append(("GET", self.path.encode("ascii")))
         self.send_response(200)
-        self.send_header("Content-Length", "3")
+        body = {"/json": '{"name":"日\\u672c","items":[1,2,3]}'.encode("utf-8"), "/csv": b"1,2\r\n3,4\n"}.get(self.path, b"a\xff\0")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(b"a\xff\0")
+        self.wfile.write(body)
 
     def do_POST(self):
         assert self.headers.get("Transfer-Encoding") == "chunked"
@@ -46,6 +47,8 @@ server = HTTPServer(("127.0.0.1", 0), Handler)
 url = f"http://127.0.0.1:{server.server_port}/"
 source = root / "main.rw"
 source.write_text('''import std.http as http;
+import std.jsonStream as json;
+import std.csvStream as csv;
 fn take<T,E>(value:Result<T,E>)->T effects {} {
  match move value {Ok(item)=>{return move item;},Err(_)=>{panic("HTTP failed");}}
 }
@@ -62,6 +65,32 @@ match downloading {Some(task)=>{
  }
  Out.println(total);
 },None=>{panic("missing download");}}
+
+fn readJson(url:String)->Int effects {external,network,tasks,output} {
+ let reader=take(json.reader());let empty=take(stdEncode(""));var opening:Option<Task<Result<HttpDownload,HttpError>>>=None;
+ external {opening=Some(http.download(http.Request("GET",url,empty,5000,1024,freeze(List<HttpHeader>()),empty,"")));}
+ var count=0;
+ match opening{None=>{panic("missing JSON download");},Some(task)=>{
+ let connection=take(take(await task));var ended=false;
+ while !ended{var reading:Option<Task<Result<Option<Bytes>,HttpError>>>=None;external{reading=Some(http.read(&mut connection,2));}
+ match reading{None=>{panic("missing JSON read");},Some(task)=>{match take(take(await task)){None=>{take(json.finish(&mut reader));ended=true;},Some(bytes)=>{take(json.feed(&mut reader,bytes,false));}}}}
+ var draining=true;while draining{match take(json.next(&mut reader)){None=>{draining=false;},Some(event)=>{match event{JsonStreamEvent::Number(_,_)=>{count+=1;},JsonStreamEvent::Text(text,_)=>{Out.println(text);},_=>{}}}}}
+ }
+ }}return count;
+}
+fn readCsv(url:String)->Int effects {external,network,tasks} {
+ let reader=take(csv.reader());let empty=take(stdEncode(""));var opening:Option<Task<Result<HttpDownload,HttpError>>>=None;
+ external {opening=Some(http.download(http.Request("GET",url,empty,5000,1024,freeze(List<HttpHeader>()),empty,"")));}
+ var total=0;
+ match opening{None=>{panic("missing CSV download");},Some(task)=>{
+ let connection=take(take(await task));var ended=false;
+ while !ended{var reading:Option<Task<Result<Option<Bytes>,HttpError>>>=None;external{reading=Some(http.read(&mut connection,3));}
+ match reading{None=>{panic("missing CSV read");},Some(task)=>{match take(take(await task)){None=>{take(csv.finish(&mut reader));ended=true;},Some(bytes)=>{take(csv.feed(&mut reader,bytes,false));}}}}
+ var draining=true;while draining{match take(csv.next(&mut reader)){None=>{draining=false;},Some(row)=>{total+=take(stdParseInt(row.get(0),10));}}}
+ }
+ }}return total;
+}
+Out.println(readJson("URLjson"));Out.println(readCsv("URLcsv"));
 var uploading:Option<Task<Result<HttpUpload,HttpError>>>=None;
 external {uploading=Some(http.upload(http.Request("POST","URL",empty,5000,1024,freeze(List<HttpHeader>()),empty,""),1024));}
 match uploading {Some(task)=>{
@@ -93,8 +122,8 @@ worker.start()
 try:
     live = run("run", root / "main.rwc", "--allow-effects", "external,network,tasks",
                "--record", root / "trace.json")
-    assert live == b"200\n3\n201\n", live
-    assert received == [("GET", b""), ("POST", b"payload")], received
+    assert live == "200\n3\n日本\n3\n4\n201\n".encode("utf-8"), live
+    assert received == [("GET", b"/"), ("GET", b"/json"), ("GET", b"/csv"), ("POST", b"payload")], received
 finally:
     server.shutdown()
     server.server_close()
@@ -102,5 +131,5 @@ finally:
 replay = run("replay", root / "trace.json", "--root", root,
              "--allow-effects", "external,network,tasks")
 assert replay == live, replay
-assert len(received) == 2, received
-print("SDK streaming HTTP: source-free download/upload and offline replay verified")
+assert len(received) == 4, received
+print("SDK streaming HTTP: source-free download/upload, incremental JSON/CSV and offline replay verified")

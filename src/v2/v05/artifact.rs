@@ -155,6 +155,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.5"
             | "1.8.6"
             | "1.8.7"
+            | "1.8.8"
             | "1.9.0"
             | "2.0.0"
     ) || !program.strict_visibility
@@ -213,6 +214,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.5"
             | "1.8.6"
             | "1.8.7"
+            | "1.8.8"
             | "1.9.0"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
@@ -225,6 +227,18 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         return Err(invalid("invalid standard primitive layout"));
     }
 
+    if language_at_least(&program.language, "1.8.8")
+        && (serde_json::to_value(program.structs.get("JsonStreamState")).ok()
+            != serde_json::to_value(standard.structs.get("JsonStreamState")).ok()
+            || program.enums.contains_key("JsonStreamState")
+            || program.aliases.contains_key("JsonStreamState")
+            || serde_json::to_value(program.enums.get("JsonStreamEvent")).ok()
+                != serde_json::to_value(standard.enums.get("JsonStreamEvent")).ok()
+            || program.structs.contains_key("JsonStreamEvent")
+            || program.aliases.contains_key("JsonStreamEvent"))
+    {
+        return Err(invalid("invalid JSON stream layout"));
+    }
     if language_at_least(&program.language, "1.8.7")
         && (serde_json::to_value(program.structs.get("CsvStreamState")).ok()
             != serde_json::to_value(standard.structs.get("CsvStreamState")).ok()
@@ -327,6 +341,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.5"
             | "1.8.6"
             | "1.8.7"
+            | "1.8.8"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -379,6 +394,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.5"
             | "1.8.6"
             | "1.8.7"
+            | "1.8.8"
             | "1.9.0"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
@@ -447,6 +463,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.5"
             | "1.8.6"
             | "1.8.7"
+            | "1.8.8"
             | "1.9.0"
             | "2.0.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
@@ -487,6 +504,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.5"
             | "1.8.6"
             | "1.8.7"
+            | "1.8.8"
             | "1.9.0"
             | "2.0.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
@@ -593,6 +611,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.5"
             | "1.8.6"
             | "1.8.7"
+            | "1.8.8"
             | "1.9.0"
             | "2.0.0"
     ) {
