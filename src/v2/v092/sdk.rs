@@ -27,6 +27,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/datetime.rw"),
         ),
         ("clock", include_str!("../../../libraries/std/clock.rw")),
+        ("unicode", include_str!("../../../libraries/std/unicode.rw")),
         ("decimal", include_str!("../../../libraries/std/decimal.rw")),
         ("bigint", include_str!("../../../libraries/std/bigint.rw")),
         ("error", include_str!("../../../libraries/std/error.rw")),
@@ -323,6 +324,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/datetime-postgres/README.md"),
             ),
             (
+                "unicode",
+                include_str!("../../../examples/unicode/README.md"),
+            ),
+            (
                 "datetime",
                 include_str!("../../../examples/datetime/README.md"),
             ),
@@ -346,6 +351,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             )?;
         }
         for (name, source) in [
+            ("unicode", include_str!("../../../examples/unicode/main.rw")),
             (
                 "datetime",
                 include_str!("../../../examples/datetime/main.rw"),

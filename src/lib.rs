@@ -19,6 +19,7 @@ pub mod native_resources;
 pub mod network;
 pub mod numeric;
 mod replay;
+pub mod unicode;
 use journal::{Journal, Segment};
 
 use std::cell::RefCell;

@@ -1,0 +1,21 @@
+pub enum Form {NFC,NFD,NFKC,NFKD}
+fn formName(form:Form)->String effects {} {match form {Form::NFC=>{return "NFC";},Form::NFD=>{return "NFD";},Form::NFKC=>{return "NFKC";},Form::NFKD=>{return "NFKD";}}}
+// @api normalize cost bounded canonical/compatibility decomposition, ordering and composition; native work and scratch precharged.
+// @api normalize failure UnicodeInputLimit/OutputLimit; input <=1MiB, output <=8MiB; fatal VM budgets apply before expansion.
+pub fn normalize(text:&String,form:Form)->Result<String,StdError> effects {} {return stdUnicodeNormalize(text,formName(form));}
+pub fn isNormalized(text:&String,form:Form)->Result<Bool,StdError> effects {} {return stdUnicodeIsNormalized(text,formName(form));}
+// Extended grapheme clusters; existing scalar-based text.length/slice remain unchanged.
+pub fn graphemeCount(text:&String)->Result<Int,StdError> effects {} {return stdUnicodeCount(text);}
+// @api graphemeSlice failure UnicodeIndex; zero-based cluster boundaries, start inclusive/end exclusive.
+pub fn graphemeSlice(text:&String,start:Int,end:Int)->Result<String,StdError> effects {} {return stdUnicodeSlice(text,start,end);}
+pub fn graphemes(text:&String)->Result<List<String>,StdError> effects {} {return stdUnicodeSplit(text,"graphemes");}
+// UTF-8 byte offsets for each cluster and the terminal boundary; at most 65536 entries.
+pub fn graphemeOffsets(text:&String)->Result<List<Int>,StdError> effects {} {return stdUnicodeOffsets(text);}
+// UAX#29 words exclude punctuation/whitespace; wordBounds preserves every segment.
+pub fn words(text:&String)->Result<List<String>,StdError> effects {} {return stdUnicodeSplit(text,"words");}
+pub fn wordBounds(text:&String)->Result<List<String>,StdError> effects {} {return stdUnicodeSplit(text,"wordBounds");}
+pub fn sentences(text:&String)->Result<List<String>,StdError> effects {} {return stdUnicodeSplit(text,"sentences");}
+// Full default Unicode casing, locale independent; does not imply case folding or normalization.
+pub fn lower(text:&String)->Result<String,StdError> effects {} {return stdUnicodeCase(text,"lower");}
+pub fn upper(text:&String)->Result<String,StdError> effects {} {return stdUnicodeCase(text,"upper");}
+pub fn versions()->Result<String,StdError> effects {} {return stdUnicodeVersions();}
