@@ -11,6 +11,7 @@ pub mod storage;
 use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 pub mod bigint;
+pub mod csv_stream;
 pub mod database;
 pub mod datetime;
 pub mod decimal;
@@ -177,6 +178,7 @@ pub enum Value {
     Bytes(Arc<Vec<u8>>),
     NumericArray(numeric::Array),
     Regex(regular::Pattern),
+    CsvStream(csv_stream::Reader),
     Instant(datetime::Instant),
     Duration(datetime::Duration),
     BigInt(bigint::IntegerValue),
@@ -236,6 +238,7 @@ impl fmt::Display for Value {
             Value::NumericArray(v) => write!(f, "{v:?}"),
             Value::BigInt(v) => write!(f, "{v}"),
             Value::Regex(v) => write!(f, "{v}"),
+            Value::CsvStream(v) => write!(f, "{v}"),
             Value::Instant(v) => write!(f, "{v}"),
             Value::Duration(v) => write!(f, "{v}"),
             Value::Decimal(v) => write!(f, "{v}"),
@@ -1119,6 +1122,7 @@ impl Runtime {
             Value::Bytes(bytes) => bytes.len(),
             Value::NumericArray(array) => array.retained_bytes(),
             Value::Regex(v) => v.retained_bytes(),
+            Value::CsvStream(v) => v.retained_bytes(),
             Value::Instant(_) | Value::Duration(_) => 16,
             Value::BigInt(integer) => integer.retained_bytes(),
             Value::Decimal(value) => value.retained_bytes(),

@@ -1,0 +1,16 @@
+import std.csvStream as csv;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("CSV operation failed");}}}
+let reader=take(csv.reader());
+let input=take(stdEncode("name,note\r\n日本語,\"a\"\"b\n日\"\r\n"));
+var offset=0;
+while offset<stdBytesLength(input){
+ let chunk=take(stdBytesSlice(input,offset,offset+1));
+ take(csv.feed(&mut reader,chunk,false));offset+=1;
+}
+take(csv.finish(&mut reader));
+commit rows;
+match take(csv.next(&mut reader)){None=>{panic("header missing");},Some(row)=>{Out.println(row.get(0));Out.println(row.get(1));}}
+match take(csv.next(&mut reader)){None=>{panic("data missing");},Some(row)=>{Out.println(row.get(0));Out.println(row.get(1));}}
+publish;
+revert rows;
+match take(csv.next(&mut reader)){None=>{panic("restored row missing");},Some(row)=>{Out.println(row.get(0));}}publish;

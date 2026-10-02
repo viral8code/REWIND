@@ -1,0 +1,12 @@
+pub struct Reader {private state:CsvStreamState}
+pub fn reader()->Result<Reader,StdError> effects {} {match stdCsvStreamNew(){Err(error)=>{return Err(error);},Ok(state)=>{return Ok(Reader(state));}}}
+// A failed feed leaves the Reader unchanged. Drain queued rows and retry the same chunk after CsvQueueLimit.
+pub fn feed(reader:&mut Reader,chunk:Bytes,finish:Bool)->Result<Unit,StdError> effects {} {match stdCsvStreamFeed(&reader.state,chunk,finish){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(());}}}
+pub fn next(reader:&mut Reader)->Result<Option<List<String>>,StdError> effects {} {
+ match stdCsvStreamPeek(&reader.state){Err(error)=>{return Err(error);},Ok(value)=>{
+ match move value{None=>{return Ok(None);},Some(row)=>{match stdCsvStreamAdvance(&reader.state){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(Some(move row));}}}}
+ }}
+}
+pub fn finish(reader:&mut Reader)->Result<Unit,StdError> effects {} {match stdEncode(""){Err(error)=>{return Err(error);},Ok(empty)=>{return feed(reader,empty,true);}}}
+pub fn cancel(reader:&mut Reader)->Result<Unit,StdError> effects {} {match stdCsvStreamCancel(&reader.state){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(());}}}
+pub fn position(reader:&Reader)->Result<Int,StdError> effects {} {return stdCsvStreamPosition(&reader.state);}
