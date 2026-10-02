@@ -408,6 +408,7 @@ fn supported(ty: &Type) -> bool {
     matches!(
         *ty,
         Type::NUMERIC
+            | Type::TIMESTAMPTZ
             | Type::BOOL
             | Type::INT2
             | Type::INT4
@@ -470,6 +471,40 @@ impl<'a> FromSql<'a> for NumericText {
         *ty == Type::NUMERIC
     }
 }
+#[derive(Debug)]
+struct Timestamp(i64);
+impl ToSql for Timestamp {
+    fn to_sql(
+        &self,
+        _: &Type,
+        out: &mut BytesMut,
+    ) -> std::result::Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
+        out.extend_from_slice(&self.0.to_be_bytes());
+        Ok(IsNull::No)
+    }
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::TIMESTAMPTZ
+    }
+    tokio_postgres::types::to_sql_checked!();
+}
+struct TimestampText(String);
+impl<'a> FromSql<'a> for TimestampText {
+    fn from_sql(
+        _: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let raw: [u8; 8] = raw.try_into().map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid timestamp size")
+        })?;
+        let value = crate::datetime::postgres::decode(i64::from_be_bytes(raw)).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid finite timestamp")
+        })?;
+        Ok(Self(value.format()))
+    }
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::TIMESTAMPTZ
+    }
+}
 fn bind(
     params: Vec<Parameter>,
     statement: &Statement,
@@ -496,6 +531,12 @@ fn bind(
                     if *t == Type::FLOAT4 && v.is_finite() && (v as f32).is_finite() =>
                 {
                     Box::new(v as f32)
+                }
+                Parameter::Text(v) if *t == Type::TIMESTAMPTZ => {
+                    let value = crate::datetime::Instant::parse(&v).map_err(|_| Error::Type)?;
+                    Box::new(Timestamp(
+                        crate::datetime::postgres::encode(value).map_err(|_| Error::Type)?,
+                    ))
                 }
                 Parameter::Text(v) if *t == Type::NUMERIC => {
                     let value = crate::decimal::DecimalValue::parse(&v).map_err(|_| Error::Type)?;
@@ -532,6 +573,7 @@ fn row(row: tokio_postgres::Row) -> Result<Vec<Parameter>> {
                 };
             }
             Ok(match *column.type_() {
+                Type::TIMESTAMPTZ => get!(TimestampText, |v| Parameter::Text(v.0)),
                 Type::NUMERIC => get!(NumericText, |v| Parameter::Text(v.0)),
                 Type::BOOL => get!(bool, Parameter::Bool),
                 Type::INT2 => get!(i16, |v| Parameter::Int(i64::from(v))),

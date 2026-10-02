@@ -1,0 +1,4 @@
+effects {external,clock};
+// @api now cost O(1); seconds and nanoseconds are one atomic recorded external observation.
+// @api now failure ExternalFailure/DateTimeRange; requires external region; rewind reuses the observed value, never rewinds the physical clock.
+pub fn now()->Result<Instant,StdError> effects {external,clock} {return stdExternalInstant();}

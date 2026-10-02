@@ -63,3 +63,14 @@ actual = run("run", root / "decimal.rwc", "--record", root / "decimal-trace.json
 assert actual == b'0.3\n0.1\n2\ntrue\n1\n"0.1"\n', actual
 assert run("replay", root / "decimal-trace.json", "--root", root) == actual
 print("Verified extracted Decimal SDK: exact arithmetic, rounding, canonical Map keys and source-free replay")
+
+datetime = root / "datetime.rw"
+datetime.write_text((sdk / "share/rewind/examples/datetime/main.rw").read_text(encoding="utf-8") + '\nlet encodedDuration=take(datetime.durationToJson(&distance));let decodedDuration=take(datetime.durationFromJson(move encodedDuration));Out.println(decodedDuration==distance);publish;\n', encoding="utf-8")
+run("compile", datetime)
+datetime.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "datetime.rwc", "--record", root / "datetime-trace.json")
+assert actual == b"3600\n2024-11-03T06:30:00.123456789Z\n2024-11-03T05:30:00.123456789Z\n32400\nsame instant\ntrue\n", actual
+assert run("replay", root / "datetime-trace.json", "--root", root) == actual
+print("Verified extracted datetime SDK: exact nanoseconds, DST policy, canonical Map keys and source-free replay")

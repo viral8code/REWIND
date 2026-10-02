@@ -1,0 +1,9 @@
+import datetime as datetime;
+// @api parameter failure DateTimeRange if nanos are not whole microseconds; PostgreSQL timestamptz is an instant, not a local calendar or zone name.
+pub fn parameter(value:&Instant)->Result<DbValue,StdError> effects {} {match datetime.nanoseconds(value){Err(error)=>{return Err(error);},Ok(nanos)=>{if nanos%1000!=0{return Err(StdError("DateTimeRange",0));}}}match datetime.format(value){Ok(text)=>{return Ok(DbValue::Text(text));},Err(error)=>{return Err(error);}}}
+// SQLite text parameter retains all nine fractional digits and bypasses numeric conversion through the RFC3339 T/Z syntax.
+pub fn sqliteParameter(value:&Instant)->Result<DbValue,StdError> effects {} {match datetime.format(value){Ok(text)=>{return Ok(DbValue::Text(text));},Err(error)=>{return Err(error);}}}
+pub fn cell(row:Frozen<DbRow>,index:Int)->Result<Instant,DbError> effects {} {
+ if index<0 || index>=row.values.len(){return Err(DbError("DbColumnRange","ResponseReceived",None,None));}
+ let value=thaw(row.values.get(index));match move value {DbValue::Text(text)=>{match datetime.parse(text){Ok(value)=>{return Ok(move value);},Err(error)=>{return Err(DbError(error.code,"ResponseReceived",None,None));}}},DbValue::Null=>{return Err(DbError("DbNull","ResponseReceived",None,None));},_=>{return Err(DbError("DbType","ResponseReceived",None,None));}}
+}

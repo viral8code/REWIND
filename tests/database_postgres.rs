@@ -475,3 +475,22 @@ fn numeric_protocol_is_exact_finite_and_preserves_declared_scale() {
     );
     assert_eq!(batch["rows"][0][2]["type"], "Null");
 }
+
+#[test]
+fn timestamp_protocol_preserves_microseconds_and_rejects_submicroseconds() {
+    let Some((dsn, ca)) = fixture() else { return };
+    let mut runtime = runtime(&dsn, &ca);
+    let connection = open(&mut runtime);
+    let cursor=query(&mut runtime,connection,"SELECT $1::timestamptz AS exact, $2::timestamptz AS before_epoch, NULL::timestamptz AS missing",vec![Parameter::Text("2024-02-29T12:34:56.123456+09:00".into()),Parameter::Text("1969-12-31T23:59:59.999999Z".into())]);
+    let batch = next(&mut runtime, cursor, 64);
+    assert_eq!(batch["rows"][0][0]["value"], "2024-02-29T03:34:56.123456Z");
+    assert_eq!(batch["rows"][0][1]["value"], "1969-12-31T23:59:59.999999Z");
+    assert_eq!(batch["rows"][0][2]["type"], "Null");
+    let result = execute(
+        &mut runtime,
+        connection,
+        "SELECT $1::timestamptz",
+        vec![Parameter::Text("2024-01-01T00:00:00.000000001Z".into())],
+    );
+    assert_eq!(result["error"]["code"], "DbType");
+}

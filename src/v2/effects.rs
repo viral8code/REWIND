@@ -54,7 +54,7 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
                 let base = name.split('<').next().unwrap_or(&name);
                 if base.starts_with("stdExternal") {
                     required.insert("external".into());
-                    if base == "stdExternalClock" {
+                    if matches!(base, "stdExternalClock" | "stdExternalInstant") {
                         required.insert("clock".into());
                     }
                     if base.starts_with("stdExternalHttp") {

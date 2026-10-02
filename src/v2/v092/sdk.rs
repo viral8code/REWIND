@@ -18,6 +18,15 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "dbDecimal",
             include_str!("../../../libraries/std/dbDecimal.rw"),
         ),
+        (
+            "dbDatetime",
+            include_str!("../../../libraries/std/dbDatetime.rw"),
+        ),
+        (
+            "datetime",
+            include_str!("../../../libraries/std/datetime.rw"),
+        ),
+        ("clock", include_str!("../../../libraries/std/clock.rw")),
         ("decimal", include_str!("../../../libraries/std/decimal.rw")),
         ("bigint", include_str!("../../../libraries/std/bigint.rw")),
         ("error", include_str!("../../../libraries/std/error.rw")),
@@ -306,6 +315,18 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "datetime-sqlite",
+                include_str!("../../../examples/datetime-sqlite/README.md"),
+            ),
+            (
+                "datetime-postgres",
+                include_str!("../../../examples/datetime-postgres/README.md"),
+            ),
+            (
+                "datetime",
+                include_str!("../../../examples/datetime/README.md"),
+            ),
+            (
                 "decimal",
                 include_str!("../../../examples/decimal/README.md"),
             ),
@@ -325,6 +346,18 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             )?;
         }
         for (name, source) in [
+            (
+                "datetime",
+                include_str!("../../../examples/datetime/main.rw"),
+            ),
+            (
+                "datetime-sqlite",
+                include_str!("../../../examples/datetime-sqlite/main.rw"),
+            ),
+            (
+                "datetime-postgres",
+                include_str!("../../../examples/datetime-postgres/main.rw"),
+            ),
             ("decimal", include_str!("../../../examples/decimal/main.rw")),
             (
                 "decimal-postgres",

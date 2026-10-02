@@ -1,0 +1,44 @@
+// Exact POSIX time, proleptic Gregorian calendar and bundled IANA zones.
+pub enum Ambiguity {Reject,Earlier,Later}
+pub struct Calendar {year:Int,month:Int,day:Int,hour:Int,minute:Int,second:Int,nanosecond:Int}
+pub struct LocalTime {calendar:Calendar,offsetSeconds:Int,weekday:Int,dayOfYear:Int}
+// @api instant failure DateTimeRange; UTC calendar years 1..9999, nanoseconds 0..999999999.
+pub fn instant(seconds:Int,nanoseconds:Int)->Result<Instant,StdError> effects {} {return stdDateTimeInstant(seconds,nanoseconds);}
+// @api duration failure DateTimeRange; normalizes signed nanoseconds with checked overflow.
+pub fn duration(seconds:Int,nanoseconds:Int)->Result<Duration,StdError> effects {} {return stdDateTimeDuration(seconds,nanoseconds);}
+// @api parse failure DateTimeSyntax/Calendar/Range; explicit RFC3339 offset, up to nine fractional digits, no leap seconds.
+pub fn parse(text:String)->Result<Instant,StdError> effects {} {return stdDateTimeParse(text);}
+pub fn format(value:&Instant)->Result<String,StdError> effects {} {return stdDateTimeFormat(value);}
+// @api formatOffset failure DateTimeOffset/Range; RFC3339 requires a whole-minute offset strictly inside +/-24 hours.
+pub fn formatOffset(value:&Instant,offsetSeconds:Int)->Result<String,StdError> effects {} {return stdDateTimeFormatOffset(value,offsetSeconds);}
+pub fn seconds(value:&Instant)->Result<Int,StdError> effects {} {return stdDateTimeSeconds(value);}
+pub fn nanoseconds(value:&Instant)->Result<Int,StdError> effects {} {return stdDateTimeNanos(value);}
+pub fn durationSeconds(value:&Duration)->Result<Int,StdError> effects {} {return stdDateTimeDurationSeconds(value);}
+pub fn durationNanoseconds(value:&Duration)->Result<Int,StdError> effects {} {return stdDateTimeDurationNanos(value);}
+pub fn add(value:&Instant,delta:&Duration)->Result<Instant,StdError> effects {} {return stdDateTimeAdd(value,delta);}
+pub fn difference(left:&Instant,right:&Instant)->Result<Duration,StdError> effects {} {return stdDateTimeDifference(left,right);}
+pub fn addDurations(left:&Duration,right:&Duration)->Result<Duration,StdError> effects {} {return stdDateTimeDurationAdd(left,right);}
+pub fn subtractDurations(left:&Duration,right:&Duration)->Result<Duration,StdError> effects {} {return stdDateTimeDurationSubtract(left,right);}
+pub fn negateDuration(value:&Duration)->Result<Duration,StdError> effects {} {return stdDateTimeDurationNegate(value);}
+fn fields(value:Calendar)->List<Int> effects {} {let values=List<Int>();values.push(value.year);values.push(value.month);values.push(value.day);values.push(value.hour);values.push(value.minute);values.push(value.second);values.push(value.nanosecond);return move values;}
+fn local(values:List<Int>)->LocalTime effects {} {return LocalTime(Calendar(values.get(0),values.get(1),values.get(2),values.get(3),values.get(4),values.get(5),values.get(6)),values.get(7),values.get(8),values.get(9));}
+// @api resolve failure DateTimeCalendar/Zone/Ambiguous/Gap/Range; gaps always fail, overlaps require an explicit policy.
+pub fn resolve(value:Calendar,zone:String,ambiguity:Ambiguity)->Result<Instant,StdError> effects {} {
+ var policy=0;match ambiguity {Ambiguity::Earlier=>{policy=1;},Ambiguity::Later=>{policy=2;},Ambiguity::Reject=>{}}
+ let values=fields(move value);return stdDateTimeResolve(&values,zone,policy);
+}
+pub fn resolveOffset(value:Calendar,offsetSeconds:Int)->Result<Instant,StdError> effects {} {let values=fields(move value);return stdDateTimeResolveOffset(&values,offsetSeconds);}
+// @api calendar cost bounded IANA lookup; weekday Monday=1..Sunday=7, dayOfYear=1..366; historical offsets retain seconds.
+pub fn calendar(value:&Instant,zone:String)->Result<LocalTime,StdError> effects {} {match stdDateTimeCalendar(value,zone){Ok(values)=>{return Ok(local(move values));},Err(error)=>{return Err(error);}}}
+pub fn calendarOffset(value:&Instant,offsetSeconds:Int)->Result<LocalTime,StdError> effects {} {match stdDateTimeCalendarOffset(value,offsetSeconds){Ok(values)=>{return Ok(local(move values));},Err(error)=>{return Err(error);}}}
+pub fn databaseVersion()->Result<String,StdError> effects {} {return stdDateTimeDatabaseVersion();}
+pub fn toJson(value:&Instant)->Result<Json,StdError> effects {} {match format(value){Ok(text)=>{return Ok(Json::Text(text));},Err(error)=>{return Err(error);}}}
+pub fn fromJson(value:Json)->Result<Instant,StdError> effects {} {match move value {Json::Text(text)=>{return parse(text);},_=>{return Err(StdError("DateTimeType",0));}}}
+// Duration JSON is a two-field object with exact Int seconds and canonical nanoseconds.
+pub fn durationToJson(value:&Duration)->Result<Json,StdError> effects {} {
+ match durationSeconds(value){Err(error)=>{return Err(error);},Ok(seconds)=>{match durationNanoseconds(value){Err(error)=>{return Err(error);},Ok(nanos)=>{let fields=Map<String,Json>();fields.set("seconds",Json::Int(seconds));fields.set("nanoseconds",Json::Int(nanos));return Ok(Json::Object(freeze(move fields)));}}}}
+}
+pub fn durationFromJson(value:Json)->Result<Duration,StdError> effects {} {
+ if jsonKind(value)!="Object" || jsonKeys(value).len()!=2{return Err(StdError("DateTimeType",0));}
+ match jsonGet(value,"seconds"){Some(Json::Int(seconds))=>{match jsonGet(value,"nanoseconds"){Some(Json::Int(nanos))=>{if nanos<0 || nanos>=1000000000{return Err(StdError("DateTimeRange",0));}return duration(seconds,nanos);},_=>{return Err(StdError("DateTimeType",0));}}},_=>{return Err(StdError("DateTimeType",0));}}
+}

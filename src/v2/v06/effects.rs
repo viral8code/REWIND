@@ -41,7 +41,7 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
                 let n = resolve_alias(program, n);
                 if n.starts_with("stdExternal") {
                     needs.insert("external".into());
-                    if n == "stdExternalClock" {
+                    if matches!(n.as_str(), "stdExternalClock" | "stdExternalInstant") {
                         needs.insert("clock".into());
                     }
                     if n.starts_with("stdExternalHttp") {
@@ -152,7 +152,7 @@ impl Scan<'_> {
                     let base = n.split('<').next().unwrap_or(n);
                     if base.starts_with("stdExternal") {
                         self.needs.insert("external".into());
-                        if base == "stdExternalClock" {
+                        if matches!(base, "stdExternalClock" | "stdExternalInstant") {
                             self.needs.insert("clock".into());
                         }
                         if base.starts_with("stdExternalHttp") {

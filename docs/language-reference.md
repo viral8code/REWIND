@@ -494,3 +494,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 ### v1.8.3 Decimal
 
 `std.decimal` は precision / scale / rounding を明示する exact base-ten 数値型。scalar 数値比較と VM の scale 保存を分け、`std.dbDecimal` で DB へ接続する。[契約](REWIND_v1.8.3.md)。
+
+## 日時（v1.8.4）
+
+`Instant` / `Duration` は不変の native 値です。`std.datetime` の変換・算術は pure で `Result` を返し、比較・Map key・freeze・task・checkpoint を利用できます。zone は明示し、DST overlap は Earlier / Later / Reject、gap はエラーです。`std.clock.now()` は `external,clock` effects と external region を要求します。詳細と DB の精度契約は [v1.8.4](REWIND_v1.8.4.md) を参照してください。
