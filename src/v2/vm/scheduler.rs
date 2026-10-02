@@ -519,6 +519,181 @@ impl<R: BufRead> Vm<R> {
         args: &[Value],
         at: &Tok,
     ) -> Result<Option<Value>> {
+        if name.starts_with("stdExternalDb") && name != "stdExternalDbPrivateParameter" {
+            use rewind::database::Operation;
+            let invalid = || self.error(at, "invalid database arguments");
+            let Some(Value::Int(timeout)) = args.last() else {
+                return Err(invalid());
+            };
+            let (operation, result_type) = if name == "stdExternalDbCleanup" {
+                (Operation::Cleanup, "Result<Unit,DbError>")
+            } else if name == "stdExternalDbSqlite" {
+                let [Value::Text(path), Value::Bool(read_only), _] = args else {
+                    return Err(invalid());
+                };
+                (
+                    Operation::Sqlite {
+                        path: path.clone(),
+                        read_only: *read_only,
+                    },
+                    "Result<DbConnection,DbError>",
+                )
+            } else {
+                let resource = self.resolve(&args[0]);
+                let id = self.engine.runtime.check_native(&resource)? as usize;
+                match name {
+                    "stdExternalDbExecuteMany" => {
+                        let Some(Value::Text(sql)) = args.get(1) else {
+                            return Err(invalid());
+                        };
+                        let values = self.resolve(&args[2]);
+                        let values = v05::unfrozen(&values).unwrap_or(&values);
+                        let Value::TypedList(_, rows) = values else {
+                            return Err(invalid());
+                        };
+                        if rows.len() > 1024
+                            || rows.iter().try_fold(0usize, |total, row| {
+                                database_parameter_bytes(v05::unfrozen(row).unwrap_or(row))
+                                    .and_then(|bytes| {
+                                        total
+                                            .checked_add(bytes)
+                                            .ok_or_else(|| self.error(at, "DbLimit: batch bytes"))
+                                    })
+                            })? > 1048576
+                        {
+                            return Err(self.error(at, "DbLimit: batch parameters"));
+                        }
+                        let parameters = rows
+                            .iter()
+                            .map(|row| database_parameters(v05::unfrozen(row).unwrap_or(row)))
+                            .collect::<Result<Vec<_>>>()?;
+                        (
+                            Operation::ExecuteMany {
+                                connection: id,
+                                sql: sql.clone(),
+                                parameters,
+                            },
+                            "Result<Int,DbError>",
+                        )
+                    }
+                    "stdExternalDbExecute"
+                    | "stdExternalDbQuery"
+                    | "stdExternalDbExecuteStatement"
+                    | "stdExternalDbQueryStatement" => {
+                        let statement = name.ends_with("Statement");
+                        let sql = if statement {
+                            String::new()
+                        } else {
+                            let Some(Value::Text(sql)) = args.get(1) else {
+                                return Err(invalid());
+                            };
+                            sql.clone()
+                        };
+                        let params = self.resolve(&args[if statement { 1 } else { 2 }]);
+                        let params = v05::unfrozen(&params).unwrap_or(&params);
+                        let parameters = database_parameters(params)?;
+                        if name == "stdExternalDbExecuteStatement" {
+                            (
+                                Operation::ExecuteStatement {
+                                    statement: id,
+                                    parameters,
+                                },
+                                "Result<Int,DbError>",
+                            )
+                        } else if name == "stdExternalDbQueryStatement" {
+                            (
+                                Operation::QueryStatement {
+                                    statement: id,
+                                    parameters,
+                                },
+                                "Result<DbCursor,DbError>",
+                            )
+                        } else if name.ends_with("Execute") {
+                            (
+                                Operation::Execute {
+                                    connection: id,
+                                    sql: sql.clone(),
+                                    parameters,
+                                },
+                                "Result<Int,DbError>",
+                            )
+                        } else {
+                            (
+                                Operation::Query {
+                                    connection: id,
+                                    sql: sql.clone(),
+                                    parameters,
+                                },
+                                "Result<DbCursor,DbError>",
+                            )
+                        }
+                    }
+                    "stdExternalDbPrepare" => {
+                        let Some(Value::Text(sql)) = args.get(1) else {
+                            return Err(invalid());
+                        };
+                        (
+                            Operation::Prepare {
+                                connection: id,
+                                sql: sql.clone(),
+                            },
+                            "Result<DbStatement,DbError>",
+                        )
+                    }
+                    "stdExternalDbCloseStatement" => (
+                        Operation::CloseStatement { statement: id },
+                        "Result<Unit,DbError>",
+                    ),
+                    "stdExternalDbNext" => {
+                        let [_, Value::Int(rows), Value::Int(bytes), _] = args else {
+                            return Err(invalid());
+                        };
+                        (
+                            Operation::Next {
+                                cursor: id,
+                                rows: usize::try_from(*rows).unwrap_or(usize::MAX),
+                                bytes: usize::try_from(*bytes).unwrap_or(usize::MAX),
+                            },
+                            "Result<DbBatch,DbError>",
+                        )
+                    }
+                    "stdExternalDbCloseCursor" => (
+                        Operation::CloseCursor { cursor: id },
+                        "Result<Unit,DbError>",
+                    ),
+                    "stdExternalDbBegin" => {
+                        (Operation::Begin { connection: id }, "Result<Unit,DbError>")
+                    }
+                    "stdExternalDbCommit" => {
+                        (Operation::Commit { connection: id }, "Result<Unit,DbError>")
+                    }
+                    "stdExternalDbRollback" => (
+                        Operation::Rollback { connection: id },
+                        "Result<Unit,DbError>",
+                    ),
+                    "stdExternalDbClose" => {
+                        (Operation::Close { connection: id }, "Result<Unit,DbError>")
+                    }
+                    _ => return Err(invalid()),
+                }
+            };
+            let timeout = u64::try_from(*timeout).unwrap_or(u64::MAX);
+            let task = self.new_action(
+                TaskBody::HostOperation(usize::MAX),
+                result_type.into(),
+                Vec::new(),
+                at,
+            )?;
+            let operation = self.engine.runtime.start_database(operation, timeout)?;
+            let state = self
+                .scheduler
+                .tasks
+                .get_mut(&handle_id(&task).unwrap())
+                .unwrap();
+            state.body = TaskBody::HostOperation(operation);
+            state.phase = TaskPhase::Ready;
+            return Ok(Some(task));
+        }
         if matches!(
             name,
             "stdExternalHttpRead"
@@ -2054,7 +2229,181 @@ impl<R: BufRead> Vm<R> {
     }
 }
 
+fn database_parameters(value: &Value) -> Result<Vec<rewind::database::Parameter>> {
+    use rewind::database::Parameter;
+    let invalid = || Error::InvalidOperation("invalid typed database parameters".into());
+    let Value::TypedList(_, values) = value else {
+        return Err(invalid());
+    };
+    if database_parameter_bytes(value)? > 1048576 {
+        return Err(Error::InvalidOperation("DbLimit: parameter bytes".into()));
+    }
+    if values.len() > 1024 {
+        return Err(Error::InvalidOperation("DbLimit: parameter count".into()));
+    }
+    values
+        .iter()
+        .map(|value| {
+            let Value::Enum(ty, variant, fields) = value else {
+                return Err(invalid());
+            };
+            if ty != "DbValue" {
+                return Err(invalid());
+            }
+            Ok(match (variant.as_str(), fields.first().map(|(_, v)| v)) {
+                ("Null", None) => Parameter::Null,
+                ("Bool", Some(Value::Bool(v))) => Parameter::Bool(*v),
+                ("Int", Some(Value::Int(v))) => Parameter::Int(*v),
+                ("Float", Some(Value::Float(v))) => Parameter::Float(f64::from_bits(*v)),
+                ("Text", Some(Value::Text(v))) => Parameter::Text(v.clone()),
+                ("Private", Some(Value::Text(v))) => Parameter::Private(v.clone()),
+                ("Bytes", Some(Value::Bytes(v))) => Parameter::Bytes(v.as_ref().clone()),
+                _ => return Err(invalid()),
+            })
+        })
+        .collect()
+}
+fn database_parameter_bytes(value: &Value) -> Result<usize> {
+    let Value::TypedList(_, values) = value else {
+        return Err(Error::InvalidOperation(
+            "invalid database parameters".into(),
+        ));
+    };
+    values.iter().try_fold(0usize, |total, value| {
+        let payload = match value {
+            Value::Enum(_, _, fields) => fields.first().map_or(0, |(_, v)| match v {
+                Value::Text(v) => v.len(),
+                Value::Bytes(v) => v.len(),
+                _ => 0,
+            }),
+            _ => 0,
+        };
+        total
+            .checked_add(payload.saturating_add(32))
+            .ok_or_else(|| Error::InvalidOperation("DbLimit: parameter bytes".into()))
+    })
+}
+fn database_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let invalid = || Error::InvalidOperation("ReplayMismatch: invalid database response".into());
+    if let Some(error) = json.get("error") {
+        return Ok(Value::Result(Err(Box::new(Value::Struct(
+            "DbError".into(),
+            BTreeMap::from([
+                (
+                    "sqlState".into(),
+                    Value::Option(
+                        error["sqlState"]
+                            .as_str()
+                            .map(|s| Box::new(Value::Text(s.into()))),
+                    ),
+                ),
+                (
+                    "code".into(),
+                    Value::Text(error["code"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "phase".into(),
+                    Value::Text(error["phase"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "sqlCode".into(),
+                    Value::Option(error["sqlCode"].as_i64().map(|n| Box::new(Value::Int(n)))),
+                ),
+            ]),
+        )))));
+    }
+    let value = if let Some(id) = json.get("connection") {
+        runtime.native_value(
+            "DbConnection",
+            id.as_u64().ok_or_else(invalid)?,
+            BTreeMap::from([(
+                "backend".into(),
+                Value::Text(json["backend"].as_str().ok_or_else(invalid)?.into()),
+            )]),
+        )?
+    } else if json.get("cursor").is_some() || json.get("statement").is_some() {
+        let statement = json.get("statement").is_some();
+        let id = &json[if statement { "statement" } else { "cursor" }];
+        let columns = json["columns"]
+            .as_array()
+            .ok_or_else(invalid)?
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .map(|s| Value::Text(s.into()))
+                    .ok_or_else(invalid)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let columns = v05::frozen(Value::TypedList("String".into(), columns.into()), runtime);
+        let mut fields = BTreeMap::from([("columns".into(), columns)]);
+        if statement {
+            fields.insert(
+                "parameters".into(),
+                Value::Int(json["parameters"].as_i64().ok_or_else(invalid)?),
+            );
+        }
+        runtime.native_value(
+            if statement { "DbStatement" } else { "DbCursor" },
+            id.as_u64().ok_or_else(invalid)?,
+            fields,
+        )?
+    } else if let Some(count) = json.get("changed") {
+        Value::Int(count.as_i64().ok_or_else(invalid)?)
+    } else if let Some(rows) = json.get("rows") {
+        let mut values = Vec::new();
+        for row in rows.as_array().ok_or_else(invalid)? {
+            let mut items = Vec::new();
+            for item in row.as_array().ok_or_else(invalid)? {
+                let variant = item["type"].as_str().ok_or_else(invalid)?;
+                let inner = match variant {
+                    "Null" => None,
+                    "Int" => Some(Value::Int(item["value"].as_i64().ok_or_else(invalid)?)),
+                    "Float" => Some(Value::Float(item["bits"].as_u64().ok_or_else(invalid)?)),
+                    "Text" => Some(Value::Text(
+                        item["value"].as_str().ok_or_else(invalid)?.into(),
+                    )),
+                    "Bytes" => Some(Value::Bytes(Arc::new(
+                        STANDARD
+                            .decode(item["value"].as_str().ok_or_else(invalid)?)
+                            .map_err(|_| invalid())?,
+                    ))),
+                    _ => return Err(invalid()),
+                };
+                items.push(Value::Enum(
+                    "DbValue".into(),
+                    variant.into(),
+                    inner.map(|v| vec![("0".into(), v)]).unwrap_or_default(),
+                ));
+            }
+            let items = v05::frozen(Value::TypedList("DbValue".into(), items.into()), runtime);
+            values.push(Value::Struct(
+                "DbRow".into(),
+                BTreeMap::from([("values".into(), items)]),
+            ));
+        }
+        let rows = v05::frozen(Value::TypedList("DbRow".into(), values.into()), runtime);
+        Value::Struct(
+            "DbBatch".into(),
+            BTreeMap::from([
+                ("rows".into(), rows),
+                (
+                    "done".into(),
+                    Value::Bool(json["done"].as_bool().ok_or_else(invalid)?),
+                ),
+            ]),
+        )
+    } else if json["unit"] == true {
+        Value::Null
+    } else {
+        return Err(invalid());
+    };
+    Ok(Value::Result(Ok(Box::new(value))))
+}
 fn http_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
+    if json["adapter"] == "db" {
+        return database_value(json, runtime);
+    }
     use base64::{engine::general_purpose::STANDARD, Engine};
     let invalid = || Error::InvalidOperation("ReplayMismatch: invalid HTTP response".into());
     if let Some(error) = json.get("error") {

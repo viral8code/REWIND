@@ -873,7 +873,7 @@ impl Flow<'_> {
                 };
                 let asynchronous = function.is_some_and(|f| f.asynchronous)
                     || (function.is_none()
-                        && !matches!(&target.kind,ExprKind::Name(n) if matches!(n.as_str(),"stdExternalHttpRead"|"stdExternalHttpClose"|"stdExternalHttpWrite"|"stdExternalHttpFinish"|"stdExternalHttpCloseUpload"))
+                        && !matches!(&target.kind,ExprKind::Name(n) if v092::native_borrow(n).is_some())
                         && self
                             .checker()
                             .expr(target)
@@ -909,7 +909,7 @@ impl Flow<'_> {
                                 .as_ref()
                                 .and_then(|(p, _)| p.get(index).map(String::as_str))
                         })
-                        .or_else(|| (index==0 && matches!(&target.kind,ExprKind::Name(n) if matches!(n.as_str(),"stdExternalHttpRead"|"stdExternalHttpClose"|"stdExternalHttpWrite"|"stdExternalHttpFinish"|"stdExternalHttpCloseUpload"))).then_some(if matches!(&target.kind,ExprKind::Name(n) if matches!(n.as_str(),"stdExternalHttpWrite"|"stdExternalHttpFinish"|"stdExternalHttpCloseUpload")){"&mut HttpUpload"}else{"&mut HttpDownload"}))
+                        .or_else(|| if index == 0 { if let ExprKind::Name(n) = &target.kind { v092::native_borrow(n) } else { None } } else { None })
                         .or_else(|| (matches!(self.program.language.as_str(), "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.6.0" | "1.6.1" | "1.7.0" | "1.8.0" | "1.9.0" | "2.0.0") && index == 0 && matches!(&target.kind, ExprKind::Name(n) if n == "stdBytesFromList")).then_some("&List<Int>"));
                     let borrowing = matches!(
                         self.program.language.as_str(),

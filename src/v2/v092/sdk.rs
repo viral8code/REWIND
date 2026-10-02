@@ -29,6 +29,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/external.rw"),
         ),
         ("http", include_str!("../../../libraries/std/http.rw")),
+        ("db", include_str!("../../../libraries/std/db.rw")),
         ("gui", include_str!("../../../libraries/std/gui.rw")),
         ("args", include_str!("../../../libraries/std/args.rw")),
         ("bits", include_str!("../../../libraries/std/bits.rw")),
@@ -186,7 +187,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "lib/rewind/std/rewind.toml",
             include_str!("../../../libraries/std/rewind.toml"),
         )?;
-        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":env!("CARGO_PKG_VERSION"),"effects":["gui","external","clock","network","tasks"],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
+        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":env!("CARGO_PKG_VERSION"),"effects":["gui","external","clock","network","db","tasks"],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
         let std_root = output.join("lib/rewind/std");
         update_project(&std_root)?;
         // A distribution is only assembled after its embedded standard library
@@ -286,6 +287,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/doc/v2-design.md",
             include_str!("../../../docs/v2-design.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.7.md",
+            include_str!("../../../docs/REWIND_v1.7.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/database/main.rw",
+            include_str!("../../../examples/database/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/database/README.md",
+            include_str!("../../../examples/database/README.md"),
         )?;
         write(
             &output,

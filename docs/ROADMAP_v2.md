@@ -41,7 +41,8 @@ v2.0 は次の条件をすべて確認してから公開する。機能名が存
 | 1.5.0 | 明示的な外部領域、操作 ID / 記録、再実行防止、失敗分類、資源 registry の契約 | 境界の静的・動的検査、同一 / 異なる要求、fresh、記録失敗、begin / branch / task との検証 |
 | 1.6.0 | HTTP / HTTPS client、TLS、timeout、bounded body、非同期 host I/O とキャンセル | 実 server との通信、無断再送なし、replay が host に触れない、GUI が応答する |
 | 1.6.1 | 逐次 HTTP download / upload、接続の所有権と cleanup | 実 server、容量・期限・秘密値、資源解放、revert / source-free replay |
-| 1.7.0 | SQLite、PostgreSQL adapter、parameter、行 / cursor、独立した DB transaction | 両 DB の実接続、部分失敗、確定済み書込みと VM revert の独立、解放・replay |
+| 1.7.0 | SQLite adapter、parameter、行 / cursor、prepared statement、独立した DB transaction | 実 DB、部分失敗、確定済み書込みと VM revert の独立、解放・replay |
+| 1.7.1 | PostgreSQL adapter、実接続・TLS・認証 | 実 server、SQLSTATE、切断・期限・transaction、両 OS。ここまで通して v1.7 の DB 範囲を検証 |
 | 1.8.0 | dense 数値型、数学・線形代数・統計、BigInt / Decimal、日時 / text / stream の不足補完 | 数値精度、サイズ・費用契約、snapshot の共有、実データの増分処理 |
 | 1.9.0 | GC / ownership 監査、VM と native kernel の高速化、公平な task、GUI 拡充、残るアルゴリズム | メモリの長時間安定、履歴の保持・解放、性能測定、UI と通信 / DB の並行動作 |
 | 2.0.0 | 統合、HTTP server / TCP 基礎、数値・勾配 / 最適化の完成、言語・配布の不足修正 | 到達条件の全項目、全 adapter / OS、source-free、仕様・API・benchmark の整合 |

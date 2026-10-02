@@ -13,6 +13,7 @@ const KNOWN: &[&str] = &[
     "gui",
     "external",
     "network",
+    "db",
 ];
 fn task_type(program: &Program, ty: &str, seen: &mut BTreeSet<String>) -> bool {
     if ty.contains("Task<") || ty.contains("TaskGroup") || ty.contains("Channel<") {
@@ -58,6 +59,10 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
                     }
                     if base.starts_with("stdExternalHttp") {
                         required.insert("network".into());
+                        required.insert("tasks".into());
+                    }
+                    if base.starts_with("stdExternalDb") {
+                        required.insert("db".into());
                         required.insert("tasks".into());
                     }
                 }

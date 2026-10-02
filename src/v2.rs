@@ -156,7 +156,7 @@ fn standalone_config(
     if fs::symlink_metadata(&metadata).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error::InvalidPath(metadata.display().to_string()));
     }
-    fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":["gui","external","clock","network","tasks"], "dependencies":{}})).unwrap())?;
+    fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":["gui","external","clock","network","db","tasks"], "dependencies":{}})).unwrap())?;
     config.imports.insert("std".into(), std_root);
     Ok(config)
 }

@@ -192,16 +192,36 @@ impl crate::Runtime {
         Ok(id)
     }
     pub fn has_native_resources(&self) -> bool {
-        self.network_host
+        self.database_host
             .as_ref()
-            .is_some_and(|h| !h.downloads.is_empty() || !h.uploads.is_empty())
+            .is_some_and(|h| h.resource_ids().next().is_some())
+            || self
+                .network_host
+                .as_ref()
+                .is_some_and(|h| !h.downloads.is_empty() || !h.uploads.is_empty())
     }
     pub fn native_resource_count(&self) -> usize {
-        self.network_host
+        self.database_host
             .as_ref()
-            .map_or(0, |h| h.downloads.len() + h.uploads.len())
+            .map_or(0, |h| h.resource_ids().count())
+            + self
+                .network_host
+                .as_ref()
+                .map_or(0, |h| h.downloads.len() + h.uploads.len())
     }
     pub fn collect_native_resources(&mut self, roots: &[crate::Value]) -> crate::Result<()> {
+        if let Some(host) = &self.database_host {
+            let live = self.live_native_ids(roots);
+            let abandoned = host
+                .resource_ids()
+                .filter(|id| !live.contains(&(**id as u64)))
+                .copied()
+                .collect::<Vec<_>>();
+            for id in abandoned {
+                self.close_native_resource(id as u64)?;
+                self.forget_native_owner(id as u64);
+            }
+        }
         if self
             .network_host
             .as_ref()
@@ -241,6 +261,9 @@ impl crate::Runtime {
     pub fn close_native_resource(&mut self, id: u64) -> crate::Result<()> {
         let stream = usize::try_from(id)
             .map_err(|_| crate::Error::InvalidOperation("NativeResourceInvalid".into()))?;
+        if let Some(host) = self.database_host.as_mut() {
+            host.close_resource(stream);
+        }
         let jobs = self
             .network_host
             .as_mut()
@@ -317,6 +340,15 @@ impl crate::Runtime {
     }
     pub fn cancel_http(&mut self, id: usize) -> crate::Result<()> {
         if self.external_entries.get(id).is_some_and(|e| e.pending) {
+            if self
+                .database_host
+                .as_ref()
+                .is_some_and(|h| h.contains_job(id))
+            {
+                let result = self.database_host.as_mut().unwrap().cancel(id);
+                self.finish_async_external(id, Ok(result))?;
+                return Ok(());
+            }
             let mut result = self
                 .network_host
                 .as_mut()
