@@ -128,3 +128,7 @@ SQLite の接続、パラメータ束縛、prepared statement、逐次 cursor、
 FloatArray / IntArray の生成、所有値の COW 更新、view、明示 broadcast、scalar math、vector / matrix product、部分 pivot LU solve、補償和・mean / variance を提供する。全要素を VM List に変換せず native kernel を使える。数値配列は VM 内の巻き戻せる値であり、DB 等の外部作用とは区別する。[仕様](../docs/REWIND_v1.8.md)、[例](../examples/numeric/README.md)を参照。
 
 QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と online moments は [1.8.1](../docs/REWIND_v1.8.1.md) を参照。`std.distributions` は checkpointed generator の uniform / normal / exponential / Bernoulli sampling を提供し、random 効果を持つ。
+
+## v1.8.2 exact integers
+
+`std.bigint` の native BigInt は参照共有され、parse / format、整数・bit算術、Mapとexact JSON string を提供する。[契約](../docs/REWIND_v1.8.2.md)。Decimal・DB変換は次の数値型patchで追加する。

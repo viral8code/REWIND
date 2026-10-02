@@ -14,6 +14,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "distributions",
             include_str!("../../../libraries/std/distributions.rw"),
         ),
+        ("bigint", include_str!("../../../libraries/std/bigint.rw")),
         ("error", include_str!("../../../libraries/std/error.rw")),
         (
             "stringSearch",
@@ -292,6 +293,22 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/doc/v2-design.md",
             include_str!("../../../docs/v2-design.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.8.2.md",
+            include_str!("../../../docs/REWIND_v1.8.2.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/bigint/main.rw",
+            include_str!("../../../examples/bigint/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/bigint/README.md",
+            &include_str!("../../../examples/bigint/README.md")
+                .replace("../../docs/", "../../doc/"),
         )?;
         write(
             &output,

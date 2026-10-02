@@ -1,0 +1,71 @@
+// Immutable native arbitrary-precision integers. Existing Int is unchanged.
+// @api parse cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api parse failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn parse(value:String,radix:Int)->Result<BigInt,StdError> effects {} {return stdBigIntParse(value,radix);}
+// @api fromInt cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api fromInt failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn fromInt(value:Int)->Result<BigInt,StdError> effects {} {return stdBigIntFromInt(value);}
+// @api toInt cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api toInt failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn toInt(value:&BigInt)->Result<Int,StdError> effects {} {return stdBigIntToInt(value);}
+// @api format cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api format failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn format(value:&BigInt,radix:Int)->Result<String,StdError> effects {} {return stdBigIntFormat(value,radix);}
+// @api compare cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api compare failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn compare(left:&BigInt,right:&BigInt)->Result<Int,StdError> effects {} {return stdBigIntCompare(left,right);}
+// @api bits cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api bits failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn bits(value:&BigInt)->Result<Int,StdError> effects {} {return stdBigIntBits(value);}
+// @api shift cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api shift failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn shift(value:&BigInt,left:Bool,count:Int)->Result<BigInt,StdError> effects {} {return stdBigIntShift(value,left,count);}
+// @api pow cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api pow failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn pow(value:&BigInt,exponent:Int)->Result<BigInt,StdError> effects {} {return stdBigIntPow(value,exponent);}
+// @api modPow cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api modPow failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn modPow(value:&BigInt,exponent:&BigInt,modulus:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntModPow(value,exponent,modulus);}
+// @api add cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api add failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn add(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("add",left,right);}
+// @api subtract cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api subtract failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn subtract(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("sub",left,right);}
+// @api multiply cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api multiply failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn multiply(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("mul",left,right);}
+// @api divide cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api divide failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn divide(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("div",left,right);}
+// @api remainder cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api remainder failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn remainder(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("rem",left,right);}
+// @api modulo cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api modulo failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn modulo(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("mod",left,right);}
+// @api gcd cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api gcd failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn gcd(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("gcd",left,right);}
+// @api bitAnd cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api bitAnd failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn bitAnd(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("and",left,right);}
+// @api bitOr cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api bitOr failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn bitOr(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("or",left,right);}
+// @api bitXor cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api bitXor failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn bitXor(left:&BigInt,right:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntBinary("xor",left,right);}
+// @api negate cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api negate failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn negate(value:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntUnary("neg",value);}
+// @api bitNot cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api bitNot failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn bitNot(value:&BigInt)->Result<BigInt,StdError> effects {} {return stdBigIntUnary("not",value);}
+// Exact JSON representation is a decimal string, never a binary64 number.
+// @api toJson cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api toJson failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn toJson(value:&BigInt)->Result<Json,StdError> effects {} {match format(value,10){Ok(text)=>{return Ok(Json::Text(text));},Err(error)=>{return Err(error);}}}
+// @api fromJson cost native work is precharged from input/output size; quadratic kernels and powers have additional work.
+// @api fromJson failure StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.
+pub fn fromJson(value:Json)->Result<BigInt,StdError> effects {} {match move value{Json::Text(text)=>{return parse(text,10);},_=>{return Err(StdError("BigIntJsonType",0));}}}

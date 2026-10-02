@@ -41,6 +41,7 @@ fn program_v09(p: &Program) -> bool {
             | "1.7.1"
             | "1.8.0"
             | "1.8.1"
+            | "1.8.2"
             | "1.9.0"
             | "2.0.0"
     )
@@ -73,6 +74,7 @@ fn program_v07(p: &Program) -> bool {
             | "1.7.1"
             | "1.8.0"
             | "1.8.1"
+            | "1.8.2"
             | "1.9.0"
             | "2.0.0"
     )
@@ -3307,6 +3309,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         )
@@ -3346,6 +3349,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -3384,6 +3388,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -3473,6 +3478,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         )
@@ -3512,6 +3518,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -3802,6 +3809,7 @@ pub fn lock_project(root: &Path) -> Result<()> {
             | "1.7.1"
             | "1.8.0"
             | "1.8.1"
+            | "1.8.2"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -3978,6 +3986,7 @@ fn check_program(program: &Program) -> Result<()> {
             | "1.7.1"
             | "1.8.0"
             | "1.8.1"
+            | "1.8.2"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -4061,12 +4070,10 @@ fn check_program(program: &Program) -> Result<()> {
             }
             ty.replace("Self", target)
         };
-        if !matches!(
-            target.split('<').next().unwrap_or(target),
-            "Bool" | "Int" | "Float" | "String" | "Bytes"
-        ) && !program
-            .structs
-            .contains_key(target.split('<').next().unwrap_or(target))
+        if !builtin_key_type(program, target.split('<').next().unwrap_or(target))
+            && !program
+                .structs
+                .contains_key(target.split('<').next().unwrap_or(target))
             && !program
                 .enums
                 .contains_key(target.split('<').next().unwrap_or(target))
@@ -4164,6 +4171,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
@@ -4221,6 +4229,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -4273,6 +4282,7 @@ impl Checker<'_> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) && def.origin != self.origin
@@ -4306,6 +4316,7 @@ impl Checker<'_> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) && def.origin != self.origin
@@ -4350,6 +4361,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) && exposed.iter().any(|local| {
@@ -4540,6 +4552,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) {
@@ -4710,6 +4723,7 @@ impl Checker<'_> {
                 Value::Float(_) => "Float",
                 Value::Text(_) => "String",
                 Value::Bytes(_) => "Bytes",
+                Value::BigInt(_) => "BigInt",
                 Value::NumericArray(a) => match a.dtype() {
                     rewind::numeric::DType::Float64 => "FloatArray",
                     rewind::numeric::DType::Int64 => "IntArray",
@@ -4754,6 +4768,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) {
@@ -4800,6 +4815,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) {
@@ -4860,6 +4876,7 @@ impl Checker<'_> {
                                 | "1.7.1"
                                 | "1.8.0"
                                 | "1.8.1"
+                                | "1.8.2"
                                 | "1.9.0"
                                 | "2.0.0"
                         ) {
@@ -4904,6 +4921,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) {
@@ -4967,6 +4985,7 @@ impl Checker<'_> {
                                     | "1.7.1"
                                     | "1.8.0"
                                     | "1.8.1"
+                                    | "1.8.2"
                                     | "1.9.0"
                                     | "2.0.0"
                             ) {
@@ -5005,6 +5024,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) && op != "move"
@@ -5051,6 +5071,7 @@ impl Checker<'_> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) && (self.expr(a)?.starts_with("Secret<")
@@ -5158,6 +5179,7 @@ impl Checker<'_> {
                                     | "1.7.1"
                                     | "1.8.0"
                                     | "1.8.1"
+                                    | "1.8.2"
                                     | "1.9.0"
                                     | "2.0.0"
                             ) {
@@ -5230,6 +5252,7 @@ impl Checker<'_> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) && t.starts_with("Secret<")
@@ -5271,6 +5294,7 @@ impl Checker<'_> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) {
@@ -5314,6 +5338,7 @@ impl Checker<'_> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) && t.starts_with("Frozen<")
@@ -5394,6 +5419,7 @@ impl Checker<'_> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) {
@@ -5475,6 +5501,7 @@ impl Checker<'_> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) {
@@ -5541,6 +5568,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) {
@@ -5582,6 +5610,7 @@ impl Checker<'_> {
                                 | "1.7.1"
                                 | "1.8.0"
                                 | "1.8.1"
+                                | "1.8.2"
                                 | "1.9.0"
                                 | "2.0.0"
                         ) {
@@ -5619,6 +5648,7 @@ impl Checker<'_> {
                                 | "1.7.1"
                                 | "1.8.0"
                                 | "1.8.1"
+                                | "1.8.2"
                                 | "1.9.0"
                                 | "2.0.0"
                         ) {
@@ -5680,6 +5710,7 @@ impl Checker<'_> {
                                     | "1.7.1"
                                     | "1.8.0"
                                     | "1.8.1"
+                                    | "1.8.2"
                                     | "1.9.0"
                                     | "2.0.0"
                             ) {
@@ -5727,6 +5758,7 @@ impl Checker<'_> {
                                     | "1.7.1"
                                     | "1.8.0"
                                     | "1.8.1"
+                                    | "1.8.2"
                                     | "1.9.0"
                                     | "2.0.0"
                             ) && types.is_empty()
@@ -5833,6 +5865,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     )
@@ -5888,6 +5921,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) && matches!(name.as_str(), "secret" | "reveal")
@@ -5933,6 +5967,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) && matches!(name.as_str(), "freeze" | "thaw")
@@ -6136,6 +6171,7 @@ impl Checker<'_> {
                                     | "1.7.1"
                                     | "1.8.0"
                                     | "1.8.1"
+                                    | "1.8.2"
                                     | "1.9.0"
                                     | "2.0.0"
                             ) && matches!(
@@ -6282,6 +6318,7 @@ impl Checker<'_> {
                                         | "1.7.1"
                                         | "1.8.0"
                                         | "1.8.1"
+                                        | "1.8.2"
                                         | "1.9.0"
                                         | "2.0.0"
                                 ) && matches!(
@@ -6313,6 +6350,7 @@ impl Checker<'_> {
                                         | "1.7.1"
                                         | "1.8.0"
                                         | "1.8.1"
+                                        | "1.8.2"
                                         | "1.9.0"
                                         | "2.0.0"
                                 ) && matches!(
@@ -6425,6 +6463,7 @@ impl Checker<'_> {
                                     | "1.7.1"
                                     | "1.8.0"
                                     | "1.8.1"
+                                    | "1.8.2"
                                     | "1.9.0"
                                     | "2.0.0"
                             ) && base_type == "List"
@@ -6516,6 +6555,7 @@ impl Checker<'_> {
                                             | "1.7.1"
                                             | "1.8.0"
                                             | "1.8.1"
+                                            | "1.8.2"
                                             | "1.9.0"
                                             | "2.0.0"
                                     ) =>
@@ -6624,6 +6664,7 @@ impl Checker<'_> {
                                         | "1.7.1"
                                         | "1.8.0"
                                         | "1.8.1"
+                                        | "1.8.2"
                                         | "1.9.0"
                                         | "2.0.0"
                                 ) =>
@@ -6789,6 +6830,7 @@ impl Checker<'_> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) {
@@ -6928,6 +6970,7 @@ impl Checker<'_> {
                             | "1.7.1"
                             | "1.8.0"
                             | "1.8.1"
+                            | "1.8.2"
                             | "1.9.0"
                             | "2.0.0"
                     ) && self.expr(base)?.starts_with("Tuple<")
@@ -7340,6 +7383,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -8023,6 +8067,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) && !self
@@ -8056,6 +8101,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -8091,6 +8137,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -8126,6 +8173,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.7.1"
                     | "1.8.0"
                     | "1.8.1"
+                    | "1.8.2"
                     | "1.9.0"
                     | "2.0.0"
             )
@@ -8172,6 +8220,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) && matches!(name, "secret" | "reveal")
@@ -8206,6 +8255,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.7.1"
                     | "1.8.0"
                     | "1.8.1"
+                    | "1.8.2"
                     | "1.9.0"
                     | "2.0.0"
             ) {
@@ -8250,6 +8300,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) && matches!(name, "freeze" | "thaw")
@@ -8288,6 +8339,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.7.1"
                     | "1.8.0"
                     | "1.8.1"
+                    | "1.8.2"
                     | "1.9.0"
                     | "2.0.0"
             ) && matches!(
@@ -8347,7 +8399,7 @@ impl<R: BufRead> Engine<R> {
             if !trait_satisfied(&self.program, "Ord", types[0]) {
                 return Err(self.fail(at, "Map key type must implement Ord"));
             }
-            if !matches!(types[0], "Bool" | "Int" | "Float" | "String" | "Bytes") {
+            if !builtin_key_type(&self.program, types[0]) {
                 return Ok(Value::HeapRef(self.runtime.alloc(Value::OrderedMap(
                     types[0].into(),
                     types[1].into(),
@@ -8649,6 +8701,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -8692,6 +8745,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -8742,6 +8796,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) && args.is_empty()
@@ -8786,6 +8841,7 @@ impl<R: BufRead> Engine<R> {
                                 | "1.7.1"
                                 | "1.8.0"
                                 | "1.8.1"
+                                | "1.8.2"
                                 | "1.9.0"
                                 | "2.0.0"
                         ) {
@@ -9005,6 +9061,7 @@ impl<R: BufRead> Engine<R> {
                                         | "1.7.1"
                                         | "1.8.0"
                                         | "1.8.1"
+                                        | "1.8.2"
                                         | "1.9.0"
                                         | "2.0.0"
                                 ) =>
@@ -9202,6 +9259,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) =>
@@ -9240,6 +9298,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) =>
@@ -9271,6 +9330,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) =>
@@ -9308,6 +9368,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.7.1"
                         | "1.8.0"
                         | "1.8.1"
+                        | "1.8.2"
                         | "1.9.0"
                         | "2.0.0"
                 ) =>
@@ -9460,6 +9521,7 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
         Value::Float(_) => "Float",
         Value::Text(_) => "String",
         Value::Bytes(_) => "Bytes",
+        Value::BigInt(_) => "BigInt",
         Value::NumericArray(a) => match a.dtype() {
             rewind::numeric::DType::Float64 => "FloatArray",
             rewind::numeric::DType::Int64 => "IntArray",
@@ -9634,6 +9696,10 @@ fn bound_provided(bounds: &BTreeMap<String, String>, ty: &str, required: &str) -
         })
     })
 }
+fn builtin_key_type(program: &Program, ty: &str) -> bool {
+    matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes")
+        || (ty == "BigInt" && language_at_least(&program.language, "1.8.2"))
+}
 fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
     if bound.contains('+') {
         return bound.split('+').all(|b| trait_satisfied(program, b, ty));
@@ -9669,15 +9735,14 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
             | "1.7.1"
             | "1.8.0"
             | "1.8.1"
+            | "1.8.2"
             | "1.9.0"
             | "2.0.0"
     ) && matches!(bound, "Send" | "Share")
     {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
     }
-    if matches!(bound, "Eq" | "Ord" | "Hash" | "Display")
-        && matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes")
-    {
+    if matches!(bound, "Eq" | "Ord" | "Hash" | "Display") && builtin_key_type(program, ty) {
         return true;
     }
     program
@@ -9722,6 +9787,7 @@ fn impl_matches(
             | "1.7.1"
             | "1.8.0"
             | "1.8.1"
+            | "1.8.2"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -9877,7 +9943,7 @@ fn trait_method_return(
         ));
     }
     let Some(symbol) = matching.first() else {
-        if matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes") {
+        if builtin_key_type(program, ty) {
             let expected = match method {
                 "eq" | "cmp" => vec![ty.to_string()],
                 "hash" | "display" => Vec::new(),
@@ -9941,6 +10007,7 @@ fn trait_method_return(
                     | "1.7.1"
                     | "1.8.0"
                     | "1.8.1"
+                    | "1.8.2"
                     | "1.9.0"
                     | "2.0.0"
             ) {
@@ -10384,6 +10451,7 @@ pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         )

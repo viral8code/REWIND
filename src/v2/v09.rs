@@ -24,6 +24,7 @@ pub(in crate::v2) fn record_arguments(
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         )
@@ -165,6 +166,7 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
                 | "1.7.1"
                 | "1.8.0"
                 | "1.8.1"
+                | "1.8.2"
                 | "1.9.0"
                 | "2.0.0"
         ) {

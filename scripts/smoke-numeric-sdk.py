@@ -41,3 +41,14 @@ actual = run("run", root / "analysis.rwc", "--record", root / "analysis-trace.js
 assert actual == b"2\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\n4\ntrue\ntrue\n", actual
 assert run("replay", root / "analysis-trace.json", "--root", root) == actual
 print("Verified extracted numerical-analysis SDK: QR, least squares, eigenvalues, statistics and random replay")
+
+exact = root / "exact.rw"
+exact.write_text((sdk / "share/rewind/examples/bigint/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", exact)
+exact.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "exact.rwc", "--record", root / "exact-trace.json")
+assert actual == b'1267650600228229401496703205378\n1267650600228229401496703205376\n"1267650600228229401496703205376"\n1\n', actual
+assert run("replay", root / "exact-trace.json", "--root", root) == actual
+print("Verified extracted exact-integer SDK: BigInt, Map, checkpoint, JSON and source-free replay")
