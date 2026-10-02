@@ -3,7 +3,10 @@ use crate::{Error, Result, Runtime, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 pub fn resource_type(ty: &str) -> bool {
-    matches!(ty, "HttpDownload" | "HttpUpload")
+    matches!(
+        ty,
+        "HttpDownload" | "HttpUpload" | "DbConnection" | "DbStatement" | "DbCursor"
+    )
 }
 pub fn token(value: &Value) -> Option<(u64, u64)> {
     if let Value::Struct(ty, fields) = value {

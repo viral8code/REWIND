@@ -5,6 +5,27 @@ pub(super) use sdk::modules as std_modules;
 pub(super) use sdk::{build as sdk_build, install as sdk_install, verify as sdk_verify};
 const LIMIT: usize = 1024 * 1024;
 const ITEMS: usize = 65_536;
+pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
+    match name {
+        "stdExternalHttpRead" | "stdExternalHttpClose" => Some("&mut HttpDownload"),
+        "stdExternalHttpWrite" | "stdExternalHttpFinish" | "stdExternalHttpCloseUpload" => {
+            Some("&mut HttpUpload")
+        }
+        "stdExternalDbExecute"
+        | "stdExternalDbExecuteMany"
+        | "stdExternalDbPrepare"
+        | "stdExternalDbQuery"
+        | "stdExternalDbBegin"
+        | "stdExternalDbCommit"
+        | "stdExternalDbRollback"
+        | "stdExternalDbClose" => Some("&mut DbConnection"),
+        "stdExternalDbNext" | "stdExternalDbCloseCursor" => Some("&mut DbCursor"),
+        "stdExternalDbExecuteStatement"
+        | "stdExternalDbQueryStatement"
+        | "stdExternalDbCloseStatement" => Some("&mut DbStatement"),
+        _ => None,
+    }
+}
 pub(super) fn names() -> &'static [&'static str] {
     &[
         "stdTextTrim",
@@ -34,6 +55,22 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdMulMod",
         "stdHttpComponent",
         "stdExternalClock",
+        "stdExternalDbSqlite",
+        "stdExternalDbPrivateParameter",
+        "stdExternalDbCleanup",
+        "stdExternalDbPrepare",
+        "stdExternalDbExecuteStatement",
+        "stdExternalDbQueryStatement",
+        "stdExternalDbCloseStatement",
+        "stdExternalDbExecute",
+        "stdExternalDbExecuteMany",
+        "stdExternalDbQuery",
+        "stdExternalDbNext",
+        "stdExternalDbCloseCursor",
+        "stdExternalDbBegin",
+        "stdExternalDbCommit",
+        "stdExternalDbRollback",
+        "stdExternalDbClose",
         "stdExternalHttpUpload",
         "stdExternalHttpWrite",
         "stdExternalHttpFinish",
@@ -147,6 +184,77 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.7.0") {
+        for (name, fields) in [
+            ("DbConnection", vec![("backend", "String")]),
+            (
+                "DbStatement",
+                vec![("columns", "Frozen<List<String>>"), ("parameters", "Int")],
+            ),
+            ("DbCursor", vec![("columns", "Frozen<List<String>>")]),
+            ("DbRow", vec![("values", "Frozen<List<DbValue>>")]),
+            (
+                "DbBatch",
+                vec![("rows", "Frozen<List<DbRow>>"), ("done", "Bool")],
+            ),
+            (
+                "DbError",
+                vec![
+                    ("code", "String"),
+                    ("phase", "String"),
+                    ("sqlCode", "Option<Int>"),
+                    ("sqlState", "Option<String>"),
+                ],
+            ),
+        ] {
+            if p.structs.contains_key(name) || p.enums.contains_key(name) {
+                return Err(Error::InvalidOperation("reserved database type".into()));
+            }
+            p.structs.insert(
+                name.into(),
+                StructDef {
+                    private_fields: BTreeSet::new(),
+                    bounds: BTreeMap::new(),
+                    immutable: true,
+                    type_params: vec![],
+                    public: true,
+                    origin: p.root_origin.clone(),
+                    fields: fields
+                        .into_iter()
+                        .map(|(n, t)| (n.into(), t.into()))
+                        .collect(),
+                },
+            );
+        }
+        if p.structs.contains_key("DbValue") || p.enums.contains_key("DbValue") {
+            return Err(Error::InvalidOperation("reserved database type".into()));
+        }
+        p.enums.insert(
+            "DbValue".into(),
+            EnumDef {
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                variants: [
+                    ("Null", None),
+                    ("Bool", Some("Bool")),
+                    ("Int", Some("Int")),
+                    ("Float", Some("Float")),
+                    ("Text", Some("String")),
+                    ("Bytes", Some("Bytes")),
+                    ("Private", Some("String")),
+                ]
+                .into_iter()
+                .map(|(n, t)| {
+                    (
+                        n.into(),
+                        t.map(|t| vec![("0".into(), t.into())]).unwrap_or_default(),
+                    )
+                })
+                .collect(),
+            },
+        );
+    }
     Ok(())
 }
 pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usize> {
@@ -237,6 +345,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if n.starts_with("stdExternalHttp") && !language_at_least(&p.language, "1.6.0") {
         return Err(diagnostic(at, "HTTP requires language 1.6.0"));
     }
+    if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
+        return Err(diagnostic(at, "database primitives require language 1.7.0"));
+    }
     if n.starts_with("stdGui") && !language_at_least(&p.language, "1.3.0") {
         return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
     }
@@ -260,6 +371,65 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdExternalDbExecuteMany" => (
+            &[
+                "&mut DbConnection",
+                "String",
+                "Frozen<List<Frozen<List<DbValue>>>>",
+                "Int",
+            ],
+            "Task<Result<Int,DbError>>",
+        ),
+        "stdExternalDbCleanup" => (&["Int"], "Task<Result<Unit,DbError>>"),
+        "stdExternalDbPrivateParameter" => {
+            (&["String", "Secret<DbValue>"], "Result<DbValue,DbError>")
+        }
+        "stdExternalDbSqlite" => (
+            &["String", "Bool", "Int"],
+            "Task<Result<DbConnection,DbError>>",
+        ),
+        "stdExternalDbPrepare" => (
+            &["&mut DbConnection", "String", "Int"],
+            "Task<Result<DbStatement,DbError>>",
+        ),
+        "stdExternalDbExecuteStatement" => (
+            &["&mut DbStatement", "Frozen<List<DbValue>>", "Int"],
+            "Task<Result<Int,DbError>>",
+        ),
+        "stdExternalDbQueryStatement" => (
+            &["&mut DbStatement", "Frozen<List<DbValue>>", "Int"],
+            "Task<Result<DbCursor,DbError>>",
+        ),
+        "stdExternalDbCloseStatement" => {
+            (&["&mut DbStatement", "Int"], "Task<Result<Unit,DbError>>")
+        }
+        "stdExternalDbExecute" => (
+            &[
+                "&mut DbConnection",
+                "String",
+                "Frozen<List<DbValue>>",
+                "Int",
+            ],
+            "Task<Result<Int,DbError>>",
+        ),
+        "stdExternalDbQuery" => (
+            &[
+                "&mut DbConnection",
+                "String",
+                "Frozen<List<DbValue>>",
+                "Int",
+            ],
+            "Task<Result<DbCursor,DbError>>",
+        ),
+        "stdExternalDbNext" => (
+            &["&mut DbCursor", "Int", "Int", "Int"],
+            "Task<Result<DbBatch,DbError>>",
+        ),
+        "stdExternalDbCloseCursor" => (&["&mut DbCursor", "Int"], "Task<Result<Unit,DbError>>"),
+        "stdExternalDbBegin"
+        | "stdExternalDbCommit"
+        | "stdExternalDbRollback"
+        | "stdExternalDbClose" => (&["&mut DbConnection", "Int"], "Task<Result<Unit,DbError>>"),
         "stdHttpComponent" => (&["String"], "Result<String,StdError>"),
         "stdExternalClock" => (&[], "Result<Int,StdError>"),
         "stdExternalHttpUpload" => (
@@ -398,6 +568,52 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if n == "stdExternalDbPrivateParameter" {
+        use rewind::database::Parameter;
+        let [Value::Text(alias), secret] = args else {
+            return Err(Error::InvalidOperation(
+                "invalid DB private parameter arguments".into(),
+            ));
+        };
+        let Some(Value::Enum(ty, variant, fields)) = v05::unsecret(secret) else {
+            return Err(Error::InvalidOperation(
+                "DB parameter requires Secret<DbValue>".into(),
+            ));
+        };
+        if ty != "DbValue" {
+            return Err(Error::InvalidOperation("invalid DB value type".into()));
+        }
+        let value = match (variant.as_str(), fields.first().map(|(_, v)| v)) {
+            ("Null", None) => Parameter::Null,
+            ("Bool", Some(Value::Bool(v))) => Parameter::Bool(*v),
+            ("Int", Some(Value::Int(v))) => Parameter::Int(*v),
+            ("Float", Some(Value::Float(v))) => Parameter::Float(f64::from_bits(*v)),
+            ("Text", Some(Value::Text(v))) => Parameter::Text(v.clone()),
+            ("Bytes", Some(Value::Bytes(v))) => Parameter::Bytes(v.as_ref().clone()),
+            _ => return Err(Error::InvalidOperation("invalid private DB value".into())),
+        };
+        let result = runtime.register_database_parameter(alias, value)?;
+        let result = result
+            .map(|_| {
+                Box::new(Value::Enum(
+                    "DbValue".into(),
+                    "Private".into(),
+                    vec![("0".into(), Value::Text(alias.clone()))],
+                ))
+            })
+            .map_err(|code| {
+                Box::new(Value::Struct(
+                    "DbError".into(),
+                    BTreeMap::from([
+                        ("code".into(), Value::Text(code.into())),
+                        ("phase".into(), Value::Text("NotSent".into())),
+                        ("sqlCode".into(), Value::Option(None)),
+                        ("sqlState".into(), Value::Option(None)),
+                    ]),
+                ))
+            });
+        return Ok(Some(Value::Result(result)));
+    }
     if n == "stdHttpComponent" {
         let [Value::Text(value)] = args else {
             return Err(Error::InvalidOperation("invalid HTTP component".into()));

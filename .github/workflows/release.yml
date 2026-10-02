@@ -1,15 +1,18 @@
 name: Publish SDK release
 on:
   push:
+    branches:
+      - codex/develop
     tags:
       - 'v[0-9]*'
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   build:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/codex/develop' && startsWith(github.event.head_commit.message, 'Release v'))
     strategy:
       fail-fast: false
       matrix:
@@ -26,15 +29,21 @@ jobs:
         with:
           toolchain: 1.98.1
           components: rustfmt
-      - name: Match tag to compiler version
+      - name: Match release intent to compiler version
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_MESSAGE: ${{ github.event.head_commit.message }}
         shell: bash
         run: |
           python - <<'PY'
           import os, re
           version = re.search(r'^version = "([^"]+)"', open('Cargo.toml').read(), re.M)[1]
-          assert os.environ['RELEASE_TAG'] == 'v' + version
+          tag = 'v' + version
+          if os.environ['RELEASE_REF'].startswith('refs/tags/'):
+              assert os.environ['RELEASE_REF'] == 'refs/tags/' + tag
+          else:
+              assert os.environ['RELEASE_REF'] == 'refs/heads/codex/develop'
+              assert os.environ['RELEASE_MESSAGE'].splitlines()[0] == 'Release ' + tag
           PY
       - run: cargo fmt --check
       - run: cargo test --locked
@@ -71,6 +80,22 @@ jobs:
           pattern: release-*
           path: release-assets
           merge-multiple: true
+      - name: Tag the frozen verified release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(python -c 'import re; print(re.search(r"^version = \"([^\"]+)\"", open("Cargo.toml").read(), re.M)[1])')
+          RELEASE_TAG="v$VERSION"
+          printf 'RELEASE_TAG=%s\n' "$RELEASE_TAG" >> "$GITHUB_ENV"
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" > /dev/null; then
+            git fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+            test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$GITHUB_SHA"
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag -a "$RELEASE_TAG" "$GITHUB_SHA" -m "REWIND $RELEASE_TAG"
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
       - name: Integrate the verified version into main
         shell: bash
         run: |
@@ -85,7 +110,6 @@ jobs:
       - name: Publish both verified SDKs
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
           GH_REPO: ${{ github.repository }}
         shell: bash
         run: |

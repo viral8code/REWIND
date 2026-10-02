@@ -1,0 +1,77 @@
+effects {external,db,tasks};
+// @api waitForCleanup cost O(closed resources); waits without blocking the VM on native cleanup.
+// @api waitForCleanup failure DbError; preserves rollback/close failures from scope-owned resources.
+pub fn waitForCleanup(timeoutMillis:Int)->Task<Result<Unit,DbError>> effects {external,db,tasks} {return stdExternalDbCleanup(timeoutMillis);}
+// @api privateParameter cost O(value bytes); immutable opaque alias outside VM checkpoints.
+// @api privateParameter failure DbError; values are bound privately and never included in request fingerprints.
+pub fn privateParameter(alias:String,value:Secret<DbValue>)->Result<DbValue,DbError> effects {external,db,tasks} {return stdExternalDbPrivateParameter(alias,value);}
+// @api prepare cost O(SQL preparation); reuses a bounded per-connection statement cache.
+pub fn prepare(connection:&mut DbConnection,sql:String,timeoutMillis:Int)->Task<Result<DbStatement,DbError>> effects {external,db,tasks} {return stdExternalDbPrepare(connection,sql,timeoutMillis);}
+// @api executeStatement cost O(SQL work + parameter bytes); statement belongs to its original connection.
+pub fn executeStatement(statement:&mut DbStatement,parameters:Frozen<List<DbValue>>,timeoutMillis:Int)->Task<Result<Int,DbError>> effects {external,db,tasks} {return stdExternalDbExecuteStatement(statement,parameters,timeoutMillis);}
+// @api queryStatement cost O(SQL preparation); rows remain lazy until next.
+pub fn queryStatement(statement:&mut DbStatement,parameters:Frozen<List<DbValue>>,timeoutMillis:Int)->Task<Result<DbCursor,DbError>> effects {external,db,tasks} {return stdExternalDbQueryStatement(statement,parameters,timeoutMillis);}
+// @api closeStatement cost O(1); invalidates the affine handle, cache capacity remains bounded.
+pub fn closeStatement(statement:&mut DbStatement,timeoutMillis:Int)->Task<Result<Unit,DbError>> effects {external,db,tasks} {return stdExternalDbCloseStatement(statement,timeoutMillis);}
+// @api sqlite cost O(connection setup); at most eight native connections.
+// @api sqlite failure DbError; path is relative to root, :memory: is an isolated in-memory database.
+pub fn sqlite(path:String,readOnly:Bool,timeoutMillis:Int)->Task<Result<DbConnection,DbError>> effects {external,db,tasks} {return stdExternalDbSqlite(path,readOnly,timeoutMillis);}
+// @api execute cost O(SQL work + parameter bytes); binds values without SQL interpolation.
+// @api execute failure DbError; DB writes are external effects and are not undone by VM revert.
+pub fn execute(connection:&mut DbConnection,sql:String,parameters:Frozen<List<DbValue>>,timeoutMillis:Int)->Task<Result<Int,DbError>> effects {external,db,tasks} {return stdExternalDbExecute(connection,sql,parameters,timeoutMillis);}
+// @api executeMany cost O(SQL work + parameter bytes); prepares once for at most 1024 bounded parameter rows.
+// @api executeMany failure DbError; does not create an implicit transaction, earlier rows may have been applied.
+pub fn executeMany(connection:&mut DbConnection,sql:String,parameters:Frozen<List<Frozen<List<DbValue>>>>,timeoutMillis:Int)->Task<Result<Int,DbError>> effects {external,db,tasks} {return stdExternalDbExecuteMany(connection,sql,parameters,timeoutMillis);}
+// @api query cost O(SQL prepare); rows are read only by next.
+// @api query failure DbError; one active cursor per SQLite connection.
+pub fn query(connection:&mut DbConnection,sql:String,parameters:Frozen<List<DbValue>>,timeoutMillis:Int)->Task<Result<DbCursor,DbError>> effects {external,db,tasks} {return stdExternalDbQuery(connection,sql,parameters,timeoutMillis);}
+// @api next cost O(batch bytes + SQL work); at most 64 rows and 4 MiB per batch.
+// @api next failure DbError; maxBytes is 1048576..4194304, deadline also respects the original query deadline.
+pub fn next(cursor:&mut DbCursor,maxRows:Int,maxBytes:Int,timeoutMillis:Int)->Task<Result<DbBatch,DbError>> effects {external,db,tasks} {return stdExternalDbNext(cursor,maxRows,maxBytes,timeoutMillis);}
+// @api closeCursor cost O(statement cleanup); explicit close leaves the parent connection reusable.
+pub fn closeCursor(cursor:&mut DbCursor,timeoutMillis:Int)->Task<Result<Unit,DbError>> effects {external,db,tasks} {return stdExternalDbCloseCursor(cursor,timeoutMillis);}
+// @api beginTransaction cost O(DB transaction setup); independent of VM commit labels.
+pub fn beginTransaction(connection:&mut DbConnection,timeoutMillis:Int)->Task<Result<Unit,DbError>> effects {external,db,tasks} {return stdExternalDbBegin(connection,timeoutMillis);}
+// @api commitTransaction cost O(DB commit); missing acknowledgement leaves outcome Unknown.
+pub fn commitTransaction(connection:&mut DbConnection,timeoutMillis:Int)->Task<Result<Unit,DbError>> effects {external,db,tasks} {return stdExternalDbCommit(connection,timeoutMillis);}
+// @api rollbackTransaction cost O(DB rollback); no VM state is reverted.
+pub fn rollbackTransaction(connection:&mut DbConnection,timeoutMillis:Int)->Task<Result<Unit,DbError>> effects {external,db,tasks} {return stdExternalDbRollback(connection,timeoutMillis);}
+// @api close cost O(DB cleanup); awaits rollback and connection close, preserving SQL failure codes.
+pub fn close(connection:&mut DbConnection,timeoutMillis:Int)->Task<Result<Unit,DbError>> effects {external,db,tasks} {return stdExternalDbClose(connection,timeoutMillis);}
+
+fn conversionError(code:String)->DbError effects {} {return DbError(code,"ResponseReceived",None,None);}
+// @api cell cost O(value bytes); bounds failure is DbColumnRange, SQL NULL is DbValue::Null.
+pub fn cell(row:Frozen<DbRow>,index:Int)->Result<DbValue,DbError> effects {} {
+    if index<0 || index>=row.values.len(){return Err(conversionError("DbColumnRange"));}
+    return Ok(thaw(row.values.get(index)));
+}
+// @api column cost O(column names); rejects absent or duplicated names instead of guessing.
+pub fn column(columns:Frozen<List<String>>,name:String)->Result<Int,DbError> effects {} {
+    var found=-1;var index=0;
+    while index<columns.len(){if columns.get(index)==name{if found>=0{return Err(conversionError("DbDuplicateColumn"));}found=index;}index+=1;}
+    if found<0{return Err(conversionError("DbColumnMissing"));}return Ok(found);
+}
+// @api cellByName cost O(column names + value bytes); use a cursor's immutable column metadata.
+pub fn cellByName(row:Frozen<DbRow>,columns:Frozen<List<String>>,name:String)->Result<DbValue,DbError> effects {} {
+    match column(columns,name){Ok(index)=>{return cell(row,index);},Err(error)=>{return Err(error);}}
+}
+// @api integer cost O(1); requires an Int cell, NULL and other types return DbType.
+pub fn integer(row:Frozen<DbRow>,index:Int)->Result<Int,DbError> effects {} {
+    match cell(row,index){Err(error)=>{return Err(error);},Ok(value)=>{match value{DbValue::Int(n)=>{return Ok(n);},_=>{return Err(conversionError("DbType"));}}}}
+}
+// @api floating cost O(1); requires a Float cell, does not silently coerce strings or integers.
+pub fn floating(row:Frozen<DbRow>,index:Int)->Result<Float,DbError> effects {} {
+    match cell(row,index){Err(error)=>{return Err(error);},Ok(value)=>{match value{DbValue::Float(n)=>{return Ok(n);},_=>{return Err(conversionError("DbType"));}}}}
+}
+// @api text cost O(UTF-8 bytes); requires a Text cell.
+pub fn text(row:Frozen<DbRow>,index:Int)->Result<String,DbError> effects {} {
+    match cell(row,index){Err(error)=>{return Err(error);},Ok(value)=>{match value{DbValue::Text(n)=>{return Ok(n);},_=>{return Err(conversionError("DbType"));}}}}
+}
+// @api bytes cost O(1) shared bytes; requires a Bytes cell.
+pub fn bytes(row:Frozen<DbRow>,index:Int)->Result<Bytes,DbError> effects {} {
+    match cell(row,index){Err(error)=>{return Err(error);},Ok(value)=>{match value{DbValue::Bytes(n)=>{return Ok(n);},_=>{return Err(conversionError("DbType"));}}}}
+}
+// @api boolean cost O(1); SQLite integer 0/1 is converted explicitly, other integers return DbType.
+pub fn boolean(row:Frozen<DbRow>,index:Int)->Result<Bool,DbError> effects {} {
+    match cell(row,index){Err(error)=>{return Err(error);},Ok(value)=>{match value{DbValue::Bool(n)=>{return Ok(n);},DbValue::Int(n)=>{if n==0{return Ok(false);}if n==1{return Ok(true);}return Err(conversionError("DbType"));},_=>{return Err(conversionError("DbType"));}}}}
+}

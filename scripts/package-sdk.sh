@@ -129,6 +129,7 @@ assert len(lines)==2 and lines[0]==lines[1] and int(lines[0])>0
 PYCLOCK
 python3 scripts/smoke-http-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http"
 python3 scripts/smoke-http-stream-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-stream"
+python3 scripts/smoke-db-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/database"
 "$EXTRACTED/bin/rewind" compile --help > /dev/null
 (cd "$RELEASE_OUTPUT" && sha256sum ./*.tar.gz ./rewind-*-sdk.pub ./GETTING_STARTED.md ./BUILD_INFO.json > SHA256SUMS)
 chmod 644 "$RELEASE_OUTPUT"/*

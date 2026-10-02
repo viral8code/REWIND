@@ -9,7 +9,7 @@ const ENTRIES: usize = 1_000_000;
 pub(crate) struct Entry {
     fingerprint: String,
     // None denotes an operation whose outcome could not be recorded. Never retry it.
-    outcome: Option<String>,
+    pub(crate) outcome: Option<String>,
     pub(crate) reservation: usize,
     #[serde(default)]
     pub(crate) pending: bool,
@@ -63,6 +63,14 @@ impl Runtime {
                 let value: Value = serde_json::from_str(s)
                     .map_err(|_| invalid("ReplayMismatch: invalid external result"))?;
                 if let (Some(automaton), Some(response)) = (&automaton, value.get("Ok")) {
+                    if response["adapter"] == "db"
+                        && crate::database::protect_result(response, automaton)
+                            .map_err(|_| invalid("ReplayMismatch: invalid database observation"))?
+                    {
+                        return Err(invalid(
+                            "SecretObservationUnrecordable: private database value",
+                        ));
+                    }
                     if crate::network::protect_with_automaton(response, automaton) {
                         return Err(invalid("SecretObservationUnrecordable: private HTTP bytes"));
                     }
@@ -482,9 +490,21 @@ impl Runtime {
                 return Err(e);
             }
             if self.external_entries[id].pending {
-                let result = self.network_host.as_mut().and_then(|h| h.poll(id));
+                let database = self
+                    .database_host
+                    .as_ref()
+                    .is_some_and(|h| h.contains_job(id));
+                let result = if database {
+                    self.database_host.as_mut().and_then(|h| h.poll(id))
+                } else {
+                    self.network_host.as_mut().and_then(|h| h.poll(id))
+                };
                 if let Some(mut result) = result {
-                    result = self.sanitise_http_result(result);
+                    result = if database {
+                        self.sanitise_database_result(result)
+                    } else {
+                        self.sanitise_http_result(result)
+                    };
                     self.finish_async_external(id, Ok(result))?;
                 }
             }

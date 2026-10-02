@@ -1,7 +1,7 @@
 [package]
 name = "rewind"
 default-run = "rewind"
-version = "1.6.1"
+version = "1.7.0"
 edition = "2021"
 license = "MIT"
 description = "A transactional programming language with checkpoints and virtual I/O"
@@ -29,6 +29,11 @@ bytes = "=1.12.1"
 aho-corasick = "=1.1.4"
 futures-util = { version = "=0.3.34", default-features = false, features = ["std"] }
 reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls-native-roots", "stream"] }
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled", "cache", "hooks", "limits", "extra_check", "column_decltype"] }
+tokio-postgres = "=0.7.18"
+tokio-postgres-rustls = { version = "=0.14.0", features = ["ring", "native-certs"] }
+rustls = { version = "=0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "=0.8.4"
 tokio = { version = "=1.49.0", features = ["rt-multi-thread", "sync", "time", "macros"] }
 
 [target.'cfg(unix)'.dependencies]

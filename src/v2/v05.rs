@@ -525,7 +525,9 @@ pub(super) fn freeze_member(value: Value, rt: &Runtime) -> Value {
     }
 }
 pub(super) fn frozen_type_result(ty: &str) -> String {
-    if matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes" | "Unit") {
+    if ty.starts_with("Frozen<")
+        || matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes" | "Unit")
+    {
         ty.into()
     } else {
         format!("Frozen<{ty}>")
@@ -775,7 +777,9 @@ pub(super) fn contains_native_type(
     if !seen.insert(ty.into()) {
         return false;
     }
-    if rewind::native_resources::resource_type(ty) {
+    if rewind::native_resources::resource_type(ty)
+        && (!ty.starts_with("Db") || language_at_least(&program.language, "1.7.0"))
+    {
         return true;
     }
     if let Some((_, inner)) = ty.split_once('<') {
@@ -811,7 +815,9 @@ pub(super) fn transfer_type(
     if ty.starts_with('&') {
         return false;
     }
-    if rewind::native_resources::resource_type(ty) {
+    if rewind::native_resources::resource_type(ty)
+        && (!ty.starts_with("Db") || language_at_least(&program.language, "1.7.0"))
+    {
         return !shared;
     }
     if matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes" | "Unit")

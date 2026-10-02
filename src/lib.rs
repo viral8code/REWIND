@@ -10,6 +10,7 @@ pub mod map_storage;
 pub mod storage;
 use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
+pub mod database;
 pub mod external;
 pub mod native_resources;
 pub mod network;
@@ -665,6 +666,7 @@ pub struct Runtime {
     external_polls: Vec<external::Poll>,
     external_buffers: BTreeMap<usize, Vec<u8>>,
     network_host: Option<network::Host>,
+    database_host: Option<database::Host>,
     network_credentials: BTreeMap<String, Arc<str>>,
     sensitive_bytes: BTreeSet<Arc<Vec<u8>>>,
     external_depth: usize,
@@ -1112,6 +1114,7 @@ impl Runtime {
             external_polls: Vec::new(),
             external_buffers: BTreeMap::new(),
             network_host: None,
+            database_host: None,
             network_credentials: BTreeMap::new(),
             sensitive_bytes: BTreeSet::new(),
             external_depth: 0,
@@ -1495,6 +1498,11 @@ impl Runtime {
                     .sum::<usize>(),
             )
             .saturating_add(self.external_memory_bytes)
+            .saturating_add(
+                self.database_host
+                    .as_ref()
+                    .map_or(0, database::Host::reserved_bytes),
+            )
             .saturating_add(self.external_polls.len().saturating_mul(32))
             .saturating_add(
                 self.network_host
@@ -2224,6 +2232,15 @@ impl Runtime {
             }
         }
         let full = self.root.join(relative);
+        if self
+            .database_host
+            .as_ref()
+            .is_some_and(|host| host.blocks_path(&full))
+        {
+            return Err(Error::InvalidOperation(
+                "DbFileBusy: close the database before virtual file access".into(),
+            ));
+        }
         // Existing symlinks (including parent directories) may not escape the root.
         let mut ancestor = full.as_path();
         while !ancestor.exists() {
