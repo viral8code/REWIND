@@ -11,6 +11,7 @@ pub mod storage;
 use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 pub mod external;
+pub mod native_resources;
 pub mod network;
 mod replay;
 use journal::{Journal, Segment};
@@ -567,6 +568,7 @@ pub struct State {
     gui_cursor: usize,
     external_cursor: usize,
     external_poll_cursor: usize,
+    native_owners: Arc<BTreeMap<u64, u64>>,
     gui_pending: Option<gui::Request>,
     pub byte_cursor: usize,
     pub time_cursor: usize,
@@ -598,6 +600,7 @@ impl Default for State {
             gui_cursor: 0,
             external_cursor: 0,
             external_poll_cursor: 0,
+            native_owners: Arc::new(BTreeMap::new()),
             gui_pending: None,
             byte_cursor: 0,
             time_cursor: 0,
@@ -663,8 +666,10 @@ pub struct Runtime {
     external_buffers: BTreeMap<usize, Vec<u8>>,
     network_host: Option<network::Host>,
     network_credentials: BTreeMap<String, Arc<str>>,
+    sensitive_bytes: BTreeSet<Arc<Vec<u8>>>,
     external_depth: usize,
     external_owner: u64,
+    next_native_lease: u64,
     gui_scripted: Option<std::collections::VecDeque<gui::Event>>,
     byte_input: Vec<(usize, Arc<Segment>)>,
     branch_roots: RefCell<Vec<Weak<State>>>,
@@ -707,6 +712,7 @@ impl Runtime {
             rt: &Runtime,
             v: &Value,
             out: &mut BTreeSet<String>,
+            binary: &mut BTreeSet<Arc<Vec<u8>>>,
             seen: &mut BTreeSet<u64>,
             depth: usize,
         ) {
@@ -717,49 +723,52 @@ impl Runtime {
                 Value::HeapRef(id) | Value::CellRef(id) => {
                     if seen.insert(*id) {
                         if let Some(v) = rt.heap_get(*id) {
-                            visit(rt, v, out, seen, depth + 1);
+                            visit(rt, v, out, binary, seen, depth + 1);
                         }
                     }
                 }
                 Value::Struct(_, fields) | Value::Closure(_, _, fields) => {
                     for v in fields.values() {
-                        visit(rt, v, out, seen, depth + 1);
+                        visit(rt, v, out, binary, seen, depth + 1);
                     }
                 }
                 Value::List(items) => {
                     for v in items.iter() {
-                        visit(rt, v, out, seen, depth + 1);
+                        visit(rt, v, out, binary, seen, depth + 1);
                     }
                 }
                 Value::TypedList(_, items) => {
                     for v in items.iter() {
-                        visit(rt, v, out, seen, depth + 1);
+                        visit(rt, v, out, binary, seen, depth + 1);
                     }
                 }
                 Value::Map(items) | Value::TypedMap(_, _, items) => {
                     for (k, v) in items {
-                        visit(rt, &k.value(), out, seen, depth + 1);
-                        visit(rt, v, out, seen, depth + 1);
+                        visit(rt, &k.value(), out, binary, seen, depth + 1);
+                        visit(rt, v, out, binary, seen, depth + 1);
                     }
                 }
                 Value::OrderedMap(_, _, items) => {
                     for (k, v) in items {
-                        visit(rt, k, out, seen, depth + 1);
-                        visit(rt, v, out, seen, depth + 1);
+                        visit(rt, k, out, binary, seen, depth + 1);
+                        visit(rt, v, out, binary, seen, depth + 1);
                     }
                 }
                 Value::Enum(_, _, items) => {
                     for (_, v) in items {
-                        visit(rt, v, out, seen, depth + 1);
+                        visit(rt, v, out, binary, seen, depth + 1);
                     }
                 }
                 Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
-                    visit(rt, v, out, seen, depth + 1)
+                    visit(rt, v, out, binary, seen, depth + 1)
                 }
                 Value::Null | Value::Option(None) | Value::Handle(_) | Value::Function(_, _) => {}
                 _ => {
                     out.insert(v.to_string());
                     if let Value::Bytes(bytes) = v {
+                        if !bytes.is_empty() {
+                            binary.insert(bytes.clone());
+                        }
                         if let Ok(text) = String::from_utf8(bytes.to_vec()) {
                             out.insert(text);
                         }
@@ -768,7 +777,16 @@ impl Runtime {
             }
         }
         let mut values = BTreeSet::new();
-        visit(self, value, &mut values, &mut BTreeSet::new(), 0);
+        let mut binary = BTreeSet::new();
+        visit(
+            self,
+            value,
+            &mut values,
+            &mut binary,
+            &mut BTreeSet::new(),
+            0,
+        );
+        self.sensitive_bytes.extend(binary);
         self.sensitive_values
             .extend(values.into_iter().filter(|s| !s.is_empty()));
     }
@@ -1095,8 +1113,10 @@ impl Runtime {
             external_buffers: BTreeMap::new(),
             network_host: None,
             network_credentials: BTreeMap::new(),
+            sensitive_bytes: BTreeSet::new(),
             external_depth: 0,
             external_owner: 0,
+            next_native_lease: 1,
             gui_scripted: None,
             byte_input: Vec::new(),
             branch_roots: RefCell::new(Vec::new()),
@@ -1356,6 +1376,10 @@ impl Runtime {
             .chain(self.checkpoints.values().map(|c| &c.state))
             .chain(branch_roots.iter().map(AsRef::as_ref))
         {
+            if seen_compute.insert(Arc::as_ptr(&state.native_owners) as usize) {
+                compute_memory =
+                    compute_memory.saturating_add(state.native_owners.len().saturating_mul(64));
+            }
             for journal in [&state.stdout, &state.stderr] {
                 for segment in journal.segments() {
                     let ptr = Arc::as_ptr(&segment) as usize;
@@ -1462,6 +1486,12 @@ impl Runtime {
                 self.network_credentials
                     .iter()
                     .map(|(a, v)| a.len() + v.len() + 128)
+                    .sum::<usize>(),
+            )
+            .saturating_add(
+                self.sensitive_bytes
+                    .iter()
+                    .map(|v| v.len() + 64)
                     .sum::<usize>(),
             )
             .saturating_add(self.external_memory_bytes)

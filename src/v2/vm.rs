@@ -45,6 +45,7 @@ enum Op {
     EndBranch(String),
     Runtime(ResourceBudget, Option<usize>),
     PatternTest(Pattern, usize),
+    BorrowPatternTest(Pattern, usize),
     FailMatch,
     Halt,
 }
@@ -68,7 +69,8 @@ fn relocate(code: &mut [Inst], base: usize, relative: bool) {
             | Op::Jump(to)
             | Op::JumpFalse(to)
             | Op::JumpTrue(to)
-            | Op::PatternTest(_, to) => {
+            | Op::PatternTest(_, to)
+            | Op::BorrowPatternTest(_, to) => {
                 *to = if relative {
                     to.saturating_sub(base)
                 } else {
@@ -119,6 +121,7 @@ impl Compiler {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -158,6 +161,7 @@ impl Compiler {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -270,7 +274,8 @@ impl Compiler {
             | Op::Jump(to)
             | Op::JumpFalse(to)
             | Op::JumpTrue(to)
-            | Op::PatternTest(_, to) => *to = target,
+            | Op::PatternTest(_, to)
+            | Op::BorrowPatternTest(_, to) => *to = target,
             _ => unreachable!(),
         }
     }
@@ -316,6 +321,7 @@ impl Compiler {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -354,6 +360,7 @@ impl Compiler {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -443,6 +450,7 @@ impl Compiler {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -504,6 +512,7 @@ impl Compiler {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -732,7 +741,13 @@ impl Compiler {
                     self.pattern_types(pattern, value_type.as_deref(), at);
                     self.emit(Op::Load(hidden.clone()), at);
                     let miss = self.emit(
-                        Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0),
+                        if language_at_least(&self.typing_program.language, "1.6.1")
+                            && matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
+                        {
+                            Op::BorrowPatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
+                        } else {
+                            Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
+                        },
                         at,
                     );
                     let guarded_miss = if let Some(guard) = guard {
@@ -896,7 +911,13 @@ impl Compiler {
                     self.pattern_types(pattern, value_type.as_deref(), &e.at);
                     self.emit(Op::Load(hidden.clone()), &e.at);
                     let miss = self.emit(
-                        Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0),
+                        if language_at_least(&self.typing_program.language, "1.6.1")
+                            && matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
+                        {
+                            Op::BorrowPatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
+                        } else {
+                            Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
+                        },
                         &e.at,
                     );
                     let guarded_miss = if let Some(guard) = guard {
@@ -987,6 +1008,7 @@ enum Cleanup {
     Callable(Value, usize),
     Handle(u64, usize),
     Group(u64, usize),
+    Native(u64, u64, usize),
 }
 impl Cleanup {
     fn depth(&self) -> usize {
@@ -994,7 +1016,8 @@ impl Cleanup {
             Self::Expr(_, _, depth)
             | Self::Callable(_, depth)
             | Self::Handle(_, depth)
-            | Self::Group(_, depth) => *depth,
+            | Self::Group(_, depth)
+            | Self::Native(_, _, depth) => *depth,
         }
     }
 }
@@ -1197,6 +1220,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1217,6 +1241,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1297,6 +1322,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1384,6 +1410,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1432,10 +1459,35 @@ impl<R: BufRead> Vm<R> {
         ty: Option<String>,
         at: &Tok,
     ) -> Result<()> {
+        self.declare_mode(name, value, mutable, ty, at, true)
+    }
+    fn declare_mode(
+        &mut self,
+        name: String,
+        mut value: Value,
+        mutable: bool,
+        ty: Option<String>,
+        at: &Tok,
+        own: bool,
+    ) -> Result<()> {
         let actual = value_type(&value, &self.engine.runtime);
         let ty = ty.unwrap_or(actual.clone());
         if !compatible(&ty, &actual) {
             return Err(self.error(at, format!("type mismatch: expected {ty}, found {actual}")));
+        }
+        if let Some((id, lease)) = if own {
+            self.engine.runtime.claim_native(&mut value)?
+        } else {
+            None
+        } {
+            if let Some(frame) = self.frames.last_mut() {
+                frame
+                    .defers
+                    .push(Cleanup::Native(id, lease, frame.scopes.len()));
+            } else {
+                self.global_cleanups
+                    .push(Cleanup::Native(id, lease, self.globals.len()));
+            }
         }
         let stored = if mutable {
             Value::CellRef(self.engine.runtime.alloc(value.clone())?)
@@ -1474,7 +1526,7 @@ impl<R: BufRead> Vm<R> {
         if !old.mutable {
             return Err(self.error(at, format!("cannot assign to let binding {name}")));
         }
-        let value = if op == "=" {
+        let mut value = if op == "=" {
             rhs
         } else {
             unflow(binary(&op[..1], self.resolve(&old.value), rhs, at), at)?
@@ -1485,6 +1537,34 @@ impl<R: BufRead> Vm<R> {
                 at,
                 format!("type mismatch: expected {}, found {actual}", old.ty),
             ));
+        }
+        if let Some((id, lease)) = self.engine.runtime.claim_native(&mut value)? {
+            if let Some(frame) = self.frames.last_mut() {
+                let depth = frame
+                    .scopes
+                    .iter()
+                    .rposition(|scope| scope.contains_key(name))
+                    .unwrap()
+                    + 1;
+                frame.defers.push(Cleanup::Native(id, lease, depth));
+            } else {
+                let depth = self
+                    .globals
+                    .iter()
+                    .rposition(|scope| scope.contains_key(name))
+                    .unwrap()
+                    + 1;
+                self.global_cleanups.push(Cleanup::Native(id, lease, depth));
+            }
+        }
+        let previous = self.resolve(&old.value);
+        if let Some((id, lease)) = rewind::native_resources::token(&previous) {
+            if self.engine.runtime.native_owner_matches(id, lease)
+                && rewind::native_resources::token(&value) != Some((id, lease))
+            {
+                self.engine.runtime.close_native_resource(id)?;
+                self.engine.runtime.forget_native_owner(id);
+            }
         }
         if let Value::CellRef(id) = old.value {
             self.engine.runtime.heap_set(id, value)?;
@@ -1520,7 +1600,23 @@ impl<R: BufRead> Vm<R> {
             scheduler: self.scheduler.clone(),
         }
     }
-    fn restore(&mut self, snap: VmSnapshot) {
+    fn collect_native_resources(&mut self) -> Result<()> {
+        if !self.engine.runtime.has_native_resources() {
+            return Ok(());
+        }
+        let mut roots = self.engine.runtime.state().stack.as_ref().clone();
+        gc_scope_roots(&self.globals, &mut roots);
+        gc_frame_roots(&self.frames, &mut roots);
+        gc_cleanup_roots(&self.global_cleanups, &mut roots);
+        gc_branch_roots(&self.branches, &mut roots);
+        self.scheduler.gc_roots(&mut roots);
+        self.engine.runtime.collect_native_resources(&roots)
+    }
+    fn restore(&mut self, snap: VmSnapshot) -> Result<()> {
+        let retained = snap.scheduler.host_operations();
+        for operation in self.scheduler.host_operations().difference(&retained) {
+            self.engine.runtime.cancel_http(*operation)?;
+        }
         self.pc = snap.pc;
         self.globals = snap.globals;
         self.global_scope_ids = snap.global_scope_ids;
@@ -1528,6 +1624,7 @@ impl<R: BufRead> Vm<R> {
         self.branches = snap.branches;
         self.global_cleanups = snap.global_cleanups;
         self.scheduler = snap.scheduler;
+        self.collect_native_resources()
     }
     fn call_user(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Result<()> {
         self.call_user_captured(name, args, BTreeMap::new(), at)
@@ -1555,6 +1652,13 @@ impl<R: BufRead> Vm<R> {
     }
     fn run_cleanup(&mut self, cleanup: Cleanup, at: &Tok) -> Result<()> {
         match cleanup {
+            Cleanup::Native(id, lease, _) => {
+                if self.engine.runtime.native_owner_matches(id, lease) {
+                    self.engine.runtime.close_native_resource(id)?;
+                    self.engine.runtime.forget_native_owner(id);
+                }
+                Ok(())
+            }
             Cleanup::Group(id, _) => self.cancel_group(id, at),
             Cleanup::Handle(id, _) => self.engine.runtime.close_handle(id),
             Cleanup::Expr(expr, captured, _) => {
@@ -1640,6 +1744,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1674,6 +1779,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1755,6 +1861,7 @@ impl<R: BufRead> Vm<R> {
                         | Op::JumpFalse(to)
                         | Op::JumpTrue(to)
                         | Op::PatternTest(_, to)
+                        | Op::BorrowPatternTest(_, to)
                             if *to >= start && *to <= end =>
                         {
                             *to = target + (*to - start)
@@ -1787,11 +1894,22 @@ impl<R: BufRead> Vm<R> {
                 (name, Binding { value, mutable, ty })
             })
             .collect::<BTreeMap<_, _>>();
-        for ((param, ty), arg) in def.params.iter().zip(args) {
+        let mut native_cleanups = Vec::new();
+        for binding in scope.values_mut() {
+            if let Some((id, lease)) = self.engine.runtime.claim_native(&mut binding.value)? {
+                native_cleanups.push(Cleanup::Native(id, lease, 1));
+            }
+        }
+        for ((param, ty), mut arg) in def.params.iter().zip(args) {
             let actual = value_type(&arg, &self.engine.runtime);
             let expected = substitute_type(ty, &substitutions);
             if !compatible(&expected, &actual) {
                 return Err(self.error(at, format!("{name} expects {expected}, found {actual}")));
+            }
+            if !expected.starts_with('&') {
+                if let Some((id, lease)) = self.engine.runtime.claim_native(&mut arg)? {
+                    native_cleanups.push(Cleanup::Native(id, lease, 1));
+                }
             }
             self.engine.runtime.set_local(param.clone(), arg.clone())?;
             scope.insert(
@@ -1811,13 +1929,13 @@ impl<R: BufRead> Vm<R> {
             call_site: at.clone(),
             scopes: vec![scope],
             scope_ids: vec![0],
-            defers: Vec::new(),
+            defers: native_cleanups,
         });
         self.next_frame_id += 1;
         self.pc = target;
         Ok(())
     }
-    fn finish_call(&mut self, value: Value, at: &Tok) -> Result<()> {
+    fn finish_call(&mut self, mut value: Value, at: &Tok) -> Result<()> {
         let Some(frame) = self.frames.last().cloned() else {
             return Err(self.error(at, "return outside function"));
         };
@@ -1829,12 +1947,24 @@ impl<R: BufRead> Vm<R> {
                 format!("{} returns {actual}, expected {expected}", frame.name),
             ));
         }
+        let resource_frame = if self.engine.runtime.has_native_resources() {
+            let mut values = Vec::new();
+            gc_scope_roots(&frame.scopes, &mut values);
+            !self.engine.runtime.unclaimed_native_ids(&values).is_empty()
+        } else {
+            false
+        };
+        self.engine.runtime.move_native(&mut value)?;
         let deferred = std::mem::take(&mut self.frames.last_mut().unwrap().defers);
         self.run_cleanups(deferred, at)?;
         self.frames.pop();
         self.engine.runtime.pop_frame()?;
         self.pc = frame.return_pc;
-        self.push(value)
+        self.push(value)?;
+        if resource_frame {
+            self.collect_native_resources()?;
+        }
+        Ok(())
     }
     fn run(&mut self) -> Result<()> {
         if self.scheduler.active == 0 {
@@ -1913,6 +2043,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -1941,6 +2072,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -2026,6 +2158,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -2058,6 +2191,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -2099,6 +2233,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -2150,6 +2285,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -2219,6 +2355,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -2307,6 +2444,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -2327,12 +2465,14 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
                     | "2.0.0"
             ) && self.engine.runtime.collection_due()
             {
+                self.collect_native_resources()?;
                 let mut roots = Vec::new();
                 gc_scope_roots(&self.globals, &mut roots);
                 gc_scope_roots(&self.engine.scopes, &mut roots);
@@ -2423,6 +2563,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -2453,6 +2594,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -2536,6 +2678,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.4.0"
                                     | "1.5.0"
                                     | "1.6.0"
+                                    | "1.6.1"
                                     | "1.7.0"
                                     | "1.8.0"
                                     | "1.9.0"
@@ -2653,9 +2796,16 @@ impl<R: BufRead> Vm<R> {
                             .ok_or_else(|| self.error(&inst.at, "integer overflow"))?,
                         ("-", Value::Float(n)) => Value::Float((-f64::from_bits(n)).to_bits()),
                         ("!", Value::Bool(v)) => Value::Bool(!v),
-                        ("move" | "borrow" | "borrowMut", v) => v,
+                        ("move", mut v) => {
+                            self.engine.runtime.move_native(&mut v)?;
+                            v
+                        }
+                        ("borrow" | "borrowMut", v) => v,
                         ("$capture:value", v) => v05::task_copy(&mut self.engine.runtime, &v)?,
-                        ("$capture:move", v) => v,
+                        ("$capture:move", mut v) => {
+                            self.engine.runtime.move_native(&mut v)?;
+                            v
+                        }
                         ("$capture:borrow", v) => {
                             if let Value::Closure(name, ty, captures) = self.resolve(&v) {
                                 Value::HeapRef(self.engine.runtime.alloc(Value::Closure(
@@ -2683,6 +2833,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -2779,6 +2930,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -2819,6 +2971,7 @@ impl<R: BufRead> Vm<R> {
                                 | "1.4.0"
                                 | "1.5.0"
                                 | "1.6.0"
+                                | "1.6.1"
                                 | "1.7.0"
                                 | "1.8.0"
                                 | "1.9.0"
@@ -2902,6 +3055,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.4.0"
                                     | "1.5.0"
                                     | "1.6.0"
+                                    | "1.6.1"
                                     | "1.7.0"
                                     | "1.8.0"
                                     | "1.9.0"
@@ -2946,6 +3100,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.4.0"
                                         | "1.5.0"
                                         | "1.6.0"
+                                        | "1.6.1"
                                         | "1.7.0"
                                         | "1.8.0"
                                         | "1.9.0"
@@ -2987,6 +3142,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -3052,6 +3208,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -3086,6 +3243,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -3137,6 +3295,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -3170,6 +3329,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -3194,7 +3354,15 @@ impl<R: BufRead> Vm<R> {
                     _ => return Err(self.error(&inst.at, "'?' requires Result")),
                 },
                 Op::Pop => {
-                    self.pop()?;
+                    let value = self.pop()?;
+                    if !self
+                        .engine
+                        .runtime
+                        .unclaimed_native_ids(&[value])
+                        .is_empty()
+                    {
+                        self.collect_native_resources()?;
+                    }
                 }
                 Op::EnterExternal(fresh) => {
                     if (self.scheduler.active != 0
@@ -3225,6 +3393,17 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::Exit => {
+                    let resource_scope = if self.engine.runtime.has_native_resources() {
+                        let mut values = Vec::new();
+                        if let Some(frame) = self.frames.last() {
+                            gc_scope_roots(&frame.scopes[frame.scopes.len() - 1..], &mut values);
+                        } else {
+                            gc_scope_roots(&self.globals[self.globals.len() - 1..], &mut values);
+                        }
+                        !self.engine.runtime.unclaimed_native_ids(&values).is_empty()
+                    } else {
+                        false
+                    };
                     let depth = self
                         .frames
                         .last()
@@ -3264,6 +3443,9 @@ impl<R: BufRead> Vm<R> {
                         }
                     } else {
                         return Err(self.error(&inst.at, "scope underflow"));
+                    }
+                    if resource_scope {
+                        self.collect_native_resources()?;
                     }
                 }
                 Op::ApplicationEntry(to) => {
@@ -3306,6 +3488,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -3344,6 +3527,9 @@ impl<R: BufRead> Vm<R> {
                         .get(&name)
                         .ok_or_else(|| self.error(&inst.at, "unknown using resource"))?;
                     let value = self.resolve(&binding.value);
+                    if rewind::native_resources::token(&value).is_some() {
+                        continue;
+                    }
                     if value_type(&value, &self.engine.runtime) == "TaskGroup" {
                         let id = scheduler::handle_id(&value)
                             .ok_or_else(|| self.error(&inst.at, "invalid TaskGroup"))?;
@@ -3418,7 +3604,7 @@ impl<R: BufRead> Vm<R> {
                             std::sync::Arc::new(call_frames),
                             std::sync::Arc::new(BTreeMap::new()),
                         )?;
-                        self.restore(snap);
+                        self.restore(snap)?;
                         self.snapshots.retain(|label, _| label == "begin");
                         self.pc = after;
                         self.engine.runtime.set_program_counter(after);
@@ -3456,7 +3642,7 @@ impl<R: BufRead> Vm<R> {
                     }
                     let after = self.pc;
                     self.engine.runtime.revert(&name)?;
-                    self.restore(snap);
+                    self.restore(snap)?;
                     self.pc = after;
                     self.engine.runtime.set_program_counter(after);
                 }
@@ -3472,7 +3658,7 @@ impl<R: BufRead> Vm<R> {
                     } else {
                         self.engine.runtime.revert(&name)?;
                     }
-                    self.restore(snap);
+                    self.restore(snap)?;
                 }
                 Op::Drop(name) => {
                     self.engine.runtime.drop_checkpoint(&name)?;
@@ -3503,6 +3689,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -3570,12 +3757,14 @@ impl<R: BufRead> Vm<R> {
                         self.steps = steps;
                     }
                 }
-                Op::PatternTest(pattern, miss) => {
+                Op::PatternTest(pattern, miss) | Op::BorrowPatternTest(pattern, miss) => {
                     let value = self.pop()?;
                     let mut bindings = BTreeMap::new();
                     if pattern_matches(&pattern, &value, &self.engine.runtime, &mut bindings) {
                         for (name, value) in bindings {
-                            self.declare(name, value, false, None, &inst.at)?;
+                            let borrow =
+                                matches!(self.code[self.pc - 1].op, Op::BorrowPatternTest(..));
+                            self.declare_mode(name, value, false, None, &inst.at, !borrow)?;
                         }
                     } else {
                         self.pc = miss;
@@ -3658,6 +3847,7 @@ pub(super) fn execute(
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -3703,6 +3893,7 @@ pub(super) fn execute(
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -3802,6 +3993,7 @@ fn build_artifact_mode(
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -3899,6 +4091,7 @@ fn explore_test(
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"

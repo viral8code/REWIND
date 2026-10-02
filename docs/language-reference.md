@@ -468,3 +468,9 @@ sourceは1MiB/module、module数256などのcompiler上限があります。公�
 v1.6 では async task も active branch 外で外部領域を使用できます。領域内の checkpoint / publish、領域を抜ける制御フロー、await / task switching は拒否します。通信を領域内で送信し、領域を出てから await します。`std.external.millis` は `external,clock`、`std.http` の送信は `external,network,tasks` の明示許可が必要です。DB はまだ利用できません。例・容量・失敗は [1.5仕様](REWIND_v1.5.md) と [1.6仕様](REWIND_v1.6.md) を参照してください。
 
 v1.6 の main task は子 Task が動作中でも publish できます。その時点の仮想出力・file・GUI の差分を確定し、未完了の通信を完了扱いにしません。`task.isDone()` は待機せず完了を確認します。`Task.timeout` は従来どおり論理 step の上限です。HTTP の実時間上限は request の deadlineMillis / timeoutMillis で指定します。
+
+### 逐次 HTTP と接続の所有権（1.6.1）
+
+`std.http.download(Request)` は `Task<Result<HttpDownload,HttpError>>`、`read(&mut connection,maxBytes)` は `Task<Result<Option<Bytes>,HttpError>>`。EOF は `None`。`upload(Request,maxUploadBytes)` で `HttpUpload` を開き、`write(&mut connection,Bytes)` と `finish(&mut connection)` で送信・応答取得を行います。呼出しは external 内、await は外です。接続を取り出す際は `match move result` 等で所有権を移します。通常の `match result` は接続の共有借用なので、書込みや mutable borrow はできません。
+
+接続はスコープ終了で閉じます。`close` / `closeUpload` は明示的な非同期 close。`using connection=move owner;` も使えます。`HttpDownload` / `HttpUpload` は Send、Share ではなく freeze できません。接続を含む Task の完了値は一度だけ取り出せます。ignore した接続結果は解放されます。checkpoint は token と所有情報を復元し、閉じた実接続は復活させません。詳しい制限は [1.6.1仕様](REWIND_v1.6.1.md) を参照してください。

@@ -70,6 +70,7 @@ impl Flow<'_> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -100,6 +101,7 @@ impl Flow<'_> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -142,6 +144,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -174,6 +177,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -226,6 +230,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -318,6 +323,7 @@ impl Flow<'_> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -353,6 +359,7 @@ impl Flow<'_> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -406,6 +413,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -496,6 +504,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -553,6 +562,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -629,6 +639,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -665,6 +676,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -829,6 +841,7 @@ impl Flow<'_> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -859,12 +872,14 @@ impl Flow<'_> {
                     None
                 };
                 let asynchronous = function.is_some_and(|f| f.asynchronous)
-                    || self
-                        .checker()
-                        .expr(target)
-                        .ok()
-                        .and_then(|t| function_signature(&t))
-                        .is_some_and(|(_, ret)| ret.starts_with("Task<"));
+                    || (function.is_none()
+                        && !matches!(&target.kind,ExprKind::Name(n) if matches!(n.as_str(),"stdExternalHttpRead"|"stdExternalHttpClose"|"stdExternalHttpWrite"|"stdExternalHttpFinish"|"stdExternalHttpCloseUpload"))
+                        && self
+                            .checker()
+                            .expr(target)
+                            .ok()
+                            .and_then(|t| function_signature(&t))
+                            .is_some_and(|(_, ret)| ret.starts_with("Task<")));
                 let send = matches!(&target.kind,ExprKind::Member(_,m) if m=="send");
                 let signature = self
                     .checker()
@@ -894,7 +909,8 @@ impl Flow<'_> {
                                 .as_ref()
                                 .and_then(|(p, _)| p.get(index).map(String::as_str))
                         })
-                        .or_else(|| (matches!(self.program.language.as_str(), "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.6.0" | "1.7.0" | "1.8.0" | "1.9.0" | "2.0.0") && index == 0 && matches!(&target.kind, ExprKind::Name(n) if n == "stdBytesFromList")).then_some("&List<Int>"));
+                        .or_else(|| (index==0 && matches!(&target.kind,ExprKind::Name(n) if matches!(n.as_str(),"stdExternalHttpRead"|"stdExternalHttpClose"|"stdExternalHttpWrite"|"stdExternalHttpFinish"|"stdExternalHttpCloseUpload"))).then_some(if matches!(&target.kind,ExprKind::Name(n) if matches!(n.as_str(),"stdExternalHttpWrite"|"stdExternalHttpFinish"|"stdExternalHttpCloseUpload")){"&mut HttpUpload"}else{"&mut HttpDownload"}))
+                        .or_else(|| (matches!(self.program.language.as_str(), "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.6.0" | "1.6.1" | "1.7.0" | "1.8.0" | "1.9.0" | "2.0.0") && index == 0 && matches!(&target.kind, ExprKind::Name(n) if n == "stdBytesFromList")).then_some("&List<Int>"));
                     let borrowing = matches!(
                         self.program.language.as_str(),
                         "0.6"
@@ -917,6 +933,7 @@ impl Flow<'_> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1123,7 +1140,7 @@ impl Flow<'_> {
                             ));
                         }
                     } else if (function.is_some()
-                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple" || matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.6.0" | "1.7.0" | "1.8.0" | "1.9.0" | "2.0.0") && (n=="secret"||n=="reveal")))
+                        || matches!(&target.kind,ExprKind::Name(n) if n=="$tuple" || matches!(self.program.language.as_str(), "0.6" | "0.7" | "0.8" | "0.9" | "0.9.1" | "0.9.2" | "0.9.3" | "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.6.0" | "1.6.1" | "1.7.0" | "1.8.0" | "1.9.0" | "2.0.0") && (n=="secret"||n=="reveal")))
                         && !self.shareable(arg)
                         && matches!(&arg.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
                     {
@@ -1188,6 +1205,7 @@ impl Flow<'_> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1247,6 +1265,7 @@ impl Flow<'_> {
                                         | "1.4.0"
                                         | "1.5.0"
                                         | "1.6.0"
+                                        | "1.6.1"
                                         | "1.7.0"
                                         | "1.8.0"
                                         | "1.9.0"
@@ -1303,6 +1322,7 @@ impl Flow<'_> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1359,6 +1379,7 @@ impl Flow<'_> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1389,6 +1410,7 @@ impl Flow<'_> {
                                 | "1.4.0"
                                 | "1.5.0"
                                 | "1.6.0"
+                                | "1.6.1"
                                 | "1.7.0"
                                 | "1.8.0"
                                 | "1.9.0"
@@ -1412,6 +1434,7 @@ impl Flow<'_> {
                                 | "1.4.0"
                                 | "1.5.0"
                                 | "1.6.0"
+                                | "1.6.1"
                                 | "1.7.0"
                                 | "1.8.0"
                                 | "1.9.0"
@@ -1452,6 +1475,7 @@ impl Flow<'_> {
                                     | "1.4.0"
                                     | "1.5.0"
                                     | "1.6.0"
+                                    | "1.6.1"
                                     | "1.7.0"
                                     | "1.8.0"
                                     | "1.9.0"
@@ -1515,6 +1539,7 @@ impl Flow<'_> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1635,6 +1660,7 @@ impl Flow<'_> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1794,6 +1820,7 @@ impl Flow<'_> {
                                             | "1.4.0"
                                             | "1.5.0"
                                             | "1.6.0"
+                                            | "1.6.1"
                                             | "1.7.0"
                                             | "1.8.0"
                                             | "1.9.0"
@@ -1889,6 +1916,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1937,6 +1965,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"

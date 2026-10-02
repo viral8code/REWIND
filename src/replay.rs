@@ -337,6 +337,9 @@ impl Runtime {
             )
             .as_bytes(),
         );
+        if !self.state.native_owners.is_empty() {
+            hash.update(format!("{:?}", self.state.native_owners).as_bytes());
+        }
         Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
     }
     pub fn debug_state(&self) -> Json {

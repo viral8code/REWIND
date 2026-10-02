@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.6.0 / `language = "1.6.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.6.1 / `language = "1.6.1"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -116,3 +116,5 @@ error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換�
 ## std.http（1.6）
 
 `get` / `request` / `configured` / `send` は external 領域で送信して Task を返します。await は領域外で行います。verified TLS、bounded body、複数 header、CA、credential alias に対応し、revert / replay で再送しません。権限・上限・失敗区分は [1.6仕様](../docs/REWIND_v1.6.md) を参照。
+
+1.6.1 は `download / read / close` と `upload / write / finish / closeUpload` を追加する。接続は Send / 非 Share、所有スコープで解放する。Request.body は upload 時に空 Bytes。chunk は read 1〜65,536 / write 0〜65,536 bytes、累積 1 GiB、upload 応答は 4 MiB。16 MiB の外部記録上限は別に適用する。[契約](../docs/REWIND_v1.6.1.md)、[逐次受信例](../examples/http-stream/main.rw)を参照。
