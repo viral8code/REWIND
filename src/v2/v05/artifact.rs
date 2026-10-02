@@ -211,6 +211,17 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
         return Err(invalid("invalid standard primitive layout"));
     }
 
+    if language_at_least(&program.language, "1.8.0")
+        && ["FloatArray", "IntArray"].iter().any(|name| {
+            serde_json::to_value(program.structs.get(*name)).ok()
+                != serde_json::to_value(standard.structs.get(*name)).ok()
+                || program.enums.contains_key(*name)
+                || program.aliases.contains_key(*name)
+        })
+    {
+        return Err(invalid("invalid numeric primitive layout"));
+    }
+
     if matches!(
         program.language.as_str(),
         "0.9.1"

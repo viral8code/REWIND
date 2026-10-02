@@ -1,0 +1,103 @@
+// Typed, reversible numeric values. Views retain their own storage version.
+// @api zerosFloat cost O(elements); typed pages, without per-element VM objects
+// @api zerosFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn zerosFloat(shape:&List<Int>)->Result<FloatArray,StdError> effects {} {return stdNumericZerosFloat(shape);}
+// @api fromFloat cost O(elements); typed pages, without per-element VM objects
+// @api fromFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn fromFloat(shape:&List<Int>,values:&List<Float>)->Result<FloatArray,StdError> effects {} {return stdNumericFromFloat(shape,values);}
+// @api shapeFloat cost O(rank + log pages); views share the storage version
+// @api shapeFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn shapeFloat(array:&FloatArray)->Result<List<Int>,StdError> effects {} {return stdNumericShapeFloat(array);}
+// @api stridesFloat cost O(rank + log pages); views share the storage version
+// @api stridesFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn stridesFloat(array:&FloatArray)->Result<List<Int>,StdError> effects {} {return stdNumericStridesFloat(array);}
+// @api getFloat cost O(rank + log pages); views share the storage version
+// @api getFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn getFloat(array:&FloatArray,indices:&List<Int>)->Result<Float,StdError> effects {} {return stdNumericGetFloat(array,indices);}
+// @api withFloat cost O(256 + log pages); copies one numeric page and its tree path
+// @api withFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn withFloat(array:&FloatArray,indices:&List<Int>,value:Float)->Result<FloatArray,StdError> effects {} {return stdNumericWithFloat(array,indices,value);}
+// @api reshapeFloat cost O(rank + log pages); views share the storage version
+// @api reshapeFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn reshapeFloat(array:&FloatArray,shape:&List<Int>)->Result<FloatArray,StdError> effects {} {return stdNumericReshapeFloat(array,shape);}
+// @api transposeFloat cost O(rank + log pages); views share the storage version
+// @api transposeFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn transposeFloat(array:&FloatArray,axes:&List<Int>)->Result<FloatArray,StdError> effects {} {return stdNumericTransposeFloat(array,axes);}
+// @api broadcastFloat cost O(rank + log pages); views share the storage version
+// @api broadcastFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn broadcastFloat(array:&FloatArray,shape:&List<Int>)->Result<FloatArray,StdError> effects {} {return stdNumericBroadcastFloat(array,shape);}
+// @api sliceFloat cost O(rank + log pages); views share the storage version
+// @api sliceFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn sliceFloat(array:&FloatArray,axis:Int,start:Int,length:Int,step:Int)->Result<FloatArray,StdError> effects {} {return stdNumericSliceFloat(array,axis,start,length,step);}
+// @api materializeFloat cost O(elements times rank and log pages)
+// @api materializeFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn materializeFloat(array:&FloatArray)->Result<FloatArray,StdError> effects {} {return stdNumericMaterializeFloat(array);}
+// @api valuesFloat cost O(elements times 64); explicit VM List allocation
+// @api valuesFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn valuesFloat(array:&FloatArray)->Result<List<Float>,StdError> effects {} {return stdNumericValuesFloat(array);}
+// @api zipFloat cost O(elements times rank and log pages)
+// @api zipFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn zipFloat(operation:String,left:&FloatArray,right:&FloatArray)->Result<FloatArray,StdError> effects {} {return stdNumericZipFloat(operation,left,right);}
+// @api zerosInt cost O(elements); typed pages, without per-element VM objects
+// @api zerosInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn zerosInt(shape:&List<Int>)->Result<IntArray,StdError> effects {} {return stdNumericZerosInt(shape);}
+// @api fromInt cost O(elements); typed pages, without per-element VM objects
+// @api fromInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn fromInt(shape:&List<Int>,values:&List<Int>)->Result<IntArray,StdError> effects {} {return stdNumericFromInt(shape,values);}
+// @api shapeInt cost O(rank + log pages); views share the storage version
+// @api shapeInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn shapeInt(array:&IntArray)->Result<List<Int>,StdError> effects {} {return stdNumericShapeInt(array);}
+// @api stridesInt cost O(rank + log pages); views share the storage version
+// @api stridesInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn stridesInt(array:&IntArray)->Result<List<Int>,StdError> effects {} {return stdNumericStridesInt(array);}
+// @api getInt cost O(rank + log pages); views share the storage version
+// @api getInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn getInt(array:&IntArray,indices:&List<Int>)->Result<Int,StdError> effects {} {return stdNumericGetInt(array,indices);}
+// @api withInt cost O(256 + log pages); copies one numeric page and its tree path
+// @api withInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn withInt(array:&IntArray,indices:&List<Int>,value:Int)->Result<IntArray,StdError> effects {} {return stdNumericWithInt(array,indices,value);}
+// @api reshapeInt cost O(rank + log pages); views share the storage version
+// @api reshapeInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn reshapeInt(array:&IntArray,shape:&List<Int>)->Result<IntArray,StdError> effects {} {return stdNumericReshapeInt(array,shape);}
+// @api transposeInt cost O(rank + log pages); views share the storage version
+// @api transposeInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn transposeInt(array:&IntArray,axes:&List<Int>)->Result<IntArray,StdError> effects {} {return stdNumericTransposeInt(array,axes);}
+// @api broadcastInt cost O(rank + log pages); views share the storage version
+// @api broadcastInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn broadcastInt(array:&IntArray,shape:&List<Int>)->Result<IntArray,StdError> effects {} {return stdNumericBroadcastInt(array,shape);}
+// @api sliceInt cost O(rank + log pages); views share the storage version
+// @api sliceInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn sliceInt(array:&IntArray,axis:Int,start:Int,length:Int,step:Int)->Result<IntArray,StdError> effects {} {return stdNumericSliceInt(array,axis,start,length,step);}
+// @api materializeInt cost O(elements times rank and log pages)
+// @api materializeInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn materializeInt(array:&IntArray)->Result<IntArray,StdError> effects {} {return stdNumericMaterializeInt(array);}
+// @api valuesInt cost O(elements times 64); explicit VM List allocation
+// @api valuesInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn valuesInt(array:&IntArray)->Result<List<Int>,StdError> effects {} {return stdNumericValuesInt(array);}
+// @api zipInt cost O(elements times rank and log pages)
+// @api zipInt failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn zipInt(operation:String,left:&IntArray,right:&IntArray)->Result<IntArray,StdError> effects {} {return stdNumericZipInt(operation,left,right);}
+// @api mapFloat cost O(elements times rank and log pages)
+// @api mapFloat failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn mapFloat(operation:String,array:&FloatArray)->Result<FloatArray,StdError> effects {} {return stdNumericMapFloat(operation,array);}
+// @api sum cost O(elements times rank and log pages)
+// @api sum failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn sum(array:&FloatArray)->Result<Float,StdError> effects {} {return stdNumericSum(array);}
+// @api mean cost O(elements times rank and log pages)
+// @api mean failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn mean(array:&FloatArray)->Result<Float,StdError> effects {} {return stdNumericMean(array);}
+// @api variance cost O(elements times rank and log pages)
+// @api variance failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn variance(array:&FloatArray,ddof:Int)->Result<Float,StdError> effects {} {return stdNumericVariance(array,ddof);}
+// @api dot cost O(elements times rank and log pages)
+// @api dot failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn dot(left:&FloatArray,right:&FloatArray)->Result<Float,StdError> effects {} {return stdNumericDot(left,right);}
+// @api matmul cost O(m*n*k*log pages); native kernel, without VM callbacks
+// @api matmul failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn matmul(left:&FloatArray,right:&FloatArray)->Result<FloatArray,StdError> effects {} {return stdNumericMatmul(left,right);}
+// @api solve cost O(n^3); pivoted LU with O(n^2) temporary storage
+// @api solve failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn solve(matrix:&FloatArray,right:&FloatArray,tolerance:Float)->Result<FloatArray,StdError> effects {} {return stdNumericSolve(matrix,right,tolerance);}
+// @api math cost O(1); bounded native scalar math
+// @api math failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
+pub fn math(operation:String,value:Float)->Result<Float,StdError> effects {} {return stdNumericMath(operation,value);}

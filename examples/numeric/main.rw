@@ -1,0 +1,25 @@
+import std.numeric as numeric;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("numeric operation failed");}}
+}
+let shape=List<Int>();shape.push(2);shape.push(2);
+let values=List<Float>();values.push(0.0);values.push(2.0);values.push(1.0);values.push(3.0);
+var matrix=take(numeric.fromFloat(&shape,&values));
+let rhsShape=List<Int>();rhsShape.push(2);
+let rhsValues=List<Float>();rhsValues.push(4.0);rhsValues.push(7.0);
+let rhs=take(numeric.fromFloat(&rhsShape,&rhsValues));
+let answer=take(numeric.solve(&matrix,&rhs,0.00000000000001));
+let index=List<Int>();index.push(0);
+Out.println(take(numeric.getFloat(&answer,&index)));
+index.set(0,1);
+Out.println(take(numeric.getFloat(&answer,&index)));
+publish;
+commit saved;
+let cell=List<Int>();cell.push(0);cell.push(0);
+matrix=take(numeric.withFloat(&matrix,&cell,99.0));
+Out.println(take(numeric.getFloat(&matrix,&cell)));
+publish;
+revert saved;
+let oldCell=List<Int>();oldCell.push(0);oldCell.push(0);
+Out.println(take(numeric.getFloat(&matrix,&oldCell)));
+publish;

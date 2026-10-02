@@ -1,20 +1,20 @@
-# REWIND 1.7.1を試す
+# REWIND 1.8.0を試す
 
-1.7.1はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
+1.8.0はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
 
 ## Linux SDKをダウンロードする
 
-[Release v1.7.1](https://github.com/viral8code/REWIND/releases/tag/v1.7.1)から次を同じdirectoryへ保存します。
+[Release v1.8.0](https://github.com/viral8code/REWIND/releases/tag/v1.8.0)から次を同じdirectoryへ保存します。
 
-- `rewind-1.7.1-linux-x86_64.tar.gz`：rewind/rewindc、38 module、文書、例
-- `rewind-1.7.1-sdk.pub`：このreleaseの公開鍵
+- `rewind-1.8.0-linux-x86_64.tar.gz`：rewind/rewindc、39 module、文書、例
+- `rewind-1.8.0-sdk.pub`：このreleaseの公開鍵
 - `SHA256SUMS`、`BUILD_INFO.json`：checksumと最低glibc等のbuild情報
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-tar -xzf rewind-1.7.1-linux-x86_64.tar.gz
-SDK="$(pwd)/rewind-1.7.1-linux-x86_64"
-PUBLIC_KEY="$(cat rewind-1.7.1-sdk.pub)"
+tar -xzf rewind-1.8.0-linux-x86_64.tar.gz
+SDK="$(pwd)/rewind-1.8.0-linux-x86_64"
+PUBLIC_KEY="$(cat rewind-1.8.0-sdk.pub)"
 "$SDK/bin/rewind" sdk-verify --sdk "$SDK" --public-key "$PUBLIC_KEY"
 export PATH="$SDK/bin:$PATH"
 rewind --version
@@ -24,10 +24,10 @@ SDK archiveと公開鍵の両方がchecksum検証でOKになることを確認�
 
 ## Windows SDKをダウンロードする
 
-[Release v1.7.1](https://github.com/viral8code/REWIND/releases/tag/v1.7.1)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
+[Release v1.8.0](https://github.com/viral8code/REWIND/releases/tag/v1.8.0)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
 
-- `rewind-1.7.1-windows-x86_64.zip`
-- `rewind-1.7.1-windows-x86_64-sdk.pub`
+- `rewind-1.8.0-windows-x86_64.zip`
+- `rewind-1.8.0-windows-x86_64-sdk.pub`
 - `SHA256SUMS.windows`、`BUILD_INFO.windows.json`
 
 PowerShellでchecksumを確認し、展開してPATHへ追加します。
@@ -38,14 +38,14 @@ Get-Content .\SHA256SUMS.windows | ForEach-Object {
     $hash, $name = $_ -split '  ', 2
     $expected[$name] = $hash
 }
-foreach ($name in @('rewind-1.7.1-windows-x86_64.zip', 'rewind-1.7.1-windows-x86_64-sdk.pub')) {
+foreach ($name in @('rewind-1.8.0-windows-x86_64.zip', 'rewind-1.8.0-windows-x86_64-sdk.pub')) {
     if ((Get-FileHash $name -Algorithm SHA256).Hash.ToLower() -ne $expected[$name]) {
         throw "Checksum mismatch: $name"
     }
 }
-Expand-Archive .\rewind-1.7.1-windows-x86_64.zip -DestinationPath .
-$sdk = Join-Path (Get-Location) 'rewind-1.7.1-windows-x86_64'
-$publicKey = (Get-Content .\rewind-1.7.1-windows-x86_64-sdk.pub -Raw).Trim()
+Expand-Archive .\rewind-1.8.0-windows-x86_64.zip -DestinationPath .
+$sdk = Join-Path (Get-Location) 'rewind-1.8.0-windows-x86_64'
+$publicKey = (Get-Content .\rewind-1.8.0-windows-x86_64-sdk.pub -Raw).Trim()
 & "$sdk\bin\rewind.exe" sdk-verify --sdk $sdk --public-key $publicKey
 $env:Path = "$sdk\bin;$env:Path"
 rewind --version
@@ -55,7 +55,7 @@ RustやJVMのインストールは不要です。このPATH変更は現在のPow
 
 ## sourceからビルドする
 
-`rewind-1.7.1-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
+`rewind-1.8.0-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
 
 ```sh
 cargo build --release --locked
@@ -139,7 +139,7 @@ rewind compile main.rw --allow-effects fileRead,fileWrite
 rewind run main.rwc --allow-effects fileRead,fileWrite
 ```
 
-成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effects/依存/lockを優先します。既存projectを新仕様に移す場合はlanguageを1.7.1へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
+成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effects/依存/lockを優先します。既存projectを新仕様に移す場合はlanguageを1.8.0へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
 
 ```sh
 rewind run main.rw --record trace.json
@@ -163,3 +163,5 @@ SDK の `share/rewind/examples/gui/main.rw` をコピーし、`rewind run main.r
 ## PostgreSQL
 
 `std.db` は SQLite に加えて、別プロセスの PostgreSQL への接続を提供する。SDK の `share/rewind/examples/postgres` を writable な root へコピーし、[PostgreSQL guide](REWIND_v1.7.1.md) と例の README に従って DER CA と秘密環境値を設定する。DB server 自体は SDK に含めない。
+
+`std.numeric` と SDK の `share/rewind/examples/numeric` で型付き配列と行列計算を試せる。[数値契約](REWIND_v1.8.md)を参照。

@@ -14,6 +14,7 @@ pub mod database;
 pub mod external;
 pub mod native_resources;
 pub mod network;
+pub mod numeric;
 mod replay;
 use journal::{Journal, Segment};
 
@@ -134,6 +135,7 @@ pub enum Value {
     Float(u64),
     Text(String),
     Bytes(Arc<Vec<u8>>),
+    NumericArray(numeric::Array),
     FileError(FileFailure),
     List(Vec<Value>),
     TypedList(String, PagedValues),
@@ -186,6 +188,7 @@ impl fmt::Display for Value {
             Value::Float(bits) => write!(f, "{}", f64::from_bits(*bits)),
             Value::Text(s) => write!(f, "{s}"),
             Value::Bytes(v) => write!(f, "{v:?}"),
+            Value::NumericArray(v) => write!(f, "{v:?}"),
             Value::FileError(v) => write!(f, "{v}"),
             Value::List(v) => {
                 write!(f, "[")?;
@@ -1039,6 +1042,17 @@ impl Runtime {
             .saturating_add(std::mem::size_of::<Value>())
             .saturating_add(32)
     }
+    /// Check bounded native scratch/output before allocating it. The VM is single-threaded;
+    /// native numeric routines do not yield while this reservation is being used.
+    pub fn check_native_allocation(&mut self, bytes: usize) -> Result<()> {
+        let previous = self.external_memory_bytes;
+        self.external_memory_bytes = previous
+            .checked_add(bytes)
+            .ok_or(Error::HistoryBudgetExceeded)?;
+        let result = self.enforce_budget();
+        self.external_memory_bytes = previous;
+        result
+    }
     pub fn enable_allocation_accounting(&mut self) {
         self.allocation_accounting = true;
     }
@@ -1053,6 +1067,7 @@ impl Runtime {
         match value {
             Value::Text(text) => text.len(),
             Value::Bytes(bytes) => bytes.len(),
+            Value::NumericArray(array) => array.retained_bytes(),
             Value::FileError(error) => {
                 error.code.len()
                     + error.path.len()

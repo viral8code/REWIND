@@ -41,6 +41,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("config", include_str!("../../../libraries/std/config.rw")),
         ("json", include_str!("../../../libraries/std/json.rw")),
         ("map", include_str!("../../../libraries/std/map.rw")),
+        ("numeric", include_str!("../../../libraries/std/numeric.rw")),
         ("math", include_str!("../../../libraries/std/math.rw")),
         ("number", include_str!("../../../libraries/std/number.rw")),
         ("option", include_str!("../../../libraries/std/option.rw")),
@@ -287,6 +288,22 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/doc/v2-design.md",
             include_str!("../../../docs/v2-design.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.8.md",
+            include_str!("../../../docs/REWIND_v1.8.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/numeric/main.rw",
+            include_str!("../../../examples/numeric/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/numeric/README.md",
+            &include_str!("../../../examples/numeric/README.md")
+                .replace("../../docs/", "../../doc/"),
         )?;
         write(
             &output,
