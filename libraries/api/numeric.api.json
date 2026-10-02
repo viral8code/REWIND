@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.8.0",
+  "language": "1.8.1",
   "symbols": {
     "fn:broadcastFloat": {
       "async": false,
@@ -27,6 +27,31 @@
       ],
       "return": "Result<IntArray,StdError>"
     },
+    "fn:correlation": {
+      "async": false,
+      "cost": "O(n); constant inputs fail with NumericDomain",
+      "effects": [],
+      "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "&FloatArray"
+      ],
+      "return": "Result<Float,StdError>"
+    },
+    "fn:covariance": {
+      "async": false,
+      "cost": "O(n); paired online moments with explicit ddof",
+      "effects": [],
+      "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "&FloatArray",
+        "Int"
+      ],
+      "return": "Result<Float,StdError>"
+    },
     "fn:dot": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
@@ -38,6 +63,19 @@
         "&FloatArray"
       ],
       "return": "Result<Float,StdError>"
+    },
+    "fn:eigenSymmetric": {
+      "async": false,
+      "cost": "O(maxSweeps*n^3); bounded cyclic Jacobi, sorted eigenvalues",
+      "effects": [],
+      "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "Float",
+        "Int"
+      ],
+      "return": "Result<EigenResult,StdError>"
     },
     "fn:fromFloat": {
       "async": false,
@@ -86,6 +124,31 @@
         "&List<Int>"
       ],
       "return": "Result<Int,StdError>"
+    },
+    "fn:histogram": {
+      "async": false,
+      "cost": "O(n log edges + edges); outlier counts are explicit",
+      "effects": [],
+      "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "&FloatArray"
+      ],
+      "return": "Result<HistogramResult,StdError>"
+    },
+    "fn:leastSquares": {
+      "async": false,
+      "cost": "O(m*n^2); requires m >= n and full column rank",
+      "effects": [],
+      "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "&FloatArray",
+        "Float"
+      ],
+      "return": "Result<FloatArray,StdError>"
     },
     "fn:mapFloat": {
       "async": false,
@@ -153,6 +216,97 @@
       "generics": [],
       "parameters": [
         "&FloatArray"
+      ],
+      "return": "Result<Float,StdError>"
+    },
+    "fn:mergeMoments": {
+      "async": false,
+      "cost": "O(1); combines independent owners without retaining their samples.",
+      "effects": [],
+      "failure": "StdError NumericSize/NonFinite; fatal VM execution and allocation budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&mut OnlineMoments",
+        "&OnlineMoments"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:onlineCount": {
+      "async": false,
+      "cost": "O(1).",
+      "effects": [],
+      "failure": "No recoverable errors; fatal VM execution budget applies.",
+      "generics": [],
+      "parameters": [
+        "&OnlineMoments"
+      ],
+      "return": "Int"
+    },
+    "fn:onlineMean": {
+      "async": false,
+      "cost": "O(1).",
+      "effects": [],
+      "failure": "StdError NumericEmpty; fatal VM execution budget applies.",
+      "generics": [],
+      "parameters": [
+        "&OnlineMoments"
+      ],
+      "return": "Result<Float,StdError>"
+    },
+    "fn:onlineMoments": {
+      "async": false,
+      "cost": "O(1); checkpointed mutable owner with no retained sample list.",
+      "effects": [],
+      "failure": "Fatal VM allocation budget only.",
+      "generics": [],
+      "parameters": [],
+      "return": "OnlineMoments"
+    },
+    "fn:onlineVariance": {
+      "async": false,
+      "cost": "O(1); divisor is count - ddof.",
+      "effects": [],
+      "failure": "StdError NumericDomain/Empty; fatal VM execution budget applies.",
+      "generics": [],
+      "parameters": [
+        "&OnlineMoments",
+        "Int"
+      ],
+      "return": "Result<Float,StdError>"
+    },
+    "fn:pushMoment": {
+      "async": false,
+      "cost": "O(1); count bounded to 2^53, errors leave previous statistics unchanged.",
+      "effects": [],
+      "failure": "StdError NumericSize/NonFinite; fatal VM execution and allocation budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&mut OnlineMoments",
+        "Float"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:qr": {
+      "async": false,
+      "cost": "O(m*n*min(m,n)); column-pivoted economy Householder QR",
+      "effects": [],
+      "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "Float"
+      ],
+      "return": "Result<QrResult,StdError>"
+    },
+    "fn:quantile": {
+      "async": false,
+      "cost": "O(n log n); explicit sorted copy and linear interpolation",
+      "effects": [],
+      "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "Float"
       ],
       "return": "Result<Float,StdError>"
     },
@@ -539,9 +693,47 @@
         ]
       }
     },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
       "constructor": false,
       "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
       "generics": [],
       "kind": "record"
     },
@@ -690,6 +882,35 @@
         ],
         [
           "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:OnlineMoments": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
           "Int"
         ]
       ],

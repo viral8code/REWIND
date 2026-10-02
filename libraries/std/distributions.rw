@@ -1,0 +1,30 @@
+effects {random};
+// @api uniform cost O(1); checkpointed generator, 53 random bits, range [0,1).
+// @api uniform failure Fatal VM execution budget only.
+pub fn uniform()->Float effects {random} {
+    let bits=stdBitAnd(Random.next(),9007199254740991);
+    match bits.toFloatChecked(){Ok(value)=>{return value/9007199254740992.0;},Err(_)=>{panic("random conversion invariant");}}
+}
+// @api normal cost O(1); Box-Muller, two checkpointed uniform draws, no hidden cached spare.
+// @api normal failure StdError NumericDomain/NonFinite; fatal VM execution budget applies.
+pub fn normal(mean:Float,deviation:Float)->Result<Float,StdError> effects {random} {
+    stdNumericMath("abs",mean)?;stdNumericMath("abs",deviation)?;
+    if deviation<0.0{return Err(StdError("NumericDomain",0));}
+    let radius=stdNumericMath("sqrt",-2.0*stdNumericMath("log",1.0-uniform())?)?;
+    let value=mean+deviation*radius*stdNumericMath("cos",6.283185307179586*uniform())?;
+    stdNumericMath("abs",value)?;return Ok(value);
+}
+// @api exponential cost O(1); checkpointed uniform draw, positive finite rate.
+// @api exponential failure StdError NumericDomain/NonFinite; fatal VM execution budget applies.
+pub fn exponential(rate:Float)->Result<Float,StdError> effects {random} {
+    stdNumericMath("abs",rate)?;if rate<=0.0{return Err(StdError("NumericDomain",0));}
+    let value=-stdNumericMath("log",1.0-uniform())?/rate;
+    stdNumericMath("abs",value)?;return Ok(value);
+}
+// @api bernoulli cost O(1); checkpointed uniform draw, probability in [0,1].
+// @api bernoulli failure StdError NumericDomain/NonFinite; fatal VM execution budget applies.
+pub fn bernoulli(probability:Float)->Result<Bool,StdError> effects {random} {
+    stdNumericMath("abs",probability)?;
+    if probability<0.0 || probability>1.0{return Err(StdError("NumericDomain",0));}
+    return Ok(uniform()<probability);
+}

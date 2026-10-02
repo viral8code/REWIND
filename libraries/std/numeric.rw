@@ -101,3 +101,63 @@ pub fn solve(matrix:&FloatArray,right:&FloatArray,tolerance:Float)->Result<Float
 // @api math cost O(1); bounded native scalar math
 // @api math failure StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.
 pub fn math(operation:String,value:Float)->Result<Float,StdError> effects {} {return stdNumericMath(operation,value);}
+// @api qr cost O(m*n*min(m,n)); column-pivoted economy Householder QR
+// @api qr failure StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.
+pub fn qr(array:&FloatArray,tolerance:Float)->Result<QrResult,StdError> effects {} {return stdNumericQr(array,tolerance);}
+// @api leastSquares cost O(m*n^2); requires m >= n and full column rank
+// @api leastSquares failure StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.
+pub fn leastSquares(matrix:&FloatArray,right:&FloatArray,tolerance:Float)->Result<FloatArray,StdError> effects {} {return stdNumericLeastSquares(matrix,right,tolerance);}
+// @api eigenSymmetric cost O(maxSweeps*n^3); bounded cyclic Jacobi, sorted eigenvalues
+// @api eigenSymmetric failure StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.
+pub fn eigenSymmetric(matrix:&FloatArray,tolerance:Float,maxSweeps:Int)->Result<EigenResult,StdError> effects {} {return stdNumericEigenSymmetric(matrix,tolerance,maxSweeps);}
+// @api covariance cost O(n); paired online moments with explicit ddof
+// @api covariance failure StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.
+pub fn covariance(left:&FloatArray,right:&FloatArray,ddof:Int)->Result<Float,StdError> effects {} {return stdNumericCovariance(left,right,ddof);}
+// @api correlation cost O(n); constant inputs fail with NumericDomain
+// @api correlation failure StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.
+pub fn correlation(left:&FloatArray,right:&FloatArray)->Result<Float,StdError> effects {} {return stdNumericCorrelation(left,right);}
+// @api quantile cost O(n log n); explicit sorted copy and linear interpolation
+// @api quantile failure StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.
+pub fn quantile(array:&FloatArray,probability:Float)->Result<Float,StdError> effects {} {return stdNumericQuantile(array,probability);}
+// @api histogram cost O(n log edges + edges); outlier counts are explicit
+// @api histogram failure StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.
+pub fn histogram(array:&FloatArray,edges:&FloatArray)->Result<HistogramResult,StdError> effects {} {return stdNumericHistogram(array,edges);}
+// Incremental Welford moments. Errors are validated before mutating the owner.
+pub struct OnlineMoments{private count:Int,private mean:Float,private m2:Float}
+fn countFloat(value:Int)->Result<Float,StdError> effects {} {match value.toFloatChecked(){Ok(value)=>{return Ok(value);},Err(_)=>{return Err(StdError("NumericOverflow",0));}}}
+// @api onlineMoments cost O(1); checkpointed mutable owner with no retained sample list.
+// @api onlineMoments failure Fatal VM allocation budget only.
+pub fn onlineMoments()->OnlineMoments effects {} {return OnlineMoments(0,0.0,0.0);}
+// @api onlineCount cost O(1).
+// @api onlineCount failure No recoverable errors; fatal VM execution budget applies.
+pub fn onlineCount(moments:&OnlineMoments)->Int effects {} {return moments.count;}
+// @api onlineMean cost O(1).
+// @api onlineMean failure StdError NumericEmpty; fatal VM execution budget applies.
+pub fn onlineMean(moments:&OnlineMoments)->Result<Float,StdError> effects {} {if moments.count==0{return Err(StdError("NumericEmpty",0));}return Ok(moments.mean);}
+// @api onlineVariance cost O(1); divisor is count - ddof.
+// @api onlineVariance failure StdError NumericDomain/Empty; fatal VM execution budget applies.
+pub fn onlineVariance(moments:&OnlineMoments,ddof:Int)->Result<Float,StdError> effects {} {
+    if ddof<0{return Err(StdError("NumericDomain",0));}if moments.count<=ddof{return Err(StdError("NumericEmpty",0));}
+    return Ok(moments.m2/countFloat(moments.count-ddof)?);
+}
+// @api pushMoment cost O(1); count bounded to 2^53, errors leave previous statistics unchanged.
+// @api pushMoment failure StdError NumericSize/NonFinite; fatal VM execution and allocation budgets apply.
+pub fn pushMoment(moments:&mut OnlineMoments,value:Float)->Result<Unit,StdError> effects {} {
+    stdNumericMath("abs",value)?;if moments.count>=9007199254740992{return Err(StdError("NumericSize",0));}
+    let count=moments.count+1;let delta=value-moments.mean;let mean=moments.mean+delta/countFloat(count)?;
+    let m2=moments.m2+delta*(value-mean);stdNumericMath("abs",mean)?;stdNumericMath("abs",m2)?;
+    moments.count=count;moments.mean=mean;moments.m2=m2;return Ok(());
+}
+// @api mergeMoments cost O(1); combines independent owners without retaining their samples.
+// @api mergeMoments failure StdError NumericSize/NonFinite; fatal VM execution and allocation budgets apply.
+pub fn mergeMoments(target:&mut OnlineMoments,source:&OnlineMoments)->Result<Unit,StdError> effects {} {
+    if source.count==0{return Ok(());}
+    if target.count==0{target.count=source.count;target.mean=source.mean;target.m2=source.m2;return Ok(());}
+    let count=target.count+source.count;
+    if count>9007199254740992{return Err(StdError("NumericSize",0));}
+    let n=countFloat(count)?;let left=countFloat(target.count)?;let right=countFloat(source.count)?;
+    let delta=source.mean-target.mean;let mean=target.mean+delta*(right/n);
+    let m2=target.m2+source.m2+(delta*left)*(delta*(right/n));
+    stdNumericMath("abs",mean)?;stdNumericMath("abs",m2)?;
+    target.count=count;target.mean=mean;target.m2=m2;return Ok(());
+}

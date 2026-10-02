@@ -30,3 +30,14 @@ actual = run("run", root / "main.rwc", "--record", root / "trace.json")
 assert actual == b"1\n2\n99\n0\n", actual
 assert run("replay", root / "trace.json", "--root", root) == actual
 print("Verified extracted numeric SDK: pivoted LU, COW update, revert and source-free replay")
+
+analysis = root / "analysis.rw"
+analysis.write_text((sdk / "share/rewind/examples/numeric-analysis/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", analysis)
+analysis.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "analysis.rwc", "--record", root / "analysis-trace.json")
+assert actual == b"2\ntrue\ntrue\ntrue\ntrue\ntrue\ntrue\n4\ntrue\ntrue\n", actual
+assert run("replay", root / "analysis-trace.json", "--root", root) == actual
+print("Verified extracted numerical-analysis SDK: QR, least squares, eigenvalues, statistics and random replay")

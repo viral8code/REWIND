@@ -482,3 +482,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 ## 型付き数値配列（1.8.0）
 
 `import std.numeric as numeric;` で FloatArray / IntArray を操作する。rank / shape / stride を持つ native storage で、`zerosFloat` / `fromFloat`、`getFloat` / `withFloat`、reshape / transpose / slice / 明示 broadcast、vector 演算、matmul、LU solve、sum / mean / variance を提供する。Int 版もある。各関数は `Result<…,StdError>`。with は新しい所有値を返すので変数へ代入する。view は生成時の値を保持し、broadcast は read-only。VM の commit / revert、freeze / thaw、Task、artifact / replay に対応する。詳細なサイズ・誤差・費用は [数値仕様](REWIND_v1.8.md)、実行例は SDK の `examples/numeric` を参照。
+
+### 線形代数・追加統計と分布（1.8.1）
+
+`std.numeric` は列 pivot QR、QR による最小二乗、対称行列の固有値・固有ベクトル、共分散・相関・分位点・histogram、サンプルを保持しない OnlineMoments を提供する。結果の shape、rank、convergence と maximum work は [仕様](REWIND_v1.8.1.md) を参照。`std.distributions` は独立した random 効果の module で、uniform、normal、exponential、Bernoulli を VM の checkpointed generator から生成する。

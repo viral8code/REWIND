@@ -24,6 +24,59 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.8.1") {
+        for (name, fields) in [
+            (
+                "QrResult",
+                vec![
+                    ("q", "FloatArray"),
+                    ("r", "FloatArray"),
+                    ("permutation", "Frozen<List<Int>>"),
+                    ("rank", "Int"),
+                ],
+            ),
+            (
+                "EigenResult",
+                vec![
+                    ("values", "FloatArray"),
+                    ("vectors", "FloatArray"),
+                    ("sweeps", "Int"),
+                ],
+            ),
+            (
+                "HistogramResult",
+                vec![
+                    ("counts", "IntArray"),
+                    ("underflow", "Int"),
+                    ("overflow", "Int"),
+                ],
+            ),
+        ] {
+            if p.structs.contains_key(name)
+                || p.enums.contains_key(name)
+                || p.aliases.contains_key(name)
+            {
+                return Err(Error::InvalidOperation(
+                    "reserved numeric result type".into(),
+                ));
+            }
+            p.structs.insert(
+                name.into(),
+                StructDef {
+                    private_fields: BTreeSet::new(),
+                    bounds: BTreeMap::new(),
+                    immutable: true,
+                    type_params: vec![],
+                    public: true,
+                    origin: p.root_origin.clone(),
+                    fields: fields
+                        .into_iter()
+                        .map(|(n, t)| (n.into(), t.into()))
+                        .collect(),
+                },
+            );
+        }
+    }
     Ok(())
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
@@ -32,6 +85,22 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if !language_at_least(&p.language, "1.8.0") {
         return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
+    }
+    if matches!(
+        n,
+        "stdNumericQr"
+            | "stdNumericLeastSquares"
+            | "stdNumericEigenSymmetric"
+            | "stdNumericCovariance"
+            | "stdNumericCorrelation"
+            | "stdNumericQuantile"
+            | "stdNumericHistogram"
+    ) && !language_at_least(&p.language, "1.8.1")
+    {
+        return Err(diagnostic(
+            at,
+            "advanced numeric primitives require language 1.8.1",
+        ));
     }
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
@@ -116,7 +185,41 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name.starts_with("Zeros") || name.starts_with("From") {
+    let cost = if matches!(name, "Qr" | "LeastSquares") {
+        match a(0).map(Array::shape) {
+            Some([m, n]) => m
+                .saturating_mul(*n)
+                .saturating_mul((*m).min(*n))
+                .saturating_mul(64)
+                .saturating_add(m.saturating_mul(8))
+                .saturating_add(n.saturating_mul(256)),
+            _ => 1,
+        }
+    } else if name == "EigenSymmetric" {
+        match a(0).map(Array::shape) {
+            Some([n, m]) if n == m => {
+                let sweeps = args
+                    .get(2)
+                    .and_then(|v| usize_arg(v).ok())
+                    .filter(|&n| n <= 10_000)
+                    .unwrap_or(0);
+                n.saturating_pow(3)
+                    .saturating_mul(sweeps)
+                    .saturating_mul(24)
+                    .saturating_add(n.saturating_mul(*n).saturating_mul(16))
+            }
+            _ => 1,
+        }
+    } else if name == "Quantile" {
+        length(0)
+            .saturating_mul((usize::BITS - length(0).max(1).leading_zeros()) as usize)
+            .saturating_mul(8)
+    } else if name == "Histogram" {
+        length(0)
+            .saturating_mul((usize::BITS - length(1).max(1).leading_zeros()) as usize)
+            .saturating_mul(8)
+            .saturating_add(length(1).saturating_mul(8))
+    } else if name.starts_with("Zeros") || name.starts_with("From") {
         args.first()
             .and_then(|s| indices(s, rt).ok())
             .and_then(|s| elements(&s).ok())
@@ -165,7 +268,26 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name.starts_with("Zeros") || name.starts_with("From") {
+    if matches!(name, "Qr" | "LeastSquares") {
+        match a(0).map(Array::shape) {
+            Some([m, n]) => {
+                let p = (*m).min(*n);
+                m.saturating_mul(*n)
+                    .saturating_mul(48)
+                    .saturating_add(p.saturating_mul(*n).saturating_mul(32))
+                    .saturating_add(n.saturating_mul(256))
+                    .saturating_add(m.saturating_mul(8))
+                    .saturating_add(4096)
+            }
+            _ => 0,
+        }
+    } else if name == "EigenSymmetric" {
+        length(0).saturating_mul(48).saturating_add(4096)
+    } else if name == "Quantile" {
+        length(0).saturating_mul(8).saturating_add(2048)
+    } else if name == "Histogram" {
+        length(1).saturating_mul(32).saturating_add(4096)
+    } else if name.starts_with("Zeros") || name.starts_with("From") {
         args.first()
             .and_then(|s| indices(s, rt).ok())
             .and_then(|s| elements(&s).ok())
@@ -362,6 +484,51 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                     array.bits().map(|n| Value::Int(n as i64)).collect(),
                 )
             }
+            "Qr" => {
+                let result = a(0)?.qr(f(1)?)?;
+                let permutation = v05::frozen(
+                    Value::TypedList(
+                        "Int".into(),
+                        result.permutation.into_iter().map(Value::Int).collect(),
+                    ),
+                    rt,
+                );
+                Value::Struct(
+                    "QrResult".into(),
+                    BTreeMap::from([
+                        ("q".into(), Value::NumericArray(result.q)),
+                        ("r".into(), Value::NumericArray(result.r)),
+                        ("permutation".into(), permutation),
+                        ("rank".into(), Value::Int(result.rank as i64)),
+                    ]),
+                )
+            }
+            "LeastSquares" => array_value(a(0)?.least_squares(a(1)?, f(2)?))?,
+            "EigenSymmetric" => {
+                let result = a(0)?.eigen_symmetric(f(1)?, i(2)?)?;
+                Value::Struct(
+                    "EigenResult".into(),
+                    BTreeMap::from([
+                        ("values".into(), Value::NumericArray(result.values)),
+                        ("vectors".into(), Value::NumericArray(result.vectors)),
+                        ("sweeps".into(), Value::Int(result.sweeps as i64)),
+                    ]),
+                )
+            }
+            "Covariance" => Value::Float(a(0)?.covariance(a(1)?, i(2)?)?.to_bits()),
+            "Correlation" => Value::Float(a(0)?.correlation(a(1)?)?.to_bits()),
+            "Quantile" => Value::Float(a(0)?.quantile(f(1)?)?.to_bits()),
+            "Histogram" => {
+                let result = a(0)?.histogram(a(1)?)?;
+                Value::Struct(
+                    "HistogramResult".into(),
+                    BTreeMap::from([
+                        ("counts".into(), Value::NumericArray(result.counts)),
+                        ("underflow".into(), Value::Int(result.underflow as i64)),
+                        ("overflow".into(), Value::Int(result.overflow as i64)),
+                    ]),
+                )
+            }
             "Sum" => Value::Float(a(0)?.sum()?.to_bits()),
             "Mean" => Value::Float(a(0)?.mean_variance(0)?.0.to_bits()),
             "Variance" => Value::Float(a(0)?.mean_variance(i(1)?)?.1.to_bits()),
@@ -514,6 +681,25 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
         "stdNumericSolve" => (
             &["&FloatArray", "&FloatArray", "Float"],
             "Result<FloatArray,StdError>",
+        ),
+        "stdNumericQr" => (&["&FloatArray", "Float"], "Result<QrResult,StdError>"),
+        "stdNumericLeastSquares" => (
+            &["&FloatArray", "&FloatArray", "Float"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericEigenSymmetric" => (
+            &["&FloatArray", "Float", "Int"],
+            "Result<EigenResult,StdError>",
+        ),
+        "stdNumericCovariance" => (
+            &["&FloatArray", "&FloatArray", "Int"],
+            "Result<Float,StdError>",
+        ),
+        "stdNumericCorrelation" => (&["&FloatArray", "&FloatArray"], "Result<Float,StdError>"),
+        "stdNumericQuantile" => (&["&FloatArray", "Float"], "Result<Float,StdError>"),
+        "stdNumericHistogram" => (
+            &["&FloatArray", "&FloatArray"],
+            "Result<HistogramResult,StdError>",
         ),
         "stdNumericMath" => (&["String", "Float"], "Result<Float,StdError>"),
         _ => return None,

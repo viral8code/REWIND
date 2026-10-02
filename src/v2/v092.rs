@@ -35,6 +35,13 @@ pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
 }
 pub(super) fn names() -> &'static [&'static str] {
     &[
+        "stdNumericQr",
+        "stdNumericLeastSquares",
+        "stdNumericEigenSymmetric",
+        "stdNumericCovariance",
+        "stdNumericCorrelation",
+        "stdNumericQuantile",
+        "stdNumericHistogram",
         "stdNumericZerosFloat",
         "stdNumericFromFloat",
         "stdNumericShapeFloat",
@@ -155,6 +162,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.7.0"
             | "1.7.1"
             | "1.8.0"
+            | "1.8.1"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -357,6 +365,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.7.0"
             | "1.7.1"
             | "1.8.0"
+            | "1.8.1"
             | "1.9.0"
             | "2.0.0"
     ) || !names().contains(&n)
@@ -386,6 +395,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.7.0"
                 | "1.7.1"
                 | "1.8.0"
+                | "1.8.1"
                 | "1.9.0"
                 | "2.0.0"
         )
