@@ -96,3 +96,14 @@ actual = run("run", root / "regex.rwc", "--record", root / "regex-trace.json")
 assert actual == b"Alice-42\nAlice\nBob-7\nfalse\ntrue\n3\ntrue\ntrue\n", actual
 assert run("replay", root / "regex-trace.json", "--root", root) == actual
 print("Verified extracted regex SDK: captures, checkpoint, Map keys, JSON and source-free replay")
+
+csv = root / "csv-stream.rw"
+csv.write_text((sdk / "share/rewind/examples/csv-stream/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", csv)
+csv.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "csv-stream.rwc", "--record", root / "csv-stream-trace.json")
+assert actual.decode("utf-8") == 'name\nnote\n日本語\na"b\n日\nname\n', actual
+assert run("replay", root / "csv-stream-trace.json", "--root", root) == actual
+print("Verified extracted incremental CSV SDK: byte chunk boundaries, quoted UTF-8, checkpoint and source-free replay")

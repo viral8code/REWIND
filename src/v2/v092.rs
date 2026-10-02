@@ -1,6 +1,7 @@
 //! Small deterministic primitives for the source standard library.
 use super::*;
 mod bigint;
+mod csv_stream;
 mod datetime;
 mod decimal;
 mod numeric;
@@ -16,6 +17,7 @@ pub(super) fn native_owned_result(name: &str) -> bool {
         || name.starts_with("stdBigInt")
         || name.starts_with("stdDecimal")
         || name.starts_with("stdRegex")
+        || name.starts_with("stdCsvStream")
         || name.starts_with("stdUnicode")
         || name.starts_with("stdDateTime")
         || name == "stdExternalInstant")
@@ -28,6 +30,7 @@ pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str>
         .or_else(|| datetime::parameter(name, index))
         .or_else(|| unicode::parameter(name, index))
         .or_else(|| regex::parameter(name, index))
+        .or_else(|| csv_stream::parameter(name, index))
 }
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
@@ -52,6 +55,12 @@ pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
 }
 pub(super) fn names() -> &'static [&'static str] {
     &[
+        "stdCsvStreamNew",
+        "stdCsvStreamFeed",
+        "stdCsvStreamPeek",
+        "stdCsvStreamAdvance",
+        "stdCsvStreamCancel",
+        "stdCsvStreamPosition",
         "stdRegexCompile",
         "stdRegexFindText",
         "stdRegexFindBytes",
@@ -242,6 +251,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.8.4"
             | "1.8.5"
             | "1.8.6"
+            | "1.8.7"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -266,6 +276,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     decimal::prepare(p)?;
     datetime::prepare(p)?;
     regex::prepare(p)?;
+    csv_stream::prepare(p)?;
     p.structs.insert(
         "StdError".into(),
         StructDef {
@@ -394,6 +405,9 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usize> {
+    if let Some(work) = csv_stream::work(name, args, runtime) {
+        return Some(work);
+    }
     if let Some(work) = regex::work(name, args, runtime) {
         return Some(work);
     }
@@ -469,11 +483,15 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.8.4"
             | "1.8.5"
             | "1.8.6"
+            | "1.8.7"
             | "1.9.0"
             | "2.0.0"
     ) || !names().contains(&n)
     {
         return Ok(None);
+    }
+    if let Some(result) = csv_stream::call_type(p, n, args, at)? {
+        return Ok(Some(result));
     }
     if let Some(result) = regex::call_type(p, n, args, at)? {
         return Ok(Some(result));
@@ -519,6 +537,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.8.4"
                 | "1.8.5"
                 | "1.8.6"
+                | "1.8.7"
                 | "1.9.0"
                 | "2.0.0"
         )
@@ -767,6 +786,9 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if let Some(value) = csv_stream::call(n, args, runtime)? {
+        return Ok(Some(value));
+    }
     if let Some(value) = regex::call(n, args, runtime)? {
         return Ok(Some(value));
     }

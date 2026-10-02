@@ -1,6 +1,6 @@
-# REWIND 1.8.6
+# REWIND 1.8.7
 
-v1.8.6 adds bounded text / byte regular expressions, capture groups, named groups, explicit flags and checkpoint-safe immutable patterns. See [contracts](docs/REWIND_v1.8.6.md) and the [example](examples/regex/README.md). Unicode, exact datetime / Decimal / BigInt, numeric arrays, databases, HTTP and native GUI remain available.
+v1.8.7 adds incremental UTF-8 CSV with persistent pending pages, bounded row queues, atomic feed errors, finish / cancel and checkpoint-safe readers. See [contracts](docs/REWIND_v1.8.7.md) and the [example](examples/csv-stream/README.md). Regex, Unicode, exact datetime / Decimal / BigInt, numeric arrays, databases, HTTP and native GUI remain available.
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 
@@ -8,7 +8,7 @@ v1.8.6 adds bounded text / byte regular expressions, capture groups, named group
 
 ## SDKを試す
 
-[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.8.6)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
+[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.8.7)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
 
 v0.9 adds multiline REPL sessions with verified transcripts, API contracts for implementations and dependencies, production-only installs, Share generic records, ordered property shrinkers, and signed inspection timelines. Select `language = "0.9"`; see [implementation and limits](docs/v0.9-status.md) and the [v0.9.1 application proposal](docs/REWIND_v0.9.1.md).
 
