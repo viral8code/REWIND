@@ -10,6 +10,7 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import tempfile
 
 PASSWORD = "rewind-fixture-only-password"
 USER = "rewind_fixture"
@@ -20,9 +21,15 @@ def binary(directory, name):
 
 
 def run(args, **kwargs):
-    result = subprocess.run(args, capture_output=True, text=True, **kwargs)
+    # Windows postgres can inherit pg_ctl's original pipe handles even with -l.
+    # A file capture does not wait for the long-lived server to close that handle.
+    print(f"Fixture: {Path(args[0]).name}", flush=True)
+    with tempfile.TemporaryFile(mode="w+t", encoding="utf-8", errors="replace") as output:
+        result = subprocess.run(args, stdout=output, stderr=output, timeout=120, **kwargs)
+        output.seek(0)
+        details = output.read(65536)
     if result.returncode:
-        raise RuntimeError(f"{Path(args[0]).name} failed: {result.stderr}")
+        raise RuntimeError(f"{Path(args[0]).name} failed: {details}")
     return result
 
 
@@ -85,11 +92,11 @@ def start(args):
                      f"ssl_key_file='{quote(root / 'server.key')}'\n"
                      "shared_buffers='16MB'\nmax_connections=24\nstatement_timeout=120000\n")
         stream.write(f"unix_socket_directories='{quote(root) if os.name != 'nt' else ''}'\n")
-    run([binary(directory, "pg_ctl"), "-D", str(data), "-l", str(root / "server.log"), "-w", "start"])
     dsn = f"host=127.0.0.1 port={port} user={USER} password={PASSWORD} dbname=postgres sslmode=require"
     env = {"REWIND_TEST_PG_DSN": dsn, "REWIND_TEST_PG_CA": str(root / "ca.der"),
            "REWIND_REQUIRE_PG": "1", "REWIND_PG_FIXTURE": str(root)}
     (root / "fixture.json").write_text(json.dumps({"bin": str(directory), "env": env}), encoding="utf-8")
+    run([binary(directory, "pg_ctl"), "-D", str(data), "-l", str(root / "server.log"), "-w", "start"])
     if args.github_env:
         with open(args.github_env, "a", encoding="utf-8") as stream:
             for key, value in env.items():
