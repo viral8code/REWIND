@@ -3,6 +3,10 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
+mod linalg;
+mod stats;
+pub use linalg::{Eigen, Qr};
+pub use stats::Histogram;
 const PAGE: usize = 256;
 pub const MAX_ELEMENTS: usize = 16 * 1024 * 1024;
 pub const MAX_RANK: usize = 8;
@@ -23,6 +27,7 @@ pub enum Error {
     Singular,
     Empty,
     ReadOnly,
+    Convergence,
 }
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone)]

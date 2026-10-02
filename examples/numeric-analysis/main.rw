@@ -1,0 +1,24 @@
+import std.numeric as numeric;
+import std.distributions as distributions;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("numeric operation failed");}}}
+fn near(value:Float,expected:Float)->Bool effects {} {return take(numeric.math("abs",value-expected))<0.000000001;}
+let shape=List<Int>();shape.push(4);shape.push(2);
+let values=List<Float>();values.push(1.0);values.push(0.0);values.push(1.0);values.push(1.0);values.push(1.0);values.push(2.0);values.push(1.0);values.push(3.0);
+let matrix=take(numeric.fromFloat(&shape,&values));
+let rhsShape=List<Int>();rhsShape.push(4);
+let rhsValues=List<Float>();rhsValues.push(1.0);rhsValues.push(3.0);rhsValues.push(5.0);rhsValues.push(7.0);
+let rhs=take(numeric.fromFloat(&rhsShape,&rhsValues));
+let qr=take(numeric.qr(&matrix,0.000000000001));Out.println(qr.rank);
+let fit=take(numeric.leastSquares(&matrix,&rhs,0.000000000001));
+let index=List<Int>();index.push(0);Out.println(near(take(numeric.getFloat(&fit,&index)),1.0));
+index.set(0,1);Out.println(near(take(numeric.getFloat(&fit,&index)),2.0));
+let square=List<Int>();square.push(2);square.push(2);
+let symmetricValues=List<Float>();symmetricValues.push(2.0);symmetricValues.push(1.0);symmetricValues.push(1.0);symmetricValues.push(2.0);
+let symmetric=take(numeric.fromFloat(&square,&symmetricValues));let eigen=take(numeric.eigenSymmetric(&symmetric,0.000000000001,20));
+index.set(0,0);Out.println(near(take(numeric.getFloat(&eigen.values,&index)),1.0));
+index.set(0,1);Out.println(near(take(numeric.getFloat(&eigen.values,&index)),3.0));
+Out.println(near(take(numeric.covariance(&rhs,&rhs,1)),6.666666666666667));
+Out.println(near(take(numeric.correlation(&rhs,&rhs)),1.0));
+Out.println(take(numeric.quantile(&rhs,0.5)));
+Out.println(take(distributions.bernoulli(0.0))==false);Out.println(take(distributions.bernoulli(1.0))==true);
+publish;
