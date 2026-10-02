@@ -1,6 +1,6 @@
-# REWIND SDK 1.8.5
+# REWIND SDK 1.8.6
 
-REWIND 1.8.5、Linux x86_64 / Windows x64 のSDK。bin/rewind は compiler と runtime を兼ね、check/test/doc/build/run/debug/LSP を提供する。stdlib の公開APIは [std-api.json](std-api.json)、module ごとの文書は [text](std/text.md)、[number](std/number.md)、[collections](std/collections.md)、[json](std/json.md) などを参照。
+REWIND 1.8.6、Linux x86_64 / Windows x64 のSDK。bin/rewind は compiler と runtime を兼ね、check/test/doc/build/run/debug/LSP を提供する。stdlib の公開APIは [std-api.json](std-api.json)、module ごとの文書は [text](std/text.md)、[number](std/number.md)、[collections](std/collections.md)、[json](std/json.md) などを参照。
 
 ## 単一ファイル
 
@@ -17,7 +17,7 @@ binをPATHへ追加し、`rewind run main.rw` / `rewind compile main.rw` / `rewi
 /path/to/sdk/bin/rewind run --root /path/to/project
 ```
 
-project の rewind.toml は language="1.8.5"、source_root="."、entry="main.rw"、effects を宣言する。導入は署名付き std を project の vendor に固定し、lock を更新する。SDK の場所を後から変えても project は動く。SDK 内の例を writable directory にコピーしてから sdk-install する。
+project の rewind.toml は language="1.8.6"、source_root="."、entry="main.rw"、effects を宣言する。導入は署名付き std を project の vendor に固定し、lock を更新する。SDK の場所を後から変えても project は動く。SDK 内の例を writable directory にコピーしてから sdk-install する。
 
 ## 言語と実行
 
@@ -37,11 +37,11 @@ commit/revert/resume は計算状態と仮想I/Oの履歴を扱う。Out/File �
 
 `run --record TRACE` と `replay TRACE` で観測を検証する。`build --output ARTIFACT` の結果は `run-artifact ARTIFACT --allow-effects EFFECTS` で source なしに実行できる。artifact/replay/lock は exact compiler に依存するため、更新時に rebuild/update/再記録する。
 
-runtime の executionSteps と CLI の --task-steps は有限の実行予算を指定する。大きな入力の費用はデータ構造と履歴に依存する。任意精度整数と無制限の再帰はまだ提供しない。SQLite と PostgreSQL は `std.db` で利用できる。PostgreSQL の TLS、credential alias、cursor は [1.7.1仕様](REWIND_v1.7.1.md) に従う。ネイティブ GUI と記録可能な HTTP/HTTPS client は利用できる。HTTP の byte / deadline / concurrent operation 制限は [1.6仕様](REWIND_v1.6.md) に従う。
+runtime の executionSteps と CLI の --task-steps は有限の実行予算を指定する。大きな入力の費用はデータ構造と履歴に依存する。任意精度整数は `std.bigint` で利用できる。再帰には有限の実行・メモリ予算が適用される。SQLite と PostgreSQL は `std.db` で利用できる。PostgreSQL の TLS、credential alias、cursor は [1.7.1仕様](REWIND_v1.7.1.md) に従う。ネイティブ GUI と記録可能な HTTP/HTTPS client は利用できる。HTTP の byte / deadline / concurrent operation 制限は [1.6仕様](REWIND_v1.6.md) に従う。
 
 主要な処理としてsort/search/sequence、heap/deque/Union-Find、整数/剰余演算、Fenwick/segment tree、BFS/DFS/Dijkstra、byte scannerを同梱する。shortest実行例でsource0の最短距離を求める。native配列はpersistentなページ単位で保持し、get/writeの木探索と返すpayloadの費用がかかる。primitive Mapはpersistent AVL、user Ord Mapは線形の費用契約に従う。std.streamのtoken/UTF-8/writerとIn.readChunk/Out.writeBytesを追加した。publish済み操作はrevert後も再送せず、新しいpending操作だけを確定する。
 
-37moduleを同梱する。KMP/Z、bitset/sparse min/rollback DSU、topological/Bellman-Ford/SCC/MST/LCA、CSV/matrix/DPを追加した。heapはsparse persistent AVLでlanguage0.9.9のVMがsafe pointで回収する。`--steps`と`--native-work`、予算と未保証範囲は[v0.9.9実装状況](v0.9.9-status.md)を参照。
+48moduleを同梱する。KMP/Z、bitset/sparse min/rollback DSU、topological/Bellman-Ford/SCC/MST/LCA、CSV/matrix/DPを追加した。heapはsparse persistent AVLでlanguage0.9.9のVMがsafe pointで回収する。`--steps`と`--native-work`、予算と未保証範囲は[v0.9.9実装状況](v0.9.9-status.md)を参照。
 
 1.0のprivate field、where/factory推論、累積予算、構造化publish失敗、互換性の範囲は [1.0仕様](REWIND_v1.0.md) を参照してください。
 
@@ -49,8 +49,10 @@ runtime の executionSteps と CLI の --task-steps は有限の実行予算を�
 
 `std.numeric` と SDK の `share/rewind/examples/numeric` で型付き配列と行列計算を試せる。[数値契約](REWIND_v1.8.md)を参照。
 
-`std.bigint` は [exact integer 契約](REWIND_v1.8.5.md)を提供する。Float を介さず演算・JSON string 保存できる。
+`std.bigint` は [exact integer 契約](REWIND_v1.8.2.md)を提供する。Float を介さず演算・JSON string 保存できる。
 
 日時サンプルは `share/rewind/examples/datetime`、DB 連携は `datetime-sqlite` / `datetime-postgres` に収録します。SDK 同梱 IANA 版は `std.datetime.databaseVersion()` で確認できます。
 
 Unicode の例は `share/rewind/examples/unicode`。`std.unicode.versions()` でデータ版を確認できます。
+
+正規表現は `std.regex`。`share/rewind/examples/regex` と [正規表現の契約](REWIND_v1.8.6.md)を参照してください。
