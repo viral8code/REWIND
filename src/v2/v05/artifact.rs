@@ -150,6 +150,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) || !program.strict_visibility
@@ -203,6 +204,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
@@ -213,6 +215,19 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             .any(|n| program.functions.contains_key(*n)))
     {
         return Err(invalid("invalid standard primitive layout"));
+    }
+
+    if language_at_least(&program.language, "1.8.3")
+        && (serde_json::to_value(program.structs.get("Decimal")).ok()
+            != serde_json::to_value(standard.structs.get("Decimal")).ok()
+            || program.enums.contains_key("Decimal")
+            || program.aliases.contains_key("Decimal")
+            || serde_json::to_value(program.enums.get("DecimalRounding")).ok()
+                != serde_json::to_value(standard.enums.get("DecimalRounding")).ok()
+            || program.structs.contains_key("DecimalRounding")
+            || program.aliases.contains_key("DecimalRounding"))
+    {
+        return Err(invalid("invalid decimal standard layout"));
     }
 
     if language_at_least(&program.language, "1.8.2")
@@ -271,6 +286,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -318,6 +334,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
@@ -381,6 +398,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
@@ -416,6 +434,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
@@ -517,6 +536,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) {

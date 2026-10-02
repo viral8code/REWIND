@@ -1,0 +1,35 @@
+import std.db as db;
+import std.decimal as decimal;
+import std.dbDecimal as dbDecimal;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+external {opening=Some(db.sqlite(":memory:",false,5000));}
+match opening {
+    None=>{panic("missing connection");},
+    Some(task)=>{
+        let connection=take(take(await task));
+        var writing:Option<Task<Result<Int,DbError>>>=None;
+        external {writing=Some(db.execute(&mut connection,"CREATE TABLE scores (amount NUMERIC)",freeze(List<DbValue>()),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing write");}}
+        let amount=take(decimal.parse("12345678901234567890.12340000"));let values=List<DbValue>();values.push(take(dbDecimal.sqliteParameter(&amount)));
+        external {writing=Some(db.execute(&mut connection,"INSERT INTO scores VALUES (?1)",freeze(move values),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing insert");}}
+        var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+        external {querying=Some(db.query(&mut connection,"SELECT amount FROM scores",freeze(List<DbValue>()),5000));}
+        match querying {
+            None=>{panic("missing query");},
+            Some(task)=>{
+                let cursor=take(take(await task));
+                var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+                external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
+                match reading {None=>{panic("missing read");},Some(task)=>{let batch=take(take(await task));let amount=take(dbDecimal.cell(batch.rows.get(0),0));Out.println(take(decimal.format(&amount)));}}
+            }
+        }
+    }
+}
+var cleanup:Option<Task<Result<Unit,DbError>>>=None;
+external {cleanup=Some(db.waitForCleanup(5000));}
+match cleanup {None=>{panic("missing cleanup");},Some(task)=>{take(take(await task));}}
+publish;

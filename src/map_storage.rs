@@ -12,6 +12,7 @@ impl Entry {
     fn new(key: Arc<MapKey>, value: Arc<Value>) -> Arc<Self> {
         let key_bytes = match key.as_ref() {
             MapKey::BigInt(v) => v.retained_bytes(),
+            MapKey::Decimal(v) => v.retained_bytes(),
             MapKey::Text(s) => s.len(),
             MapKey::Bytes(b) => b.len(),
             MapKey::Bool(_) => 1,

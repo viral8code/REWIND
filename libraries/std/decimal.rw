@@ -1,0 +1,43 @@
+// Decimal is immutable native exact base-ten storage.
+// @api parse cost native work and scratch precharged from coefficient, scale and output size.
+// @api parse failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn parse(value:String)->Result<Decimal,StdError> effects {} {return stdDecimalParse(value);}
+// @api format cost native work and scratch precharged from coefficient, scale and output size.
+// @api format failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn format(value:&Decimal)->Result<String,StdError> effects {} {return stdDecimalFormat(value);}
+// @api fromCoefficient cost native work and scratch precharged from coefficient, scale and output size.
+// @api fromCoefficient failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn fromCoefficient(value:&BigInt,scale:Int)->Result<Decimal,StdError> effects {} {return stdDecimalFromCoefficient(value,scale);}
+// @api coefficient cost native work and scratch precharged from coefficient, scale and output size.
+// @api coefficient failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn coefficient(value:&Decimal)->Result<BigInt,StdError> effects {} {return stdDecimalCoefficient(value);}
+// @api scale cost native work and scratch precharged from coefficient, scale and output size.
+// @api scale failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn scale(value:&Decimal)->Result<Int,StdError> effects {} {return stdDecimalScale(value);}
+// @api compare cost native work and scratch precharged from coefficient, scale and output size.
+// @api compare failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn compare(left:&Decimal,right:&Decimal)->Result<Int,StdError> effects {} {return stdDecimalCompare(left,right);}
+// @api add cost native work and scratch precharged from coefficient, scale and output size.
+// @api add failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn add(left:&Decimal,right:&Decimal,precision:Int,rounding:DecimalRounding)->Result<Decimal,StdError> effects {} {return stdDecimalBinary("add",left,right,precision,rounding);}
+// @api subtract cost native work and scratch precharged from coefficient, scale and output size.
+// @api subtract failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn subtract(left:&Decimal,right:&Decimal,precision:Int,rounding:DecimalRounding)->Result<Decimal,StdError> effects {} {return stdDecimalBinary("sub",left,right,precision,rounding);}
+// @api multiply cost native work and scratch precharged from coefficient, scale and output size.
+// @api multiply failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn multiply(left:&Decimal,right:&Decimal,precision:Int,rounding:DecimalRounding)->Result<Decimal,StdError> effects {} {return stdDecimalBinary("mul",left,right,precision,rounding);}
+// @api divide cost native work and scratch precharged from coefficient, scale and output size.
+// @api divide failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn divide(left:&Decimal,right:&Decimal,scale:Int,precision:Int,rounding:DecimalRounding)->Result<Decimal,StdError> effects {} {return stdDecimalDivide(left,right,scale,precision,rounding);}
+// @api quantize cost native work and scratch precharged from coefficient, scale and output size.
+// @api quantize failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn quantize(value:&Decimal,scale:Int,precision:Int,rounding:DecimalRounding)->Result<Decimal,StdError> effects {} {return stdDecimalQuantize(value,scale,precision,rounding);}
+// @api toJson cost native work and scratch precharged from coefficient, scale and output size.
+// @api toJson failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn toJson(value:&Decimal)->Result<Json,StdError> effects {} {match representation(value){Ok(text)=>{return Ok(Json::Text(text));},Err(error)=>{return Err(error);}}}
+// @api fromJson cost native work and scratch precharged from coefficient, scale and output size.
+// @api fromJson failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn fromJson(value:Json)->Result<Decimal,StdError> effects {} {match move value{Json::Text(text)=>{return parse(text);},_=>{return Err(StdError("DecimalJsonType",0));}}}
+// @api representation cost native work and scratch precharged from coefficient, scale and output size.
+// @api representation failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn representation(value:&Decimal)->Result<String,StdError> effects {} {return stdDecimalRepresentation(value);}

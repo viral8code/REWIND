@@ -1,6 +1,7 @@
 //! Small deterministic primitives for the source standard library.
 use super::*;
 mod bigint;
+mod decimal;
 mod numeric;
 mod sdk;
 pub(super) use sdk::modules as std_modules;
@@ -8,10 +9,15 @@ pub(super) use sdk::{build as sdk_build, install as sdk_install, verify as sdk_v
 const LIMIT: usize = 1024 * 1024;
 const ITEMS: usize = 65_536;
 pub(super) fn native_owned_result(name: &str) -> bool {
-    (name.starts_with("stdNumeric") || name.starts_with("stdBigInt")) && names().contains(&name)
+    (name.starts_with("stdNumeric")
+        || name.starts_with("stdBigInt")
+        || name.starts_with("stdDecimal"))
+        && names().contains(&name)
 }
 pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str> {
-    numeric::parameter(name, index).or_else(|| bigint::parameter(name, index))
+    numeric::parameter(name, index)
+        .or_else(|| bigint::parameter(name, index))
+        .or_else(|| decimal::parameter(name, index))
 }
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
@@ -36,6 +42,16 @@ pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
 }
 pub(super) fn names() -> &'static [&'static str] {
     &[
+        "stdDecimalParse",
+        "stdDecimalFormat",
+        "stdDecimalRepresentation",
+        "stdDecimalFromCoefficient",
+        "stdDecimalCoefficient",
+        "stdDecimalScale",
+        "stdDecimalCompare",
+        "stdDecimalBinary",
+        "stdDecimalQuantize",
+        "stdDecimalDivide",
         "stdBigIntParse",
         "stdBigIntFromInt",
         "stdBigIntToInt",
@@ -176,6 +192,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -197,6 +214,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     }
     numeric::prepare(p)?;
     bigint::prepare(p)?;
+    decimal::prepare(p)?;
     p.structs.insert(
         "StdError".into(),
         StructDef {
@@ -325,6 +343,9 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usize> {
+    if let Some(work) = decimal::work(name, args, runtime) {
+        return Some(work);
+    }
     if let Some(work) = bigint::work(name, args, runtime) {
         return Some(work);
     }
@@ -384,11 +405,15 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) || !names().contains(&n)
     {
         return Ok(None);
+    }
+    if let Some(result) = decimal::call_type(p, n, args, at)? {
+        return Ok(Some(result));
     }
     if let Some(result) = bigint::call_type(p, n, args, at)? {
         return Ok(Some(result));
@@ -418,6 +443,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.8.0"
                 | "1.8.1"
                 | "1.8.2"
+                | "1.8.3"
                 | "1.9.0"
                 | "2.0.0"
         )
@@ -666,6 +692,9 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if let Some(value) = decimal::call(n, args, runtime)? {
+        return Ok(Some(value));
+    }
     if let Some(value) = bigint::call(n, args, runtime)? {
         return Ok(Some(value));
     }

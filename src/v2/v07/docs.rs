@@ -35,6 +35,7 @@ pub(in crate::v2) fn doctest(root: &Path, path: &Path) -> Result<()> {
             | "1.8.0"
             | "1.8.1"
             | "1.8.2"
+            | "1.8.3"
             | "1.9.0"
             | "2.0.0"
     ) {

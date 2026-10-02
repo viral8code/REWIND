@@ -14,6 +14,11 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "distributions",
             include_str!("../../../libraries/std/distributions.rw"),
         ),
+        (
+            "dbDecimal",
+            include_str!("../../../libraries/std/dbDecimal.rw"),
+        ),
+        ("decimal", include_str!("../../../libraries/std/decimal.rw")),
         ("bigint", include_str!("../../../libraries/std/bigint.rw")),
         ("error", include_str!("../../../libraries/std/error.rw")),
         (
@@ -294,6 +299,48 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/doc/v2-design.md",
             include_str!("../../../docs/v2-design.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.8.3.md",
+            include_str!("../../../docs/REWIND_v1.8.3.md"),
+        )?;
+        for (name, doc) in [
+            (
+                "decimal",
+                include_str!("../../../examples/decimal/README.md"),
+            ),
+            (
+                "decimal-postgres",
+                include_str!("../../../examples/decimal-postgres/README.md"),
+            ),
+            (
+                "decimal-sqlite",
+                include_str!("../../../examples/decimal-sqlite/README.md"),
+            ),
+        ] {
+            write(
+                &output,
+                &format!("share/rewind/examples/{name}/README.md"),
+                doc.replace("../../docs/", "../../doc/"),
+            )?;
+        }
+        for (name, source) in [
+            ("decimal", include_str!("../../../examples/decimal/main.rw")),
+            (
+                "decimal-postgres",
+                include_str!("../../../examples/decimal-postgres/main.rw"),
+            ),
+            (
+                "decimal-sqlite",
+                include_str!("../../../examples/decimal-sqlite/main.rw"),
+            ),
+        ] {
+            write(
+                &output,
+                &format!("share/rewind/examples/{name}/main.rw"),
+                source,
+            )?;
+        }
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.2.md",

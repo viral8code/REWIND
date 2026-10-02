@@ -459,3 +459,19 @@ fn abrupt_backend_disconnect_is_typed_and_does_not_reconnect() {
         "DbClosed"
     );
 }
+
+#[test]
+fn numeric_protocol_is_exact_finite_and_preserves_declared_scale() {
+    let Some((dsn, ca)) = fixture() else { return };
+    let mut runtime = runtime(&dsn, &ca);
+    let connection = open(&mut runtime);
+    let cursor=query(&mut runtime,connection,"SELECT $1::numeric + $2::numeric AS amount, $3::numeric AS exact, NULL::numeric AS missing",vec![Parameter::Text("0.1".into()),Parameter::Text("0.2".into()),Parameter::Text("12345678901234567890.12340000".into())]);
+    let batch = next(&mut runtime, cursor, 64);
+    assert_eq!(batch["rows"][0][0]["type"], "Text");
+    assert_eq!(batch["rows"][0][0]["value"], "0.3");
+    assert_eq!(
+        batch["rows"][0][1]["value"],
+        "12345678901234567890.12340000"
+    );
+    assert_eq!(batch["rows"][0][2]["type"], "Null");
+}
