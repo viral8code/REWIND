@@ -1,6 +1,6 @@
-# REWIND SDK 1.8.4
+# REWIND SDK 1.8.5
 
-REWIND 1.8.4、Linux x86_64 / Windows x64 のSDK。bin/rewind は compiler と runtime を兼ね、check/test/doc/build/run/debug/LSP を提供する。stdlib の公開APIは [std-api.json](std-api.json)、module ごとの文書は [text](std/text.md)、[number](std/number.md)、[collections](std/collections.md)、[json](std/json.md) などを参照。
+REWIND 1.8.5、Linux x86_64 / Windows x64 のSDK。bin/rewind は compiler と runtime を兼ね、check/test/doc/build/run/debug/LSP を提供する。stdlib の公開APIは [std-api.json](std-api.json)、module ごとの文書は [text](std/text.md)、[number](std/number.md)、[collections](std/collections.md)、[json](std/json.md) などを参照。
 
 ## 単一ファイル
 
@@ -17,7 +17,7 @@ binをPATHへ追加し、`rewind run main.rw` / `rewind compile main.rw` / `rewi
 /path/to/sdk/bin/rewind run --root /path/to/project
 ```
 
-project の rewind.toml は language="1.8.4"、source_root="."、entry="main.rw"、effects を宣言する。導入は署名付き std を project の vendor に固定し、lock を更新する。SDK の場所を後から変えても project は動く。SDK 内の例を writable directory にコピーしてから sdk-install する。
+project の rewind.toml は language="1.8.5"、source_root="."、entry="main.rw"、effects を宣言する。導入は署名付き std を project の vendor に固定し、lock を更新する。SDK の場所を後から変えても project は動く。SDK 内の例を writable directory にコピーしてから sdk-install する。
 
 ## 言語と実行
 
@@ -49,6 +49,8 @@ runtime の executionSteps と CLI の --task-steps は有限の実行予算を�
 
 `std.numeric` と SDK の `share/rewind/examples/numeric` で型付き配列と行列計算を試せる。[数値契約](REWIND_v1.8.md)を参照。
 
-`std.bigint` は [exact integer 契約](REWIND_v1.8.4.md)を提供する。Float を介さず演算・JSON string 保存できる。
+`std.bigint` は [exact integer 契約](REWIND_v1.8.5.md)を提供する。Float を介さず演算・JSON string 保存できる。
 
 日時サンプルは `share/rewind/examples/datetime`、DB 連携は `datetime-sqlite` / `datetime-postgres` に収録します。SDK 同梱 IANA 版は `std.datetime.databaseVersion()` で確認できます。
+
+Unicode の例は `share/rewind/examples/unicode`。`std.unicode.versions()` でデータ版を確認できます。

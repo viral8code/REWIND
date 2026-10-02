@@ -498,3 +498,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 ## 日時（v1.8.4）
 
 `Instant` / `Duration` は不変の native 値です。`std.datetime` の変換・算術は pure で `Result` を返し、比較・Map key・freeze・task・checkpoint を利用できます。zone は明示し、DST overlap は Earlier / Later / Reject、gap はエラーです。`std.clock.now()` は `external,clock` effects と external region を要求します。詳細と DB の精度契約は [v1.8.4](REWIND_v1.8.4.md) を参照してください。
+
+## Unicode（v1.8.5）
+
+`std.unicode` の grapheme API は extended grapheme cluster、offsets は UTF-8 byte offset、従来の `std.text` は scalar 単位です。NFC / NFD / NFKC / NFKD と full default casing は明示的に呼び出す pure な Result API。String / Map の自動正規化は行いません。上限・費用・データ版は [v1.8.5](REWIND_v1.8.5.md) を参照してください。

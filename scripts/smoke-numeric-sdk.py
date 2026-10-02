@@ -74,3 +74,14 @@ actual = run("run", root / "datetime.rwc", "--record", root / "datetime-trace.js
 assert actual == b"3600\n2024-11-03T06:30:00.123456789Z\n2024-11-03T05:30:00.123456789Z\n32400\nsame instant\ntrue\n", actual
 assert run("replay", root / "datetime-trace.json", "--root", root) == actual
 print("Verified extracted datetime SDK: exact nanoseconds, DST policy, canonical Map keys and source-free replay")
+
+unicode = root / "unicode.rw"
+unicode.write_text((sdk / "share/rewind/examples/unicode/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", unicode)
+unicode.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "unicode.rwc", "--record", root / "unicode-trace.json")
+assert actual.decode("utf-8") == "3\n🇯🇵\nfalse\ntrue\nA1ffi\nSTRASSE\n3\n", actual
+assert run("replay", root / "unicode-trace.json", "--root", root) == actual
+print("Verified extracted Unicode SDK: grapheme clusters, normalization, case mapping and source-free replay")

@@ -138,3 +138,5 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 `std.decimal` / `std.dbDecimal` は explicit rounding、JSON、PostgreSQL NUMERIC と SQLite BLOB の exact 変換を提供する。[契約](../docs/REWIND_v1.8.3.md)。
 
 `std.datetime` は整数ナノ秒の Instant / Duration、RFC3339、暦、IANA zone と明示的な DST policy を提供します。`std.clock.now()` の時計観測は external、`std.dbDatetime` は精度を検査した PostgreSQL / SQLite 変換です。仕様は [v1.8.4](../docs/REWIND_v1.8.4.md)。
+
+`std.unicode` は明示的な Unicode 正規化、grapheme / word / sentence boundary と大小変換です。既存 scalar API と GUI cursor の単位は保ちます。[v1.8.5](../docs/REWIND_v1.8.5.md) を参照してください。
