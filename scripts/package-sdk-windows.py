@@ -139,6 +139,7 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     run([sys.executable,root/'scripts/smoke-http-sdk.py',exe,work/'http'])
     run([sys.executable,root/'scripts/smoke-http-stream-sdk.py',exe,work/'http-stream'])
     run([sys.executable,root/'scripts/smoke-db-sdk.py',exe,work/'database'])
+    run([sys.executable,root/'scripts/smoke-numeric-sdk.py',exe,work/'numeric'])
     run([sys.executable,root/'scripts/smoke-postgres-sdk.py',exe,work/'postgres'])
     assert len(lines)==2 and lines[0]==lines[1] and int(lines[0])>0
     assert b'rewind compile' in run([exe,'compile','--help'])

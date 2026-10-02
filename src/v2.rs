@@ -4274,6 +4274,12 @@ impl Checker<'_> {
         Ok(())
     }
     fn constructor_visible(&self, def: &StructDef, at: &Tok) -> Result<()> {
+        if def.private_fields.contains("$native") {
+            return Err(diagnostic(
+                at,
+                "opaque type constructor is not available; use std.numeric",
+            ));
+        }
         if matches!(
             self.program.language.as_str(),
             "1.0.0"
@@ -4689,6 +4695,10 @@ impl Checker<'_> {
                 Value::Float(_) => "Float",
                 Value::Text(_) => "String",
                 Value::Bytes(_) => "Bytes",
+                Value::NumericArray(a) => match a.dtype() {
+                    rewind::numeric::DType::Float64 => "FloatArray",
+                    rewind::numeric::DType::Int64 => "IntArray",
+                },
                 Value::FileError(_) => "FileError",
                 Value::Null => "Unit",
                 Value::Option(_) => "Option<Unknown>",
@@ -9388,6 +9398,10 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
         Value::Float(_) => "Float",
         Value::Text(_) => "String",
         Value::Bytes(_) => "Bytes",
+        Value::NumericArray(a) => match a.dtype() {
+            rewind::numeric::DType::Float64 => "FloatArray",
+            rewind::numeric::DType::Int64 => "IntArray",
+        },
         Value::FileError(_) => "FileError",
         Value::Null => "Unit",
         Value::List(_) => "List",

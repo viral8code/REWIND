@@ -156,7 +156,10 @@ impl Flow<'_> {
                 {
                     return args.iter().all(|arg| self.shareable(arg) || self.owned_call(arg) || matches!(&arg.kind, ExprKind::Name(n) if self.vars.get(n).is_some_and(|v| v.borrow.is_none()) && !self.borrowed(n)));
                 }
-                base == "thaw" || self.program.functions.contains_key(base)
+                base == "thaw"
+                    || self.program.functions.contains_key(base)
+                    || (language_at_least(&self.program.language, "1.8.0")
+                        && v092::native_owned_result(base))
             }
             _ => false,
         }
@@ -922,7 +925,7 @@ impl Flow<'_> {
                                 .as_ref()
                                 .and_then(|(p, _)| p.get(index).map(String::as_str))
                         })
-                        .or_else(|| if index == 0 { if let ExprKind::Name(n) = &target.kind { v092::native_borrow(n) } else { None } } else { None })
+                        .or_else(|| if let ExprKind::Name(n) = &target.kind { v092::native_parameter(n,index).or_else(||(index==0).then(||v092::native_borrow(n)).flatten()) } else {None})
                         .or_else(|| (matches!(self.program.language.as_str(), "0.9.4" | "0.9.5" | "0.9.6" | "0.9.7" | "0.9.8" | "0.9.9" | "1.0.0" | "1.1.0" | "1.2.0" | "1.3.0" | "1.4.0" | "1.5.0" | "1.6.0" | "1.6.1" | "1.7.0" | "1.7.1" | "1.8.0" | "1.9.0" | "2.0.0") && index == 0 && matches!(&target.kind, ExprKind::Name(n) if n == "stdBytesFromList")).then_some("&List<Int>"));
                     let borrowing = matches!(
                         self.program.language.as_str(),

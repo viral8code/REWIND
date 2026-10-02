@@ -1,10 +1,17 @@
 //! Small deterministic primitives for the source standard library.
 use super::*;
+mod numeric;
 mod sdk;
 pub(super) use sdk::modules as std_modules;
 pub(super) use sdk::{build as sdk_build, install as sdk_install, verify as sdk_verify};
 const LIMIT: usize = 1024 * 1024;
 const ITEMS: usize = 65_536;
+pub(super) fn native_owned_result(name: &str) -> bool {
+    name.starts_with("stdNumeric") && names().contains(&name)
+}
+pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str> {
+    numeric::parameter(name, index)
+}
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
         "stdExternalHttpRead" | "stdExternalHttpClose" => Some("&mut HttpDownload"),
@@ -28,6 +35,40 @@ pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
 }
 pub(super) fn names() -> &'static [&'static str] {
     &[
+        "stdNumericZerosFloat",
+        "stdNumericFromFloat",
+        "stdNumericShapeFloat",
+        "stdNumericStridesFloat",
+        "stdNumericGetFloat",
+        "stdNumericWithFloat",
+        "stdNumericReshapeFloat",
+        "stdNumericTransposeFloat",
+        "stdNumericBroadcastFloat",
+        "stdNumericSliceFloat",
+        "stdNumericMaterializeFloat",
+        "stdNumericValuesFloat",
+        "stdNumericZipFloat",
+        "stdNumericZerosInt",
+        "stdNumericFromInt",
+        "stdNumericShapeInt",
+        "stdNumericStridesInt",
+        "stdNumericGetInt",
+        "stdNumericWithInt",
+        "stdNumericReshapeInt",
+        "stdNumericTransposeInt",
+        "stdNumericBroadcastInt",
+        "stdNumericSliceInt",
+        "stdNumericMaterializeInt",
+        "stdNumericValuesInt",
+        "stdNumericZipInt",
+        "stdNumericMapFloat",
+        "stdNumericSum",
+        "stdNumericMean",
+        "stdNumericVariance",
+        "stdNumericDot",
+        "stdNumericMatmul",
+        "stdNumericSolve",
+        "stdNumericMath",
         "stdTextTrim",
         "stdTextSplit",
         "stdTextTokens",
@@ -133,6 +174,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             "reserved standard library primitive".into(),
         ));
     }
+    numeric::prepare(p)?;
     p.structs.insert(
         "StdError".into(),
         StructDef {
@@ -261,6 +303,9 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usize> {
+    if let Some(work) = numeric::work(name, args, runtime) {
+        return Some(work);
+    }
     if !names().contains(&name) {
         return None;
     }
@@ -317,6 +362,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     ) || !names().contains(&n)
     {
         return Ok(None);
+    }
+    if let Some(result) = numeric::call_type(p, n, args, at)? {
+        return Ok(Some(result));
     }
     if n == "stdBytesFromList"
         && !matches!(
@@ -586,6 +634,9 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if let Some(value) = numeric::call(n, args, runtime)? {
+        return Ok(Some(value));
+    }
     if n == "stdExternalDbCredentials" {
         let [Value::Text(alias), secret, Value::Bytes(certificate)] = args else {
             return Err(Error::InvalidOperation(

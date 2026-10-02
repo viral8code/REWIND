@@ -1,7 +1,7 @@
 [package]
 name = "rewind"
 default-run = "rewind"
-version = "1.7.1"
+version = "1.8.0"
 edition = "2021"
 license = "MIT"
 description = "A transactional programming language with checkpoints and virtual I/O"

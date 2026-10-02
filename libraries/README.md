@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.7.1 / `language = "1.7.1"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.8.0 / `language = "1.8.0"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -122,3 +122,7 @@ error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換�
 ## std.db（1.7）
 
 SQLite の接続、パラメータ束縛、prepared statement、逐次 cursor、batch 実行、独立した DB transaction を提供する。呼出しは external 領域、await は領域外。`external,db,tasks` の明示許可が必要。DB 書込みは VM revert で取り消さない。[契約](../docs/REWIND_v1.7.md)、[例](../examples/database/README.md)を参照。PostgreSQL の実接続・SCRAM・verified TLS・server cursor は [1.7.1](../docs/REWIND_v1.7.1.md) と [例](../examples/postgres/README.md)を参照。
+
+## std.numeric
+
+FloatArray / IntArray の生成、所有値の COW 更新、view、明示 broadcast、scalar math、vector / matrix product、部分 pivot LU solve、補償和・mean / variance を提供する。全要素を VM List に変換せず native kernel を使える。数値配列は VM 内の巻き戻せる値であり、DB 等の外部作用とは区別する。[仕様](../docs/REWIND_v1.8.md)、[例](../examples/numeric/README.md)を参照。

@@ -75,3 +75,7 @@ v2.0 は次の条件をすべて確認してから公開する。機能名が存
 v1.5.0 は外部領域の基盤を実装済み。v1.6.0 は上限付き HTTP body と Task / GUI の連携を提供する。大容量の逐次 download / upload と接続型資源の共通 lifetime は v1.6.1 で安定化し、v1.7 の DB に進む前に検証する。元の到達条件は維持する。
 
 v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は PostgreSQL / SCRAM / verified TLS と実 server の source-free replay を追加し、公開前に両 OS の SDK で検証する。後続の数値・GC・GUI・統合の到達条件は維持する。
+
+### 1.8 の公開単位
+
+1.8.0 は native dense FloatArray / IntArray、COW view と更新、scalar math / vector / LU / 基本統計を先に検証する。1.8.1以降で QR / least squares / eigen と追加統計・分布乱数、標準数値型と DB / JSON 変換、日時 / Unicode / regex / 増分 stream を垂直に実装する。全項目を終えるまで1.8工程は完了としない。各 patch も両 OS の SDK を検証し、main 統合と Release 公開を行う。
