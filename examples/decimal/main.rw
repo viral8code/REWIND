@@ -1,0 +1,9 @@
+import std.decimal as decimal;
+import std.json as json;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("decimal operation failed");}}}
+var amount=take(decimal.parse("0.1"));let change=take(decimal.parse("0.2"));
+commit saved;amount=take(decimal.add(&amount,&change,28,DecimalRounding::Exact));Out.println(take(decimal.format(&amount)));publish;
+revert saved;Out.println(take(decimal.format(&amount)));publish;
+let tie=take(decimal.parse("2.5"));let even=take(decimal.quantize(&tie,0,28,DecimalRounding::HalfEven));Out.println(take(decimal.format(&even)));
+let a=take(decimal.parse("1.0"));let b=take(decimal.parse("1.00"));Out.println(a==b);let values=Map<Decimal,Int>();values.set(a,1);values.set(b,2);Out.println(values.len());
+let encoded=take(decimal.toJson(&amount));Out.println(take(json.stringify(encoded)));publish;

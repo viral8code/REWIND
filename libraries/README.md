@@ -132,3 +132,7 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 ## v1.8.2 exact integers
 
 `std.bigint` の native BigInt は参照共有され、parse / format、整数・bit算術、Mapとexact JSON string を提供する。[契約](../docs/REWIND_v1.8.2.md)。Decimal・DB変換は次の数値型patchで追加する。
+
+## v1.8.3 Decimal と exact DB
+
+`std.decimal` / `std.dbDecimal` は explicit rounding、JSON、PostgreSQL NUMERIC と SQLite BLOB の exact 変換を提供する。[契約](../docs/REWIND_v1.8.3.md)。

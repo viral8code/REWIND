@@ -1,6 +1,6 @@
-# REWIND 1.8.2
+# REWIND 1.8.3
 
-v1.8.2 adds immutable native BigInt, exact arithmetic, signed bit operations, Map keys and explicit decimal-string JSON conversion. See [contracts](docs/REWIND_v1.8.2.md) and the [example](examples/bigint/README.md). Typed numeric arrays, QR and symmetric eigen decomposition, SQLite, PostgreSQL, verified HTTP and native GUI are available.
+v1.8.3 adds native Decimal with explicit precision and rounding, exact JSON conversion, PostgreSQL NUMERIC wire support and SQLite storage that avoids numeric affinity rounding. See [contracts](docs/REWIND_v1.8.3.md) and the [example](examples/decimal/README.md). BigInt, typed numeric arrays, SQLite, PostgreSQL, verified HTTP and native GUI are available.
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 
@@ -8,7 +8,7 @@ v1.8.2 adds immutable native BigInt, exact arithmetic, signed bit operations, Ma
 
 ## SDKを試す
 
-[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.8.2)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
+[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.8.3)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
 
 v0.9 adds multiline REPL sessions with verified transcripts, API contracts for implementations and dependencies, production-only installs, Share generic records, ordered property shrinkers, and signed inspection timelines. Select `language = "0.9"`; see [implementation and limits](docs/v0.9-status.md) and the [v0.9.1 application proposal](docs/REWIND_v0.9.1.md).
 

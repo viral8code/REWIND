@@ -1,0 +1,20 @@
+import decimal as decimal;
+// PostgreSQL NUMERIC parameter: finite exact decimal text, never Float.
+// @api parameter cost native work and scratch precharged from coefficient, scale and output size.
+// @api parameter failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn parameter(value:&Decimal)->Result<DbValue,StdError> effects {} {match decimal.representation(value){Ok(text)=>{return Ok(DbValue::Text(text));},Err(error)=>{return Err(error);}}}
+// SQLite BLOB bypasses numeric affinity and stores the exact textual representation.
+// @api sqliteParameter cost native work and scratch precharged from coefficient, scale and output size.
+// @api sqliteParameter failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn sqliteParameter(value:&Decimal)->Result<DbValue,StdError> effects {} {match decimal.representation(value){Err(error)=>{return Err(error);},Ok(text)=>{match stdEncode(text){Err(error)=>{return Err(error);},Ok(bytes)=>{return Ok(DbValue::Bytes(bytes));}}}}}
+fn convert(text:String)->Result<Decimal,DbError> effects {} {match decimal.parse(text){Ok(value)=>{return Ok(move value);},Err(error)=>{return Err(DbError(error.code,"ResponseReceived",None,None));}}}
+// @api cell cost native work and scratch precharged from coefficient, scale and output size.
+// @api cell failure typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.
+pub fn cell(row:Frozen<DbRow>,index:Int)->Result<Decimal,DbError> effects {} {
+ if index<0 || index>=row.values.len(){return Err(DbError("DbColumnRange","ResponseReceived",None,None));}
+ let value=thaw(row.values.get(index));match move value {
+ DbValue::Text(text)=>{return convert(text);},
+ DbValue::Bytes(bytes)=>{match stdDecode(bytes){Ok(text)=>{return convert(text);},Err(error)=>{return Err(DbError(error.code,"ResponseReceived",None,None));}}},
+ DbValue::Null=>{return Err(DbError("DbNull","ResponseReceived",None,None));},
+ _=>{return Err(DbError("DbType","ResponseReceived",None,None));}}
+}

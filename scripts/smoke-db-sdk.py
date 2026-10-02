@@ -37,3 +37,16 @@ assert run("replay", root / "trace.json", "--root", root,
            "--allow-effects", "external,db,tasks") == actual
 assert not (root / "data.sqlite").exists()
 print("Verified extracted SQLite SDK: actual file DB, source-free run and DB-free replay")
+
+decimal = root / "decimal.rw"
+decimal.write_text((sdk / "share/rewind/examples/decimal-sqlite/main.rw").read_text(encoding="utf-8").replace('":memory:"', '"decimal.sqlite"'), encoding="utf-8")
+run("compile", decimal, "--allow-effects", "external,db,tasks")
+decimal.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "decimal.rwc", "--allow-effects", "external,db,tasks", "--record", root / "decimal-trace.json")
+assert actual == b"12345678901234567890.12340000\n", actual
+(root / "decimal.sqlite").unlink()
+assert run("replay", root / "decimal-trace.json", "--root", root, "--allow-effects", "external,db,tasks") == actual
+assert not (root / "decimal.sqlite").exists()
+print("Verified extracted Decimal SQLite SDK: BLOB storage bypasses affinity, source-free run and DB-free replay")

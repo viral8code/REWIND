@@ -52,3 +52,14 @@ actual = run("run", root / "exact.rwc", "--record", root / "exact-trace.json")
 assert actual == b'1267650600228229401496703205378\n1267650600228229401496703205376\n"1267650600228229401496703205376"\n1\n', actual
 assert run("replay", root / "exact-trace.json", "--root", root) == actual
 print("Verified extracted exact-integer SDK: BigInt, Map, checkpoint, JSON and source-free replay")
+
+decimal = root / "decimal.rw"
+decimal.write_text((sdk / "share/rewind/examples/decimal/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", decimal)
+decimal.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "decimal.rwc", "--record", root / "decimal-trace.json")
+assert actual == b'0.3\n0.1\n2\ntrue\n1\n"0.1"\n', actual
+assert run("replay", root / "decimal-trace.json", "--root", root) == actual
+print("Verified extracted Decimal SDK: exact arithmetic, rounding, canonical Map keys and source-free replay")

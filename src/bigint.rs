@@ -25,7 +25,7 @@ struct Inner {
 pub struct IntegerValue(Arc<Inner>);
 impl PartialEq for IntegerValue {
     fn eq(&self, other: &Self) -> bool {
-        self.0.number == other.0.number
+        Arc::ptr_eq(&self.0, &other.0) || self.0.number == other.0.number
     }
 }
 impl Eq for IntegerValue {}
@@ -53,6 +53,9 @@ impl fmt::Display for IntegerValue {
     }
 }
 impl IntegerValue {
+    pub(crate) fn native(&self) -> &BigInt {
+        &self.0.number
+    }
     pub fn from_int(n: i64) -> Self {
         Self::checked(BigInt::from(n)).unwrap()
     }

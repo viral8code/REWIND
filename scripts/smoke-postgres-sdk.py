@@ -45,3 +45,20 @@ assert run("replay", root / "trace.json", "--root", root, "--allow-effects", eff
            connection="host=127.0.0.1 port=1 user=replay dbname=postgres sslmode=require") == actual
 assert not (root / "ca.der").exists()
 print("Verified extracted PostgreSQL SDK: SCRAM, verified TLS, source-free run and disconnected replay")
+
+# Verify the typed Decimal facade on the same real server, then disconnect replay.
+decimal = root / "decimal.rw"
+shutil.copyfile(sdk / "share/rewind/examples/decimal-postgres/main.rw", decimal)
+shutil.copyfile(os.environ["REWIND_TEST_PG_CA"], root / "ca.der")
+run("compile", decimal, "--allow-effects", effects)
+decimal.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "decimal.rwc", "--allow-effects", effects, "--secret-env", "REWIND_PG_DSN", "--record", root / "decimal-trace.json")
+assert actual == b"0.3\n", actual
+trace = (root / "decimal-trace.json").read_text(encoding="utf-8")
+assert dsn not in trace and "rewind-fixture-only-password" not in trace
+(root / "ca.der").unlink()
+assert run("replay", root / "decimal-trace.json", "--root", root, "--allow-effects", effects, "--secret-env", "REWIND_PG_DSN", connection="host=127.0.0.1 port=1 user=replay dbname=postgres sslmode=require") == actual
+assert not (root / "ca.der").exists()
+print("Verified extracted Decimal PostgreSQL SDK: NUMERIC wire arithmetic is exact; replay stays disconnected")

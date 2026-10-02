@@ -490,3 +490,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 ### v1.8.2 BigInt
 
 `std.bigint` の不変な native 値は64 bitを超える整数の正確な計算、bit operation、Map key、checkpoint に対応する。[容量・算術・JSON 契約](REWIND_v1.8.2.md)を参照。
+
+### v1.8.3 Decimal
+
+`std.decimal` は precision / scale / rounding を明示する exact base-ten 数値型。scalar 数値比較と VM の scale 保存を分け、`std.dbDecimal` で DB へ接続する。[契約](REWIND_v1.8.3.md)。

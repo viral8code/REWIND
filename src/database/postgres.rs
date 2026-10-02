@@ -22,7 +22,7 @@ use tokio::{
 };
 use tokio_postgres::{
     config::{ChannelBinding, Host, SslMode},
-    types::{IsNull, ToSql, Type},
+    types::{FromSql, IsNull, ToSql, Type},
     Client, Config, NoTls, Statement,
 };
 const VALUE_LIMIT: usize = 1024 * 1024;
@@ -407,7 +407,8 @@ fn pg_error(error: tokio_postgres::Error) -> Error {
 fn supported(ty: &Type) -> bool {
     matches!(
         *ty,
-        Type::BOOL
+        Type::NUMERIC
+            | Type::BOOL
             | Type::INT2
             | Type::INT4
             | Type::INT8
@@ -435,6 +436,40 @@ impl ToSql for Null {
     }
     tokio_postgres::types::to_sql_checked!();
 }
+#[derive(Debug)]
+struct Numeric(Vec<u8>);
+impl ToSql for Numeric {
+    fn to_sql(
+        &self,
+        _: &Type,
+        out: &mut BytesMut,
+    ) -> std::result::Result<IsNull, Box<dyn std::error::Error + Sync + Send>> {
+        out.extend_from_slice(&self.0);
+        Ok(IsNull::No)
+    }
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::NUMERIC
+    }
+    tokio_postgres::types::to_sql_checked!();
+}
+struct NumericText(String);
+impl<'a> FromSql<'a> for NumericText {
+    fn from_sql(
+        _: &Type,
+        raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let value = crate::decimal::postgres::decode(raw).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid finite bounded PostgreSQL NUMERIC",
+            )
+        })?;
+        Ok(Self(value.representation()))
+    }
+    fn accepts(ty: &Type) -> bool {
+        *ty == Type::NUMERIC
+    }
+}
 fn bind(
     params: Vec<Parameter>,
     statement: &Statement,
@@ -461,6 +496,12 @@ fn bind(
                     if *t == Type::FLOAT4 && v.is_finite() && (v as f32).is_finite() =>
                 {
                     Box::new(v as f32)
+                }
+                Parameter::Text(v) if *t == Type::NUMERIC => {
+                    let value = crate::decimal::DecimalValue::parse(&v).map_err(|_| Error::Type)?;
+                    Box::new(Numeric(
+                        crate::decimal::postgres::encode(&value).map_err(|_| Error::Type)?,
+                    ))
                 }
                 Parameter::Text(v)
                     if matches!(*t, Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME) =>
@@ -491,6 +532,7 @@ fn row(row: tokio_postgres::Row) -> Result<Vec<Parameter>> {
                 };
             }
             Ok(match *column.type_() {
+                Type::NUMERIC => get!(NumericText, |v| Parameter::Text(v.0)),
                 Type::BOOL => get!(bool, Parameter::Bool),
                 Type::INT2 => get!(i16, |v| Parameter::Int(i64::from(v))),
                 Type::INT4 => get!(i32, |v| Parameter::Int(i64::from(v))),

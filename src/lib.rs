@@ -12,6 +12,7 @@ use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 pub mod bigint;
 pub mod database;
+pub mod decimal;
 pub mod external;
 pub mod native_resources;
 pub mod network;
@@ -32,11 +33,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MapKey {
     BigInt(bigint::IntegerValue),
+    Decimal(#[serde(deserialize_with = "decimal_key")] decimal::DecimalValue),
     Bool(bool),
     Int(i64),
     Float(u64),
     Text(String),
     Bytes(Vec<u8>),
+}
+fn decimal_key<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<decimal::DecimalValue, D::Error> {
+    let value = <decimal::DecimalValue as serde::Deserialize>::deserialize(d)?;
+    let canonical = value.canonical();
+    if value.scale() != canonical.scale() || value.coefficient() != canonical.coefficient() {
+        return Err(serde::de::Error::custom("noncanonical decimal map key"));
+    }
+    Ok(value)
 }
 impl PartialOrd for MapKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -53,11 +65,13 @@ impl Ord for MapKey {
                 MapKey::Text(_) => 3,
                 MapKey::Bytes(_) => 4,
                 MapKey::BigInt(_) => 5,
+                MapKey::Decimal(_) => 6,
             }
         }
         rank(self)
             .cmp(&rank(other))
             .then_with(|| match (self, other) {
+                (MapKey::Decimal(a), MapKey::Decimal(b)) => a.cmp(b),
                 (MapKey::BigInt(a), MapKey::BigInt(b)) => a.cmp(b),
                 (MapKey::Bool(a), MapKey::Bool(b)) => a.cmp(b),
                 (MapKey::Int(a), MapKey::Int(b)) => a.cmp(b),
@@ -73,6 +87,7 @@ impl Ord for MapKey {
 impl MapKey {
     pub fn from_value(value: &Value) -> Option<Self> {
         Some(match value {
+            Value::Decimal(v) => Self::Decimal(v.canonical()),
             Value::BigInt(v) => Self::BigInt(v.clone()),
             Value::Bool(v) => Self::Bool(*v),
             Value::Int(v) => Self::Int(*v),
@@ -84,6 +99,7 @@ impl MapKey {
     }
     pub fn value(&self) -> Value {
         match self {
+            Self::Decimal(v) => Value::Decimal(v.clone().into()),
             Self::BigInt(v) => Value::BigInt(v.clone()),
             Self::Bool(v) => Value::Bool(*v),
             Self::Int(v) => Value::Int(*v),
@@ -143,6 +159,7 @@ pub enum Value {
     Bytes(Arc<Vec<u8>>),
     NumericArray(numeric::Array),
     BigInt(bigint::IntegerValue),
+    Decimal(decimal::StoredDecimal),
     FileError(FileFailure),
     List(Vec<Value>),
     TypedList(String, PagedValues),
@@ -197,6 +214,7 @@ impl fmt::Display for Value {
             Value::Bytes(v) => write!(f, "{v:?}"),
             Value::NumericArray(v) => write!(f, "{v:?}"),
             Value::BigInt(v) => write!(f, "{v}"),
+            Value::Decimal(v) => write!(f, "{v}"),
             Value::FileError(v) => write!(f, "{v}"),
             Value::List(v) => {
                 write!(f, "[")?;
@@ -1077,6 +1095,7 @@ impl Runtime {
             Value::Bytes(bytes) => bytes.len(),
             Value::NumericArray(array) => array.retained_bytes(),
             Value::BigInt(integer) => integer.retained_bytes(),
+            Value::Decimal(value) => value.retained_bytes(),
             Value::FileError(error) => {
                 error.code.len()
                     + error.path.len()
