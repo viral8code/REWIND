@@ -12,6 +12,7 @@ use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 pub mod bigint;
 pub mod database;
+pub mod datetime;
 pub mod decimal;
 pub mod external;
 pub mod native_resources;
@@ -32,6 +33,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MapKey {
+    Instant(datetime::Instant),
+    Duration(datetime::Duration),
     BigInt(bigint::IntegerValue),
     Decimal(#[serde(deserialize_with = "decimal_key")] decimal::DecimalValue),
     Bool(bool),
@@ -66,11 +69,15 @@ impl Ord for MapKey {
                 MapKey::Bytes(_) => 4,
                 MapKey::BigInt(_) => 5,
                 MapKey::Decimal(_) => 6,
+                MapKey::Instant(_) => 7,
+                MapKey::Duration(_) => 8,
             }
         }
         rank(self)
             .cmp(&rank(other))
             .then_with(|| match (self, other) {
+                (MapKey::Instant(a), MapKey::Instant(b)) => a.cmp(b),
+                (MapKey::Duration(a), MapKey::Duration(b)) => a.cmp(b),
                 (MapKey::Decimal(a), MapKey::Decimal(b)) => a.cmp(b),
                 (MapKey::BigInt(a), MapKey::BigInt(b)) => a.cmp(b),
                 (MapKey::Bool(a), MapKey::Bool(b)) => a.cmp(b),
@@ -87,6 +94,8 @@ impl Ord for MapKey {
 impl MapKey {
     pub fn from_value(value: &Value) -> Option<Self> {
         Some(match value {
+            Value::Instant(v) => Self::Instant(*v),
+            Value::Duration(v) => Self::Duration(*v),
             Value::Decimal(v) => Self::Decimal(v.canonical()),
             Value::BigInt(v) => Self::BigInt(v.clone()),
             Value::Bool(v) => Self::Bool(*v),
@@ -99,6 +108,8 @@ impl MapKey {
     }
     pub fn value(&self) -> Value {
         match self {
+            Self::Instant(v) => Value::Instant(*v),
+            Self::Duration(v) => Value::Duration(*v),
             Self::Decimal(v) => Value::Decimal(v.clone().into()),
             Self::BigInt(v) => Value::BigInt(v.clone()),
             Self::Bool(v) => Value::Bool(*v),
@@ -158,6 +169,8 @@ pub enum Value {
     Text(String),
     Bytes(Arc<Vec<u8>>),
     NumericArray(numeric::Array),
+    Instant(datetime::Instant),
+    Duration(datetime::Duration),
     BigInt(bigint::IntegerValue),
     Decimal(decimal::StoredDecimal),
     FileError(FileFailure),
@@ -214,6 +227,8 @@ impl fmt::Display for Value {
             Value::Bytes(v) => write!(f, "{v:?}"),
             Value::NumericArray(v) => write!(f, "{v:?}"),
             Value::BigInt(v) => write!(f, "{v}"),
+            Value::Instant(v) => write!(f, "{v}"),
+            Value::Duration(v) => write!(f, "{v}"),
             Value::Decimal(v) => write!(f, "{v}"),
             Value::FileError(v) => write!(f, "{v}"),
             Value::List(v) => {
@@ -1094,6 +1109,7 @@ impl Runtime {
             Value::Text(text) => text.len(),
             Value::Bytes(bytes) => bytes.len(),
             Value::NumericArray(array) => array.retained_bytes(),
+            Value::Instant(_) | Value::Duration(_) => 16,
             Value::BigInt(integer) => integer.retained_bytes(),
             Value::Decimal(value) => value.retained_bytes(),
             Value::FileError(error) => {

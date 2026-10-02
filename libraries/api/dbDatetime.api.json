@@ -1,0 +1,721 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "1.8.4",
+  "symbols": {
+    "dependency:datetime.rw": {
+      "fn:$import$datetime$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "&Duration"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$addDurations": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration",
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$calendar": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "String"
+        ],
+        "return": "Result<$import$datetime$LocalTime,StdError>"
+      },
+      "fn:$import$datetime$calendarOffset": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "Int"
+        ],
+        "return": "Result<$import$datetime$LocalTime,StdError>"
+      },
+      "fn:$import$datetime$databaseVersion": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$difference": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "&Instant"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$duration": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$durationFromJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$durationNanoseconds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$durationSeconds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$durationToJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Json,StdError>"
+      },
+      "fn:$import$datetime$format": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$formatOffset": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "Int"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$fromJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$instant": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$nanoseconds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$negateDuration": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$parse": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$resolve": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$datetime$Calendar",
+          "String",
+          "$import$datetime$Ambiguity"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$resolveOffset": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$datetime$Calendar",
+          "Int"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$seconds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$subtractDurations": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration",
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$toJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Json,StdError>"
+      },
+      "type:$import$datetime$Ambiguity": {
+        "generics": [],
+        "variants": {
+          "Earlier": [],
+          "Later": [],
+          "Reject": []
+        }
+      },
+      "type:$import$datetime$Calendar": {
+        "bounds": {},
+        "fields": [
+          [
+            "year",
+            "Int"
+          ],
+          [
+            "month",
+            "Int"
+          ],
+          [
+            "day",
+            "Int"
+          ],
+          [
+            "hour",
+            "Int"
+          ],
+          [
+            "minute",
+            "Int"
+          ],
+          [
+            "second",
+            "Int"
+          ],
+          [
+            "nanosecond",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$datetime$LocalTime": {
+        "bounds": {},
+        "fields": [
+          [
+            "calendar",
+            "$import$datetime$Calendar"
+          ],
+          [
+            "offsetSeconds",
+            "Int"
+          ],
+          [
+            "weekday",
+            "Int"
+          ],
+          [
+            "dayOfYear",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      }
+    },
+    "fn:cell": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Frozen<DbRow>",
+        "Int"
+      ],
+      "return": "Result<Instant,DbError>"
+    },
+    "fn:parameter": {
+      "async": false,
+      "effects": [],
+      "failure": "DateTimeRange if nanos are not whole microseconds; PostgreSQL timestamptz is an instant, not a local calendar or zone name.",
+      "generics": [],
+      "parameters": [
+        "&Instant"
+      ],
+      "return": "Result<DbValue,StdError>"
+    },
+    "fn:sqliteParameter": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Instant"
+      ],
+      "return": "Result<DbValue,StdError>"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

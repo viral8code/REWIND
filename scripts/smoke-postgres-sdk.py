@@ -62,3 +62,19 @@ assert dsn not in trace and "rewind-fixture-only-password" not in trace
 assert run("replay", root / "decimal-trace.json", "--root", root, "--allow-effects", effects, "--secret-env", "REWIND_PG_DSN", connection="host=127.0.0.1 port=1 user=replay dbname=postgres sslmode=require") == actual
 assert not (root / "ca.der").exists()
 print("Verified extracted Decimal PostgreSQL SDK: NUMERIC wire arithmetic is exact; replay stays disconnected")
+
+datetime = root / "datetime.rw"
+shutil.copyfile(sdk / "share/rewind/examples/datetime-postgres/main.rw", datetime)
+shutil.copyfile(os.environ["REWIND_TEST_PG_CA"], root / "ca.der")
+run("compile", datetime, "--allow-effects", effects)
+datetime.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "datetime.rwc", "--allow-effects", effects, "--secret-env", "REWIND_PG_DSN", "--record", root / "datetime-trace.json")
+assert actual == b"2024-02-29T03:34:56.123456Z\n", actual
+trace = (root / "datetime-trace.json").read_text(encoding="utf-8")
+assert dsn not in trace and "rewind-fixture-only-password" not in trace
+(root / "ca.der").unlink()
+assert run("replay", root / "datetime-trace.json", "--root", root, "--allow-effects", effects, "--secret-env", "REWIND_PG_DSN", connection="host=127.0.0.1 port=1 user=replay dbname=postgres sslmode=require") == actual
+assert not (root / "ca.der").exists()
+print("Verified extracted datetime PostgreSQL SDK: exact TIMESTAMPTZ microseconds; replay stays disconnected")

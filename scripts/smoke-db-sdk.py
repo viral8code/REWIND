@@ -50,3 +50,16 @@ assert actual == b"12345678901234567890.12340000\n", actual
 assert run("replay", root / "decimal-trace.json", "--root", root, "--allow-effects", "external,db,tasks") == actual
 assert not (root / "decimal.sqlite").exists()
 print("Verified extracted Decimal SQLite SDK: BLOB storage bypasses affinity, source-free run and DB-free replay")
+
+datetime = root / "datetime.rw"
+datetime.write_text((sdk / "share/rewind/examples/datetime-sqlite/main.rw").read_text(encoding="utf-8").replace('":memory:"', '"datetime.sqlite"'), encoding="utf-8")
+run("compile", datetime, "--allow-effects", "external,db,tasks")
+datetime.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "datetime.rwc", "--allow-effects", "external,db,tasks", "--record", root / "datetime-trace.json")
+assert actual == b"2024-02-29T03:34:56.123456789Z\n", actual
+(root / "datetime.sqlite").unlink()
+assert run("replay", root / "datetime-trace.json", "--root", root, "--allow-effects", "external,db,tasks") == actual
+assert not (root / "datetime.sqlite").exists()
+print("Verified extracted datetime SQLite SDK: exact RFC3339 nanoseconds, source-free run and DB-free replay")

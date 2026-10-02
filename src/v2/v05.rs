@@ -68,6 +68,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -132,6 +133,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
@@ -231,6 +233,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -486,6 +489,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -869,6 +873,7 @@ pub(super) fn transfer_type(
                 | "1.8.1"
                 | "1.8.2"
                 | "1.8.3"
+                | "1.8.4"
                 | "1.9.0"
                 | "2.0.0"
         )
@@ -902,6 +907,7 @@ pub(super) fn transfer_type(
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -943,6 +949,7 @@ pub(super) fn transfer_type(
                 | "1.8.1"
                 | "1.8.2"
                 | "1.8.3"
+                | "1.8.4"
                 | "1.9.0"
                 | "2.0.0"
         ) {
@@ -989,6 +996,7 @@ pub(super) fn transfer_type(
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -1330,6 +1338,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     | "1.8.1"
                     | "1.8.2"
                     | "1.8.3"
+                    | "1.8.4"
                     | "1.9.0"
                     | "2.0.0"
             ) {

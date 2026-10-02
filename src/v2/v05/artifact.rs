@@ -151,6 +151,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) || !program.strict_visibility
@@ -205,6 +206,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
@@ -215,6 +217,17 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             .any(|n| program.functions.contains_key(*n)))
     {
         return Err(invalid("invalid standard primitive layout"));
+    }
+
+    if language_at_least(&program.language, "1.8.4")
+        && ["Instant", "Duration"].iter().any(|name| {
+            serde_json::to_value(program.structs.get(*name)).ok()
+                != serde_json::to_value(standard.structs.get(*name)).ok()
+                || program.enums.contains_key(*name)
+                || program.aliases.contains_key(*name)
+        })
+    {
+        return Err(invalid("invalid datetime layout"));
     }
 
     if language_at_least(&program.language, "1.8.3")
@@ -287,6 +300,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -335,6 +349,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
@@ -399,6 +414,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
@@ -435,6 +451,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
@@ -537,6 +554,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.1"
             | "1.8.2"
             | "1.8.3"
+            | "1.8.4"
             | "1.9.0"
             | "2.0.0"
     ) {
