@@ -27,6 +27,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/datetime.rw"),
         ),
         ("clock", include_str!("../../../libraries/std/clock.rw")),
+        ("regex", include_str!("../../../libraries/std/regex.rw")),
         ("unicode", include_str!("../../../libraries/std/unicode.rw")),
         ("decimal", include_str!("../../../libraries/std/decimal.rw")),
         ("bigint", include_str!("../../../libraries/std/bigint.rw")),
@@ -314,7 +315,13 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/doc/REWIND_v1.8.3.md",
             include_str!("../../../docs/REWIND_v1.8.3.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/doc/REWIND_v1.8.6.md",
+            include_str!("../../../docs/REWIND_v1.8.6.md"),
+        )?;
         for (name, doc) in [
+            ("regex", include_str!("../../../examples/regex/README.md")),
             (
                 "datetime-sqlite",
                 include_str!("../../../examples/datetime-sqlite/README.md"),
@@ -351,6 +358,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             )?;
         }
         for (name, source) in [
+            ("regex", include_str!("../../../examples/regex/main.rw")),
             ("unicode", include_str!("../../../examples/unicode/main.rw")),
             (
                 "datetime",

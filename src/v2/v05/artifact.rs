@@ -153,6 +153,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) || !program.strict_visibility
@@ -209,6 +210,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
@@ -219,6 +221,15 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             .any(|n| program.functions.contains_key(*n)))
     {
         return Err(invalid("invalid standard primitive layout"));
+    }
+
+    if language_at_least(&program.language, "1.8.6")
+        && (serde_json::to_value(program.structs.get("Regex")).ok()
+            != serde_json::to_value(standard.structs.get("Regex")).ok()
+            || program.enums.contains_key("Regex")
+            || program.aliases.contains_key("Regex"))
+    {
+        return Err(invalid("invalid regex layout"));
     }
 
     if language_at_least(&program.language, "1.8.4")
@@ -304,6 +315,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -354,6 +366,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
@@ -420,6 +433,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
@@ -458,6 +472,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
@@ -562,6 +577,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) {

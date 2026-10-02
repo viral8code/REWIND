@@ -4,6 +4,7 @@ mod bigint;
 mod datetime;
 mod decimal;
 mod numeric;
+mod regex;
 mod sdk;
 mod unicode;
 pub(super) use sdk::modules as std_modules;
@@ -14,6 +15,7 @@ pub(super) fn native_owned_result(name: &str) -> bool {
     (name.starts_with("stdNumeric")
         || name.starts_with("stdBigInt")
         || name.starts_with("stdDecimal")
+        || name.starts_with("stdRegex")
         || name.starts_with("stdUnicode")
         || name.starts_with("stdDateTime")
         || name == "stdExternalInstant")
@@ -25,6 +27,7 @@ pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str>
         .or_else(|| decimal::parameter(name, index))
         .or_else(|| datetime::parameter(name, index))
         .or_else(|| unicode::parameter(name, index))
+        .or_else(|| regex::parameter(name, index))
 }
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
@@ -49,6 +52,14 @@ pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
 }
 pub(super) fn names() -> &'static [&'static str] {
     &[
+        "stdRegexCompile",
+        "stdRegexFindText",
+        "stdRegexFindBytes",
+        "stdRegexNames",
+        "stdRegexSource",
+        "stdRegexTextSlice",
+        "stdRegexOptions",
+        "stdRegexIsText",
         "stdUnicodeNormalize",
         "stdUnicodeIsNormalized",
         "stdUnicodeCount",
@@ -230,6 +241,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -253,6 +265,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     bigint::prepare(p)?;
     decimal::prepare(p)?;
     datetime::prepare(p)?;
+    regex::prepare(p)?;
     p.structs.insert(
         "StdError".into(),
         StructDef {
@@ -381,6 +394,9 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usize> {
+    if let Some(work) = regex::work(name, args, runtime) {
+        return Some(work);
+    }
     if let Some(work) = unicode::work(name, args, runtime) {
         return Some(work);
     }
@@ -452,11 +468,15 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) || !names().contains(&n)
     {
         return Ok(None);
+    }
+    if let Some(result) = regex::call_type(p, n, args, at)? {
+        return Ok(Some(result));
     }
     if let Some(result) = unicode::call_type(p, n, args, at)? {
         return Ok(Some(result));
@@ -498,6 +518,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.8.3"
                 | "1.8.4"
                 | "1.8.5"
+                | "1.8.6"
                 | "1.9.0"
                 | "2.0.0"
         )
@@ -746,6 +767,9 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if let Some(value) = regex::call(n, args, runtime)? {
+        return Ok(Some(value));
+    }
     if let Some(value) = unicode::call(n, args, runtime)? {
         return Ok(Some(value));
     }

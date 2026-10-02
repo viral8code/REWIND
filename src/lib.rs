@@ -18,6 +18,7 @@ pub mod external;
 pub mod native_resources;
 pub mod network;
 pub mod numeric;
+pub mod regular;
 mod replay;
 pub mod unicode;
 use journal::{Journal, Segment};
@@ -34,6 +35,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum MapKey {
+    Regex(regular::Pattern),
     Instant(datetime::Instant),
     Duration(datetime::Duration),
     BigInt(bigint::IntegerValue),
@@ -72,11 +74,13 @@ impl Ord for MapKey {
                 MapKey::Decimal(_) => 6,
                 MapKey::Instant(_) => 7,
                 MapKey::Duration(_) => 8,
+                MapKey::Regex(_) => 9,
             }
         }
         rank(self)
             .cmp(&rank(other))
             .then_with(|| match (self, other) {
+                (MapKey::Regex(a), MapKey::Regex(b)) => a.cmp(b),
                 (MapKey::Instant(a), MapKey::Instant(b)) => a.cmp(b),
                 (MapKey::Duration(a), MapKey::Duration(b)) => a.cmp(b),
                 (MapKey::Decimal(a), MapKey::Decimal(b)) => a.cmp(b),
@@ -95,6 +99,7 @@ impl Ord for MapKey {
 impl MapKey {
     pub fn from_value(value: &Value) -> Option<Self> {
         Some(match value {
+            Value::Regex(v) => Self::Regex(v.clone()),
             Value::Instant(v) => Self::Instant(*v),
             Value::Duration(v) => Self::Duration(*v),
             Value::Decimal(v) => Self::Decimal(v.canonical()),
@@ -109,6 +114,7 @@ impl MapKey {
     }
     pub fn value(&self) -> Value {
         match self {
+            Self::Regex(v) => Value::Regex(v.clone()),
             Self::Instant(v) => Value::Instant(*v),
             Self::Duration(v) => Value::Duration(*v),
             Self::Decimal(v) => Value::Decimal(v.clone().into()),
@@ -170,6 +176,7 @@ pub enum Value {
     Text(String),
     Bytes(Arc<Vec<u8>>),
     NumericArray(numeric::Array),
+    Regex(regular::Pattern),
     Instant(datetime::Instant),
     Duration(datetime::Duration),
     BigInt(bigint::IntegerValue),
@@ -228,6 +235,7 @@ impl fmt::Display for Value {
             Value::Bytes(v) => write!(f, "{v:?}"),
             Value::NumericArray(v) => write!(f, "{v:?}"),
             Value::BigInt(v) => write!(f, "{v}"),
+            Value::Regex(v) => write!(f, "{v}"),
             Value::Instant(v) => write!(f, "{v}"),
             Value::Duration(v) => write!(f, "{v}"),
             Value::Decimal(v) => write!(f, "{v}"),
@@ -1110,6 +1118,7 @@ impl Runtime {
             Value::Text(text) => text.len(),
             Value::Bytes(bytes) => bytes.len(),
             Value::NumericArray(array) => array.retained_bytes(),
+            Value::Regex(v) => v.retained_bytes(),
             Value::Instant(_) | Value::Duration(_) => 16,
             Value::BigInt(integer) => integer.retained_bytes(),
             Value::Decimal(value) => value.retained_bytes(),

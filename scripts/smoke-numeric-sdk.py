@@ -85,3 +85,14 @@ actual = run("run", root / "unicode.rwc", "--record", root / "unicode-trace.json
 assert actual.decode("utf-8") == "3\n🇯🇵\nfalse\ntrue\nA1ffi\nSTRASSE\n3\n", actual
 assert run("replay", root / "unicode-trace.json", "--root", root) == actual
 print("Verified extracted Unicode SDK: grapheme clusters, normalization, case mapping and source-free replay")
+
+regex = root / "regex.rw"
+regex.write_text((sdk / "share/rewind/examples/regex/main.rw").read_text(encoding="utf-8") + '\nlet encodedPattern=take(regex.toJson(&pattern));let decodedPattern=take(regex.fromJson(encodedPattern));Out.println(decodedPattern==pattern);publish;\n', encoding="utf-8")
+run("compile", regex)
+regex.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "regex.rwc", "--record", root / "regex-trace.json")
+assert actual == b"Alice-42\nAlice\nBob-7\nfalse\ntrue\n3\ntrue\ntrue\n", actual
+assert run("replay", root / "regex-trace.json", "--root", root) == actual
+print("Verified extracted regex SDK: captures, checkpoint, Map keys, JSON and source-free replay")

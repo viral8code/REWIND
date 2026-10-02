@@ -253,6 +253,8 @@ GUI + HTTP / DB の例で loading / cancel / error / retry を実装する。rev
 
 新型の generic 推論、associated type、borrow / move と Result、callback / iterator、pattern、module visibility、task の組合せを監査する。既存機能が使えない具体例を回帰テストにしてから、必要な compiler pass を修正する。
 
+具体的な監査例として、`Result<Option<List<Int>>,StdError>` の `Err(_)` / `Ok(None)` / `Ok(Some(_))` による完全な nested pattern が false positive の non-exhaustive 診断になることを修正対象にする。guard と wildcard、enum / tuple の積、所有権と generic substitution を含む pattern space で coverage を検証し、未網羅を見落とさず完全な分岐を受理する回帰を追加する。
+
 既存の sort / graph / DSU / bitset 等を再実装しない。未提供の標準実装は、次の API と契約まで具体化して追加する。既に実装された場合はその契約と性能を検証して利用する。
 
 | 追加する範囲 | 契約・確認 |

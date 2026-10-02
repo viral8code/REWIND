@@ -1,0 +1,48 @@
+pub record Options {caseInsensitive:Bool,multiLine:Bool,dotAll:Bool}
+pub record Span {start:Int,end:Int}
+pub struct Match {private spans:List<Int>}
+pub fn compile(pattern:String)->Result<Regex,StdError> effects {} {return stdRegexCompile(pattern,true,false,false,false);}
+pub fn compileBytes(pattern:String)->Result<Regex,StdError> effects {} {return stdRegexCompile(pattern,false,false,false,false);}
+pub fn compileOptions(pattern:String,options:Options)->Result<Regex,StdError> effects {} {return stdRegexCompile(pattern,true,options.caseInsensitive,options.multiLine,options.dotAll);}
+pub fn compileBytesOptions(pattern:String,options:Options)->Result<Regex,StdError> effects {} {return stdRegexCompile(pattern,false,options.caseInsensitive,options.multiLine,options.dotAll);}
+fn decoded(value:List<Int>)->Match effects {} {return Match(move value);}
+// @api findFrom failure RegexIndex on non-boundary text offset; preserves anchors and word-boundary context before start.
+pub fn findFrom(pattern:&Regex,input:&String,start:Int)->Result<Option<Match>,StdError> effects {} {match stdRegexFindText(pattern,input,start){Err(error)=>{return Err(error);},Ok(value)=>{match move value{None=>{return Ok(None);},Some(values)=>{return Ok(Some(decoded(move values)));}}}}}
+pub fn find(pattern:&Regex,input:&String)->Result<Option<Match>,StdError> effects {} {return findFrom(pattern,input,0);}
+pub fn findBytesFrom(pattern:&Regex,input:Bytes,start:Int)->Result<Option<Match>,StdError> effects {} {match stdRegexFindBytes(pattern,input,start){Err(error)=>{return Err(error);},Ok(value)=>{match move value{None=>{return Ok(None);},Some(values)=>{return Ok(Some(decoded(move values)));}}}}}
+pub fn findBytes(pattern:&Regex,input:Bytes)->Result<Option<Match>,StdError> effects {} {return findBytesFrom(pattern,input,0);}
+pub fn isMatch(pattern:&Regex,input:&String)->Result<Bool,StdError> effects {} {match find(pattern,input){Err(error)=>{return Err(error);},Ok(value)=>{match move value{None=>{return Ok(false);},Some(found)=>{return Ok(true);}}}}}
+pub fn isMatchBytes(pattern:&Regex,input:Bytes)->Result<Bool,StdError> effects {} {match findBytes(pattern,input){Err(error)=>{return Err(error);},Ok(value)=>{match move value{None=>{return Ok(false);},Some(found)=>{return Ok(true);}}}}}
+// Every span uses UTF-8 byte offsets for text, and raw byte offsets for Bytes.
+pub fn span(value:&Match)->Span effects {} {return Span(value.spans.get(0),value.spans.get(1));}
+pub fn groupCount(value:&Match)->Int effects {} {return (value.spans.len()-3)/2;}
+// Group 0 is the full match; unmatched optional groups are None, empty matched groups have an empty Span.
+pub fn group(value:&Match,index:Int)->Result<Option<Span>,StdError> effects {} {if index<0 || index>=groupCount(value){return Err(StdError("RegexIndex",0));}let start=value.spans.get(3+index*2);if start<0{return Ok(None);}return Ok(Some(Span(start,value.spans.get(4+index*2))));}
+// Progress cursor: nonempty -> end, empty -> next scalar/byte, terminal empty -> None.
+pub fn next(value:&Match)->Option<Int> effects {} {let cursor=value.spans.get(2);if cursor<0{return None;}return Some(cursor);}
+pub fn groupNames(pattern:&Regex)->Result<List<Option<String>>,StdError> effects {} {return stdRegexNames(pattern);}
+pub fn source(pattern:&Regex)->Result<String,StdError> effects {} {return stdRegexSource(pattern);}
+pub fn text(input:&String,span:Span)->Result<String,StdError> effects {} {return stdRegexTextSlice(input,span.start,span.end);}
+pub fn bytes(input:Bytes,span:Span)->Result<Bytes,StdError> effects {} {return stdBytesSlice(input,span.start,span.end);}
+
+
+pub fn options(pattern:&Regex)->Result<Options,StdError> effects {} {match stdRegexOptions(pattern){Err(error)=>{return Err(error);},Ok(flags)=>{return Ok(Options(flags.get(0),flags.get(1),flags.get(2)));}}}
+pub fn isText(pattern:&Regex)->Result<Bool,StdError> effects {} {return stdRegexIsText(pattern);}
+pub fn engineVersion()->String effects {} {return "regex-automata=0.4.18;regex-syntax=0.8.11;unicode=16.0.0";}
+pub fn toJson(pattern:&Regex)->Result<Json,StdError> effects {} {
+ match source(pattern){Err(error)=>{return Err(error);},Ok(patternText)=>{match isText(pattern){Err(error)=>{return Err(error);},Ok(text)=>{match options(pattern){Err(error)=>{return Err(error);},Ok(flags)=>{
+ let fields=Map<String,Json>();fields.set("pattern",Json::Text(patternText));fields.set("text",Json::Bool(text));fields.set("caseInsensitive",Json::Bool(flags.caseInsensitive));fields.set("multiLine",Json::Bool(flags.multiLine));fields.set("dotAll",Json::Bool(flags.dotAll));return Ok(Json::Object(freeze(move fields)));
+ }}}}}}
+}
+fn regexJsonBool(value:Json,key:String)->Result<Bool,StdError> effects {} {match jsonGet(value,key){Some(Json::Bool(flag))=>{return Ok(flag);},_=>{return Err(StdError("RegexType",0));}}}
+pub fn fromJson(value:Json)->Result<Regex,StdError> effects {} {
+ if jsonKind(value)!="Object" || jsonKeys(value).len()!=5{return Err(StdError("RegexType",0));}
+ match jsonGet(value,"pattern"){Some(Json::Text(pattern))=>{
+ match regexJsonBool(value,"text"){Err(error)=>{return Err(error);},Ok(text)=>{
+ match regexJsonBool(value,"caseInsensitive"){Err(error)=>{return Err(error);},Ok(insensitive)=>{
+ match regexJsonBool(value,"multiLine"){Err(error)=>{return Err(error);},Ok(multiline)=>{
+ match regexJsonBool(value,"dotAll"){Err(error)=>{return Err(error);},Ok(dotall)=>{return stdRegexCompile(pattern,text,insensitive,multiline,dotall);}}
+ }}}
+ }}}
+ },_=>{return Err(StdError("RegexType",0));}}
+}

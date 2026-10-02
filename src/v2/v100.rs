@@ -21,6 +21,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.8.3"
             | "1.8.4"
             | "1.8.5"
+            | "1.8.6"
             | "1.9.0"
             | "2.0.0"
     ) {
@@ -118,6 +119,7 @@ pub(super) fn argument_work(value: &Value, runtime: &Runtime) -> usize {
         _ => value,
     };
     match value {
+        Value::Regex(p) => p.source().len().saturating_add(128),
         Value::Text(s) => s.len().saturating_add(1),
         Value::Bytes(s) => s.len().saturating_add(1),
         Value::List(v) => v.len().saturating_add(Runtime::value_bytes(value)),
