@@ -107,3 +107,14 @@ actual = run("run", root / "csv-stream.rwc", "--record", root / "csv-stream-trac
 assert actual.decode("utf-8") == 'name\nnote\n日本語\na"b\n日\nname\n', actual
 assert run("replay", root / "csv-stream-trace.json", "--root", root) == actual
 print("Verified extracted incremental CSV SDK: byte chunk boundaries, quoted UTF-8, checkpoint and source-free replay")
+
+json = root / "json-stream.rw"
+json.write_text((sdk / "share/rewind/examples/json-stream/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", json)
+json.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "json-stream.rwc", "--record", root / "json-stream-trace.json")
+assert actual.decode("utf-8") == '1267650600228229401496703205376\n2\n3\n日本\n3\n0\n', actual
+assert run("replay", root / "json-stream-trace.json", "--root", root) == actual
+print("Verified extracted incremental JSON SDK: Unicode / numeric tokens, checkpoint and source-free replay")

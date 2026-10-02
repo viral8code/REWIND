@@ -14,13 +14,16 @@ struct Page {
     bytes: Vec<u8>,
 }
 #[derive(Clone, Default, PartialEq, Eq)]
-struct Pending {
+pub(crate) struct Pending {
     pages: Option<Arc<Page>>,
     tail: Vec<u8>,
     len: usize,
 }
 impl Pending {
-    fn push(&mut self, byte: u8) {
+    pub(crate) fn len(&self) -> usize {
+        self.len
+    }
+    pub(crate) fn push(&mut self, byte: u8) {
         if self.tail.len() == PAGE {
             self.pages = Some(Arc::new(Page {
                 previous: self.pages.take(),
@@ -30,7 +33,7 @@ impl Pending {
         self.tail.push(byte);
         self.len += 1;
     }
-    fn bytes(&self) -> Vec<u8> {
+    pub(crate) fn bytes(&self) -> Vec<u8> {
         let mut pages = Vec::new();
         let mut node = self.pages.as_ref();
         while let Some(p) = node {
@@ -128,6 +131,11 @@ impl<'de> Deserialize<'de> for FieldText {
         }
         d.deserialize_str(V)
     }
+}
+pub(crate) fn bounded_text<'de, D: Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<String, D::Error> {
+    Ok(FieldText::deserialize(d)?.0)
 }
 struct RowFields(Vec<String>);
 impl<'de> Deserialize<'de> for RowFields {

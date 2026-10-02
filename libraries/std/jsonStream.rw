@@ -1,0 +1,13 @@
+pub type Event=JsonStreamEvent;
+pub struct Reader {private state:JsonStreamState}
+pub fn reader()->Result<Reader,StdError> effects {} {match stdJsonStreamNew(){Err(error)=>{return Err(error);},Ok(state)=>{return Ok(Reader(state));}}}
+// A failed feed leaves the Reader unchanged. Drain queued events and retry the same chunk after JsonQueueLimit.
+pub fn feed(reader:&mut Reader,chunk:Bytes,finish:Bool)->Result<Unit,StdError> effects {} {match stdJsonStreamFeed(&reader.state,chunk,finish){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(());}}}
+pub fn next(reader:&mut Reader)->Result<Option<Event>,StdError> effects {} {
+ match stdJsonStreamPeek(&reader.state){Err(error)=>{return Err(error);},Ok(value)=>{
+ match move value{None=>{return Ok(None);},Some(event)=>{match stdJsonStreamAdvance(&reader.state){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(Some(move event));}}}}
+ }}
+}
+pub fn finish(reader:&mut Reader)->Result<Unit,StdError> effects {} {match stdEncode(""){Err(error)=>{return Err(error);},Ok(empty)=>{return feed(reader,empty,true);}}}
+pub fn cancel(reader:&mut Reader)->Result<Unit,StdError> effects {} {match stdJsonStreamCancel(&reader.state){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(());}}}
+pub fn position(reader:&Reader)->Result<Int,StdError> effects {} {return stdJsonStreamPosition(&reader.state);}

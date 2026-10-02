@@ -224,6 +224,8 @@ commit 後に VM を戻しても DB 内容は保持されること、同一操�
 - Arc の参照カウントは immutable storage の寿命に利用し、VM の循環回収は tracing を維持する。GC finalizer で通信・DB commit を行わない。
 - work budget と物理 memory admission を分ける。native temporary、COW、queue、compiler / trace の費用を見落とさない。
 
+parser の bounded storage と Runtime 全体の保持を区別する。`File.openSnapshot` は file 全体の snapshot を保持するため、chunk API を呼んでも host 読込みが bounded になったとは扱わない。immutable begin の cursor 0 が過去の観測を再参照できるため、観測 payload は単純に削除せず private temporary spill で RAM を制限する。source-free trace は spill を含めて自己完結させ、保存・失敗・cleanup を両 OS で検証する。bounded file reader は既存 snapshot API と別に設計し、巨大 file / HTTP の parser・観測・trace・履歴をそれぞれ計測する。
+
 ### 8.3 測定の設計
 
 同じ機械・release build・入力・seed で基準を保存し、warm-up 後の複数回の中央値を比較する。実行時間、CPU 時間、ピーク RSS、live heap / buffer byte、snapshot 保持量、allocation / copy byte、GC 回数 / 時間、接続数を記録する。
