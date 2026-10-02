@@ -404,6 +404,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.6.0"
                 | "1.6.1"
                 | "1.7.0"
+                | "1.7.1"
                 | "1.8.0"
                 | "1.9.0"
                 | "2.0.0"
@@ -519,7 +520,12 @@ impl<R: BufRead> Vm<R> {
         args: &[Value],
         at: &Tok,
     ) -> Result<Option<Value>> {
-        if name.starts_with("stdExternalDb") && name != "stdExternalDbPrivateParameter" {
+        if name.starts_with("stdExternalDb")
+            && !matches!(
+                name,
+                "stdExternalDbPrivateParameter" | "stdExternalDbCredentials"
+            )
+        {
             use rewind::database::Operation;
             let invalid = || self.error(at, "invalid database arguments");
             let Some(Value::Int(timeout)) = args.last() else {
@@ -527,6 +533,16 @@ impl<R: BufRead> Vm<R> {
             };
             let (operation, result_type) = if name == "stdExternalDbCleanup" {
                 (Operation::Cleanup, "Result<Unit,DbError>")
+            } else if name == "stdExternalDbPostgres" {
+                let [Value::Text(alias), _] = args else {
+                    return Err(invalid());
+                };
+                (
+                    Operation::Postgres {
+                        alias: alias.clone(),
+                    },
+                    "Result<DbConnection,DbError>",
+                )
             } else if name == "stdExternalDbSqlite" {
                 let [Value::Text(path), Value::Bool(read_only), _] = args else {
                     return Err(invalid());
@@ -909,6 +925,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -979,6 +996,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -1018,6 +1036,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -1064,6 +1083,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -1110,6 +1130,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -1153,6 +1174,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -1222,6 +1244,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.6.0"
                 | "1.6.1"
                 | "1.7.0"
+                | "1.7.1"
                 | "1.8.0"
                 | "1.9.0"
                 | "2.0.0"
@@ -1278,6 +1301,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -1311,6 +1335,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.6.0"
                                         | "1.6.1"
                                         | "1.7.0"
+                                        | "1.7.1"
                                         | "1.8.0"
                                         | "1.9.0"
                                         | "2.0.0"
@@ -1358,6 +1383,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -1415,6 +1441,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.6.0"
                 | "1.6.1"
                 | "1.7.0"
+                | "1.7.1"
                 | "1.8.0"
                 | "1.9.0"
                 | "2.0.0"
@@ -1473,6 +1500,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.6.0"
                 | "1.6.1"
                 | "1.7.0"
+                | "1.7.1"
                 | "1.8.0"
                 | "1.9.0"
                 | "2.0.0"
@@ -1543,6 +1571,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.6.0"
                         | "1.6.1"
                         | "1.7.0"
+                        | "1.7.1"
                         | "1.8.0"
                         | "1.9.0"
                         | "2.0.0"
@@ -1722,6 +1751,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.6.0"
                             | "1.6.1"
                             | "1.7.0"
+                            | "1.7.1"
                             | "1.8.0"
                             | "1.9.0"
                             | "2.0.0"
@@ -1950,6 +1980,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.6.0"
                         | "1.6.1"
                         | "1.7.0"
+                        | "1.7.1"
                         | "1.8.0"
                         | "1.9.0"
                         | "2.0.0"
@@ -2039,6 +2070,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.6.0"
                 | "1.6.1"
                 | "1.7.0"
+                | "1.7.1"
                 | "1.8.0"
                 | "1.9.0"
                 | "2.0.0"
@@ -2153,6 +2185,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.6.0"
                     | "1.6.1"
                     | "1.7.0"
+                    | "1.7.1"
                     | "1.8.0"
                     | "1.9.0"
                     | "2.0.0"
@@ -2218,6 +2251,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.6.0"
                 | "1.6.1"
                 | "1.7.0"
+                | "1.7.1"
                 | "1.8.0"
                 | "1.9.0"
                 | "2.0.0"
@@ -2358,6 +2392,7 @@ fn database_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Valu
                 let variant = item["type"].as_str().ok_or_else(invalid)?;
                 let inner = match variant {
                     "Null" => None,
+                    "Bool" => Some(Value::Bool(item["value"].as_bool().ok_or_else(invalid)?)),
                     "Int" => Some(Value::Int(item["value"].as_i64().ok_or_else(invalid)?)),
                     "Float" => Some(Value::Float(item["bits"].as_u64().ok_or_else(invalid)?)),
                     "Text" => Some(Value::Text(

@@ -46,6 +46,15 @@ jobs:
               assert os.environ['RELEASE_MESSAGE'].splitlines()[0] == 'Release ' + tag
           PY
       - run: cargo fmt --check
+      - name: Linux PostgreSQL SCRAM and TLS fixture
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql openssl
+          python3 scripts/postgres-fixture.py start --root "$RUNNER_TEMP/rewind-pg-fixture" --github-env "$GITHUB_ENV"
+      - name: Windows PostgreSQL SCRAM and TLS fixture
+        if: matrix.platform == 'windows'
+        run: python scripts/postgres-fixture.py start --root "${{ runner.temp }}/rewind-pg-fixture" --github-env "${{ github.env }}"
       - run: cargo test --locked
       - name: Native X11 window and pointer events
         if: matrix.platform == 'linux'
@@ -68,6 +77,16 @@ jobs:
           name: release-${{ matrix.platform }}
           path: ${{ runner.temp }}/release-assets/*
           if-no-files-found: error
+      - name: Stop disposable PostgreSQL server
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY_STOP'
+          import os, pathlib, subprocess, sys
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'rewind-pg-fixture'
+          if (root / 'fixture.json').is_file():
+              subprocess.run([sys.executable, 'scripts/postgres-fixture.py', 'stop', '--root', str(root)], check=True)
+          PY_STOP
   publish:
     needs: build
     runs-on: ubuntu-22.04
@@ -115,7 +134,10 @@ jobs:
         run: |
           set -euo pipefail
           NOTES="$RUNNER_TEMP/release-notes.md"
-          VERSION_DOC="docs/REWIND_${RELEASE_TAG%.*}.md"
+          VERSION_DOC="docs/REWIND_${RELEASE_TAG}.md"
+          if [[ ! -f "$VERSION_DOC" ]]; then
+            VERSION_DOC="docs/REWIND_${RELEASE_TAG%.*}.md"
+          fi
           if [[ -f "$VERSION_DOC" ]]; then
             cat "$VERSION_DOC" > "$NOTES"
             printf '\n' >> "$NOTES"
@@ -127,7 +149,7 @@ jobs:
           BASELINE_COUNT=$(python -c "import glob; print(len(glob.glob('libraries/api/*.api.json')))")
           printf 'Linux and Windows regression tests, standard-library contracts, SDK signatures, %s API baselines, extraction, input, record/replay and source-free execution passed.\n\n' "$BASELINE_COUNT" >> "$NOTES"
           for KEY in release-assets/*-sdk.pub; do
-            printf '%s (this release only): `%s`\n\n' "$(basename "$KEY")" "$(cat "$KEY")" >> "$NOTES"
+            printf '%s (this release only): `%s`\n\n' "$(basename "$KEY")" "$(tr -d '\r\n' < "$KEY")" >> "$NOTES"
           done
           gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "REWIND $RELEASE_TAG — Linux / Windows x86_64 SDK" --notes-file "$NOTES"
           if [[ "$RELEASE_TAG" == v1.* || "$RELEASE_TAG" == v2.* ]]; then

@@ -130,6 +130,7 @@ PYCLOCK
 python3 scripts/smoke-http-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http"
 python3 scripts/smoke-http-stream-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-stream"
 python3 scripts/smoke-db-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/database"
+python3 scripts/smoke-postgres-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/postgres"
 "$EXTRACTED/bin/rewind" compile --help > /dev/null
 (cd "$RELEASE_OUTPUT" && sha256sum ./*.tar.gz ./rewind-*-sdk.pub ./GETTING_STARTED.md ./BUILD_INFO.json > SHA256SUMS)
 chmod 644 "$RELEASE_OUTPUT"/*

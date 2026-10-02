@@ -1,0 +1,37 @@
+import std.db as db;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+match Env.getSecret("REWIND_PG_DSN") {
+    None=>{panic("supply REWIND_PG_DSN as a secret environment value");},
+    Some(connectionString)=>{
+        let ca=take(File.readBytes("ca.der"));
+        external {take(db.credentials("database",move connectionString,move ca));opening=Some(db.postgres("database",5000));}
+    }
+}
+match opening {
+    None=>{panic("missing connection task");},
+    Some(task)=>{
+        let connection=take(take(await task));
+        let parameters=List<DbValue>();parameters.push(DbValue::Bool(true));parameters.push(DbValue::Int(42));parameters.push(DbValue::Text("Alice"));
+        var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+        external {querying=Some(db.query(&mut connection,"SELECT $1::boolean AS ready, $2::bigint AS score, $3::text AS name",freeze(move parameters),5000));}
+        match querying {
+            None=>{panic("missing query task");},
+            Some(task)=>{
+                let cursor=take(take(await task));
+                var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+                external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
+                match reading {None=>{panic("missing read task");},Some(task)=>{
+                    let batch=take(take(await task));let row=batch.rows.get(0);
+                    Out.println(take(db.boolean(row,0)));Out.println(take(db.integer(row,1)));Out.println(take(db.text(row,2)));
+                }}
+            }
+        }
+    }
+}
+var cleanup:Option<Task<Result<Unit,DbError>>>=None;
+external {cleanup=Some(db.waitForCleanup(5000));}
+match cleanup {None=>{panic("missing cleanup");},Some(task)=>{take(take(await task));}}
+publish;
