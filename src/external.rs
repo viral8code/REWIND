@@ -40,6 +40,19 @@ impl Runtime {
                 "TraceBudgetExceeded: external observations (16 MiB)",
             ));
         }
+        let patterns = self
+            .http_secret_patterns()
+            .map_err(|_| invalid("SecretObservationUnrecordable: secret validation limit"))?;
+        let automaton = if patterns.is_empty() {
+            None
+        } else {
+            Some(
+                crate::network::SecretAutomaton::new(&patterns).map_err(|_| {
+                    invalid("SecretObservationUnrecordable: secret validation limit")
+                })?,
+            )
+        };
+        let mut streams = std::collections::BTreeMap::new();
         for entry in &self.external_entries {
             if entry.pending {
                 return Err(invalid(
@@ -49,6 +62,33 @@ impl Runtime {
             if let Some(s) = &entry.outcome {
                 let value: Value = serde_json::from_str(s)
                     .map_err(|_| invalid("ReplayMismatch: invalid external result"))?;
+                if let (Some(automaton), Some(response)) = (&automaton, value.get("Ok")) {
+                    if crate::network::protect_with_automaton(response, automaton) {
+                        return Err(invalid("SecretObservationUnrecordable: private HTTP bytes"));
+                    }
+                    if let Some(stream) = response.get("stream").and_then(Value::as_u64) {
+                        if let Some(body) = response.get("body").and_then(Value::as_str) {
+                            use base64::Engine;
+                            let bytes = base64::engine::general_purpose::STANDARD
+                                .decode(body)
+                                .map_err(|_| invalid("ReplayMismatch: invalid HTTP chunk"))?;
+                            if (streams
+                                .entry(stream)
+                                .or_insert_with(|| automaton.matcher())
+                                .scan)(&bytes)
+                            {
+                                return Err(invalid(
+                                    "SecretObservationUnrecordable: private HTTP stream",
+                                ));
+                            }
+                        } else {
+                            streams.remove(&stream);
+                        }
+                    }
+                    if let Some(stream) = response.get("closed").and_then(Value::as_u64) {
+                        streams.remove(&stream);
+                    }
+                }
                 if self.mask_debug_json(&value) != value {
                     return Err(invalid("SecretObservationUnrecordable: external result contains a registered secret"));
                 }
@@ -190,6 +230,7 @@ impl Runtime {
         {
             return Err(invalid("ExternalOutcomeUnknown: operation finished but result recording failed; automatic retry is forbidden"));
         }
+        buffer.shrink_to_fit();
         let text = String::from_utf8(buffer).map_err(|_| invalid("ExternalOutcomeUnknown"))?;
         let entry = &mut self.external_entries[cursor];
         self.external_memory_bytes = self
@@ -397,6 +438,7 @@ impl Runtime {
         }
         serde_json::to_writer(Bounded(&mut buffer, entry.reservation), &result)
             .map_err(|_| invalid("ExternalOutcomeUnknown: result recording failed"))?;
+        buffer.shrink_to_fit();
         let text = String::from_utf8(buffer).map_err(|_| invalid("ExternalOutcomeUnknown"))?;
         self.external_memory_bytes = self
             .external_memory_bytes
@@ -442,13 +484,7 @@ impl Runtime {
             if self.external_entries[id].pending {
                 let result = self.network_host.as_mut().and_then(|h| h.poll(id));
                 if let Some(mut result) = result {
-                    if crate::network::protects_secret(&result, &self.sensitive_values) {
-                        result = crate::network::failure(
-                            "HttpSecretResponse",
-                            "ResponseReceived",
-                            result["status"].as_u64().unwrap_or(0) as u16,
-                        );
-                    }
+                    result = self.sanitise_http_result(result);
                     self.finish_async_external(id, Ok(result))?;
                 }
             }

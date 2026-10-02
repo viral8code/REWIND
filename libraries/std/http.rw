@@ -28,3 +28,28 @@ pub fn get(url:String,deadlineMillis:Int,maxBytes:Int)->Task<Result<HttpResponse
 pub fn configured(method:String,url:String,body:Bytes,deadlineMillis:Int,maxBytes:Int,headers:Frozen<List<HttpHeader>>,ca:Bytes)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {
     return stdExternalHttpConfigured(method,url,body,deadlineMillis,maxBytes,headers,ca);
 }
+
+// @api download cost O(headers); body is consumed incrementally by read, total limit up to 1 GiB.
+// @api download failure HttpError; scope-owned connection, deadline includes all subsequent reads.
+pub fn download(value:Request)->Task<Result<HttpDownload,HttpError>> effects {external,network,tasks} {
+    return stdExternalHttpDownload(value.method,value.url,value.body,value.timeoutMillis,value.maxBytes,value.headers,value.ca,value.credential);
+}
+// @api read cost O(chunk bytes); retains a bounded transport buffer, chunks of 1..65536 bytes.
+// @api read failure HttpError; one outstanding read per connection, EOF returns None.
+pub fn read(value:&mut HttpDownload,maxBytes:Int)->Task<Result<Option<Bytes>,HttpError>> effects {external,network,tasks} {return stdExternalHttpRead(value,maxBytes);}
+// @api close cost O(pending reads); physical connection never resurrects after revert.
+// @api close failure HttpError; cancels pending reads and releases the resource.
+pub fn close(value:&mut HttpDownload)->Task<Result<Unit,HttpError>> effects {external,network,tasks} {return stdExternalHttpClose(value);}
+
+// @api upload cost O(headers); bounded producer queue, total upload up to 1 GiB.
+// @api upload failure HttpError; starts a request without holding the complete request body.
+pub fn upload(value:Request,maxUploadBytes:Int)->Task<Result<HttpUpload,HttpError>> effects {external,network,tasks} {return stdExternalHttpUpload(value.method,value.url,value.body,value.timeoutMillis,value.maxBytes,value.headers,value.ca,value.credential,maxUploadBytes);}
+// @api write cost O(chunk bytes); queues at most one chunk, each at most 65536 bytes.
+// @api write failure HttpError; acknowledgement means queued, remote application remains Unknown.
+pub fn write(value:&mut HttpUpload,body:Bytes)->Task<Result<Unit,HttpError>> effects {external,network,tasks} {return stdExternalHttpWrite(value,body);}
+// @api finish cost O(response bytes); ends the request body and awaits the bounded response.
+// @api finish failure HttpError; closing or cancellation does not undo bytes already sent.
+pub fn finish(value:&mut HttpUpload)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {return stdExternalHttpFinish(value);}
+// @api closeUpload cost O(pending operations); cancels the driver and queued writes.
+// @api closeUpload failure HttpError; scope exit closes the resource automatically.
+pub fn closeUpload(value:&mut HttpUpload)->Task<Result<Unit,HttpError>> effects {external,network,tasks} {return stdExternalHttpCloseUpload(value);}

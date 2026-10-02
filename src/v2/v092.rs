@@ -34,6 +34,13 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdMulMod",
         "stdHttpComponent",
         "stdExternalClock",
+        "stdExternalHttpUpload",
+        "stdExternalHttpWrite",
+        "stdExternalHttpFinish",
+        "stdExternalHttpCloseUpload",
+        "stdExternalHttpDownload",
+        "stdExternalHttpRead",
+        "stdExternalHttpClose",
         "stdExternalHttpStart",
         "stdExternalHttpConfigured",
         "stdExternalHttpAuthenticated",
@@ -64,6 +71,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -101,6 +109,11 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
         },
     );
     for (name, fields) in [
+        ("HttpUpload", vec![("maxBytes", "Int")]),
+        (
+            "HttpDownload",
+            vec![("status", "Int"), ("headers", "Frozen<List<HttpHeader>>")],
+        ),
         ("HttpHeader", vec![("name", "String"), ("value", "Bytes")]),
         (
             "HttpResponse",
@@ -184,6 +197,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -208,6 +222,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -231,9 +246,60 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             "GUI editing and polling require language 1.4.0",
         ));
     }
+    if matches!(
+        n,
+        "stdExternalHttpDownload"
+            | "stdExternalHttpRead"
+            | "stdExternalHttpClose"
+            | "stdExternalHttpUpload"
+            | "stdExternalHttpWrite"
+            | "stdExternalHttpFinish"
+            | "stdExternalHttpCloseUpload"
+    ) && !language_at_least(&p.language, "1.6.1")
+    {
+        return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
+    }
     let (params, ret): (&[&str], &str) = match n {
         "stdHttpComponent" => (&["String"], "Result<String,StdError>"),
         "stdExternalClock" => (&[], "Result<Int,StdError>"),
+        "stdExternalHttpUpload" => (
+            &[
+                "String",
+                "String",
+                "Bytes",
+                "Int",
+                "Int",
+                "Frozen<List<HttpHeader>>",
+                "Bytes",
+                "String",
+                "Int",
+            ],
+            "Task<Result<HttpUpload,HttpError>>",
+        ),
+        "stdExternalHttpWrite" => (
+            &["&mut HttpUpload", "Bytes"],
+            "Task<Result<Unit,HttpError>>",
+        ),
+        "stdExternalHttpFinish" => (&["&mut HttpUpload"], "Task<Result<HttpResponse,HttpError>>"),
+        "stdExternalHttpCloseUpload" => (&["&mut HttpUpload"], "Task<Result<Unit,HttpError>>"),
+        "stdExternalHttpDownload" => (
+            &[
+                "String",
+                "String",
+                "Bytes",
+                "Int",
+                "Int",
+                "Frozen<List<HttpHeader>>",
+                "Bytes",
+                "String",
+            ],
+            "Task<Result<HttpDownload,HttpError>>",
+        ),
+        "stdExternalHttpRead" => (
+            &["&mut HttpDownload", "Int"],
+            "Task<Result<Option<Bytes>,HttpError>>",
+        ),
+        "stdExternalHttpClose" => (&["&mut HttpDownload"], "Task<Result<Unit,HttpError>>"),
         "stdExternalHttpCredential" => (&["String", "Secret<String>"], "Result<Unit,StdError>"),
         "stdExternalHttpAuthenticated" => (
             &[

@@ -1,6 +1,6 @@
-# REWIND 1.6.0
+# REWIND 1.6.1
 
-v1.6 adds recorded HTTP/HTTPS requests, verified TLS, bounded asynchronous host operations, opaque authorization aliases, and GUI polling while requests are pending. See [HTTP / Task contracts](docs/REWIND_v1.6.md) and the [example](examples/http/main.rw).
+v1.6.1 adds scope-owned streaming HTTP downloads/uploads alongside recorded HTTP/HTTPS requests, verified TLS, bounded asynchronous host operations, opaque authorization aliases, and GUI polling while requests are pending. See [streaming contracts](docs/REWIND_v1.6.1.md), [HTTP / Task contracts](docs/REWIND_v1.6.md) and the [example](examples/http/main.rw).
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 
@@ -8,7 +8,7 @@ v1.6 adds recorded HTTP/HTTPS requests, verified TLS, bounded asynchronous host 
 
 ## SDKを試す
 
-[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.6.0)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
+[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.6.1)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
 
 v0.9 adds multiline REPL sessions with verified transcripts, API contracts for implementations and dependencies, production-only installs, Share generic records, ordered property shrinkers, and signed inspection timelines. Select `language = "0.9"`; see [implementation and limits](docs/v0.9-status.md) and the [v0.9.1 application proposal](docs/REWIND_v0.9.1.md).
 
@@ -55,7 +55,7 @@ cargo test
 
 The v0.1 command form `rewind FILE --root DIR` remains available. The same v0.1 scripts also work with `rewind run` without translation.
 
-`async fn` calls create cold `Task<T>` values; `spawn`, `await`, or `TaskGroup.add` starts them. In v0.5, `await` returns `Result<T,TaskError>`; earlier modes retain `Result<T,String>`. `Channel<T>(capacity)` supports awaited send/receive, including rendezvous at capacity zero. Checkpoints restore all task states and channel queues together. v0.5 transfers independent owners, including closures whose captures are Send. Resources and cyclic graphs cannot cross task boundaries. Before v1.6, `publish` requires the application task and completed or cancelled children. From v1.6, the application task may publish current virtual I/O while children remain pending.
+`async fn` calls create cold `Task<T>` values; `spawn`, `await`, or `TaskGroup.add` starts them. In v0.5, `await` returns `Result<T,TaskError>`; earlier modes retain `Result<T,String>`. `Channel<T>(capacity)` supports awaited send/receive, including rendezvous at capacity zero. Checkpoints restore all task states and channel queues together. v0.5 transfers independent owners, including closures whose captures are Send. File handles and cyclic graphs cannot cross task boundaries. From v1.6.1, HTTP resources can move across tasks but cannot be shared or frozen; their Task results transfer once. Before v1.6, `publish` requires the application task and completed or cancelled children. From v1.6, the application task may publish current virtual I/O while children remain pending.
 
 `run --record FILE` records observations and instruction order, including failed v0.5 executions. `replay FILE` checks the program and observations without changing host files. `debug TRACE.json` inspects saved states; `debug-session TRACE` offers step/continue/checkpoint/state/tasks/files. `profile` reports logical storage and task instruction counts to stderr. `test --explore N --record FILE` can save a failing schedule for replay. v0.5 `build` produces a verified artifact for `run-artifact`; older modes retain bytecode templates. Details and limits are in the [v0.5 implementation notes](docs/v0.5-status.md).
 

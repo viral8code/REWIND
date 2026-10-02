@@ -100,15 +100,34 @@ impl Default for Scheduler {
     }
 }
 impl Scheduler {
+    pub(super) fn host_operations(&self) -> BTreeSet<usize> {
+        self.tasks
+            .values()
+            .filter_map(|t| {
+                if t.phase != TaskPhase::Done {
+                    if let TaskBody::HostOperation(id) = t.body {
+                        return (id != usize::MAX).then_some(id);
+                    }
+                }
+                None
+            })
+            .collect()
+    }
     pub(super) fn gc_roots(&self, out: &mut Vec<Value>) {
         for task in self.tasks.values() {
-            gc_scope_roots(&task.globals, out);
+            if task.phase != TaskPhase::Done {
+                gc_scope_roots(&task.globals, out);
+            }
             if let Some(Ok(value)) = &task.result {
                 out.push(value.clone());
             }
             match &task.body {
-                TaskBody::Function(_, args) => out.extend(args.iter().cloned()),
-                TaskBody::Send(_, value) => out.push(value.clone()),
+                TaskBody::Function(_, args) if task.phase != TaskPhase::Done => {
+                    out.extend(args.iter().cloned())
+                }
+                TaskBody::Send(_, value) if task.phase != TaskPhase::Done => {
+                    out.push(value.clone())
+                }
                 _ => {}
             }
             if let Some(context) = &task.context {
@@ -383,6 +402,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -433,6 +453,14 @@ impl<R: BufRead> Vm<R> {
                     continue;
                 }
                 let original = self.resolve(&binding.value);
+                if !self
+                    .engine
+                    .runtime
+                    .live_native_ids(std::slice::from_ref(&original))
+                    .is_empty()
+                {
+                    return Err(self.error(at,"NativeResourceRequiresMove: pass the resource as an explicit moved argument"));
+                }
                 let value = if v5 {
                     v05::task_copy(&mut self.engine.runtime, &original)?
                 } else if matches!(original, Value::Function(_, _)) {
@@ -493,7 +521,66 @@ impl<R: BufRead> Vm<R> {
     ) -> Result<Option<Value>> {
         if matches!(
             name,
-            "stdExternalHttpStart" | "stdExternalHttpConfigured" | "stdExternalHttpAuthenticated"
+            "stdExternalHttpRead"
+                | "stdExternalHttpClose"
+                | "stdExternalHttpWrite"
+                | "stdExternalHttpFinish"
+                | "stdExternalHttpCloseUpload"
+        ) {
+            let resource = self.resolve(&args[0]);
+            let stream = self.engine.runtime.check_native(&resource)? as usize;
+            let task = self.new_action(
+                TaskBody::HostOperation(usize::MAX),
+                if name.ends_with("Finish") {
+                    "Result<HttpResponse,HttpError>"
+                } else if name.ends_with("Read") {
+                    "Result<Option<Bytes>,HttpError>"
+                } else {
+                    "Result<Unit,HttpError>"
+                }
+                .into(),
+                Vec::new(),
+                at,
+            )?;
+            let operation = if name.ends_with("Write") {
+                let Some(Value::Bytes(body)) = args.get(1) else {
+                    return Err(self.error(at, "invalid upload bytes"));
+                };
+                self.engine.runtime.write_http(stream, body.clone())?
+            } else if name.ends_with("Finish") {
+                let Value::Struct(_, fields) = &resource else {
+                    return Err(self.error(at, "invalid upload"));
+                };
+                let Some(Value::Int(limit)) = fields.get("maxBytes") else {
+                    return Err(self.error(at, "invalid upload limit"));
+                };
+                self.engine.runtime.finish_http(stream, *limit as usize)?
+            } else if name.ends_with("Read") {
+                let Some(Value::Int(limit)) = args.get(1) else {
+                    return Err(self.error(at, "invalid read limit"));
+                };
+                self.engine
+                    .runtime
+                    .read_http(stream, usize::try_from(*limit).unwrap_or(usize::MAX))?
+            } else {
+                self.engine.runtime.close_http(stream)?
+            };
+            let state = self
+                .scheduler
+                .tasks
+                .get_mut(&handle_id(&task).unwrap())
+                .unwrap();
+            state.body = TaskBody::HostOperation(operation);
+            state.phase = TaskPhase::Ready;
+            return Ok(Some(task));
+        }
+        if matches!(
+            name,
+            "stdExternalHttpStart"
+                | "stdExternalHttpConfigured"
+                | "stdExternalHttpAuthenticated"
+                | "stdExternalHttpDownload"
+                | "stdExternalHttpUpload"
         ) {
             let [Value::Text(method), Value::Text(url), Value::Bytes(body), Value::Int(timeout), Value::Int(limit)] =
                 &args[..5]
@@ -528,7 +615,14 @@ impl<R: BufRead> Vm<R> {
             // Allocate the Task before any host operation can begin.
             let task = self.new_action(
                 TaskBody::HostOperation(usize::MAX),
-                "Result<HttpResponse,HttpError>".into(),
+                if name == "stdExternalHttpUpload" {
+                    "Result<HttpUpload,HttpError>"
+                } else if name == "stdExternalHttpDownload" {
+                    "Result<HttpDownload,HttpError>"
+                } else {
+                    "Result<HttpResponse,HttpError>"
+                }
+                .into(),
                 Vec::new(),
                 at,
             )?;
@@ -541,6 +635,22 @@ impl<R: BufRead> Vm<R> {
                 limit: usize::try_from(*limit).unwrap_or(usize::MAX),
                 headers,
                 ca,
+                download: name == "stdExternalHttpDownload",
+                upload_limit: if name == "stdExternalHttpUpload" {
+                    Some(
+                        args.get(8)
+                            .and_then(|v| {
+                                if let Value::Int(n) = v {
+                                    usize::try_from(*n).ok()
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(0),
+                    )
+                } else {
+                    None
+                },
                 credential: if let Some(Value::Text(alias)) = args.get(7) {
                     alias.clone()
                 } else {
@@ -622,6 +732,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -691,6 +802,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -701,7 +813,10 @@ impl<R: BufRead> Vm<R> {
                         .tasks
                         .get_mut(&id)
                         .ok_or_else(|| diagnostic(at, "unknown Task"))?
-                        .ignored = true
+                        .ignored = true;
+                    if let Some(result) = self.scheduler.tasks[&id].result.clone() {
+                        self.complete_task(id, result)?;
+                    }
                 }
                 ("timeout", [Value::Int(steps)])
                     if matches!(
@@ -726,6 +841,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -771,6 +887,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -816,6 +933,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -858,6 +976,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -926,6 +1045,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -943,7 +1063,19 @@ impl<R: BufRead> Vm<R> {
                 task.observed = true;
             }
         }
-        self.scheduler.tasks.get(&id)?.result.clone().map(|result| {
+        let result = self.scheduler.tasks.get(&id)?.result.clone();
+        if let Some(Ok(value)) = &result {
+            if !self
+                .engine
+                .runtime
+                .live_native_ids(std::slice::from_ref(value))
+                .is_empty()
+            {
+                self.scheduler.tasks.get_mut(&id)?.result =
+                    Some(Err("TaskResultTransferred".into()));
+            }
+        }
+        result.map(|result| {
             Value::Result(match result {
                 Ok(value)
                     if matches!(
@@ -969,6 +1101,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1001,6 +1134,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.4.0"
                                         | "1.5.0"
                                         | "1.6.0"
+                                        | "1.6.1"
                                         | "1.7.0"
                                         | "1.8.0"
                                         | "1.9.0"
@@ -1047,6 +1181,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1060,7 +1195,26 @@ impl<R: BufRead> Vm<R> {
             })
         })
     }
-    fn complete_task(&mut self, id: u64, result: std::result::Result<Value, String>) {
+    fn complete_task(
+        &mut self,
+        id: u64,
+        mut result: std::result::Result<Value, String>,
+    ) -> Result<()> {
+        if self.scheduler.tasks[&id].ignored {
+            if let Ok(value) = &result {
+                let resources = self
+                    .engine
+                    .runtime
+                    .live_native_ids(std::slice::from_ref(value));
+                if !resources.is_empty() {
+                    for id in resources {
+                        self.engine.runtime.close_native_resource(id)?;
+                        self.engine.runtime.forget_native_owner(id);
+                    }
+                    result = Err("NativeResultDiscarded".into());
+                }
+            }
+        }
         let task = self.scheduler.tasks.get_mut(&id).unwrap();
         if matches!(
             self.engine.program.language.as_str(),
@@ -1084,6 +1238,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1116,6 +1271,7 @@ impl<R: BufRead> Vm<R> {
         task.phase = TaskPhase::Done;
         task.result = Some(result);
         task.context = None;
+        Ok(())
     }
     pub(super) fn set_task_failure(&mut self, failure: rewind::DiagnosticRecord) {
         if matches!(
@@ -1140,6 +1296,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1209,6 +1366,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -1227,7 +1385,7 @@ impl<R: BufRead> Vm<R> {
                     if let TaskBody::HostOperation(operation) = body {
                         self.engine.runtime.cancel_http(*operation)?;
                     }
-                    self.complete_task(*id, Err("TaskCancelled".into()));
+                    self.complete_task(*id, Err("TaskCancelled".into()))?;
                     progress = true;
                     continue;
                 }
@@ -1254,7 +1412,7 @@ impl<R: BufRead> Vm<R> {
                                     && matches!(body,TaskBody::Receive(target) if target==channel)
                                     && self.scheduler.tasks[receiver].phase != TaskPhase::Done
                             }) {
-                                self.complete_task(*receiver, Ok(value.clone()));
+                                self.complete_task(*receiver, Ok(value.clone()))?;
                                 Some(Ok(Value::Null))
                             } else {
                                 None
@@ -1322,7 +1480,19 @@ impl<R: BufRead> Vm<R> {
                             } else {
                                 self.scheduler.tasks.get_mut(id).unwrap().failure =
                                     self.scheduler.tasks[target].failure.clone();
-                                self.scheduler.tasks[target].result.clone()
+                                let result = self.scheduler.tasks[target].result.clone();
+                                if let Some(Ok(value)) = &result {
+                                    if !self
+                                        .engine
+                                        .runtime
+                                        .live_native_ids(std::slice::from_ref(value))
+                                        .is_empty()
+                                    {
+                                        self.scheduler.tasks.get_mut(target).unwrap().result =
+                                            Some(Err("TaskResultTransferred".into()));
+                                    }
+                                }
+                                result
                             }
                         } else {
                             None
@@ -1375,6 +1545,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.4.0"
                             | "1.5.0"
                             | "1.6.0"
+                            | "1.6.1"
                             | "1.7.0"
                             | "1.8.0"
                             | "1.9.0"
@@ -1402,7 +1573,7 @@ impl<R: BufRead> Vm<R> {
                             }
                         }
                     }
-                    self.complete_task(*id, result);
+                    self.complete_task(*id, result)?;
                     progress = true;
                 } else {
                     self.scheduler.tasks.get_mut(id).unwrap().phase = TaskPhase::WaitingChannel;
@@ -1602,6 +1773,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.4.0"
                         | "1.5.0"
                         | "1.6.0"
+                        | "1.6.1"
                         | "1.7.0"
                         | "1.8.0"
                         | "1.9.0"
@@ -1615,7 +1787,7 @@ impl<R: BufRead> Vm<R> {
             Err(error) => Err(error),
         };
         let id = self.scheduler.active;
-        self.complete_task(id, result);
+        self.complete_task(id, result)?;
         self.schedule(at)
     }
     pub(super) fn cancel_group(&mut self, id: u64, at: &Tok) -> Result<()> {
@@ -1690,6 +1862,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1803,6 +1976,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"
@@ -1867,6 +2041,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -1874,7 +2049,7 @@ impl<R: BufRead> Vm<R> {
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
         }
-        self.complete_task(id, Err(error));
+        self.complete_task(id, Err(error))?;
         Ok(())
     }
 }
@@ -1901,9 +2076,41 @@ fn http_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
             ]),
         )))));
     }
-    let body = STANDARD
-        .decode(json["body"].as_str().ok_or_else(invalid)?)
-        .map_err(|_| invalid())?;
+    if let Some(id) = json.get("upload") {
+        return Ok(Value::Result(Ok(Box::new(runtime.native_value(
+            "HttpUpload",
+            id.as_u64().ok_or_else(invalid)?,
+            BTreeMap::from([(
+                "maxBytes".into(),
+                Value::Int(json["maxBytes"].as_i64().ok_or_else(invalid)?),
+            )]),
+        )?))));
+    }
+    if json.get("written").is_some() {
+        return Ok(Value::Result(Ok(Box::new(Value::Null))));
+    }
+    if json.get("closed").is_some() {
+        return Ok(Value::Result(Ok(Box::new(Value::Null))));
+    }
+    if json.get("stream").is_some() {
+        let body = if json["body"].is_null() {
+            None
+        } else {
+            Some(Box::new(Value::Bytes(Arc::new(
+                STANDARD
+                    .decode(json["body"].as_str().ok_or_else(invalid)?)
+                    .map_err(|_| invalid())?,
+            ))))
+        };
+        return Ok(Value::Result(Ok(Box::new(Value::Option(body)))));
+    }
+    let body = if json.get("download").is_some() {
+        vec![]
+    } else {
+        STANDARD
+            .decode(json["body"].as_str().ok_or_else(invalid)?)
+            .map_err(|_| invalid())?
+    };
     let mut headers = Vec::new();
     for header in json["headers"].as_array().ok_or_else(invalid)? {
         headers.push(Value::Struct(
@@ -1928,6 +2135,19 @@ fn http_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
         Value::TypedList("HttpHeader".into(), headers.into()),
         runtime,
     );
+    if let Some(id) = json.get("download") {
+        return Ok(Value::Result(Ok(Box::new(runtime.native_value(
+            "HttpDownload",
+            id.as_u64().ok_or_else(invalid)?,
+            BTreeMap::from([
+                (
+                    "status".into(),
+                    Value::Int(json["status"].as_i64().ok_or_else(invalid)?),
+                ),
+                ("headers".into(), headers),
+            ]),
+        )?))));
+    }
     Ok(Value::Result(Ok(Box::new(Value::Struct(
         "HttpResponse".into(),
         BTreeMap::from([

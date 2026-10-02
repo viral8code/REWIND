@@ -61,6 +61,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -120,6 +121,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -214,6 +216,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -464,6 +467,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -683,6 +687,13 @@ pub(super) fn task_copy(rt: &mut Runtime, value: &Value) -> Result<Value> {
                     Value::HeapRef(id)
                 }
             }
+            Value::Struct(ty, _) if rewind::native_resources::resource_type(ty) => {
+                rt.check_native(v)?;
+                if rewind::native_resources::token(v).is_some_and(|(_, lease)| lease != 0) {
+                    return Err(Error::InvalidOperation("NativeResourceRequiresMove".into()));
+                }
+                v.clone()
+            }
             Value::Handle(_) => {
                 return Err(Error::InvalidOperation("FileHandle is not Send".into()))
             }
@@ -756,6 +767,41 @@ pub(super) fn task_copy(rt: &mut Runtime, value: &Value) -> Result<Value> {
     }
     copy(rt, value, &mut BTreeSet::new(), 0)
 }
+pub(super) fn contains_native_type(
+    program: &Program,
+    ty: &str,
+    seen: &mut BTreeSet<String>,
+) -> bool {
+    if !seen.insert(ty.into()) {
+        return false;
+    }
+    if rewind::native_resources::resource_type(ty) {
+        return true;
+    }
+    if let Some((_, inner)) = ty.split_once('<') {
+        if split_type_args(outer_type_end(inner))
+            .iter()
+            .any(|arg| contains_native_type(program, arg, seen))
+        {
+            return true;
+        }
+    }
+    let base = ty.split('<').next().unwrap_or(ty);
+    if let Some(def) = program.structs.get(base) {
+        return def
+            .fields
+            .iter()
+            .any(|(_, ty)| contains_native_type(program, ty, seen));
+    }
+    if let Some(def) = program.enums.get(base) {
+        return def.variants.iter().any(|(_, fields)| {
+            fields
+                .iter()
+                .any(|(_, ty)| contains_native_type(program, ty, seen))
+        });
+    }
+    false
+}
 pub(super) fn transfer_type(
     program: &Program,
     ty: &str,
@@ -764,6 +810,9 @@ pub(super) fn transfer_type(
 ) -> bool {
     if ty.starts_with('&') {
         return false;
+    }
+    if rewind::native_resources::resource_type(ty) {
+        return !shared;
     }
     if matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes" | "Unit")
         || ty.starts_with("Task<")
@@ -791,6 +840,7 @@ pub(super) fn transfer_type(
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -819,6 +869,7 @@ pub(super) fn transfer_type(
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -855,6 +906,7 @@ pub(super) fn transfer_type(
                 | "1.4.0"
                 | "1.5.0"
                 | "1.6.0"
+                | "1.6.1"
                 | "1.7.0"
                 | "1.8.0"
                 | "1.9.0"
@@ -896,6 +948,7 @@ pub(super) fn transfer_type(
             | "1.4.0"
             | "1.5.0"
             | "1.6.0"
+            | "1.6.1"
             | "1.7.0"
             | "1.8.0"
             | "1.9.0"
@@ -1232,6 +1285,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     | "1.4.0"
                     | "1.5.0"
                     | "1.6.0"
+                    | "1.6.1"
                     | "1.7.0"
                     | "1.8.0"
                     | "1.9.0"

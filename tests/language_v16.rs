@@ -304,3 +304,140 @@ match stdEncode("") {Err(_)=>{panic("encoding failed");},Ok(body)=>{
     success(&out);
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn streaming_download_can_be_read_closed_and_replayed_without_server() {
+    let root = dir();
+    let (url, worker, count) = fixture(b"abcdef", 15);
+    let source = format!(
+        r#"
+import std.http as http;
+let empty=stdEncode("")?;
+var pending:Option<Task<Result<HttpDownload,HttpError>>>=None;
+external {{pending=Some(http.download(http.Request("GET","{url}",empty,1000,1024,freeze(List<HttpHeader>()),empty,"")));}}
+match pending {{Some(task)=>{{match await task {{Ok(opened)=>{{match opened {{Ok(inspected)=>{{Out.println(inspected.status);}},Err(_)=>{{panic("inspection failed");}}}}match move opened {{Ok(connection)=>{{
+var chunk:Option<Task<Result<Option<Bytes>,HttpError>>>=None;
+external {{chunk=Some(http.read(&mut connection,2));}}
+match chunk {{Some(t)=>{{match await t {{Ok(response)=>{{match response {{Ok(bytes)=>{{match bytes {{Some(b)=>{{Out.println(stdDecode(b)?);}},None=>{{panic("unexpected EOF");}}}}}},Err(e)=>{{panic(e.code);}}}}}},Err(_)=>{{panic("read task");}}}}}},None=>{{panic("missing read");}}}}
+var closed:Option<Task<Result<Unit,HttpError>>>=None;
+external {{closed=Some(http.close(&mut connection));}}
+match closed {{Some(t)=>{{match await t {{Ok(_)=>{{}},Err(_)=>{{panic("close task");}}}}}},None=>{{panic("missing close");}}}}
+}},Err(e)=>{{panic(e.code);}}}}}},Err(_)=>{{panic("open task");}}}}}},None=>{{panic("missing open");}}}}
+publish;
+"#
+    );
+    fs::write(root.join("main.rw"), source).unwrap();
+    let out = call(
+        &root,
+        &[
+            "run",
+            "main.rw",
+            "--allow-effects",
+            "external,network,tasks",
+            "--record",
+            "trace.json",
+        ],
+    );
+    success(&out);
+    assert_eq!(out.stdout, b"200\nab\n");
+    worker.join().unwrap();
+    assert_eq!(count.load(Ordering::SeqCst), 1);
+    let replay = call(
+        &root,
+        &[
+            "replay",
+            "trace.json",
+            "--allow-effects",
+            "external,network,tasks",
+        ],
+    );
+    success(&replay);
+    assert_eq!(replay.stdout, out.stdout);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn streaming_upload_uses_the_typed_library_api_and_replays_offline() {
+    let root = dir();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/", listener.local_addr().unwrap());
+    let worker = thread::spawn(move || {
+        use std::io::BufRead;
+        let (mut socket, _) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut reader = std::io::BufReader::new(socket.try_clone().unwrap());
+        let mut line = String::new();
+        loop {
+            line.clear();
+            reader.read_line(&mut line).unwrap();
+            if line == "\r\n" {
+                break;
+            }
+        }
+        let mut body = Vec::new();
+        loop {
+            line.clear();
+            reader.read_line(&mut line).unwrap();
+            let size = usize::from_str_radix(line.trim(), 16).unwrap();
+            if size == 0 {
+                break;
+            }
+            let mut bytes = vec![0; size];
+            reader.read_exact(&mut bytes).unwrap();
+            body.extend(bytes);
+            let mut end = [0; 2];
+            reader.read_exact(&mut end).unwrap();
+        }
+        assert_eq!(body, b"payload");
+        socket
+            .write_all(b"HTTP/1.1 201 Created\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+            .unwrap();
+    });
+    let source = format!(
+        r#"
+import std.http as http;
+fn take<T,E>(value:Result<T,E>)->T effects {{}} {{match move value {{Ok(item)=>{{return move item;}},Err(_)=>{{panic("failed");}}}}}}
+let empty=take(stdEncode(""));let body=take(stdEncode("payload"));
+var pending:Option<Task<Result<HttpUpload,HttpError>>>=None;
+external {{pending=Some(http.upload(http.Request("POST","{url}",empty,2000,1024,freeze(List<HttpHeader>()),empty,""),1024));}}
+match pending {{Some(task)=>{{let connection=take(take(await task));
+var written:Option<Task<Result<Unit,HttpError>>>=None;
+external {{written=Some(http.write(&mut connection,body));}}
+match written {{Some(t)=>{{take(take(await t));}},None=>{{panic("write missing");}}}}
+var finished:Option<Task<Result<HttpResponse,HttpError>>>=None;
+external {{finished=Some(http.finish(&mut connection));}}
+match finished {{Some(t)=>{{let response=take(take(await t));Out.println(response.status);}},None=>{{panic("finish missing");}}}}
+}},None=>{{panic("open missing");}}}}
+publish;
+"#
+    );
+    fs::write(root.join("main.rw"), source).unwrap();
+    let out = call(
+        &root,
+        &[
+            "run",
+            "main.rw",
+            "--allow-effects",
+            "external,network,tasks",
+            "--record",
+            "trace.json",
+        ],
+    );
+    success(&out);
+    assert_eq!(out.stdout, b"201\n");
+    worker.join().unwrap();
+    let replay = call(
+        &root,
+        &[
+            "replay",
+            "trace.json",
+            "--allow-effects",
+            "external,network,tasks",
+        ],
+    );
+    success(&replay);
+    assert_eq!(replay.stdout, out.stdout);
+    fs::remove_dir_all(root).unwrap();
+}

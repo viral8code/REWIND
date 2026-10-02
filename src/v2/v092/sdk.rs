@@ -273,6 +273,17 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/http-stream/main.rw",
+            include_str!("../../../examples/http-stream/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/http-stream/README.md",
+            include_str!("../../../examples/http-stream/README.md")
+                .replace("../../docs/REWIND_v1.6.1.md", "../../doc/REWIND_v1.6.1.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/doc/v2-design.md",
             include_str!("../../../docs/v2-design.md"),
         )?;

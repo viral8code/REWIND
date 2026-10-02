@@ -1,8 +1,38 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.6.0",
+  "language": "1.6.1",
   "symbols": {
+    "fn:close": {
+      "async": false,
+      "cost": "O(pending reads); physical connection never resurrects after revert.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError; cancels pending reads and releases the resource.",
+      "generics": [],
+      "parameters": [
+        "&mut HttpDownload"
+      ],
+      "return": "Task<Result<Unit,HttpError>>"
+    },
+    "fn:closeUpload": {
+      "async": false,
+      "cost": "O(pending operations); cancels the driver and queued writes.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError; scope exit closes the resource automatically.",
+      "generics": [],
+      "parameters": [
+        "&mut HttpUpload"
+      ],
+      "return": "Task<Result<Unit,HttpError>>"
+    },
     "fn:component": {
       "async": false,
       "cost": "O(UTF-8 bytes); percent-encodes a query value or path component.",
@@ -51,6 +81,36 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:download": {
+      "async": false,
+      "cost": "O(headers); body is consumed incrementally by read, total limit up to 1 GiB.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError; scope-owned connection, deadline includes all subsequent reads.",
+      "generics": [],
+      "parameters": [
+        "Request"
+      ],
+      "return": "Task<Result<HttpDownload,HttpError>>"
+    },
+    "fn:finish": {
+      "async": false,
+      "cost": "O(response bytes); ends the request body and awaits the bounded response.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError; closing or cancellation does not undo bytes already sent.",
+      "generics": [],
+      "parameters": [
+        "&mut HttpUpload"
+      ],
+      "return": "Task<Result<HttpResponse,HttpError>>"
+    },
     "fn:get": {
       "async": false,
       "cost": "O(response bytes); submits immediately and returns a Task.",
@@ -67,6 +127,22 @@
         "Int"
       ],
       "return": "Task<Result<HttpResponse,HttpError>>"
+    },
+    "fn:read": {
+      "async": false,
+      "cost": "O(chunk bytes); retains a bounded transport buffer, chunks of 1..65536 bytes.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError; one outstanding read per connection, EOF returns None.",
+      "generics": [],
+      "parameters": [
+        "&mut HttpDownload",
+        "Int"
+      ],
+      "return": "Task<Result<Option<Bytes>,HttpError>>"
     },
     "fn:request": {
       "async": false,
@@ -101,6 +177,53 @@
         "Request"
       ],
       "return": "Task<Result<HttpResponse,HttpError>>"
+    },
+    "fn:upload": {
+      "async": false,
+      "cost": "O(headers); bounded producer queue, total upload up to 1 GiB.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError; starts a request without holding the complete request body.",
+      "generics": [],
+      "parameters": [
+        "Request",
+        "Int"
+      ],
+      "return": "Task<Result<HttpUpload,HttpError>>"
+    },
+    "fn:write": {
+      "async": false,
+      "cost": "O(chunk bytes); queues at most one chunk, each at most 65536 bytes.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpError; acknowledgement means queued, remote application remains Unknown.",
+      "generics": [],
+      "parameters": [
+        "&mut HttpUpload",
+        "Bytes"
+      ],
+      "return": "Task<Result<Unit,HttpError>>"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
     },
     "type:HttpError": {
       "constructor": true,
@@ -150,6 +273,17 @@
         [
           "body",
           "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
         ]
       ],
       "generics": [],

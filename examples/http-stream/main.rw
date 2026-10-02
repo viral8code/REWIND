@@ -1,0 +1,36 @@
+import std.http as http;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("HTTP operation failed");}}
+}
+let arguments=Args.all();
+if arguments.len()!=1 {Err.println("usage: rewind run main.rw --allow-effects external,network,tasks -- URL");publish;}
+else {
+    let empty=take(stdEncode(""));
+    var opening:Option<Task<Result<HttpDownload,HttpError>>>=None;
+    external {opening=Some(http.download(http.Request("GET",arguments.get(0),empty,10000,1048576,freeze(List<HttpHeader>()),empty,"")));}
+    match opening {
+        None=>{panic("missing download");},
+        Some(task)=>{
+            let connection=take(take(await task));
+            Out.println(connection.status);
+            var total=0;var ended=false;
+            while !ended {
+                var reading:Option<Task<Result<Option<Bytes>,HttpError>>>=None;
+                external {reading=Some(http.read(&mut connection,65536));}
+                match reading {
+                    None=>{panic("missing read");},
+                    Some(chunk)=>{
+                        match take(take(await chunk)) {
+                            None=>{ended=true;},
+                            Some(bytes)=>{total+=stdBytesLength(bytes);}
+                        }
+                    }
+                }
+            }
+            Out.println(total);
+            // connection closes when this owning scope ends.
+        }
+    }
+    publish;
+}
