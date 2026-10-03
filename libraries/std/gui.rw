@@ -3,12 +3,12 @@ pub type GuiError = StdError;
 pub record Event {kind:String,x:Int,y:Int,key:String,width:Int,height:Int}
 pub enum Action {Activate(String),Changed(String,Bool),Key(String,String),Resize(Int,Int),Close}
 record Widget {id:String,kind:String,x:Int,y:Int,width:Int,height:Int,caption:String,foreground:Int,background:Int,enabled:Bool,checked:Bool,cursor:Int,anchor:Int}
-pub struct View {private title:String,private width:Int,private height:Int,private background:Int,private widgets:List<Widget>,private indices:Map<String,Int>,private focus:Int,private scroll:Map<String,Int>}
+pub struct View {private title:String,private width:Int,private height:Int,private background:Int,private widgets:List<Widget>,private indices:Map<String,Int>,private focus:Int,private scroll:Map<String,Int>,private grapheme:Bool}
 // @api window failure InvalidSize/InvalidTitle; 64..4096 client pixels per axis.
 pub fn window(title:String,width:Int,height:Int)->Result<View,GuiError> effects {} {
  if width<64 || width>4096 || height<64 || height>4096{return Err(StdError("GuiInvalidSize",0));}
  if title.byteLen()>1024 || stdTextFind(title,"\0")!=None{return Err(StdError("GuiInvalidTitle",0));}
- return Ok(View(title,width,height,0xffffff,List<Widget>(),Map<String,Int>(),-1,Map<String,Int>()));
+ return Ok(View(title,width,height,0xffffff,List<Widget>(),Map<String,Int>(),-1,Map<String,Int>(),false));
 }
 fn add(view:&mut View,id:String,kind:String,caption:String,x:Int,y:Int,width:Int,height:Int,color:Int,checked:Bool)->Result<Unit,GuiError> effects {} {
  if view.widgets.len()>=2048{return Err(StdError("GuiWidgetLimit",0));}
@@ -80,10 +80,10 @@ pub fn continueInput()->Unit effects {gui} {stdGuiContinueInput();}
 pub fn textBox(view:&mut View,id:String,caption:String,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {if stdTextFind(caption,"\n")!=None || stdTextFind(caption,"\r")!=None{return Err(StdError("GuiSingleLine",0));}return add(view,id,"textbox",caption,x,y,width,height,0xffffff,false);}
 pub fn textArea(view:&mut View,id:String,caption:String,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"textarea",caption,x,y,width,height,0xffffff,false);}
 pub fn selection(view:&View,id:String)->Result<Tuple<Int,Int>,GuiError> effects {} {match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);return Ok((w.cursor,w.anchor));}}}
-pub fn setSelection(view:&mut View,id:String,cursor:Int,anchor:Int)->Result<Unit,GuiError> effects {} {match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);if cursor<0 || anchor<0 || cursor>w.caption.charLen() || anchor>w.caption.charLen(){return Err(StdError("GuiInvalidSelection",0));}view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,w.foreground,w.background,w.enabled,w.checked,cursor,anchor));}}return Ok(());}
+pub fn setSelection(view:&mut View,id:String,cursor:Int,anchor:Int)->Result<Unit,GuiError> effects {} {match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);if cursor<0 || anchor<0 || cursor>w.caption.charLen() || anchor>w.caption.charLen(){return Err(StdError("GuiInvalidSelection",0));}if view.grapheme && (w.kind=="textbox" || w.kind=="textarea"){stdGuiEditGrapheme(w.caption,cursor,anchor,"Validate","",w.kind=="textarea")?;}view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,w.foreground,w.background,w.enabled,w.checked,cursor,anchor));}}return Ok(());}
 pub fn edit(view:&mut View,id:String,event:Event)->Result<Unit,GuiError> effects {} {
  match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);if w.kind!="textbox" && w.kind!="textarea"{return Err(StdError("GuiNotTextInput",0));}var typed="";var key=event.key;if event.kind=="text"{typed=event.key;key="";}
- let result=stdGuiEdit(w.caption,w.cursor,w.anchor,key,typed,w.kind=="textarea")?;
+ var result="";if view.grapheme{result=stdGuiEditGrapheme(w.caption,w.cursor,w.anchor,key,typed,w.kind=="textarea")?;}else{result=stdGuiEdit(w.caption,w.cursor,w.anchor,key,typed,w.kind=="textarea")?;}
  match jsonParse(result){Err(e)=>{return Err(StdError(e.code,e.offset));},Ok(j)=>{view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,string(j,"text"),w.foreground,w.background,w.enabled,w.checked,integer(j,"cursor"),integer(j,"anchor")));var scroll=0;match view.scroll.get(w.id){Some(n)=>{scroll=n;},None=>{}}let line=integer(j,"line");var rows=w.height/18;if rows<1{rows=1;}if line<scroll{scroll=line;}if line>=scroll+rows{scroll=line-rows+1;}view.scroll.set(w.id,scroll);}}
  }}return Ok(());
 }
@@ -98,4 +98,10 @@ pub fn arrange(view:&mut View,ids:&List<String>,bounds:Rect,columns:Int,gap:Int)
 }
 pub fn pollEvent()->Result<Option<Event>,GuiError> effects {gui} {
  match stdGuiPollEvent()? {None=>{return Ok(None);},Some(caption)=>{match jsonParse(caption){Err(e)=>{return Err(StdError(e.code,e.offset));},Ok(j)=>{return Ok(Some(Event(string(j,"kind"),integer(j,"x"),integer(j,"y"),string(j,"key"),integer(j,"width"),integer(j,"height"))));}}}}
+}
+
+// @api graphemeEditing failure Enables cluster editing; existing scalar positions round forward to a boundary. Default is false.
+pub fn graphemeEditing(view:&mut View,enabled:Bool)->Result<Unit,GuiError> effects {} {
+ if enabled{for i in 0..view.widgets.len(){let w=view.widgets.get(i);if w.kind=="textbox" || w.kind=="textarea"{let normalized=stdGuiEditGrapheme(w.caption,w.cursor,w.anchor,"Normalize","",w.kind=="textarea")?;match jsonParse(normalized){Err(e)=>{return Err(StdError(e.code,e.offset));},Ok(j)=>{view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,w.foreground,w.background,w.enabled,w.checked,integer(j,"cursor"),integer(j,"anchor")));}}}}}
+ view.grapheme=enabled;return Ok(());
 }

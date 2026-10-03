@@ -73,3 +73,5 @@ GUI 操作は main task に限ります。`gui` effect が必要な処理を asy
 `pollEvent` は入力がなければ `Ok(None)` を返します。短い計算の間に入力を処理できます。入力がない結果も journal に残るため replay は同じ polling の順序で実行します。fixture では `kind:"idle"` を使います。無制限な busy loop は避け、実行・入力記録の予算を指定してください。協調 task の自動進行を、この API だけで保証しません。
 
 SDK の `share/rewind/examples/notes` は編集、Save、Undo all、resize のサンプルです。`--allow-effects gui,fileRead,fileWrite` で利用できます。Save は publish してファイルを確定し、Undo は表示モデルだけを戻します。Undo 後にも確定済みファイルは残ります。record/replay、fixture、コンパイル済み配布にも対応します。
+
+GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cluster 単位で編集する。既定値は false。選択位置は scalar offset のままで、有効化時に境界へ切り上げ、有効化後は cluster 内部の `setSelection` を拒否する。モードも checkpoint の対象になる。[v1.9.7](REWIND_v1.9.7.md) と SDK の gui-grapheme 例を参照。

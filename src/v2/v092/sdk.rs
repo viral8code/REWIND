@@ -345,6 +345,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "REWIND_v1.9.7.md",
+                include_str!("../../../docs/REWIND_v1.9.7.md"),
+            ),
+            (
                 "REWIND_v1.9.6.md",
                 include_str!("../../../docs/REWIND_v1.9.6.md"),
             ),
@@ -402,6 +406,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/datetime-postgres/README.md"),
             ),
             (
+                "gui-grapheme",
+                include_str!("../../../examples/gui-grapheme/README.md"),
+            ),
+            (
                 "unicode",
                 include_str!("../../../examples/unicode/README.md"),
             ),
@@ -429,6 +437,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             )?;
         }
         for (name, source) in [
+            (
+                "gui-grapheme",
+                include_str!("../../../examples/gui-grapheme/main.rw"),
+            ),
             ("flow", include_str!("../../../examples/flow/main.rw")),
             ("regex", include_str!("../../../examples/regex/main.rw")),
             (

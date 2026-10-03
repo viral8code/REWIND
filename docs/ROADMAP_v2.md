@@ -95,3 +95,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.5 は iterative Dinic の最大流と二部マッチング / 最小 vertex cover を標準 module に追加する。VM 内の residual network、長い経路、独立な cut / matching 列挙、source-free replay と SDK を検証する。残る algorithm、GUI、native kernel と履歴の費用は継続する。
 
 1.9.6 は compact 記録により長い純粋計算の debug index 保持を省き、実行順序と観測・最終状態の検証を維持する。state digest の整形・journal 読込みも逐次化する。観測 export の DOM 上限と全領域の保持費用は別に継続する。
+
+1.9.7 は GUI に選択可能な grapheme 編集を追加し、scalar offset / 旧編集との互換、checkpoint と source-free replay を検証する。multi-window、clipboard / dialog、native kernel の公平性と残る統合条件は継続する。

@@ -66,7 +66,9 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
                         required.insert("tasks".into());
                     }
                 }
-                if base.starts_with("stdGui") && base != "stdGuiEdit" {
+                if base.starts_with("stdGui")
+                    && !matches!(base, "stdGuiEdit" | "stdGuiEditGrapheme")
+                {
                     required.insert("gui".into());
                 }
                 if base == "Channel" || base == "TaskGroup" {

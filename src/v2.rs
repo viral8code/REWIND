@@ -57,6 +57,7 @@ fn program_v09(p: &Program) -> bool {
             | "1.9.4"
             | "1.9.5"
             | "1.9.6"
+            | "1.9.7"
             | "2.0.0"
     )
 }
@@ -102,6 +103,7 @@ fn program_v07(p: &Program) -> bool {
             | "1.9.4"
             | "1.9.5"
             | "1.9.6"
+            | "1.9.7"
             | "2.0.0"
     )
 }
@@ -3332,6 +3334,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         )
     });
@@ -3384,6 +3387,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             v05::validate(&program, config)?;
@@ -3435,6 +3439,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             v05::artifact(
@@ -3537,6 +3542,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         )
     });
@@ -3589,6 +3595,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             v05::validate(&program, config)?;
@@ -3897,6 +3904,7 @@ pub fn lock_project(root: &Path) -> Result<()> {
             | "1.9.4"
             | "1.9.5"
             | "1.9.6"
+            | "1.9.7"
             | "2.0.0"
     ) {
         return Err(Error::InvalidOperation(
@@ -4086,6 +4094,7 @@ fn check_program(program: &Program) -> Result<()> {
             | "1.9.4"
             | "1.9.5"
             | "1.9.6"
+            | "1.9.7"
             | "2.0.0"
     ) {
         let entries = program.impls.iter().collect::<Vec<_>>();
@@ -4283,6 +4292,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
@@ -4353,6 +4363,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             v06::cache::put(root, "checked", &key, &true);
@@ -4418,6 +4429,7 @@ impl Checker<'_> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) && def.origin != self.origin
             && def.private_fields.contains(field)
@@ -4464,6 +4476,7 @@ impl Checker<'_> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) && def.origin != self.origin
             && !def.private_fields.is_empty()
@@ -4521,6 +4534,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) && exposed.iter().any(|local| {
                         resolve_alias(self.program, local).split('<').next()
@@ -4730,6 +4744,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) {
                         return Err(diagnostic(at, "tuple pattern requires language 0.6"));
@@ -4968,6 +4983,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) {
                         v06::borrowed_type(&binding.0).into()
@@ -5027,6 +5043,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) {
                         let ty = v06::fn_type(
@@ -5100,6 +5117,7 @@ impl Checker<'_> {
                                 | "1.9.4"
                                 | "1.9.5"
                                 | "1.9.6"
+                                | "1.9.7"
                                 | "2.0.0"
                         ) {
                             v11::unknown_name(
@@ -5157,6 +5175,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
@@ -5233,6 +5252,7 @@ impl Checker<'_> {
                                     | "1.9.4"
                                     | "1.9.5"
                                     | "1.9.6"
+                                    | "1.9.7"
                                     | "2.0.0"
                             ) {
                                 "TaskError"
@@ -5284,6 +5304,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) && op != "move"
                     {
@@ -5343,6 +5364,7 @@ impl Checker<'_> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) && (self.expr(a)?.starts_with("Secret<")
                     || self.expr(b)?.starts_with("Secret<"))
@@ -5463,6 +5485,7 @@ impl Checker<'_> {
                                     | "1.9.4"
                                     | "1.9.5"
                                     | "1.9.6"
+                                    | "1.9.7"
                                     | "2.0.0"
                             ) {
                                 return Ok(v06::fn_type(
@@ -5548,6 +5571,7 @@ impl Checker<'_> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) && t.starts_with("Secret<")
                 {
@@ -5602,6 +5626,7 @@ impl Checker<'_> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
@@ -5658,6 +5683,7 @@ impl Checker<'_> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) && t.starts_with("Frozen<")
                 {
@@ -5751,6 +5777,7 @@ impl Checker<'_> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
@@ -5845,6 +5872,7 @@ impl Checker<'_> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
@@ -5924,6 +5952,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) {
                         return Err(diagnostic(&e.at, "tuple values require language 0.6"));
@@ -5978,6 +6007,7 @@ impl Checker<'_> {
                                 | "1.9.4"
                                 | "1.9.5"
                                 | "1.9.6"
+                                | "1.9.7"
                                 | "2.0.0"
                         ) {
                             if let Some(result) =
@@ -6028,6 +6058,7 @@ impl Checker<'_> {
                                 | "1.9.4"
                                 | "1.9.5"
                                 | "1.9.6"
+                                | "1.9.7"
                                 | "2.0.0"
                         ) {
                             if method == "iter" && types.is_empty() {
@@ -6102,6 +6133,7 @@ impl Checker<'_> {
                                     | "1.9.4"
                                     | "1.9.5"
                                     | "1.9.6"
+                                    | "1.9.7"
                                     | "2.0.0"
                             ) {
                                 if method == "timeout" && types == ["Int"] {
@@ -6162,6 +6194,7 @@ impl Checker<'_> {
                                     | "1.9.4"
                                     | "1.9.5"
                                     | "1.9.6"
+                                    | "1.9.7"
                                     | "2.0.0"
                             ) && types.is_empty()
                             {
@@ -6281,6 +6314,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     )
                 {
@@ -6349,6 +6383,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) && matches!(name.as_str(), "secret" | "reveal")
                     {
@@ -6407,6 +6442,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) && matches!(name.as_str(), "freeze" | "thaw")
                     {
@@ -6623,6 +6659,7 @@ impl Checker<'_> {
                                     | "1.9.4"
                                     | "1.9.5"
                                     | "1.9.6"
+                                    | "1.9.7"
                                     | "2.0.0"
                             ) && matches!(
                                 name.as_str(),
@@ -6782,6 +6819,7 @@ impl Checker<'_> {
                                         | "1.9.4"
                                         | "1.9.5"
                                         | "1.9.6"
+                                        | "1.9.7"
                                         | "2.0.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
@@ -6826,6 +6864,7 @@ impl Checker<'_> {
                                         | "1.9.4"
                                         | "1.9.5"
                                         | "1.9.6"
+                                        | "1.9.7"
                                         | "2.0.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
@@ -6951,6 +6990,7 @@ impl Checker<'_> {
                                     | "1.9.4"
                                     | "1.9.5"
                                     | "1.9.6"
+                                    | "1.9.7"
                                     | "2.0.0"
                             ) && base_type == "List"
                                 && method == "pop"
@@ -7055,6 +7095,7 @@ impl Checker<'_> {
                                             | "1.9.4"
                                             | "1.9.5"
                                             | "1.9.6"
+                                            | "1.9.7"
                                             | "2.0.0"
                                     ) =>
                                 {
@@ -7176,6 +7217,7 @@ impl Checker<'_> {
                                         | "1.9.4"
                                         | "1.9.5"
                                         | "1.9.6"
+                                        | "1.9.7"
                                         | "2.0.0"
                                 ) =>
                             {
@@ -7354,6 +7396,7 @@ impl Checker<'_> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
@@ -7506,6 +7549,7 @@ impl Checker<'_> {
                             | "1.9.4"
                             | "1.9.5"
                             | "1.9.6"
+                            | "1.9.7"
                             | "2.0.0"
                     ) && self.expr(base)?.starts_with("Tuple<")
                     {
@@ -7931,6 +7975,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             runtime.enable_incremental_publish();
@@ -8649,6 +8694,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) && !self
             .program
@@ -8695,6 +8741,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             if self.program.language == "0.9.9" {
@@ -8743,6 +8790,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             if let Some(value) = v091::call(&self.runtime, name, &args).map_err(Flow::Error)? {
@@ -8791,6 +8839,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.9.4"
                     | "1.9.5"
                     | "1.9.6"
+                    | "1.9.7"
                     | "2.0.0"
             )
         {
@@ -8850,6 +8899,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) && matches!(name, "secret" | "reveal")
         {
@@ -8897,6 +8947,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.9.4"
                     | "1.9.5"
                     | "1.9.6"
+                    | "1.9.7"
                     | "2.0.0"
             ) {
                 self.runtime.register_secret_value(&args[0]);
@@ -8954,6 +9005,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) && matches!(name, "freeze" | "thaw")
         {
@@ -9005,6 +9057,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.9.4"
                     | "1.9.5"
                     | "1.9.6"
+                    | "1.9.7"
                     | "2.0.0"
             ) && matches!(
                 &args[0],
@@ -9379,6 +9432,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             self.runtime
@@ -9435,6 +9489,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) {
             if let Some(inner) = v05::unsecret(&target) {
@@ -9498,6 +9553,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         ) && args.is_empty()
         {
@@ -9555,6 +9611,7 @@ impl<R: BufRead> Engine<R> {
                                 | "1.9.4"
                                 | "1.9.5"
                                 | "1.9.6"
+                                | "1.9.7"
                                 | "2.0.0"
                         ) {
                             v06::immutable_tuple(value, &self.runtime)
@@ -9790,6 +9847,7 @@ impl<R: BufRead> Engine<R> {
                                         | "1.9.4"
                                         | "1.9.5"
                                         | "1.9.6"
+                                        | "1.9.7"
                                         | "2.0.0"
                                 ) =>
                             {
@@ -10000,6 +10058,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) =>
             {
@@ -10051,6 +10110,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) =>
             {
@@ -10095,6 +10155,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) =>
             {
@@ -10145,6 +10206,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.9.4"
                         | "1.9.5"
                         | "1.9.6"
+                        | "1.9.7"
                         | "2.0.0"
                 ) =>
             {
@@ -10533,6 +10595,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
             | "1.9.4"
             | "1.9.5"
             | "1.9.6"
+            | "1.9.7"
             | "2.0.0"
     ) && matches!(bound, "Send" | "Share")
     {
@@ -10597,6 +10660,7 @@ fn impl_matches(
             | "1.9.4"
             | "1.9.5"
             | "1.9.6"
+            | "1.9.7"
             | "2.0.0"
     ) {
         return false;
@@ -10829,6 +10893,7 @@ fn trait_method_return(
                     | "1.9.4"
                     | "1.9.5"
                     | "1.9.6"
+                    | "1.9.7"
                     | "2.0.0"
             ) {
                 !compatible(t, ty)
@@ -11322,6 +11387,7 @@ pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         )
     }) {

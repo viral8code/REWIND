@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.4.0",
+  "language": "1.9.7",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
@@ -475,6 +475,17 @@
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "fn:graphemeEditing": {
+      "async": false,
+      "effects": [],
+      "failure": "Enables cluster editing; existing scalar positions round forward to a boundary. Default is false.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
     }
   }
 }
