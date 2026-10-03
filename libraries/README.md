@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.8 / `language = "1.9.8"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.9 / `language = "1.9.9"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -149,3 +149,7 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 ## 最大流・マッチング（v1.9.5）
 
 `std.flow` は VM 内の residual network に iterative Dinic の増加処理を行います。`std.matching` は二部最大 matching と最小 vertex cover を返します。checkpoint で residual state を保持できます。[API・費用・容量](../docs/REWIND_v1.9.5.md)、[実行例](../examples/flow/main.rw)。
+
+## std.guiWindows（1.9.9）
+
+名前付きの複数ネイティブウィンドウ、入力の振り分け、公開済み画面の保持、source-free replay を提供する。[GUI guide](../docs/gui.md) と [例](../examples/gui-windows/README.md) を参照。旧 `std.gui` の単一ウィンドウと入力 cursor は独立している。

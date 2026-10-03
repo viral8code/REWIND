@@ -2,9 +2,12 @@
 use serde::{Deserialize, Serialize};
 pub mod edit;
 mod runtime;
+mod windows_registry;
 pub(crate) use runtime::Request;
 use std::collections::BTreeSet;
 use std::io;
+pub use windows_registry::WindowEvent;
+pub(crate) use windows_registry::WindowInput;
 #[cfg(windows)]
 mod windows;
 #[cfg(target_os = "linux")]

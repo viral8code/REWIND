@@ -228,6 +228,13 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdExternalHttpCredential",
         "stdGuiStage",
         "stdGuiPollEvent",
+        "stdGuiWindowStage",
+        "stdGuiWindowClose",
+        "stdGuiWindowPoll",
+        "stdGuiWindowNext",
+        "stdGuiWindowPollAny",
+        "stdGuiWindowNextAny",
+        "stdGuiWindowContinueInput",
         "stdGuiEdit",
         "stdGuiEditGrapheme",
         "stdGuiNextEvent",
@@ -274,6 +281,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.6"
             | "1.9.7"
             | "1.9.8"
+            | "1.9.9"
             | "2.0.0"
     ) {
         return Ok(());
@@ -519,6 +527,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.6"
             | "1.9.7"
             | "1.9.8"
+            | "1.9.9"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -585,6 +594,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.6"
                 | "1.9.7"
                 | "1.9.8"
+                | "1.9.9"
                 | "2.0.0"
         )
     {
@@ -606,6 +616,12 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
         return Err(diagnostic(at, "database primitives require language 1.7.0"));
+    }
+    if n.starts_with("stdGuiWindow") && !language_at_least(&p.language, "1.9.9") {
+        return Err(diagnostic(
+            at,
+            "named GUI primitives require language 1.9.9",
+        ));
     }
     if n == "stdGuiEditGrapheme" && !language_at_least(&p.language, "1.9.7") {
         return Err(diagnostic(at, "grapheme editing requires language 1.9.7"));
@@ -767,6 +783,13 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             &["String", "String", "Bytes", "Int", "Int"],
             "Task<Result<HttpResponse,HttpError>>",
         ),
+        "stdGuiWindowStage" => (&["String", "String"], "Result<Unit,StdError>"),
+        "stdGuiWindowClose" => (&["String"], "Result<Unit,StdError>"),
+        "stdGuiWindowPoll" => (&["String"], "Result<Option<String>,StdError>"),
+        "stdGuiWindowNext" => (&["String"], "Result<String,StdError>"),
+        "stdGuiWindowPollAny" => (&[], "Result<Option<String>,StdError>"),
+        "stdGuiWindowNextAny" => (&[], "Result<String,StdError>"),
+        "stdGuiWindowContinueInput" => (&[], "Unit"),
         "stdGuiEdit" | "stdGuiEditGrapheme" => (
             &["String", "Int", "Int", "String", "String", "Bool"],
             "Result<String,StdError>",
@@ -983,8 +1006,31 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
         runtime.gui_continue_input();
         return Ok(Some(Value::Null));
     }
+    if n == "stdGuiWindowContinueInput" && args.is_empty() {
+        runtime.gui_window_continue_input();
+        return Ok(Some(Value::Null));
+    }
     if n.starts_with("stdGui") {
+        fn gui_string<T: serde::Serialize>(event: T) -> Result<Value> {
+            serde_json::to_string(&event)
+                .map(Value::Text)
+                .map_err(|e| Error::InvalidOperation(e.to_string()))
+        }
+        fn gui_optional<T: serde::Serialize>(event: Option<T>) -> Result<Value> {
+            match event {
+                None => Ok(Value::Option(None)),
+                Some(e) => gui_string(e).map(|v| Value::Option(Some(Box::new(v)))),
+            }
+        }
         let result: Result<Value> = match (n, args) {
+            ("stdGuiWindowStage",[Value::Text(id),Value::Text(scene)])=>{
+                if scene.len()>LIMIT{Err(Error::InvalidOperation("GuiSceneLimit".into()))}else{serde_json::from_str::<rewind::gui::Frame>(scene).map_err(|_|Error::InvalidOperation("GuiInvalidScene".into())).and_then(|f|runtime.gui_window_stage(id,Some(f))).map(|_|Value::Null)}
+            },
+            ("stdGuiWindowClose",[Value::Text(id)])=>runtime.gui_window_stage(id,None).map(|_|Value::Null),
+            ("stdGuiWindowPoll",[Value::Text(id)])=>runtime.gui_window_poll(id).and_then(gui_optional),
+            ("stdGuiWindowNext",[Value::Text(id)])=>runtime.gui_window_next_event(id).and_then(gui_string),
+            ("stdGuiWindowPollAny",[])=>runtime.gui_window_poll_any().and_then(gui_optional),
+            ("stdGuiWindowNextAny",[])=>runtime.gui_window_next_any().and_then(gui_string),
             (
                 "stdGuiEdit" | "stdGuiEditGrapheme",
                 [Value::Text(text), Value::Int(cursor), Value::Int(anchor), Value::Text(key), Value::Text(typed), Value::Bool(multiline)],

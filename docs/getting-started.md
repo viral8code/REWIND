@@ -167,3 +167,5 @@ SDK の `share/rewind/examples/gui/main.rw` をコピーし、`rewind run main.r
 `std.numeric` と SDK の `share/rewind/examples/numeric` で型付き配列と行列計算を試せる。[数値契約](REWIND_v1.8.md)を参照。
 
 長い計算を詳細なステップ表示なしで記録するには `rewind run main.rw --record trace.json --record-mode compact` を使います。`rewind replay trace.json` は方式を自動復元します。詳細な debug 履歴が必要なら既定の `--record-mode debug` を使います。[記録・費用契約](REWIND_v1.9.6.md)。
+
+複数画面は SDK の `share/rewind/examples/gui-windows` をコピーして `rewind run main.rw --allow-effects gui` で試せる。[GUI guide](gui.md) に fixture と replay の手順を記載する。

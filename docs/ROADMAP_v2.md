@@ -99,3 +99,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.7 は GUI に選択可能な grapheme 編集を追加し、scalar offset / 旧編集との互換、checkpoint と source-free replay を検証する。multi-window、clipboard / dialog、native kernel の公平性と残る統合条件は継続する。
 
 1.9.8 は generic の制約を effect の部分特殊化でも保持し、lazy range、再利用可能な UTF-8 / byte Trie、native suffix / LCP、exact Int geometry を実装する。callback の回数・順序、容量・node 再利用、独立参照と source-free SDK を検証する。matching は現行 flow backend を維持する。native kernel の公平性、GUI 拡充、統合の到達条件は継続する。
+
+1.9.9 は名前付きの複数 Win32 / X11 surface、scoped / any 入力、公開済み画面の保持、入力の事前予算検査を実装する。clipboard / dialog / 表 / accessibility、native kernel の公平性と残る統合は継続する。

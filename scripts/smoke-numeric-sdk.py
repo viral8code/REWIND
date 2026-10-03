@@ -214,3 +214,19 @@ for mode in ["debug", "compact"]:
     assert actual == b"28\n2\n1\n1\n", actual
     assert run("replay", root / "algorithms-trace.json", "--root", root) == actual
 print("Verified extracted algorithms: lazy ranges, trie, native suffix, geometry, revert and source-free replay")
+
+windows = root / "windows.rw"
+windows.write_text((sdk / "share/rewind/examples/gui-windows/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", windows, "--allow-effects", "gui")
+windows.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+for mode in ["debug", "compact"]:
+    fixture = root / "windows-events.json"
+    fixture.write_bytes((sdk / "share/rewind/examples/gui-windows/events.json").read_bytes())
+    actual = run("run", root / "windows.rwc", "--allow-effects", "gui", "--gui-window-events", fixture,
+                 "--record", root / "windows-trace.json", "--record-mode", mode)
+    assert actual == b"1\n0\n", actual
+    fixture.unlink()
+    assert run("replay", root / "windows-trace.json", "--root", root, "--allow-effects", "gui") == actual
+print("Verified extracted named GUI windows: routed input, undo, source-free debug and compact replay without fixture")

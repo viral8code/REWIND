@@ -62,7 +62,7 @@ rewind replay trace.json --root . --allow-effects gui
 
 GUI 操作は main task に限ります。`gui` effect が必要な処理を async 関数へ置くと検査で拒否されます。初回 publish 前の入力は `GuiNotPublished`、表示環境がない場合は publish が `GuiUnavailable` になります。公開中に OS の描画が失敗した場合、通常の publish と同じく部分適用として扱われる可能性があります。X11 server の切断のようなプロセス外の障害も巻き戻せません。
 
-1.3 は固定座標の単一 canvas です。resize イベントは通知しますが自動レイアウトは行わず、次の present は View の寸法を適用します。clipboard、メニュー、file dialog、複数ウィンドウ、アクセシビリティ連携、macOS/native Wayland は未対応です。
+1.3 は固定座標の単一 canvas です。resize イベントは通知しますが自動レイアウトは行わず、次の present は View の寸法を適用します。clipboard、メニュー、file dialog、アクセシビリティ連携、macOS/native Wayland は未対応です。
 
 ## 1.4 の文字編集と配置
 
@@ -75,3 +75,11 @@ GUI 操作は main task に限ります。`gui` effect が必要な処理を asy
 SDK の `share/rewind/examples/notes` は編集、Save、Undo all、resize のサンプルです。`--allow-effects gui,fileRead,fileWrite` で利用できます。Save は publish してファイルを確定し、Undo は表示モデルだけを戻します。Undo 後にも確定済みファイルは残ります。record/replay、fixture、コンパイル済み配布にも対応します。
 
 GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cluster 単位で編集する。既定値は false。選択位置は scalar offset のままで、有効化時に境界へ切り上げ、有効化後は cluster 内部の `setSelection` を拒否する。モードも checkpoint の対象になる。[v1.9.7](REWIND_v1.9.7.md) と SDK の gui-grapheme 例を参照。
+
+## 1.9.9 の複数ウィンドウ
+
+`import std.guiWindows as windows;` を加え、`windows.present("counter",&view); publish;` で ID ごとに表示する。`windows.pollAny()` / `windows.nextEventAny()` は window と event を持つ WindowEvent を返す。イベントを対応する View の gui.dispatch へ渡す。`windows.close("counter"); publish;` はその画面だけを終了する。
+
+入力と画面は旧 gui の単一画面から独立する。名前付き画面の Undo は `revert saved; windows.continueInput();` として復元した View を再表示する。待機 API は VM task を進めないため、通信等との併用は pollAny と yield を使う。
+
+最大16画面、合計16,777,216 client pixels（旧単一画面を含む）、各 scene 1 MiB。ID、入力 fixture、記録・予算・部分公開の詳細は [v1.9.9](REWIND_v1.9.9.md)、実行例は [gui-windows](../examples/gui-windows/README.md)。`--gui-window-events` を使う fixture と replay は native 画面を開かない。

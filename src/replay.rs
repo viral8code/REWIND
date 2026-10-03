@@ -130,7 +130,7 @@ impl Runtime {
             .map(|(limit, segment)| Ok((*limit, segment.bytes()?)))
             .collect::<Result<Vec<_>>>()?;
         Ok(
-            json!({"format":1,"external_format":2,"external_entries":external_entries,"external_polls":self.external_polls,"gui_events":self.gui_observations,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
+            json!({"format":1,"external_format":2,"external_entries":external_entries,"external_polls":self.external_polls,"gui_events":self.gui_observations,"gui_window_events":self.gui_window_observations,"byte_input":byte_input,"byte_eof":self.byte_eof,"input":self.input.iter().enumerate().map(|(i,s)|if self.secret_input_indices.contains(&i){json!({"secret":true})}else{json!(s)}).collect::<Vec<_>>(),"input_eof":self.input_eof,"times":self.times.iter().map(u128::to_string).collect::<Vec<_>>(),"args":self.arguments,"locale":self.locale,"env":env,"entry_observations":self.entry_observations,"files":files,"directories":directories}),
         )
     }
     pub fn import_observations(&mut self, data: &Json) -> Result<()> {
@@ -313,6 +313,23 @@ impl Runtime {
         for e in &self.gui_observations {
             e.validate().map_err(|_| invalid("invalid GUI event"))?;
         }
+        self.gui_window_observations = match data.get("gui_window_events") {
+            Some(v) => serde_json::from_value(v.clone())
+                .map_err(|_| invalid("invalid named GUI event journal"))?,
+            None => Vec::new(),
+        };
+        if self.gui_window_observations.len() > 1_000_000 {
+            return Err(invalid("named GUI event journal too large"));
+        }
+        for e in &self.gui_window_observations {
+            e.validate()
+                .map_err(|_| invalid("invalid named GUI event"))?;
+        }
+        self.gui_window_observation_bytes = self
+            .gui_window_observations
+            .iter()
+            .map(crate::gui::WindowInput::bytes)
+            .sum();
         self.enforce_budget()?;
         self.replaying = true;
         Ok(())
@@ -354,6 +371,23 @@ impl Runtime {
                     self.state.directory_operations,
                     self.next_operation,
                     self.published_epoch
+                ),
+            )
+            .expect("digest formatting is infallible");
+        }
+        if !self.state.gui_windows_pending.is_empty()
+            || !self.gui_window_frames.is_empty()
+            || self.gui_window_high_water != 0
+        {
+            hash.update(b"gui.windows.v1");
+            std::fmt::write(
+                &mut DigestFormatter(&mut hash),
+                format_args!(
+                    "{:?}{:?}{}{}",
+                    self.state.gui_windows_pending,
+                    self.gui_window_frames,
+                    self.state.gui_windows_cursor,
+                    self.gui_window_high_water
                 ),
             )
             .expect("digest formatting is infallible");
@@ -442,6 +476,12 @@ impl Runtime {
             || !self.gui_observations.is_empty()
         {
             state["gui"] = json!({"cursor":self.state.gui_cursor,"pending":self.state.gui_pending.is_some(),"published":self.gui_displayed.is_some(),"widgets":self.gui_displayed.as_ref().map(|f|f.items.len())});
+        }
+        if !self.state.gui_windows_pending.is_empty()
+            || !self.gui_window_frames.is_empty()
+            || !self.gui_window_observations.is_empty()
+        {
+            state["gui_windows"] = json!({"cursor":self.state.gui_windows_cursor,"observed":self.gui_window_observations.len(),"pending":self.state.gui_windows_pending.keys().collect::<Vec<_>>(),"published":self.gui_window_frames.iter().map(|(id,f)|json!({"id":id,"title":f.title,"width":f.width,"height":f.height,"widgets":f.items.len()})).collect::<Vec<_>>()});
         }
         state
     }

@@ -1,0 +1,23 @@
+effects {gui};
+import gui as gui;
+pub type GuiError=StdError;
+pub record WindowEvent{window:String,event:gui.Event}
+// @api present failure Stages a named surface; publish applies it. IDs are nonempty, <=128 UTF-8 bytes, NUL-free. At most 16 named windows / 16M client pixels including the legacy window.
+pub fn present(id:String,view:&gui.View)->Result<Unit,GuiError> effects {gui} {return stdGuiWindowStage(id,gui.scene(view)?);}
+// @api close failure Unknown IDs return GuiWindowNotPublished; publish closes only the named surface.
+pub fn close(id:String)->Result<Unit,GuiError> effects {gui} {return stdGuiWindowClose(id);}
+fn string(j:Json,key:String)->String effects {} {match jsonGet(j,key){Some(Json::Text(v))=>{return v;},_=>{return "";}}}
+fn integer(j:Json,key:String)->Int effects {} {match jsonGet(j,key){Some(Json::Int(v))=>{return v;},_=>{return 0;}}}
+fn event(j:Json)->gui.Event effects {} {return gui.Event(string(j,"kind"),integer(j,"x"),integer(j,"y"),string(j,"key"),integer(j,"width"),integer(j,"height"));}
+fn parse(value:String)->Result<Json,GuiError> effects {} {match jsonParse(value){Ok(j)=>{return Ok(j);},Err(e)=>{return Err(StdError(e.code,e.offset));}}}
+fn routed(value:String)->Result<WindowEvent,GuiError> effects {} {let j=parse(value)?;match jsonGet(j,"event"){Some(v)=>{return Ok(WindowEvent(string(j,"window"),event(v)));},None=>{return Err(StdError("GuiInvalidWindowEvent",0));}}}
+// @api poll failure Requires a published ID; None means no input; scoped fixture polling preserves another window event.
+pub fn poll(id:String)->Result<Option<gui.Event>,GuiError> effects {gui} {match stdGuiWindowPoll(id)?{None=>{return Ok(None);},Some(value)=>{return Ok(Some(event(parse(value)?)));}}}
+// @api nextEvent failure Blocks without scheduling VM tasks; wrong scoped fixture ID returns GuiWindowEventTapeEnd.
+pub fn nextEvent(id:String)->Result<gui.Event,GuiError> effects {gui} {return Ok(event(parse(stdGuiWindowNext(id)?)?));}
+// @api pollAny cost Bounded round-robin polling; does not block; combines native surfaces without merging their IDs.
+pub fn pollAny()->Result<Option<WindowEvent>,GuiError> effects {gui} {match stdGuiWindowPollAny()?{None=>{return Ok(None);},Some(value)=>{return Ok(Some(routed(value)?));}}}
+// @api nextEventAny failure Blocks on native input across active windows; performs no VM task scheduling during the wait. Use pollAny and yield for task-driven application loops.
+pub fn nextEventAny()->Result<WindowEvent,GuiError> effects {gui} {return routed(stdGuiWindowNextAny()?);}
+// @api continueInput failure After revert skips only named-window events already delivered in this execution; old gui input has a separate cursor.
+pub fn continueInput()->Unit effects {gui} {stdGuiWindowContinueInput();}
