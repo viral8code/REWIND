@@ -47,7 +47,15 @@ pub(in crate::v2) fn constant_values(program: &Program) -> Result<BTreeMap<Strin
     if !program_v07(program) {
         return Ok(BTreeMap::new());
     }
-    let root = program.root_origin.parent().unwrap_or(Path::new("."));
+    // Artifact source maps may refer to a source directory absent from the distribution.
+    // Constant evaluation is pure and uses virtual publish; only Runtime's base directory
+    // needs to exist, not the original source directory.
+    let root = program
+        .root_origin
+        .ancestors()
+        .skip(1)
+        .find(|p| p.is_dir())
+        .ok_or_else(|| Error::InvalidPath("constant evaluation root".into()))?;
     let mut engine = Engine::new(program.clone(), root, io::Cursor::new(Vec::<u8>::new()))?;
     engine.remaining = 100_000;
     engine.runtime.enable_virtual_publish();

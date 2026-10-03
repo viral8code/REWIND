@@ -155,9 +155,14 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     assert run([exe,'run','--root',shortest,'--task-steps','2000000','--record',trace], b'4 3\r\n0 1 4\r\n0 2 1\r\n2 1 1\r\n') == expected
     assert run([exe,'replay',trace,'--root',shortest]) == expected
     run([exe,'build','--root',shortest,'--output',work/'app.json'])
+    run([sdk/'bin/rewindc.exe',shortest/'main.rw'])
     (shortest/'main.rw').unlink()
     shutil.rmtree(shortest/'vendor')
     assert run([exe,'run-artifact',work/'app.json','--root',shortest,'--task-steps','2000000','--allow-effects','input,output'], b'4 3\n0 1 4\n0 2 1\n2 1 1\n') == expected
+    compiled_trace = shortest/'compiled-trace.json'
+    assert run([exe,'run',shortest/'main.rwc','--task-steps','2000000','--record',compiled_trace,'--record-mode','compact'], b'4 3\n0 1 4\n0 2 1\n2 1 1\n') == expected
+    assert run([exe,'replay',compiled_trace,'--root',shortest]) == expected
+
     (output/f'{name}-sdk.pub').write_text(public+'\n', encoding='utf-8')
     shutil.copyfile(root/'docs/getting-started.md',output/'GETTING_STARTED.windows.md')
     (output/'BUILD_INFO.windows.json').write_text(json.dumps(dict(version=version,commit=commit,target='x86_64-pc-windows-msvc',minimum_windows='Windows 10 x64',crt_linkage='static',runtime_dependencies=runtime_dependencies,sdk_public_key=public,signing_key_scope='this release only',rust_toolchain='1.98.1',build_command='cargo build --release --locked'),indent=2)+'\n', encoding='utf-8')

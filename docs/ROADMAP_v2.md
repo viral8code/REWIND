@@ -111,3 +111,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.13 は GUI の scene を借用 storage から直接 serialize し、一時 VM Json / Map を省く。従来の値、byte 上限、所有権、pure effect、source-free replay を維持して描画モデルの費用を測定する。残る統合・GUI・数値・通信の到達条件は継続する。
 
 compiled 配布時に development manifest が残っていると、run_compiled の設定読込みが削除済み entry / source_root を要求する例を確認した。runtime の effect 許可・asset 検証を維持したまま compilation graph の検証と分離し、manifest を置いた source-free 実行・replay の回帰を追加する。
+
+1.9.14 は compilation graph と runtime policy の設定読込みを分離し、削除済み source directory / vendor と開発用 manifest の併存を可能にする。lock、effect、asset、検証済み IR、両記録 mode の replay と実 SDK の配布を検証する。残る v2.0 の統合・数値・GUI・通信の到達条件は継続する。

@@ -165,3 +165,5 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 `std.guiForm` は schema / 編集 / 型付き Json 検証、`std.guiTable` は frozen 行優先データの表示範囲描画を提供する。`std.gui` は focus / focused / setChecked / remove / style / textarea scroll の編集を追加した。いずれも logical View の変更は pure で、外部 surface への反映には present と publish を使う。[容量・失敗・費用契約](../docs/REWIND_v1.9.12.md)、[実行例](../examples/gui-controls/README.md)を参照する。
 
 1.9.13 は `gui.scene` の一時 Map / Json 構築を直接の serializer へ置き換える。public API と JSON の値を維持し、事前の byte 上限 / native memory admission を行う。[費用・互換性・測定](../docs/REWIND_v1.9.13.md)を参照する。
+
+1.9.14 は manifest / lock を保持した source-free `.rwc` の実行・replay に対応する。実行時に source / vendor の graph を開き直さず、effect と assets の検証は保持する。[契約](../docs/REWIND_v1.9.14.md)を参照。

@@ -43,142 +43,33 @@ fn inside(root: &Path, relative: &str) -> Result<PathBuf> {
     }
     Ok(full)
 }
-impl ProjectConfig {
-    pub(super) fn validate_module_effects(&self, program: &Program) -> Result<()> {
-        if program.included_modules.iter().any(|p| {
-            self.blocked_sources
-                .iter()
-                .any(|blocked| p.starts_with(blocked))
-        }) {
-            return Err(Error::InvalidOperation(
-                "development-only module requires a verified development graph".into(),
-            ));
-        }
-
-        if matches!(
-            self.language.as_str(),
-            "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "2.0.0"
-        ) {
-            for (name, path) in &self.lock_imports {
-                if !name.is_empty()
-                    && !self.imports.contains_key(name)
-                    && program
-                        .included_modules
-                        .iter()
-                        .any(|module| module.starts_with(path))
-                {
-                    return Err(Error::InvalidOperation(format!(
-                        "development-only module {name} requires test/doctest"
-                    )));
-                }
-            }
-        }
-
-        for (name, path) in &self.imports {
-            if name.is_empty() {
-                continue;
-            }
-            let metadata: serde_json::Value =
-                serde_json::from_slice(&fs::read(path.join("rewind.package.json"))?)
-                    .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-            let allowed = metadata["effects"]
-                .as_array()
-                .ok_or_else(|| Error::InvalidOperation("missing package effects".into()))?
-                .iter()
-                .filter_map(|v| v.as_str())
-                .map(str::to_string)
-                .collect::<BTreeSet<_>>();
-            for (module, effects) in &program.module_effects {
-                if module.starts_with(path) {
-                    if let Some(e) = effects.difference(&allowed).next() {
-                        return Err(Error::InvalidOperation(format!(
-                            "package {name} -> module {}: undeclared effect {e}",
-                            module.display()
-                        )));
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-    pub(super) fn artifact(root: &Path, entry: PathBuf, effects: BTreeSet<String>) -> Self {
-        Self {
-            source_root: root.into(),
-            entry,
-            imports: BTreeMap::new(),
-            lock_imports: BTreeMap::new(),
-            language: "0.5".into(),
-            production: false,
-            assets: BTreeMap::new(),
-            blocked_sources: Vec::new(),
-            effects,
-            versions: BTreeMap::new(),
-            signers: BTreeMap::new(),
-            trust: BTreeMap::new(),
-            revoked: BTreeSet::new(),
-        }
-    }
-    pub fn load(root: &Path) -> Result<Option<Self>> {
-        Self::load_mode(root, false, false)
-    }
-    pub(super) fn load_for_update(root: &Path) -> Result<Option<Self>> {
-        Self::load_mode(root, true, true)
-    }
-    pub(super) fn load_for_test(root: &Path) -> Result<Option<Self>> {
-        Self::load_mode(root, false, true)
-    }
-    fn load_mode(root: &Path, latest: bool, include_dev: bool) -> Result<Option<Self>> {
-        let root = fs::canonicalize(root)?;
+struct Manifest {
+    language: String,
+    source_root: Option<String>,
+    entry: Option<String>,
+    deps: BTreeMap<String, String>,
+    assets: BTreeMap<String, String>,
+    dev_deps: BTreeMap<String, String>,
+    effects: BTreeSet<String>,
+    versions: BTreeMap<String, String>,
+    signers: BTreeMap<String, String>,
+    trust: BTreeMap<String, String>,
+    registry: BTreeMap<String, String>,
+    revoked: BTreeSet<String>,
+    production: bool,
+}
+impl Manifest {
+    fn load(root: &Path) -> Result<Option<Self>> {
         let manifest = root.join("rewind.toml");
         if !manifest.exists() {
             return Ok(None);
         }
+        if fs::metadata(&manifest)?.len() > 1024 * 1024 {
+            return Err(Error::InvalidOperation("manifest exceeds 1 MiB".into()));
+        }
         let source = fs::read_to_string(manifest)?;
         let mut section = "";
+        let mut seen = BTreeSet::new();
         let mut language = None;
         let mut dependency_mode = String::new();
         let mut source_root = None;
@@ -221,6 +112,12 @@ impl ProjectConfig {
             })?;
             let key = key.trim();
             let value = quoted(value)?;
+            if !seen.insert((section.to_string(), key.to_string())) {
+                return Err(Error::InvalidOperation(format!(
+                    "rewind.toml:{}: duplicate key {key}",
+                    line + 1
+                )));
+            }
             if !section.is_empty() {
                 let entries = match section {
                     "assets" => &mut assets,
@@ -329,6 +226,7 @@ impl ProjectConfig {
                 | "1.9.11"
                 | "1.9.12"
                 | "1.9.13"
+                | "1.9.14"
                 | "2.0.0"
         ) {
             return Err(Error::InvalidOperation(format!(
@@ -382,6 +280,7 @@ impl ProjectConfig {
                     | "1.9.11"
                     | "1.9.12"
                     | "1.9.13"
+                    | "1.9.14"
                     | "2.0.0"
             )
         {
@@ -436,6 +335,7 @@ impl ProjectConfig {
                     | "1.9.11"
                     | "1.9.12"
                     | "1.9.13"
+                    | "1.9.14"
                     | "2.0.0"
             ) || !matches!(dependency_mode.as_str(), "production" | "development"))
         {
@@ -443,6 +343,172 @@ impl ProjectConfig {
                 "unsupported dependency_mode".into(),
             ));
         }
+        Ok(Some(Self {
+            language,
+            source_root,
+            entry,
+            deps,
+            assets,
+            dev_deps,
+            effects,
+            versions,
+            signers,
+            trust,
+            registry,
+            revoked,
+            production,
+        }))
+    }
+}
+impl ProjectConfig {
+    pub(super) fn validate_module_effects(&self, program: &Program) -> Result<()> {
+        if program.included_modules.iter().any(|p| {
+            self.blocked_sources
+                .iter()
+                .any(|blocked| p.starts_with(blocked))
+        }) {
+            return Err(Error::InvalidOperation(
+                "development-only module requires a verified development graph".into(),
+            ));
+        }
+
+        if matches!(
+            self.language.as_str(),
+            "0.8"
+                | "0.9"
+                | "0.9.1"
+                | "0.9.2"
+                | "0.9.3"
+                | "0.9.4"
+                | "0.9.5"
+                | "0.9.6"
+                | "0.9.7"
+                | "0.9.8"
+                | "0.9.9"
+                | "1.0.0"
+                | "1.1.0"
+                | "1.2.0"
+                | "1.3.0"
+                | "1.4.0"
+                | "1.5.0"
+                | "1.6.0"
+                | "1.6.1"
+                | "1.7.0"
+                | "1.7.1"
+                | "1.8.0"
+                | "1.8.1"
+                | "1.8.2"
+                | "1.8.3"
+                | "1.8.4"
+                | "1.8.5"
+                | "1.8.6"
+                | "1.8.7"
+                | "1.8.8"
+                | "1.9.0"
+                | "1.9.1"
+                | "1.9.2"
+                | "1.9.3"
+                | "1.9.4"
+                | "1.9.5"
+                | "1.9.6"
+                | "1.9.7"
+                | "1.9.8"
+                | "1.9.9"
+                | "1.9.10"
+                | "1.9.11"
+                | "1.9.12"
+                | "1.9.13"
+                | "1.9.14"
+                | "2.0.0"
+        ) {
+            for (name, path) in &self.lock_imports {
+                if !name.is_empty()
+                    && !self.imports.contains_key(name)
+                    && program
+                        .included_modules
+                        .iter()
+                        .any(|module| module.starts_with(path))
+                {
+                    return Err(Error::InvalidOperation(format!(
+                        "development-only module {name} requires test/doctest"
+                    )));
+                }
+            }
+        }
+
+        for (name, path) in &self.imports {
+            if name.is_empty() {
+                continue;
+            }
+            let metadata: serde_json::Value =
+                serde_json::from_slice(&fs::read(path.join("rewind.package.json"))?)
+                    .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+            let allowed = metadata["effects"]
+                .as_array()
+                .ok_or_else(|| Error::InvalidOperation("missing package effects".into()))?
+                .iter()
+                .filter_map(|v| v.as_str())
+                .map(str::to_string)
+                .collect::<BTreeSet<_>>();
+            for (module, effects) in &program.module_effects {
+                if module.starts_with(path) {
+                    if let Some(e) = effects.difference(&allowed).next() {
+                        return Err(Error::InvalidOperation(format!(
+                            "package {name} -> module {}: undeclared effect {e}",
+                            module.display()
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn artifact(root: &Path, entry: PathBuf, effects: BTreeSet<String>) -> Self {
+        Self {
+            source_root: root.into(),
+            entry,
+            imports: BTreeMap::new(),
+            lock_imports: BTreeMap::new(),
+            language: "0.5".into(),
+            production: false,
+            assets: BTreeMap::new(),
+            blocked_sources: Vec::new(),
+            effects,
+            versions: BTreeMap::new(),
+            signers: BTreeMap::new(),
+            trust: BTreeMap::new(),
+            revoked: BTreeSet::new(),
+        }
+    }
+    pub fn load(root: &Path) -> Result<Option<Self>> {
+        Self::load_mode(root, false, false)
+    }
+    pub(super) fn load_for_update(root: &Path) -> Result<Option<Self>> {
+        Self::load_mode(root, true, true)
+    }
+    pub(super) fn load_for_test(root: &Path) -> Result<Option<Self>> {
+        Self::load_mode(root, false, true)
+    }
+    fn load_mode(root: &Path, latest: bool, include_dev: bool) -> Result<Option<Self>> {
+        let root = fs::canonicalize(root)?;
+        let Some(Manifest {
+            language,
+            source_root,
+            entry,
+            mut deps,
+            assets,
+            dev_deps,
+            effects,
+            mut versions,
+            signers,
+            trust,
+            mut registry,
+            revoked,
+            production,
+        }) = Manifest::load(&root)?
+        else {
+            return Ok(None);
+        };
         if production && (include_dev || latest) {
             return Err(Error::InvalidOperation("production mode has no verified development graph; use development mode for test/update".into()));
         }
@@ -535,6 +601,7 @@ impl ProjectConfig {
                 | "1.9.11"
                 | "1.9.12"
                 | "1.9.13"
+                | "1.9.14"
                 | "2.0.0"
         ) && deps
             .values()
@@ -608,6 +675,7 @@ impl ProjectConfig {
                     | "1.9.11"
                     | "1.9.12"
                     | "1.9.13"
+                    | "1.9.14"
                     | "2.0.0"
             ) {
                 let mut inspected = BTreeSet::new();
@@ -714,6 +782,7 @@ impl ProjectConfig {
                 | "1.9.11"
                 | "1.9.12"
                 | "1.9.13"
+                | "1.9.14"
                 | "2.0.0"
         ) && !include_dev
         {
@@ -863,6 +932,7 @@ impl ProjectConfig {
                 | "1.9.11"
                 | "1.9.12"
                 | "1.9.13"
+                | "1.9.14"
                 | "2.0.0"
         ) {
             return self.secure_lock(root, update);
@@ -1018,6 +1088,7 @@ impl ProjectConfig {
                     | "1.9.11"
                     | "1.9.12"
                     | "1.9.13"
+                    | "1.9.14"
                     | "2.0.0"
             ) {
                 selected["requirement"] = wanted.clone().into();
@@ -1075,6 +1146,7 @@ impl ProjectConfig {
                     | "1.9.11"
                     | "1.9.12"
                     | "1.9.13"
+                    | "1.9.14"
                     | "2.0.0"
             ) {
                 return Err(Error::InvalidOperation(
@@ -1165,6 +1237,7 @@ impl ProjectConfig {
                     | "1.9.11"
                     | "1.9.12"
                     | "1.9.13"
+                    | "1.9.14"
                     | "2.0.0"
             ) {
                 let old: serde_json::Value = fs::read(&path)
@@ -1203,5 +1276,73 @@ impl ProjectConfig {
             ));
         }
         Ok(())
+    }
+}
+
+/// Runtime policy for a compiled program: no source graph or package files are opened.
+pub(super) struct RuntimePolicy {
+    pub language: String,
+    pub effects: BTreeSet<String>,
+    pub assets: serde_json::Value,
+}
+impl RuntimePolicy {
+    pub fn load(root: &Path) -> Result<Option<Self>> {
+        let root = fs::canonicalize(root)?;
+        let Some(manifest) = Manifest::load(&root)? else {
+            return Ok(None);
+        };
+        // Source paths still obey the manifest grammar, but may be absent in a distribution.
+        for relative in [
+            manifest.source_root.as_deref().unwrap_or("src"),
+            manifest.entry.as_deref().unwrap_or("main.rw"),
+        ] {
+            let path = Path::new(relative);
+            if relative != "."
+                && (path.as_os_str().is_empty()
+                    || path.is_absolute()
+                    || path
+                        .components()
+                        .any(|c| !matches!(c, std::path::Component::Normal(_))))
+            {
+                return Err(Error::InvalidPath(relative.into()));
+            }
+        }
+        let assets = v091::asset_inventory(&root, &manifest.assets)?;
+        let lock = root.join("rewind.lock");
+        if !lock.is_file() {
+            return Err(Error::InvalidOperation(
+                "compiled runtime requires rewind.lock".into(),
+            ));
+        }
+        if fs::metadata(&lock)?.len() > 32 * 1024 * 1024 {
+            return Err(Error::InvalidOperation(
+                "compiled runtime lock exceeds 32 MiB".into(),
+            ));
+        }
+        let actual: serde_json::Value = serde_json::from_slice(&fs::read(lock)?)
+            .map_err(|e| Error::InvalidOperation(format!("invalid runtime lock: {e}")))?;
+        let expected_effects = serde_json::to_value(&manifest.effects)
+            .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+        let expected_assets = if manifest.assets.is_empty() {
+            serde_json::Value::Null
+        } else {
+            assets.clone()
+        };
+        if actual["format"] != 2
+            || actual["language"] != manifest.language
+            || actual["compiler"] != env!("CARGO_PKG_VERSION")
+            || actual["effects"] != expected_effects
+            || actual["assets"] != expected_assets
+            || !actual["dependencies"].is_object()
+        {
+            return Err(Error::InvalidOperation(
+                "compiled runtime lock mismatch".into(),
+            ));
+        }
+        Ok(Some(Self {
+            language: manifest.language,
+            effects: manifest.effects,
+            assets,
+        }))
     }
 }
