@@ -215,6 +215,12 @@ fn download_reads_incrementally_and_revert_reuses_chunks_after_close() {
         let _ = socket.write_all(b"3\r\nbcd\r\n0\r\n\r\n");
     });
     let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    runtime
+        .set_budget(rewind::ResourceBudget {
+            spill_threshold: 0,
+            ..rewind::ResourceBudget::default()
+        })
+        .unwrap();
     let mut req = request(url);
     req.download = true;
     runtime.enter_external(false).unwrap();

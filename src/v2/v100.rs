@@ -25,6 +25,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.8.7"
             | "1.8.8"
             | "1.9.0"
+            | "1.9.1"
             | "2.0.0"
     ) {
         return Ok(());

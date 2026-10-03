@@ -956,8 +956,8 @@ impl crate::Runtime {
         };
         let (id, fresh) = self.begin_async_external("db.sqlite.v1", &fingerprint, reservation)?;
         if !fresh && !self.replaying {
-            if let Some(outcome) = self.external_entries[id].outcome.as_deref() {
-                let outcome: Value = serde_json::from_str(outcome)
+            if let Some(outcome) = self.external_entries[id].outcome.as_ref() {
+                let outcome: Value = serde_json::from_slice(&outcome.read()?)
                     .map_err(|_| crate::Error::InvalidOperation("DbRecording".into()))?;
                 if let (Some(connection), Some(transaction)) = (
                     outcome["Ok"]["dbConnection"].as_u64(),

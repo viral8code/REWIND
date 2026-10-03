@@ -74,6 +74,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.8.7"
             | "1.8.8"
             | "1.9.0"
+            | "1.9.1"
             | "2.0.0"
     ) {
         return Ok(());
@@ -143,6 +144,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.8.7"
             | "1.8.8"
             | "1.9.0"
+            | "1.9.1"
             | "2.0.0"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
@@ -247,6 +249,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.8.7"
             | "1.8.8"
             | "1.9.0"
+            | "1.9.1"
             | "2.0.0"
     ) {
         program
@@ -507,6 +510,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
             | "1.8.7"
             | "1.8.8"
             | "1.9.0"
+            | "1.9.1"
             | "2.0.0"
     ) {
         return v06::validate(program, config);
@@ -895,6 +899,7 @@ pub(super) fn transfer_type(
                 | "1.8.7"
                 | "1.8.8"
                 | "1.9.0"
+                | "1.9.1"
                 | "2.0.0"
         )
     {
@@ -933,6 +938,7 @@ pub(super) fn transfer_type(
             | "1.8.7"
             | "1.8.8"
             | "1.9.0"
+            | "1.9.1"
             | "2.0.0"
     ) {
         if let Some((base, inner)) = ty.split_once('<') {
@@ -979,6 +985,7 @@ pub(super) fn transfer_type(
                 | "1.8.7"
                 | "1.8.8"
                 | "1.9.0"
+                | "1.9.1"
                 | "2.0.0"
         ) {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
@@ -1030,6 +1037,7 @@ pub(super) fn transfer_type(
             | "1.8.7"
             | "1.8.8"
             | "1.9.0"
+            | "1.9.1"
             | "2.0.0"
     ) {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
@@ -1376,6 +1384,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     | "1.8.7"
                     | "1.8.8"
                     | "1.9.0"
+                    | "1.9.1"
                     | "2.0.0"
             ) {
                 let checker = Checker {

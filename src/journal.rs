@@ -39,10 +39,14 @@ impl Segment {
             std::process::id(),
             self.id
         ));
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)?;
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&path)?;
         if let Err(e) = file.write_all(bytes).and_then(|_| file.sync_all()) {
             drop(file);
             let _ = fs::remove_file(&path);
