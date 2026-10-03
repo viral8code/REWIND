@@ -80,6 +80,6 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 
 `import std.guiWindows as windows;` を加え、`windows.present("counter",&view); publish;` で ID ごとに表示する。`windows.pollAny()` / `windows.nextEventAny()` は window と event を持つ WindowEvent を返す。イベントを対応する View の gui.dispatch へ渡す。`windows.close("counter"); publish;` はその画面だけを終了する。
 
-入力と画面は旧 gui の単一画面から独立する。名前付き画面の Undo は `revert saved; windows.continueInput();` として復元した View を再表示する。待機 API は VM task を進めないため、通信等との併用は pollAny と yield を使う。
+入力と画面は旧 gui の単一画面から独立する。名前付き画面の Undo は `revert saved; windows.continueInput();` として復元した View を再表示する。待機 API は VM task を進めないため、外部 I/O の完了確認との併用は pollAny と task.isDone() を使う。明示的な VM task handoff は後続版の API とする。
 
 最大16画面、合計16,777,216 client pixels（旧単一画面を含む）、各 scene 1 MiB。ID、入力 fixture、記録・予算・部分公開の詳細は [v1.9.9](REWIND_v1.9.9.md)、実行例は [gui-windows](../examples/gui-windows/README.md)。`--gui-window-events` を使う fixture と replay は native 画面を開かない。

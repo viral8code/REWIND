@@ -18,4 +18,4 @@ rewind replay trace.json --allow-effects gui
 
 fixture では Add、Undo、Close を実行し、出力は `1` と `0`。fixture と replay では OS の画面を開かない。コンパイル後は source と入力 fixture を削除しても replay できる。既定の debug 記録も利用可能。
 
-`nextEventAny()` は入力待ちの間 VM task を進めない。通信等の task と組み合わせる event loop では `pollAny()` と `yield` を利用する。[GUI guide](../../docs/gui.md)、[版の契約](../../docs/REWIND_v1.9.9.md)を参照。
+`nextEventAny()` は入力待ちの間 VM task を進めない。通信等の task と組み合わせる event loop では `pollAny()` と task.isDone() を利用する。明示的な VM task handoff API は後続版で追加する。[GUI guide](../../docs/gui.md)、[版の契約](../../docs/REWIND_v1.9.9.md)を参照。
