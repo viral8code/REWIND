@@ -227,6 +227,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdGuiStage",
         "stdGuiPollEvent",
         "stdGuiEdit",
+        "stdGuiEditGrapheme",
         "stdGuiNextEvent",
         "stdGuiClose",
         "stdGuiContinueInput",
@@ -269,6 +270,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.4"
             | "1.9.5"
             | "1.9.6"
+            | "1.9.7"
             | "2.0.0"
     ) {
         return Ok(());
@@ -512,6 +514,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.4"
             | "1.9.5"
             | "1.9.6"
+            | "1.9.7"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -576,6 +579,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.4"
                 | "1.9.5"
                 | "1.9.6"
+                | "1.9.7"
                 | "2.0.0"
         )
     {
@@ -597,6 +601,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
         return Err(diagnostic(at, "database primitives require language 1.7.0"));
+    }
+    if n == "stdGuiEditGrapheme" && !language_at_least(&p.language, "1.9.7") {
+        return Err(diagnostic(at, "grapheme editing requires language 1.9.7"));
     }
     if n.starts_with("stdGui") && !language_at_least(&p.language, "1.3.0") {
         return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
@@ -755,7 +762,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             &["String", "String", "Bytes", "Int", "Int"],
             "Task<Result<HttpResponse,HttpError>>",
         ),
-        "stdGuiEdit" => (
+        "stdGuiEdit" | "stdGuiEditGrapheme" => (
             &["String", "Int", "Int", "String", "String", "Bool"],
             "Result<String,StdError>",
         ),
@@ -974,9 +981,9 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
     if n.starts_with("stdGui") {
         let result: Result<Value> = match (n, args) {
             (
-                "stdGuiEdit",
+                "stdGuiEdit" | "stdGuiEditGrapheme",
                 [Value::Text(text), Value::Int(cursor), Value::Int(anchor), Value::Text(key), Value::Text(typed), Value::Bool(multiline)],
-            ) => rewind::gui::edit::apply(text, *cursor, *anchor, key, typed, *multiline)
+            ) => (if n == "stdGuiEditGrapheme" { rewind::gui::edit::apply_grapheme } else { rewind::gui::edit::apply })(text, *cursor, *anchor, key, typed, *multiline)
                 .map_err(|e| Error::InvalidOperation(e.into()))
                 .and_then(|v| {
                     serde_json::to_string(&serde_json::json!({"text":v.text,"cursor":v.cursor,"anchor":v.anchor,"line":v.text.chars().take(v.cursor).filter(|c|*c=='\n').count()}))

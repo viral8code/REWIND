@@ -53,7 +53,9 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
                         needs.insert("tasks".into());
                     }
                 }
-                if n.starts_with("stdGui") && n != "stdGuiEdit" {
+                if n.starts_with("stdGui")
+                    && !matches!(n.as_str(), "stdGuiEdit" | "stdGuiEditGrapheme")
+                {
                     needs.insert("gui".into());
                 }
                 if program.functions.contains_key(&n) {
@@ -164,7 +166,9 @@ impl Scan<'_> {
                             self.needs.insert("tasks".into());
                         }
                     }
-                    if base.starts_with("stdGui") && base != "stdGuiEdit" {
+                    if base.starts_with("stdGui")
+                        && !matches!(base, "stdGuiEdit" | "stdGuiEditGrapheme")
+                    {
                         self.needs.insert("gui".into());
                     }
                     if let Some(f) = self.checker.program.functions.get(base) {

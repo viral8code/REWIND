@@ -190,3 +190,15 @@ assert actual == b"49995000\n", actual
 assert (root / "compact-trace.json").stat().st_size < 16384
 assert run("replay", root / "compact-trace.json", "--root", root) == actual
 print("Verified compact recording, checkpoint and long source-free replay")
+
+grapheme = root / "grapheme.rw"
+grapheme.write_text((sdk / "share/rewind/examples/gui-grapheme/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", grapheme)
+grapheme.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+for mode in ["debug", "compact"]:
+    actual = run("run", root / "grapheme.rwc", "--record", root / "grapheme-trace.json", "--record-mode", mode)
+    assert actual == "éb\n".encode("utf-8"), actual
+    assert run("replay", root / "grapheme-trace.json", "--root", root) == actual
+print("Verified extracted GUI grapheme model: cluster editing, scalar offsets, revert, source-free replay")

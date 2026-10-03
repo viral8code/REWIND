@@ -1,7 +1,7 @@
 {
-  "compiler": "1.9.6",
+  "compiler": "1.9.7",
   "dependencies": {},
   "effects": [],
   "format": 2,
-  "language": "1.9.6"
+  "language": "1.9.7"
 }

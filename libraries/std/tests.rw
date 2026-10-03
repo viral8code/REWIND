@@ -188,3 +188,19 @@ test fn residual_flow_and_matching_contracts() {
  let pairs=List<Tuple<Int,Int>>();pairs.push((0,0));pairs.push((0,1));pairs.push((1,0));
  match matching.maximum(2,2,&pairs) {Err(e)=>{panic(e);},Ok(result)=>{assert_eq(result.size,2);assert_eq(result.left.get(0),Some(1));assert_eq(result.left.get(1),Some(0));}}
 }
+
+test fn gui_grapheme_selection_mode_and_legacy_compatibility() {
+ match gui.window("clusters",320,200){Err(e)=>{panic(e.code);},Ok(view)=>{
+ assert_eq(gui.textBox(&mut view,"body","é👩‍💻",10,10,200,30),Ok(()));
+ assert_eq(gui.setSelection(&mut view,"body",1,1),Ok(()));
+ assert_eq(gui.graphemeEditing(&mut view,true),Ok(()));
+ assert_eq(gui.selection(&view,"body"),Ok((2,2)));
+ assert_eq(gui.setSelection(&mut view,"body",1,1),Err(StdError("GuiInvalidSelection",0)));
+ assert_eq(gui.setSelection(&mut view,"body",5,5),Ok(()));
+ assert_eq(gui.edit(&mut view,"body",gui.Event("key",0,0,"Backspace",0,0)),Ok(()));
+ assert_eq(gui.text(&view,"body"),Ok("é"));
+ assert_eq(gui.graphemeEditing(&mut view,false),Ok(()));
+ assert_eq(gui.edit(&mut view,"body",gui.Event("key",0,0,"Backspace",0,0)),Ok(()));
+ assert_eq(gui.text(&view,"body"),Ok("e"));
+ }}
+}

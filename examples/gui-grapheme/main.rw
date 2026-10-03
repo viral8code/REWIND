@@ -1,0 +1,24 @@
+import std.gui as gui;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("unexpected error");}}}
+let view=take(gui.window("Unicode editing",320,200));
+take(gui.textBox(&mut view,"name","é👩‍💻🇯🇵",10,10,280,30));
+take(gui.setSelection(&mut view,"name",1,1));
+take(gui.graphemeEditing(&mut view,true));
+assert_eq(gui.selection(&view,"name"),Ok((2,2)));
+assert_eq(gui.setSelection(&mut view,"name",3,3),Err(StdError("GuiInvalidSelection",0)));
+take(gui.setSelection(&mut view,"name",7,7));
+commit original;
+take(gui.edit(&mut view,"name",gui.Event("key",0,0,"Backspace",0,0)));
+assert_eq(gui.text(&view,"name"),Ok("é👩‍💻"));
+revert original;
+assert_eq(gui.text(&view,"name"),Ok("é👩‍💻🇯🇵"));
+drop original;
+take(gui.setSelection(&mut view,"name",2,2));
+take(gui.edit(&mut view,"name",gui.Event("key",0,0,"Delete",0,0)));
+assert_eq(gui.text(&view,"name"),Ok("é🇯🇵"));
+take(gui.setText(&mut view,"name","eb"));
+take(gui.setSelection(&mut view,"name",1,1));
+take(gui.edit(&mut view,"name",gui.Event("text",0,0,"́",0,0)));
+assert_eq(gui.selection(&view,"name"),Ok((2,2)));
+Out.println(take(gui.text(&view,"name")));
+publish;
