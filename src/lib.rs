@@ -650,7 +650,7 @@ pub enum FileMode {
     ReadWrite,
 }
 
-#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ResourceBudget {
     pub history_memory: usize,
     pub history_storage: usize,

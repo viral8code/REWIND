@@ -154,3 +154,16 @@ actual = run("run", root / "scheduler.rwc", "--record", root / "scheduler-trace.
 assert actual == b"1\n", actual
 assert run("replay", root / "scheduler-trace.json", "--root", root) == actual
 print("Verified scheduler collection with source-free replay")
+
+budget = root / "budget.rw"
+budget.write_text('Out.println(7);publish;', encoding="utf-8")
+run("compile", budget)
+budget.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "budget.rwc", "--history-memory", "1MiB",
+             "--history-storage", "2MiB", "--spill-threshold", "0",
+             "--record", root / "budget-trace.json")
+assert actual == b"7\n", actual
+assert run("replay", root / "budget-trace.json", "--root", root) == actual
+print("Verified CLI history budgets with source-free replay")

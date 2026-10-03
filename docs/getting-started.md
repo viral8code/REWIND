@@ -146,7 +146,7 @@ rewind run main.rw --record trace.json
 rewind replay trace.json --root .
 ```
 
-実行・履歴・stream/collectionには上限があります。`--steps N` / `--native-work N`で累積実行予算を指定します。Linuxのプロセスaddress-spaceは既定2,048 MiBで、`--memory-mib N`で指定できます。上限超過によるOS/allocatorの終了は言語のResultとして回復できません。保証範囲と未提供機能は[1.0仕様](REWIND_v1.0.md)を参照してください。
+実行・履歴・stream/collectionには上限があります。`--steps N` / `--native-work N`で累積実行予算を指定します。初期履歴予算は `--history-memory 512MiB` / `--history-storage 8GiB` / `--spill-threshold 8MiB` で指定できます。byte 数と KiB / MiB / GiB に対応し、spill threshold は 0 も指定できます。replay は記録した初期予算を復元します。Linuxのプロセスaddress-spaceは既定2,048 MiBで、`--memory-mib N`で指定できます。上限超過によるOS/allocatorの終了は言語のResultとして回復できません。履歴予算は RSS 上限とは異なります。[1.9.4 の費用・予算契約](REWIND_v1.9.4.md)を参照してください。
 
 ## エラーとエディタ
 

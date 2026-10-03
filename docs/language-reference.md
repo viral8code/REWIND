@@ -504,3 +504,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 ## Unicode（v1.8.5）
 
 `std.unicode` の grapheme API は extended grapheme cluster、offsets は UTF-8 byte offset、従来の `std.text` は scalar 単位です。NFC / NFD / NFKC / NFKD と full default casing は明示的に呼び出す pure な Result API。String / Map の自動正規化は行いません。上限・費用・データ版は [v1.8.5](REWIND_v1.8.5.md) を参照してください。
+
+## 初期履歴予算（v1.9.4）
+
+`rewind run` の `--history-memory SIZE` / `--history-storage SIZE` / `--spill-threshold SIZE` は初期 Runtime 予算を設定します。byte 数・KiB・MiB・GiB に対応し、spill threshold の 0 は強制 spill に使えます。言語内の `runtime` 設定は実行時に適用されます。trace は初期予算を記録し、replay で復元します。OS の RSS 上限と累積 work quota は独立です。[費用と移行契約](REWIND_v1.9.4.md)。

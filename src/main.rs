@@ -580,7 +580,7 @@ fn process_memory_limit(mib: usize) -> Result<()> {
 
 fn command_help(command: &str) -> Option<&'static str> {
     Some(match command {
-        "run" => "rewind run FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--record TRACE.json] [--gui-events EVENTS.json] [--steps N] [--native-work N] [--task-steps N] [-- ARGS...]\nRuns a source file or compiled artifact. Pending output requires publish;.",
+        "run" => "rewind run FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--record TRACE.json] [--gui-events EVENTS.json] [--steps N] [--native-work N] [--task-steps N] [--history-memory SIZE] [--history-storage SIZE] [--spill-threshold SIZE] [-- ARGS...]\nRuns a source file or compiled artifact. Pending output requires publish;.",
         "compile" => "rewind compile FILE.rw [--output FILE.rwc] [--root DIR] [--allow-effects EFFECTS]\nrewindc FILE.rw [--output FILE.rwc]\nChecks and compiles source; defaults to FILE.rwc. It does not execute the program.",
         "check" => "rewind check [FILE.rw...] [--root DIR]\nChecks types, ownership and effects without executing source.",
         "test" => "rewind test --root DIR [--filter NAME]\nRuns the project's test contracts; publish is unavailable in tests.",
@@ -636,7 +636,7 @@ fn main() {
             );
             return;
         }
-        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nBudgets: --steps N, --native-work N, --task-steps N, --memory-mib N (Linux).\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment, clock, GUI and external network access require explicit permission.", env!("CARGO_PKG_VERSION"));
+        println!("REWIND {}\nrewind run FILE.rw [--allow-effects EFFECTS]\nrewind compile FILE.rw [--output FILE.rwc]\nrewind run FILE.rwc [--allow-effects EFFECTS]\nrewind FILE.rwc\nrewindc FILE.rw\nProject: rewind check|test|run|build --root DIR\nTools: update, doc, fmt, replay, sdk-build, sdk-install, sdk-verify\nBudgets: --steps N, --native-work N, --task-steps N, --memory-mib N (Linux). History: --history-memory SIZE, --history-storage SIZE, --spill-threshold SIZE (bytes/KiB/MiB/GiB).\nStandalone defaults: input, output, args, locale, random, tasks.\nFile, environment, clock, GUI and external network access require explicit permission.", env!("CARGO_PKG_VERSION"));
         return;
     }
     if arguments.first().is_some_and(|a| a == "--version") {
@@ -1286,6 +1286,42 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                         ));
                     }
                     options.explore = limit;
+                }
+                "--history-memory" | "--history-storage" | "--spill-threshold" => {
+                    let option = remaining[index].clone();
+                    index += 1;
+                    let text = remaining.get(index).ok_or_else(|| {
+                        Error::InvalidOperation(format!("missing {option} budget"))
+                    })?;
+                    let (digits, factor) = if let Some(n) = text.strip_suffix("KiB") {
+                        (n, 1024usize)
+                    } else if let Some(n) = text.strip_suffix("MiB") {
+                        (n, 1024usize * 1024)
+                    } else if let Some(n) = text.strip_suffix("GiB") {
+                        (n, 1024usize * 1024 * 1024)
+                    } else {
+                        (text.as_str(), 1)
+                    };
+                    let value = digits
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|n| n.checked_mul(factor))
+                        .ok_or_else(|| {
+                            Error::InvalidOperation(format!("invalid {option} budget"))
+                        })?;
+                    if value == 0 && option != "--spill-threshold" {
+                        return Err(Error::InvalidOperation(format!(
+                            "{option} budget must be positive"
+                        )));
+                    }
+                    let budget = options
+                        .history_budget
+                        .get_or_insert_with(ResourceBudget::default);
+                    match option.as_str() {
+                        "--history-memory" => budget.history_memory = value,
+                        "--history-storage" => budget.history_storage = value,
+                        _ => budget.spill_threshold = value,
+                    }
                 }
                 "--native-work" | "--steps" => {
                     let option = remaining[index].clone();
