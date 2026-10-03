@@ -53,15 +53,8 @@ pub fn dispatch(view:&mut View,event:Event)->Option<Action> effects {} {
  }
  return None;
 }
-fn itemJson(w:Widget,focused:Bool,scroll:Int)->Json effects {} {
- let m=Map<String,Json>();m.set("id",Json::Text(w.id));m.set("kind",Json::Text(w.kind));m.set("x",Json::Int(w.x));m.set("y",Json::Int(w.y));m.set("width",Json::Int(w.width));m.set("height",Json::Int(w.height));m.set("text",Json::Text(w.caption));m.set("foreground",Json::Int(w.foreground));m.set("background",Json::Int(w.background));m.set("enabled",Json::Bool(w.enabled));m.set("checked",Json::Bool(w.checked));m.set("focused",Json::Bool(focused));m.set("cursor",Json::Int(w.cursor));m.set("anchor",Json::Int(w.anchor));m.set("scroll",Json::Int(scroll));return Json::Object(freeze(m));
-}
 // @api scene cost O(widget count + caption bytes); serialized scene at most 1 MiB.
-pub fn scene(view:&View)->Result<String,GuiError> effects {} {
- let items=List<Json>();for i in 0..view.widgets.len(){let w=view.widgets.get(i);var scroll=0;match view.scroll.get(w.id){Some(n)=>{scroll=n;},None=>{}}items.add(itemJson(w,view.focus==i,scroll));}
- let m=Map<String,Json>();m.set("title",Json::Text(view.title));m.set("width",Json::Int(view.width));m.set("height",Json::Int(view.height));m.set("background",Json::Int(view.background));m.set("items",Json::Array(freeze(items)));
- match jsonStringify(Json::Object(freeze(m))){Ok(s)=>{return Ok(s);},Err(e)=>{return Err(StdError(e.code,e.offset));}}
-}
+pub fn scene(view:&View)->Result<String,GuiError> effects {} {return stdGuiScene(view.title,view.width,view.height,view.background,&view.widgets,view.focus,&view.scroll);}
 // @api present failure Queues a scene; publish may fail with GuiUnavailable or PublishPartiallyApplied.
 pub fn present(view:&View)->Result<Unit,GuiError> effects {gui} {return stdGuiStage(scene(view)?);}
 fn integer(value:Json,key:String)->Int effects {} {match jsonGet(value,key){Some(Json::Int(v))=>{return v;},_=>{return 0;}}}

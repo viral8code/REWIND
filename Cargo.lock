@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "rewind"
-version = "1.9.12"
+version = "1.9.13"
 dependencies = [
  "aho-corasick",
  "base64 0.22.1",

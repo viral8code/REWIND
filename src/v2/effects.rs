@@ -67,7 +67,7 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
                     }
                 }
                 if base.starts_with("stdGui")
-                    && !matches!(base, "stdGuiEdit" | "stdGuiEditGrapheme")
+                    && !matches!(base, "stdGuiEdit" | "stdGuiEditGrapheme" | "stdGuiScene")
                 {
                     required.insert("gui".into());
                 }

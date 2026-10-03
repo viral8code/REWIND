@@ -36,7 +36,7 @@ pub fn render(table:&Table,title:String,width:Int,height:Int,rowHeight:Int,prefi
  var shown=table.visible;if shown>rows(table)-table.first{shown=rows(table)-table.first;}
  for r in 0..shown {let row=table.first+r;let y=16+(r+1)*rowHeight;let id=prefix+":row:"+row.format();var color=0xffffff;if row==table.selected{color=0xdbeafe;}
   gui.button(&mut view,id,"",16,y,width-32,rowHeight)?;gui.style(&mut view,id,0x111827,color)?;
-  for c in 0..columns {let cellId=prefix+":cell:"+r.format()+":"+c.format();gui.label(&mut view,cellId,cell(table,row,c)?,16+c*cellWidth,y,cellWidth,rowHeight)?;gui.style(&mut view,cellId,0x111827,color)?;}
+  for c in 0..columns {let cellId=prefix+":cell:"+r.format()+":"+c.format();gui.label(&mut view,cellId,cell(table,row,c)?,16+c*cellWidth,y,cellWidth,rowHeight)?;if color!=0xffffff{gui.style(&mut view,cellId,0x111827,color)?;}}
  }
  return Ok(move view);
 }
