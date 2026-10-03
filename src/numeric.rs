@@ -2,7 +2,10 @@
 //! A view owns a storage version: later writes copy only the touched data page.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex, Weak,
+};
 mod chunks;
 mod linalg;
 mod stats;
@@ -37,25 +40,183 @@ enum NodeKind {
     Leaf(Vec<u64>),
     Branch(Arc<Node>, Arc<Node>),
 }
-#[derive(Clone)]
 struct Node {
     kind: NodeKind,
     hash: [u8; 32],
     bytes: usize,
+    ledger_cost: usize,
+    ledgers: Mutex<Vec<Weak<Ledger>>>,
+    first_ledger: AtomicUsize,
+}
+// An address cache could accept a recycled Ledger allocation after its last Weak
+// is pruned. Monotonic IDs keep the fast path independent of allocator reuse.
+static NEXT_LEDGER_ID: AtomicUsize = AtomicUsize::new(1);
+struct Ledger {
+    id: usize,
+    bytes: AtomicUsize,
+    visits: AtomicUsize,
+    generation: AtomicUsize,
+    allocated: AtomicUsize,
+}
+impl Ledger {
+    fn charge(&self, bytes: usize) {
+        self.bytes.fetch_add(bytes, Ordering::Relaxed);
+        self.generation.fetch_add(1, Ordering::Relaxed);
+        self.allocated
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+                Some(n.saturating_add(bytes))
+            })
+            .unwrap();
+    }
+}
+impl Default for Ledger {
+    fn default() -> Self {
+        Self {
+            id: NEXT_LEDGER_ID
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                .expect("numeric ledger ID exhausted"),
+            bytes: AtomicUsize::new(0),
+            visits: AtomicUsize::new(0),
+            generation: AtomicUsize::new(0),
+            allocated: AtomicUsize::new(0),
+        }
+    }
+}
+/// Runtime-scoped accounting. Weak registrations never keep a numeric page alive.
+/// A Runtime registers values on its VM thread; independent runtimes use distinct IDs.
+#[derive(Clone, Default)]
+pub(crate) struct Accounting(Arc<Ledger>);
+#[derive(Default)]
+pub(crate) struct RegistrationMemo {
+    first_ledger: AtomicUsize,
+    ledgers: Mutex<Vec<Weak<Ledger>>>,
+}
+impl RegistrationMemo {
+    pub(crate) fn mark(&self, accounting: &Accounting) -> bool {
+        if self.first_ledger.load(Ordering::Acquire) == accounting.0.id {
+            return false;
+        }
+        let mut ledgers = self.ledgers.lock().unwrap();
+        ledgers.retain(|ledger| ledger.strong_count() > 0);
+        let candidate = Arc::downgrade(&accounting.0);
+        if ledgers
+            .iter()
+            .any(|ledger| Weak::ptr_eq(ledger, &candidate))
+        {
+            return false;
+        }
+        ledgers.push(candidate);
+        self.first_ledger.store(
+            ledgers.iter().find_map(Weak::upgrade).unwrap().id,
+            Ordering::Release,
+        );
+        true
+    }
+}
+impl Accounting {
+    pub fn bytes(&self) -> usize {
+        self.0.bytes.load(Ordering::Relaxed)
+    }
+    pub fn generation(&self) -> usize {
+        self.0.generation.load(Ordering::Relaxed)
+    }
+    pub fn allocated_bytes(&self) -> usize {
+        self.0.allocated.load(Ordering::Relaxed)
+    }
+    #[cfg(test)]
+    pub fn visits(&self) -> usize {
+        self.0.visits.load(Ordering::Relaxed)
+    }
+    pub fn register(&self, array: &Array) {
+        array.buffer.root.register(&self.0);
+    }
+}
+impl Clone for Node {
+    fn clone(&self) -> Self {
+        let kind = self.kind.clone();
+        let own_cost = std::mem::size_of::<Self>()
+            + 64
+            + match &kind {
+                NodeKind::Leaf(bits) => bits.capacity() * 8,
+                NodeKind::Branch(_, _) => 0,
+            };
+        // Cloning does not change content. Preserve its digest instead of hashing
+        // every old page again before the caller writes and hashes the new data.
+        let mut n = Self {
+            kind,
+            hash: self.hash,
+            bytes: self.bytes - self.ledger_cost + own_cost,
+            ledger_cost: own_cost,
+            ledgers: Mutex::new(Vec::new()),
+            first_ledger: AtomicUsize::new(0),
+        };
+        let registrations = self.ledgers.lock().unwrap();
+        for ledger in registrations.iter().filter_map(Weak::upgrade) {
+            ledger.charge(n.ledger_cost);
+            n.ledgers.get_mut().unwrap().push(Arc::downgrade(&ledger));
+        }
+        if let Some(first) = n.ledgers.get_mut().unwrap().iter().find_map(Weak::upgrade) {
+            n.first_ledger.store(first.id, Ordering::Release);
+        }
+        n
+    }
+}
+impl Drop for Node {
+    fn drop(&mut self) {
+        for ledger in self
+            .ledgers
+            .get_mut()
+            .unwrap()
+            .iter()
+            .filter_map(Weak::upgrade)
+        {
+            let old = ledger.bytes.fetch_sub(self.ledger_cost, Ordering::Relaxed);
+            debug_assert!(old >= self.ledger_cost);
+        }
+    }
 }
 impl Node {
+    fn register(&self, ledger: &Arc<Ledger>) {
+        if self.first_ledger.load(Ordering::Acquire) == ledger.id {
+            return;
+        }
+        ledger.visits.fetch_add(1, Ordering::Relaxed);
+        let mut registrations = self.ledgers.lock().unwrap();
+        registrations.retain(|l| l.strong_count() > 0);
+        if registrations
+            .iter()
+            .any(|l| Weak::ptr_eq(l, &Arc::downgrade(ledger)))
+        {
+            return;
+        }
+        registrations.push(Arc::downgrade(ledger));
+        ledger.charge(self.ledger_cost);
+        self.first_ledger.store(
+            registrations.iter().find_map(Weak::upgrade).unwrap().id,
+            Ordering::Release,
+        );
+        drop(registrations);
+        if let NodeKind::Branch(a, b) = &self.kind {
+            a.register(ledger);
+            b.register(ledger);
+        }
+    }
+
     fn new(kind: NodeKind) -> Self {
         let mut n = Self {
             kind,
             hash: [0; 32],
             bytes: 0,
+            ledger_cost: 0,
+            ledgers: Mutex::new(Vec::new()),
+            first_ledger: AtomicUsize::new(0),
         };
         n.refresh();
         n
     }
     fn refresh(&mut self) {
         let mut hash = Sha256::new();
-        self.bytes = std::mem::size_of::<Self>();
+        self.bytes = std::mem::size_of::<Self>() + 64;
         match &self.kind {
             NodeKind::Leaf(bits) => {
                 hash.update([0]);
@@ -73,6 +234,30 @@ impl Node {
             }
         }
         self.hash = hash.finalize().into();
+        let cost = std::mem::size_of::<Self>()
+            + 64
+            + match &self.kind {
+                NodeKind::Leaf(bits) => bits.capacity() * 8,
+                NodeKind::Branch(_, _) => 0,
+            };
+        if cost != self.ledger_cost {
+            for ledger in self
+                .ledgers
+                .get_mut()
+                .unwrap()
+                .iter()
+                .filter_map(Weak::upgrade)
+            {
+                if cost > self.ledger_cost {
+                    ledger.charge(cost - self.ledger_cost);
+                } else {
+                    ledger
+                        .bytes
+                        .fetch_sub(self.ledger_cost - cost, Ordering::Relaxed);
+                }
+            }
+        }
+        self.ledger_cost = cost;
     }
     fn get(&self, height: usize, index: usize) -> u64 {
         match &self.kind {
@@ -263,6 +448,9 @@ impl std::fmt::Debug for Array {
     }
 }
 impl Array {
+    pub fn storage_bytes(&self) -> usize {
+        self.buffer.root.bytes
+    }
     pub fn retained_bytes(&self) -> usize {
         self.buffer.root.bytes
             + self.shape.capacity() * 8
@@ -272,7 +460,7 @@ impl Array {
     pub fn storage_estimate(elements: usize) -> usize {
         elements
             .saturating_mul(8)
-            .saturating_add(elements.div_ceil(PAGE).saturating_mul(256))
+            .saturating_add(elements.div_ceil(PAGE).saturating_mul(384))
             .saturating_add(2048)
     }
     pub fn update_estimate(&self) -> usize {
@@ -1130,5 +1318,58 @@ mod tests {
         let empty = original.slice(0, values.len(), 0, 1).unwrap();
         assert_eq!(empty.bits().len(), 0);
         assert_eq!(empty.bits().next(), None);
+    }
+}
+
+#[cfg(test)]
+mod accounting_tests {
+    use super::*;
+    #[test]
+    fn accounts_shared_pages_and_cow_without_holding_storage() {
+        let ledger = Accounting::default();
+        let a = Array::zeros(DType::Float64, vec![1_000_000]).unwrap();
+        ledger.register(&a);
+        let initial = ledger.bytes();
+        assert!(initial >= 8_000_000);
+        let visits = ledger.visits();
+        for _ in 0..1000 {
+            ledger.register(&a);
+        }
+        assert_eq!(ledger.visits() - visits, 0);
+        let mut b = a.clone();
+        ledger.register(&b);
+        assert_eq!(ledger.bytes(), initial);
+        b.set_float(&[1], 2.0).unwrap();
+        ledger.register(&b);
+        assert!(ledger.bytes() > initial);
+        assert!(ledger.bytes() - initial < 16384);
+        assert_eq!(f64::from_bits(a.buffer.get(1)), 0.0);
+        drop(a);
+        let retained = ledger.bytes();
+        assert!(retained >= 8_000_000);
+        assert!(retained < initial + 16384);
+        drop(b);
+        assert_eq!(ledger.bytes(), 0);
+    }
+    #[test]
+    fn independent_ledgers_and_unique_mutation() {
+        let one = Accounting::default();
+        let two = Accounting::default();
+        let mut a = Array::zeros(DType::Float64, vec![300]).unwrap();
+        one.register(&a);
+        two.register(&a);
+        assert_eq!(one.bytes(), two.bytes());
+        let before = one.bytes();
+        a.set_float(&[270], 7.0).unwrap();
+        assert_eq!(before, one.bytes());
+        let mut b = a.clone();
+        b.set_float(&[2], 3.0).unwrap();
+        assert_eq!(one.bytes(), two.bytes());
+        drop(one);
+        b.set_float(&[299], 4.0).unwrap();
+        two.register(&b);
+        drop(a);
+        drop(b);
+        assert_eq!(two.bytes(), 0);
     }
 }

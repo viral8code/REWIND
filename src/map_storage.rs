@@ -7,6 +7,7 @@ struct Entry {
     value: Arc<Value>,
     bytes: usize,
     allocation_bytes: usize,
+    numeric_bytes: usize,
 }
 impl Entry {
     fn new(key: Arc<MapKey>, value: Arc<Value>) -> Arc<Self> {
@@ -24,11 +25,13 @@ impl Entry {
         let allocation_bytes = key_bytes
             .saturating_add(Runtime::allocation_bytes(&value))
             .saturating_add(192);
+        let numeric_bytes = Runtime::numeric_payload_bytes(&value);
         Arc::new(Self {
             key,
             value,
             bytes,
             allocation_bytes,
+            numeric_bytes,
         })
     }
 }
@@ -40,6 +43,8 @@ struct Node {
     size: usize,
     bytes: usize,
     allocation_bytes: usize,
+    numeric_bytes: usize,
+    numeric_registered: crate::numeric::RegistrationMemo,
 }
 impl std::ops::Deref for Node {
     type Target = Entry;
@@ -63,6 +68,11 @@ fn bytes(n: &Link) -> usize {
 fn node(entry: Arc<Entry>, left: Link, right: Link) -> Arc<Node> {
     NODES.with(|n| n.set(n.get() + 1));
     Arc::new(Node {
+        numeric_bytes: entry
+            .numeric_bytes
+            .saturating_add(left.as_ref().map_or(0, |n| n.numeric_bytes))
+            .saturating_add(right.as_ref().map_or(0, |n| n.numeric_bytes)),
+        numeric_registered: Default::default(),
         height: 1 + height(&left).max(height(&right)),
         size: 1 + size(&left) + size(&right),
         bytes: entry.bytes + bytes(&left) + bytes(&right),
@@ -185,6 +195,23 @@ impl PersistentMap {
     }
     pub fn allocation_bytes(&self) -> usize {
         self.root.as_ref().map_or(0, |n| n.allocation_bytes)
+    }
+    pub(crate) fn numeric_bytes(&self) -> usize {
+        self.root.as_ref().map_or(0, |n| n.numeric_bytes)
+    }
+    pub(crate) fn register_numerics(&self, accounting: &crate::numeric::Accounting) {
+        fn visit(node: &Node, accounting: &crate::numeric::Accounting) {
+            if node.numeric_bytes == 0 || !node.numeric_registered.mark(accounting) {
+                return;
+            }
+            Runtime::register_numeric_value(&node.entry.value, accounting);
+            for child in [&node.left, &node.right].into_iter().flatten() {
+                visit(child, accounting);
+            }
+        }
+        if let Some(root) = &self.root {
+            visit(root, accounting);
+        }
     }
     pub fn logical_bytes(&self) -> usize {
         bytes(&self.root)

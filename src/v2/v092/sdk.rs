@@ -364,6 +364,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "REWIND_v1.9.11.md",
+                include_str!("../../../docs/REWIND_v1.9.11.md"),
+            ),
+            (
                 "REWIND_v1.9.10.md",
                 include_str!("../../../docs/REWIND_v1.9.10.md"),
             ),
@@ -437,6 +441,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/datetime-postgres/README.md"),
             ),
             (
+                "numeric-memory",
+                include_str!("../../../examples/numeric-memory/README.md"),
+            ),
+            (
                 "numeric-async",
                 include_str!("../../../examples/numeric-async/README.md"),
             ),
@@ -487,6 +495,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-grapheme",
                 include_str!("../../../examples/gui-grapheme/main.rw"),
+            ),
+            (
+                "numeric-memory",
+                include_str!("../../../examples/numeric-memory/main.rw"),
             ),
             (
                 "numeric-async",
