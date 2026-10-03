@@ -143,3 +143,14 @@ actual = run("run", root / "pages.rwc", "--allow-effects", "fileRead,fileWrite",
 assert actual == b"1\n", actual
 assert run("replay", root / "pages-trace.json", "--root", root, "--allow-effects", "fileRead,fileWrite") == actual
 print("Verified file page reads, snapshot isolation and source-free replay")
+
+scheduler = root / "scheduler.rw"
+scheduler.write_text('async fn work()->Int effects {} {return 7;}for i in 0..160 {let task=work();assert_eq(await task,Ok(7));}Out.println(1);publish;', encoding="utf-8")
+run("compile", scheduler)
+scheduler.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "scheduler.rwc", "--record", root / "scheduler-trace.json")
+assert actual == b"1\n", actual
+assert run("replay", root / "scheduler-trace.json", "--root", root) == actual
+print("Verified scheduler collection with source-free replay")
