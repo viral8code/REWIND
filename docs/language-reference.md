@@ -520,3 +520,5 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cluster 単位で編集する。既定値は false。選択位置は scalar offset のままで、有効化時に境界へ切り上げ、有効化後は cluster 内部の `setSelection` を拒否する。モードも checkpoint の対象になる。[v1.9.7](REWIND_v1.9.7.md) と SDK の gui-grapheme 例を参照。
 
 v1.9.8 では Share 制約付き generic 関数の再帰呼出しに対する effect 解析を修正した。標準ライブラリの lazySegment / trie / suffix / geometry は [各版の契約](REWIND_v1.9.8.md) を参照。
+
+v1.9.9 の std.guiWindows は名前付きの複数 native 画面、入力振り分けと source-free replay を提供する。[GUI 契約](REWIND_v1.9.9.md)を参照。

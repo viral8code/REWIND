@@ -1,0 +1,31 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("GUI operation failed");}}}
+let left=take(gui.window("Text — REWIND",320,160));
+let right=take(gui.window("Counter — REWIND",320,200));
+take(gui.textBox(&mut left,"text","REWIND",10,10,280,36));
+take(gui.graphemeEditing(&mut left,true));
+take(gui.button(&mut right,"add","Add",10,10,120,36));
+take(gui.button(&mut right,"undo","Undo",10,60,120,36));
+take(gui.label(&mut right,"value","0",160,10,100,36));
+var counter=0;
+take(windows.present("text",&left));take(windows.present("counter",&right));publish;
+var running=true;
+commit modelStart;
+while running {
+ let received=take(windows.nextEventAny());
+ if received.event.kind=="close" {running=false;}
+ else {
+  if received.window=="text" {gui.dispatch(&mut left,received.event);}
+  if received.window=="counter" {
+   match gui.dispatch(&mut right,received.event) {
+    Some(gui.Action::Activate("add"))=>{counter+=1;Out.println(counter);},
+    Some(gui.Action::Activate("undo"))=>{revert modelStart;windows.continueInput();Out.println(counter);},
+    _=>{}
+   }
+  }
+  take(gui.setText(&mut right,"value",""+counter));
+  take(windows.present("text",&left));take(windows.present("counter",&right));publish;
+ }
+}
+take(windows.close("text"));take(windows.close("counter"));publish;drop modelStart;

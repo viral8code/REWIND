@@ -681,10 +681,12 @@ pub struct State {
     pub stderr: Journal,
     pub stdin_cursor: usize,
     gui_cursor: usize,
+    gui_windows_cursor: usize,
     external_cursor: usize,
     external_poll_cursor: usize,
     native_owners: Arc<BTreeMap<u64, u64>>,
     gui_pending: Option<gui::Request>,
+    gui_windows_pending: Arc<BTreeMap<String, gui::Request>>,
     pub byte_cursor: usize,
     pub time_cursor: usize,
     pub args_cursor: usize,
@@ -713,10 +715,12 @@ impl Default for State {
             stderr: Journal::default(),
             stdin_cursor: 0,
             gui_cursor: 0,
+            gui_windows_cursor: 0,
             external_cursor: 0,
             external_poll_cursor: 0,
             native_owners: Arc::new(BTreeMap::new()),
             gui_pending: None,
+            gui_windows_pending: Arc::new(BTreeMap::new()),
             byte_cursor: 0,
             time_cursor: 0,
             args_cursor: 0,
@@ -772,6 +776,14 @@ pub struct Runtime {
     gui_displayed: Option<Arc<gui::Frame>>,
     gui_observations: Vec<gui::Event>,
     gui_high_water: usize,
+    gui_window_hosts: BTreeMap<String, gui::Host>,
+    gui_window_frames: BTreeMap<String, Arc<gui::Frame>>,
+    gui_window_observations: Vec<gui::WindowInput>,
+    gui_window_observation_bytes: usize,
+    gui_window_scripted_bytes: usize,
+    gui_window_high_water: usize,
+    gui_window_scripted: Option<std::collections::VecDeque<gui::WindowEvent>>,
+    gui_window_last_polled: Option<String>,
     external_entries: Vec<external::Entry>,
     external_high_water: usize,
     external_memory_bytes: usize,
@@ -1239,6 +1251,14 @@ impl Runtime {
             gui_displayed: None,
             gui_observations: Vec::new(),
             gui_high_water: 0,
+            gui_window_hosts: BTreeMap::new(),
+            gui_window_frames: BTreeMap::new(),
+            gui_window_observations: Vec::new(),
+            gui_window_observation_bytes: 0,
+            gui_window_scripted_bytes: 0,
+            gui_window_high_water: 0,
+            gui_window_scripted: None,
+            gui_window_last_polled: None,
             external_entries: Vec::new(),
             external_high_water: 0,
             external_memory_bytes: 0,
@@ -1349,6 +1369,8 @@ impl Runtime {
         {
             self.state.gui_pending = None;
         }
+        Arc::make_mut(&mut self.state.gui_windows_pending)
+            .retain(|_, r| !self.published_operations.contains(&r.id));
         self.state.stdout = self.state.stdout.unpublished(&self.published_operations);
         self.state.stderr = self.state.stderr.unpublished(&self.published_operations);
         let files = Arc::make_mut(&mut self.state.files);
@@ -1372,6 +1394,7 @@ impl Runtime {
         }
     }
     fn finish_publish(&mut self, next_epoch: u64) {
+        self.state.gui_windows_pending = Arc::new(BTreeMap::new());
         if let Some(request) = self.state.gui_pending.take() {
             self.published_operations.insert(request.id);
         }
@@ -1426,6 +1449,7 @@ impl Runtime {
             referenced.extend(state.stderr.operations());
             referenced.extend(state.file_operations.values());
             referenced.extend(state.gui_pending.iter().map(|r| r.id));
+            referenced.extend(state.gui_windows_pending.values().map(|r| r.id));
             referenced.extend(state.directory_operations.values());
         }
         self.published_operations
@@ -1652,11 +1676,30 @@ impl Runtime {
                     .as_ref()
                     .map_or(0, network::Host::reserved_bytes),
             );
+        compute_memory = compute_memory
+            .saturating_add(self.gui_window_observation_bytes)
+            .saturating_add(self.gui_window_scripted_bytes);
         let mut gui_roots = HashSet::new();
         for state in std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
             .chain(branch_roots.iter().map(AsRef::as_ref))
         {
+            compute_memory = compute_memory.saturating_add(
+                state
+                    .gui_windows_pending
+                    .keys()
+                    .map(|k| k.len() + 64)
+                    .sum::<usize>(),
+            );
+            for frame in state
+                .gui_windows_pending
+                .values()
+                .filter_map(|r| r.frame.as_ref())
+            {
+                if gui_roots.insert(Arc::as_ptr(frame) as usize) {
+                    compute_memory = compute_memory.saturating_add(frame.bytes());
+                }
+            }
             if let Some(frame) = state.gui_pending.as_ref().and_then(|r| r.frame.as_ref()) {
                 if gui_roots.insert(Arc::as_ptr(frame) as usize) {
                     compute_memory = compute_memory.saturating_add(frame.bytes());
@@ -1665,6 +1708,15 @@ impl Runtime {
         }
         if let Some(frame) = &self.gui_displayed {
             compute_memory = compute_memory.saturating_add(frame.bytes().saturating_mul(2));
+        }
+        for (id, frame) in &self.gui_window_frames {
+            compute_memory = compute_memory
+                .saturating_add(id.len() + 128 + frame.bytes().saturating_mul(2))
+                .saturating_add(
+                    (frame.width as usize)
+                        .saturating_mul(frame.height as usize)
+                        .saturating_mul(4),
+                );
         }
         if compute_memory > self.budget.history_memory {
             self.history_budget_kind.set("HistoryMemory");
@@ -3019,6 +3071,7 @@ impl Runtime {
             ));
         }
         self.gui_prepare()?;
+        self.gui_windows_prepare()?;
         if self.replaying || self.virtual_publish {
             if !self.virtual_publish {
                 if let Err(error) = self
@@ -3045,6 +3098,7 @@ impl Runtime {
                 }
             }
             self.gui_apply()?;
+            self.gui_windows_apply(&mut Vec::new())?;
             self.finish_publish(next_epoch);
             return Ok(());
         }
@@ -3207,6 +3261,9 @@ impl Runtime {
         }
         if self.state.gui_pending.is_some() {
             applied.push("gui".into());
+        }
+        if let Err(error) = self.gui_windows_apply(&mut applied) {
+            return Err(self.fail_publish("gui-window", None, &applied, error));
         }
         if let Err(error) = self
             .state

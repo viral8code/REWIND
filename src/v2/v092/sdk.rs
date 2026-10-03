@@ -75,6 +75,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("http", include_str!("../../../libraries/std/http.rw")),
         ("db", include_str!("../../../libraries/std/db.rw")),
         ("gui", include_str!("../../../libraries/std/gui.rw")),
+        (
+            "guiWindows",
+            include_str!("../../../libraries/std/guiWindows.rw"),
+        ),
         ("args", include_str!("../../../libraries/std/args.rw")),
         ("bits", include_str!("../../../libraries/std/bits.rw")),
         ("bytes", include_str!("../../../libraries/std/bytes.rw")),
@@ -355,6 +359,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "REWIND_v1.9.9.md",
+                include_str!("../../../docs/REWIND_v1.9.9.md"),
+            ),
+            (
                 "REWIND_v1.9.8.md",
                 include_str!("../../../docs/REWIND_v1.9.8.md"),
             ),
@@ -424,6 +432,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/advanced-algorithms/README.md"),
             ),
             (
+                "gui-windows",
+                include_str!("../../../examples/gui-windows/README.md"),
+            ),
+            (
                 "gui-grapheme",
                 include_str!("../../../examples/gui-grapheme/README.md"),
             ),
@@ -455,6 +467,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             )?;
         }
         for (name, source) in [
+            (
+                "gui-windows",
+                include_str!("../../../examples/gui-windows/main.rw"),
+            ),
             (
                 "gui-grapheme",
                 include_str!("../../../examples/gui-grapheme/main.rw"),
@@ -502,6 +518,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 source,
             )?;
         }
+        write(
+            &output,
+            "share/rewind/examples/gui-windows/events.json",
+            include_str!("../../../examples/gui-windows/events.json"),
+        )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.2.md",

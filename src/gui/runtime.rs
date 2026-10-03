@@ -62,6 +62,8 @@ impl Runtime {
                     "ReplayMismatch: GUI event journal exhausted".into(),
                 ));
             }
+            // Bound the next journal entry before taking an event from the host.
+            self.check_native_allocation(8192)?;
             let e = if let Some(tape) = self.gui_scripted.as_mut() {
                 tape.pop_front()
                     .ok_or_else(|| Error::InvalidOperation("GuiEventTapeEnd".into()))?

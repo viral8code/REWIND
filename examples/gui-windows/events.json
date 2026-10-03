@@ -1,0 +1,5 @@
+[
+ {"window":"counter","event":{"kind":"pointer","x":20,"y":20,"key":"","width":0,"height":0}},
+ {"window":"counter","event":{"kind":"pointer","x":20,"y":70,"key":"","width":0,"height":0}},
+ {"window":"text","event":{"kind":"close","x":0,"y":0,"key":"","width":0,"height":0}}
+]
