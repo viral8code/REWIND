@@ -373,6 +373,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.13.md"),
             ),
             (
+                "REWIND_v1.9.14.md",
+                include_str!("../../../docs/REWIND_v1.9.14.md"),
+            ),
+            (
                 "REWIND_v1.9.12.md",
                 include_str!("../../../docs/REWIND_v1.9.12.md"),
             ),

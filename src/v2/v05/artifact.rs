@@ -94,7 +94,23 @@ pub fn build(
     }
     Ok(artifact)
 }
-pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
+pub fn run(path: &Path, root: &Path, options: RunOptions) -> Result<()> {
+    run_with_policy(path, root, options, None)
+}
+pub fn run_compiled(
+    path: &Path,
+    root: &Path,
+    options: RunOptions,
+    policy: Option<&project::RuntimePolicy>,
+) -> Result<()> {
+    run_with_policy(path, root, options, policy)
+}
+fn run_with_policy(
+    path: &Path,
+    root: &Path,
+    mut options: RunOptions,
+    policy: Option<&project::RuntimePolicy>,
+) -> Result<()> {
     if let Some(key) = &options.verify_key {
         packages::verify_file(
             path,
@@ -121,6 +137,13 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
     }
     let mut program: Program =
         serde_json::from_value(payload["program"].clone()).map_err(|e| invalid(&e.to_string()))?;
+    if let Some(policy) = policy {
+        if program.language != policy.language || payload["assets"] != policy.assets {
+            return Err(invalid(
+                "compiled runtime manifest language/assets mismatch",
+            ));
+        }
+    }
     if !matches!(
         program.language.as_str(),
         "0.5"
@@ -170,6 +193,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.11"
             | "1.9.12"
             | "1.9.13"
+            | "1.9.14"
             | "2.0.0"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
@@ -242,6 +266,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.11"
             | "1.9.12"
             | "1.9.13"
+            | "1.9.14"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
         != serde_json::to_value(standard.structs.get("StdError")).ok()
@@ -382,6 +407,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.11"
             | "1.9.12"
             | "1.9.13"
+            | "1.9.14"
             | "2.0.0"
     ) {
         for n in ["Json", "JsonError"] {
@@ -448,6 +474,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.11"
             | "1.9.12"
             | "1.9.13"
+            | "1.9.14"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
@@ -530,6 +557,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.11"
             | "1.9.12"
             | "1.9.13"
+            | "1.9.14"
             | "2.0.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
@@ -584,6 +612,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.11"
             | "1.9.12"
             | "1.9.13"
+            | "1.9.14"
             | "2.0.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
@@ -704,6 +733,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.11"
             | "1.9.12"
             | "1.9.13"
+            | "1.9.14"
             | "2.0.0"
     ) {
         v06::infer(&mut program)?;
