@@ -11,16 +11,16 @@ pub fn storage_work() -> (usize, usize) {
 fn reset_work() {
     WORK.with(|w| w.set((0, 0)));
 }
-#[derive(Debug)]
 enum Kind {
     Leaf(Vec<Arc<Value>>),
     Branch(Option<Arc<Node>>, Option<Arc<Node>>),
 }
-#[derive(Debug)]
 struct Node {
     kind: Kind,
     bytes: usize,
     allocation_bytes: usize,
+    numeric_bytes: usize,
+    numeric_registered: crate::numeric::RegistrationMemo,
 }
 impl Clone for Node {
     fn clone(&self) -> Self {
@@ -38,6 +38,8 @@ impl Clone for Node {
         Self {
             bytes: self.bytes,
             allocation_bytes: self.allocation_bytes,
+            numeric_bytes: self.numeric_bytes,
+            numeric_registered: Default::default(),
             kind: match &self.kind {
                 Kind::Leaf(xs) => Kind::Leaf(xs.clone()),
                 Kind::Branch(a, b) => Kind::Branch(a.clone(), b.clone()),
@@ -63,6 +65,31 @@ impl PagedValues {
     }
     pub fn logical_bytes(&self) -> usize {
         self.root.as_ref().map_or(0, |n| n.bytes)
+    }
+    pub(crate) fn numeric_bytes(&self) -> usize {
+        self.root.as_ref().map_or(0, |n| n.numeric_bytes)
+    }
+    pub(crate) fn register_numerics(&self, accounting: &crate::numeric::Accounting) {
+        fn visit(node: &Node, accounting: &crate::numeric::Accounting) {
+            if node.numeric_bytes == 0 || !node.numeric_registered.mark(accounting) {
+                return;
+            }
+            match &node.kind {
+                Kind::Leaf(values) => {
+                    for value in values {
+                        Runtime::register_numeric_value(value, accounting);
+                    }
+                }
+                Kind::Branch(left, right) => {
+                    for child in [left, right].into_iter().flatten() {
+                        visit(child, accounting);
+                    }
+                }
+            }
+        }
+        if let Some(root) = &self.root {
+            visit(root, accounting);
+        }
     }
     pub fn get(&self, index: usize) -> Option<&Value> {
         if index >= self.len {
@@ -102,6 +129,8 @@ impl PagedValues {
                 },
                 bytes: 0,
                 allocation_bytes: 128,
+                numeric_bytes: 0,
+                numeric_registered: Default::default(),
             })
         }));
         let old = match &mut n.kind {
@@ -124,6 +153,7 @@ impl PagedValues {
                     }
                 };
                 n.bytes = xs.iter().map(|v| Runtime::value_bytes(v)).sum();
+                n.numeric_bytes = xs.iter().map(|v| Runtime::numeric_payload_bytes(v)).sum();
                 n.allocation_bytes = xs.iter().fold(128usize, |n, v| {
                     n.saturating_add(Runtime::allocation_bytes(v))
                         .saturating_add(32)
@@ -141,12 +171,17 @@ impl PagedValues {
                     .as_ref()
                     .map_or(0, |n| n.bytes)
                     .saturating_add(b.as_ref().map_or(0, |n| n.bytes));
+                n.numeric_bytes = a
+                    .as_ref()
+                    .map_or(0, |n| n.numeric_bytes)
+                    .saturating_add(b.as_ref().map_or(0, |n| n.numeric_bytes));
                 n.allocation_bytes = 128usize
                     .saturating_add(a.as_ref().map_or(0, |n| n.allocation_bytes))
                     .saturating_add(b.as_ref().map_or(0, |n| n.allocation_bytes));
                 old
             }
         };
+        n.numeric_registered = Default::default();
         old
     }
     pub fn push(&mut self, value: Value) {
@@ -154,6 +189,8 @@ impl PagedValues {
             self.root = Some(Arc::new(Node {
                 bytes: self.logical_bytes(),
                 allocation_bytes: self.allocation_bytes().saturating_add(128),
+                numeric_bytes: self.numeric_bytes(),
+                numeric_registered: Default::default(),
                 kind: Kind::Branch(self.root.take(), None),
             }));
             self.height += 1;
@@ -225,6 +262,12 @@ pub struct HeapStore(crate::PersistentMap);
 impl HeapStore {
     pub fn allocation_bytes(&self) -> usize {
         self.0.allocation_bytes()
+    }
+    pub(crate) fn numeric_bytes(&self) -> usize {
+        self.0.numeric_bytes()
+    }
+    pub(crate) fn register_numerics(&self, accounting: &crate::numeric::Accounting) {
+        self.0.register_numerics(accounting);
     }
     fn key(id: u64) -> crate::MapKey {
         crate::MapKey::Bytes(id.to_be_bytes().to_vec())

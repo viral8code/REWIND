@@ -242,3 +242,14 @@ for mode in ["debug", "compact"]:
     assert actual == b"9000\n32\n32\n", actual
     assert run("replay", root / "cooperative-trace.json", "--root", root) == actual
 print("Verified extracted cooperative numeric kernels: foreground task, bitwise matrix result, checkpoint, source-free replay and restored work budget")
+
+shared = root / "shared-memory.rw"
+shared.write_text((sdk / "share/rewind/examples/numeric-memory/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", shared)
+shared.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "shared-memory.rwc", "--history-memory", "64MiB", "--native-work", "100000000", "--steps", "10000000", "--task-steps", "10000000", "--record", root / "shared-memory-trace.json", "--record-mode", "compact")
+assert actual == b"1000000\n64\n0\n", actual
+assert run("replay", root / "shared-memory-trace.json", "--root", root) == actual
+print("Verified extracted shared numeric memory: million-element task, 64 COW checkpoints, source-free compact replay and restored history budget")

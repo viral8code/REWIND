@@ -171,3 +171,5 @@ SDK の `share/rewind/examples/gui/main.rw` をコピーし、`rewind run main.r
 複数画面は SDK の `share/rewind/examples/gui-windows` をコピーして `rewind run main.rw --allow-effects gui` で試せる。[GUI guide](gui.md) に fixture と replay の手順を記載する。
 
 協調的な数値処理は SDK の `share/rewind/examples/numeric-async` をコピーし、`rewind run main.rw --native-work 100000000` で試せる。GUI と task を併用する loop には `std.task.yieldNow()` を使う。[契約](REWIND_v1.9.10.md)。
+
+1.9.11 以降は共有する数値 page を Runtime の履歴 memory 予算で一度だけ数えます。task の16MiB上限では数値 descriptor 等を数えます。checkpoint に保持した差分の page は、最後の参照を捨てるまで保持します。大きい計算の記録は compact を選べます。[会計の契約](REWIND_v1.9.11.md)を参照してください。
