@@ -331,7 +331,8 @@ pub(in crate::v2::vm) fn borrowed_roots<'a>(
 mod tests {
     use super::*;
     fn vm() -> Vm<std::io::Cursor<Vec<u8>>> {
-        let root = std::env::temp_dir();
+        // Windows canonical paths include the extended-length prefix used by Vm::new.
+        let root = std::fs::canonicalize(std::env::temp_dir()).unwrap();
         let program = Program {
             language: "1.9.3".into(),
             root_origin: root.join("main.rw"),
