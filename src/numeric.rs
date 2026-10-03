@@ -148,7 +148,6 @@ impl Buffer {
     fn set(&mut self, index: usize, value: u64) {
         Node::write(&mut self.root, self.height, index, value);
     }
-    #[cfg(test)]
     fn leaf(&self, index: usize) -> &Arc<Node> {
         let mut node = &self.root;
         let mut h = self.height;
@@ -166,6 +165,70 @@ impl Buffer {
         node
     }
 }
+// Sequential storage reads descend once per page and never allocate a temporary buffer.
+struct BufferRange<'a> {
+    buffer: &'a Buffer,
+    next: usize,
+    end: usize,
+    pending: &'a [u64],
+}
+impl Iterator for BufferRange<'_> {
+    type Item = u64;
+    fn next(&mut self) -> Option<u64> {
+        if self.next == self.end {
+            return None;
+        }
+        if self.pending.is_empty() {
+            let NodeKind::Leaf(bits) = &self.buffer.leaf(self.next).kind else {
+                unreachable!()
+            };
+            let offset = self.next % PAGE;
+            let count = (self.end - self.next).min(bits.len() - offset);
+            self.pending = &bits[offset..offset + count];
+        }
+        let value = self.pending[0];
+        self.pending = &self.pending[1..];
+        self.next += 1;
+        Some(value)
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = self.end - self.next;
+        (n, Some(n))
+    }
+}
+impl ExactSizeIterator for BufferRange<'_> {}
+enum ArrayBits<'a> {
+    Contiguous(BufferRange<'a>),
+    Strided {
+        array: &'a Array,
+        next: usize,
+        end: usize,
+    },
+}
+impl Iterator for ArrayBits<'_> {
+    type Item = u64;
+    fn next(&mut self) -> Option<u64> {
+        match self {
+            Self::Contiguous(range) => range.next(),
+            Self::Strided { array, next, end } => {
+                if *next == *end {
+                    return None;
+                }
+                let value = array.buffer.get(array.flat_index(*next));
+                *next += 1;
+                Some(value)
+            }
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = match self {
+            Self::Contiguous(range) => range.len(),
+            Self::Strided { next, end, .. } => end - next,
+        };
+        (n, Some(n))
+    }
+}
+impl ExactSizeIterator for ArrayBits<'_> {}
 impl PartialEq for Buffer {
     fn eq(&self, other: &Self) -> bool {
         self.len == other.len
@@ -214,7 +277,23 @@ impl Array {
         PAGE * 8 + (self.buffer.height + 1) * 256 + 2048
     }
     pub fn bits(&self) -> impl ExactSizeIterator<Item = u64> + '_ {
-        (0..self.len()).map(|i| self.buffer.get(self.flat_index(i)))
+        let len = self.len();
+        if self.contiguous() {
+            // Empty views can have an offset outside storage; no page is accessed.
+            let start = if len == 0 { 0 } else { self.offset as usize };
+            ArrayBits::Contiguous(BufferRange {
+                buffer: &self.buffer,
+                next: start,
+                end: start + len,
+                pending: &[],
+            })
+        } else {
+            ArrayBits::Strided {
+                array: self,
+                next: 0,
+                end: len,
+            }
+        }
     }
 }
 // Wire descriptors preserve IEEE bits, shape, negative strides and read-only broadcasting.
@@ -532,27 +611,19 @@ impl Array {
         Ok(result)
     }
     pub fn materialize(&self) -> Result<Self> {
-        Self::from_bits(
-            self.dtype,
-            self.shape.clone(),
-            (0..self.len()).map(|i| self.buffer.get(self.flat_index(i))),
-        )
+        Self::from_bits(self.dtype, self.shape.clone(), self.bits())
     }
     pub fn float_values(&self) -> Result<Vec<f64>> {
         if self.dtype != DType::Float64 {
             return Err(Error::Type);
         }
-        Ok((0..self.len())
-            .map(|i| f64::from_bits(self.buffer.get(self.flat_index(i))))
-            .collect())
+        Ok(self.bits().map(f64::from_bits).collect())
     }
     pub fn integer_values(&self) -> Result<Vec<i64>> {
         if self.dtype != DType::Int64 {
             return Err(Error::Type);
         }
-        Ok((0..self.len())
-            .map(|i| self.buffer.get(self.flat_index(i)) as i64)
-            .collect())
+        Ok(self.bits().map(|bit| bit as i64).collect())
     }
     /// Broadcast is explicit and read-only in the native descriptor. Materialize before writing a repeated view.
     pub fn broadcast(&self, shape: Vec<usize>) -> Result<Self> {
@@ -582,8 +653,8 @@ impl Array {
             return Err(Error::Type);
         }
         let mut values = Vec::with_capacity(self.len());
-        for i in 0..self.len() {
-            let v = f(f64::from_bits(self.buffer.get(self.flat_index(i))))?;
+        for bit in self.bits() {
+            let v = f(f64::from_bits(bit))?;
             if !v.is_finite() {
                 return Err(Error::NonFinite);
             }
@@ -603,9 +674,9 @@ impl Array {
             return Err(Error::Shape);
         }
         let mut values = Vec::with_capacity(self.len());
-        for i in 0..self.len() {
-            let a = f64::from_bits(self.buffer.get(self.flat_index(i)));
-            let b = f64::from_bits(other.buffer.get(other.flat_index(i)));
+        for (a, b) in self.bits().zip(other.bits()) {
+            let a = f64::from_bits(a);
+            let b = f64::from_bits(b);
             let v = f(a, b)?;
             if !v.is_finite() {
                 return Err(Error::NonFinite);
@@ -626,14 +697,8 @@ impl Array {
             return Err(Error::Shape);
         }
         let mut values = Vec::with_capacity(self.len());
-        for i in 0..self.len() {
-            values.push(
-                f(
-                    self.buffer.get(self.flat_index(i)) as i64,
-                    other.buffer.get(other.flat_index(i)) as i64,
-                )
-                .ok_or(Error::Overflow)?,
-            );
+        for (a, b) in self.bits().zip(other.bits()) {
+            values.push(f(a as i64, b as i64).ok_or(Error::Overflow)?);
         }
         Self::integers(self.shape.clone(), &values)
     }
@@ -643,8 +708,8 @@ impl Array {
         }
         let mut sum = 0.0f64;
         let mut correction = 0.0;
-        for i in 0..self.len() {
-            let v = f64::from_bits(self.buffer.get(self.flat_index(i)));
+        for bit in self.bits() {
+            let v = f64::from_bits(bit);
             if !v.is_finite() {
                 return Err(Error::NonFinite);
             }
@@ -671,8 +736,8 @@ impl Array {
         }
         let mut mean = 0.0;
         let mut m2 = 0.0;
-        for i in 0..self.len() {
-            let v = f64::from_bits(self.buffer.get(self.flat_index(i)));
+        for (i, bit) in self.bits().enumerate() {
+            let v = f64::from_bits(bit);
             if !v.is_finite() {
                 return Err(Error::NonFinite);
             }
@@ -695,9 +760,8 @@ impl Array {
         }
         let mut sum = 0.0f64;
         let mut correction = 0.0;
-        for i in 0..self.len() {
-            let product = f64::from_bits(self.buffer.get(self.flat_index(i)))
-                * f64::from_bits(other.buffer.get(other.flat_index(i)));
+        for (a, b) in self.bits().zip(other.bits()) {
+            let product = f64::from_bits(a) * f64::from_bits(b);
             if !product.is_finite() {
                 return Err(Error::NonFinite);
             }
@@ -1013,5 +1077,56 @@ mod tests {
         assert_eq!(a.float(&[0]).unwrap().to_bits(), (-0.0f64).to_bits());
         assert_eq!(a.float(&[1]).unwrap().to_bits(), 0x7ff8000000000001);
         assert_eq!(a.sum(), Err(Error::NonFinite));
+    }
+    #[test]
+    fn page_iterator_preserves_offsets_views_and_exact_remaining_length() {
+        let values = (0..PAGE * 5 + 17).map(|i| i as f64).collect::<Vec<_>>();
+        let original = Array::floats(vec![values.len()], &values).unwrap();
+        let slice = original.slice(0, PAGE - 3, PAGE * 3 + 9, 1).unwrap();
+        let mut iter = slice.bits();
+        for expected in &values[PAGE - 3..PAGE * 4 + 6] {
+            assert_eq!(iter.size_hint(), (iter.len(), Some(iter.len())));
+            assert_eq!(iter.next(), Some(expected.to_bits()));
+        }
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+        let matrix = original
+            .slice(0, 0, PAGE * 4, 1)
+            .unwrap()
+            .reshape(vec![32, 32])
+            .unwrap();
+        let transpose = matrix.transpose(&[1, 0]).unwrap();
+        let reversed = original
+            .slice(0, values.len() - 1, values.len(), -1)
+            .unwrap();
+        let broadcast = original
+            .slice(0, 3, 1, 1)
+            .unwrap()
+            .broadcast(vec![PAGE * 3])
+            .unwrap();
+        for view in [&slice, &transpose, &reversed, &broadcast] {
+            let expected = (0..view.len())
+                .map(|i| view.buffer.get(view.flat_index(i)))
+                .collect::<Vec<_>>();
+            assert_eq!(view.bits().collect::<Vec<_>>(), expected);
+            assert_eq!(
+                view.materialize().unwrap().bits().collect::<Vec<_>>(),
+                expected
+            );
+            assert_eq!(
+                view.map_float(|v| Ok(v + 1.0))
+                    .unwrap()
+                    .float_values()
+                    .unwrap(),
+                expected
+                    .iter()
+                    .map(|b| f64::from_bits(*b) + 1.0)
+                    .collect::<Vec<_>>()
+            );
+        }
+        let empty = original.slice(0, values.len(), 0, 1).unwrap();
+        assert_eq!(empty.bits().len(), 0);
+        assert_eq!(empty.bits().next(), None);
     }
 }

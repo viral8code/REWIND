@@ -340,6 +340,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "REWIND_v1.9.4.md",
+                include_str!("../../../docs/REWIND_v1.9.4.md"),
+            ),
+            (
                 "REWIND_v1.9.3.md",
                 include_str!("../../../docs/REWIND_v1.9.3.md"),
             ),
@@ -367,6 +371,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             write(&output, &format!("share/rewind/doc/{name}"), doc)?;
         }
         for (name, doc) in [
+            (
+                "REWIND_v1.9.4.md",
+                include_str!("../../../docs/REWIND_v1.9.4.md"),
+            ),
             (
                 "json-stream",
                 include_str!("../../../examples/json-stream/README.md"),

@@ -89,3 +89,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.2 では snapshot / virtual file の読み出しを page 範囲に限定し、仮想 snapshot を共有する。終了 task の実行用引数・global bindings も解放する。host snapshot の全体 materialization と、task 結果・channel・group の到達可能性監査は継続する。
 
 1.9.3 では current scheduler の task / channel / group の到達可能性を検査し、必要な handle・待機・未観測 failure・checkpoint を維持して回収する。heap root の深い Value clone を借用へ置き換える。累積 quota / profile metadata と他の観測領域まで回収済みとは扱わず、後続監査を続ける。
+
+1.9.4 では contiguous 数値配列の走査を page 単位にし、import 内の nominal generic scope を修正する。初期履歴予算の CLI 指定と replay を整合させる。native kernel の公平性・キャンセルと残る GUI / algorithm / 統合の受入条件は継続する。
