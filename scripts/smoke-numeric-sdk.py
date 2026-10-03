@@ -118,3 +118,17 @@ actual = run("run", root / "json-stream.rwc", "--record", root / "json-stream-tr
 assert actual.decode("utf-8") == '1267650600228229401496703205376\n2\n3\n日本\n3\n0\n', actual
 assert run("replay", root / "json-stream-trace.json", "--root", root) == actual
 print("Verified extracted incremental JSON SDK: Unicode / numeric tokens, checkpoint and source-free replay")
+
+lexical = root / "lexical.rw"
+helper = root / "helper.rw"
+helper.write_text('pub fn source()->Int effects {} {return 7;} pub fn choose(value:Option<Int>)->Int effects {} {let before=source();match value {None=>{return before;},Some(source)=>{return source+before;}}}', encoding="utf-8")
+lexical.write_text('import helper as h;fn classify<T>(value:Result<Option<T>,String>)->Int effects {} {match move value {Err(_)=>{return -1;},Ok(None)=>{return 0;},Ok(Some(_))=>{return 1;}}}let value:Result<Option<Int>,String>=Ok(Some(42));Out.println(classify(move value));Out.println(h.choose(Some(3)));publish;', encoding="utf-8")
+run("compile", lexical)
+lexical.unlink()
+helper.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "lexical.rwc", "--record", root / "lexical-trace.json")
+assert actual == b"1\n10\n", actual
+assert run("replay", root / "lexical-trace.json", "--root", root) == actual
+print("Verified nested generic match and lexical module bindings without sources")

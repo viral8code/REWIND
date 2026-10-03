@@ -4,7 +4,9 @@ use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 mod effects;
+mod namespacing;
 mod packages;
+mod pattern_space;
 mod project;
 mod v05;
 mod v06;
@@ -2466,6 +2468,15 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
         )
         .map(|name| (name.clone(), format!("{prefix}{name}")))
         .collect::<BTreeMap<_, _>>();
+    for (stmt, origin) in program.stmts.iter().zip(&program.stmt_origins) {
+        if origin == &program.root_origin {
+            if let StmtKind::Let(n, _, _, _) | StmtKind::Using(n, _) = &stmt.kind {
+                names
+                    .entry(n.clone())
+                    .or_insert_with(|| format!("{prefix}{n}"));
+            }
+        }
+    }
     // Imported aliases are lexical to this module, including selected imports.
     let scoped_aliases = program
         .import_aliases
@@ -2484,29 +2495,7 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
         .values_mut()
         .filter(|f| f.origin == program.root_origin)
     {
-        for (_, ty) in &mut f.params {
-            *ty = rename_type(ty, &names);
-        }
-        f.ret = rename_type(&f.ret, &names);
-        for (_, bound) in &mut f.type_params {
-            if let Some(bound) = bound {
-                *bound = rename_type(bound, &names);
-            }
-        }
-        let mut locals = f
-            .params
-            .iter()
-            .map(|(n, _)| n.clone())
-            .collect::<BTreeSet<_>>();
-        collect_local_bindings(&f.body, &mut locals);
-        let filtered = names
-            .iter()
-            .filter(|(n, _)| !locals.contains(*n))
-            .map(|(n, v)| (n.clone(), v.clone()))
-            .collect();
-        for stmt in &mut f.body {
-            rename_stmt(stmt, &filtered);
-        }
+        namespacing::function(f, &names);
     }
     for def in program
         .structs
@@ -2556,7 +2545,7 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
         .filter(|d| d.origin == program.root_origin)
     {
         for f in def.defaults.values_mut() {
-            v06::language::rename_function(f, &names);
+            namespacing::function(f, &names);
         }
     }
     let old = std::mem::take(&mut program.aliases);
@@ -2569,31 +2558,10 @@ fn namespace_symbols(program: &mut Program, module: &str) -> BTreeMap<String, St
         .into_iter()
         .map(|((tr, ty), params)| ((rename_type(&tr, &names), rename_type(&ty, &names)), params))
         .collect();
-    let top = program
-        .stmts
-        .iter()
-        .zip(&program.stmt_origins)
-        .filter(|(_, origin)| *origin == &program.root_origin)
-        .map(|(stmt, _)| stmt.clone())
-        .collect::<Vec<_>>();
-    let mut locals = BTreeSet::new();
-    collect_local_bindings(&top, &mut locals);
-    for name in program.const_origins.keys() {
-        locals.remove(name);
-    }
-    let filtered = names
-        .iter()
-        .filter(|(n, _)| !locals.contains(*n))
-        .map(|(n, v)| (n.clone(), v.clone()))
-        .collect();
+    let mut top_bound = BTreeSet::new();
     for (stmt, origin) in program.stmts.iter_mut().zip(&program.stmt_origins) {
         if origin == &program.root_origin {
-            rename_stmt(stmt, &filtered);
-            if let StmtKind::Let(name, _, _, _) = &mut stmt.kind {
-                if let Some(new) = names.get(name) {
-                    *name = new.clone();
-                }
-            }
+            namespacing::top_statement(stmt, &names, &mut top_bound);
         }
     }
     let old = std::mem::take(&mut program.functions);
@@ -4371,7 +4339,7 @@ impl Checker<'_> {
         if def.private_fields.contains("$native") {
             return Err(diagnostic(
                 at,
-                "opaque type constructor is not available; use std.numeric",
+                "opaque type constructor is not available; use its standard-library factory",
             ));
         }
         if matches!(
@@ -4492,7 +4460,7 @@ impl Checker<'_> {
                     Value::Bool(_) => "Bool",
                     Value::Int(_) => "Int",
                     Value::Text(_) => "String",
-                    _ => "Unknown",
+                    _ => return Err(diagnostic(at, "unsupported pattern literal")),
                 };
                 if !compatible(ty, actual) {
                     return Err(diagnostic(
@@ -4587,6 +4555,12 @@ impl Checker<'_> {
                     .structs
                     .get(name)
                     .ok_or_else(|| diagnostic(at, format!("unknown struct {name}")))?;
+                if def.private_fields.contains("$native") {
+                    return Err(diagnostic(
+                        at,
+                        "opaque type cannot be destructured; use its standard-library accessors",
+                    ));
+                }
                 let args = ty
                     .split_once('<')
                     .map(|(_, i)| split_type_args(outer_type_end(i)))
@@ -4737,6 +4711,10 @@ impl Checker<'_> {
         Ok(())
     }
     fn check_match(&self, ty: &str, patterns: &[(&Pattern, bool)], at: &Tok) -> Result<()> {
+        if language_at_least(&self.program.language, "1.9.0") {
+            return pattern_space::check(self.program, ty, patterns, at);
+        }
+
         fn irrefutable(pattern: &Pattern) -> bool {
             matches!(pattern, Pattern::Wildcard | Pattern::Bind(_))
                 || matches!(pattern, Pattern::Variant(n, parts) if n == "$tuple" && parts.iter().all(irrefutable))
