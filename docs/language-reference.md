@@ -522,3 +522,5 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 v1.9.8 では Share 制約付き generic 関数の再帰呼出しに対する effect 解析を修正した。標準ライブラリの lazySegment / trie / suffix / geometry は [各版の契約](REWIND_v1.9.8.md) を参照。
 
 v1.9.9 の std.guiWindows は名前付きの複数 native 画面、入力振り分けと source-free replay を提供する。[GUI 契約](REWIND_v1.9.9.md)を参照。
+
+v1.9.10 の `std.task.yieldNow()` は追加 Task を作らず明示的に VM task を切り替える。`std.numericAsync.dot` / `matmul` は native chunk の間で切り替える async 関数で、Task<Result<T,StdError>> を作る。数値失敗は内側、キャンセル等は await の外側 Result に返る。[契約](REWIND_v1.9.10.md)を参照。

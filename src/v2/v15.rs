@@ -88,6 +88,38 @@ fn requires(p: &Program, b: &[Stmt], needs: &BTreeSet<String>) -> bool {
             }
     })
 }
+fn task_switch(p: &Program, e: &Expr, seen: &mut BTreeSet<String>) -> bool {
+    let ExprKind::Call(callee, _) = &e.kind else {
+        return false;
+    };
+    let name = match &callee.kind {
+        ExprKind::Name(n) => Some(resolve_alias(p, n)),
+        ExprKind::Member(base, method) => {
+            if let ExprKind::Name(n) = &base.kind {
+                p.import_aliases.get(&format!("{n}.{method}")).cloned()
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+    let Some(name) = name else {
+        return false;
+    };
+    let base = name.split('<').next().unwrap_or(&name);
+    if base == "stdTaskYieldNow" {
+        return true;
+    }
+    if !seen.insert(base.into()) {
+        return false;
+    }
+    let Some(f) = p.functions.get(base) else {
+        return false;
+    };
+    let mut found = false;
+    v05::expressions(&f.body, &mut |e| found |= task_switch(p, e, seen));
+    found
+}
 pub(super) fn validate(p: &Program) -> Result<()> {
     let mut needs = BTreeSet::new();
     loop {
@@ -129,7 +161,8 @@ pub(super) fn validate(p: &Program) -> Result<()> {
                     ));
                 }
                 if region
-                    && (matches!(&e.kind, ExprKind::Try(_))
+                    && (task_switch(p, e, &mut BTreeSet::new())
+                        || matches!(&e.kind, ExprKind::Try(_))
                         || matches!(&e.kind, ExprKind::Unary(op,_) if op=="await" || op=="spawn"))
                 {
                     error=Some(diagnostic(&e.at,"ExternalBoundary: propagation and task switching are forbidden in this region"));

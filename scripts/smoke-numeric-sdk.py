@@ -230,3 +230,15 @@ for mode in ["debug", "compact"]:
     fixture.unlink()
     assert run("replay", root / "windows-trace.json", "--root", root, "--allow-effects", "gui") == actual
 print("Verified extracted named GUI windows: routed input, undo, source-free debug and compact replay without fixture")
+
+cooperative = root / "cooperative.rw"
+cooperative.write_text((sdk / "share/rewind/examples/numeric-async/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", cooperative)
+cooperative.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+for mode in ["debug", "compact"]:
+    actual = run("run", root / "cooperative.rwc", "--native-work", "100000000", "--record", root / "cooperative-trace.json", "--record-mode", mode)
+    assert actual == b"9000\n32\n32\n", actual
+    assert run("replay", root / "cooperative-trace.json", "--root", root) == actual
+print("Verified extracted cooperative numeric kernels: foreground task, bitwise matrix result, checkpoint, source-free replay and restored work budget")

@@ -5,6 +5,16 @@ mod extensions;
 mod scheduler;
 use scheduler::Scheduler;
 
+fn replay_control_error(error: &Error) -> bool {
+    match error {
+        Error::Diagnostic(d) => matches!(d.code.as_str(), "ReplayMismatch" | "ScheduleMismatch"),
+        Error::InvalidOperation(message) => {
+            message.starts_with("ReplayMismatch") || message.starts_with("ScheduleMismatch")
+        }
+        _ => false,
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 enum Op {
     ApplicationEntry(usize),
@@ -144,6 +154,7 @@ impl Compiler {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             return None;
@@ -202,6 +213,7 @@ impl Compiler {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) || name.contains('<')
         {
@@ -380,6 +392,7 @@ impl Compiler {
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             ) && stmt.at.text == "@application-entry"
             {
@@ -437,6 +450,7 @@ impl Compiler {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             let signatures = program
@@ -545,6 +559,7 @@ impl Compiler {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
@@ -625,6 +640,7 @@ impl Compiler {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             let mut code = self.code[base..].to_vec();
@@ -1301,6 +1317,33 @@ impl<R: BufRead> Vm<R> {
             ));
         }
         options.record_compact = Some(compact);
+        if let Some(trace) = &options.replay {
+            for (name, option) in [
+                ("native_work", &mut options.native_work),
+                ("execution_steps", &mut options.execution_steps),
+            ] {
+                let recorded = match trace.get(name) {
+                    None | Some(serde_json::Value::Null) => None,
+                    Some(value) => Some(
+                        value
+                            .as_u64()
+                            .and_then(|n| usize::try_from(n).ok())
+                            .filter(|n| *n > 0)
+                            .ok_or_else(|| {
+                                Error::InvalidOperation(format!(
+                                    "ReplayMismatch: invalid {name} budget"
+                                ))
+                            })?,
+                    ),
+                };
+                if option.is_some() && *option != recorded {
+                    return Err(Error::InvalidOperation(format!(
+                        "ReplayMismatch: {name} budget differs from recording"
+                    )));
+                }
+                *option = recorded;
+            }
+        }
         let history_budget = if let Some(trace) = &options.replay {
             let recorded: ResourceBudget = if trace["history_budget"].is_null() {
                 ResourceBudget::default()
@@ -1417,6 +1460,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             engine.runtime.enable_allocation_accounting();
@@ -1456,6 +1500,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             engine
@@ -1557,6 +1602,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             let message = self
@@ -1663,6 +1709,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             v11::enrich(&mut d);
@@ -2015,6 +2062,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             return first_error.map_or(Ok(()), |e| {
@@ -2068,6 +2116,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             first_error.map_or(Ok(()), |e| {
@@ -2257,7 +2306,10 @@ impl<R: BufRead> Vm<R> {
         }
         let mut result = loop {
             match self.run_inner() {
-                Err(error) if self.scheduler.active != 0 => {
+                Err(error)
+                    if self.scheduler.active != 0
+                        && !replay_control_error(&error) =>
+                {
                     let at = self
                         .code
                         .get(self.pc.saturating_sub(1))
@@ -2350,6 +2402,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             )
         {
@@ -2397,6 +2450,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
@@ -2501,6 +2555,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             ) {
                 let mut failure =
@@ -2552,6 +2607,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             ) && !causes.is_empty()
             {
@@ -2612,6 +2668,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         ) {
             outcome["diagnostic"] = execution_error
@@ -2627,6 +2684,15 @@ impl<R: BufRead> Vm<R> {
         let compact = self.options.record_compact == Some(true);
         let execution = serde_json::json!({"format":1,"steps":self.recorded_steps,"sha256":format!("{:x}",self.execution_hash.clone().finalize())});
         if let Some(replay) = &self.options.replay {
+            // Preserve the first replay/schedule mismatch instead of replacing it
+            // with the consequential final-state mismatch after early termination.
+            if let Some(error) = execution_error.filter(|error| replay_control_error(error)) {
+                return Err(match error {
+                    Error::Diagnostic(d) => Error::Diagnostic(d.clone()),
+                    Error::InvalidOperation(message) => Error::InvalidOperation(message.clone()),
+                    _ => unreachable!(),
+                });
+            }
             let execution_mismatch = if compact {
                 replay["execution"] != execution
             } else {
@@ -2639,7 +2705,12 @@ impl<R: BufRead> Vm<R> {
                 || (!replay["result"].is_null() && replay["result"] != outcome)
             {
                 return Err(Error::InvalidOperation(
-                    "ReplayMismatch: final state or execution history".into(),
+                    format!(
+                        "ReplayMismatch: final state or execution history (execution={}, state={}, result={})",
+                        execution_mismatch,
+                        replay["state_digest"] != digest,
+                        !replay["result"].is_null() && replay["result"] != outcome,
+                    ),
                 ));
             }
         }
@@ -2703,6 +2774,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.7"
                         | "1.9.8"
                         | "1.9.9"
+                        | "1.9.10"
                         | "2.0.0"
                 )
             {
@@ -2792,6 +2864,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             ) {
                 return error;
@@ -2899,6 +2972,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
@@ -2940,6 +3014,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             ) && (self.engine.runtime.collection_due() || scheduler_gc)
             {
@@ -3084,6 +3159,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.7"
                         | "1.9.8"
                         | "1.9.9"
+                        | "1.9.10"
                         | "2.0.0"
                 ) {
                     self.index_state(&inst.at)?;
@@ -3133,6 +3209,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.7"
                         | "1.9.8"
                         | "1.9.9"
+                        | "1.9.10"
                         | "2.0.0"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
@@ -3235,6 +3312,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.7"
                                     | "1.9.8"
                                     | "1.9.9"
+                                    | "1.9.10"
                                     | "2.0.0"
                             ) {
                                 let ty = v06::fn_type(
@@ -3408,6 +3486,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) && (matches!(
                         lhs,
@@ -3539,6 +3618,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) && name == "reveal"
                     {
@@ -3598,11 +3678,19 @@ impl<R: BufRead> Vm<R> {
                                 | "1.9.7"
                                 | "1.9.8"
                                 | "1.9.9"
+                                | "1.9.10"
                                 | "2.0.0"
                         )
                     {
                         let value = self.property_int(&args, &inst.at)?;
                         self.push(value)?;
+                        continue;
+                    }
+                    if name == "stdTaskYieldNow" && args.is_empty() {
+                        self.engine.runtime.require_internal()?;
+                        // Save the Unit result in this task before switching contexts.
+                        self.push(Value::Null)?;
+                        self.scheduler_yield(&inst.at)?;
                         continue;
                     }
                     if let Some(value) = self.scheduler_constructor(&name, &args, &inst.at)? {
@@ -3700,6 +3788,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.7"
                                     | "1.9.8"
                                     | "1.9.9"
+                                    | "1.9.10"
                                     | "2.0.0"
                             ) && !needed.contains(name)
                             {
@@ -3763,6 +3852,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.7"
                                         | "1.9.8"
                                         | "1.9.9"
+                                        | "1.9.10"
                                         | "2.0.0"
                                 ) && !needed.contains(name)
                                 {
@@ -3823,6 +3913,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) {
                         let f =
@@ -3907,6 +3998,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::method_work(
@@ -3960,6 +4052,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) {
                         if let Some(value) =
@@ -4030,6 +4123,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::call_work(
@@ -4082,6 +4176,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
@@ -4259,6 +4354,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
@@ -4481,6 +4577,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.7"
                             | "1.9.8"
                             | "1.9.9"
+                            | "1.9.10"
                             | "2.0.0"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
@@ -4657,6 +4754,7 @@ pub(super) fn execute(
                         | "1.9.7"
                         | "1.9.8"
                         | "1.9.9"
+                        | "1.9.10"
                         | "2.0.0"
                 )
             {
@@ -4721,6 +4819,7 @@ pub(super) fn execute(
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             )
             || options.inspect
@@ -4839,6 +4938,7 @@ fn build_artifact_mode(
             | "1.9.7"
             | "1.9.8"
             | "1.9.9"
+            | "1.9.10"
             | "2.0.0"
     ) && !root.join("rewind.toml").exists()
     {
@@ -4955,6 +5055,7 @@ fn explore_test(
                     | "1.9.7"
                     | "1.9.8"
                     | "1.9.9"
+                    | "1.9.10"
                     | "2.0.0"
             )
         {

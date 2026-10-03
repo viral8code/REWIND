@@ -39,6 +39,9 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
             }
             ExprKind::Name(n) => {
                 let n = resolve_alias(program, n);
+                if n == "stdTaskYieldNow" {
+                    needs.insert("tasks".into());
+                }
                 if n.starts_with("stdExternal") {
                     needs.insert("external".into());
                     if matches!(n.as_str(), "stdExternalClock" | "stdExternalInstant") {
@@ -152,6 +155,9 @@ impl Scan<'_> {
                 };
                 if let Some(n) = &name {
                     let base = n.split('<').next().unwrap_or(n);
+                    if base == "stdTaskYieldNow" {
+                        self.needs.insert("tasks".into());
+                    }
                     if base.starts_with("stdExternal") {
                         self.needs.insert("external".into());
                         if matches!(base, "stdExternalClock" | "stdExternalInstant") {

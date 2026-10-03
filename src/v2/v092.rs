@@ -167,6 +167,10 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdNumericMean",
         "stdNumericVariance",
         "stdNumericDot",
+        "stdNumericDotStep",
+        "stdTaskYieldNow",
+        "stdNumericMatmulInit",
+        "stdNumericMatmulStep",
         "stdNumericMatmul",
         "stdNumericSolve",
         "stdNumericMath",
@@ -282,6 +286,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.7"
             | "1.9.8"
             | "1.9.9"
+            | "1.9.10"
             | "2.0.0"
     ) {
         return Ok(());
@@ -528,6 +533,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.7"
             | "1.9.8"
             | "1.9.9"
+            | "1.9.10"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -595,6 +601,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.7"
                 | "1.9.8"
                 | "1.9.9"
+                | "1.9.10"
                 | "2.0.0"
         )
     {
@@ -616,6 +623,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
         return Err(diagnostic(at, "database primitives require language 1.7.0"));
+    }
+    if n == "stdTaskYieldNow" && !language_at_least(&p.language, "1.9.10") {
+        return Err(diagnostic(at, "task yield requires language 1.9.10"));
     }
     if n.starts_with("stdGuiWindow") && !language_at_least(&p.language, "1.9.9") {
         return Err(diagnostic(
@@ -783,6 +793,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             &["String", "String", "Bytes", "Int", "Int"],
             "Task<Result<HttpResponse,HttpError>>",
         ),
+        "stdTaskYieldNow" => (&[], "Unit"),
         "stdGuiWindowStage" => (&["String", "String"], "Result<Unit,StdError>"),
         "stdGuiWindowClose" => (&["String"], "Result<Unit,StdError>"),
         "stdGuiWindowPoll" => (&["String"], "Result<Option<String>,StdError>"),

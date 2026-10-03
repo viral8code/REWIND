@@ -3,8 +3,10 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
+mod chunks;
 mod linalg;
 mod stats;
+pub use chunks::{Progress as KernelProgress, COOPERATIVE_MACS};
 pub use linalg::{Eigen, Qr};
 pub use stats::Histogram;
 const PAGE: usize = 256;
