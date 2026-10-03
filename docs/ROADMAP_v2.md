@@ -91,3 +91,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.3 では current scheduler の task / channel / group の到達可能性を検査し、必要な handle・待機・未観測 failure・checkpoint を維持して回収する。heap root の深い Value clone を借用へ置き換える。累積 quota / profile metadata と他の観測領域まで回収済みとは扱わず、後続監査を続ける。
 
 1.9.4 では contiguous 数値配列の走査を page 単位にし、import 内の nominal generic scope を修正する。初期履歴予算の CLI 指定と replay を整合させる。native kernel の公平性・キャンセルと残る GUI / algorithm / 統合の受入条件は継続する。
+
+1.9.5 は iterative Dinic の最大流と二部マッチング / 最小 vertex cover を標準 module に追加する。VM 内の residual network、長い経路、独立な cut / matching 列挙、source-free replay と SDK を検証する。残る algorithm、GUI、native kernel と履歴の費用は継続する。

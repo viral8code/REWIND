@@ -1,0 +1,26 @@
+import flow as flow;
+pub struct Matching {size:Int,left:List<Option<Int>>,right:List<Option<Int>>,leftCover:List<Bool>,rightCover:List<Bool>}
+// Unit-capacity bipartite matching and a minimum vertex cover (Konig's theorem).
+// @api maximum cost Dinic O(V^2 E log pages) upper bound; O(V + E) VM cells.
+// @api maximum failure Capacity/Range; input is borrowed and never mutated. Fatal work/history budgets apply.
+pub fn maximum(leftVertices:Int,rightVertices:Int,pairs:&List<Tuple<Int,Int>>)->Result<Matching,String> effects {} {
+ if leftVertices<0 || rightVertices<0 || leftVertices>262142 || rightVertices>262142 || leftVertices+rightVertices>262142 {return Err("Capacity");}
+ if pairs.len()>524288-leftVertices-rightVertices {return Err("Capacity");}
+ for i in 0..pairs.len() {let (left,right)=pairs.get(i);if left<0 || right<0 || left>=leftVertices || right>=rightVertices {return Err("Range");}}
+ let source=leftVertices+rightVertices;let sink=source+1;
+ let network=flow.create(sink+1,leftVertices+rightVertices+pairs.len())?;
+ for i in 0..leftVertices {flow.add(&mut network,source,i,1)?;}
+ for i in 0..rightVertices {flow.add(&mut network,leftVertices+i,sink,1)?;}
+ for i in 0..pairs.len() {let (left,right)=pairs.get(i);flow.add(&mut network,left,leftVertices+right,1)?;}
+ var limit=leftVertices;if rightVertices<limit {limit=rightVertices;}
+ let size=flow.augment(&mut network,source,sink,limit)?;
+ let left=List<Option<Int>>();for i in 0..leftVertices {left.push(None);}
+ let right=List<Option<Int>>();for i in 0..rightVertices {right.push(None);}
+ for i in 0..pairs.len() {let edge=flow.edge(&network,leftVertices+rightVertices+i)?;
+  if edge.flow==1 {let (a,b)=pairs.get(i);left.set(a,Some(b));right.set(b,Some(a));}
+ }
+ let reachable=flow.reachable(&network,source)?;
+ let leftCover=List<Bool>();for i in 0..leftVertices {leftCover.push(!reachable.get(i));}
+ let rightCover=List<Bool>();for i in 0..rightVertices {rightCover.push(reachable.get(leftVertices+i));}
+ return Ok(Matching(size,left,right,leftCover,rightCover));
+}

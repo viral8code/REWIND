@@ -167,3 +167,14 @@ actual = run("run", root / "budget.rwc", "--history-memory", "1MiB",
 assert actual == b"7\n", actual
 assert run("replay", root / "budget-trace.json", "--root", root) == actual
 print("Verified CLI history budgets with source-free replay")
+
+flow = root / "flow.rw"
+flow.write_text((sdk / "share/rewind/examples/flow/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", flow)
+flow.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "flow.rwc", "--record", root / "flow-trace.json", "--native-work", "100000000")
+assert actual == b"5\n2\n", actual
+assert run("replay", root / "flow-trace.json", "--root", root) == actual
+print("Verified maximum flow, matching and checkpoint source-free replay")

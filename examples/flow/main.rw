@@ -1,0 +1,18 @@
+import std.flow as flow;
+import std.matching as matching;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("algorithm failed");}}
+}
+let network=take(flow.create(3,3));
+take(flow.add(&mut network,0,1,4));
+take(flow.add(&mut network,1,2,3));
+take(flow.add(&mut network,0,2,2));
+commit saved;
+assert_eq(flow.augment(&mut network,0,2,3),Ok(3));
+revert saved;
+Out.println(take(flow.augment(&mut network,0,2,99)));
+drop saved;
+let pairs=List<Tuple<Int,Int>>();pairs.push((0,0));pairs.push((0,1));pairs.push((1,0));
+let result=take(matching.maximum(2,2,&pairs));
+Out.println(result.size);
+publish;

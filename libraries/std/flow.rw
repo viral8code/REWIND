@@ -1,0 +1,90 @@
+// Directed integral residual network. All state remains inside the VM.
+pub struct Network {
+ private heads:List<Int>, private destinations:List<Int>, private links:List<Int>,
+ private residual:List<Int>, private original:List<Int>, private origins:List<Int>, private capacity:Int
+}
+pub record Edge {from:Int,to:Int,capacity:Int,flow:Int}
+
+// @api create cost O(vertices); vertices <= 262144, capacity <= 524288 forward edges.
+// @api create failure Capacity; fatal work and history budgets apply.
+pub fn create(vertices:Int,capacity:Int)->Result<Network,String> effects {} {
+ if vertices<0 || vertices>262144 || capacity<0 || capacity>524288 {return Err("Capacity");}
+ let heads=List<Int>();for i in 0..vertices {heads.push(-1);}
+ return Ok(Network(heads,List<Int>(),List<Int>(),List<Int>(),List<Int>(),List<Int>(),capacity));
+}
+pub fn vertices(network:&Network)->Int effects {} {return network.heads.len();}
+pub fn edges(network:&Network)->Int effects {} {return network.original.len();}
+// Parallel edges, zero capacity and self loops are valid. IDs follow insertion order.
+// @api add cost O(log pages) amortized per List update; stores two residual edges.
+// @api add failure Range/Capacity before mutation; fatal work and history budgets apply.
+pub fn add(network:&mut Network,from:Int,to:Int,capacity:Int)->Result<Int,String> effects {} {
+ if from<0 || to<0 || from>=network.heads.len() || to>=network.heads.len() || capacity<0 {return Err("Range");}
+ if network.original.len()>=network.capacity {return Err("Capacity");}
+ let id=network.original.len();let edge=network.destinations.len();
+ network.destinations.push(to);network.links.push(network.heads.get(from));network.residual.push(capacity);network.heads.set(from,edge);
+ network.destinations.push(from);network.links.push(network.heads.get(to));network.residual.push(0);network.heads.set(to,edge+1);
+ network.original.push(capacity);network.origins.push(from);return Ok(id);
+}
+pub fn edge(network:&Network,id:Int)->Result<Edge,String> effects {} {
+ if id<0 || id>=network.original.len() {return Err("Range");}
+ let capacity=network.original.get(id);
+ return Ok(Edge(network.origins.get(id),network.destinations.get(id*2),capacity,capacity-network.residual.get(id*2)));
+}
+fn levels(network:&Network,source:Int)->List<Int> effects {} {
+ let level=List<Int>();for i in 0..network.heads.len() {level.push(-1);}
+ let queue=List<Int>();queue.push(source);level.set(source,0);var cursor=0;
+ while cursor<queue.len() {
+  let current=queue.get(cursor);cursor+=1;var edge=network.heads.get(current);
+  while edge!=-1 {
+   let to=network.destinations.get(edge);
+   if network.residual.get(edge)>0 && level.get(to)==-1 {level.set(to,level.get(current)+1);queue.push(to);}
+   edge=network.links.get(edge);
+  }
+ }
+ return level;
+}
+// Iterative Dinic: no recursion proportional to the length of an augmenting path.
+// Returns newly added flow, leaving residual state usable by a subsequent call.
+// @api augment cost O(V^2 E log pages) worst case; O(V) temporary List cells.
+// @api augment failure Range before mutation; fatal work and history budgets apply during mutation.
+pub fn augment(network:&mut Network,source:Int,sink:Int,limit:Int)->Result<Int,String> effects {} {
+ if source<0 || sink<0 || source>=network.heads.len() || sink>=network.heads.len() || source==sink || limit<0 {return Err("Range");}
+ var total=0;
+ while total<limit {
+  let level=levels(network,source);if level.get(sink)==-1 {break;}
+  let next=List<Int>();for i in 0..network.heads.len() {next.push(network.heads.get(i));}
+  let pathVertices=List<Int>();let pathEdges=List<Int>();pathVertices.push(source);
+  while pathVertices.len()>0 && total<limit {
+   let vertex=pathVertices.get(pathVertices.len()-1);
+   if vertex==sink {
+    var amount=limit-total;for i in 0..pathEdges.len() {let available=network.residual.get(pathEdges.get(i));if available<amount {amount=available;}}
+    for i in 0..pathEdges.len() {
+     let edge=pathEdges.get(i);var reverse=edge+1;if edge%2==1 {reverse=edge-1;}
+     network.residual.set(edge,network.residual.get(edge)-amount);
+     network.residual.set(reverse,network.residual.get(reverse)+amount);
+    }
+    total+=amount;
+    while pathVertices.len()>1 {pathVertices.pop();}while pathEdges.len()>0 {pathEdges.pop();}
+   } else {
+    var candidate=next.get(vertex);
+    while candidate!=-1 {
+     let to=network.destinations.get(candidate);
+     if network.residual.get(candidate)>0 && level.get(to)==level.get(vertex)+1 {break;}
+     candidate=network.links.get(candidate);next.set(vertex,candidate);
+    }
+    if candidate==-1 {
+     pathVertices.pop();
+     if pathEdges.len()>0 {var used=0;match pathEdges.pop() {Some(e)=>{used=e;},None=>{panic("flow path");}}
+      let parent=pathVertices.get(pathVertices.len()-1);next.set(parent,network.links.get(used));}
+    } else {pathEdges.push(candidate);pathVertices.push(network.destinations.get(candidate));}
+   }
+  }
+ }
+ return Ok(total);
+}
+// @api reachable cost O(V + E log pages); O(V) result and scratch cells.
+// @api reachable failure Range; fatal work and history budgets apply.
+pub fn reachable(network:&Network,source:Int)->Result<List<Bool>,String> effects {} {
+ if source<0 || source>=network.heads.len() {return Err("Range");}
+ let level=levels(network,source);let seen=List<Bool>();for i in 0..level.len() {seen.push(level.get(i)!=-1);}return Ok(seen);
+}

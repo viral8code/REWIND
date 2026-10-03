@@ -10,6 +10,11 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        ("flow", include_str!("../../../libraries/std/flow.rw")),
+        (
+            "matching",
+            include_str!("../../../libraries/std/matching.rw"),
+        ),
         (
             "distributions",
             include_str!("../../../libraries/std/distributions.rw"),
@@ -340,6 +345,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "REWIND_v1.9.5.md",
+                include_str!("../../../docs/REWIND_v1.9.5.md"),
+            ),
+            (
                 "REWIND_v1.9.4.md",
                 include_str!("../../../docs/REWIND_v1.9.4.md"),
             ),
@@ -371,10 +380,6 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             write(&output, &format!("share/rewind/doc/{name}"), doc)?;
         }
         for (name, doc) in [
-            (
-                "REWIND_v1.9.4.md",
-                include_str!("../../../docs/REWIND_v1.9.4.md"),
-            ),
             (
                 "json-stream",
                 include_str!("../../../examples/json-stream/README.md"),
@@ -420,6 +425,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             )?;
         }
         for (name, source) in [
+            ("flow", include_str!("../../../examples/flow/main.rw")),
             ("regex", include_str!("../../../examples/regex/main.rw")),
             (
                 "json-stream",

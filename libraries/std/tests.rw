@@ -1,3 +1,5 @@
+import flow as flow;
+import matching as matching;
 import error as error;
 import sort as sort;
 import segment as segment;
@@ -175,4 +177,14 @@ test fn gui_unicode_editing_layout_and_selection() {
  assert_eq(gui.setSelection(&mut view,"body",99,0),Err(StdError("GuiInvalidSelection",0)));
  assert_eq(gui.textBox(&mut view,"single","a\nb",0,0,100,20),Err(StdError("GuiSingleLine",0)));
  }}
+}
+
+test fn residual_flow_and_matching_contracts() {
+ match flow.create(3,3) {Err(e)=>{panic(e);},Ok(network)=>{
+ assert_eq(flow.add(&mut network,0,1,4),Ok(0));assert_eq(flow.add(&mut network,1,2,3),Ok(1));assert_eq(flow.add(&mut network,0,2,2),Ok(2));
+ assert_eq(flow.augment(&mut network,0,2,2),Ok(2));assert_eq(flow.augment(&mut network,0,2,99),Ok(3));assert_eq(flow.augment(&mut network,0,2,99),Ok(0));
+ match flow.reachable(&network,0){Err(e)=>{panic(e);},Ok(seen)=>{assert_eq(seen.get(0),true);assert_eq(seen.get(2),false);}}
+ }}
+ let pairs=List<Tuple<Int,Int>>();pairs.push((0,0));pairs.push((0,1));pairs.push((1,0));
+ match matching.maximum(2,2,&pairs) {Err(e)=>{panic(e);},Ok(result)=>{assert_eq(result.size,2);assert_eq(result.left.get(0),Some(1));assert_eq(result.left.get(1),Some(0));}}
 }

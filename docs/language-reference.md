@@ -508,3 +508,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 ## 初期履歴予算（v1.9.4）
 
 `rewind run` の `--history-memory SIZE` / `--history-storage SIZE` / `--spill-threshold SIZE` は初期 Runtime 予算を設定します。byte 数・KiB・MiB・GiB に対応し、spill threshold の 0 は強制 spill に使えます。言語内の `runtime` 設定は実行時に適用されます。trace は初期予算を記録し、replay で復元します。OS の RSS 上限と累積 work quota は独立です。[費用と移行契約](REWIND_v1.9.4.md)。
+
+## 最大流・二部マッチング（v1.9.5）
+
+`std.flow` の residual network は VM 内の状態で、checkpoint / revert に対応します。`std.matching.maximum` は最大 matching と最小 vertex cover を返す pure な Result API です。[容量・計算量・失敗契約](REWIND_v1.9.5.md)。
