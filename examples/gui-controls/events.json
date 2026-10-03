@@ -1,0 +1,8 @@
+[
+ {"window":"form","event":{"kind":"pointer","x":20,"y":45,"key":"","width":0,"height":0}},
+ {"window":"form","event":{"kind":"text","x":0,"y":0,"key":"語","width":0,"height":0}},
+ {"window":"form","event":{"kind":"pointer","x":20,"y":270,"key":"","width":0,"height":0}},
+ {"window":"table","event":{"kind":"pointer","x":20,"y":80,"key":"","width":0,"height":0}},
+ {"window":"form","event":{"kind":"key","x":0,"y":0,"key":"Escape","width":0,"height":0}},
+ {"window":"table","event":{"kind":"close","x":0,"y":0,"key":"","width":0,"height":0}}
+]

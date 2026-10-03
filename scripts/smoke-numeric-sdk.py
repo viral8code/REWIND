@@ -253,3 +253,18 @@ actual = run("run", root / "shared-memory.rwc", "--history-memory", "64MiB", "--
 assert actual == b"1000000\n64\n0\n", actual
 assert run("replay", root / "shared-memory-trace.json", "--root", root) == actual
 print("Verified extracted shared numeric memory: million-element task, 64 COW checkpoints, source-free compact replay and restored history budget")
+
+controls = root / "gui-controls.rw"
+controls.write_text((sdk / "share/rewind/examples/gui-controls/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", controls, "--allow-effects", "gui")
+controls.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+fixture = root / "controls-events.json"
+fixture.write_bytes((sdk / "share/rewind/examples/gui-controls/events.json").read_bytes())
+actual = run("run", root / "gui-controls.rwc", "--allow-effects", "gui", "--gui-window-events", fixture,
+             "--record", root / "controls-trace.json", "--record-mode", "compact")
+assert actual == '{"active":false,"age":13,"name":"日本語"}\n1\n日本\n'.encode("utf-8"), actual
+fixture.unlink()
+assert run("replay", root / "controls-trace.json", "--root", root, "--allow-effects", "gui") == actual
+print("Verified extracted form validation and viewport table: editing, typed submission, row selection, undo, source-free compact replay without fixture")

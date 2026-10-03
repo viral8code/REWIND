@@ -264,3 +264,15 @@ test fn cooperative_numeric_domain_is_inner_result()->Unit effects {tasks} {
  let work=spawn numericAsync.matmul(matrix,matrix);assert_eq(await work,Ok(Err(StdError("NumericShape",0))));
  }}
 }
+
+import guiForm as guiForm;
+import guiTable as guiTable;
+test fn form_and_empty_table_contracts() {
+ let defs=List<guiForm.Field>();defs.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"-"));
+ match guiForm.create(&defs,1){Err(_)=>{panic("form creation");},Ok(model)=>{
+  assert(!guiForm.validate(&mut model));assert_eq(guiForm.value(&model,"age"),Ok("-"));assert_eq(guiForm.setValue(&mut model,"age","13"),Ok(()));assert(guiForm.validate(&mut model));
+  match guiForm.toJson(&model){Err(_)=>{panic("typed form");},Ok(data)=>{assert_eq(jsonGet(data,"age"),Some(Json::Int(13)));}}
+ }}
+ let headings=List<String>();headings.add("Value");let cells=List<String>();
+ match guiTable.create(freeze(headings),freeze(cells),4){Err(_)=>{panic("empty table");},Ok(table)=>{assert_eq(guiTable.rows(&table),0);guiTable.scroll(&mut table,9223372036854775807);assert_eq(guiTable.position(&table),0);assert_eq(guiTable.selection(&table),None);}}
+}

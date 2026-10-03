@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.7",
+  "language": "1.9.12",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
@@ -113,6 +113,38 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:focus": {
+      "async": false,
+      "effects": [],
+      "failure": "UnknownId/NotInteractive; retains the widget selection and scroll.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:focused": {
+      "async": false,
+      "cost": "O(1); disabled or removed controls have no focus.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&View"
+      ],
+      "return": "Option<String>"
+    },
+    "fn:graphemeEditing": {
+      "async": false,
+      "effects": [],
+      "failure": "Enables cluster editing; existing scalar positions round forward to a boundary. Default is false.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:label": {
       "async": false,
       "effects": [],
@@ -174,6 +206,18 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:remove": {
+      "async": false,
+      "cost": "O(widgets); rebuilds indices and preserves remaining selection, scroll and focus.",
+      "effects": [],
+      "failure": "UnknownId; unknown input leaves the view unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:resize": {
       "async": false,
       "effects": [],
@@ -195,6 +239,17 @@
       ],
       "return": "Result<String,StdError>"
     },
+    "fn:scrollPosition": {
+      "async": false,
+      "effects": [],
+      "failure": "UnknownId/NotTextArea; logical first visible line.",
+      "generics": [],
+      "parameters": [
+        "&View",
+        "String"
+      ],
+      "return": "Result<Int,StdError>"
+    },
     "fn:selection": {
       "async": false,
       "effects": [],
@@ -205,6 +260,18 @@
       ],
       "return": "Result<Tuple<Int,Int>,StdError>"
     },
+    "fn:setChecked": {
+      "async": false,
+      "effects": [],
+      "failure": "UnknownId/NotCheckbox; updates only the logical view.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:setEnabled": {
       "async": false,
       "effects": [],
@@ -213,6 +280,18 @@
         "&mut View",
         "String",
         "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:setScrollPosition": {
+      "async": false,
+      "effects": [],
+      "failure": "UnknownId/NotTextArea/InvalidScroll; prevalidates without changing focus or text.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "Int"
       ],
       "return": "Result<Unit,StdError>"
     },
@@ -236,6 +315,19 @@
         "&mut View",
         "String",
         "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:style": {
+      "async": false,
+      "effects": [],
+      "failure": "UnknownId/InvalidColor; retains every other widget property.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "Int",
+        "Int"
       ],
       "return": "Result<Unit,StdError>"
     },
@@ -335,6 +427,192 @@
         ]
       }
     },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Event": {
       "constructor": true,
       "fields": [
@@ -363,6 +641,122 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },
@@ -432,6 +826,111 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Rect": {
       "constructor": true,
       "fields": [
@@ -455,6 +954,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -475,17 +980,6 @@
       "fields": [],
       "generics": [],
       "kind": "struct"
-    },
-    "fn:graphemeEditing": {
-      "async": false,
-      "effects": [],
-      "failure": "Enables cluster editing; existing scalar positions round forward to a boundary. Default is false.",
-      "generics": [],
-      "parameters": [
-        "&mut View",
-        "Bool"
-      ],
-      "return": "Result<Unit,StdError>"
     }
   }
 }

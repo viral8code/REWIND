@@ -3,7 +3,7 @@
   "kind": "rewind-api",
   "language": "1.9.12",
   "symbols": {
-    "alias:GuiError": {
+    "alias:TableError": {
       "generics": [],
       "target": "StdError"
     },
@@ -475,84 +475,144 @@
         "immutable": false
       }
     },
-    "fn:close": {
+    "fn:cell": {
       "async": false,
-      "effects": [
-        "gui"
-      ],
-      "failure": "Unknown IDs return GuiWindowNotPublished; publish closes only the named surface.",
+      "effects": [],
       "generics": [],
       "parameters": [
+        "&Table",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<String,StdError>"
+    },
+    "fn:columns": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Int"
+    },
+    "fn:create": {
+      "async": false,
+      "cost": "O(cells); frozen row-major data is shared, not materialized in the scene.",
+      "effects": [],
+      "failure": "Shape/Capacity/Text; 1..16 columns, at most 65536 rows and 1048576 cells, 16MiB text.",
+      "generics": [],
+      "parameters": [
+        "Frozen<List<String>>",
+        "Frozen<List<String>>",
+        "Int"
+      ],
+      "return": "Result<Table,StdError>"
+    },
+    "fn:dispatch": {
+      "async": false,
+      "effects": [],
+      "failure": "Range/Id; wheel and Up/Down/Home/End move the selected row or viewport.",
+      "generics": [],
+      "parameters": [
+        "&mut Table",
+        "&mut $import$gui$View",
+        "$import$gui$Event",
         "String"
       ],
-      "return": "Result<Unit,StdError>"
+      "return": "Result<Option<Action>,StdError>"
     },
-    "fn:continueInput": {
+    "fn:position": {
       "async": false,
-      "effects": [
-        "gui"
-      ],
-      "failure": "After revert skips only named-window events already delivered in this execution; old gui input has a separate cursor.",
+      "effects": [],
       "generics": [],
-      "parameters": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Int"
+    },
+    "fn:render": {
+      "async": false,
+      "cost": "O(visible rows * columns); new view keeps failures away from the caller's published scene.",
+      "effects": [],
+      "failure": "Bounds/Id; equal-width columns, row height 16..128, caller publishes the returned view.",
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "String"
+      ],
+      "return": "Result<$import$gui$View,StdError>"
+    },
+    "fn:rows": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Int"
+    },
+    "fn:scroll": {
+      "async": false,
+      "cost": "O(1); clamps arbitrary signed deltas before adding them.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Table",
+        "Int"
+      ],
       "return": "Unit"
     },
-    "fn:nextEvent": {
+    "fn:select": {
       "async": false,
-      "effects": [
-        "gui"
-      ],
-      "failure": "Blocks without scheduling VM tasks; wrong scoped fixture ID returns GuiWindowEventTapeEnd.",
+      "effects": [],
       "generics": [],
       "parameters": [
-        "String"
-      ],
-      "return": "Result<$import$gui$Event,StdError>"
-    },
-    "fn:nextEventAny": {
-      "async": false,
-      "effects": [
-        "gui"
-      ],
-      "failure": "Blocks on native input across active windows; performs no VM task scheduling during the wait. Use pollAny with external-task completion polling; explicit VM task handoff is planned separately.",
-      "generics": [],
-      "parameters": [],
-      "return": "Result<WindowEvent,StdError>"
-    },
-    "fn:poll": {
-      "async": false,
-      "effects": [
-        "gui"
-      ],
-      "failure": "Requires a published ID; None means no input; scoped fixture polling preserves another window event.",
-      "generics": [],
-      "parameters": [
-        "String"
-      ],
-      "return": "Result<Option<$import$gui$Event>,StdError>"
-    },
-    "fn:pollAny": {
-      "async": false,
-      "cost": "Bounded round-robin polling; does not block; combines native surfaces without merging their IDs.",
-      "effects": [
-        "gui"
-      ],
-      "generics": [],
-      "parameters": [],
-      "return": "Result<Option<WindowEvent>,StdError>"
-    },
-    "fn:present": {
-      "async": false,
-      "effects": [
-        "gui"
-      ],
-      "failure": "Stages a named surface; publish applies it. IDs are nonempty, <=128 UTF-8 bytes, NUL-free. At most 16 named windows / 16M client pixels including the legacy window.",
-      "generics": [],
-      "parameters": [
-        "String",
-        "&$import$gui$View"
+        "&mut Table",
+        "Int"
       ],
       "return": "Result<Unit,StdError>"
+    },
+    "fn:selection": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Option<Int>"
+    },
+    "type:Action": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Close": [],
+        "Resize": [
+          [
+            "0",
+            "Int"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Scrolled": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Selected": [
+          [
+            "0",
+            "Int"
+          ]
+        ]
+      }
     },
     "type:BigInt": {
       "constructor": false,
@@ -1048,20 +1108,11 @@
       "generics": [],
       "kind": "record"
     },
-    "type:WindowEvent": {
-      "constructor": true,
-      "fields": [
-        [
-          "window",
-          "String"
-        ],
-        [
-          "event",
-          "$import$gui$Event"
-        ]
-      ],
+    "type:Table": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
-      "kind": "record"
+      "kind": "struct"
     }
   }
 }

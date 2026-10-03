@@ -105,3 +105,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.10 は明示的な task handoff、ready task の既定巡回、協調的な dot / matmul、replay の native / execution 予算復元を実装する。solve / QR / eigen 等、数値 page 共有の admission accounting、残る GUI / 通信 / 数値統合は継続する。
 
 1.9.11 は数値 page / tree の Runtime ごとの会計を差分化し、checkpoint と scheduler の重複計上を解消する。弱い registry と COW / Drop により到達可能な storage の費用を保持・解放し、source-free と long-run を検証する。一般の container / metadata の費用、残る GUI / kernel / 通信 / 数値統合は継続する。
+
+1.9.12 は typed schema のフォーム検証、frozen データの表の表示範囲描画、GUI control の編集と状態復元を追加する。clipboard / dialog / menu、IME / accessibility、GUI と通信・DB の長時間統合、追加 kernel と v2.0 の到達条件は継続する。
