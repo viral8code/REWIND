@@ -528,84 +528,61 @@
         "immutable": false
       }
     },
-    "dependency:sparse.rw": {
-      "fn:$import$sparse$create": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "Int",
-          "Int",
-          "&IntArray",
-          "&IntArray",
-          "&FloatArray"
-        ],
-        "return": "Result<$import$sparse$Matrix,StdError>"
-      },
-      "fn:$import$sparse$matvec": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&$import$sparse$Matrix",
-          "&FloatArray"
-        ],
-        "return": "Result<FloatArray,StdError>"
-      },
-      "type:$import$sparse$Matrix": {
-        "bounds": {},
-        "fields": [
-          [
-            "rows",
-            "Int"
-          ],
-          [
-            "cols",
-            "Int"
-          ],
-          [
-            "offsets",
-            "IntArray"
-          ],
-          [
-            "indices",
-            "IntArray"
-          ],
-          [
-            "values",
-            "FloatArray"
-          ]
-        ],
-        "generics": [],
-        "immutable": true
-      }
-    },
-    "dependency:task.rw": {
-      "fn:$import$task$yieldNow": {
-        "async": false,
-        "effects": [
-          "tasks"
-        ],
-        "generics": [],
-        "parameters": [],
-        "return": "Unit"
-      }
-    },
-    "fn:conjugateGradient": {
-      "async": true,
-      "cost": "O(iterations * (rows + nnz)); native buffers, yields between iterations, individual native calls remain synchronous.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Domain/NonFinite; positive tolerance, 1..100000 iterations; NumericDomain also reports underflow of the squared search residual, square symmetric positive-definite input required. No dense materialization; zero initial guess, residual is ||b-Ax||, convergence target tolerance * max(1,||b||). Returns converged=false on iteration exhaustion; fatal budgets/cancellation apply.",
+    "fn:adam": {
+      "async": false,
+      "cost": "O(elements) moment initialization; beta1/beta2 in [0,1), finite epsilon>0; moments use native pages and support checkpoint/revert.",
+      "effects": [],
+      "failure": "OptimizerConfiguration or numeric validation failures; <=128 named finite Float64 parameters / <=32 MiB model.",
       "generics": [],
       "parameters": [
-        "$import$sparse$Matrix",
-        "FloatArray",
+        "&Map<String,FloatArray>",
         "Float",
-        "Int"
+        "Float",
+        "Float"
       ],
-      "return": "Result<SolveResult,StdError>"
+      "return": "Result<Adam,StdError>"
+    },
+    "fn:adamStep": {
+      "async": false,
+      "cost": "O(parameters + elements), several bounded native buffers; synchronous, maximum 2^53-1 steps. Keeps two moment arrays per parameter.",
+      "effects": [],
+      "failure": "OptimizerRate/Parameters/Iterations or NumericShape/Size/Domain/NonFinite/Overflow; typed failures leave state and input weights unchanged. Fatal VM failures require checkpoint recovery. Bias corrected Adam, epsilon outside sqrt.",
+      "generics": [],
+      "parameters": [
+        "&mut Adam",
+        "&Map<String,FloatArray>",
+        "&Map<String,FloatArray>",
+        "Float"
+      ],
+      "return": "Result<Map<String,FloatArray>,StdError>"
+    },
+    "fn:sgd": {
+      "async": false,
+      "cost": "O(parameters + elements) work/storage; native buffers, exact name/shape match, positive finite rate.",
+      "effects": [],
+      "failure": "OptimizerRate/Parameters, NumericShape/Size/Domain/NonFinite/Overflow; fatal budgets apply. Inputs unchanged on error and success.",
+      "generics": [],
+      "parameters": [
+        "&Map<String,FloatArray>",
+        "&Map<String,FloatArray>",
+        "Float"
+      ],
+      "return": "Result<Map<String,FloatArray>,StdError>"
+    },
+    "fn:steps": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Adam"
+      ],
+      "return": "Int"
+    },
+    "type:Adam": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
     },
     "type:BigInt": {
       "constructor": false,
@@ -1083,29 +1060,6 @@
     "type:Regex": {
       "constructor": false,
       "fields": [],
-      "generics": [],
-      "kind": "record"
-    },
-    "type:SolveResult": {
-      "constructor": true,
-      "fields": [
-        [
-          "solution",
-          "FloatArray"
-        ],
-        [
-          "iterations",
-          "Int"
-        ],
-        [
-          "residual",
-          "Float"
-        ],
-        [
-          "converged",
-          "Bool"
-        ]
-      ],
       "generics": [],
       "kind": "record"
     },

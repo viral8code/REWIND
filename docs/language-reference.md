@@ -526,3 +526,11 @@ v1.9.9 の std.guiWindows は名前付きの複数 native 画面、入力振り�
 v1.9.10 の `std.task.yieldNow()` は追加 Task を作らず明示的に VM task を切り替える。`std.numericAsync.dot` / `matmul` は native chunk の間で切り替える async 関数で、Task<Result<T,StdError>> を作る。数値失敗は内側、キャンセル等は await の外側 Result に返る。[契約](REWIND_v1.9.10.md)を参照。
 
 `std.fft` の複素 transform / linear convolution、`std.sparse` の COO → CSR / matvec、`std.sparseAsync` の共役勾配 task は native 配列を使う。`std.numeric.scale` / `norm2` も提供する。サイズ、精度、SPD の前提、同期 kernel とタスク handoff の範囲は [v1.9.15](REWIND_v1.9.15.md) を参照。
+
+## v1.9.16: native-array differentiation / optimizer / model
+
+`std.autodiff` は VM-owned Tape と private Node で pure な数値演算を記録する。one-element loss から `backward(&tape,loss)` し、`gradient(&gradients,node)` の Option<FloatArray> を読む。constant / 未到達値は None。matmul、同形 binary、明示 broadcast、reshape / transpose、sum / mean、activation を native pages で計算する。
+
+`std.optimize.sgd` と `adam/adamStep` は named native weights の更新と moment の checkpoint 復元に対応する。`std.models` は canonical checksum 付き binary codec と fileRead/fileWrite を明示要求する save/load を提供する。save は deferred write で、物理 file は publish 後に確定する。32 MiB container /128 parameter 上限と fatal VM budgets、同期 kernel、中間 gradient の保持は[仕様](REWIND_v1.9.16.md)を参照。[実行例](../examples/model-training/main.rw)。
+
+`std.numeric.affine` は scale と offset の一括演算、`activation` は relu / sigmoid、`sumToShape` は explicit broadcast の元 shape への縮約を行う。fatal work/memory budgets と有限値・shape 契約を維持する。

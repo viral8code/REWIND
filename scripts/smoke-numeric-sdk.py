@@ -279,3 +279,26 @@ actual = run("run", root / "sparse-fft.rwc", "--record", root / "sparse-fft-trac
 assert actual == b"true\n2\ntrue\ntrue\n", actual
 assert run("replay", root / "sparse-fft-trace.json", "--root", root) == actual
 print("Verified extracted sparse/FFT SDK: canonical CSR, conjugate gradient, complex transform, linear convolution and source-free replay")
+
+training = root / "model-training.rw"
+training.write_text((sdk / "share/rewind/examples/model-training/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", training, "--allow-effects", "fileRead,fileWrite")
+training.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "model-training.rwc", "--allow-effects", "fileRead,fileWrite",
+             "--steps", "20000000", "--native-work", "20000000", "--history-memory", "256MiB",
+             "--record-mode", "compact", "--record", root / "model-training-trace.json")
+assert actual == b"true\n", actual
+reader = root / "model-reader.rw"
+reader.write_text('effects {fileRead};import std.models as models;match models.load("model.rwm"){Ok(model)=>{assert(models.get(&model,"linear")!=None);Out.println(true);},Err(e)=>{panic(e.code);}}publish;',encoding="utf-8")
+run("compile",reader,"--allow-effects","fileRead")
+reader.unlink()
+observed=run("run",root / "model-reader.rwc","--allow-effects","fileRead","--record-mode","compact","--record",root / "model-reader-trace.json")
+assert observed==b"true\n",observed
+(root / "model.rwm").unlink()
+assert run("replay", root / "model-training-trace.json", "--root", root, "--allow-effects", "fileRead,fileWrite") == actual
+print("Verified extracted native-array model training: reverse-mode, Adam, model codec, deferred save/load, source-free and model-free replay")
+
+assert run("replay", root / "model-reader-trace.json", "--root", root, "--allow-effects", "fileRead") == observed
+print("Verified extracted model reader: actual host file observation, source-free run and missing-file replay")

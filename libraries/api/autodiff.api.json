@@ -528,84 +528,158 @@
         "immutable": false
       }
     },
-    "dependency:sparse.rw": {
-      "fn:$import$sparse$create": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "Int",
-          "Int",
-          "&IntArray",
-          "&IntArray",
-          "&FloatArray"
-        ],
-        "return": "Result<$import$sparse$Matrix,StdError>"
-      },
-      "fn:$import$sparse$matvec": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&$import$sparse$Matrix",
-          "&FloatArray"
-        ],
-        "return": "Result<FloatArray,StdError>"
-      },
-      "type:$import$sparse$Matrix": {
-        "bounds": {},
-        "fields": [
-          [
-            "rows",
-            "Int"
-          ],
-          [
-            "cols",
-            "Int"
-          ],
-          [
-            "offsets",
-            "IntArray"
-          ],
-          [
-            "indices",
-            "IntArray"
-          ],
-          [
-            "values",
-            "FloatArray"
-          ]
-        ],
-        "generics": [],
-        "immutable": true
-      }
-    },
-    "dependency:task.rw": {
-      "fn:$import$task$yieldNow": {
-        "async": false,
-        "effects": [
-          "tasks"
-        ],
-        "generics": [],
-        "parameters": [],
-        "return": "Unit"
-      }
-    },
-    "fn:conjugateGradient": {
-      "async": true,
-      "cost": "O(iterations * (rows + nnz)); native buffers, yields between iterations, individual native calls remain synchronous.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Domain/NonFinite; positive tolerance, 1..100000 iterations; NumericDomain also reports underflow of the squared search residual, square symmetric positive-definite input required. No dense materialization; zero initial guess, residual is ||b-Ax||, convergence target tolerance * max(1,||b||). Returns converged=false on iteration exhaustion; fatal budgets/cancellation apply.",
+    "fn:backward": {
+      "async": false,
+      "cost": "sum of the forward/backward native kernel costs; O(nodes + retained intermediate gradients) storage. Synchronous, individual kernels are not preemptible.",
+      "effects": [],
+      "failure": "AutodiffNode/Loss, NumericShape/Domain/NonFinite/Overflow; requires a one-element loss, no mutation of tape; fatal work/memory budgets apply. Gradients retains intermediate native arrays until dropped.",
       "generics": [],
       "parameters": [
-        "$import$sparse$Matrix",
-        "FloatArray",
-        "Float",
-        "Int"
+        "&Tape",
+        "Node"
       ],
-      "return": "Result<SolveResult,StdError>"
+      "return": "Result<Gradients,StdError>"
+    },
+    "fn:binary": {
+      "async": false,
+      "effects": [],
+      "failure": "NumericDomain/Shape/NonFinite/Overflow, AutodiffNode/Size; add/sub/mul only, shapes must match, broadcasting is explicit.",
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "String",
+        "Node",
+        "Node"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:broadcast": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "Node",
+        "&List<Int>"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:constant": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "FloatArray"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:create": {
+      "async": false,
+      "cost": "O(1); VM-owned tape, checkpoint/revert uses COW metadata and shared native pages.",
+      "effects": [],
+      "generics": [],
+      "parameters": [],
+      "return": "Tape"
+    },
+    "fn:gradient": {
+      "async": false,
+      "effects": [],
+      "failure": "AutodiffNode; None means constant or unreachable from the selected loss, not an allocated zero array.",
+      "generics": [],
+      "parameters": [
+        "&Gradients",
+        "Node"
+      ],
+      "return": "Result<Option<FloatArray>,StdError>"
+    },
+    "fn:matmul": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "Node",
+        "Node"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:mean": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "Node"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:parameter": {
+      "async": false,
+      "cost": "O(elements) finite validation, no copy of numeric pages; name bounded to 128 UTF-8 bytes, at most 100000 operations per tape.",
+      "effects": [],
+      "failure": "AutodiffName/Size, NumericNonFinite; fatal work/memory budgets apply. Tape changes only on success.",
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "String",
+        "FloatArray"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:reshape": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "Node",
+        "&List<Int>"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:sum": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "Node"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:transpose": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "Node"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:unary": {
+      "async": false,
+      "effects": [],
+      "failure": "NumericDomain/NonFinite/Overflow, AutodiffNode/Size; relu/sigmoid/tanh/exp/log/square, relu derivative at zero is zero.",
+      "generics": [],
+      "parameters": [
+        "&mut Tape",
+        "String",
+        "Node"
+      ],
+      "return": "Result<Node,StdError>"
+    },
+    "fn:value": {
+      "async": false,
+      "effects": [],
+      "failure": "AutodiffNode for a foreign or replaced node; structurally identical graphs are interchangeable.",
+      "generics": [],
+      "parameters": [
+        "&Tape",
+        "Node"
+      ],
+      "return": "Result<FloatArray,StdError>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -798,6 +872,12 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:Gradients": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
     },
     "type:HistogramResult": {
       "constructor": true,
@@ -1057,6 +1137,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:Node": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -1086,29 +1172,6 @@
       "generics": [],
       "kind": "record"
     },
-    "type:SolveResult": {
-      "constructor": true,
-      "fields": [
-        [
-          "solution",
-          "FloatArray"
-        ],
-        [
-          "iterations",
-          "Int"
-        ],
-        [
-          "residual",
-          "Float"
-        ],
-        [
-          "converged",
-          "Bool"
-        ]
-      ],
-      "generics": [],
-      "kind": "record"
-    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -1123,6 +1186,12 @@
       ],
       "generics": [],
       "kind": "record"
+    },
+    "type:Tape": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
     }
   }
 }

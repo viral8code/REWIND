@@ -1,0 +1,17 @@
+effects {fileRead,fileWrite};
+import std.autodiff as ad;import std.numeric as numeric;import std.optimize as optimize;import std.models as models;
+fn take<T>(result:Result<T,StdError>)->T effects {} {match move result{Ok(v)=>{return move v;},Err(e)=>{panic(e.code);}}}
+fn matrix(rows:Int,cols:Int,values:&List<Float>)->FloatArray effects {} {let dimensions=List<Int>();dimensions.add(rows);dimensions.add(cols);return take(numeric.fromFloat(&dimensions,values));}
+let data=List<Float>();for i in 0..4{match i.toFloatChecked(){Ok(v)=>{data.add(v);data.add(1.0);},Err(_)=>{panic("conversion");}}}
+let labels=List<Float>();labels.add(1.0);labels.add(3.0);labels.add(5.0);labels.add(7.0);let x=matrix(4,2,&data);let y=matrix(4,1,&labels);
+let initial=List<Float>();initial.add(0.0);initial.add(0.0);var weights=Map<String,FloatArray>();weights.set("linear",matrix(2,1,&initial));var optimizer=take(optimize.adam(&weights,0.9,0.999,0.00000001));var first=0.0;var last=0.0;
+for epoch in 0..200{
+ var tape=ad.create();let input=take(ad.constant(&mut tape,x));let target=take(ad.constant(&mut tape,y));var parameter=input;
+ match weights.get("linear"){Some(w)=>{parameter=take(ad.parameter(&mut tape,"linear",w));},None=>{panic("weights");}}
+ let predicted=take(ad.matmul(&mut tape,input,parameter));let error=take(ad.binary(&mut tape,"sub",predicted,target));let square=take(ad.unary(&mut tape,"square",error));let loss=take(ad.mean(&mut tape,square));let value=take(ad.value(&tape,loss));last=take(numeric.sum(&value));if epoch==0{first=last;}
+ let derivatives=take(ad.backward(&tape,loss));let gradients=Map<String,FloatArray>();match take(ad.gradient(&derivatives,parameter)){Some(g)=>{gradients.set("linear",g);},None=>{panic("gradient");}}
+ weights=take(optimize.adamStep(&mut optimizer,&weights,&gradients,0.05));
+}
+assert(last<first*0.001);assert_eq(optimize.steps(&optimizer),200);let model=take(models.create(move weights));let bytes=take(models.encode(&model));let restored=take(models.decode(bytes));
+match models.get(&restored,"linear"){Some(w)=>{let values=take(numeric.valuesFloat(&w));assert(take(numeric.math("abs",values.get(0)-2.0))<0.1);assert(take(numeric.math("abs",values.get(1)-1.0))<0.2);},None=>{panic("model");}}
+take(models.save(&restored,"model.rwm"));publish;let loaded=take(models.load("model.rwm"));assert_eq(models.get(&loaded,"linear"),models.get(&restored,"linear"));Out.println(true);publish;

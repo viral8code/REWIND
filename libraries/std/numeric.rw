@@ -168,3 +168,13 @@ pub fn scale(array:&FloatArray,factor:Float)->Result<FloatArray,StdError> effect
 // @api norm2 cost O(elements) native work / O(rank) iterator state; scaled Euclidean accumulation avoids intermediate square overflow and underflow.
 // @api norm2 failure NumericType/NonFinite/Overflow; Float64 array, empty norm is zero, nonrepresentable final norm fails. Fatal budgets apply.
 pub fn norm2(array:&FloatArray)->Result<Float,StdError> effects {} {return stdNumericNorm2(array);}
+
+// @api affine cost O(elements) native work/storage; shape preserved, two finite scalars, no fused rounding guarantee.
+// @api affine failure NumericType/NonFinite/Overflow; fatal work/memory budgets apply.
+pub fn affine(array:&FloatArray,scale:Float,offset:Float)->Result<FloatArray,StdError> effects {} {return stdNumericAffine(array,scale,offset);}
+// @api activation cost O(elements) native work/storage; relu and stable sigmoid, no per-cell callbacks.
+// @api activation failure NumericDomain/Type/NonFinite; fatal work/memory budgets apply.
+pub fn activation(operation:String,array:&FloatArray)->Result<FloatArray,StdError> effects {} {if operation!="relu" && operation!="sigmoid"{return Err(StdError("NumericDomain",0));}return stdNumericActivation(operation,array);}
+// @api sumToShape cost O(elements * rank + output elements), O(output elements) native scratch; Neumaier accumulation, scalar/singleton dimensions retained as requested.
+// @api sumToShape failure NumericShape/Size/Type/NonFinite/Overflow; target must broadcast to input shape; empty reductions are zero, fatal budgets apply.
+pub fn sumToShape(array:&FloatArray,shape:&List<Int>)->Result<FloatArray,StdError> effects {} {return stdNumericSumToShape(array,shape);}
