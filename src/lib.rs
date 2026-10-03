@@ -463,6 +463,41 @@ impl PagedFile {
         bytes.truncate(self.len);
         Ok(bytes)
     }
+    /// Materialize only the requested pages, including when pages are spilled.
+    fn read_range(&self, offset: usize, count: usize) -> Result<Vec<u8>> {
+        if offset >= self.len || count == 0 {
+            return Ok(Vec::new());
+        }
+        let end = offset.saturating_add(count).min(self.len);
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(end - offset)
+            .map_err(|_| Error::InvalidOperation("FileAllocation".into()))?;
+        let first = offset / FILE_PAGE_SIZE;
+        let last = (end - 1) / FILE_PAGE_SIZE;
+        for index in first..=last {
+            let page = self
+                .pages
+                .get(&index)
+                .ok_or_else(|| Error::InvalidOperation("FilePageMissing".into()))?
+                .bytes()?;
+            let start = if index == first {
+                offset % FILE_PAGE_SIZE
+            } else {
+                0
+            };
+            let stop = if index == last {
+                (end - 1) % FILE_PAGE_SIZE + 1
+            } else {
+                FILE_PAGE_SIZE
+            };
+            let slice = page
+                .get(start..stop)
+                .ok_or_else(|| Error::InvalidOperation("FilePageCorrupt".into()))?;
+            bytes.extend_from_slice(slice);
+        }
+        Ok(bytes)
+    }
     fn append(&mut self, bytes: &[u8]) -> Result<()> {
         let pages = Arc::make_mut(&mut self.pages);
         let mut rest = bytes;
@@ -533,6 +568,25 @@ impl PagedFile {
 #[cfg(test)]
 mod page_tests {
     use super::*;
+    #[test]
+    fn file_range_reads_skip_unrequested_spilled_pages() {
+        let mut data = vec![b'A'; FILE_PAGE_SIZE];
+        data.extend(vec![b'B'; FILE_PAGE_SIZE]);
+        data.extend(vec![b'C'; FILE_PAGE_SIZE]);
+        let file = PagedFile::from_bytes(&data);
+        let last = &file.pages[&2];
+        last.spill().unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "rewind-journal-{}-{}.tmp",
+            std::process::id(),
+            last.id
+        ));
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(file.read_range(FILE_PAGE_SIZE - 2, 4).unwrap(), b"AABB");
+        assert!(file.read_range(FILE_PAGE_SIZE * 2, 1).is_err());
+        assert!(file.read_range(usize::MAX, usize::MAX).unwrap().is_empty());
+        assert!(file.read_range(0, 0).unwrap().is_empty());
+    }
     #[test]
     fn copy_on_write_reuses_unchanged_file_pages() {
         let mut original = PagedFile::from_bytes(&vec![b'A'; FILE_PAGE_SIZE * 2]);
@@ -2809,20 +2863,16 @@ impl Runtime {
             return Err(Error::InvalidOperation("handle is write-only".into()));
         }
         let bytes = if let Some(snapshot) = &handle.snapshot {
-            snapshot
-                .to_vec()?
-                .into_iter()
-                .skip(handle.position)
-                .take(count)
-                .collect()
-        } else if self.state.files.contains_key(&handle.path)
-            || self.virtual_files.contains_key(&handle.path)
+            snapshot.read_range(handle.position, count)?
+        } else if let Some(file) = self
+            .state
+            .files
+            .get(&handle.path)
+            .or_else(|| self.virtual_files.get(&handle.path))
         {
-            self.read_file(&handle.path)?
-                .into_iter()
-                .skip(handle.position)
-                .take(count)
-                .collect()
+            file.as_ref()
+                .ok_or_else(|| Error::MissingFile(handle.path.clone()))?
+                .read_range(handle.position, count)?
         } else {
             self.read_observed_range(&handle.path, handle.position, count)?
         };
@@ -2833,7 +2883,20 @@ impl Runtime {
         Ok(bytes)
     }
     pub fn open_snapshot(&mut self, path: &str) -> Result<u64> {
-        let content = self.read_file(path)?;
+        self.checked_path(path)?;
+        let snapshot = if let Some(content) = self
+            .state
+            .files
+            .get(path)
+            .or_else(|| self.virtual_files.get(path))
+        {
+            content
+                .as_ref()
+                .ok_or_else(|| Error::MissingFile(path.into()))?
+                .clone()
+        } else {
+            Arc::new(PagedFile::from_bytes(&self.read_file(path)?))
+        };
         let previous = self.state.handles.clone();
         let previous_id = self.state.next_handle_id;
         let id = self.open_file(path)?;
@@ -2841,7 +2904,7 @@ impl Runtime {
             .get_mut(&id)
             .expect("handle exists");
         handle.mode = FileMode::Read;
-        handle.snapshot = Some(Arc::new(PagedFile::from_bytes(&content)));
+        handle.snapshot = Some(snapshot);
         if let Err(error) = self.enforce_budget() {
             self.state.handles = previous;
             self.state.next_handle_id = previous_id;
