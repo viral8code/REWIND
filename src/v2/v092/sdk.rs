@@ -340,12 +340,8 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
-                "REWIND_v1.8.1.md",
-                include_str!("../../../docs/REWIND_v1.8.1.md"),
-            ),
-            (
-                "REWIND_v1.8.2.md",
-                include_str!("../../../docs/REWIND_v1.8.2.md"),
+                "REWIND_v1.9.md",
+                include_str!("../../../docs/REWIND_v1.9.md"),
             ),
             (
                 "REWIND_v1.8.4.md",

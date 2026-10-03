@@ -762,6 +762,7 @@ pub struct Runtime {
     virtual_directories: BTreeMap<String, bool>,
     storage_start: (usize, (usize, usize)),
     allocations_since_gc: usize,
+    allocation_bytes_since_gc: usize,
     native_remaining: Option<usize>,
     allocation_accounting: bool,
     execution_remaining: Option<usize>,
@@ -1228,6 +1229,7 @@ impl Runtime {
             virtual_directories: BTreeMap::new(),
             storage_start: (map_storage::map_nodes_created(), storage::storage_work()),
             allocations_since_gc: 0,
+            allocation_bytes_since_gc: 0,
             native_remaining: None,
             allocation_accounting: false,
             execution_remaining: None,
@@ -1760,7 +1762,7 @@ impl Runtime {
         Ok(())
     }
     pub fn collection_due(&self) -> bool {
-        self.allocations_since_gc >= 256
+        self.allocations_since_gc >= 256 || self.allocation_bytes_since_gc >= 4 * 1024 * 1024
     }
     /// Embedders must supply every external live Value at a safe point.
     /// Checkpoints keep independent roots; collection never mutates those roots.
@@ -1876,9 +1878,11 @@ impl Runtime {
             return Err(error);
         }
         self.allocations_since_gc = 0;
+        self.allocation_bytes_since_gc = 0;
         Ok((dead.len(), work))
     }
     pub fn alloc(&mut self, value: Value) -> Result<u64> {
+        let bytes = Self::value_bytes(&value);
         let id = self.state.next_heap_id;
         let previous = self.state.heap.clone();
         self.state.next_heap_id = id
@@ -1891,9 +1895,12 @@ impl Runtime {
             return Err(error);
         }
         self.allocations_since_gc = self.allocations_since_gc.saturating_add(1);
+        self.allocation_bytes_since_gc = self.allocation_bytes_since_gc.saturating_add(bytes);
         Ok(id)
     }
     pub fn heap_set(&mut self, id: u64, value: Value) -> Result<()> {
+        let growth = Self::value_bytes(&value)
+            .saturating_sub(self.state.heap.get(&id).map_or(0, Self::value_bytes));
         let previous = self.state.heap.clone();
         let heap = Arc::make_mut(&mut self.state.heap);
         if !heap.contains_key(&id) {
@@ -1906,6 +1913,7 @@ impl Runtime {
             self.state.heap = previous;
             return Err(error);
         }
+        self.allocation_bytes_since_gc = self.allocation_bytes_since_gc.saturating_add(growth);
         Ok(())
     }
     pub fn heap_get(&self, id: u64) -> Option<&Value> {

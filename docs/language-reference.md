@@ -136,6 +136,8 @@ assert_eq(sum,10);
 
 `match`は値のvariantや構造に応じて分岐します。enumには原則として網羅的な分岐が必要です。`_`は値を捨てるpatternです。guardも使えますが、guardからpublishやCheckpoint操作を行うことはできません。
 
+v1.9 以降は入れ子の Option / Result、generic enum、tuple、record の組合せも網羅性検査します。guard は網羅性の根拠になりません。先行 arm に含まれる arm、空・逆順の Int 区間を拒否します。解析上限と版の互換性は [v1.9](REWIND_v1.9.md) を参照してください。
+
 ## 関数とエントリーポイント
 
 関数は`fn name(params)->ReturnType effects { ... } { ... }`です。再帰も利用できます。

@@ -79,3 +79,7 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 ### 1.8 の公開単位
 
 1.8.0 は native dense FloatArray / IntArray、COW view と更新、scalar math / vector / LU / 基本統計を先に検証する。1.8.1以降で QR / least squares / eigen と追加統計・分布乱数、標準数値型と DB / JSON 変換、日時 / Unicode / regex / 増分 stream を垂直に実装する。全項目を終えるまで1.8工程は完了としない。各 patch も両 OS の SDK を検証し、main 統合と Release 公開を行う。
+
+### 1.9 の公開単位
+
+1.9.0 は nested match / module scope の言語監査と大きい payload に対する GC trigger を最初の単位として検証する。観測 / trace の保持・spill、bounded file I/O、共有 buffer の費用、native kernel の公平性・キャンセル、GUI と残るアルゴリズムの実例・測定は後続 patch で継続する。1.9.0 の公開をもって 1.9 全工程の完了とはしない。
