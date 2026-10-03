@@ -333,6 +333,7 @@ pub(in crate::v2) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.14"
             | "1.9.15"
             | "1.9.16"
+            | "1.9.17"
             | "2.0.0"
     ) {
         if !program.aliases.is_empty() || uses_defaults {

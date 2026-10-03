@@ -534,3 +534,7 @@ v1.9.10 の `std.task.yieldNow()` は追加 Task を作らず明示的に VM tas
 `std.optimize.sgd` と `adam/adamStep` は named native weights の更新と moment の checkpoint 復元に対応する。`std.models` は canonical checksum 付き binary codec と fileRead/fileWrite を明示要求する save/load を提供する。save は deferred write で、物理 file は publish 後に確定する。32 MiB container /128 parameter 上限と fatal VM budgets、同期 kernel、中間 gradient の保持は[仕様](REWIND_v1.9.16.md)を参照。[実行例](../examples/model-training/main.rw)。
 
 `std.numeric.affine` は scale と offset の一括演算、`activation` は relu / sigmoid、`sumToShape` は explicit broadcast の元 shape への縮約を行う。fatal work/memory budgets と有限値・shape 契約を維持する。
+
+## v1.9.17: module globals と optimizer
+
+imported function は entry の無関係な global variable を裸の名前で参照できない。module 内の constant と明示した import は維持し、local に出ていた誤った shadow warning を解消する。旧 language mode の判定は維持する。SGD / Adam の signature は同じで、native pass により formula ごとの一時配列を省く。[仕様](REWIND_v1.9.17.md)。

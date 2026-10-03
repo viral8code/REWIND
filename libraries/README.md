@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.16 / `language = "1.9.16"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.17 / `language = "1.9.17"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -174,4 +174,4 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 
 1.9.14 は manifest / lock を保持した source-free `.rwc` の実行・replay に対応する。実行時に source / vendor の graph を開き直さず、effect と assets の検証は保持する。[契約](../docs/REWIND_v1.9.14.md)を参照。
 
-1.9.16 の autodiff / optimizer / model の契約・費用は[仕様](../docs/REWIND_v1.9.16.md)を参照。
+勾配・model の基本契約は[1.9.16](../docs/REWIND_v1.9.16.md)、module scope / optimizer の改善は[1.9.17](../docs/REWIND_v1.9.17.md)を参照。

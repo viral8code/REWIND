@@ -117,3 +117,5 @@ compiled 配布時に development manifest が残っていると、run_compiled 
 1.9.15 は native FFT / linear convolution、canonical CSR / borrowed-page matvec、scaled norm、共役勾配 task を追加し、精度・source-free・checkpoint・予算・反復とキャンセルを検証する。reverse-mode / optimizer / model、GUI / DB / 通信の統合、HTTP server / TCP、長い kernel の分割と残る到達条件は継続する。
 
 1.9.16 は native-array reverse-mode、SGD / Adam と bounded model codec / deferred save-load を実装する。勾配の独立有限差分、typed failure の atomicity、checkpoint、source-free model-free replay と両 OS SDK を検証する。単一 kernel の途中の協調動作、GUI / DB / 通信、HTTP server / TCP と残る到達条件は継続する。
+
+1.9.17 は imported function の global scope を declaration origin に限定し、不要な shadow warning と暗黙の entry global capture を解消する。optimizer の項ごとの一時配列を省き、既存公開 API / checkpoint / typed failure と巨大な有限 gradient を検証する。残る kernel / GUI / 通信・DB の統合と v2.0 の条件は継続する。
