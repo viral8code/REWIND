@@ -1,0 +1,38 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+import std.guiForm as form;
+import std.guiTable as table;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("GUI operation failed");}}}
+let schema=List<form.Field>();
+schema.add(form.Field("name","Name",form.Kind::Text,true,128,"日本"));
+schema.add(form.Field("age","Age",form.Kind::Integer(0,150),true,12,"13"));
+schema.add(form.Field("active","Active",form.Kind::Check,false,5,"false"));
+let model=take(form.create(&schema,3));
+let headings=List<String>();headings.add("Name");headings.add("Score");
+let data=List<String>();for i in 0..100 {data.add("row "+i.format());data.add(i.format());}
+let grid=take(table.create(freeze(headings),freeze(data),4));
+var formView=take(form.render(&model,"Form — REWIND",640,300,72,"form"));
+var tableView=take(table.render(&grid,"Table — REWIND",640,240,30,"table"));
+take(windows.present("form",&formView));take(windows.present("table",&tableView));publish;
+var running=true;commit modelStart;
+while running {
+ let received=take(windows.nextEventAny());
+ if received.event.kind=="close" {running=false;}
+ else {
+  if received.event.kind=="key" && received.event.key=="Escape" {
+   revert modelStart;windows.continueInput();Out.println(take(form.value(&model,"name")));
+  } else {
+   if received.window=="form" {match form.dispatch(&mut model,&mut formView,received.event,"form") {
+    Ok(Some(form.Action::Submitted(data)))=>{Out.println(take(jsonStringify(data)));},
+    Err(problem)=>{Out.println(problem.code);},_=>{}
+   }}
+   if received.window=="table" {match take(table.dispatch(&mut grid,&mut tableView,received.event,"table")) {
+    Some(table.Action::Selected(row))=>{Out.println(row);},_=>{}
+   }}
+  }
+  formView=take(form.render(&model,"Form — REWIND",640,300,72,"form"));
+  tableView=take(table.render(&grid,"Table — REWIND",640,240,30,"table"));
+  take(windows.present("form",&formView));take(windows.present("table",&tableView));publish;
+ }
+}
+take(windows.close("form"));take(windows.close("table"));publish;drop modelStart;

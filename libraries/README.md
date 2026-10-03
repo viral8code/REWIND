@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.11 / `language = "1.9.11"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.12 / `language = "1.9.12"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -159,3 +159,7 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 明示的な VM task handoff と、最大4096積和ごとに処理を渡す async 内積・行列積を提供する。入力は native storage を共有し、TaskError と数値 StdError を分ける。[契約](../docs/REWIND_v1.9.11.md)と [例](../examples/numeric-async/README.md)を参照。
 
 1.9.11 は FloatArray / IntArray の共有 page の会計を改善し、task と checkpoint での重複計上を解消します。API と source module は継続します。[費用と保持の契約](../docs/REWIND_v1.9.11.md)を参照してください。
+
+## フォーム・表（1.9.12）
+
+`std.guiForm` は schema / 編集 / 型付き Json 検証、`std.guiTable` は frozen 行優先データの表示範囲描画を提供する。`std.gui` は focus / focused / setChecked / remove / style / textarea scroll の編集を追加した。いずれも logical View の変更は pure で、外部 surface への反映には present と publish を使う。[容量・失敗・費用契約](../docs/REWIND_v1.9.12.md)、[実行例](../examples/gui-controls/README.md)を参照する。

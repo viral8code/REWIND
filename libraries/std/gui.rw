@@ -43,7 +43,7 @@ pub fn dispatch(view:&mut View,event:Event)->Option<Action> effects {} {
  if event.kind=="close"{return Some(Action::Close);}
  if event.kind=="resize"{return Some(Action::Resize(event.width,event.height));}
  if event.kind=="pointer"{var i=view.widgets.len();while i>0{i-=1;let w=view.widgets.get(i);if interactive(w) && event.x>=w.x && event.x<w.x+w.width && event.y>=w.y && event.y<w.y+w.height{return activate(view,i);}}return None;}
- if event.kind=="wheel" && view.focus>=0 {let w=view.widgets.get(view.focus);if w.kind=="textarea" {var position=0;match view.scroll.get(w.id){Some(n)=>{position=n;},None=>{}}position+=event.y;if position<0{position=0;}if position>=w.caption.split("\n").len(){position=w.caption.split("\n").len()-1;}view.scroll.set(w.id,position);return Some(Action::Key(w.id,"Scroll"));}}
+ if event.kind=="wheel" && view.focus>=0 {let w=view.widgets.get(view.focus);if w.enabled && w.kind=="textarea" {var position=0;match view.scroll.get(w.id){Some(n)=>{position=n;},None=>{}}let last=w.caption.split("\n").len()-1;if position>last{position=last;}if event.y>0{if event.y>last-position{position=last;}else{position+=event.y;}}else{if event.y< -position{position=0;}else{position+=event.y;}}view.scroll.set(w.id,position);return Some(Action::Key(w.id,"Scroll"));}}
  if (event.kind=="key" || event.kind=="text") && view.focus>=0 {let w=view.widgets.get(view.focus);if w.enabled && (w.kind=="textbox" || w.kind=="textarea") && event.key!="Tab" {
  match edit(view,w.id,event){Ok(_)=>{return Some(Action::Key(w.id,"TextChanged"));},Err(e)=>{return Some(Action::Key(w.id,e.code));}}
  }}
@@ -104,4 +104,51 @@ pub fn pollEvent()->Result<Option<Event>,GuiError> effects {gui} {
 pub fn graphemeEditing(view:&mut View,enabled:Bool)->Result<Unit,GuiError> effects {} {
  if enabled{for i in 0..view.widgets.len(){let w=view.widgets.get(i);if w.kind=="textbox" || w.kind=="textarea"{let normalized=stdGuiEditGrapheme(w.caption,w.cursor,w.anchor,"Normalize","",w.kind=="textarea")?;match jsonParse(normalized){Err(e)=>{return Err(StdError(e.code,e.offset));},Ok(j)=>{view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,w.foreground,w.background,w.enabled,w.checked,integer(j,"cursor"),integer(j,"anchor")));}}}}}
  view.grapheme=enabled;return Ok(());
+}
+
+// @api focus failure UnknownId/NotInteractive; retains the widget selection and scroll.
+pub fn focus(view:&mut View,id:String)->Result<Unit,GuiError> effects {} {
+ match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{
+  if !interactive(view.widgets.get(i)){return Err(StdError("GuiNotInteractive",0));}view.focus=i;
+ }}return Ok(());
+}
+// @api setChecked failure UnknownId/NotCheckbox; updates only the logical view.
+pub fn setChecked(view:&mut View,id:String,checked:Bool)->Result<Unit,GuiError> effects {} {
+ match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{
+  let w=view.widgets.get(i);if w.kind!="checkbox"{return Err(StdError("GuiNotCheckbox",0));}
+  view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,w.foreground,w.background,w.enabled,checked,w.cursor,w.anchor));
+ }}return Ok(());
+}
+// @api remove cost O(widgets); rebuilds indices and preserves remaining selection, scroll and focus.
+// @api remove failure UnknownId; unknown input leaves the view unchanged.
+pub fn remove(view:&mut View,id:String)->Result<Unit,GuiError> effects {} {
+ var removed=-1;match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{removed=i;}}
+ let widgets=List<Widget>();let indices=Map<String,Int>();var focus=-1;
+ for i in 0..view.widgets.len(){if i!=removed{let w=view.widgets.get(i);if view.focus==i{focus=widgets.len();}indices.set(w.id,widgets.len());widgets.add(w);}}
+ view.widgets=move widgets;view.indices=move indices;view.focus=focus;view.scroll.remove(id);return Ok(());
+}
+
+// @api style failure UnknownId/InvalidColor; retains every other widget property.
+pub fn style(view:&mut View,id:String,foreground:Int,background:Int)->Result<Unit,GuiError> effects {} {
+ if foreground<0 || foreground>0xffffff || background<0 || background>0xffffff{return Err(StdError("GuiInvalidColor",0));}
+ match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);
+ view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,foreground,background,w.enabled,w.checked,w.cursor,w.anchor));}}
+ return Ok(());
+}
+
+// @api focused cost O(1); disabled or removed controls have no focus.
+pub fn focused(view:&View)->Option<String> effects {} {
+ if view.focus<0 || view.focus>=view.widgets.len(){return None;}
+ let w=view.widgets.get(view.focus);if !interactive(w){return None;}return Some(w.id);
+}
+
+// @api scrollPosition failure UnknownId/NotTextArea; logical first visible line.
+pub fn scrollPosition(view:&View,id:String)->Result<Int,GuiError> effects {} {
+ match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{if view.widgets.get(i).kind!="textarea"{return Err(StdError("GuiNotTextArea",0));}}}
+ match view.scroll.get(id){Some(n)=>{return Ok(n);},None=>{return Ok(0);}}
+}
+// @api setScrollPosition failure UnknownId/NotTextArea/InvalidScroll; prevalidates without changing focus or text.
+pub fn setScrollPosition(view:&mut View,id:String,line:Int)->Result<Unit,GuiError> effects {} {
+ match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);if w.kind!="textarea"{return Err(StdError("GuiNotTextArea",0));}if line<0 || line>=w.caption.split("\n").len(){return Err(StdError("GuiInvalidScroll",0));}}}
+ view.scroll.set(id,line);return Ok(());
 }

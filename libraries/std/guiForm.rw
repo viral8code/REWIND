@@ -1,0 +1,103 @@
+import gui as gui;
+import datetime as datetime;
+pub type FormError = StdError;
+pub enum Kind {Text,Multiline,Integer(Int,Int),Real(Float,Float),Check,Timestamp}
+pub record Field {id:String,caption:String,kind:Kind,required:Bool,maxBytes:Int,initial:String}
+record Entry {field:Field,value:String,cursor:Int,anchor:Int,scroll:Int}
+pub struct Form {private entries:List<Entry>,private indices:Map<String,Int>,private errors:Map<String,String>,private visible:Int,private first:Int,private active:Int}
+pub enum Action {Edited(String),Submitted(Json),Invalid,Scrolled(Int),Resize(Int,Int),Close}
+fn textValid(value:String)->Bool effects {} {return value.byteLen()<=4096 && stdTextFind(value,"\0")==None;}
+fn inputValid(field:Field,value:String)->Bool effects {} {
+ if !textValid(value) || value.byteLen()>field.maxBytes{return false;}
+ match field.kind{Kind::Multiline=>{},Kind::Check=>{return value=="true" || value=="false";},_=>{if stdTextFind(value,"\n")!=None || stdTextFind(value,"\r")!=None{return false;}}}return true;
+}
+// @api create cost O(fields + schema bytes); at most 64 fields, 1..32 visible rows, maxBytes 1..4096 per value.
+// @api create failure Schema/Id/Text; initial numeric input can be incomplete until validate.
+pub fn create(fields:&List<Field>,visibleRows:Int)->Result<Form,FormError> effects {} {
+ if fields.len()<1 || fields.len()>64 || visibleRows<1 || visibleRows>32{return Err(StdError("GuiFormSchema",0));}
+ let entries=List<Entry>();let indices=Map<String,Int>();let errors=Map<String,String>();
+ for i in 0..fields.len(){let field=fields.get(i);
+  if field.id=="" || field.id.byteLen()>48 || !textValid(field.id) || indices.get(field.id)!=None{return Err(StdError("GuiInvalidId",i));}
+  if !textValid(field.caption) || field.maxBytes<1 || field.maxBytes>4096 || !inputValid(field,field.initial){return Err(StdError("GuiInvalidText",i));}
+  match field.kind{Kind::Check=>{if field.maxBytes<5{return Err(StdError("GuiFormSchema",i));}},Kind::Integer(low,high)=>{if low>high{return Err(StdError("GuiFormSchema",i));}},Kind::Real(low,high)=>{if !low.isFinite() || !high.isFinite() || low>high{return Err(StdError("GuiFormSchema",i));}},_=>{}}
+  indices.set(field.id,i);entries.add(Entry(field,field.initial,field.initial.charLen(),field.initial.charLen(),0));
+ }return Ok(Form(move entries,move indices,move errors,visibleRows,0,-1));
+}
+fn index(form:&Form,id:String)->Result<Int,FormError> effects {} {match form.indices.get(id){Some(i)=>{return Ok(i);},None=>{return Err(StdError("GuiUnknownId",0));}}}
+pub fn value(form:&Form,id:String)->Result<String,FormError> effects {} {return Ok(form.entries.get(index(form,id)?).value);}
+pub fn error(form:&Form,id:String)->Result<Option<String>,FormError> effects {} {index(form,id)?;return Ok(form.errors.get(id));}
+// @api setValue failure UnknownId/Text; validates input bounds before mutation, not its final typed value.
+pub fn setValue(form:&mut Form,id:String,value:String)->Result<Unit,FormError> effects {} {
+ let i=index(form,id)?;let e=form.entries.get(i);if !inputValid(e.field,value){return Err(StdError("GuiInvalidText",i));}
+ form.entries.set(i,Entry(e.field,value,value.charLen(),value.charLen(),0));form.errors.remove(id);return Ok(());
+}
+fn typed(e:Entry,position:Int)->Result<Json,FormError> effects {} {
+ match e.field.kind{
+  Kind::Text=>{if e.field.required && e.value==""{return Err(StdError("GuiFormRequired",position));}return Ok(Json::Text(e.value));},
+  Kind::Multiline=>{if e.field.required && e.value==""{return Err(StdError("GuiFormRequired",position));}return Ok(Json::Text(e.value));},
+  Kind::Check=>{if e.field.required && e.value!="true"{return Err(StdError("GuiFormRequired",position));}return Ok(Json::Bool(e.value=="true"));},
+  _=>{}
+ }
+ let trimmed=stdTextTrim(e.value)?;if trimmed==""{if e.field.required{return Err(StdError("GuiFormRequired",position));}return Ok(Json::Null);}
+ match e.field.kind{
+  Kind::Integer(low,high)=>{match stdParseInt(trimmed,10){Err(_)=>{return Err(StdError("GuiFormInteger",position));},Ok(n)=>{if n<low || n>high{return Err(StdError("GuiFormRange",position));}return Ok(Json::Int(n));}}},
+  Kind::Real(low,high)=>{match stdParseFloat(trimmed){Err(_)=>{return Err(StdError("GuiFormReal",position));},Ok(n)=>{if !n.isFinite() || n<low || n>high{return Err(StdError("GuiFormRange",position));}return Ok(Json::Float(n));}}},
+  Kind::Timestamp=>{match datetime.parse(trimmed){Err(_)=>{return Err(StdError("GuiFormTimestamp",position));},Ok(n)=>{return datetime.toJson(&n);}}},
+  _=>{return Err(StdError("GuiFormSchema",position));}
+ }
+}
+// @api validate cost O(all fields + value bytes); stores every error, never discards the edited text.
+pub fn validate(form:&mut Form)->Bool effects {} {
+ let errors=Map<String,String>();for i in 0..form.entries.len(){let e=form.entries.get(i);match typed(e,i){Err(problem)=>{errors.set(e.field.id,problem.code);},Ok(_)=>{}}}
+ let valid=errors.len()==0;form.errors=move errors;return valid;
+}
+// @api toJson failure Required/Integer/Real/Range/Timestamp; readonly, returns typed values or the first error with field index.
+pub fn toJson(form:&Form)->Result<Json,FormError> effects {} {
+ let object=Map<String,Json>();for i in 0..form.entries.len(){let e=form.entries.get(i);object.set(e.field.id,typed(e,i)?);}return Ok(Json::Object(freeze(object)));
+}
+pub fn reset(form:&mut Form)->Unit effects {} {
+ for i in 0..form.entries.len(){let e=form.entries.get(i);let n=e.field.initial.charLen();form.entries.set(i,Entry(e.field,e.field.initial,n,n,0));}let errors=Map<String,String>();form.errors=move errors;form.first=0;form.active=-1;
+}
+pub fn position(form:&Form)->Int effects {} {return form.first;}
+pub fn scroll(form:&mut Form,delta:Int)->Unit effects {} {
+ var limit=form.entries.len()-form.visible;if limit<0{limit=0;}
+ if delta>0{if delta>limit-form.first{form.first=limit;}else{form.first+=delta;}}else{if delta< -form.first{form.first=0;}else{form.first+=delta;}}
+ if form.active<form.first || form.active>=form.first+form.visible{form.active=-1;}
+}
+fn prefixValid(prefix:String)->Bool effects {} {return prefix!="" && prefix.byteLen()<=32 && stdTextFind(prefix,"\0")==None;}
+// @api render cost O(visible fields); new logical view only, preserves model selection/focus and shows validation errors.
+// @api render failure Bounds/Id; rowHeight 64..128, caller chooses enough height and publishes the returned view.
+pub fn render(form:&Form,title:String,width:Int,height:Int,rowHeight:Int,prefix:String)->Result<gui.View,FormError> effects {} {
+ if !prefixValid(prefix){return Err(StdError("GuiInvalidId",0));}
+ if width<240 || width>4096 || height<144 || height>4096 || rowHeight<64 || rowHeight>128 || 16+form.visible*rowHeight>height-48{return Err(StdError("GuiInvalidBounds",0));}
+ let panel=gui.window(title,width,height)?;gui.graphemeEditing(&mut panel,true)?;
+ var shown=form.visible;if shown>form.entries.len()-form.first{shown=form.entries.len()-form.first;}
+ for row in 0..shown{let i=form.first+row;let e=form.entries.get(i);let y=16+row*rowHeight;let id=prefix+":field:"+e.field.id;
+  gui.label(&mut panel,prefix+":caption:"+i.format(),e.field.caption,16,y,width-32,16)?;
+  match e.field.kind{
+   Kind::Check=>{gui.checkbox(&mut panel,id,"",e.value=="true",16,y+18,width-32,26)?;},
+   Kind::Multiline=>{gui.textArea(&mut panel,id,e.value,16,y+18,width-32,rowHeight-38)?;gui.setSelection(&mut panel,id,e.cursor,e.anchor)?;gui.setScrollPosition(&mut panel,id,e.scroll)?;},
+   _=>{gui.textBox(&mut panel,id,e.value,16,y+18,width-32,26)?;gui.setSelection(&mut panel,id,e.cursor,e.anchor)?;}
+  }
+  if form.active==i{gui.focus(&mut panel,id)?;}
+  match form.errors.get(e.field.id){Some(problem)=>{let errorId=prefix+":error:"+i.format();gui.label(&mut panel,errorId,problem,16,y+rowHeight-18,width-32,16)?;gui.style(&mut panel,errorId,0xb91c1c,0xffffff)?;},None=>{}}
+ }
+ gui.button(&mut panel,prefix+":submit","Submit",16,height-40,96,28)?;gui.button(&mut panel,prefix+":reset","Reset",120,height-40,96,28)?;return Ok(move panel);
+}
+fn activeField(form:&Form,control:String,prefix:String)->Int effects {} {for i in 0..form.entries.len(){if control==prefix+":field:"+form.entries.get(i).field.id{return i;}}return -1;}
+// @api dispatch failure InvalidText; rejected over-limit edits restore the view text and selection. Submit validates all fields.
+pub fn dispatch(form:&mut Form,panel:&mut gui.View,event:gui.Event,prefix:String)->Result<Option<Action>,FormError> effects {} {
+ if !prefixValid(prefix){return Err(StdError("GuiInvalidId",0));}
+ var area=false;match gui.focused(panel){Some(control)=>{let i=activeField(form,control,prefix);if i>=0{match form.entries.get(i).field.kind{Kind::Multiline=>{area=true;},_=>{}}}},None=>{}}
+ if event.kind=="wheel" && !area{scroll(form,event.y);return Ok(Some(Action::Scrolled(form.first)));}
+ let action=gui.dispatch(panel,event);form.active=-1;match gui.focused(panel){Some(id)=>{form.active=activeField(form,id,prefix);},None=>{}}
+ match action{
+  Some(gui.Action::Activate(id))=>{if id==prefix+":reset"{reset(form);return Ok(Some(Action::Edited("")));}if id==prefix+":submit"{if !validate(form){return Ok(Some(Action::Invalid));}return Ok(Some(Action::Submitted(toJson(form)?)));}},
+  Some(gui.Action::Key(id,key))=>{let i=activeField(form,id,prefix);if i>=0{let previous=form.entries.get(i);if key=="GuiInvalidText" || key=="GuiInvalidSelection" || key=="GuiSingleLine"{return Err(StdError(key,i));}let text=gui.text(panel,id)?;let selection=gui.selection(panel,id)?;var scrolled=0;match previous.field.kind{Kind::Multiline=>{scrolled=gui.scrollPosition(panel,id)?;},_=>{}}
+   if !inputValid(previous.field,text){gui.setText(panel,id,previous.value)?;gui.setSelection(panel,id,previous.cursor,previous.anchor)?;match previous.field.kind{Kind::Multiline=>{gui.setScrollPosition(panel,id,previous.scroll)?;},_=>{}}return Err(StdError("GuiInvalidText",i));}
+   form.entries.set(i,Entry(previous.field,text,selection._0,selection._1,scrolled));if text!=previous.value{form.errors.remove(previous.field.id);return Ok(Some(Action::Edited(previous.field.id)));}
+  }},
+  Some(gui.Action::Changed(id,checked))=>{let i=activeField(form,id,prefix);if i>=0{let e=form.entries.get(i);var text="false";if checked{text="true";}form.entries.set(i,Entry(e.field,text,0,0,0));form.errors.remove(e.field.id);return Ok(Some(Action::Edited(e.field.id)));}},
+  Some(gui.Action::Resize(w,h))=>{return Ok(Some(Action::Resize(w,h)));},Some(gui.Action::Close)=>{return Ok(Some(Action::Close));},_=>{}
+ }return Ok(None);
+}

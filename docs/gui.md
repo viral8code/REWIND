@@ -87,3 +87,7 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 ## 1.9.10 の task handoff
 
 通信や計算 task を持つ GUI loop では、pollAny で入力を確認し、task.isDone() で完了を確認して `std.task.yieldNow()` で VM 処理を渡す。tasks effect が必要。nextEventAny の待機中に VM task が進む変更ではない。dot / matmul の協調 API は [v1.9.10](REWIND_v1.9.10.md)。
+
+## フォームと表
+
+1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。

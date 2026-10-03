@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.9",
+  "language": "1.9.12",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
@@ -115,6 +115,25 @@
         ],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$focus": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$focused": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$View"
+        ],
+        "return": "Option<String>"
+      },
       "fn:$import$gui$graphemeEditing": {
         "async": false,
         "effects": [],
@@ -184,6 +203,16 @@
         ],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$remove": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
       "fn:$import$gui$resize": {
         "async": false,
         "effects": [],
@@ -204,6 +233,16 @@
         ],
         "return": "Result<String,StdError>"
       },
+      "fn:$import$gui$scrollPosition": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$View",
+          "String"
+        ],
+        "return": "Result<Int,StdError>"
+      },
       "fn:$import$gui$selection": {
         "async": false,
         "effects": [],
@@ -214,6 +253,17 @@
         ],
         "return": "Result<Tuple<Int,Int>,StdError>"
       },
+      "fn:$import$gui$setChecked": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Bool"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
       "fn:$import$gui$setEnabled": {
         "async": false,
         "effects": [],
@@ -222,6 +272,17 @@
           "&mut $import$gui$View",
           "String",
           "Bool"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$setScrollPosition": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int"
         ],
         "return": "Result<Unit,StdError>"
       },
@@ -245,6 +306,18 @@
           "&mut $import$gui$View",
           "String",
           "String"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$style": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int",
+          "Int"
         ],
         "return": "Result<Unit,StdError>"
       },
