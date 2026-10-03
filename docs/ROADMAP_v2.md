@@ -93,3 +93,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.4 では contiguous 数値配列の走査を page 単位にし、import 内の nominal generic scope を修正する。初期履歴予算の CLI 指定と replay を整合させる。native kernel の公平性・キャンセルと残る GUI / algorithm / 統合の受入条件は継続する。
 
 1.9.5 は iterative Dinic の最大流と二部マッチング / 最小 vertex cover を標準 module に追加する。VM 内の residual network、長い経路、独立な cut / matching 列挙、source-free replay と SDK を検証する。残る algorithm、GUI、native kernel と履歴の費用は継続する。
+
+1.9.6 は compact 記録により長い純粋計算の debug index 保持を省き、実行順序と観測・最終状態の検証を維持する。state digest の整形・journal 読込みも逐次化する。観測 export の DOM 上限と全領域の保持費用は別に継続する。

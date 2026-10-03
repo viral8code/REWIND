@@ -3,6 +3,59 @@ use serde_json::{json, Value as Json};
 fn invalid(message: impl Into<String>) -> Error {
     Error::InvalidOperation(format!("ReplayMismatch: {}", message.into()))
 }
+// Feed the existing Debug wire representation to the digest without a full String copy.
+struct DigestFormatter<'a>(&'a mut sha2::Sha256);
+impl std::fmt::Write for DigestFormatter<'_> {
+    fn write_str(&mut self, text: &str) -> std::fmt::Result {
+        use sha2::Digest;
+        self.0.update(text.as_bytes());
+        Ok(())
+    }
+}
+impl std::io::Write for DigestFormatter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        use sha2::Digest;
+        self.0.update(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+    #[test]
+    fn streaming_formatter_and_spilled_journal_preserve_digest_wire_bytes() {
+        let value = Value::TypedList(
+            "String".into(),
+            vec![
+                Value::Text("a\n😀\"\\".into()),
+                Value::Text("x".repeat(32768)),
+            ]
+            .into(),
+        );
+        let expected = Sha256::digest(format!("{:?}", value).as_bytes());
+        let mut hash = Sha256::new();
+        std::fmt::write(&mut DigestFormatter(&mut hash), format_args!("{:?}", value)).unwrap();
+        assert_eq!(hash.finalize(), expected);
+        let mut journal = Journal::default();
+        journal.append(b"first\n");
+        journal.append(&vec![b'x'; 32768]);
+        journal.append("😀".as_bytes());
+        for segment in journal.segments() {
+            segment.spill().unwrap();
+        }
+        let expected = Sha256::digest(journal.bytes().unwrap());
+        let mut hash = Sha256::new();
+        journal
+            .write_since(&Journal::default(), &mut DigestFormatter(&mut hash))
+            .unwrap();
+        assert_eq!(hash.finalize(), expected);
+    }
+}
 fn array(value: &Json) -> Result<&Vec<Json>> {
     value
         .as_array()
@@ -290,16 +343,20 @@ impl Runtime {
         use sha2::{Digest, Sha256};
         let mut hash = Sha256::new();
         if self.incremental_publish {
-            hash.update(format!(
-                "{:?}{:?}{:?}{:?}{:?}{}{}",
-                self.published_operations,
-                self.state.stdout.operations(),
-                self.state.stderr.operations(),
-                self.state.file_operations,
-                self.state.directory_operations,
-                self.next_operation,
-                self.published_epoch
-            ));
+            std::fmt::write(
+                &mut DigestFormatter(&mut hash),
+                format_args!(
+                    "{:?}{:?}{:?}{:?}{:?}{}{}",
+                    self.published_operations,
+                    self.state.stdout.operations(),
+                    self.state.stderr.operations(),
+                    self.state.file_operations,
+                    self.state.directory_operations,
+                    self.next_operation,
+                    self.published_epoch
+                ),
+            )
+            .expect("digest formatting is infallible");
         }
         if self.external_high_water != 0 {
             hash.update(b"external.v1");
@@ -312,9 +369,13 @@ impl Runtime {
         if self.incremental_publish {
             hash.update((self.state.byte_cursor as u64).to_le_bytes());
         }
-        hash.update(self.state.stdout.bytes()?);
+        self.state
+            .stdout
+            .write_since(&Journal::default(), &mut DigestFormatter(&mut hash))?;
         hash.update([0]);
-        hash.update(self.state.stderr.bytes()?);
+        self.state
+            .stderr
+            .write_since(&Journal::default(), &mut DigestFormatter(&mut hash))?;
         for (path, value) in self.state.files.iter() {
             hash.update(path.as_bytes());
             hash.update([0]);
@@ -323,22 +384,31 @@ impl Runtime {
                 hash.update((file.len as u64).to_le_bytes());
                 for (index, page) in file.pages.iter() {
                     hash.update((*index as u64).to_le_bytes());
-                    hash.update(page.bytes()?);
+                    page.write_to(&mut DigestFormatter(&mut hash))?;
                 }
             } else {
                 hash.update([2]);
             }
         }
-        hash.update(format!("{:?}", self.state.directories).as_bytes());
-        hash.update(
-            format!(
+        std::fmt::write(
+            &mut DigestFormatter(&mut hash),
+            format_args!("{:?}", self.state.directories),
+        )
+        .expect("digest formatting is infallible");
+        std::fmt::write(
+            &mut DigestFormatter(&mut hash),
+            format_args!(
                 "{:?}{:?}{:?}{:?}",
                 self.state.heap, self.state.globals, self.state.stack, self.state.call_frames
-            )
-            .as_bytes(),
-        );
+            ),
+        )
+        .expect("digest formatting is infallible");
         if !self.state.native_owners.is_empty() {
-            hash.update(format!("{:?}", self.state.native_owners).as_bytes());
+            std::fmt::write(
+                &mut DigestFormatter(&mut hash),
+                format_args!("{:?}", self.state.native_owners),
+            )
+            .expect("digest formatting is infallible");
         }
         Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
     }

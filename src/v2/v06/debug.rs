@@ -67,6 +67,11 @@ pub(in crate::v2) fn apply(state: &mut Json, patch: &Json, forward: bool) -> Res
     Ok(())
 }
 pub(in crate::v2) fn view(trace: &Json, index: usize) -> Result<Option<Json>> {
+    if trace["record_mode"] == "compact" {
+        return Err(Error::InvalidOperation(
+            "CompactTraceNoDebugHistory: record with --record-mode debug for stepping".into(),
+        ));
+    }
     let data = &trace["debug"]["index"];
     if data.is_null() {
         return Ok(None);

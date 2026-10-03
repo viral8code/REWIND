@@ -178,3 +178,15 @@ actual = run("run", root / "flow.rwc", "--record", root / "flow-trace.json", "--
 assert actual == b"5\n2\n", actual
 assert run("replay", root / "flow-trace.json", "--root", root) == actual
 print("Verified maximum flow, matching and checkpoint source-free replay")
+
+compact = root / "compact.rw"
+compact.write_text('var sum=0;for i in 0..10000 {sum+=i;}commit saved;sum=0;revert saved;drop saved;Out.println(sum);publish;', encoding="utf-8")
+run("compile", compact)
+compact.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "compact.rwc", "--record", root / "compact-trace.json", "--record-mode", "compact")
+assert actual == b"49995000\n", actual
+assert (root / "compact-trace.json").stat().st_size < 16384
+assert run("replay", root / "compact-trace.json", "--root", root) == actual
+print("Verified compact recording, checkpoint and long source-free replay")

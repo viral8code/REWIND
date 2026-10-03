@@ -580,13 +580,15 @@ fn process_memory_limit(mib: usize) -> Result<()> {
 
 fn command_help(command: &str) -> Option<&'static str> {
     Some(match command {
-        "run" => "rewind run FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--record TRACE.json] [--gui-events EVENTS.json] [--steps N] [--native-work N] [--task-steps N] [--history-memory SIZE] [--history-storage SIZE] [--spill-threshold SIZE] [-- ARGS...]\nRuns a source file or compiled artifact. Pending output requires publish;.",
+        "run" => "rewind run FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--record TRACE.json] [--record-mode debug|compact] [--gui-events EVENTS.json] [--steps N] [--native-work N] [--task-steps N] [--history-memory SIZE] [--history-storage SIZE] [--spill-threshold SIZE] [-- ARGS...]\nRuns a source file or compiled artifact. Pending output requires publish;.",
         "compile" => "rewind compile FILE.rw [--output FILE.rwc] [--root DIR] [--allow-effects EFFECTS]\nrewindc FILE.rw [--output FILE.rwc]\nChecks and compiles source; defaults to FILE.rwc. It does not execute the program.",
         "check" => "rewind check [FILE.rw...] [--root DIR]\nChecks types, ownership and effects without executing source.",
         "test" => "rewind test --root DIR [--filter NAME]\nRuns the project's test contracts; publish is unavailable in tests.",
         "fmt" => "rewind fmt FILE.rw [--check]\nFormats indentation while preserving strings and comments. --check reports differences without writing.",
         "lsp" => "rewind lsp --root DIR\nStarts a language server over stdin/stdout. Supports projects and standalone files.",
         "replay" => "rewind replay TRACE.json [--root DIR] [--allow-effects EFFECTS]\nReplays recorded observations and verifies execution using the matching compiler version.",
+        "debug" => "rewind debug FILE.rw|FILE.rwc|TRACE.json [--root DIR] [--allow-effects EFFECTS]\nInspects execution with virtual publish, or displays a debug trace. Compact traces have no step history.",
+        "profile" => "rewind profile FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS]\nRuns and reports storage and task instruction metrics.",
         _ => return None,
     })
 }
@@ -1287,6 +1289,18 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                     }
                     options.explore = limit;
                 }
+                "--record-mode" => {
+                    index += 1;
+                    options.record_compact = Some(match remaining.get(index).map(String::as_str) {
+                        Some("debug") => false,
+                        Some("compact") => true,
+                        _ => {
+                            return Err(Error::InvalidOperation(
+                                "--record-mode requires debug or compact".into(),
+                            ))
+                        }
+                    });
+                }
                 "--history-memory" | "--history-storage" | "--spill-threshold" => {
                     let option = remaining[index].clone();
                     index += 1;
@@ -1434,7 +1448,7 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             };
             options.output = Some(source.with_extension("rwc"));
         }
-        if script == "run" && file.ends_with(".rwc") {
+        if matches!(script.as_str(), "run" | "debug" | "profile") && file.ends_with(".rwc") {
             return v2::run_compiled(Path::new(&file), &root, options);
         }
         if script == "run-artifact" {
