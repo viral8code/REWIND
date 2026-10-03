@@ -4,6 +4,7 @@ mod bigint;
 mod csv_stream;
 mod datetime;
 mod decimal;
+mod gui_scene;
 mod json_stream;
 mod numeric;
 mod regex;
@@ -26,7 +27,8 @@ pub(super) fn native_owned_result(name: &str) -> bool {
         && names().contains(&name)
 }
 pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str> {
-    numeric::parameter(name, index)
+    gui_scene::parameter(name, index)
+        .or_else(|| numeric::parameter(name, index))
         .or_else(|| bigint::parameter(name, index))
         .or_else(|| decimal::parameter(name, index))
         .or_else(|| datetime::parameter(name, index))
@@ -230,6 +232,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdExternalHttpConfigured",
         "stdExternalHttpAuthenticated",
         "stdExternalHttpCredential",
+        "stdGuiScene",
         "stdGuiStage",
         "stdGuiPollEvent",
         "stdGuiWindowStage",
@@ -289,6 +292,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.10"
             | "1.9.11"
             | "1.9.12"
+            | "1.9.13"
             | "2.0.0"
     ) {
         return Ok(());
@@ -442,6 +446,9 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     Ok(())
 }
 pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usize> {
+    if let Some(work) = gui_scene::work(name, args, runtime) {
+        return Some(work);
+    }
     if let Some(work) = json_stream::work(name, args, runtime) {
         return Some(work);
     }
@@ -538,6 +545,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.10"
             | "1.9.11"
             | "1.9.12"
+            | "1.9.13"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -608,6 +616,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.10"
                 | "1.9.11"
                 | "1.9.12"
+                | "1.9.13"
                 | "2.0.0"
         )
     {
@@ -629,6 +638,12 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
         return Err(diagnostic(at, "database primitives require language 1.7.0"));
+    }
+    if n == "stdGuiScene" && !language_at_least(&p.language, "1.9.13") {
+        return Err(diagnostic(
+            at,
+            "GUI scene serialization requires language 1.9.13",
+        ));
     }
     if n == "stdTaskYieldNow" && !language_at_least(&p.language, "1.9.10") {
         return Err(diagnostic(at, "task yield requires language 1.9.10"));
@@ -800,6 +815,18 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             "Task<Result<HttpResponse,HttpError>>",
         ),
         "stdTaskYieldNow" => (&[], "Unit"),
+        "stdGuiScene" => (
+            &[
+                "String",
+                "Int",
+                "Int",
+                "Int",
+                "&List<Unknown>",
+                "Int",
+                "&Map<String,Int>",
+            ],
+            "Result<String,StdError>",
+        ),
         "stdGuiWindowStage" => (&["String", "String"], "Result<Unit,StdError>"),
         "stdGuiWindowClose" => (&["String"], "Result<Unit,StdError>"),
         "stdGuiWindowPoll" => (&["String"], "Result<Option<String>,StdError>"),
@@ -875,6 +902,9 @@ fn strings(
     Ok(Value::TypedList("String".into(), values.into()))
 }
 pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Option<Value>> {
+    if let Some(value) = gui_scene::call(n, args, runtime)? {
+        return Ok(Some(value));
+    }
     if let Some(value) = json_stream::call(n, args, runtime)? {
         return Ok(Some(value));
     }

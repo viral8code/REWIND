@@ -57,7 +57,10 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
                     }
                 }
                 if n.starts_with("stdGui")
-                    && !matches!(n.as_str(), "stdGuiEdit" | "stdGuiEditGrapheme")
+                    && !matches!(
+                        n.as_str(),
+                        "stdGuiEdit" | "stdGuiEditGrapheme" | "stdGuiScene"
+                    )
                 {
                     needs.insert("gui".into());
                 }
@@ -173,7 +176,7 @@ impl Scan<'_> {
                         }
                     }
                     if base.starts_with("stdGui")
-                        && !matches!(base, "stdGuiEdit" | "stdGuiEditGrapheme")
+                        && !matches!(base, "stdGuiEdit" | "stdGuiEditGrapheme" | "stdGuiScene")
                     {
                         self.needs.insert("gui".into());
                     }

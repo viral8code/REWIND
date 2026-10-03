@@ -107,3 +107,7 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.11 は数値 page / tree の Runtime ごとの会計を差分化し、checkpoint と scheduler の重複計上を解消する。弱い registry と COW / Drop により到達可能な storage の費用を保持・解放し、source-free と long-run を検証する。一般の container / metadata の費用、残る GUI / kernel / 通信 / 数値統合は継続する。
 
 1.9.12 は typed schema のフォーム検証、frozen データの表の表示範囲描画、GUI control の編集と状態復元を追加する。clipboard / dialog / menu、IME / accessibility、GUI と通信・DB の長時間統合、追加 kernel と v2.0 の到達条件は継続する。
+
+1.9.13 は GUI の scene を借用 storage から直接 serialize し、一時 VM Json / Map を省く。従来の値、byte 上限、所有権、pure effect、source-free replay を維持して描画モデルの費用を測定する。残る統合・GUI・数値・通信の到達条件は継続する。
+
+compiled 配布時に development manifest が残っていると、run_compiled の設定読込みが削除済み entry / source_root を要求する例を確認した。runtime の effect 許可・asset 検証を維持したまま compilation graph の検証と分離し、manifest を置いた source-free 実行・replay の回帰を追加する。
