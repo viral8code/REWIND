@@ -107,6 +107,16 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     {
         return Err(diagnostic(at, "suffix primitives require language 1.9.8"));
     }
+    if matches!(
+        n,
+        "stdNumericDotStep" | "stdNumericMatmulInit" | "stdNumericMatmulStep"
+    ) && !language_at_least(&p.language, "1.9.10")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative numeric primitives require language 1.9.10",
+        ));
+    }
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
@@ -258,6 +268,16 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             .and_then(|s| elements(&s).ok())
             .unwrap_or(1)
             .saturating_mul(2)
+    } else if matches!(name, "DotStep" | "MatmulStep") {
+        rewind::numeric::COOPERATIVE_MACS
+            .saturating_mul(32)
+            .saturating_add(1024)
+    } else if name == "MatmulInit" {
+        a(0).zip(a(1))
+            .and_then(|(a, b)| a.matmul_work(b).ok())
+            .map_or(1, |(m, _, n, _)| {
+                m.saturating_mul(n).saturating_mul(2).saturating_add(1)
+            })
     } else if name == "Matmul" {
         match (a(0).map(Array::shape), a(1).map(Array::shape)) {
             (Some([m, k]), Some([l, n])) if k == l && elements(&[*m, *n]).is_ok() => m
@@ -334,6 +354,20 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
             .and_then(|s| indices(s, rt).ok())
             .and_then(|s| elements(&s).ok())
             .map_or(0, Array::storage_estimate)
+    } else if name == "DotStep" {
+        256
+    } else if name == "MatmulStep" {
+        let cells = rewind::numeric::COOPERATIVE_MACS;
+        a(2).map_or(0, Array::update_estimate)
+            .saturating_mul(cells.div_ceil(256).saturating_add(1))
+            .saturating_add(cells.saturating_mul(8))
+            .saturating_add(1024)
+    } else if name == "MatmulInit" {
+        a(0).zip(a(1))
+            .and_then(|(a, b)| a.matmul_work(b).ok())
+            .map_or(0, |(m, _, n, _)| {
+                Array::storage_estimate(m.saturating_mul(n))
+            })
     } else if name == "Matmul" {
         let count = match (a(0).map(Array::shape), a(1).map(Array::shape)) {
             (Some([m, k]), Some([l, n])) if k == l && elements(&[*m, *n]).is_ok() => {
@@ -643,6 +677,48 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             "Sum" => Value::Float(a(0)?.sum()?.to_bits()),
             "Mean" => Value::Float(a(0)?.mean_variance(0)?.0.to_bits()),
             "Variance" => Value::Float(a(0)?.mean_variance(i(1)?)?.1.to_bits()),
+            "DotStep" => {
+                let state = rewind::numeric::KernelProgress {
+                    cursor: usize_arg(&args[2])?,
+                    sum: f(3)?,
+                    correction: f(4)?,
+                };
+                let progress = a(0)?.dot_step(a(1)?, state)?;
+                Value::Struct(
+                    "Tuple<Int,Float,Float,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::Int(progress.cursor as i64)),
+                        ("_1".into(), Value::Float(progress.sum.to_bits())),
+                        ("_2".into(), Value::Float(progress.correction.to_bits())),
+                        ("_3".into(), Value::Bool(progress.cursor == a(0)?.len())),
+                    ]),
+                )
+            }
+            "MatmulInit" => {
+                let (m, _, n, total) = a(0)?.matmul_work(a(1)?)?;
+                i64::try_from(total).map_err(|_| NumericError::Size)?;
+                array_value(Array::zeros(DType::Float64, vec![m, n]))?
+            }
+            "MatmulStep" => {
+                let state = rewind::numeric::KernelProgress {
+                    cursor: usize_arg(&args[3])?,
+                    sum: f(4)?,
+                    correction: f(5)?,
+                };
+                let total = a(0)?.matmul_work(a(1)?)?.3;
+                i64::try_from(total).map_err(|_| NumericError::Size)?;
+                let (out, progress) = a(0)?.matmul_step(a(1)?, a(2)?, state)?;
+                Value::Struct(
+                    "Tuple<FloatArray,Int,Float,Float,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(out)),
+                        ("_1".into(), Value::Int(progress.cursor as i64)),
+                        ("_2".into(), Value::Float(progress.sum.to_bits())),
+                        ("_3".into(), Value::Float(progress.correction.to_bits())),
+                        ("_4".into(), Value::Bool(progress.cursor == total)),
+                    ]),
+                )
+            }
             "Dot" => Value::Float(a(0)?.dot(a(1)?)?.to_bits()),
             "Matmul" => array_value(a(0)?.matmul(a(1)?))?,
             "Solve" => array_value(a(0)?.solve(a(1)?, f(2)?))?,
@@ -789,6 +865,25 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
         "stdNumericSum" => (&["&FloatArray"], "Result<Float,StdError>"),
         "stdNumericMean" => (&["&FloatArray"], "Result<Float,StdError>"),
         "stdNumericVariance" => (&["&FloatArray", "Int"], "Result<Float,StdError>"),
+        "stdNumericDotStep" => (
+            &["&FloatArray", "&FloatArray", "Int", "Float", "Float"],
+            "Result<Tuple<Int,Float,Float,Bool>,StdError>",
+        ),
+        "stdNumericMatmulInit" => (
+            &["&FloatArray", "&FloatArray"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericMatmulStep" => (
+            &[
+                "&FloatArray",
+                "&FloatArray",
+                "&FloatArray",
+                "Int",
+                "Float",
+                "Float",
+            ],
+            "Result<Tuple<FloatArray,Int,Float,Float,Bool>,StdError>",
+        ),
         "stdNumericDot" => (&["&FloatArray", "&FloatArray"], "Result<Float,StdError>"),
         "stdNumericMatmul" => (
             &["&FloatArray", "&FloatArray"],

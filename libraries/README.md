@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.9 / `language = "1.9.9"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.10 / `language = "1.9.10"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -153,3 +153,7 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 ## std.guiWindows（1.9.9）
 
 名前付きの複数ネイティブウィンドウ、入力の振り分け、公開済み画面の保持、source-free replay を提供する。[GUI guide](../docs/gui.md) と [例](../examples/gui-windows/README.md) を参照。旧 `std.gui` の単一ウィンドウと入力 cursor は独立している。
+
+## std.task / std.numericAsync（1.9.10）
+
+明示的な VM task handoff と、最大4096積和ごとに処理を渡す async 内積・行列積を提供する。入力は native storage を共有し、TaskError と数値 StdError を分ける。[契約](../docs/REWIND_v1.9.10.md)と [例](../examples/numeric-async/README.md)を参照。

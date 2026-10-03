@@ -248,3 +248,19 @@ test fn exact_geometry_contract() {
  assert_eq(geometry.onSegment(geometry.Point(1,0),geometry.Point(0,0),geometry.Point(2,0)),Ok(true));
  assert_eq(geometry.orientationFloat(geometry.Vector(0.0,0.0),geometry.Vector(1.0,0.0),geometry.Vector(1.0,0.001),0.01),Ok(0));
 }
+
+import numericAsync as numericAsync;
+import task as task;
+test fn cooperative_empty_dot_contract()->Unit effects {tasks} {
+ let shape=List<Int>();shape.add(0);
+ match numeric.zerosFloat(&shape){Err(e)=>{panic(e.code);},Ok(empty)=>{
+ let work=spawn numericAsync.dot(empty,empty);assert_eq(await work,Ok(Ok(0.0)));
+ }}
+ task.yieldNow();
+}
+test fn cooperative_numeric_domain_is_inner_result()->Unit effects {tasks} {
+ let shape=List<Int>();shape.add(2);shape.add(3);
+ match numeric.zerosFloat(&shape){Err(e)=>{panic(e.code);},Ok(matrix)=>{
+ let work=spawn numericAsync.matmul(matrix,matrix);assert_eq(await work,Ok(Err(StdError("NumericShape",0))));
+ }}
+}

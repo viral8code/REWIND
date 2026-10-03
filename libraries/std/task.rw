@@ -1,0 +1,4 @@
+effects {tasks};
+// @api yieldNow cost One scheduler handoff. Default choices rotate among ready tasks of the best priority; explicit recorded choices take precedence.
+// @api yieldNow failure Only VM internal regions; forbidden in external regions and cleanup / guard execution. Does not wait for host input or allocate a new Task.
+pub fn yieldNow()->Unit effects {tasks} {stdTaskYieldNow();}

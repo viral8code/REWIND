@@ -169,3 +169,5 @@ SDK の `share/rewind/examples/gui/main.rw` をコピーし、`rewind run main.r
 長い計算を詳細なステップ表示なしで記録するには `rewind run main.rw --record trace.json --record-mode compact` を使います。`rewind replay trace.json` は方式を自動復元します。詳細な debug 履歴が必要なら既定の `--record-mode debug` を使います。[記録・費用契約](REWIND_v1.9.6.md)。
 
 複数画面は SDK の `share/rewind/examples/gui-windows` をコピーして `rewind run main.rw --allow-effects gui` で試せる。[GUI guide](gui.md) に fixture と replay の手順を記載する。
+
+協調的な数値処理は SDK の `share/rewind/examples/numeric-async` をコピーし、`rewind run main.rw --native-work 100000000` で試せる。GUI と task を併用する loop には `std.task.yieldNow()` を使う。[契約](REWIND_v1.9.10.md)。

@@ -1,0 +1,38 @@
+import std.numeric as numeric;
+import std.numericAsync as jobs;
+import std.task as task;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("numeric operation failed");}}}
+async fn heartbeat(queue:Channel<Int>)->Unit effects {tasks} {
+ for i in 0..3 {assert_eq(await queue.send(i),Ok(()));task.yieldNow();}
+}
+let shape=List<Int>();shape.add(9000);
+let zeros=take(numeric.zerosFloat(&shape));
+let ones=take(numeric.mapFloat("exp",&zeros));
+let queue=Channel<Int>(4);
+let beating=spawn heartbeat(queue);
+let dot=spawn jobs.dot(ones,ones);
+Out.println(take(take(await dot)));
+assert_eq(await beating,Ok(()));
+for i in 0..3 {assert_eq(await queue.receive(),Ok(i));}
+queue.close();
+let leftShape=List<Int>();leftShape.add(16);leftShape.add(32);
+let rightShape=List<Int>();rightShape.add(32);rightShape.add(16);
+let leftZero=take(numeric.zerosFloat(&leftShape));let rightZero=take(numeric.zerosFloat(&rightShape));
+let matrixLeft=take(numeric.mapFloat("exp",&leftZero));let matrixRight=take(numeric.mapFloat("exp",&rightZero));
+commit before;
+{
+ let product=spawn jobs.matmul(matrixLeft,matrixRight);
+ let result=take(take(await product));
+ assert_eq(result,take(numeric.matmul(&matrixLeft,&matrixRight)));
+ let index=List<Int>();index.add(0);index.add(0);
+ Out.println(take(numeric.getFloat(&result,&index)));
+}
+publish;
+revert before;
+{
+ let product=spawn jobs.matmul(matrixLeft,matrixRight);
+ let result=take(take(await product));
+ let index=List<Int>();index.add(0);index.add(0);
+ Out.println(take(numeric.getFloat(&result,&index)));
+}
+publish;drop before;

@@ -90,6 +90,11 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("json", include_str!("../../../libraries/std/json.rw")),
         ("map", include_str!("../../../libraries/std/map.rw")),
         ("numeric", include_str!("../../../libraries/std/numeric.rw")),
+        ("task", include_str!("../../../libraries/std/task.rw")),
+        (
+            "numericAsync",
+            include_str!("../../../libraries/std/numericAsync.rw"),
+        ),
         ("math", include_str!("../../../libraries/std/math.rw")),
         ("number", include_str!("../../../libraries/std/number.rw")),
         ("option", include_str!("../../../libraries/std/option.rw")),
@@ -359,6 +364,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "REWIND_v1.9.10.md",
+                include_str!("../../../docs/REWIND_v1.9.10.md"),
+            ),
+            (
                 "REWIND_v1.9.9.md",
                 include_str!("../../../docs/REWIND_v1.9.9.md"),
             ),
@@ -428,6 +437,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/datetime-postgres/README.md"),
             ),
             (
+                "numeric-async",
+                include_str!("../../../examples/numeric-async/README.md"),
+            ),
+            (
                 "advanced-algorithms",
                 include_str!("../../../examples/advanced-algorithms/README.md"),
             ),
@@ -474,6 +487,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-grapheme",
                 include_str!("../../../examples/gui-grapheme/main.rw"),
+            ),
+            (
+                "numeric-async",
+                include_str!("../../../examples/numeric-async/main.rw"),
             ),
             (
                 "advanced-algorithms",

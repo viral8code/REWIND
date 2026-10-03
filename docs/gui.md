@@ -83,3 +83,7 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 入力と画面は旧 gui の単一画面から独立する。名前付き画面の Undo は `revert saved; windows.continueInput();` として復元した View を再表示する。待機 API は VM task を進めないため、外部 I/O の完了確認との併用は pollAny と task.isDone() を使う。明示的な VM task handoff は後続版の API とする。
 
 最大16画面、合計16,777,216 client pixels（旧単一画面を含む）、各 scene 1 MiB。ID、入力 fixture、記録・予算・部分公開の詳細は [v1.9.9](REWIND_v1.9.9.md)、実行例は [gui-windows](../examples/gui-windows/README.md)。`--gui-window-events` を使う fixture と replay は native 画面を開かない。
+
+## 1.9.10 の task handoff
+
+通信や計算 task を持つ GUI loop では、pollAny で入力を確認し、task.isDone() で完了を確認して `std.task.yieldNow()` で VM 処理を渡す。tasks effect が必要。nextEventAny の待機中に VM task が進む変更ではない。dot / matmul の協調 API は [v1.9.10](REWIND_v1.9.10.md)。
