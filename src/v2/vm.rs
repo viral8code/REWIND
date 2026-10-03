@@ -2306,10 +2306,7 @@ impl<R: BufRead> Vm<R> {
         }
         let mut result = loop {
             match self.run_inner() {
-                Err(error)
-                    if self.scheduler.active != 0
-                        && !replay_control_error(&error) =>
-                {
+                Err(error) if self.scheduler.active != 0 && !replay_control_error(&error) => {
                     let at = self
                         .code
                         .get(self.pc.saturating_sub(1))
