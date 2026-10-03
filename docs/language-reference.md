@@ -512,3 +512,7 @@ v1.6 の main task は子 Task が動作中でも publish できます。その�
 ## 最大流・二部マッチング（v1.9.5）
 
 `std.flow` の residual network は VM 内の状態で、checkpoint / revert に対応します。`std.matching.maximum` は最大 matching と最小 vertex cover を返す pure な Result API です。[容量・計算量・失敗契約](REWIND_v1.9.5.md)。
+
+## compact 記録（v1.9.6）
+
+`--record-mode compact` は詳細ステップ履歴を保持せず、命令数・実行順序 digest・観測・最終状態を照合する replay を提供します。既定の debug 記録はステップ移動に対応します。[保証範囲](REWIND_v1.9.6.md)。

@@ -148,6 +148,7 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             validate(&program, c)?;
@@ -261,6 +262,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         )
     });
@@ -306,6 +308,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         )
     });
@@ -737,6 +740,11 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
         "trace"
     };
     let trace = v08::inspection_trace(trace)?;
+    if trace["record_mode"] == "compact" {
+        return Err(Error::InvalidOperation(
+            "CompactTraceNoDebugHistory: record with --record-mode debug for stepping".into(),
+        ));
+    }
     if !v08::readable_trace(&trace) {
         return Err(Error::InvalidOperation(
             "unsupported debug trace format/compiler; rebuild the recording with this compiler"

@@ -74,39 +74,55 @@ publish;
 }
 #[test]
 fn binary_http_revert_and_offline_replay_never_repeat_request() {
-    let root = dir();
-    let (url, worker, count) = fixture(b"a\xff\0", 15);
-    let body = fetch(&url, 128).replace("import std.http as http;", "");
-    let source = format!("import std.http as http;commit saved;{{{body}}}revert saved;{{{body}}}");
-    fs::write(root.join("main.rw"), source).unwrap();
-    let out = call(
-        &root,
-        &[
-            "run",
-            "main.rw",
-            "--allow-effects",
-            "external,network,tasks",
-            "--record",
-            "trace.json",
-        ],
-    );
-    success(&out);
-    assert_eq!(out.stdout, b"200\n3\n200\n3\n");
-    worker.join().unwrap();
-    assert_eq!(count.load(Ordering::SeqCst), 1);
-    let replay = call(
-        &root,
-        &[
-            "replay",
-            "trace.json",
-            "--allow-effects",
-            "external,network,tasks",
-        ],
-    );
-    success(&replay);
-    assert_eq!(replay.stdout, out.stdout);
-    fs::remove_dir_all(root).unwrap();
+    for mode in ["debug", "compact"] {
+        let root = dir();
+        let (url, worker, count) = fixture(b"a\xff\0", 15);
+        let body = fetch(&url, 128).replace("import std.http as http;", "");
+        let source =
+            format!("import std.http as http;commit saved;{{{body}}}revert saved;{{{body}}}");
+        fs::write(root.join("main.rw"), source).unwrap();
+        success(&call(
+            &root,
+            &[
+                "compile",
+                "main.rw",
+                "--allow-effects",
+                "external,network,tasks",
+            ],
+        ));
+        fs::remove_file(root.join("main.rw")).unwrap();
+        let out = call(
+            &root,
+            &[
+                "run",
+                "main.rwc",
+                "--allow-effects",
+                "external,network,tasks",
+                "--record",
+                "trace.json",
+                "--record-mode",
+                mode,
+            ],
+        );
+        success(&out);
+        assert_eq!(out.stdout, b"200\n3\n200\n3\n");
+        worker.join().unwrap();
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+        let replay = call(
+            &root,
+            &[
+                "replay",
+                "trace.json",
+                "--allow-effects",
+                "external,network,tasks",
+            ],
+        );
+        success(&replay);
+        assert_eq!(replay.stdout, out.stdout);
+        fs::remove_dir_all(root).unwrap();
+    }
 }
+
 #[test]
 fn body_limit_is_a_typed_response_received_error() {
     let root = dir();

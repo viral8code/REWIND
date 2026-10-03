@@ -1,5 +1,6 @@
 use super::*;
 use rewind::BranchAnchor;
+use sha2::{Digest, Sha256};
 mod extensions;
 mod scheduler;
 use scheduler::Scheduler;
@@ -139,6 +140,7 @@ impl Compiler {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             return None;
@@ -193,6 +195,7 @@ impl Compiler {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) || name.contains('<')
         {
@@ -367,6 +370,7 @@ impl Compiler {
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             ) && stmt.at.text == "@application-entry"
             {
@@ -420,6 +424,7 @@ impl Compiler {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             let signatures = program
@@ -524,6 +529,7 @@ impl Compiler {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
@@ -600,6 +606,7 @@ impl Compiler {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             let mut code = self.code[base..].to_vec();
@@ -1187,6 +1194,8 @@ struct Vm<R: BufRead> {
     scheduler: Scheduler,
     options: RunOptions,
     events: Vec<serde_json::Value>,
+    execution_hash: Sha256,
+    recorded_steps: u64,
     debug_initial: serde_json::Value,
     debug_previous: serde_json::Value,
     debug_deltas: Vec<serde_json::Value>,
@@ -1244,6 +1253,36 @@ impl<R: BufRead> Vm<R> {
             })
             .collect();
         let mut options = options.clone();
+        let compact = if let Some(trace) = &options.replay {
+            let recorded = match trace["record_mode"].as_str() {
+                None if trace["record_mode"].is_null() => false,
+                Some("debug") => false,
+                Some("compact") => true,
+                _ => {
+                    return Err(Error::InvalidOperation(
+                        "ReplayMismatch: invalid record mode".into(),
+                    ))
+                }
+            };
+            if options
+                .record_compact
+                .is_some_and(|value| value != recorded)
+            {
+                return Err(Error::InvalidOperation(
+                    "ReplayMismatch: record mode".into(),
+                ));
+            }
+            recorded
+        } else {
+            options.record_compact.unwrap_or(false)
+        };
+        if compact && (options.inspect || options.pause_after.is_some()) {
+            return Err(Error::InvalidOperation(
+                "CompactTraceNoDebugHistory: use --record-mode debug for inspection or stepping"
+                    .into(),
+            ));
+        }
+        options.record_compact = Some(compact);
         let history_budget = if let Some(trace) = &options.replay {
             let recorded: ResourceBudget = if trace["history_budget"].is_null() {
                 ResourceBudget::default()
@@ -1345,6 +1384,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             engine.runtime.enable_allocation_accounting();
@@ -1380,6 +1420,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             engine
@@ -1413,6 +1454,8 @@ impl<R: BufRead> Vm<R> {
             scheduler: Scheduler::default(),
             options: options.clone(),
             events: Vec::new(),
+            execution_hash: Sha256::new(),
+            recorded_steps: 0,
             debug_initial: serde_json::Value::Null,
             debug_previous: serde_json::Value::Null,
             debug_deltas: Vec::new(),
@@ -1475,6 +1518,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             let message = self
@@ -1577,6 +1621,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             v11::enrich(&mut d);
@@ -1925,6 +1970,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             return first_error.map_or(Ok(()), |e| {
@@ -1974,6 +2020,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             first_error.map_or(Ok(()), |e| {
@@ -2252,6 +2299,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             )
         {
@@ -2295,6 +2343,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
@@ -2395,6 +2444,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             ) {
                 let mut failure =
@@ -2442,6 +2492,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             ) && !causes.is_empty()
             {
@@ -2498,6 +2549,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.3"
                 | "1.9.4"
                 | "1.9.5"
+                | "1.9.6"
                 | "2.0.0"
         ) {
             outcome["diagnostic"] = execution_error
@@ -2510,62 +2562,85 @@ impl<R: BufRead> Vm<R> {
                 })
                 .unwrap_or(serde_json::Value::Null);
         }
+        let compact = self.options.record_compact == Some(true);
+        let execution = serde_json::json!({"format":1,"steps":self.recorded_steps,"sha256":format!("{:x}",self.execution_hash.clone().finalize())});
         if let Some(replay) = &self.options.replay {
-            if replay["events"]
-                .as_array()
-                .is_none_or(|events| events.len() != self.events.len())
+            let execution_mismatch = if compact {
+                replay["execution"] != execution
+            } else {
+                replay["events"]
+                    .as_array()
+                    .is_none_or(|events| events.len() != self.events.len())
+            };
+            if execution_mismatch
                 || replay["state_digest"] != digest
                 || (!replay["result"].is_null() && replay["result"] != outcome)
             {
                 return Err(Error::InvalidOperation(
-                    "ReplayMismatch: final state or event count".into(),
+                    "ReplayMismatch: final state or execution history".into(),
                 ));
             }
         }
         if let Some(path) = &self.options.record {
-            let mut trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"standalone":self.options.standalone,"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"history_budget":self.options.history_budget,"native_work":self.options.native_work,"execution_steps":self.options.execution_steps,"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":{"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}}});
-            if matches!(
-                self.engine.program.language.as_str(),
-                "0.6"
-                    | "0.7"
-                    | "0.8"
-                    | "0.9"
-                    | "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "2.0.0"
-            ) {
+            let mut trace = serde_json::json!({"format":1,"compiler":env!("CARGO_PKG_VERSION"),"standalone":self.options.standalone,"test":self.options.recorded_test,"entry":self.entry,"fingerprint":self.fingerprint,"task_steps":self.options.task_steps.unwrap_or(100_000),"history_budget":self.options.history_budget,"native_work":self.options.native_work,"execution_steps":self.options.execution_steps,"schedule_choices":self.choices_used,"result":outcome,"observations":self.engine.runtime.export_observations()?,"events":self.events,"state_digest":digest,"virtual_publish":self.options.inspect||self.options.virtual_publish,"debug":if compact {serde_json::Value::Null} else {serde_json::json!({"checkpoints":self.inspections,"final":{"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json()}})}});
+            trace["record_mode"] = serde_json::json!(if compact { "compact" } else { "debug" });
+            if compact {
+                trace.as_object_mut().unwrap().remove("debug");
+                trace["execution"] = execution;
+                trace["audit"] = self
+                    .engine
+                    .runtime
+                    .mask_debug_json(&serde_json::json!(self.audit));
+                trace["artifact_sha256"] = serde_json::json!(self.fingerprint);
+                if let Some(path) = &self.options.artifact_path {
+                    trace["artifact_entry"] = serde_json::json!(path);
+                }
+            }
+            if !compact
+                && matches!(
+                    self.engine.program.language.as_str(),
+                    "0.6"
+                        | "0.7"
+                        | "0.8"
+                        | "0.9"
+                        | "0.9.1"
+                        | "0.9.2"
+                        | "0.9.3"
+                        | "0.9.4"
+                        | "0.9.5"
+                        | "0.9.6"
+                        | "0.9.7"
+                        | "0.9.8"
+                        | "0.9.9"
+                        | "1.0.0"
+                        | "1.1.0"
+                        | "1.2.0"
+                        | "1.3.0"
+                        | "1.4.0"
+                        | "1.5.0"
+                        | "1.6.0"
+                        | "1.6.1"
+                        | "1.7.0"
+                        | "1.7.1"
+                        | "1.8.0"
+                        | "1.8.1"
+                        | "1.8.2"
+                        | "1.8.3"
+                        | "1.8.4"
+                        | "1.8.5"
+                        | "1.8.6"
+                        | "1.8.7"
+                        | "1.8.8"
+                        | "1.9.0"
+                        | "1.9.1"
+                        | "1.9.2"
+                        | "1.9.3"
+                        | "1.9.4"
+                        | "1.9.5"
+                        | "1.9.6"
+                        | "2.0.0"
+                )
+            {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
                     deltas.push(serde_json::json!(v06::debug::delta(
@@ -2648,6 +2723,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             ) {
                 return error;
@@ -2751,6 +2827,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
@@ -2788,6 +2865,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             ) && (self.engine.runtime.collection_due() || scheduler_gc)
             {
@@ -2869,7 +2947,20 @@ impl<R: BufRead> Vm<R> {
                 .task_instructions
                 .entry(self.scheduler.active)
                 .or_default() += 1;
-            if self.options.record.is_some() || self.options.replay.is_some() {
+            if (self.options.record.is_some() || self.options.replay.is_some())
+                && self.options.record_compact == Some(true)
+            {
+                self.execution_hash
+                    .update(self.scheduler.active.to_le_bytes());
+                self.execution_hash.update((self.pc as u64).to_le_bytes());
+                self.recorded_steps = self
+                    .recorded_steps
+                    .checked_add(1)
+                    .ok_or_else(|| self.error(&inst.at, "TraceBudgetExceeded: step counter"))?;
+            }
+            if (self.options.record.is_some() || self.options.replay.is_some())
+                && self.options.record_compact != Some(true)
+            {
                 let operation = format!("{:?}", inst.op)
                     .split(['(', '{'])
                     .next()
@@ -2915,6 +3006,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.3"
                         | "1.9.4"
                         | "1.9.5"
+                        | "1.9.6"
                         | "2.0.0"
                 ) {
                     self.index_state(&inst.at)?;
@@ -2960,6 +3052,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.3"
                         | "1.9.4"
                         | "1.9.5"
+                        | "1.9.6"
                         | "2.0.0"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
@@ -3058,6 +3151,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.3"
                                     | "1.9.4"
                                     | "1.9.5"
+                                    | "1.9.6"
                                     | "2.0.0"
                             ) {
                                 let ty = v06::fn_type(
@@ -3227,6 +3321,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) && (matches!(
                         lhs,
@@ -3354,6 +3449,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) && name == "reveal"
                     {
@@ -3409,6 +3505,7 @@ impl<R: BufRead> Vm<R> {
                                 | "1.9.3"
                                 | "1.9.4"
                                 | "1.9.5"
+                                | "1.9.6"
                                 | "2.0.0"
                         )
                     {
@@ -3507,6 +3604,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.3"
                                     | "1.9.4"
                                     | "1.9.5"
+                                    | "1.9.6"
                                     | "2.0.0"
                             ) && !needed.contains(name)
                             {
@@ -3566,6 +3664,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.3"
                                         | "1.9.4"
                                         | "1.9.5"
+                                        | "1.9.6"
                                         | "2.0.0"
                                 ) && !needed.contains(name)
                                 {
@@ -3622,6 +3721,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) {
                         let f =
@@ -3702,6 +3802,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::method_work(
@@ -3751,6 +3852,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) {
                         if let Some(value) =
@@ -3817,6 +3919,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::call_work(
@@ -3865,6 +3968,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
@@ -4038,6 +4142,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
@@ -4101,7 +4206,10 @@ impl<R: BufRead> Vm<R> {
                     self.engine.runtime.set_program_counter(self.pc);
                     self.engine.runtime.commit(name.clone())?;
                     self.snapshots.insert(name.clone(), self.snapshot());
-                    if self.options.inspect || self.options.record.is_some() {
+                    if self.options.inspect
+                        || (self.options.record.is_some()
+                            && self.options.record_compact != Some(true))
+                    {
                         self.inspections.push(serde_json::json!({"checkpoint":name,"event_index":self.events.len(),"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"frames":self.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|s|s.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>() })).collect::<Vec<_>>() }));
                     }
                     if self.engine.trace {
@@ -4253,6 +4361,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.3"
                             | "1.9.4"
                             | "1.9.5"
+                            | "1.9.6"
                             | "2.0.0"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
@@ -4425,6 +4534,7 @@ pub(super) fn execute(
                         | "1.9.3"
                         | "1.9.4"
                         | "1.9.5"
+                        | "1.9.6"
                         | "2.0.0"
                 )
             {
@@ -4485,6 +4595,7 @@ pub(super) fn execute(
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             )
             || options.inspect
@@ -4599,6 +4710,7 @@ fn build_artifact_mode(
             | "1.9.3"
             | "1.9.4"
             | "1.9.5"
+            | "1.9.6"
             | "2.0.0"
     ) && !root.join("rewind.toml").exists()
     {
@@ -4711,6 +4823,7 @@ fn explore_test(
                     | "1.9.3"
                     | "1.9.4"
                     | "1.9.5"
+                    | "1.9.6"
                     | "2.0.0"
             )
         {

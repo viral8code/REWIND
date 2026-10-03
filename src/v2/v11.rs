@@ -72,6 +72,7 @@ pub(super) fn enrich(d: &mut rewind::DiagnosticRecord) {
             "ExecutionBudgetExceeded" => "Check for a non-terminating loop; increase --steps only when the work is intentional.",
             "NativeWorkBudgetExceeded" => "Reduce input or collection work, or raise --native-work for intentional work.",
             "TaskSteps" => "Check the task loop or increase --task-steps for intentional work.",
+            "TraceBudgetExceeded" => "Use --record-mode compact when step inspection is unnecessary; debug trace storage has a separate fixed limit.",
             "HistoryMemory" | "HistoryStorage" => "Drop checkpoints you no longer need and reduce retained data; publish alone does not drop checkpoints.",
             "PublishPartiallyApplied" => "Some external effects may already be applied. Inspect publish_failure; do not blindly retry.",
             "ExternalStateConflict" => "An external file changed. Reload its state and decide how to reconcile it before publishing.",

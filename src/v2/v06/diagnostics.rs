@@ -78,6 +78,7 @@ pub(in crate::v2) fn task_error(d: &rewind::DiagnosticRecord) -> Value {
                 | "TransferDepth"
                 | "HistoryMemory"
                 | "HistoryStorage"
+                | "TraceBudgetExceeded"
                 | "IteratorItems"
                 | "EffectInference"
                 | "DependencyResolution"
@@ -91,6 +92,7 @@ pub(in crate::v2) fn task_error(d: &rewind::DiagnosticRecord) -> Value {
             "MonomorphizationBudgetExceeded" => "Monomorphization",
             "NativeWorkBudgetExceeded" => "NativeWork",
             "CompilerBudgetExceeded" => "Compiler",
+            "TraceBudgetExceeded" => "HistoryStorage",
             s => s,
         };
         (
@@ -165,9 +167,9 @@ pub(in crate::v2) fn code(message: &str) -> &str {
         "TransferDepth"
     } else if message.starts_with("IteratorBudgetExceeded") {
         "IteratorItems"
-    } else if message.starts_with("TraceBudgetExceeded")
-        || message.starts_with("ArtifactBudgetExceeded")
-    {
+    } else if message.starts_with("TraceBudgetExceeded") {
+        "TraceBudgetExceeded"
+    } else if message.starts_with("ArtifactBudgetExceeded") {
         "HistoryStorage"
     } else if message.contains("undeclared effect")
         || message.contains("effect ") && message.contains("not allowed")
