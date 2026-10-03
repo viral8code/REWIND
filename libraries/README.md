@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.8.1 / `language = "1.8.1"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.5 / `language = "1.9.5"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -140,3 +140,7 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 `std.datetime` は整数ナノ秒の Instant / Duration、RFC3339、暦、IANA zone と明示的な DST policy を提供します。`std.clock.now()` の時計観測は external、`std.dbDatetime` は精度を検査した PostgreSQL / SQLite 変換です。仕様は [v1.8.4](../docs/REWIND_v1.8.4.md)。
 
 `std.unicode` は明示的な Unicode 正規化、grapheme / word / sentence boundary と大小変換です。既存 scalar API と GUI cursor の単位は保ちます。[v1.8.5](../docs/REWIND_v1.8.5.md) を参照してください。
+
+## 最大流・マッチング（v1.9.5）
+
+`std.flow` は VM 内の residual network に iterative Dinic の増加処理を行います。`std.matching` は二部最大 matching と最小 vertex cover を返します。checkpoint で residual state を保持できます。[API・費用・容量](../docs/REWIND_v1.9.5.md)、[実行例](../examples/flow/main.rw)。

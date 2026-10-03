@@ -46,6 +46,7 @@ pub(in crate::v2) fn doctest(root: &Path, path: &Path) -> Result<()> {
             | "1.9.2"
             | "1.9.3"
             | "1.9.4"
+            | "1.9.5"
             | "2.0.0"
     ) {
         return Err(Error::InvalidOperation(

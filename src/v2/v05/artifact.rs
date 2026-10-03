@@ -161,6 +161,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.2"
             | "1.9.3"
             | "1.9.4"
+            | "1.9.5"
             | "2.0.0"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
@@ -224,6 +225,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.2"
             | "1.9.3"
             | "1.9.4"
+            | "1.9.5"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
         != serde_json::to_value(standard.structs.get("StdError")).ok()
@@ -355,6 +357,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.2"
             | "1.9.3"
             | "1.9.4"
+            | "1.9.5"
             | "2.0.0"
     ) {
         for n in ["Json", "JsonError"] {
@@ -412,6 +415,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.2"
             | "1.9.3"
             | "1.9.4"
+            | "1.9.5"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
@@ -485,6 +489,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.2"
             | "1.9.3"
             | "1.9.4"
+            | "1.9.5"
             | "2.0.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
@@ -530,6 +535,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.2"
             | "1.9.3"
             | "1.9.4"
+            | "1.9.5"
             | "2.0.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
@@ -641,6 +647,7 @@ pub fn run(path: &Path, root: &Path, mut options: RunOptions) -> Result<()> {
             | "1.9.2"
             | "1.9.3"
             | "1.9.4"
+            | "1.9.5"
             | "2.0.0"
     ) {
         v06::infer(&mut program)?;
