@@ -211,7 +211,9 @@ impl Scan<'_> {
                                         scopes,
                                         return_ty: Some(specialized.ret.clone()),
                                         loop_depth: 0,
-                                        bounds: BTreeMap::new(),
+                                        // A specialization may still contain the caller's symbolic
+                                        // type arguments. Keep their bounds during nested calls.
+                                        bounds: self.checker.bounds.clone(),
                                         origin: f.origin.clone(),
                                     },
                                     needs: BTreeSet::new(),

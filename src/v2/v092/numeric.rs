@@ -102,6 +102,11 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             "advanced numeric primitives require language 1.8.1",
         ));
     }
+    if matches!(n, "stdNumericSuffixArray" | "stdNumericSuffixSearch")
+        && !language_at_least(&p.language, "1.9.8")
+    {
+        return Err(diagnostic(at, "suffix primitives require language 1.9.8"));
+    }
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
@@ -185,7 +190,35 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if matches!(name, "Qr" | "LeastSquares") {
+    let cost = if matches!(name, "SuffixArray" | "SuffixSearch") {
+        if matches!(args.first(),Some(Value::Bytes(b)) if b.len()>rewind::suffix::MAX_BYTES)
+            || (name == "SuffixSearch"
+                && matches!(args.get(2),Some(Value::Bytes(b)) if b.len()>rewind::suffix::MAX_BYTES))
+        {
+            return Some(1);
+        }
+        let length = match args.first() {
+            Some(Value::Bytes(b)) => b.len().min(rewind::suffix::MAX_BYTES),
+            _ => 0,
+        };
+        let log = (usize::BITS - length.max(1).leading_zeros()) as usize;
+        if name == "SuffixArray" {
+            length
+                .saturating_mul(log)
+                .saturating_mul(16)
+                .saturating_add(4096)
+        } else {
+            match args.get(2) {
+                Some(Value::Bytes(b)) => b
+                    .len()
+                    .min(rewind::suffix::MAX_BYTES)
+                    .saturating_mul(log)
+                    .saturating_mul(2)
+                    .saturating_add(128),
+                _ => 1,
+            }
+        }
+    } else if matches!(name, "Qr" | "LeastSquares") {
         match a(0).map(Array::shape) {
             Some([m, n]) => m
                 .saturating_mul(*n)
@@ -268,7 +301,16 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if matches!(name, "Qr" | "LeastSquares") {
+    if name == "SuffixArray" {
+        match args.first() {
+            Some(Value::Bytes(b)) if b.len() <= rewind::suffix::MAX_BYTES => {
+                b.len().saturating_mul(96).saturating_add(8192)
+            }
+            _ => 0,
+        }
+    } else if name == "SuffixSearch" {
+        128
+    } else if matches!(name, "Qr" | "LeastSquares") {
         match a(0).map(Array::shape) {
             Some([m, n]) => {
                 let p = (*m).min(*n);
@@ -406,6 +448,75 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "SuffixArray" => {
+                let Some(Value::Bytes(input)) = args.first() else {
+                    return Err(NumericError::Type);
+                };
+                let (sa, lcp) = rewind::suffix::build(input).ok_or(NumericError::Size)?;
+                Value::Struct(
+                    "Tuple<IntArray,IntArray>".into(),
+                    BTreeMap::from([
+                        (
+                            "_0".into(),
+                            Value::NumericArray(Array::integers(vec![sa.len()], &sa)?),
+                        ),
+                        (
+                            "_1".into(),
+                            Value::NumericArray(Array::integers(vec![lcp.len()], &lcp)?),
+                        ),
+                    ]),
+                )
+            }
+            "SuffixSearch" => {
+                let (Some(Value::Bytes(input)), Some(Value::Bytes(pattern))) =
+                    (args.first(), args.get(2))
+                else {
+                    return Err(NumericError::Type);
+                };
+                if input.len() > rewind::suffix::MAX_BYTES
+                    || pattern.len() > rewind::suffix::MAX_BYTES
+                {
+                    return Err(NumericError::Size);
+                }
+                let order = a(1)?;
+                if order.dtype() != DType::Int64 || order.shape() != [input.len()] {
+                    return Err(NumericError::Shape);
+                }
+                let mut bounds = [0i64; 2];
+                for (which, bound) in bounds.iter_mut().enumerate() {
+                    let (mut low, mut high) = (0usize, input.len());
+                    while low < high {
+                        let mid = low + (high - low) / 2;
+                        let pos = usize::try_from(order.integer(&[mid])?)
+                            .map_err(|_| NumericError::Index)?;
+                        let suffix = input
+                            .get(pos..)
+                            .filter(|_| pos < input.len())
+                            .ok_or(NumericError::Index)?;
+                        let cmp = if suffix.starts_with(pattern) {
+                            std::cmp::Ordering::Equal
+                        } else {
+                            suffix.cmp(pattern)
+                        };
+                        if cmp == std::cmp::Ordering::Less
+                            || (which == 1 && cmp == std::cmp::Ordering::Equal)
+                        {
+                            low = mid + 1;
+                        } else {
+                            high = mid;
+                        }
+                    }
+                    *bound = low as i64;
+                }
+                Value::Struct(
+                    "Tuple<Int,Int>".into(),
+                    bounds
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, n)| (format!("_{i}"), Value::Int(n)))
+                        .collect(),
+                )
+            }
             "ZerosFloat" | "ZerosInt" => Value::NumericArray(Array::zeros(
                 if name == "ZerosFloat" {
                     DType::Float64
@@ -613,6 +724,11 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericSuffixArray" => (&["Bytes"], "Result<Tuple<IntArray,IntArray>,StdError>"),
+        "stdNumericSuffixSearch" => (
+            &["Bytes", "&IntArray", "Bytes"],
+            "Result<Tuple<Int,Int>,StdError>",
+        ),
         "stdNumericZerosFloat" => (&["&List<Int>"], "Result<FloatArray,StdError>"),
         "stdNumericFromFloat" => (
             &["&List<Int>", "&List<Float>"],

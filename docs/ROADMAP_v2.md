@@ -97,3 +97,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.6 は compact 記録により長い純粋計算の debug index 保持を省き、実行順序と観測・最終状態の検証を維持する。state digest の整形・journal 読込みも逐次化する。観測 export の DOM 上限と全領域の保持費用は別に継続する。
 
 1.9.7 は GUI に選択可能な grapheme 編集を追加し、scalar offset / 旧編集との互換、checkpoint と source-free replay を検証する。multi-window、clipboard / dialog、native kernel の公平性と残る統合条件は継続する。
+
+1.9.8 は generic の制約を effect の部分特殊化でも保持し、lazy range、再利用可能な UTF-8 / byte Trie、native suffix / LCP、exact Int geometry を実装する。callback の回数・順序、容量・node 再利用、独立参照と source-free SDK を検証する。matching は現行 flow backend を維持する。native kernel の公平性、GUI 拡充、統合の到達条件は継続する。

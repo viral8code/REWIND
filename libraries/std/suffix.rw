@@ -1,0 +1,10 @@
+pub struct SuffixIndex{private input:Bytes,private order:IntArray,private common:IntArray}
+// @api build cost O(n log n) native radix doubling, linear LCP; O(n) scratch, two paged IntArray results sharing across checkpoints.
+// @api build failure NumericSize for inputs above 1048576 bytes; fatal VM memory/work budgets preflight the kernel.
+pub fn build(input:Bytes)->Result<SuffixIndex,StdError> effects {} {let arrays=stdNumericSuffixArray(input)?;return Ok(SuffixIndex(input,arrays._0,arrays._1));}
+pub fn length(index:&SuffixIndex)->Int effects {} {return stdBytesLength(index.input);}
+pub fn order(index:&SuffixIndex)->IntArray effects {} {return index.order;}
+// @api lcp cost O(1) shared handle; element 0 is zero, element i compares order[i-1] and order[i].
+pub fn lcp(index:&SuffixIndex)->IntArray effects {} {return index.common;}
+// @api find cost O(pattern bytes * log n) comparisons; half-open interval in suffix order. Empty pattern matches n nonempty suffixes, empty input has none.
+pub fn find(index:&SuffixIndex,pattern:Bytes)->Result<Tuple<Int,Int>,StdError> effects {} {return stdNumericSuffixSearch(index.input,&index.order,pattern);}

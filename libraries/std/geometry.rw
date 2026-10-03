@@ -1,0 +1,39 @@
+import bigint as big;
+import sort as sort;
+pub record Point{x:Int,y:Int}
+pub record Vector{x:Float,y:Float}
+// @api orientation cost Fixed-size BigInt intermediates cover the full Int coordinate domain, including a signed determinant wider than 128 bits.
+pub fn orientation(a:Point,b:Point,c:Point)->Result<Int,StdError> effects {} {
+ let ax=big.fromInt(a.x)?;let ay=big.fromInt(a.y)?;
+ let bx=big.fromInt(b.x)?;let by=big.fromInt(b.y)?;
+ let cx=big.fromInt(c.x)?;let cy=big.fromInt(c.y)?;
+ let dx=big.subtract(&bx,&ax)?;let dy=big.subtract(&by,&ay)?;let ex=big.subtract(&cx,&ax)?;let ey=big.subtract(&cy,&ay)?;
+ let first=big.multiply(&dx,&ey)?;let second=big.multiply(&dy,&ex)?;let determinant=big.subtract(&first,&second)?;let zero=big.fromInt(0)?;return big.compare(&determinant,&zero);
+}
+fn between(value:Int,a:Int,b:Int)->Bool effects {} {return (a<=value && value<=b) || (b<=value && value<=a);}
+pub fn onSegment(point:Point,a:Point,b:Point)->Result<Bool,StdError> effects {} {return Ok(orientation(a,b,point)?==0 && between(point.x,a.x,b.x) && between(point.y,a.y,b.y));}
+pub fn intersects(a:Point,b:Point,c:Point,d:Point)->Result<Bool,StdError> effects {} {
+ let first=orientation(a,b,c)?;let second=orientation(a,b,d)?;let third=orientation(c,d,a)?;let fourth=orientation(c,d,b)?;
+ if first==0 && onSegment(c,a,b)?{return Ok(true);}if second==0 && onSegment(d,a,b)?{return Ok(true);}if third==0 && onSegment(a,c,d)?{return Ok(true);}if fourth==0 && onSegment(b,c,d)?{return Ok(true);}
+ return Ok(first*second<0 && third*fourth<0);
+}
+fn compare(a:Point,b:Point)->Int effects {} {if a.x<b.x{return -1;}if a.x>b.x{return 1;}if a.y<b.y{return -1;}if a.y>b.y{return 1;}return 0;}
+fn chain(points:&List<Point>,reverse:Bool,keepCollinear:Bool)->Result<List<Point>,StdError> effects {} {
+ let hull=List<Point>();for i in 0..points.len(){var index=i;if reverse{index=points.len()-1-i;}let point=points.get(index);
+ while hull.len()>=2{let turn=orientation(hull.get(hull.len()-2),hull.get(hull.len()-1),point)?;if turn>0 || (keepCollinear && turn==0){break;}hull.pop();}hull.add(point);}
+ return Ok(hull);
+}
+// @api convexHull cost O(n log n) comparisons and O(n) bounded exact predicates, n <=1048576; outputs distinct points counterclockwise, no repeated first point.
+// @api convexHull failure NumericSize; keepCollinear includes boundary points, and an entirely collinear input returns sorted distinct points.
+pub fn convexHull(input:&List<Point>,keepCollinear:Bool)->Result<List<Point>,StdError> effects {} {
+ if input.len()>1048576{return Err(StdError("NumericSize",0));}let sorted=sort.stable(input,compare);let points=List<Point>();for i in 0..sorted.len(){let p=sorted.get(i);if points.len()==0 || compare(points.get(points.len()-1),p)!=0{points.add(p);}}
+ if points.len()<=2{return Ok(points);}var collinear=true;for i in 2..points.len(){if orientation(points.get(0),points.get(1),points.get(i))?!=0{collinear=false;break;}}
+ if collinear{if keepCollinear{return Ok(points);}let endpoints=List<Point>();endpoints.add(points.get(0));endpoints.add(points.get(points.len()-1));return Ok(endpoints);}
+ let lower=chain(&points,false,keepCollinear)?;let upper=chain(&points,true,keepCollinear)?;let hull=List<Point>();for i in 0..lower.len()-1{hull.add(lower.get(i));}for i in 0..upper.len()-1{hull.add(upper.get(i));}return Ok(hull);
+}
+pub fn dot(a:Vector,b:Vector)->Result<Float,StdError> effects {} {let value=a.x*b.x+a.y*b.y;stdNumericMath("abs",value)?;return Ok(value);}
+pub fn cross(a:Vector,b:Vector)->Result<Float,StdError> effects {} {let value=a.x*b.y-a.y*b.x;stdNumericMath("abs",value)?;return Ok(value);}
+// @api orientationFloat failure NonFinite intermediates are rejected; negative tolerance returns NumericDomain. tolerance is absolute in determinant (area) units.
+pub fn orientationFloat(a:Vector,b:Vector,c:Vector,tolerance:Float)->Result<Int,StdError> effects {} {
+ stdNumericMath("abs",tolerance)?;if tolerance<0.0{return Err(StdError("NumericDomain",0));}let value=cross(Vector(b.x-a.x,b.y-a.y),Vector(c.x-a.x,c.y-a.y))?;if value>tolerance{return Ok(1);}if value< -tolerance{return Ok(-1);}return Ok(0);
+}
