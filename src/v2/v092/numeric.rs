@@ -117,6 +117,21 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             "cooperative numeric primitives require language 1.9.10",
         ));
     }
+    if matches!(
+        n,
+        "stdNumericFft"
+            | "stdNumericConvolve"
+            | "stdNumericCsr"
+            | "stdNumericSparseMatvec"
+            | "stdNumericScale"
+            | "stdNumericNorm2"
+    ) && !language_at_least(&p.language, "1.9.15")
+    {
+        return Err(diagnostic(
+            at,
+            "transform and sparse primitives require language 1.9.15",
+        ));
+    }
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
@@ -200,7 +215,53 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if matches!(name, "SuffixArray" | "SuffixSearch") {
+    let cost = if name == "Norm2" {
+        length(0).saturating_mul(64).saturating_add(64)
+    } else if name == "Fft" {
+        let n = length(0);
+        if n > rewind::transforms::MAX_FFT {
+            1
+        } else {
+            n.saturating_mul((usize::BITS - n.max(1).leading_zeros()) as usize)
+                .saturating_mul(32)
+                .saturating_add(4096)
+        }
+    } else if name == "Convolve" {
+        let n = length(0)
+            .saturating_add(length(1))
+            .saturating_sub(1)
+            .checked_next_power_of_two()
+            .unwrap_or(usize::MAX);
+        if n > rewind::transforms::MAX_FFT {
+            1
+        } else {
+            n.saturating_mul((usize::BITS - n.max(1).leading_zeros()) as usize)
+                .saturating_mul(96)
+                .saturating_add(4096)
+        }
+    } else if name == "Csr" {
+        let n = length(4);
+        if n > rewind::transforms::MAX_SPARSE {
+            1
+        } else {
+            n.saturating_mul((usize::BITS - n.max(1).leading_zeros()) as usize)
+                .saturating_mul(32)
+                .saturating_add(
+                    args.first()
+                        .and_then(|v| usize_arg(v).ok())
+                        .unwrap_or(0)
+                        .min(rewind::transforms::MAX_SPARSE)
+                        .saturating_mul(8),
+                )
+                .saturating_add(4096)
+        }
+    } else if name == "SparseMatvec" {
+        length(4)
+            .saturating_add(length(2))
+            .saturating_add(length(5))
+            .saturating_mul(32)
+            .saturating_add(4096)
+    } else if matches!(name, "SuffixArray" | "SuffixSearch") {
         if matches!(args.first(),Some(Value::Bytes(b)) if b.len()>rewind::suffix::MAX_BYTES)
             || (name == "SuffixSearch"
                 && matches!(args.get(2),Some(Value::Bytes(b)) if b.len()>rewind::suffix::MAX_BYTES))
@@ -321,7 +382,47 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "SuffixArray" {
+    if name == "Norm2" {
+        128
+    } else if name == "Fft" {
+        if length(0) > rewind::transforms::MAX_FFT {
+            0
+        } else {
+            length(0).saturating_mul(64).saturating_add(8192)
+        }
+    } else if name == "Convolve" {
+        let n = length(0)
+            .saturating_add(length(1))
+            .saturating_sub(1)
+            .checked_next_power_of_two()
+            .unwrap_or(usize::MAX);
+        if n > rewind::transforms::MAX_FFT {
+            0
+        } else {
+            n.saturating_mul(64).saturating_add(8192)
+        }
+    } else if name == "Csr" {
+        if length(4) > rewind::transforms::MAX_SPARSE {
+            0
+        } else {
+            length(4)
+                .saturating_mul(112)
+                .saturating_add(
+                    args.first()
+                        .and_then(|v| usize_arg(v).ok())
+                        .unwrap_or(0)
+                        .min(rewind::transforms::MAX_SPARSE)
+                        .saturating_add(1)
+                        .saturating_mul(24),
+                )
+                .saturating_add(8192)
+        }
+    } else if name == "SparseMatvec" {
+        length(5)
+            .saturating_mul(16)
+            .saturating_add(length(2).saturating_mul(24))
+            .saturating_add(8192)
+    } else if name == "SuffixArray" {
         match args.first() {
             Some(Value::Bytes(b)) if b.len() <= rewind::suffix::MAX_BYTES => {
                 b.len().saturating_mul(96).saturating_add(8192)
@@ -482,6 +583,59 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "Fft" => {
+                let inverse = match args.get(2) {
+                    Some(Value::Bool(v)) => *v,
+                    _ => return Err(NumericError::Type),
+                };
+                let (re, im) = rewind::transforms::fft(a(0)?, a(1)?, inverse)?;
+                Value::Struct(
+                    "Tuple<FloatArray,FloatArray>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(re)),
+                        ("_1".into(), Value::NumericArray(im)),
+                    ]),
+                )
+            }
+            "Convolve" => array_value(rewind::transforms::convolve(a(0)?, a(1)?))?,
+            "Csr" => {
+                let (offsets, indices, values) =
+                    rewind::transforms::csr(i(0)?, i(1)?, a(2)?, a(3)?, a(4)?)?;
+                Value::Struct(
+                    "Tuple<IntArray,IntArray,FloatArray>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(offsets)),
+                        ("_1".into(), Value::NumericArray(indices)),
+                        ("_2".into(), Value::NumericArray(values)),
+                    ]),
+                )
+            }
+            "SparseMatvec" => array_value(rewind::transforms::matvec(
+                i(0)?,
+                i(1)?,
+                a(2)?,
+                a(3)?,
+                a(4)?,
+                a(5)?,
+            ))?,
+            "Norm2" => Value::Float(rewind::transforms::norm2(a(0)?)?.to_bits()),
+            "Scale" => {
+                let factor = f(1)?;
+                if !factor.is_finite() {
+                    return Err(NumericError::NonFinite);
+                }
+                array_value(a(0)?.map_float(|n| {
+                    if !n.is_finite() {
+                        return Err(NumericError::NonFinite);
+                    }
+                    let v = n * factor;
+                    if v.is_finite() {
+                        Ok(v)
+                    } else {
+                        Err(NumericError::Overflow)
+                    }
+                }))?
+            }
             "SuffixArray" => {
                 let Some(Value::Bytes(input)) = args.first() else {
                     return Err(NumericError::Type);
@@ -800,6 +954,31 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericFft" => (
+            &["&FloatArray", "&FloatArray", "Bool"],
+            "Result<Tuple<FloatArray,FloatArray>,StdError>",
+        ),
+        "stdNumericConvolve" => (
+            &["&FloatArray", "&FloatArray"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericCsr" => (
+            &["Int", "Int", "&IntArray", "&IntArray", "&FloatArray"],
+            "Result<Tuple<IntArray,IntArray,FloatArray>,StdError>",
+        ),
+        "stdNumericSparseMatvec" => (
+            &[
+                "Int",
+                "Int",
+                "&IntArray",
+                "&IntArray",
+                "&FloatArray",
+                "&FloatArray",
+            ],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericNorm2" => (&["&FloatArray"], "Result<Float,StdError>"),
+        "stdNumericScale" => (&["&FloatArray", "Float"], "Result<FloatArray,StdError>"),
         "stdNumericSuffixArray" => (&["Bytes"], "Result<Tuple<IntArray,IntArray>,StdError>"),
         "stdNumericSuffixSearch" => (
             &["Bytes", "&IntArray", "Bytes"],

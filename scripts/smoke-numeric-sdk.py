@@ -268,3 +268,14 @@ assert actual == '{"active":false,"age":13,"name":"日本語"}\n1\n日本\n'.enc
 fixture.unlink()
 assert run("replay", root / "controls-trace.json", "--root", root, "--allow-effects", "gui") == actual
 print("Verified extracted form validation and viewport table: editing, typed submission, row selection, undo, source-free compact replay without fixture")
+
+sparse_fft = root / "sparse-fft.rw"
+sparse_fft.write_text((sdk / "share/rewind/examples/sparse-fft/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", sparse_fft)
+sparse_fft.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "sparse-fft.rwc", "--record", root / "sparse-fft-trace.json", "--record-mode", "compact")
+assert actual == b"true\n2\ntrue\ntrue\n", actual
+assert run("replay", root / "sparse-fft-trace.json", "--root", root) == actual
+print("Verified extracted sparse/FFT SDK: canonical CSR, conjugate gradient, complex transform, linear convolution and source-free replay")

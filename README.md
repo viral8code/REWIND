@@ -1,6 +1,6 @@
-# REWIND 1.9.14
+# REWIND 1.9.15
 
-v1.9.14 runs compiled projects with their manifest and lock after source directories and development dependencies are removed, preserving effect permissions, asset verification and source-free replay. See [contracts and remaining work](docs/REWIND_v1.9.14.md).
+v1.9.15 adds native complex FFT, linear convolution, canonical CSR sparse matrices, conjugate gradient tasks and scaled norms, with checkpoint and source-free replay support. See [contracts and remaining work](docs/REWIND_v1.9.15.md).
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 
@@ -8,7 +8,7 @@ v1.9.14 runs compiled projects with their manifest and lock after source directo
 
 ## SDKを試す
 
-[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.9.14)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
+[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.9.15)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
 
 v0.9 adds multiline REPL sessions with verified transcripts, API contracts for implementations and dependencies, production-only installs, Share generic records, ordered property shrinkers, and signed inspection timelines. Select `language = "0.9"`; see [implementation and limits](docs/v0.9-status.md) and the [v0.9.1 application proposal](docs/REWIND_v0.9.1.md).
 

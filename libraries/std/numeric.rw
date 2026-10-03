@@ -161,3 +161,10 @@ pub fn mergeMoments(target:&mut OnlineMoments,source:&OnlineMoments)->Result<Uni
     stdNumericMath("abs",mean)?;stdNumericMath("abs",m2)?;
     target.count=count;target.mean=mean;target.m2=m2;return Ok(());
 }
+// @api scale cost O(elements) native work / output storage; preserves array shape, no per-cell VM objects.
+// @api scale failure NumericType/NonFinite/Overflow; finite scalar and Float64 array, fatal work and memory budgets apply.
+pub fn scale(array:&FloatArray,factor:Float)->Result<FloatArray,StdError> effects {} {return stdNumericScale(array,factor);}
+
+// @api norm2 cost O(elements) native work / O(rank) iterator state; scaled Euclidean accumulation avoids intermediate square overflow and underflow.
+// @api norm2 failure NumericType/NonFinite/Overflow; Float64 array, empty norm is zero, nonrepresentable final norm fails. Fatal budgets apply.
+pub fn norm2(array:&FloatArray)->Result<Float,StdError> effects {} {return stdNumericNorm2(array);}

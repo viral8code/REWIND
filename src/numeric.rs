@@ -123,7 +123,6 @@ impl Accounting {
     pub fn allocated_bytes(&self) -> usize {
         self.0.allocated.load(Ordering::Relaxed)
     }
-    #[cfg(test)]
     pub fn visits(&self) -> usize {
         self.0.visits.load(Ordering::Relaxed)
     }
