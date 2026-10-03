@@ -83,3 +83,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 ### 1.9 の公開単位
 
 1.9.0 は nested match / module scope の言語監査と大きい payload に対する GC trigger を最初の単位として検証する。観測 / trace の保持・spill、bounded file I/O、共有 buffer の費用、native kernel の公平性・キャンセル、GUI と残るアルゴリズムの実例・測定は後続 patch で継続する。1.9.0 の公開をもって 1.9 全工程の完了とはしない。
+
+1.9.1 では完了した外部結果を既存 private Segment spill に統合する。wire と再送禁止を保ち、少ない resident memory と disk 上の履歴を区別する。現行 DOM trace の上限は継続し、trace の streaming、file I/O、公平性等の残りを完了扱いにしない。

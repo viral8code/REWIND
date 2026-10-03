@@ -1552,6 +1552,15 @@ impl Runtime {
                 }
             }
         }
+        for outcome in self
+            .external_entries
+            .iter()
+            .filter_map(|e| e.outcome.as_ref())
+        {
+            if seen_segments.insert(Arc::as_ptr(&outcome.segment) as usize) {
+                segments.push(outcome.segment.clone());
+            }
+        }
         compute_memory = compute_memory.saturating_add(
             self.gui_observations
                 .iter()

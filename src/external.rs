@@ -5,18 +5,124 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 const LIMIT: usize = 16 * 1024 * 1024;
 const ENTRIES: usize = 1_000_000;
+/// Private immutable observation storage. The public wire remains a JSON string.
+#[derive(Clone)]
+pub(crate) struct Outcome {
+    pub(crate) segment: std::sync::Arc<crate::journal::Segment>,
+    len: usize,
+    digest: [u8; 32],
+}
+impl std::fmt::Debug for Outcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Outcome")
+            .field("len", &self.len)
+            .finish_non_exhaustive()
+    }
+}
+impl Outcome {
+    fn new(bytes: Vec<u8>) -> Self {
+        let len = bytes.len();
+        let digest = Sha256::digest(&bytes).into();
+        Self {
+            segment: std::sync::Arc::new(crate::journal::Segment::new(bytes)),
+            len,
+            digest,
+        }
+    }
+    fn len(&self) -> usize {
+        self.len
+    }
+    pub(crate) fn read(&self) -> Result<Vec<u8>> {
+        struct Bounded {
+            bytes: Vec<u8>,
+            limit: usize,
+        }
+        impl std::io::Write for Bounded {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                if self.bytes.len().saturating_add(bytes.len()) > self.limit {
+                    return Err(std::io::Error::other("ExternalObservationCorrupt"));
+                }
+                self.bytes.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut out = Bounded {
+            bytes: Vec::new(),
+            limit: self.len,
+        };
+        out.bytes
+            .try_reserve_exact(self.len)
+            .map_err(|_| invalid("ExternalAllocation"))?;
+        self.segment.write_to(&mut out)?;
+        if out.bytes.len() != self.len
+            || <[u8; 32]>::from(Sha256::digest(&out.bytes)) != self.digest
+        {
+            return Err(invalid("ExternalObservationCorrupt"));
+        }
+        Ok(out.bytes)
+    }
+}
+impl Serialize for Outcome {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        let bytes = self.read().map_err(serde::ser::Error::custom)?;
+        let text = std::str::from_utf8(&bytes).map_err(serde::ser::Error::custom)?;
+        serializer.serialize_str(text)
+    }
+}
+impl<'de> Deserialize<'de> for Outcome {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        struct Bounded;
+        impl<'de> serde::de::Visitor<'de> for Bounded {
+            type Value = Outcome;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("bounded external observation string")
+            }
+            fn visit_str<E: serde::de::Error>(
+                self,
+                value: &str,
+            ) -> std::result::Result<Outcome, E> {
+                if value.len() > LIMIT {
+                    return Err(E::custom("ExternalLimit"));
+                }
+                Ok(Outcome::new(value.as_bytes().to_vec()))
+            }
+            fn visit_string<E: serde::de::Error>(
+                self,
+                value: String,
+            ) -> std::result::Result<Outcome, E> {
+                if value.len() > LIMIT {
+                    return Err(E::custom("ExternalLimit"));
+                }
+                Ok(Outcome::new(value.into_bytes()))
+            }
+        }
+        deserializer.deserialize_string(Bounded)
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Entry {
     fingerprint: String,
     // None denotes an operation whose outcome could not be recorded. Never retry it.
-    pub(crate) outcome: Option<String>,
+    pub(crate) outcome: Option<Outcome>,
     pub(crate) reservation: usize,
     #[serde(default)]
     pub(crate) pending: bool,
 }
 impl Entry {
     pub(crate) fn bytes(&self) -> usize {
-        self.reservation + 192
+        if self.outcome.is_some() {
+            192
+        } else {
+            self.reservation.saturating_add(192)
+        }
     }
     pub(crate) fn validate(&self) -> bool {
         !self.pending
@@ -25,7 +131,9 @@ impl Entry {
             && self.reservation <= LIMIT
             && self.outcome.as_ref().is_none_or(|s| {
                 s.len() <= self.reservation
-                    && serde_json::from_str::<std::result::Result<Value, String>>(s).is_ok()
+                    && s.read().is_ok_and(|bytes| {
+                        serde_json::from_slice::<std::result::Result<Value, String>>(&bytes).is_ok()
+                    })
             })
     }
 }
@@ -34,7 +142,9 @@ fn invalid(s: &str) -> Error {
 }
 impl Runtime {
     pub(crate) fn export_external_entries(&self) -> Result<&[Entry]> {
-        let bytes = self.external_memory_bytes;
+        let bytes = self.external_entries.iter().fold(0usize, |n, e| {
+            n.saturating_add(e.reservation).saturating_add(192)
+        });
         if bytes > 16 * 1024 * 1024 {
             return Err(invalid(
                 "TraceBudgetExceeded: external observations (16 MiB)",
@@ -60,7 +170,7 @@ impl Runtime {
                 ));
             }
             if let Some(s) = &entry.outcome {
-                let value: Value = serde_json::from_str(s)
+                let value: Value = serde_json::from_slice(&s.read()?)
                     .map_err(|_| invalid("ReplayMismatch: invalid external result"))?;
                 if let (Some(automaton), Some(response)) = (&automaton, value.get("Ok")) {
                     if response["adapter"] == "db"
@@ -178,7 +288,7 @@ impl Runtime {
                 .outcome
                 .as_ref()
                 .ok_or_else(|| invalid("ExternalOutcomeUnknown: automatic retry is forbidden"))?;
-            let value = serde_json::from_str(text)
+            let value = serde_json::from_slice(&text.read()?)
                 .map_err(|_| invalid("ReplayMismatch: invalid external result"))?;
             self.state.external_cursor += 1;
             self.external_high_water = self.external_high_water.max(self.state.external_cursor);
@@ -239,16 +349,13 @@ impl Runtime {
             return Err(invalid("ExternalOutcomeUnknown: operation finished but result recording failed; automatic retry is forbidden"));
         }
         buffer.shrink_to_fit();
-        let text = String::from_utf8(buffer).map_err(|_| invalid("ExternalOutcomeUnknown"))?;
         let entry = &mut self.external_entries[cursor];
-        self.external_memory_bytes = self
-            .external_memory_bytes
-            .saturating_sub(entry.reservation)
-            .saturating_add(text.capacity());
-        entry.reservation = text.capacity();
-        entry.outcome = Some(text);
+        self.external_memory_bytes = self.external_memory_bytes.saturating_sub(entry.reservation);
+        entry.reservation = buffer.len();
+        entry.outcome = Some(Outcome::new(buffer));
         self.state.external_cursor += 1;
         self.external_high_water = self.external_high_water.max(self.state.external_cursor);
+        self.enforce_budget()?;
         Ok(result)
     }
 }
@@ -447,13 +554,10 @@ impl Runtime {
         serde_json::to_writer(Bounded(&mut buffer, entry.reservation), &result)
             .map_err(|_| invalid("ExternalOutcomeUnknown: result recording failed"))?;
         buffer.shrink_to_fit();
-        let text = String::from_utf8(buffer).map_err(|_| invalid("ExternalOutcomeUnknown"))?;
-        self.external_memory_bytes = self
-            .external_memory_bytes
-            .saturating_sub(entry.reservation)
-            .saturating_add(text.capacity());
-        entry.reservation = text.capacity();
-        entry.outcome = Some(text);
+        self.external_memory_bytes = self.external_memory_bytes.saturating_sub(entry.reservation);
+        entry.reservation = buffer.len();
+        entry.outcome = Some(Outcome::new(buffer));
+        self.enforce_budget()?;
         Ok(())
     }
     pub fn poll_external(
@@ -526,7 +630,7 @@ impl Runtime {
                 .outcome
                 .as_ref()
                 .ok_or_else(|| invalid("ExternalOutcomeUnknown: automatic retry is forbidden"))?;
-            Ok(Some(serde_json::from_str(s).map_err(|_| {
+            Ok(Some(serde_json::from_slice(&s.read()?).map_err(|_| {
                 invalid("ReplayMismatch: invalid external result")
             })?))
         } else {
@@ -540,5 +644,39 @@ impl Runtime {
         if !self.replaying {
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
+    }
+}
+
+#[cfg(test)]
+mod spill_tests {
+    use super::*;
+    #[test]
+    fn spilled_outcome_detects_corruption_and_removes_its_private_file() {
+        let outcome = Outcome::new(br#"{"Ok":42}"#.to_vec());
+        let path = std::env::temp_dir().join(format!(
+            "rewind-journal-{}-{}.tmp",
+            std::process::id(),
+            outcome.segment.id
+        ));
+        outcome.segment.spill().unwrap();
+        assert_eq!(outcome.read().unwrap(), br#"{"Ok":42}"#);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        std::fs::write(&path, br#"{"Ok":43}"#).unwrap();
+        assert!(outcome
+            .read()
+            .unwrap_err()
+            .to_string()
+            .contains("ExternalObservationCorrupt"));
+        std::fs::write(&path, vec![b'x'; 100]).unwrap();
+        assert!(outcome.read().is_err());
+        drop(outcome);
+        assert!(!path.exists());
     }
 }
