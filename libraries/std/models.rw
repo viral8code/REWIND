@@ -1,0 +1,23 @@
+effects {fileRead,fileWrite};
+pub struct Model {private weights:Map<String,FloatArray>}
+// @api create cost O(parameters + elements) finite validation, shared native pages; <=128 names, each 1..128 UTF-8 bytes, encoded model <=32 MiB.
+// @api create failure NumericSize/Domain/Type/NonFinite; sorted names, no NUL; fatal work/memory budgets apply. No per-cell VM objects.
+pub fn create(weights:Map<String,FloatArray>)->Result<Model,StdError> effects {} {stdNumericModelCheck(&weights)?;return Ok(Model(move weights));}
+pub fn get(model:&Model,name:String)->Option<FloatArray> effects {} {return model.weights.get(name);}
+// @api weights cost O(parameters) metadata; COW numeric storage versions are shared.
+pub fn weights(model:&Model)->Map<String,FloatArray> effects {} {
+ let result=Map<String,FloatArray>();let names=model.weights.keys();for i in 0..names.len(){let name=names.get(i);match model.weights.get(name){Some(array)=>{result.set(name,array);},None=>{panic("model keys");}}}return move result;
+}
+// @api encode cost O(elements + bytes) native serialization; dimensions and exact finite IEEE bits, canonical names, versioned format with SHA-256 integrity (not an authenticity signature).
+// @api encode failure NumericSize/Domain/NonFinite; fatal memory/work budgets apply. Serialization materializes a bounded Bytes value, not a streaming container.
+pub fn encode(model:&Model)->Result<Bytes,StdError> effects {} {return stdNumericModelEncode(&model.weights);}
+// @api decode failure NumericSize/Domain/Shape/NonFinite; validates complete container, lengths, shapes, names, values and checksum before creating numeric pages. No code execution or external I/O.
+pub fn decode(bytes:Bytes)->Result<Model,StdError> effects {} {let weights=stdNumericModelDecode(bytes)?;return Ok(Model(move weights));}
+// @api save failure numeric codec errors; file writes and publish use existing fatal VM failures; deferred VM file write, physically visible only after publish, then not undone by revert.
+pub fn save(model:&Model,path:String)->Result<Unit,StdError> effects {fileWrite} {
+ let bytes=encode(model)?;File.writeBytes(path,bytes);return Ok(());
+}
+// @api load failure File:<code> or codec errors; observed file bytes follow existing journal/replay contract, work/history/file budgets apply.
+pub fn load(path:String)->Result<Model,StdError> effects {fileRead} {
+ match File.readBytes(path){Ok(bytes)=>{return decode(bytes);},Err(e)=>{return Err(StdError("File:"+e.code,0));}}
+}

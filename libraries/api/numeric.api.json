@@ -1,8 +1,33 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.15",
+  "language": "1.9.16",
   "symbols": {
+    "fn:activation": {
+      "async": false,
+      "cost": "O(elements) native work/storage; relu and stable sigmoid, no per-cell callbacks.",
+      "effects": [],
+      "failure": "NumericDomain/Type/NonFinite; fatal work/memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "&FloatArray"
+      ],
+      "return": "Result<FloatArray,StdError>"
+    },
+    "fn:affine": {
+      "async": false,
+      "cost": "O(elements) native work/storage; shape preserved, two finite scalars, no fused rounding guarantee.",
+      "effects": [],
+      "failure": "NumericType/NonFinite/Overflow; fatal work/memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "Float",
+        "Float"
+      ],
+      "return": "Result<FloatArray,StdError>"
+    },
     "fn:broadcastFloat": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
@@ -454,6 +479,18 @@
         "&FloatArray"
       ],
       "return": "Result<Float,StdError>"
+    },
+    "fn:sumToShape": {
+      "async": false,
+      "cost": "O(elements * rank + output elements), O(output elements) native scratch; Neumaier accumulation, scalar/singleton dimensions retained as requested.",
+      "effects": [],
+      "failure": "NumericShape/Size/Type/NonFinite/Overflow; target must broadcast to input shape; empty reductions are zero, fatal budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "&List<Int>"
+      ],
+      "return": "Result<FloatArray,StdError>"
     },
     "fn:transposeFloat": {
       "async": false,

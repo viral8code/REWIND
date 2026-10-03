@@ -1,9 +1,30 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.15",
+  "language": "1.9.16",
   "symbols": {
     "dependency:numeric.rw": {
+      "fn:$import$numeric$activation": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "&FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$affine": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "Float",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
       "fn:$import$numeric$broadcastFloat": {
         "async": false,
         "effects": [],
@@ -379,6 +400,16 @@
           "&FloatArray"
         ],
         "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$sumToShape": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&List<Int>"
+        ],
+        "return": "Result<FloatArray,StdError>"
       },
       "fn:$import$numeric$transposeFloat": {
         "async": false,

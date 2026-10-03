@@ -132,6 +132,21 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             "transform and sparse primitives require language 1.9.15",
         ));
     }
+    if matches!(
+        n,
+        "stdNumericAffine"
+            | "stdNumericActivation"
+            | "stdNumericSumToShape"
+            | "stdNumericCheckFinite"
+            | "stdNumericTensorKey"
+            | "stdNumericReshapeLogical"
+            | "stdNumericModelEncode"
+            | "stdNumericModelDecode"
+            | "stdNumericModelCheck"
+    ) && !language_at_least(&p.language, "1.9.16")
+    {
+        return Err(diagnostic(at, "tensor primitives require language 1.9.16"));
+    }
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
@@ -163,6 +178,29 @@ fn list<'a>(
         Value::TypedList(_, a) => Ok(a),
         _ => Err(NumericError::Type),
     }
+}
+fn model_parameters<'a>(
+    v: &'a Value,
+    rt: &'a Runtime,
+) -> std::result::Result<Vec<(&'a str, &'a Array)>, NumericError> {
+    let Value::TypedMap(key, value, entries) = target(v, rt) else {
+        return Err(NumericError::Type);
+    };
+    if key != "String" || value != "FloatArray" {
+        return Err(NumericError::Type);
+    }
+    if entries.len() > rewind::numeric::MAX_MODEL_PARAMETERS {
+        return Err(NumericError::Size);
+    }
+    entries
+        .iter()
+        .map(|(key, value)| {
+            let rewind::MapKey::Text(name) = key else {
+                return Err(NumericError::Type);
+            };
+            Ok((name.as_str(), array(value, rt)?))
+        })
+        .collect()
 }
 fn indices(v: &Value, rt: &Runtime) -> std::result::Result<Vec<usize>, NumericError> {
     let values = list(v, rt)?;
@@ -215,7 +253,32 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "Norm2" {
+    let cost = if name == "ReshapeLogical" {
+        if a(0).is_some_and(|a| a.reshape_logical_scratch() == 2048) {
+            128
+        } else {
+            length(0).saturating_mul(24)
+        }
+    } else if matches!(name, "ModelEncode" | "ModelCheck") {
+        model_parameters(&args[0], rt).map_or(1, |p| {
+            p.iter().fold(8192usize, |n, (_, a)| {
+                n.saturating_add(a.len().saturating_mul(64))
+            })
+        })
+    } else if name == "ModelDecode" {
+        match args.first() {
+            Some(Value::Bytes(b)) if b.len() <= rewind::numeric::MAX_MODEL_BYTES => {
+                b.len().saturating_mul(64).saturating_add(8192)
+            }
+            _ => 1,
+        }
+    } else if name == "TensorKey" {
+        1024
+    } else if name == "Activation" {
+        length(1).saturating_mul(64).saturating_add(64)
+    } else if name == "SumToShape" {
+        length(0).saturating_mul(256).saturating_add(128)
+    } else if name == "Norm2" {
         length(0).saturating_mul(64).saturating_add(64)
     } else if name == "Fft" {
         let n = length(0);
@@ -382,7 +445,35 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "Norm2" {
+    if name == "ReshapeLogical" {
+        a(0).map_or(0, Array::reshape_logical_scratch)
+    } else if name == "ModelEncode" {
+        model_parameters(&args[0], rt)
+            .and_then(|p| rewind::numeric::model_size(&p))
+            .unwrap_or(0)
+            .saturating_add(32768)
+    } else if name == "ModelDecode" {
+        match args.first() {
+            Some(Value::Bytes(b)) if b.len() <= rewind::numeric::MAX_MODEL_BYTES => {
+                b.len().saturating_mul(3).saturating_add(32768)
+            }
+            _ => 0,
+        }
+    } else if name == "ModelCheck" {
+        8192
+    } else if matches!(name, "TensorKey" | "CheckFinite") {
+        1024
+    } else if name == "SumToShape" {
+        args.get(1)
+            .and_then(|v| indices(v, rt).ok())
+            .and_then(|s| elements(&s).ok())
+            .map_or(0, |n| {
+                Array::storage_estimate(n).saturating_add(n.saturating_mul(16))
+            })
+    } else if matches!(name, "Affine" | "Activation") {
+        let n = length(if name == "Activation" { 1 } else { 0 });
+        Array::storage_estimate(n).saturating_add(n.saturating_mul(8))
+    } else if name == "Norm2" {
         128
     } else if name == "Fft" {
         if length(0) > rewind::transforms::MAX_FFT {
@@ -583,6 +674,47 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "ReshapeLogical" => array_value(a(0)?.reshape_logical(ids(1)?))?,
+            "ModelCheck" => {
+                let parameters = model_parameters(&args[0], rt)?;
+                rewind::numeric::model_size(&parameters)?;
+                for (_, array) in parameters {
+                    array.check_finite()?;
+                }
+                Value::Null
+            }
+            "ModelEncode" => Value::Bytes(
+                rewind::numeric::encode_model(&model_parameters(&args[0], rt)?)?.into(),
+            ),
+            "ModelDecode" => {
+                let Value::Bytes(bytes) = &args[0] else {
+                    return Err(NumericError::Type);
+                };
+                let decoded = rewind::numeric::decode_model(bytes)?;
+                let mut map = rewind::map_storage::PersistentMap::new();
+                for (name, array) in decoded {
+                    map.set(rewind::MapKey::Text(name), Value::NumericArray(array));
+                }
+                Value::TypedMap("String".into(), "FloatArray".into(), map)
+            }
+            "Affine" => array_value(a(0)?.affine(f(1)?, f(2)?))?,
+            "Activation" => array_value(a(1)?.activation(operation(&args[0])?))?,
+            "SumToShape" => array_value(a(0)?.sum_to_shape(ids(1)?))?,
+            "CheckFinite" => {
+                a(0)?.check_finite()?;
+                Value::Null
+            }
+            "TensorKey" => {
+                let (Value::Bytes(left), Value::Bytes(right)) = (&args[2], &args[3]) else {
+                    return Err(NumericError::Type);
+                };
+                Value::Bytes(
+                    a(4)?
+                        .tensor_key(operation(&args[0])?, integer(&args[1])?, left, right)?
+                        .to_vec()
+                        .into(),
+                )
+            }
             "Fft" => {
                 let inverse = match args.get(2) {
                     Some(Value::Bool(v)) => *v,
@@ -954,6 +1086,27 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericReshapeLogical" => (
+            &["&FloatArray", "&List<Int>"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericModelCheck" => (&["&Map<String,FloatArray>"], "Result<Unit,StdError>"),
+        "stdNumericModelEncode" => (&["&Map<String,FloatArray>"], "Result<Bytes,StdError>"),
+        "stdNumericModelDecode" => (&["Bytes"], "Result<Map<String,FloatArray>,StdError>"),
+        "stdNumericAffine" => (
+            &["&FloatArray", "Float", "Float"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericActivation" => (&["String", "&FloatArray"], "Result<FloatArray,StdError>"),
+        "stdNumericSumToShape" => (
+            &["&FloatArray", "&List<Int>"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericCheckFinite" => (&["&FloatArray"], "Result<Unit,StdError>"),
+        "stdNumericTensorKey" => (
+            &["String", "Int", "Bytes", "Bytes", "&FloatArray"],
+            "Result<Bytes,StdError>",
+        ),
         "stdNumericFft" => (
             &["&FloatArray", "&FloatArray", "Bool"],
             "Result<Tuple<FloatArray,FloatArray>,StdError>",

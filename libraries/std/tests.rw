@@ -289,3 +289,14 @@ test fn sparse_and_transform_contracts() {
  let matrix=transformTake(sparse.create(1,1,&indices,&indices,&values));let result=transformTake(sparse.matvec(&matrix,&zero));
  assert_eq(numeric.norm2(&result),Ok(0.0));
 }
+
+import autodiff as autodiff;
+import optimize as optimize;
+import models as models;
+test fn native_gradient_optimizer_model_contracts() {
+ let shape=List<Int>();shape.add(1);let data=List<Float>();data.add(2.0);let parameter=transformTake(numeric.fromFloat(&shape,&data));
+ var tape=autodiff.create();let node=transformTake(autodiff.parameter(&mut tape,"x",parameter));let square=transformTake(autodiff.unary(&mut tape,"square",node));let loss=transformTake(autodiff.mean(&mut tape,square));let derivatives=transformTake(autodiff.backward(&tape,loss));
+ let gradient=Map<String,FloatArray>();match transformTake(autodiff.gradient(&derivatives,node)){Some(value)=>{assert_eq(numeric.sum(&value),Ok(4.0));gradient.set("x",value);},None=>{panic("gradient");}}
+ let weights=Map<String,FloatArray>();weights.set("x",parameter);let updated=transformTake(optimize.sgd(&weights,&gradient,0.25));
+ let model=transformTake(models.create(move updated));let bytes=transformTake(models.encode(&model));let restored=transformTake(models.decode(bytes));match models.get(&restored,"x"){Some(array)=>{assert_eq(numeric.sum(&array),Ok(1.0));},None=>{panic("model weight");}}
+}

@@ -10,6 +10,15 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        ("models", include_str!("../../../libraries/std/models.rw")),
+        (
+            "optimize",
+            include_str!("../../../libraries/std/optimize.rw"),
+        ),
+        (
+            "autodiff",
+            include_str!("../../../libraries/std/autodiff.rw"),
+        ),
         ("fft", include_str!("../../../libraries/std/fft.rw")),
         ("sparse", include_str!("../../../libraries/std/sparse.rw")),
         (
@@ -252,7 +261,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "lib/rewind/std/rewind.toml",
             include_str!("../../../libraries/std/rewind.toml"),
         )?;
-        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":env!("CARGO_PKG_VERSION"),"effects":["gui","external","clock","network","db","tasks","random"],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
+        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":env!("CARGO_PKG_VERSION"),"effects":["gui","external","clock","network","db","tasks","random","fileRead","fileWrite"],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
         let std_root = output.join("lib/rewind/std");
         update_project(&std_root)?;
         // A distribution is only assembled after its embedded standard library
@@ -381,6 +390,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.14.md",
                 include_str!("../../../docs/REWIND_v1.9.14.md"),
+            ),
+            (
+                "REWIND_v1.9.16.md",
+                include_str!("../../../docs/REWIND_v1.9.16.md"),
             ),
             (
                 "REWIND_v1.9.15.md",
@@ -628,6 +641,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/doc/REWIND_v1.8.md",
             include_str!("../../../docs/REWIND_v1.8.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/model-training/main.rw",
+            include_str!("../../../examples/model-training/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/model-training/README.md",
+            include_str!("../../../examples/model-training/README.md"),
         )?;
         write(
             &output,

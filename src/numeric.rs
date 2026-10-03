@@ -8,9 +8,12 @@ use std::sync::{
 };
 mod chunks;
 mod linalg;
+mod model;
 mod stats;
+mod tensor;
 pub use chunks::{Progress as KernelProgress, COOPERATIVE_MACS};
 pub use linalg::{Eigen, Qr};
+pub use model::{decode_model, encode_model, model_size, MAX_MODEL_BYTES, MAX_MODEL_PARAMETERS};
 pub use stats::Histogram;
 const PAGE: usize = 256;
 pub const MAX_ELEMENTS: usize = 16 * 1024 * 1024;

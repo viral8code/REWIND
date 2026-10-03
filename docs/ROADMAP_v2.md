@@ -115,3 +115,5 @@ compiled 配布時に development manifest が残っていると、run_compiled 
 1.9.14 は compilation graph と runtime policy の設定読込みを分離し、削除済み source directory / vendor と開発用 manifest の併存を可能にする。lock、effect、asset、検証済み IR、両記録 mode の replay と実 SDK の配布を検証する。残る v2.0 の統合・数値・GUI・通信の到達条件は継続する。
 
 1.9.15 は native FFT / linear convolution、canonical CSR / borrowed-page matvec、scaled norm、共役勾配 task を追加し、精度・source-free・checkpoint・予算・反復とキャンセルを検証する。reverse-mode / optimizer / model、GUI / DB / 通信の統合、HTTP server / TCP、長い kernel の分割と残る到達条件は継続する。
+
+1.9.16 は native-array reverse-mode、SGD / Adam と bounded model codec / deferred save-load を実装する。勾配の独立有限差分、typed failure の atomicity、checkpoint、source-free model-free replay と両 OS SDK を検証する。単一 kernel の途中の協調動作、GUI / DB / 通信、HTTP server / TCP と残る到達条件は継続する。

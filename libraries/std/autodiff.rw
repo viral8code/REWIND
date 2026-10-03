@@ -1,0 +1,129 @@
+import numeric as numeric;
+
+// Handles include the immutable operation graph and storage version. After a
+// branch is reverted an index reused by a different graph cannot accept them.
+pub record Node {private index:Int,private key:Bytes}
+enum Operation {Leaf,Binary(String,Int,Int),Unary(String,Int),Matmul(Int,Int),Reshape(Int),Transpose(Int),Broadcast(Int),Sum(Int),Mean(Int)}
+record Entry {value:FloatArray,operation:Operation,key:Bytes,needed:Bool}
+pub struct Tape {private entries:List<Entry>}
+pub struct Gradients {private values:List<Option<FloatArray>>,private keys:List<Bytes>}
+
+// @api create cost O(1); VM-owned tape, checkpoint/revert uses COW metadata and shared native pages.
+pub fn create()->Tape effects {} {let entries=List<Entry>();return Tape(move entries);}
+fn emptyKey()->Bytes effects {} {match stdEncode(""){Ok(b)=>{return b;},Err(_)=>{panic("empty key");}}}
+fn entry(tape:&Tape,node:Node)->Result<Entry,StdError> effects {} {
+ if node.index<0 || node.index>=tape.entries.len(){return Err(StdError("AutodiffNode",0));}
+ let item=tape.entries.get(node.index);if item.key!=node.key{return Err(StdError("AutodiffNode",node.index));}return Ok(item);
+}
+fn append(tape:&mut Tape,array:FloatArray,operation:Operation,needed:Bool,tag:String,left:Bytes,right:Bytes)->Result<Node,StdError> effects {} {
+ if tape.entries.len()>=100000{return Err(StdError("AutodiffSize",0));}
+ let index=tape.entries.len();let key=stdNumericTensorKey(tag,index,left,right,&array)?;
+ tape.entries.add(Entry(array,operation,key,needed));return Ok(Node(index,key));
+}
+// @api parameter cost O(elements) finite validation, no copy of numeric pages; name bounded to 128 UTF-8 bytes, at most 100000 operations per tape.
+// @api parameter failure AutodiffName/Size, NumericNonFinite; fatal work/memory budgets apply. Tape changes only on success.
+pub fn parameter(tape:&mut Tape,name:String,array:FloatArray)->Result<Node,StdError> effects {} {
+ if name=="" || name.byteLen()>128 || stdTextFind(name,"\0")!=None{return Err(StdError("AutodiffName",0));}
+ stdNumericCheckFinite(&array)?;return append(tape,array,Operation::Leaf,true,"parameter:"+name,emptyKey(),emptyKey());
+}
+pub fn constant(tape:&mut Tape,array:FloatArray)->Result<Node,StdError> effects {} {
+ stdNumericCheckFinite(&array)?;return append(tape,array,Operation::Leaf,false,"constant",emptyKey(),emptyKey());
+}
+// @api value failure AutodiffNode for a foreign or replaced node; structurally identical graphs are interchangeable.
+pub fn value(tape:&Tape,node:Node)->Result<FloatArray,StdError> effects {} {return Ok(entry(tape,node)?.value);}
+// @api binary failure NumericDomain/Shape/NonFinite/Overflow, AutodiffNode/Size; add/sub/mul only, shapes must match, broadcasting is explicit.
+pub fn binary(tape:&mut Tape,operation:String,left:Node,right:Node)->Result<Node,StdError> effects {} {
+ if operation!="add" && operation!="sub" && operation!="mul"{return Err(StdError("NumericDomain",0));}
+ let a=entry(tape,left)?;let b=entry(tape,right)?;let output=numeric.zipFloat(operation,&a.value,&b.value)?;
+ return append(tape,output,Operation::Binary(operation,left.index,right.index),a.needed || b.needed,"binary:"+operation,left.key,right.key);
+}
+// @api unary failure NumericDomain/NonFinite/Overflow, AutodiffNode/Size; relu/sigmoid/tanh/exp/log/square, relu derivative at zero is zero.
+pub fn unary(tape:&mut Tape,operation:String,input:Node)->Result<Node,StdError> effects {} {
+ let a=entry(tape,input)?;var output=a.value;
+ if operation=="relu" || operation=="sigmoid"{output=stdNumericActivation(operation,&a.value)?;}
+ else if operation=="tanh" || operation=="exp" || operation=="log"{output=numeric.mapFloat(operation,&a.value)?;}
+ else if operation=="square"{output=numeric.zipFloat("mul",&a.value,&a.value)?;}
+ else{return Err(StdError("NumericDomain",0));}
+ return append(tape,output,Operation::Unary(operation,input.index),a.needed,"unary:"+operation,input.key,emptyKey());
+}
+pub fn matmul(tape:&mut Tape,left:Node,right:Node)->Result<Node,StdError> effects {} {
+ let a=entry(tape,left)?;let b=entry(tape,right)?;let output=numeric.matmul(&a.value,&b.value)?;
+ return append(tape,output,Operation::Matmul(left.index,right.index),a.needed || b.needed,"matmul",left.key,right.key);
+}
+pub fn reshape(tape:&mut Tape,input:Node,dimensions:&List<Int>)->Result<Node,StdError> effects {} {
+ let a=entry(tape,input)?;let output=stdNumericReshapeLogical(&a.value,dimensions)?;
+ return append(tape,output,Operation::Reshape(input.index),a.needed,"reshape",input.key,emptyKey());
+}
+// Matrix transpose; ranks other than two fail, no tensor flattening.
+pub fn transpose(tape:&mut Tape,input:Node)->Result<Node,StdError> effects {} {
+ let a=entry(tape,input)?;let axes=List<Int>();axes.add(1);axes.add(0);let output=numeric.transposeFloat(&a.value,&axes)?;
+ return append(tape,output,Operation::Transpose(input.index),a.needed,"transpose2",input.key,emptyKey());
+}
+pub fn broadcast(tape:&mut Tape,input:Node,dimensions:&List<Int>)->Result<Node,StdError> effects {} {
+ let a=entry(tape,input)?;let output=numeric.broadcastFloat(&a.value,dimensions)?;
+ return append(tape,output,Operation::Broadcast(input.index),a.needed,"broadcast",input.key,emptyKey());
+}
+fn scalar(number:Float)->Result<FloatArray,StdError> effects {} {let dimensions=List<Int>();let values=List<Float>();values.add(number);return numeric.fromFloat(&dimensions,&values);}
+pub fn sum(tape:&mut Tape,input:Node)->Result<Node,StdError> effects {} {
+ let a=entry(tape,input)?;let output=scalar(numeric.sum(&a.value)?)?;
+ return append(tape,output,Operation::Sum(input.index),a.needed,"sum",input.key,emptyKey());
+}
+pub fn mean(tape:&mut Tape,input:Node)->Result<Node,StdError> effects {} {
+ let a=entry(tape,input)?;let output=scalar(numeric.mean(&a.value)?)?;
+ return append(tape,output,Operation::Mean(input.index),a.needed,"mean",input.key,emptyKey());
+}
+fn addGradient(tape:&Tape,values:&mut List<Option<FloatArray>>,index:Int,incoming:FloatArray)->Result<Unit,StdError> effects {} {
+ if !tape.entries.get(index).needed{return Ok(());}
+ match values.get(index){None=>{values.set(index,Some(incoming));},Some(previous)=>{let combined=numeric.zipFloat("add",&previous,&incoming)?;values.set(index,Some(combined));}}
+ return Ok(());
+}
+fn count(array:&FloatArray)->Result<Float,StdError> effects {} {
+ let dimensions=numeric.shapeFloat(array)?;var size=1;for i in 0..dimensions.len(){size*=dimensions.get(i);}
+ match size.toFloatChecked(){Ok(n)=>{return Ok(n);},Err(_)=>{return Err(StdError("NumericSize",0));}}
+}
+// @api backward cost sum of the forward/backward native kernel costs; O(nodes + retained intermediate gradients) storage. Synchronous, individual kernels are not preemptible.
+// @api backward failure AutodiffNode/Loss, NumericShape/Domain/NonFinite/Overflow; requires a one-element loss, no mutation of tape; fatal work/memory budgets apply. Gradients retains intermediate native arrays until dropped.
+pub fn backward(tape:&Tape,loss:Node)->Result<Gradients,StdError> effects {} {
+ let last=entry(tape,loss)?;if count(&last.value)?!=1.0{return Err(StdError("AutodiffLoss",0));}
+ let values=List<Option<FloatArray>>();let keys=List<Bytes>();for i in 0..tape.entries.len(){values.add(None);keys.add(tape.entries.get(i).key);}
+ if last.needed{let initial=stdNumericAffine(&last.value,0.0,1.0)?;values.set(loss.index,Some(initial));}var position=loss.index;
+ while position>=0 {
+  let item=tape.entries.get(position);
+  match values.get(position){None=>{},Some(grad)=>{
+   match item.operation{
+    Operation::Leaf=>{},
+    Operation::Binary(operation,a,b)=>{
+     if operation=="add"{addGradient(tape,&mut values,a,grad)?;addGradient(tape,&mut values,b,grad)?;}
+     else if operation=="sub"{addGradient(tape,&mut values,a,grad)?;let negative=numeric.scale(&grad,-1.0)?;addGradient(tape,&mut values,b,negative)?;}
+     else{let left=tape.entries.get(a);let right=tape.entries.get(b);if left.needed{let ga=numeric.zipFloat("mul",&grad,&right.value)?;addGradient(tape,&mut values,a,ga)?;}if right.needed{let gb=numeric.zipFloat("mul",&grad,&left.value)?;addGradient(tape,&mut values,b,gb)?;}}
+    },
+    Operation::Unary(operation,a)=>{
+     let parent=tape.entries.get(a);var derivative=parent.value;
+     if operation=="relu"{derivative=stdNumericActivation("reluGrad",&parent.value)?;}
+     else if operation=="sigmoid"{derivative=stdNumericActivation("sigmoidGrad",&item.value)?;}
+     else if operation=="tanh"{derivative=stdNumericActivation("tanhGrad",&item.value)?;}
+     else if operation=="exp"{derivative=item.value;}
+     else if operation=="log"{derivative=stdNumericActivation("reciprocal",&parent.value)?;}
+     else{derivative=numeric.scale(&parent.value,2.0)?;}
+     let incoming=numeric.zipFloat("mul",&grad,&derivative)?;addGradient(tape,&mut values,a,incoming)?;
+    },
+    Operation::Matmul(a,b)=>{
+     let left=tape.entries.get(a);let right=tape.entries.get(b);let axes=List<Int>();axes.add(1);axes.add(0);
+     if left.needed{let rt=numeric.transposeFloat(&right.value,&axes)?;let ga=numeric.matmul(&grad,&rt)?;addGradient(tape,&mut values,a,ga)?;}if right.needed{let lt=numeric.transposeFloat(&left.value,&axes)?;let gb=numeric.matmul(&lt,&grad)?;addGradient(tape,&mut values,b,gb)?;}
+    },
+    Operation::Reshape(a)=>{let parent=tape.entries.get(a);let dimensions=numeric.shapeFloat(&parent.value)?;let incoming=stdNumericReshapeLogical(&grad,&dimensions)?;addGradient(tape,&mut values,a,incoming)?;},
+    Operation::Transpose(a)=>{let axes=List<Int>();axes.add(1);axes.add(0);let incoming=numeric.transposeFloat(&grad,&axes)?;addGradient(tape,&mut values,a,incoming)?;},
+    Operation::Broadcast(a)=>{let parent=tape.entries.get(a);let dimensions=numeric.shapeFloat(&parent.value)?;let incoming=stdNumericSumToShape(&grad,&dimensions)?;addGradient(tape,&mut values,a,incoming)?;},
+    Operation::Sum(a)=>{let parent=tape.entries.get(a);let dimensions=numeric.shapeFloat(&parent.value)?;let incoming=numeric.broadcastFloat(&grad,&dimensions)?;addGradient(tape,&mut values,a,incoming)?;},
+    Operation::Mean(a)=>{let parent=tape.entries.get(a);let dimensions=numeric.shapeFloat(&parent.value)?;let scaled=numeric.scale(&grad,1.0/count(&parent.value)?)?;let incoming=numeric.broadcastFloat(&scaled,&dimensions)?;addGradient(tape,&mut values,a,incoming)?;}
+   }
+  }}
+  position-=1;
+ }
+ return Ok(Gradients(move values,move keys));
+}
+// @api gradient failure AutodiffNode; None means constant or unreachable from the selected loss, not an allocated zero array.
+pub fn gradient(gradients:&Gradients,node:Node)->Result<Option<FloatArray>,StdError> effects {} {
+ if node.index<0 || node.index>=gradients.keys.len() || gradients.keys.get(node.index)!=node.key{return Err(StdError("AutodiffNode",0));}
+ return Ok(gradients.values.get(node.index));
+}
