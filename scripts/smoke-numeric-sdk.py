@@ -132,3 +132,14 @@ actual = run("run", root / "lexical.rwc", "--record", root / "lexical-trace.json
 assert actual == b"1\n10\n", actual
 assert run("replay", root / "lexical-trace.json", "--root", root) == actual
 print("Verified nested generic match and lexical module bindings without sources")
+
+pages = root / "pages.rw"
+pages.write_text('File.writeText("virtual.txt","' + "a" * 8192 + 'tail");using handle=File.openSnapshot("virtual.txt");handle.seek(4094);commit range;File.writeText("virtual.txt","changed");assert_eq(handle.read(5),"aaaaa");revert range;assert_eq(handle.read(5),"aaaaa");Out.println(1);publish;', encoding="utf-8")
+run("compile", pages, "--allow-effects", "fileRead,fileWrite")
+pages.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+actual = run("run", root / "pages.rwc", "--allow-effects", "fileRead,fileWrite", "--record", root / "pages-trace.json")
+assert actual == b"1\n", actual
+assert run("replay", root / "pages-trace.json", "--root", root, "--allow-effects", "fileRead,fileWrite") == actual
+print("Verified file page reads, snapshot isolation and source-free replay")

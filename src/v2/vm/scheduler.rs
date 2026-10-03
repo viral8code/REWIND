@@ -416,6 +416,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.8.8"
                 | "1.9.0"
                 | "1.9.1"
+                | "1.9.2"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -946,6 +947,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1026,6 +1028,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) =>
                 {
@@ -1075,6 +1078,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) =>
                 {
@@ -1131,6 +1135,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) =>
                 {
@@ -1187,6 +1192,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) =>
                 {
@@ -1240,6 +1246,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) =>
                 {
@@ -1319,6 +1326,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.8.8"
                 | "1.9.0"
                 | "1.9.1"
+                | "1.9.2"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -1385,6 +1393,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) =>
                 {
@@ -1428,6 +1437,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.8.8"
                                         | "1.9.0"
                                         | "1.9.1"
+                                        | "1.9.2"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -1485,6 +1495,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
@@ -1552,6 +1563,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.8.8"
                 | "1.9.0"
                 | "1.9.1"
+                | "1.9.2"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -1581,6 +1593,16 @@ impl<R: BufRead> Vm<R> {
         task.phase = TaskPhase::Done;
         task.result = Some(result);
         task.context = None;
+        // Preserve older artifact accounting; new tasks discard execution-only inputs.
+        if language_at_least(&self.engine.program.language, "1.9.2") {
+            task.globals.clear();
+            task.global_scope_ids.clear();
+            match &mut task.body {
+                TaskBody::Function(_, args) => args.clear(),
+                TaskBody::Send(_, value) => *value = Value::Null,
+                _ => {}
+            }
+        }
         Ok(())
     }
     pub(super) fn set_task_failure(&mut self, failure: rewind::DiagnosticRecord) {
@@ -1620,6 +1642,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.8.8"
                 | "1.9.0"
                 | "1.9.1"
+                | "1.9.2"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -1700,6 +1723,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.8.8"
                         | "1.9.0"
                         | "1.9.1"
+                        | "1.9.2"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -1889,6 +1913,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.8.8"
                             | "1.9.0"
                             | "1.9.1"
+                            | "1.9.2"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -2127,6 +2152,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.8.8"
                         | "1.9.0"
                         | "1.9.1"
+                        | "1.9.2"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -2226,6 +2252,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.8.8"
                 | "1.9.0"
                 | "1.9.1"
+                | "1.9.2"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -2350,6 +2377,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.8.8"
                     | "1.9.0"
                     | "1.9.1"
+                    | "1.9.2"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -2425,6 +2453,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.8.8"
                 | "1.9.0"
                 | "1.9.1"
+                | "1.9.2"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
