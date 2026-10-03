@@ -87,3 +87,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 1.9.1 では完了した外部結果を既存 private Segment spill に統合する。wire と再送禁止を保ち、少ない resident memory と disk 上の履歴を区別する。現行 DOM trace の上限は継続し、trace の streaming、file I/O、公平性等の残りを完了扱いにしない。
 
 1.9.2 では snapshot / virtual file の読み出しを page 範囲に限定し、仮想 snapshot を共有する。終了 task の実行用引数・global bindings も解放する。host snapshot の全体 materialization と、task 結果・channel・group の到達可能性監査は継続する。
+
+1.9.3 では current scheduler の task / channel / group の到達可能性を検査し、必要な handle・待機・未観測 failure・checkpoint を維持して回収する。heap root の深い Value clone を借用へ置き換える。累積 quota / profile metadata と他の観測領域まで回収済みとは扱わず、後続監査を続ける。

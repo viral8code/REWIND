@@ -1813,6 +1813,9 @@ impl Runtime {
         }
         Ok(())
     }
+    pub fn native_work_remaining(&self) -> Option<usize> {
+        self.native_remaining
+    }
     pub fn configure_native_work(&mut self, limit: usize) {
         self.native_remaining = Some(limit);
     }
@@ -1834,6 +1837,19 @@ impl Runtime {
         external_roots: &[Value],
         work_limit: usize,
     ) -> Result<(usize, usize)> {
+        if external_roots.len() > work_limit {
+            return Err(Error::InvalidOperation(
+                "NativeWorkBudgetExceeded: heap roots".into(),
+            ));
+        }
+        self.collect_heap_refs(&external_roots.iter().collect::<Vec<_>>(), work_limit)
+    }
+    /// Borrowed equivalent of collect_heap; supply all external roots at a safe point.
+    pub fn collect_heap_refs(
+        &mut self,
+        external_roots: &[&Value],
+        work_limit: usize,
+    ) -> Result<(usize, usize)> {
         let work_limit = self
             .native_remaining
             .map_or(work_limit, |n| n.min(work_limit));
@@ -1849,7 +1865,7 @@ impl Runtime {
                     .iter()
                     .flat_map(|f| f.locals.values()),
             )
-            .chain(external_roots.iter())
+            .chain(external_roots.iter().copied())
             .take(work_limit.saturating_add(1))
             .collect::<Vec<_>>();
         if pending.len() > work_limit {
