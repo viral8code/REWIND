@@ -129,6 +129,8 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdBigIntModPow",
         "stdBigIntCompare",
         "stdBigIntBits",
+        "stdNumericSgdStep",
+        "stdNumericAdamStep",
         "stdNumericReshapeLogical",
         "stdNumericModelEncode",
         "stdNumericModelDecode",
@@ -311,6 +313,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.14"
             | "1.9.15"
             | "1.9.16"
+            | "1.9.17"
             | "2.0.0"
     ) {
         return Ok(());
@@ -567,6 +570,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.14"
             | "1.9.15"
             | "1.9.16"
+            | "1.9.17"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -641,6 +645,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.14"
                 | "1.9.15"
                 | "1.9.16"
+                | "1.9.17"
                 | "2.0.0"
         )
     {

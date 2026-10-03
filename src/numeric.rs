@@ -9,6 +9,7 @@ use std::sync::{
 mod chunks;
 mod linalg;
 mod model;
+mod optimizer;
 mod stats;
 mod tensor;
 pub use chunks::{Progress as KernelProgress, COOPERATIVE_MACS};

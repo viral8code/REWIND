@@ -10,7 +10,7 @@ fn find(values:&Map<String,FloatArray>,name:String)->Result<FloatArray,StdError>
 // @api sgd failure OptimizerRate/Parameters, NumericShape/Size/Domain/NonFinite/Overflow; fatal budgets apply. Inputs unchanged on error and success.
 pub fn sgd(weights:&Map<String,FloatArray>,gradients:&Map<String,FloatArray>,rate:Float)->Result<Map<String,FloatArray>,StdError> effects {} {
  validate(weights,gradients,rate)?;let output=Map<String,FloatArray>();let names=weights.keys();
- for i in 0..names.len(){let name=names.get(i);let value=find(weights,name)?;let grad=find(gradients,name)?;let scaled=numeric.scale(&grad,rate)?;let updated=numeric.zipFloat("sub",&value,&scaled)?;output.set(name,updated);}return Ok(move output);
+ for i in 0..names.len(){let name=names.get(i);let value=find(weights,name)?;let grad=find(gradients,name)?;let updated=stdNumericSgdStep(&value,&grad,rate)?;output.set(name,updated);}return Ok(move output);
 }
 // @api adam cost O(elements) moment initialization; beta1/beta2 in [0,1), finite epsilon>0; moments use native pages and support checkpoint/revert.
 // @api adam failure OptimizerConfiguration or numeric validation failures; <=128 named finite Float64 parameters / <=32 MiB model.
@@ -33,11 +33,8 @@ pub fn adamStep(state:&mut Adam,weights:&Map<String,FloatArray>,gradients:&Map<S
  let iteration=state.iteration+1;let firstCorrection=correction(state.beta1,iteration)?;let secondCorrection=correction(state.beta2,iteration)?;
  let first=Map<String,FloatArray>();let second=Map<String,FloatArray>();let output=Map<String,FloatArray>();let names=weights.keys();
  for i in 0..names.len(){let name=names.get(i);let value=find(weights,name)?;let grad=find(gradients,name)?;let oldFirst=find(&state.first,name)?;let oldSecond=find(&state.second,name)?;
-  let carriedFirst=numeric.scale(&oldFirst,state.beta1)?;let incomingFirst=numeric.scale(&grad,1.0-state.beta1)?;let m=numeric.zipFloat("add",&carriedFirst,&incomingFirst)?;
-  let square=numeric.zipFloat("mul",&grad,&grad)?;let carriedSecond=numeric.scale(&oldSecond,state.beta2)?;let incomingSecond=numeric.scale(&square,1.0-state.beta2)?;let v=numeric.zipFloat("add",&carriedSecond,&incomingSecond)?;
-  let corrected=numeric.scale(&v,1.0/secondCorrection)?;let root=numeric.mapFloat("sqrt",&corrected)?;let denominator=stdNumericAffine(&root,1.0,state.epsilon)?;
-  let numerator=numeric.scale(&m,rate/firstCorrection)?;let step=numeric.zipFloat("div",&numerator,&denominator)?;let updated=numeric.zipFloat("sub",&value,&step)?;
-  first.set(name,m);second.set(name,v);output.set(name,updated);
+  let result=stdNumericAdamStep(&value,&grad,&oldFirst,&oldSecond,state.beta1,state.beta2,rate,state.epsilon,firstCorrection,secondCorrection)?;
+  first.set(name,result._1);second.set(name,result._2);output.set(name,result._0);
  }
  state.first=move first;state.second=move second;state.iteration=iteration;return Ok(move output);
 }

@@ -147,6 +147,11 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     {
         return Err(diagnostic(at, "tensor primitives require language 1.9.16"));
     }
+    if matches!(n, "stdNumericSgdStep" | "stdNumericAdamStep")
+        && !language_at_least(&p.language, "1.9.16")
+    {
+        return Err(diagnostic(at, "optimizer kernels require language 1.9.16"));
+    }
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
@@ -253,7 +258,11 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "ReshapeLogical" {
+    let cost = if name == "SgdStep" {
+        length(0).saturating_mul(32).saturating_add(128)
+    } else if name == "AdamStep" {
+        length(0).saturating_mul(128).saturating_add(256)
+    } else if name == "ReshapeLogical" {
         if a(0).is_some_and(|a| a.reshape_logical_scratch() == 2048) {
             128
         } else {
@@ -445,7 +454,13 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "ReshapeLogical" {
+    if name == "SgdStep" {
+        Array::storage_estimate(length(0)).saturating_add(length(0).saturating_mul(8))
+    } else if name == "AdamStep" {
+        Array::storage_estimate(length(0))
+            .saturating_mul(3)
+            .saturating_add(length(0).saturating_mul(24))
+    } else if name == "ReshapeLogical" {
         a(0).map_or(0, Array::reshape_logical_scratch)
     } else if name == "ModelEncode" {
         model_parameters(&args[0], rt)
@@ -674,6 +689,28 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "SgdStep" => array_value(a(0)?.sgd_step(a(1)?, f(2)?))?,
+            "AdamStep" => {
+                let (w, m, v) = a(0)?.adam_step(
+                    a(1)?,
+                    a(2)?,
+                    a(3)?,
+                    f(4)?,
+                    f(5)?,
+                    f(6)?,
+                    f(7)?,
+                    f(8)?,
+                    f(9)?,
+                )?;
+                Value::Struct(
+                    "Tuple<FloatArray,FloatArray,FloatArray>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(w)),
+                        ("_1".into(), Value::NumericArray(m)),
+                        ("_2".into(), Value::NumericArray(v)),
+                    ]),
+                )
+            }
             "ReshapeLogical" => array_value(a(0)?.reshape_logical(ids(1)?))?,
             "ModelCheck" => {
                 let parameters = model_parameters(&args[0], rt)?;
@@ -1086,6 +1123,25 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericSgdStep" => (
+            &["&FloatArray", "&FloatArray", "Float"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericAdamStep" => (
+            &[
+                "&FloatArray",
+                "&FloatArray",
+                "&FloatArray",
+                "&FloatArray",
+                "Float",
+                "Float",
+                "Float",
+                "Float",
+                "Float",
+                "Float",
+            ],
+            "Result<Tuple<FloatArray,FloatArray,FloatArray>,StdError>",
+        ),
         "stdNumericReshapeLogical" => (
             &["&FloatArray", "&List<Int>"],
             "Result<FloatArray,StdError>",
