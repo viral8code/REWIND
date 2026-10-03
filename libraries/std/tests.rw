@@ -276,3 +276,16 @@ test fn form_and_empty_table_contracts() {
  let headings=List<String>();headings.add("Value");let cells=List<String>();
  match guiTable.create(freeze(headings),freeze(cells),4){Err(_)=>{panic("empty table");},Ok(table)=>{assert_eq(guiTable.rows(&table),0);guiTable.scroll(&mut table,9223372036854775807);assert_eq(guiTable.position(&table),0);assert_eq(guiTable.selection(&table),None);}}
 }
+
+import fft as fft;
+import sparse as sparse;
+fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}
+test fn sparse_and_transform_contracts() {
+ let shape=List<Int>();shape.add(1);let zero=transformTake(numeric.zerosFloat(&shape));
+ assert_eq(numeric.norm2(&zero),Ok(0.0));
+ let spectrum=transformTake(fft.transform(&zero,&zero,false));
+ assert_eq(numeric.norm2(&spectrum.real),Ok(0.0));assert_eq(numeric.norm2(&spectrum.imag),Ok(0.0));
+ let emptyShape=List<Int>();emptyShape.add(0);let indices=transformTake(numeric.zerosInt(&emptyShape));let values=transformTake(numeric.zerosFloat(&emptyShape));
+ let matrix=transformTake(sparse.create(1,1,&indices,&indices,&values));let result=transformTake(sparse.matvec(&matrix,&zero));
+ assert_eq(numeric.norm2(&result),Ok(0.0));
+}

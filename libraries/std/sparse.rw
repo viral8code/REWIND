@@ -1,0 +1,9 @@
+pub record Matrix {rows:Int,cols:Int,offsets:IntArray,indices:IntArray,values:FloatArray}
+// @api create cost O(nnz log nnz + rows) work / O(nnz + rows) native buffers; at most 2^20 rows, columns and input entries.
+// @api create failure NumericShape/Type/Index/Size/NonFinite; rank-one COO vectors, stable duplicate summation, sorted unique columns, exact zeros dropped.
+pub fn create(rows:Int,cols:Int,row:&IntArray,col:&IntArray,values:&FloatArray)->Result<Matrix,StdError> effects {} {
+ let parts=stdNumericCsr(rows,cols,row,col,values)?;return Ok(Matrix(rows,cols,parts._0,parts._1,parts._2));
+}
+// @api matvec cost O(rows + cols + nnz) work / O(rows + cols) temporary storage; borrowed CSR page scans, native Float64 accumulation without per-cell VM objects.
+// @api matvec failure NumericShape/Type/Index/Size/NonFinite; validates all CSR offsets, sorted unique columns, finite values and rank-one right vector, including user-constructed records. Synchronous; fatal budgets apply.
+pub fn matvec(matrix:&Matrix,right:&FloatArray)->Result<FloatArray,StdError> effects {} {return stdNumericSparseMatvec(matrix.rows,matrix.cols,&matrix.offsets,&matrix.indices,&matrix.values,right);}

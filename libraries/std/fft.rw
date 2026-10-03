@@ -1,0 +1,9 @@
+pub record Spectrum {real:FloatArray,imag:FloatArray}
+// @api transform cost O(n log n) work / O(n) native temporary storage; synchronous, maximum 2^20 samples.
+// @api transform failure NumericShape/Size/NonFinite; equal rank-one power-of-two inputs, inverse scales by 1/n. Fatal budgets apply.
+pub fn transform(real:&FloatArray,imag:&FloatArray,inverse:Bool)->Result<Spectrum,StdError> effects {} {
+ let pair=stdNumericFft(real,imag,inverse)?;return Ok(Spectrum(pair._0,pair._1));
+}
+// @api convolve cost O(n log n) with n the next power of two of the full linear result length; O(n) native temporary storage.
+// @api convolve failure NumericShape/Size/NonFinite; rank-one Float64 inputs, empty input produces an empty result. FFT size at most 2^20; approximate, not exact integer convolution.
+pub fn convolve(left:&FloatArray,right:&FloatArray)->Result<FloatArray,StdError> effects {} {return stdNumericConvolve(left,right);}

@@ -10,6 +10,12 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        ("fft", include_str!("../../../libraries/std/fft.rw")),
+        ("sparse", include_str!("../../../libraries/std/sparse.rw")),
+        (
+            "sparseAsync",
+            include_str!("../../../libraries/std/sparseAsync.rw"),
+        ),
         (
             "lazySegment",
             include_str!("../../../libraries/std/lazySegment.rw"),
@@ -377,6 +383,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.14.md"),
             ),
             (
+                "REWIND_v1.9.15.md",
+                include_str!("../../../docs/REWIND_v1.9.15.md"),
+            ),
+            (
                 "REWIND_v1.9.12.md",
                 include_str!("../../../docs/REWIND_v1.9.12.md"),
             ),
@@ -618,6 +628,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/doc/REWIND_v1.8.md",
             include_str!("../../../docs/REWIND_v1.8.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/sparse-fft/main.rw",
+            include_str!("../../../examples/sparse-fft/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/sparse-fft/README.md",
+            include_str!("../../../examples/sparse-fft/README.md"),
         )?;
         write(
             &output,

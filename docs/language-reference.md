@@ -524,3 +524,5 @@ v1.9.8 では Share 制約付き generic 関数の再帰呼出しに対する ef
 v1.9.9 の std.guiWindows は名前付きの複数 native 画面、入力振り分けと source-free replay を提供する。[GUI 契約](REWIND_v1.9.9.md)を参照。
 
 v1.9.10 の `std.task.yieldNow()` は追加 Task を作らず明示的に VM task を切り替える。`std.numericAsync.dot` / `matmul` は native chunk の間で切り替える async 関数で、Task<Result<T,StdError>> を作る。数値失敗は内側、キャンセル等は await の外側 Result に返る。[契約](REWIND_v1.9.10.md)を参照。
+
+`std.fft` の複素 transform / linear convolution、`std.sparse` の COO → CSR / matvec、`std.sparseAsync` の共役勾配 task は native 配列を使う。`std.numeric.scale` / `norm2` も提供する。サイズ、精度、SPD の前提、同期 kernel とタスク handoff の範囲は [v1.9.15](REWIND_v1.9.15.md) を参照。

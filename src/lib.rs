@@ -8,6 +8,7 @@ pub mod gui;
 pub mod journal;
 pub mod map_storage;
 pub mod storage;
+pub mod transforms;
 use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 pub mod bigint;
@@ -764,6 +765,16 @@ struct Observation {
     blocks: BTreeMap<usize, Arc<Segment>>,
 }
 
+/// Optional host measurements. Never checkpointed, observed, or included in VM state digests.
+#[derive(Default, Clone, Debug, serde::Serialize)]
+pub struct GcMetrics {
+    pub attempts: u64,
+    pub completed: u64,
+    pub failed: u64,
+    pub duration_nanos: u64,
+    pub reclaimed_objects: usize,
+    pub work: usize,
+}
 pub struct Runtime {
     root: PathBuf,
     state: State,
@@ -828,6 +839,7 @@ pub struct Runtime {
     virtual_files: BTreeMap<String, Option<Arc<PagedFile>>>,
     virtual_directories: BTreeMap<String, bool>,
     storage_start: (usize, (usize, usize)),
+    gc_metrics: Option<GcMetrics>,
     allocations_since_gc: usize,
     allocation_bytes_since_gc: usize,
     native_remaining: Option<usize>,
@@ -1399,6 +1411,7 @@ impl Runtime {
             virtual_files: BTreeMap::new(),
             virtual_directories: BTreeMap::new(),
             storage_start: (map_storage::map_nodes_created(), storage::storage_work()),
+            gc_metrics: None,
             allocations_since_gc: 0,
             allocation_bytes_since_gc: 0,
             native_remaining: None,
@@ -1408,6 +1421,17 @@ impl Runtime {
             numeric_gc_start: 0,
             execution_remaining: None,
         })
+    }
+    /// Enable opt-in timing of borrowed-root heap collection, including failed attempts.
+    pub fn enable_gc_profiling(&mut self) {
+        self.gc_metrics.get_or_insert_with(GcMetrics::default);
+    }
+    pub fn gc_metrics(&self) -> Option<&GcMetrics> {
+        self.gc_metrics.as_ref()
+    }
+    /// Runtime-scoped live storage vs cumulative allocations; neither is VM state.
+    pub fn numeric_metrics(&self) -> Option<serde_json::Value> {
+        self.numeric_accounting.as_ref().map(|a|serde_json::json!({"live_bytes":a.bytes(),"allocated_bytes":a.allocated_bytes(),"registration_visits":a.visits()}))
     }
     pub fn storage_metrics(&self) -> (usize, usize, usize) {
         let (nodes, slots) = storage::storage_work();
@@ -2018,6 +2042,32 @@ impl Runtime {
     }
     /// Borrowed equivalent of collect_heap; supply all external roots at a safe point.
     pub fn collect_heap_refs(
+        &mut self,
+        external_roots: &[&Value],
+        work_limit: usize,
+    ) -> Result<(usize, usize)> {
+        if self.gc_metrics.is_none() {
+            return self.collect_heap_refs_inner(external_roots, work_limit);
+        }
+        let started = std::time::Instant::now();
+        let result = self.collect_heap_refs_inner(external_roots, work_limit);
+        let duration = started.elapsed().as_nanos().min(u64::MAX as u128) as u64;
+        let metrics = self.gc_metrics.as_mut().expect("enabled profiling");
+        metrics.attempts = metrics.attempts.saturating_add(1);
+        metrics.duration_nanos = metrics.duration_nanos.saturating_add(duration);
+        match &result {
+            Ok((reclaimed, work)) => {
+                metrics.completed = metrics.completed.saturating_add(1);
+                metrics.reclaimed_objects = metrics.reclaimed_objects.saturating_add(*reclaimed);
+                metrics.work = metrics.work.saturating_add(*work);
+            }
+            Err(_) => {
+                metrics.failed = metrics.failed.saturating_add(1);
+            }
+        }
+        result
+    }
+    fn collect_heap_refs_inner(
         &mut self,
         external_roots: &[&Value],
         work_limit: usize,

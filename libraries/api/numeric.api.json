@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.8.1",
+  "language": "1.9.15",
   "symbols": {
     "fn:broadcastFloat": {
       "async": false,
@@ -231,6 +231,17 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:norm2": {
+      "async": false,
+      "cost": "O(elements) native work / O(rank) iterator state; scaled Euclidean accumulation avoids intermediate square overflow and underflow.",
+      "effects": [],
+      "failure": "NumericType/NonFinite/Overflow; Float64 array, empty norm is zero, nonrepresentable final norm fails. Fatal budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray"
+      ],
+      "return": "Result<Float,StdError>"
+    },
     "fn:onlineCount": {
       "async": false,
       "cost": "O(1).",
@@ -333,6 +344,18 @@
         "&List<Int>"
       ],
       "return": "Result<IntArray,StdError>"
+    },
+    "fn:scale": {
+      "async": false,
+      "cost": "O(elements) native work / output storage; preserves array shape, no per-cell VM objects.",
+      "effects": [],
+      "failure": "NumericType/NonFinite/Overflow; finite scalar and Float64 array, fatal work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "Float"
+      ],
+      "return": "Result<FloatArray,StdError>"
     },
     "fn:shapeFloat": {
       "async": false,
@@ -564,6 +587,18 @@
       ],
       "return": "Result<IntArray,StdError>"
     },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:DbBatch": {
       "constructor": true,
       "fields": [
@@ -693,6 +728,32 @@
         ]
       }
     },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:EigenResult": {
       "constructor": true,
       "fields": [
@@ -816,6 +877,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:IntArray": {
       "constructor": false,
       "fields": [],
@@ -888,6 +955,88 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:OnlineMoments": {
       "constructor": false,
       "fields": [],
@@ -914,6 +1063,12 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },

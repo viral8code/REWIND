@@ -113,3 +113,5 @@ v1.7.0 は SQLite adapter と DB の基本契約を公開済み。v1.7.1 は Pos
 compiled 配布時に development manifest が残っていると、run_compiled の設定読込みが削除済み entry / source_root を要求する例を確認した。runtime の effect 許可・asset 検証を維持したまま compilation graph の検証と分離し、manifest を置いた source-free 実行・replay の回帰を追加する。
 
 1.9.14 は compilation graph と runtime policy の設定読込みを分離し、削除済み source directory / vendor と開発用 manifest の併存を可能にする。lock、effect、asset、検証済み IR、両記録 mode の replay と実 SDK の配布を検証する。残る v2.0 の統合・数値・GUI・通信の到達条件は継続する。
+
+1.9.15 は native FFT / linear convolution、canonical CSR / borrowed-page matvec、scaled norm、共役勾配 task を追加し、精度・source-free・checkpoint・予算・反復とキャンセルを検証する。reverse-mode / optimizer / model、GUI / DB / 通信の統合、HTTP server / TCP、長い kernel の分割と残る到達条件は継続する。

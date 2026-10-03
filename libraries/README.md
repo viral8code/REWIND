@@ -1,9 +1,12 @@
 # REWIND libraries
 
-compiler 1.9.13 / `language = "1.9.13"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.15 / `language = "1.9.15"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
+| fft | Spectrum, transform, convolve | native complex radix-2 / Float64 linear convolution、2^20、O(n log n)、pure / COW / replay |
+| sparse | Matrix, create, matvec | canonical CSR、stable COO duplicate sum、borrowed pages、dense 展開なし |
+| sparseAsync | SolveResult, conjugateGradient | SPD 前提、反復間の handoff、実 residual、typed exhaustion / cancel |
 | lazySegment | LazySegment, build, update, query, length | Share aggregate / tag、半開区間、順序を保つ O(log n) callback、VM checkpoint |
 | trie | BytesTrie, TextTrie, create/createText, get/textGet, insert/textInsert, remove/textRemove, prefixCount/textPrefixCount, size/textSize, nodes/textNodes | 指定 node 容量、UTF-8 と任意 byte の API を区別、削除した枝を再利用 |
 | suffix | SuffixIndex, build, order, lcp, find, length | byte suffix array / LCP、1 MiB、O(n log n) native 構築、paged IntArray |
@@ -167,3 +170,5 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 1.9.13 は `gui.scene` の一時 Map / Json 構築を直接の serializer へ置き換える。public API と JSON の値を維持し、事前の byte 上限 / native memory admission を行う。[費用・互換性・測定](../docs/REWIND_v1.9.13.md)を参照する。
 
 1.9.14 は manifest / lock を保持した source-free `.rwc` の実行・replay に対応する。実行時に source / vendor の graph を開き直さず、effect と assets の検証は保持する。[契約](../docs/REWIND_v1.9.14.md)を参照。
+
+1.9.15 の transform / sparse / norm の契約・費用は[仕様](../docs/REWIND_v1.9.15.md)を参照。
