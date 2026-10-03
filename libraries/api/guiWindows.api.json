@@ -441,7 +441,7 @@
       "effects": [
         "gui"
       ],
-      "failure": "Blocks on native input across active windows; performs no VM task scheduling during the wait. Use pollAny and yield for task-driven application loops.",
+      "failure": "Blocks on native input across active windows; performs no VM task scheduling during the wait. Use pollAny with external-task completion polling; explicit VM task handoff is planned separately.",
       "generics": [],
       "parameters": [],
       "return": "Result<WindowEvent,StdError>"

@@ -1,7 +1,9 @@
 use super::*;
 use libc::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ffi::CString;
-use std::sync::Once;
+use std::sync::{Mutex, Once};
+// Locale/font/input-method caches are shared by Xlib across displays.
+static SETUP: Mutex<()> = Mutex::new(());
 static LOCALE: Once = Once::new();
 type Window = c_ulong;
 #[repr(C)]
@@ -86,6 +88,7 @@ macro_rules! xapi {
     }
 }
 xapi! {
+fn XInitThreads()->c_int;
 fn XOpenIM(*mut c_void,*mut c_void,*mut c_char,*mut c_char)->*mut c_void;
 fn XCloseIM(*mut c_void)->c_int;
 fn XDestroyIC(*mut c_void)->();
@@ -140,11 +143,17 @@ pub(super) struct Surface {
 }
 impl Surface {
     pub fn new() -> io::Result<Self> {
+        let _setup = SETUP.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
             LOCALE.call_once(|| {
                 libc::setlocale(libc::LC_CTYPE, c"C.UTF-8".as_ptr());
             });
             let api = Api::load()?;
+            // This precedes every other Xlib call on the first loaded library,
+            // and is harmless if another display already initialized its locks.
+            if (api.XInitThreads)() == 0 {
+                return Err(invalid("GuiUnavailable: X11 thread initialization failed"));
+            }
             (api.XSetLocaleModifiers)(c"".as_ptr());
             let display = (api.XOpenDisplay)(std::ptr::null());
             if display.is_null() {
@@ -610,6 +619,7 @@ impl Surface {
 }
 impl Drop for Surface {
     fn drop(&mut self) {
+        let _setup = SETUP.lock().unwrap_or_else(|e| e.into_inner());
         self.close();
         unsafe {
             if !self.im.is_null() {

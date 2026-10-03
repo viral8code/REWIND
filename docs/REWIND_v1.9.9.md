@@ -34,4 +34,6 @@ source-free replay は fixture・display・native host を使わない。新し�
 
 実 OS surface 二つへの scoped / any 入力振り分け、片方の close 後の継続、再オープンと host 解放、16画面の事前検査、revert / published operation、入力の予算拒否、stdout の後続失敗を検証する。SDK の gui-windows 例は source-free artifact、debug / compact replay、fixture を削除した再実行まで確認する。
 
-GUI は main task で実行する。nextEvent / nextEventAny の待機中は VM task を進めないため、task を使うアプリケーションでは pollAny と yield を使う。clipboard、dialog、メニュー、表、IME / accessibility、native kernel の公平性、残る数値・通信の統合条件は継続する。v1.9 全工程をこの版で完了とはしない。
+GUI は main task で実行する。nextEvent / nextEventAny の待機中は VM task を進めないため、外部 I/O の完了確認との併用は pollAny と task.isDone() を使う。VM task への明示的な handoff API は後続版で追加する。clipboard、dialog、メニュー、表、IME / accessibility、native kernel の公平性、残る数値・通信の統合条件は継続する。v1.9 全工程をこの版で完了とはしない。
+
+X11 は最初の Xlib 操作前に XInitThreads を行い、display の準備・解放を直列化する。別 Runtime の native GUI テストが同時に font / input-method cache を準備する場合も確認する。

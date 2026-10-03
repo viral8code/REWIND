@@ -17,7 +17,7 @@ pub fn poll(id:String)->Result<Option<gui.Event>,GuiError> effects {gui} {match 
 pub fn nextEvent(id:String)->Result<gui.Event,GuiError> effects {gui} {return Ok(event(parse(stdGuiWindowNext(id)?)?));}
 // @api pollAny cost Bounded round-robin polling; does not block; combines native surfaces without merging their IDs.
 pub fn pollAny()->Result<Option<WindowEvent>,GuiError> effects {gui} {match stdGuiWindowPollAny()?{None=>{return Ok(None);},Some(value)=>{return Ok(Some(routed(value)?));}}}
-// @api nextEventAny failure Blocks on native input across active windows; performs no VM task scheduling during the wait. Use pollAny and yield for task-driven application loops.
+// @api nextEventAny failure Blocks on native input across active windows; performs no VM task scheduling during the wait. Use pollAny with external-task completion polling; explicit VM task handoff is planned separately.
 pub fn nextEventAny()->Result<WindowEvent,GuiError> effects {gui} {return routed(stdGuiWindowNextAny()?);}
 // @api continueInput failure After revert skips only named-window events already delivered in this execution; old gui input has a separate cursor.
 pub fn continueInput()->Unit effects {gui} {stdGuiWindowContinueInput();}
