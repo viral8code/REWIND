@@ -22,6 +22,7 @@ pub mod network;
 pub mod numeric;
 pub mod regular;
 mod replay;
+pub mod suffix;
 pub mod unicode;
 use journal::{Journal, Segment};
 

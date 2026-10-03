@@ -202,3 +202,15 @@ for mode in ["debug", "compact"]:
     assert actual == "éb\n".encode("utf-8"), actual
     assert run("replay", root / "grapheme-trace.json", "--root", root) == actual
 print("Verified extracted GUI grapheme model: cluster editing, scalar offsets, revert, source-free replay")
+
+algorithms = root / "algorithms.rw"
+algorithms.write_text((sdk / "share/rewind/examples/advanced-algorithms/main.rw").read_text(encoding="utf-8"), encoding="utf-8")
+run("compile", algorithms)
+algorithms.unlink()
+if cache.exists():
+    shutil.rmtree(cache)
+for mode in ["debug", "compact"]:
+    actual = run("run", root / "algorithms.rwc", "--record", root / "algorithms-trace.json", "--record-mode", mode)
+    assert actual == b"28\n2\n1\n1\n", actual
+    assert run("replay", root / "algorithms-trace.json", "--root", root) == actual
+print("Verified extracted algorithms: lazy ranges, trie, native suffix, geometry, revert and source-free replay")

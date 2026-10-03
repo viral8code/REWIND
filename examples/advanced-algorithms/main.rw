@@ -1,0 +1,23 @@
+import std.lazySegment as lazy;
+import std.trie as trie;
+import std.suffix as suffix;
+import std.geometry as geometry;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("unexpected error");}}}
+fn sum(a:Int,b:Int)->Int effects {} {return a+b;}
+fn add(a:Int,b:Int,n:Int)->Int effects {} {return a+b*n;}
+fn compose(a:Int,b:Int)->Int effects {} {return a+b;}
+let values=List<Int>();for i in 0..8{values.add(i);}
+let tree=take(lazy.build<Int,Int>(&values,0,sum));
+commit saved;
+take(lazy.update(&mut tree,2,6,10,sum,add,compose));
+assert_eq(lazy.query(&mut tree,0,8,sum,add,compose),Ok(68));
+revert saved;drop saved;
+Out.println(take(lazy.query(&mut tree,0,8,sum,add,compose)));
+let words=take(trie.createText<Int>(32));
+take(trie.textInsert(&mut words,"日本",1));take(trie.textInsert(&mut words,"日本語",2));
+Out.println(take(trie.textPrefixCount(&words,"日")));
+take(trie.textRemove(&mut words,"日本"));assert_eq(trie.textGet(&words,"日本語"),Ok(Some(2)));
+let index=take(suffix.build(take(stdEncode("banana"))));
+Out.println(take(suffix.find(&index,take(stdEncode("ana"))))._0);
+Out.println(take(geometry.orientation(geometry.Point(0,0),geometry.Point(2,0),geometry.Point(0,3))));
+publish;

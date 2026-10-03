@@ -10,6 +10,16 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        (
+            "lazySegment",
+            include_str!("../../../libraries/std/lazySegment.rw"),
+        ),
+        ("trie", include_str!("../../../libraries/std/trie.rw")),
+        ("suffix", include_str!("../../../libraries/std/suffix.rw")),
+        (
+            "geometry",
+            include_str!("../../../libraries/std/geometry.rw"),
+        ),
         ("flow", include_str!("../../../libraries/std/flow.rw")),
         (
             "matching",
@@ -345,6 +355,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "REWIND_v1.9.8.md",
+                include_str!("../../../docs/REWIND_v1.9.8.md"),
+            ),
+            (
                 "REWIND_v1.9.7.md",
                 include_str!("../../../docs/REWIND_v1.9.7.md"),
             ),
@@ -406,6 +420,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/datetime-postgres/README.md"),
             ),
             (
+                "advanced-algorithms",
+                include_str!("../../../examples/advanced-algorithms/README.md"),
+            ),
+            (
                 "gui-grapheme",
                 include_str!("../../../examples/gui-grapheme/README.md"),
             ),
@@ -440,6 +458,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-grapheme",
                 include_str!("../../../examples/gui-grapheme/main.rw"),
+            ),
+            (
+                "advanced-algorithms",
+                include_str!("../../../examples/advanced-algorithms/main.rw"),
             ),
             ("flow", include_str!("../../../examples/flow/main.rw")),
             ("regex", include_str!("../../../examples/regex/main.rw")),

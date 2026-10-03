@@ -1,0 +1,38 @@
+// UTF-8 text keys and arbitrary byte keys are separate APIs; no normalization.
+pub struct BytesTrie<V:Share>{private edges:Map<Int,Int>,private values:Map<Int,V>,private counts:Map<Int,Int>,private free:List<Int>,private next:Int,private capacity:Int}
+pub struct TextTrie<V:Share>{private bytes:BytesTrie<V>}
+// @api create failure Capacity requires 1..1048576 nodes including the root; insert prevalidates capacity before mutation.
+pub fn create<V:Share>(capacity:Int)->Result<BytesTrie<V>,String> effects {} {if capacity<1 || capacity>1048576{return Err("Capacity");}let counts=Map<Int,Int>();counts.set(0,0);return Ok(BytesTrie<V>(Map<Int,Int>(),Map<Int,V>(),counts,List<Int>(),1,capacity));}
+pub fn createText<V:Share>(capacity:Int)->Result<TextTrie<V>,String> effects {} {let bytes=create<V>(capacity)?;return Ok(TextTrie<V>(bytes));}
+fn byte(key:Bytes,index:Int)->Int effects {} {match stdBytesGet(key,index){Ok(v)=>{return v;},Err(_)=>{panic("byte index");}}}
+fn count<V:Share>(tree:&BytesTrie<V>,node:Int)->Int effects {} {match tree.counts.get(node){Some(v)=>{return v;},None=>{return 0;}}}
+fn node<V:Share>(tree:&BytesTrie<V>,key:Bytes)->Option<Int> effects {} {var current=0;for i in 0..stdBytesLength(key){match tree.edges.get(current*256+byte(key,i)){None=>{return None;},Some(next)=>{current=next;}}}return Some(current);}
+pub fn size<V:Share>(tree:&BytesTrie<V>)->Int effects {} {return count(tree,0);}
+pub fn nodes<V:Share>(tree:&BytesTrie<V>)->Int effects {} {return tree.next-tree.free.len();}
+pub fn get<V:Share>(tree:&BytesTrie<V>,key:Bytes)->Option<V> effects {} {match node(tree,key){None=>{return None;},Some(n)=>{return tree.values.get(n);}}}
+pub fn prefixCount<V:Share>(tree:&BytesTrie<V>,prefix:Bytes)->Int effects {} {match node(tree,prefix){None=>{return 0;},Some(n)=>{return count(tree,n);}}}
+// @api insert cost O(key bytes * log(node capacity)) map/list accesses; existing value is returned. Keys are at most 1048576 bytes.
+pub fn insert<V:Share>(tree:&mut BytesTrie<V>,key:Bytes,value:V)->Result<Option<V>,String> effects {} {
+ let length=stdBytesLength(key);if length>1048576{return Err("Capacity");}var current=0;var i=0;
+ while i<length{match tree.edges.get(current*256+byte(key,i)){None=>{break;},Some(next)=>{current=next;i+=1;}}}
+ if length-i>tree.capacity-(tree.next-tree.free.len()){return Err("Capacity");}
+ let path=List<Int>();path.add(0);current=0;
+ for j in 0..length{let edge=current*256+byte(key,j);var child=0;match tree.edges.get(edge){Some(n)=>{child=n;},None=>{match tree.free.pop(){Some(n)=>{child=n;},None=>{child=tree.next;tree.next+=1;}}tree.edges.set(edge,child);tree.counts.set(child,0);}}current=child;path.add(current);}
+ let previous=tree.values.get(current);tree.values.set(current,value);if previous==None{for j in 0..path.len(){let n=path.get(j);tree.counts.set(n,count(tree,n)+1);}}return Ok(previous);
+}
+// @api remove cost O(key bytes * log(node capacity)); prunes zero-count branches and recycles their node IDs.
+pub fn remove<V:Share>(tree:&mut BytesTrie<V>,key:Bytes)->Option<V> effects {} {
+ let path=List<Int>();path.add(0);var current=0;let length=stdBytesLength(key);
+ for i in 0..length{match tree.edges.get(current*256+byte(key,i)){None=>{return None;},Some(n)=>{current=n;path.add(n);}}}
+ let previous=tree.values.get(current);if previous==None{return None;}tree.values.remove(current);
+ for i in 0..path.len(){let n=path.get(i);tree.counts.set(n,count(tree,n)-1);}
+ var i=length;while i>0{let n=path.get(i);if count(tree,n)!=0{break;}tree.edges.remove(path.get(i-1)*256+byte(key,i-1));tree.counts.remove(n);tree.free.add(n);i-=1;}
+ return previous;
+}
+fn encode(key:String)->Result<Bytes,String> effects {} {match stdEncode(key){Ok(v)=>{return Ok(v);},Err(e)=>{return Err(e.code);}}}
+pub fn textSize<V:Share>(tree:&TextTrie<V>)->Int effects {} {return size(&tree.bytes);}
+pub fn textNodes<V:Share>(tree:&TextTrie<V>)->Int effects {} {return nodes(&tree.bytes);}
+pub fn textGet<V:Share>(tree:&TextTrie<V>,key:String)->Result<Option<V>,String> effects {} {return Ok(get(&tree.bytes,encode(key)?));}
+pub fn textPrefixCount<V:Share>(tree:&TextTrie<V>,prefix:String)->Result<Int,String> effects {} {return Ok(prefixCount(&tree.bytes,encode(prefix)?));}
+pub fn textInsert<V:Share>(tree:&mut TextTrie<V>,key:String,value:V)->Result<Option<V>,String> effects {} {return insert(&mut tree.bytes,encode(key)?,value);}
+pub fn textRemove<V:Share>(tree:&mut TextTrie<V>,key:String)->Result<Option<V>,String> effects {} {return Ok(remove(&mut tree.bytes,encode(key)?));}

@@ -1,0 +1,39 @@
+// compose(old,new) applies new after old. apply(value,tag,length) respects combine.
+pub struct LazySegment<T:Share,U:Share> {private values:List<T>,private tags:List<Option<U>>,private length:Int,private size:Int,private identity:T}
+// @api build cost O(n) combine calls and O(n) storage; n <= 1048576. Callback laws are caller obligations.
+pub fn build<T:Share,U:Share>(input:&List<T>,identity:T,combine:fn(T,T)->T effects {} captures {Send,Share})->Result<LazySegment<T,U>,String> effects {} {
+ if input.len()>1048576{return Err("Capacity");}var size=1;while size<input.len(){size*=2;}
+ let values=List<T>();let tags=List<Option<U>>();for i in 0..size*2{values.add(identity);tags.add(None);}
+ for i in 0..input.len(){values.set(size+i,input.get(i));}var i=size-1;while i>0{values.set(i,combine(values.get(i*2),values.get(i*2+1)));i-=1;}
+ return Ok(LazySegment<T,U>(values,tags,input.len(),size,identity));
+}
+pub fn length<T:Share,U:Share>(tree:&LazySegment<T,U>)->Int effects {} {return tree.length;}
+fn tag<T:Share,U:Share>(tree:&mut LazySegment<T,U>,node:Int,width:Int,value:U,apply:fn(T,U,Int)->T effects {} captures {Send,Share},compose:fn(U,U)->U effects {} captures {Send,Share})->Unit effects {} {
+ tree.values.set(node,apply(tree.values.get(node),value,width));
+ match tree.tags.get(node){None=>{tree.tags.set(node,Some(value));},Some(old)=>{tree.tags.set(node,Some(compose(old,value)));}}
+}
+fn push<T:Share,U:Share>(tree:&mut LazySegment<T,U>,node:Int,width:Int,apply:fn(T,U,Int)->T effects {} captures {Send,Share},compose:fn(U,U)->U effects {} captures {Send,Share})->Unit effects {} {
+ if width>1{match tree.tags.get(node){None=>{},Some(value)=>{tag(tree,node*2,width/2,value,apply,compose);tag(tree,node*2+1,width/2,value,apply,compose);tree.tags.set(node,None);}}}
+}
+fn updateNode<T:Share,U:Share>(tree:&mut LazySegment<T,U>,node:Int,left:Int,right:Int,start:Int,end:Int,value:U,combine:fn(T,T)->T effects {} captures {Send,Share},apply:fn(T,U,Int)->T effects {} captures {Send,Share},compose:fn(U,U)->U effects {} captures {Send,Share})->Unit effects {} {
+ if end<=left || right<=start{return;}if start<=left && right<=end{tag(tree,node,right-left,value,apply,compose);return;}
+ push(tree,node,right-left,apply,compose);let middle=(left+right)/2;
+ updateNode(tree,node*2,left,middle,start,end,value,combine,apply,compose);
+ updateNode(tree,node*2+1,middle,right,start,end,value,combine,apply,compose);
+ tree.values.set(node,combine(tree.values.get(node*2),tree.values.get(node*2+1)));
+}
+// @api update failure Range is checked before mutation; callback panic or fatal budget does not roll back partial mutation. Use checkpoints when recovery is required.
+// @api update cost O(log n) callback evaluations; persistent List page accesses add their own lookup cost.
+pub fn update<T:Share,U:Share>(tree:&mut LazySegment<T,U>,start:Int,end:Int,value:U,combine:fn(T,T)->T effects {} captures {Send,Share},apply:fn(T,U,Int)->T effects {} captures {Send,Share},compose:fn(U,U)->U effects {} captures {Send,Share})->Result<Unit,String> effects {} {
+ if start<0 || end<start || end>tree.length{return Err("Range");}if start==end{return Ok(());}let size=tree.size;updateNode(tree,1,0,size,start,end,value,combine,apply,compose);return Ok(());
+}
+fn queryNode<T:Share,U:Share>(tree:&mut LazySegment<T,U>,node:Int,left:Int,right:Int,start:Int,end:Int,combine:fn(T,T)->T effects {} captures {Send,Share},apply:fn(T,U,Int)->T effects {} captures {Send,Share},compose:fn(U,U)->U effects {} captures {Send,Share})->T effects {} {
+ if end<=left || right<=start{return tree.identity;}if start<=left && right<=end{return tree.values.get(node);}
+ push(tree,node,right-left,apply,compose);let middle=(left+right)/2;
+ let first:T=queryNode<T,U>(tree,node*2,left,middle,start,end,combine,apply,compose);
+ let second:T=queryNode<T,U>(tree,node*2+1,middle,right,start,end,combine,apply,compose);return combine(first,second);
+}
+// @api query cost O(log n) callbacks; maintains left-to-right combine order and pushes pending tags, so requires a mutable borrow.
+pub fn query<T:Share,U:Share>(tree:&mut LazySegment<T,U>,start:Int,end:Int,combine:fn(T,T)->T effects {} captures {Send,Share},apply:fn(T,U,Int)->T effects {} captures {Send,Share},compose:fn(U,U)->U effects {} captures {Send,Share})->Result<T,String> effects {} {
+ if start<0 || end<start || end>tree.length{return Err("Range");}if start==end{return Ok(tree.identity);}let size=tree.size;return Ok(queryNode<T,U>(tree,1,0,size,start,end,combine,apply,compose));
+}

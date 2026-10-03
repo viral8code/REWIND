@@ -1,9 +1,14 @@
 # REWIND libraries
 
-compiler 1.9.7 / `language = "1.9.6"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.8 / `language = "1.9.8"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
+| lazySegment | LazySegment, build, update, query, length | Share aggregate / tag、半開区間、順序を保つ O(log n) callback、VM checkpoint |
+| trie | BytesTrie, TextTrie, create/createText, get/textGet, insert/textInsert, remove/textRemove, prefixCount/textPrefixCount, size/textSize, nodes/textNodes | 指定 node 容量、UTF-8 と任意 byte の API を区別、削除した枝を再利用 |
+| suffix | SuffixIndex, build, order, lcp, find, length | byte suffix array / LCP、1 MiB、O(n log n) native 構築、paged IntArray |
+| geometry | Point, Vector, orientation, onSegment, intersects, convexHull, dot, cross, orientationFloat | Int 全範囲の exact predicate、Float tolerance 明示 |
+
 | json | parse, parseBytes, stringify, get, keys, kind, integer, floating, text, boolean, array | 不変 Json AST、pure、1 MiB/深さ64/65,536 node |
 | config | Field, ConfigError, resolve | arguments > environment > file > fallback、schema 検証、128 field |
 | args | ArgError, parse | `--name VALUE`、未知/重複/欠落拒否、256 token/128 name |
