@@ -24,6 +24,26 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.9.27") {
+        if p.structs.contains_key("SparseWork")
+            || p.enums.contains_key("SparseWork")
+            || p.aliases.contains_key("SparseWork")
+        {
+            return Err(Error::InvalidOperation("reserved sparse work type".into()));
+        }
+        p.structs.insert(
+            "SparseWork".into(),
+            StructDef {
+                private_fields: BTreeSet::from(["$native".into()]),
+                bounds: BTreeMap::new(),
+                immutable: true,
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                fields: vec![],
+            },
+        );
+    }
     if language_at_least(&p.language, "1.9.26") {
         if p.structs.contains_key("FftWork")
             || p.enums.contains_key("FftWork")
@@ -105,6 +125,19 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if !language_at_least(&p.language, "1.8.0") {
         return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
+    }
+    if matches!(
+        n,
+        "stdNumericSparseInit"
+            | "stdNumericSparseStep"
+            | "stdNumericSparseDone"
+            | "stdNumericSparseResult"
+    ) && !language_at_least(&p.language, "1.9.27")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative sparse kernels require language 1.9.27",
+        ));
     }
     if matches!(
         n,
@@ -201,6 +234,77 @@ fn array<'a>(v: &'a Value, rt: &'a Runtime) -> std::result::Result<&'a Array, Nu
         Value::NumericArray(a) => Ok(a),
         _ => Err(NumericError::Type),
     }
+}
+fn sparse_work(
+    value: &Value,
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::SparseWork, NumericError> {
+    let Value::Struct(ty, fields) = target(value, rt) else {
+        return Err(NumericError::Type);
+    };
+    if ty != "SparseWork" {
+        return Err(NumericError::Type);
+    }
+    let a = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(|v| array(v, rt))
+            .cloned()
+    };
+    let i = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(usize_arg)
+    };
+    let f = |name: &str| match fields.get(name) {
+        Some(Value::Float(v)) => Ok(f64::from_bits(*v)),
+        _ => Err(NumericError::Type),
+    };
+    let Some(Value::Int(previous)) = fields.get("$previous") else {
+        return Err(NumericError::Type);
+    };
+    let work = rewind::numeric::SparseWork {
+        rows: i("$rows")?,
+        cols: i("$cols")?,
+        phase: i("$phase")?,
+        cursor: i("$cursor")?,
+        entry: i("$entry")?,
+        offsets: a("$offsets")?,
+        indices: a("$indices")?,
+        values: a("$values")?,
+        right: a("$right")?,
+        output: a("$output")?,
+        previous: *previous,
+        sum: f("$sum")?,
+        correction: f("$correction")?,
+    };
+    work.validate()?;
+    Ok(work)
+}
+fn sparse_work_value(work: rewind::numeric::SparseWork) -> Value {
+    Value::Struct(
+        "SparseWork".into(),
+        BTreeMap::from([
+            ("$rows".into(), Value::Int(work.rows as i64)),
+            ("$cols".into(), Value::Int(work.cols as i64)),
+            ("$phase".into(), Value::Int(work.phase as i64)),
+            ("$cursor".into(), Value::Int(work.cursor as i64)),
+            ("$entry".into(), Value::Int(work.entry as i64)),
+            ("$offsets".into(), Value::NumericArray(work.offsets)),
+            ("$indices".into(), Value::NumericArray(work.indices)),
+            ("$values".into(), Value::NumericArray(work.values)),
+            ("$right".into(), Value::NumericArray(work.right)),
+            ("$output".into(), Value::NumericArray(work.output)),
+            ("$previous".into(), Value::Int(work.previous)),
+            ("$sum".into(), Value::Float(work.sum.to_bits())),
+            (
+                "$correction".into(),
+                Value::Float(work.correction.to_bits()),
+            ),
+        ]),
+    )
 }
 fn fft_work(
     value: &Value,
@@ -349,7 +453,27 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "FftInit" {
+    let cost = if name == "SparseInit" {
+        32768
+    } else if name == "SparseStep" {
+        sparse_work(&args[0], rt).map_or(2048, |w| {
+            let items = if w.phase == 0 {
+                w.cols.saturating_sub(w.cursor)
+            } else if w.phase == 1 {
+                w.rows
+                    .saturating_sub(w.cursor)
+                    .saturating_add(w.values.len().saturating_sub(w.entry))
+            } else {
+                0
+            };
+            items
+                .min(rewind::numeric::SPARSE_CHUNK)
+                .saturating_mul(128)
+                .saturating_add(2048)
+        })
+    } else if matches!(name, "SparseDone" | "SparseResult") {
+        512
+    } else if name == "FftInit" {
         32768
     } else if name == "FftStep" {
         rewind::numeric::FFT_CHUNK * 64 + 1024
@@ -551,7 +675,18 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "FftInit" {
+    if name == "SparseInit" {
+        131072
+    } else if name == "SparseStep" {
+        sparse_work(&args[0], rt).map_or(16384, |w| {
+            w.output
+                .update_estimate()
+                .saturating_mul(rewind::numeric::SPARSE_CHUNK.div_ceil(256) + 2)
+                .saturating_add(rewind::numeric::SPARSE_CHUNK * 8 + 16384)
+        })
+    } else if matches!(name, "SparseDone" | "SparseResult") {
+        16384
+    } else if name == "FftInit" {
         131072
     } else if name == "FftStep" {
         fft_work(&args[0], rt).map_or(16384, |work| {
@@ -798,6 +933,17 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "SparseInit" => sparse_work_value(rewind::numeric::SparseWork::new(
+                i(0)?,
+                i(1)?,
+                a(2)?,
+                a(3)?,
+                a(4)?,
+                a(5)?,
+            )?),
+            "SparseStep" => sparse_work_value(sparse_work(&args[0], rt)?.step()?),
+            "SparseDone" => Value::Bool(sparse_work(&args[0], rt)?.done()),
+            "SparseResult" => Value::NumericArray(sparse_work(&args[0], rt)?.result()?),
             "FftInit" => {
                 let Some(Value::Bool(inverse)) = args.get(2) else {
                     return Err(NumericError::Type);
@@ -1250,6 +1396,20 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericSparseInit" => (
+            &[
+                "Int",
+                "Int",
+                "&IntArray",
+                "&IntArray",
+                "&FloatArray",
+                "&FloatArray",
+            ],
+            "Result<SparseWork,StdError>",
+        ),
+        "stdNumericSparseStep" => (&["&SparseWork"], "Result<SparseWork,StdError>"),
+        "stdNumericSparseDone" => (&["&SparseWork"], "Result<Bool,StdError>"),
+        "stdNumericSparseResult" => (&["&SparseWork"], "Result<FloatArray,StdError>"),
         "stdNumericFftInit" => (
             &["&FloatArray", "&FloatArray", "Bool"],
             "Result<FftWork,StdError>",

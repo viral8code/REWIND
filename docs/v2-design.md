@@ -340,3 +340,7 @@ TLS 1.2 / 1.3 は Rustls / tokio-rustls を利用する。公開 CA、verify-bef
 
 
 1.9.26 は初期化・copy・twiddle・butterfly・scale を分割した pure FFT Task と共有 zero page を追加する。独立 DFT、逆変換、private scratch の checkpoint / cancellation、source-free と両記録 mode、両 OS SDK を検証する。solve / QR / eigen / CSR / autodiff の分割、一般 container / snapshot の会計、GUI / DB / 通信の統合、server TLS / private credential と容量監査は継続する。
+
+## v1.9.27 の協調的 CSR
+
+1.9.27 は bounded CSR 積と共役勾配法内の積の分割を追加する。空行・長い行・補償和・checkpoint・cancel・source-free と両記録 mode を検証する。vector / LU / QR / eigen / autodiff の分割、一般 container の会計、GUI / DB / 通信の統合と残る v2 の条件は継続する。

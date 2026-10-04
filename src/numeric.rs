@@ -7,6 +7,8 @@ use std::sync::{
     Arc, Mutex, Weak,
 };
 mod chunks;
+mod sparse_chunks;
+pub use sparse_chunks::{SparseWork, SPARSE_CHUNK};
 mod fft_chunks;
 pub use fft_chunks::{FftWork, FFT_CHUNK};
 mod linalg;
