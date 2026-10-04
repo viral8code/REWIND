@@ -360,6 +360,69 @@ mod tests {
         );
     }
     #[test]
+    fn task_quota_is_shared_across_restore_and_released_with_last_checkpoint() {
+        let mut vm = vm();
+        vm.engine.program.language = "1.9.20".into();
+        let mut task = vm.scheduler.tasks[&0].clone();
+        task.instructions = Arc::new(std::cell::Cell::new(0));
+        task.observed = true;
+        let weak = Arc::downgrade(&task.instructions);
+        vm.scheduler.tasks.insert(1, task);
+        vm.scheduler.active = 1;
+        vm.charge_task_instruction();
+        let snapshot = vm.snapshot();
+        for _ in 0..100 {
+            vm.charge_task_instruction();
+        }
+        vm.restore(snapshot.clone()).unwrap();
+        assert_eq!(vm.task_instruction_count(1), 101);
+        assert_eq!(vm.task_instruction_total, 101);
+        assert!(vm.task_instructions.is_empty());
+        vm.snapshots.insert("held".into(), snapshot);
+        vm.scheduler.active = 0;
+        vm.scheduler.tasks.get_mut(&1).unwrap().phase = TaskPhase::Done;
+        vm.collect_scheduler().unwrap();
+        assert!(!vm.scheduler.tasks.contains_key(&1));
+        assert_eq!(weak.upgrade().unwrap().get(), 101);
+        vm.snapshots.remove("held");
+        assert!(weak.upgrade().is_none());
+    }
+    #[test]
+    fn fresh_task_after_restore_has_its_own_quota_even_when_scheduler_id_repeats() {
+        let mut vm = vm();
+        vm.engine.program.language = "1.9.20".into();
+        let snapshot = vm.snapshot();
+        let at = vm.scheduler.tasks[&0].at.clone();
+        let first = vm
+            .new_action(
+                TaskBody::Function("unused".into(), vec![]),
+                "Unit".into(),
+                vec![],
+                &at,
+            )
+            .unwrap();
+        let id = handle_id(&first).unwrap();
+        vm.scheduler.active = id;
+        vm.charge_task_instruction();
+        let old_counter = vm.scheduler.tasks[&id].instructions.clone();
+        vm.restore(snapshot).unwrap();
+        let second = vm
+            .new_action(
+                TaskBody::Function("unused".into(), vec![]),
+                "Unit".into(),
+                vec![],
+                &at,
+            )
+            .unwrap();
+        assert_eq!(handle_id(&second), Some(id));
+        assert_eq!(vm.task_instruction_count(id), 0);
+        assert_eq!(old_counter.get(), 1);
+        assert!(!Arc::ptr_eq(
+            &old_counter,
+            &vm.scheduler.tasks[&id].instructions
+        ));
+    }
+    #[test]
     fn scheduler_collection_budget_failure_preserves_result_storage() {
         let mut vm = vm();
         let bytes = Arc::new(vec![0; 1024]);

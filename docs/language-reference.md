@@ -542,3 +542,5 @@ imported function は entry の無関係な global variable を裸の名前で�
 1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](REWIND_v1.9.18.md)を参照する。
 
 1.9.19 は `std.guiWindows.nextEventAnyAsync` と native GUI / HTTP / SQLite の最小統合を追加する。主 Task の制約・待機中の協調動作・入力の cancellation・terminal error の journal・source-free / disconnected replay を検証する。[契約と残る作業](REWIND_v1.9.19.md)を参照する。
+
+1.9.20 は Task の実行予算カウンタを checkpoint と共有し、最後の保持先がなくなれば回収する。累積予算と新規 Task の独立性を維持し、profile の current Task 表と全体合計を区別する。[契約と残る作業](REWIND_v1.9.20.md)を参照する。

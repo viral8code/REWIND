@@ -39,6 +39,8 @@ struct Context {
 }
 #[derive(Clone)]
 struct Task {
+    // Shared by checkpoint clones: restoring execution cannot reset this task's quota.
+    instructions: Arc<std::cell::Cell<usize>>,
     at: Tok,
     timed_out: bool,
     observed: bool,
@@ -73,6 +75,7 @@ pub(super) struct Scheduler {
 impl Default for Scheduler {
     fn default() -> Self {
         let main = Task {
+            instructions: Arc::new(std::cell::Cell::new(0)),
             at: Tok {
                 source: String::new(),
                 text: String::new(),
@@ -290,6 +293,43 @@ pub(super) fn handle_id(value: &Value) -> Option<u64> {
     None
 }
 impl<R: BufRead> Vm<R> {
+    fn shared_task_quota(&self) -> bool {
+        matches!(self.engine.program.language.as_str(), "1.9.20" | "2.0.0")
+    }
+    pub(super) fn task_instruction_count(&self, id: u64) -> usize {
+        if self.shared_task_quota() {
+            self.scheduler
+                .tasks
+                .get(&id)
+                .map_or(0, |task| task.instructions.get())
+        } else {
+            self.task_instructions.get(&id).copied().unwrap_or(0)
+        }
+    }
+    pub(super) fn charge_task_instruction(&mut self) {
+        let id = self.scheduler.active;
+        if self.shared_task_quota() {
+            let count = &self.scheduler.tasks[&id].instructions;
+            count.set(count.get() + 1);
+        } else {
+            *self.task_instructions.entry(id).or_default() += 1;
+        }
+        self.task_instruction_total += 1;
+    }
+    pub(super) fn task_instruction_profile(&self) -> BTreeMap<String, usize> {
+        if self.shared_task_quota() {
+            self.scheduler
+                .tasks
+                .iter()
+                .map(|(id, task)| (id.to_string(), task.instructions.get()))
+                .collect()
+        } else {
+            self.task_instructions
+                .iter()
+                .map(|(id, count)| (id.to_string(), *count))
+                .collect()
+        }
+    }
     pub(super) fn task_frame_views(&self) -> BTreeMap<String, serde_json::Value> {
         self.scheduler.tasks.iter().map(|(id,t)| {
             let frames = t.context.as_ref().map(|c| c.frames.as_slice()).unwrap_or(&[]);
@@ -362,6 +402,7 @@ impl<R: BufRead> Vm<R> {
         self.scheduler.tasks.insert(
             id,
             Task {
+                instructions: Arc::new(std::cell::Cell::new(0)),
                 at: at.clone(),
                 timed_out: false,
                 observed: false,
@@ -453,6 +494,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -1018,6 +1060,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1116,6 +1159,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) =>
                 {
@@ -1183,6 +1227,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) =>
                 {
@@ -1277,6 +1322,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) =>
                 {
@@ -1351,6 +1397,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) =>
                 {
@@ -1422,6 +1469,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) =>
                 {
@@ -1519,6 +1567,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -1603,6 +1652,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) =>
                 {
@@ -1664,6 +1714,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.17"
                                         | "1.9.18"
                                         | "1.9.19"
+                                        | "1.9.20"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -1739,6 +1790,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
@@ -1824,6 +1876,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -1920,6 +1973,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -2018,6 +2072,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.17"
                         | "1.9.18"
                         | "1.9.19"
+                        | "1.9.20"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -2284,6 +2339,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -2559,6 +2615,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.17"
                         | "1.9.18"
                         | "1.9.19"
+                        | "1.9.20"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -2676,6 +2733,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -2818,6 +2876,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -2911,6 +2970,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
