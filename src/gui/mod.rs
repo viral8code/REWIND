@@ -1,6 +1,7 @@
 //! Native single-window surfaces. Scenes are data; only publish touches a surface.
 use serde::{Deserialize, Serialize};
 pub mod edit;
+mod live;
 mod runtime;
 mod windows_registry;
 pub(crate) use runtime::Request;

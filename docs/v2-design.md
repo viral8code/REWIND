@@ -324,3 +324,5 @@ Int overflow の既定、型安全、borrow 制約、有限予算を単純に無
 定数や dependency の候補を設計だけで実測済みにしない。決定結果は各版の仕様・API・テストへ反映し、この文書も実装と合わせて更新する。
 
 1.9.21 は明示的な `external live` と `live` effect を追加する。新しい呼出しは物理操作を実行し、保持された既存 Task は復元しても同じ結果を返す。結果は Task / checkpoint の寿命に合わせて解放し、通常の記録付き操作は維持する。完全な record / replay / inspect は実行前に拒否する。[契約と検証](REWIND_v1.9.21.md)を参照する。
+
+1.9.22 は `std.guiWindows.nextEventAnyLiveAsync` を追加する。既存の記録付き GUI 入力と区別し、保持された Task の復元、新規入力、main thread、キャンセル、結果の寿命を検証する。[契約と残る作業](REWIND_v1.9.22.md)を参照する。

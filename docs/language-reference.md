@@ -546,3 +546,5 @@ imported function は entry の無関係な global variable を裸の名前で�
 1.9.20 は Task の実行予算カウンタを checkpoint と共有し、最後の保持先がなくなれば回収する。累積予算と新規 Task の独立性を維持し、profile の current Task 表と全体合計を区別する。[契約と残る作業](REWIND_v1.9.20.md)を参照する。
 
 1.9.21 は明示的な `external live` と `live` effect を追加する。新しい呼出しは物理操作を実行し、保持された既存 Task は復元しても同じ結果を返す。結果は Task / checkpoint の寿命に合わせて解放し、通常の記録付き操作は維持する。完全な record / replay / inspect は実行前に拒否する。[契約と検証](REWIND_v1.9.21.md)を参照する。
+
+1.9.22 は `std.guiWindows.nextEventAnyLiveAsync` を追加する。既存の記録付き GUI 入力と区別し、保持された Task の復元、新規入力、main thread、キャンセル、結果の寿命を検証する。[契約と残る作業](REWIND_v1.9.22.md)を参照する。

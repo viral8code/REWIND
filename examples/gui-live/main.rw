@@ -1,0 +1,17 @@
+import std.gui as gui;import std.guiWindows as windows;import std.task as task;
+ fn take<T,E>(r:Result<T,E>)->T effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("GUI wait");}}}
+fn waitInput()->Task<Result<windows.WindowEvent,windows.GuiError>> effects {gui,tasks,external,live} {
+ var waiting:Option<Task<Result<windows.WindowEvent,windows.GuiError>>>=None;
+ external live {waiting=Some(windows.nextEventAnyLiveAsync());}
+ match waiting {Some(task)=>{return move task;},None=>{panic("missing");}}
+}
+ async fn work()->Int effects {tasks} {for i in 0..100 {task.yieldNow();}return 42;}
+ let view=take(gui.window("Async",160,96));take(windows.present("one",&view));publish;
+ let cancelled=waitInput();commit cancelledWait;cancelled.cancel();assert_eq(await cancelled,Err(TaskError::Cancelled));
+ revert cancelledWait;assert_eq(await cancelled,Ok(Err(StdError("GuiCancelled",0))));drop cancelledWait;
+ let input=waitInput();let calculation=work();commit waiting;
+ let ready=take(await task.selectReady(input,calculation));assert(ready==0 || ready==1);
+ let event=take(take(await input));assert_eq(event.window,"one");assert_eq(event.event.kind,"key");assert_eq(event.event.key,"日本語");assert_eq(await calculation,Ok(42));
+ revert waiting;let restored=take(take(await input));assert_eq(restored.event.key,"日本語");assert_eq(await calculation,Ok(42));drop waiting;
+ assert_eq(await waitInput(),Ok(Err(StdError("GuiWindowEventTapeEnd",0))));
+ take(windows.close("one"));publish;Out.println("done");publish;

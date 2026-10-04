@@ -259,6 +259,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdGuiWindowPollAny",
         "stdGuiWindowNextAny",
         "stdGuiWindowNextAnyAsync",
+        "stdGuiWindowNextAnyLiveAsync",
         "stdGuiWindowContinueInput",
         "stdGuiEdit",
         "stdGuiEditGrapheme",
@@ -319,6 +320,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.19"
             | "1.9.20"
             | "1.9.21"
+            | "1.9.22"
             | "2.0.0"
     ) {
         return Ok(());
@@ -580,6 +582,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.19"
             | "1.9.20"
             | "1.9.21"
+            | "1.9.22"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -659,6 +662,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.19"
                 | "1.9.20"
                 | "1.9.21"
+                | "1.9.22"
                 | "2.0.0"
         )
     {
@@ -687,7 +691,13 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             "GUI scene serialization requires language 1.9.13",
         ));
     }
-    if n == "stdGuiWindowNextAnyAsync" {
+    if matches!(
+        n,
+        "stdGuiWindowNextAnyAsync" | "stdGuiWindowNextAnyLiveAsync"
+    ) {
+        if n == "stdGuiWindowNextAnyLiveAsync" && !language_at_least(&p.language, "1.9.22") {
+            return Err(diagnostic(at, "live GUI input requires language 1.9.22"));
+        }
         if !language_at_least(&p.language, "1.9.19") {
             return Err(diagnostic(
                 at,
