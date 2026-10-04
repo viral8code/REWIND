@@ -1,20 +1,20 @@
-# REWIND 1.9.24を試す
+# REWIND 1.9.25を試す
 
-1.9.24はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
+1.9.25はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
 
 ## Linux SDKをダウンロードする
 
-[Release v1.9.24](https://github.com/viral8code/REWIND/releases/tag/v1.9.24)から次を同じdirectoryへ保存します。
+[Release v1.9.25](https://github.com/viral8code/REWIND/releases/tag/v1.9.25)から次を同じdirectoryへ保存します。
 
-- `rewind-1.9.24-linux-x86_64.tar.gz`：rewind/rewindc、68 module、文書、例
-- `rewind-1.9.24-sdk.pub`：このreleaseの公開鍵
+- `rewind-1.9.25-linux-x86_64.tar.gz`：rewind/rewindc、70 module、文書、例
+- `rewind-1.9.25-sdk.pub`：このreleaseの公開鍵
 - `SHA256SUMS`、`BUILD_INFO.json`：checksumと最低glibc等のbuild情報
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-tar -xzf rewind-1.9.24-linux-x86_64.tar.gz
-SDK="$(pwd)/rewind-1.9.24-linux-x86_64"
-PUBLIC_KEY="$(cat rewind-1.9.24-sdk.pub)"
+tar -xzf rewind-1.9.25-linux-x86_64.tar.gz
+SDK="$(pwd)/rewind-1.9.25-linux-x86_64"
+PUBLIC_KEY="$(cat rewind-1.9.25-sdk.pub)"
 "$SDK/bin/rewind" sdk-verify --sdk "$SDK" --public-key "$PUBLIC_KEY"
 export PATH="$SDK/bin:$PATH"
 rewind --version
@@ -24,10 +24,10 @@ SDK archiveと公開鍵の両方がchecksum検証でOKになることを確認�
 
 ## Windows SDKをダウンロードする
 
-[Release v1.9.24](https://github.com/viral8code/REWIND/releases/tag/v1.9.24)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
+[Release v1.9.25](https://github.com/viral8code/REWIND/releases/tag/v1.9.25)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
 
-- `rewind-1.9.24-windows-x86_64.zip`
-- `rewind-1.9.24-windows-x86_64-sdk.pub`
+- `rewind-1.9.25-windows-x86_64.zip`
+- `rewind-1.9.25-windows-x86_64-sdk.pub`
 - `SHA256SUMS.windows`、`BUILD_INFO.windows.json`
 
 PowerShellでchecksumを確認し、展開してPATHへ追加します。
@@ -38,14 +38,14 @@ Get-Content .\SHA256SUMS.windows | ForEach-Object {
     $hash, $name = $_ -split '  ', 2
     $expected[$name] = $hash
 }
-foreach ($name in @('rewind-1.9.24-windows-x86_64.zip', 'rewind-1.9.24-windows-x86_64-sdk.pub')) {
+foreach ($name in @('rewind-1.9.25-windows-x86_64.zip', 'rewind-1.9.25-windows-x86_64-sdk.pub')) {
     if ((Get-FileHash $name -Algorithm SHA256).Hash.ToLower() -ne $expected[$name]) {
         throw "Checksum mismatch: $name"
     }
 }
-Expand-Archive .\rewind-1.9.24-windows-x86_64.zip -DestinationPath .
-$sdk = Join-Path (Get-Location) 'rewind-1.9.24-windows-x86_64'
-$publicKey = (Get-Content .\rewind-1.9.24-windows-x86_64-sdk.pub -Raw).Trim()
+Expand-Archive .\rewind-1.9.25-windows-x86_64.zip -DestinationPath .
+$sdk = Join-Path (Get-Location) 'rewind-1.9.25-windows-x86_64'
+$publicKey = (Get-Content .\rewind-1.9.25-windows-x86_64-sdk.pub -Raw).Trim()
 & "$sdk\bin\rewind.exe" sdk-verify --sdk $sdk --public-key $publicKey
 $env:Path = "$sdk\bin;$env:Path"
 rewind --version
@@ -55,7 +55,7 @@ RustやJVMのインストールは不要です。このPATH変更は現在のPow
 
 ## sourceからビルドする
 
-`rewind-1.9.24-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
+`rewind-1.9.25-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
 
 ```sh
 cargo build --release --locked
@@ -139,7 +139,7 @@ rewind compile main.rw --allow-effects fileRead,fileWrite
 rewind run main.rwc --allow-effects fileRead,fileWrite
 ```
 
-成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effectsとlockを優先します。`.rwc`の実行ではsource / vendorを要求せず、assetは配布に含めます。source実行・compileでは依存graphも検証します。既存projectを新仕様に移す場合はlanguageを1.9.24へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
+成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effectsとlockを優先します。`.rwc`の実行ではsource / vendorを要求せず、assetは配布に含めます。source実行・compileでは依存graphも検証します。既存projectを新仕様に移す場合はlanguageを1.9.25へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
 
 ```sh
 rewind run main.rw --record trace.json

@@ -334,3 +334,6 @@ Int overflow の既定、型安全、borrow 制約、有限予算を単純に無
 ## v1.9.24 の TCP TLS
 
 TLS 1.2 / 1.3 は Rustls / tokio-rustls を利用する。公開 CA、verify-before-application、bounded config の寿命、plaintext の受理量と remote outcome、非復元の物理接続を [仕様](REWIND_v1.9.24.md)に分ける。HTTP server と残る v2.0 の受入条件は継続する。
+
+
+1.9.25 は Hyper を用いた bounded HTTP/1 server と pure な完全一致 router を追加する。物理 response の再送禁止、recorded / live の入力と資源寿命、source-free と disconnected replay、両 OS SDK を検証する。server TLS / private request credentials、GUI / PostgreSQL の統合、長い数値 kernel の分割、一般 container / snapshot の会計と残る v2 の条件は継続する。

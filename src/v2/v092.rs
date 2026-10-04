@@ -39,6 +39,10 @@ pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str>
 }
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
+        "stdExternalHttpServerNext" | "stdExternalHttpServerClose" => Some("&mut HttpServer"),
+        "stdExternalHttpServerRespond" | "stdExternalHttpServerCloseRequest" => {
+            Some("&mut HttpServerRequest")
+        }
         "stdExternalTcpRead"
         | "stdExternalTcpWrite"
         | "stdExternalTcpShutdownWrite"
@@ -242,6 +246,11 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdExternalDbCommit",
         "stdExternalDbRollback",
         "stdExternalDbClose",
+        "stdExternalHttpServerListen",
+        "stdExternalHttpServerNext",
+        "stdExternalHttpServerRespond",
+        "stdExternalHttpServerClose",
+        "stdExternalHttpServerCloseRequest",
         "stdExternalTcpTls",
         "stdExternalTcpConnect",
         "stdExternalTcpRead",
@@ -333,6 +342,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.22"
             | "1.9.23"
             | "1.9.24"
+            | "1.9.25"
             | "2.0.0"
     ) {
         return Ok(());
@@ -411,6 +421,52 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
                     .collect(),
             },
         );
+    }
+    if language_at_least(&p.language, "1.9.25") {
+        for (name, fields) in [
+            (
+                "HttpServer",
+                vec![("address", "String"), ("port", "Int"), ("maxBytes", "Int")],
+            ),
+            (
+                "HttpServerRequest",
+                vec![
+                    ("method", "String"),
+                    ("target", "String"),
+                    ("path", "String"),
+                    ("query", "String"),
+                    ("headers", "Frozen<List<HttpHeader>>"),
+                    ("body", "Bytes"),
+                ],
+            ),
+            (
+                "HttpServerError",
+                vec![("code", "String"), ("phase", "String"), ("status", "Int")],
+            ),
+        ] {
+            if p.structs.contains_key(name) || p.enums.contains_key(name) {
+                return Err(Error::InvalidOperation("reserved HTTP server type".into()));
+            }
+            p.structs.insert(
+                name.into(),
+                StructDef {
+                    private_fields: if rewind::native_resources::resource_type(name) {
+                        BTreeSet::from(["$native".into()])
+                    } else {
+                        BTreeSet::new()
+                    },
+                    bounds: BTreeMap::new(),
+                    immutable: true,
+                    type_params: vec![],
+                    public: true,
+                    origin: p.root_origin.clone(),
+                    fields: fields
+                        .into_iter()
+                        .map(|(n, t)| (n.into(), t.into()))
+                        .collect(),
+                },
+            );
+        }
     }
     if language_at_least(&p.language, "1.9.23") {
         for (name, fields) in [
@@ -629,6 +685,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.22"
             | "1.9.23"
             | "1.9.24"
+            | "1.9.25"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -711,6 +768,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         )
     {
@@ -718,6 +776,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternal") && !language_at_least(&p.language, "1.5.0") {
         return Err(diagnostic(at, "external operations require language 1.5.0"));
+    }
+    if n.starts_with("stdExternalHttpServer") && !language_at_least(&p.language, "1.9.25") {
+        return Err(diagnostic(at, "HTTP server requires language 1.9.25"));
     }
     if n == "stdExternalTcpTls" && !language_at_least(&p.language, "1.9.24") {
         return Err(diagnostic(at, "TCP TLS requires language 1.9.24"));
@@ -809,6 +870,32 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdExternalHttpServerListen" => (
+            &["String", "Int", "Int", "Int", "Int", "Int"],
+            "Task<Result<HttpServer,HttpServerError>>",
+        ),
+        "stdExternalHttpServerNext" => (
+            &["&mut HttpServer", "Int"],
+            "Task<Result<HttpServerRequest,HttpServerError>>",
+        ),
+        "stdExternalHttpServerRespond" => (
+            &[
+                "&mut HttpServerRequest",
+                "Int",
+                "Frozen<List<HttpHeader>>",
+                "Bytes",
+                "Int",
+            ],
+            "Task<Result<Unit,HttpServerError>>",
+        ),
+        "stdExternalHttpServerClose" => (
+            &["&mut HttpServer", "Int"],
+            "Task<Result<Unit,HttpServerError>>",
+        ),
+        "stdExternalHttpServerCloseRequest" => (
+            &["&mut HttpServerRequest", "Int"],
+            "Task<Result<Unit,HttpServerError>>",
+        ),
         "stdExternalTcpTls" => (
             &["String", "Int", "Bytes", "Int"],
             "Task<Result<TcpSocket,TcpError>>",

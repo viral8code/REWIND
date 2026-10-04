@@ -237,6 +237,7 @@ impl Manifest {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) {
             return Err(Error::InvalidOperation(format!(
@@ -301,6 +302,7 @@ impl Manifest {
                     | "1.9.22"
                     | "1.9.23"
                     | "1.9.24"
+                    | "1.9.25"
                     | "2.0.0"
             )
         {
@@ -366,6 +368,7 @@ impl Manifest {
                     | "1.9.22"
                     | "1.9.23"
                     | "1.9.24"
+                    | "1.9.25"
                     | "2.0.0"
             ) || !matches!(dependency_mode.as_str(), "production" | "development"))
         {
@@ -459,6 +462,7 @@ impl ProjectConfig {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) {
             for (name, path) in &self.lock_imports {
@@ -652,6 +656,7 @@ impl ProjectConfig {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) && deps
             .values()
@@ -736,6 +741,7 @@ impl ProjectConfig {
                     | "1.9.22"
                     | "1.9.23"
                     | "1.9.24"
+                    | "1.9.25"
                     | "2.0.0"
             ) {
                 let mut inspected = BTreeSet::new();
@@ -853,6 +859,7 @@ impl ProjectConfig {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) && !include_dev
         {
@@ -1013,6 +1020,7 @@ impl ProjectConfig {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) {
             return self.secure_lock(root, update);
@@ -1179,6 +1187,7 @@ impl ProjectConfig {
                     | "1.9.22"
                     | "1.9.23"
                     | "1.9.24"
+                    | "1.9.25"
                     | "2.0.0"
             ) {
                 selected["requirement"] = wanted.clone().into();
@@ -1247,6 +1256,7 @@ impl ProjectConfig {
                     | "1.9.22"
                     | "1.9.23"
                     | "1.9.24"
+                    | "1.9.25"
                     | "2.0.0"
             ) {
                 return Err(Error::InvalidOperation(
@@ -1348,6 +1358,7 @@ impl ProjectConfig {
                     | "1.9.22"
                     | "1.9.23"
                     | "1.9.24"
+                    | "1.9.25"
                     | "2.0.0"
             ) {
                 let old: serde_json::Value = fs::read(&path)

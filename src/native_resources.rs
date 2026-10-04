@@ -5,7 +5,14 @@ use std::sync::Arc;
 pub fn resource_type(ty: &str) -> bool {
     matches!(
         ty,
-        "TcpSocket" | "HttpDownload" | "HttpUpload" | "DbConnection" | "DbStatement" | "DbCursor"
+        "HttpServer"
+            | "HttpServerRequest"
+            | "TcpSocket"
+            | "HttpDownload"
+            | "HttpUpload"
+            | "DbConnection"
+            | "DbStatement"
+            | "DbCursor"
     )
 }
 pub fn token(value: &Value) -> Option<(u64, u64)> {

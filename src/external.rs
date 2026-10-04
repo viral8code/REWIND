@@ -669,7 +669,13 @@ impl Runtime {
                     .as_ref()
                     .is_some_and(|h| h.contains_job(id));
                 let tcp = self.tcp_host.as_ref().is_some_and(|h| h.contains_job(id));
-                let result = if tcp {
+                let server = self
+                    .http_server_host
+                    .as_ref()
+                    .is_some_and(|h| h.contains_job(id));
+                let result = if server {
+                    self.http_server_host.as_mut().and_then(|h| h.poll(id))
+                } else if tcp {
                     self.tcp_host.as_mut().and_then(|h| h.poll(id))
                 } else if database {
                     self.database_host.as_mut().and_then(|h| h.poll(id))
@@ -677,7 +683,9 @@ impl Runtime {
                     self.network_host.as_mut().and_then(|h| h.poll(id))
                 };
                 if let Some(mut result) = result {
-                    result = if tcp {
+                    result = if server {
+                        self.sanitise_http_server_result(result)
+                    } else if tcp {
                         self.sanitise_tcp_result(result)
                     } else if database {
                         self.sanitise_database_result(result)

@@ -1,0 +1,12 @@
+// Routes use exact URI paths and exact case-sensitive HTTP methods. They never execute host effects.
+pub record Route {method:String,path:String,handler:String}
+// @api find cost O(route count * compared text bytes); first matching route wins.
+// @api find failure None when no exact match; method '*' accepts every method. Paths retain percent encoding; no implicit decoding, prefix match or regex.
+pub fn find(routes:Frozen<List<Route>>,method:String,path:String)->Option<Route> effects {} {
+ var i=0;while i<routes.len(){let route=routes.get(i);if route.path==path&&(route.method==method||route.method=="*"){return Some(Route(route.method,route.path,route.handler));}i+=1;}return None;
+}
+// @api allows cost O(route count * compared path bytes).
+// @api allows failure false when the path has no route; useful to distinguish missing paths from unsupported methods.
+pub fn allows(routes:Frozen<List<Route>>,path:String)->Bool effects {} {
+ var i=0;while i<routes.len(){if routes.get(i).path==path{return true;}i+=1;}return false;
+}

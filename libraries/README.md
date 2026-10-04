@@ -1,9 +1,12 @@
 # REWIND libraries
 
-compiler 1.9.17 / `language = "1.9.17"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.25 / `language = "1.9.25"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
+| httpServer | listen, configured, next, respond, close, closeRequest | Hyper HTTP/1.1、bounded listener / queue / body、recorded / live、affine handles、物理応答は非復元 |
+| httpRouter | Route, find, allows | pure な method / encoded URI path の完全一致、先勝ち、wildcard method |
+| tcp | connect, connectTls, configuredTls, read, write, shutdownWrite, close | bounded raw TCP / verified TLS、binary chunk / EOF、recorded / live、非復元の接続寿命 |
 | autodiff | Tape, Node, Gradients, parameter/constant, binary/unary, matmul, transpose, reshape, broadcast, sum/mean, backward/gradient | native Float64 buffers、private graph handles、COW checkpoint、同期 reverse-mode |
 | optimize | sgd, Adam, adam, adamStep, steps | native moment、bias correction、typed error atomicity、checkpoint |
 | models | Model, create, get, weights, encode, decode, save, load | bounded canonical binary、checksum、native pages、fileRead/fileWrite と publish 境界 |
@@ -174,7 +177,7 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 
 1.9.14 は manifest / lock を保持した source-free `.rwc` の実行・replay に対応する。実行時に source / vendor の graph を開き直さず、effect と assets の検証は保持する。[契約](../docs/REWIND_v1.9.14.md)を参照。
 
-勾配・model の基本契約は[1.9.16](../docs/REWIND_v1.9.16.md)、module scope / optimizer の改善は[1.9.17](../docs/REWIND_v1.9.17.md)を参照。
+勾配・model の基本契約は[1.9.16](../docs/REWIND_v1.9.16.md)、module scope / optimizer の改善は[1.9.25](../docs/REWIND_v1.9.25.md)を参照。
 
 1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](../docs/REWIND_v1.9.18.md)を参照する。
 

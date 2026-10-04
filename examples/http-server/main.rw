@@ -1,0 +1,35 @@
+import std.httpServer as server;
+import std.httpRouter as router;
+import std.bytes as bytes;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value {Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
+let routes=List<router.Route>();routes.add(router.Route("POST","/echo","echo"));let routing=freeze(move routes);
+var opening:Option<Task<Result<HttpServer,HttpServerError>>>=None;
+external {opening=Some(server.configured("127.0.0.1",PORT,65536,2,10000,5000));}
+match opening {None=>{panic("missing listener");},Some(task)=>{
+ let listener=take(take(await task));
+ var waiting:Option<Task<Result<HttpServerRequest,HttpServerError>>>=None;
+ external {waiting=Some(server.next(&mut listener,5000));}
+ match waiting {None=>{panic("missing request");},Some(task)=>{
+  let request=take(take(await task));
+  assert_eq(router.find(routing,request.method,request.path),Some(router.Route("POST","/echo","echo")));
+  assert_eq(request.query,"q=one");assert_eq(take(bytes.decode(request.body)),"ping");
+  let headers=List<HttpHeader>();let responseHeaders=freeze(move headers);
+  var replying:Option<Task<Result<Unit,HttpServerError>>>=None;
+  external {replying=Some(server.respond(&mut request,200,responseHeaders,take(bytes.encode("ok")),5000));}
+  commit pending;
+  match replying {None=>{panic("missing response");},Some(task)=>{take(take(await task));}}
+  revert pending;
+  match replying {None=>{panic("missing restored response");},Some(task)=>{take(take(await task));}}
+  drop pending;
+ }}
+ // Keep the listener alive until the peer has read the response and asked for shutdown.
+ var shutdownWaiting:Option<Task<Result<HttpServerRequest,HttpServerError>>>=None;
+ external {shutdownWaiting=Some(server.next(&mut listener,5000));}
+ match shutdownWaiting {None=>{panic("missing shutdown request");},Some(task)=>{
+  let request=take(take(await task));assert_eq(request.path,"/shutdown");
+  var closing:Option<Task<Result<Unit,HttpServerError>>>=None;
+  external {closing=Some(server.close(&mut listener,5000));}
+  match closing {None=>{panic("missing close");},Some(task)=>{take(take(await task));}}
+ }}
+}}
+Out.println("http server done");publish;
