@@ -299,7 +299,7 @@ impl<R: BufRead> Vm<R> {
     fn shared_task_quota(&self) -> bool {
         matches!(
             self.engine.program.language.as_str(),
-            "1.9.20" | "1.9.21" | "1.9.22" | "1.9.23" | "1.9.24" | "2.0.0"
+            "1.9.20" | "1.9.21" | "1.9.22" | "1.9.23" | "1.9.24" | "1.9.25" | "2.0.0"
         )
     }
     pub(super) fn task_instruction_count(&self, id: u64) -> usize {
@@ -506,6 +506,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -832,6 +833,108 @@ impl<R: BufRead> Vm<R> {
                 at,
             )?;
             let operation = self.engine.runtime.start_database(operation, timeout)?;
+            let state = self
+                .scheduler
+                .tasks
+                .get_mut(&handle_id(&task).unwrap())
+                .unwrap();
+            state.external_lease = self.engine.runtime.live_external_lease(operation);
+            state.body = TaskBody::HostOperation(operation);
+            state.phase = TaskPhase::Ready;
+            return Ok(Some(task));
+        }
+        if name.starts_with("stdExternalHttpServer") {
+            use rewind::http_server::{Limits, Operation};
+            let invalid =
+                || rewind::Error::InvalidOperation("invalid HTTP server arguments".into());
+            let Some(Value::Int(timeout)) = args.last() else {
+                return Err(invalid());
+            };
+            let (operation, result_type) = if name == "stdExternalHttpServerListen" {
+                let [Value::Text(address), Value::Int(port), Value::Int(body), Value::Int(connections), Value::Int(lifetime), _] =
+                    args
+                else {
+                    return Err(invalid());
+                };
+                (
+                    Operation::Listen {
+                        address: address.clone(),
+                        port: *port,
+                        limits: Limits {
+                            body_bytes: usize::try_from(*body).unwrap_or(usize::MAX),
+                            connections: usize::try_from(*connections).unwrap_or(usize::MAX),
+                            lifetime_ms: u64::try_from(*lifetime).unwrap_or(u64::MAX),
+                        },
+                    },
+                    "Result<HttpServer,HttpServerError>",
+                )
+            } else {
+                let resource = self.resolve(&args[0]);
+                let id = self.engine.runtime.check_native(&resource)? as usize;
+                match name {
+                    "stdExternalHttpServerNext" => {
+                        let Value::Struct(_, fields) = resource else {
+                            return Err(invalid());
+                        };
+                        let Some(Value::Int(max_bytes)) = fields.get("maxBytes") else {
+                            return Err(invalid());
+                        };
+                        (
+                            Operation::Next {
+                                server: id,
+                                max_bytes: usize::try_from(*max_bytes).unwrap_or(usize::MAX),
+                            },
+                            "Result<HttpServerRequest,HttpServerError>",
+                        )
+                    }
+                    "stdExternalHttpServerRespond" => {
+                        let [_, Value::Int(status), header_value, Value::Bytes(body), _] = args
+                        else {
+                            return Err(invalid());
+                        };
+                        let header_value = self.resolve(header_value);
+                        let Some(Value::TypedList(_, values)) = v05::unfrozen(&header_value) else {
+                            return Err(invalid());
+                        };
+                        let mut headers = Vec::new();
+                        for value in values.iter() {
+                            let Value::Struct(_, fields) = value else {
+                                return Err(invalid());
+                            };
+                            let (Some(Value::Text(name)), Some(Value::Bytes(value))) =
+                                (fields.get("name"), fields.get("value"))
+                            else {
+                                return Err(invalid());
+                            };
+                            headers.push((name.clone(), value.as_ref().clone()));
+                        }
+                        (
+                            Operation::Respond {
+                                request: id,
+                                status: *status,
+                                headers,
+                                body: body.clone(),
+                            },
+                            "Result<Unit,HttpServerError>",
+                        )
+                    }
+                    "stdExternalHttpServerClose" | "stdExternalHttpServerCloseRequest" => (
+                        Operation::Close { resource: id },
+                        "Result<Unit,HttpServerError>",
+                    ),
+                    _ => return Err(invalid()),
+                }
+            };
+            let task = self.new_action(
+                TaskBody::HostOperation(usize::MAX),
+                result_type.into(),
+                Vec::new(),
+                at,
+            )?;
+            let operation = self
+                .engine
+                .runtime
+                .start_http_server(operation, u64::try_from(*timeout).unwrap_or(u64::MAX))?;
             let state = self
                 .scheduler
                 .tasks
@@ -1177,6 +1280,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1280,6 +1384,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) =>
                 {
@@ -1352,6 +1457,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) =>
                 {
@@ -1451,6 +1557,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) =>
                 {
@@ -1530,6 +1637,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) =>
                 {
@@ -1606,6 +1714,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) =>
                 {
@@ -1708,6 +1817,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -1797,6 +1907,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) =>
                 {
@@ -1863,6 +1974,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.22"
                                         | "1.9.23"
                                         | "1.9.24"
+                                        | "1.9.25"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -1943,6 +2055,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
@@ -2033,6 +2146,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -2135,6 +2249,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -2238,6 +2353,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.22"
                         | "1.9.23"
                         | "1.9.24"
+                        | "1.9.25"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -2529,6 +2645,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.22"
                             | "1.9.23"
                             | "1.9.24"
+                            | "1.9.25"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -2810,6 +2927,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.22"
                         | "1.9.23"
                         | "1.9.24"
+                        | "1.9.25"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -2932,6 +3050,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -3082,6 +3201,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.22"
                     | "1.9.23"
                     | "1.9.24"
+                    | "1.9.25"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -3180,6 +3300,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.22"
                 | "1.9.23"
                 | "1.9.24"
+                | "1.9.25"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
@@ -3362,6 +3483,9 @@ fn database_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Valu
     Ok(Value::Result(Ok(Box::new(value))))
 }
 fn http_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
+    if json["adapter"] == "server" {
+        return http_server_value(json, runtime);
+    }
     if json["adapter"] == "tcp" {
         return tcp_value(json, runtime);
     }
@@ -3474,6 +3598,102 @@ fn http_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
     )))))
 }
 
+fn http_server_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let invalid = || Error::InvalidOperation("ReplayMismatch: invalid HTTP server response".into());
+    if let Some(error) = json.get("error") {
+        return Ok(Value::Result(Err(Box::new(Value::Struct(
+            "HttpServerError".into(),
+            BTreeMap::from([
+                (
+                    "code".into(),
+                    Value::Text(error["code"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "phase".into(),
+                    Value::Text(error["phase"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "status".into(),
+                    Value::Int(error["status"].as_i64().ok_or_else(invalid)?),
+                ),
+            ]),
+        )))));
+    }
+    let value = if let Some(id) = json.get("server") {
+        runtime.native_value(
+            "HttpServer",
+            id.as_u64().ok_or_else(invalid)?,
+            BTreeMap::from([
+                (
+                    "address".into(),
+                    Value::Text(json["address"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "port".into(),
+                    Value::Int(json["port"].as_i64().ok_or_else(invalid)?),
+                ),
+                (
+                    "maxBytes".into(),
+                    Value::Int(json["maxBytes"].as_i64().ok_or_else(invalid)?),
+                ),
+            ]),
+        )?
+    } else if let Some(id) = json.get("request") {
+        let mut fields = BTreeMap::new();
+        for key in ["method", "target", "path", "query"] {
+            fields.insert(
+                key.into(),
+                Value::Text(json[key].as_str().ok_or_else(invalid)?.into()),
+            );
+        }
+        let mut headers = Vec::new();
+        for header in json["headers"].as_array().ok_or_else(invalid)? {
+            headers.push(Value::Struct(
+                "HttpHeader".into(),
+                BTreeMap::from([
+                    (
+                        "name".into(),
+                        Value::Text(header["name"].as_str().ok_or_else(invalid)?.into()),
+                    ),
+                    (
+                        "value".into(),
+                        Value::Bytes(Arc::new(
+                            STANDARD
+                                .decode(header["value"].as_str().ok_or_else(invalid)?)
+                                .map_err(|_| invalid())?,
+                        )),
+                    ),
+                ]),
+            ));
+        }
+        fields.insert(
+            "headers".into(),
+            v05::frozen(
+                Value::TypedList("HttpHeader".into(), headers.into()),
+                runtime,
+            ),
+        );
+        fields.insert(
+            "body".into(),
+            Value::Bytes(Arc::new(
+                STANDARD
+                    .decode(json["body"].as_str().ok_or_else(invalid)?)
+                    .map_err(|_| invalid())?,
+            )),
+        );
+        runtime.native_value(
+            "HttpServerRequest",
+            id.as_u64().ok_or_else(invalid)?,
+            fields,
+        )?
+    } else if json["replied"] == true || json["closed"] == true {
+        Value::Null
+    } else {
+        return Err(invalid());
+    };
+    Ok(Value::Result(Ok(Box::new(value))))
+}
 fn tcp_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
     use base64::{engine::general_purpose::STANDARD, Engine};
     let invalid = || Error::InvalidOperation("ReplayMismatch: invalid TCP response".into());

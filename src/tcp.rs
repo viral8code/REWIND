@@ -500,7 +500,7 @@ impl Runtime {
         }
         Ok(id)
     }
-    fn protect_tcp_request(&mut self, fields: &[&[u8]]) -> Result<()> {
+    pub(crate) fn protect_tcp_request(&mut self, fields: &[&[u8]]) -> Result<()> {
         let pattern_bytes = self
             .sensitive_values
             .iter()

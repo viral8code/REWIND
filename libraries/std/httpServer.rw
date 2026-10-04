@@ -1,0 +1,19 @@
+effects {external,network,tasks};
+// @api listen cost O(configured connection capacity); reserves buffers before binding, at most four listeners.
+// @api listen failure HttpServerError; numeric bind address, port 0 chooses a free port. Plain HTTP/1.1; physical connections cannot be restored.
+pub fn listen(address:String,port:Int,deadlineMillis:Int)->Task<Result<HttpServer,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerListen(address,port,65536,8,30000,deadlineMillis);}
+// @api configured cost O(maxBodyBytes * maxConnections); bounded request/response bodies, headers and queue.
+// @api configured failure HttpServerError; body 1..1048576 bytes, connections 1..8, whole connection lifetime 1..120000 ms, deadline 1..120000 ms.
+pub fn configured(address:String,port:Int,maxBodyBytes:Int,maxConnections:Int,lifetimeMillis:Int,deadlineMillis:Int)->Task<Result<HttpServer,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerListen(address,port,maxBodyBytes,maxConnections,lifetimeMillis,deadlineMillis);}
+// @api next cost O(request bytes); one outstanding wait per server. Request path/query retain URI encoding.
+// @api next failure HttpServerError; cancellation ends this wait, leaving the listener available; closing the listener cancels pending waits.
+pub fn next(server:&mut HttpServer,deadlineMillis:Int)->Task<Result<HttpServerRequest,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerNext(server,deadlineMillis);}
+// @api respond cost O(header bytes); body storage is shared with the transport; each request accepts one response.
+// @api respond failure HttpServerError; success means queued, not peer processing. No automatic retry; restored task receipts never resend. Framing headers are managed by Hyper.
+pub fn respond(request:&mut HttpServerRequest,status:Int,headers:Frozen<List<HttpHeader>>,body:Bytes,deadlineMillis:Int)->Task<Result<Unit,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerRespond(request,status,headers,body,deadlineMillis);}
+// @api close cost O(active connections and requests); aborts all physical connections and releases pending requests.
+// @api close failure HttpServerError; neither explicit close nor scope exit can be undone by revert.
+pub fn close(server:&mut HttpServer,deadlineMillis:Int)->Task<Result<Unit,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerClose(server,deadlineMillis);}
+// @api closeRequest cost O(1); releases a request without an application reply; an active peer receives 503.
+// @api closeRequest failure HttpServerError; a consumed/disconnected request cannot be replied to again.
+pub fn closeRequest(request:&mut HttpServerRequest,deadlineMillis:Int)->Task<Result<Unit,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerCloseRequest(request,deadlineMillis);}

@@ -101,6 +101,7 @@ pub(crate) enum Resource {
     Database(usize),
     Http(usize),
     Tcp(usize),
+    Server(usize),
 }
 pub(crate) struct LiveEntry {
     pub(crate) entry: Entry,
@@ -161,6 +162,9 @@ impl Runtime {
             if !live.claimed {
                 for resource in live.resources {
                     match resource {
+                        Resource::Server(id) => {
+                            self.close_native_resource(id as u64)?;
+                        }
                         Resource::Tcp(id) => {
                             self.close_native_resource(id as u64)?;
                         }
@@ -250,6 +254,12 @@ impl Runtime {
                     live.resources.push(Resource::Database(id as usize));
                 }
             }
+        } else if result["adapter"] == "server" {
+            for key in ["server", "request"] {
+                if let Some(id) = result[key].as_u64() {
+                    live.resources.push(Resource::Server(id as usize));
+                }
+            }
         } else if result["adapter"] == "tcp" {
             if let Some(id) = result["socket"].as_u64() {
                 live.resources.push(Resource::Tcp(id as usize));
@@ -275,7 +285,13 @@ impl Runtime {
                 .as_ref()
                 .is_some_and(|host| host.contains_job(id));
             let tcp = self.tcp_host.as_ref().is_some_and(|h| h.contains_job(id));
-            let result = if tcp {
+            let server = self
+                .http_server_host
+                .as_ref()
+                .is_some_and(|h| h.contains_job(id));
+            let result = if server {
+                self.http_server_host.as_mut().and_then(|h| h.poll(id))
+            } else if tcp {
                 self.tcp_host.as_mut().and_then(|h| h.poll(id))
             } else if database {
                 self.database_host.as_mut().and_then(|host| host.poll(id))
@@ -284,7 +300,9 @@ impl Runtime {
             };
             if let Some(result) = result {
                 self.capture_live_resources(id, &result);
-                let result = if tcp {
+                let result = if server {
+                    self.sanitise_http_server_result(result)
+                } else if tcp {
                     self.sanitise_tcp_result(result)
                 } else if database {
                     self.sanitise_database_result(result)

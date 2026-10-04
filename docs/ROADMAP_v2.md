@@ -133,3 +133,6 @@ compiled 配布時に development manifest が残っていると、run_compiled 
 1.9.23 は bounded な平文 TCP の接続・双方向 chunk・半閉鎖・EOF を追加する。物理資源の寿命、部分送信、checkpoint receipt、secret の分割受信、予算と source-free / disconnected replay を検証する。[契約と残る作業](REWIND_v1.9.23.md)を参照する。
 
 1.9.24 は TCP に明示的な TLS factory を追加し、成熟した Rustls の証明書 / hostname 検証、CA、寿命、checkpoint と両 OS の SDK を検証する。[契約と残る作業](REWIND_v1.9.24.md)を参照する。
+
+
+1.9.25 は Hyper を用いた bounded HTTP/1 server と pure な完全一致 router を追加する。物理 response の再送禁止、recorded / live の入力と資源寿命、source-free と disconnected replay、両 OS SDK を検証する。server TLS / private request credentials、GUI / PostgreSQL の統合、長い数値 kernel の分割、一般 container / snapshot の会計と残る v2 の条件は継続する。

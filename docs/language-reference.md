@@ -556,3 +556,8 @@ imported function は entry の無関係な global variable を裸の名前で�
 ## TCP TLS（v1.9.24）
 
 `std.tcp.connectTls` は system trust、`configuredTls` は明示的な PEM roots を使う。返り値は `Task<Result<TcpSocket,TcpError>>`、既存の read / write / shutdownWrite / close と組み合わせる。verify を無効にするオプションはない。詳細は [TLS 仕様](REWIND_v1.9.24.md)を参照する。
+
+
+## HTTP server / router（v1.9.25）
+
+`std.httpServer.listen` / `configured` で listener を取得し、`next` で affine な要求を待ち、`respond` で一回だけ応答を queue する。factory は external region、await はその外で行う。`external live` も利用できる。`std.httpRouter.find` は method / URI path の完全一致により最初の Route を返す。物理応答・接続寿命・size / concurrency の上限は [server 仕様](REWIND_v1.9.25.md) と [例](../examples/http-server/README.md) を参照する。
