@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
+    net::{IpAddr, SocketAddr, ToSocketAddrs},
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc, Arc, Mutex as StdMutex, OnceLock,
@@ -12,29 +13,48 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpStream,
-    },
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf},
+    net::TcpStream,
     sync::Mutex,
     task::JoinHandle,
 };
+trait Transport: AsyncRead + AsyncWrite + Unpin + Send {}
+impl<T: AsyncRead + AsyncWrite + Unpin + Send> Transport for T {}
+const WORKER_MEMORY: usize = 16 * 1024 * 1024;
+const TLS_MEMORY: usize = 4 * 1024 * 1024;
 const FRAME: usize = 65536;
 const SOCKET_MEMORY: usize = 1024 * 1024;
 const JOB_MEMORY: usize = 2 * FRAME + 4096;
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Operation {
-    Connect { host: String, port: u16 },
-    Read { socket: usize, limit: usize },
-    Write { socket: usize, body: Arc<Vec<u8>> },
-    ShutdownWrite { socket: usize },
-    Close { socket: usize },
+    Connect {
+        host: String,
+        port: u16,
+    },
+    Tls {
+        host: String,
+        port: u16,
+        ca: Arc<Vec<u8>>,
+    },
+    Read {
+        socket: usize,
+        limit: usize,
+    },
+    Write {
+        socket: usize,
+        body: Arc<Vec<u8>>,
+    },
+    ShutdownWrite {
+        socket: usize,
+    },
+    Close {
+        socket: usize,
+    },
 }
 impl Operation {
     fn socket(&self) -> Option<usize> {
         match self {
-            Self::Connect { .. } => None,
+            Self::Connect { .. } | Self::Tls { .. } => None,
             Self::Read { socket, .. }
             | Self::Write { socket, .. }
             | Self::ShutdownWrite { socket }
@@ -54,6 +74,7 @@ impl Operation {
     fn size(&self) -> usize {
         match self {
             Self::Connect { host, .. } => host.len(),
+            Self::Tls { host, ca, .. } => host.len() + ca.len(),
             Self::Write { body, .. } => body.len(),
             _ => 32,
         }
@@ -63,7 +84,7 @@ impl Operation {
             return Err("TcpDeadline");
         }
         match self {
-            Self::Connect { host, port }
+            Self::Connect { host, port } | Self::Tls { host, port, .. }
                 if host.is_empty()
                     || host.len() > 253
                     || *port == 0
@@ -71,6 +92,7 @@ impl Operation {
             {
                 Err("TcpAddress")
             }
+            Self::Tls { ca, .. } if ca.len() > 65536 => Err("TcpTlsLimit"),
             Self::Read { limit, .. } if *limit == 0 || *limit > FRAME => Err("TcpLimit"),
             Self::Write { body, .. } if body.len() > FRAME => Err("TcpLimit"),
             _ => Ok(()),
@@ -81,11 +103,12 @@ pub(crate) fn failure(code: &str, phase: &str, accepted: usize) -> Value {
     json!({"adapter":"tcp","error":{"code":code,"phase":phase,"acceptedBytes":accepted}})
 }
 struct Socket {
-    read: Arc<Mutex<OwnedReadHalf>>,
-    write: Arc<Mutex<OwnedWriteHalf>>,
+    read: Arc<Mutex<ReadHalf<Box<dyn Transport>>>>,
+    write: Arc<Mutex<WriteHalf<Box<dyn Transport>>>>,
     matcher: Arc<StdMutex<SecretMatcher>>,
     secret_count: usize,
     matcher_memory: usize,
+    tls_memory: usize,
     read_busy: bool,
     write_busy: bool,
     write_closed: bool,
@@ -102,6 +125,7 @@ struct Job {
     accepted: Arc<AtomicUsize>,
     closed: bool,
     memory: usize,
+    tls_memory: usize,
 }
 pub(crate) struct Host {
     runtime: &'static tokio::runtime::Runtime,
@@ -118,6 +142,8 @@ impl Host {
             .get_or_init(|| {
                 tokio::runtime::Builder::new_multi_thread()
                     .worker_threads(2)
+                    .max_blocking_threads(8)
+                    .thread_stack_size(1024 * 1024)
                     .enable_all()
                     .build()
                     .map_err(|_| "TcpWorker")
@@ -145,15 +171,21 @@ impl Host {
         self.sockets.keys()
     }
     pub(crate) fn reserved_bytes(&self) -> usize {
-        8 * 1024 * 1024
+        WORKER_MEMORY
             + self.admission
             + self
                 .sockets
                 .values()
-                .map(|s| SOCKET_MEMORY + s.matcher_memory)
+                .map(|s| SOCKET_MEMORY + s.matcher_memory + s.tls_memory)
                 .sum::<usize>()
             + self.jobs.values().map(|j| j.memory).sum::<usize>()
-            + self.retired.iter().map(|(_, memory)| memory).sum::<usize>()
+            + self
+                .retired
+                .iter()
+                .filter(|(task, _)| !task.is_finished())
+                .map(|(_, memory)| memory)
+                .sum::<usize>()
+            + self.retired.len() * 64
     }
     fn reap(&mut self) {
         self.retired.retain(|(task, _)| !task.is_finished());
@@ -170,9 +202,14 @@ impl Host {
         if self.jobs.len() + self.retired.len() >= 8 {
             return Err("TcpBusy");
         }
+        let tls_memory = if matches!(operation, Operation::Tls { .. }) {
+            TLS_MEMORY
+        } else {
+            0
+        };
         let socket = operation.socket();
         let reading = operation.read();
-        if matches!(operation, Operation::Connect { .. })
+        if matches!(operation, Operation::Connect { .. } | Operation::Tls { .. })
             && self.sockets.len() + self.jobs.values().filter(|j| j.socket.is_none()).count() >= 8
         {
             return Err("TcpSocketLimit");
@@ -228,16 +265,32 @@ impl Host {
         } else {
             None
         };
+        let (tls_config, server_name) = if let Operation::Tls { host, ca, .. } = &operation {
+            let name =
+                rustls::pki_types::ServerName::try_from(host.clone()).map_err(|_| "TcpTlsName")?;
+            (Some(client_config(ca)?), Some(name))
+        } else {
+            (None, None)
+        };
         let deadline = tokio::time::Instant::now() + Duration::from_millis(timeout);
         let handle=self.runtime.spawn(async move {
             let future=async {
                 match operation {
-                    Operation::Connect{host,port}=>match TcpStream::connect((host.as_str(),port)).await {
-                        Err(_)=>Completed{wire:failure("TcpConnect","NotConnected",0),opened:None},
-                        Ok(stream)=>{
-                            let peer=stream.peer_addr().map(|a|a.to_string()).unwrap_or_default();
-                            let _=stream.set_nodelay(true);let (read,write)=stream.into_split();
-                            Completed{wire:json!({"adapter":"tcp","socket":id,"peer":peer}),opened:Some(Socket{read:Arc::new(Mutex::new(read)),write:Arc::new(Mutex::new(write)),matcher:Arc::new(StdMutex::new(connect_matcher.unwrap())),secret_count,matcher_memory,read_busy:false,write_busy:false,write_closed:false})}
+                    Operation::Connect{host,port}|Operation::Tls{host,port,..}=> {
+                        match connect_socket(host,port).await {
+                            Err(code)=>Completed{wire:failure(code,"NotConnected",0),opened:None},
+                            Ok(stream)=> {
+                                let peer=stream.peer_addr().map(|a|a.to_string()).unwrap_or_default();
+                                let _=stream.set_nodelay(true);
+                                let stream:Box<dyn Transport>=if let Some(config)=tls_config {
+                                    match tokio_rustls::TlsConnector::from(config).connect(server_name.unwrap(),stream).await {
+                                        Ok(stream)=>Box::new(stream),
+                                        Err(_)=>return Completed{wire:failure("TcpTls","NotConnected",0),opened:None},
+                                    }
+                                } else {Box::new(stream)};
+                                let (read,write)=tokio::io::split(stream);
+                                Completed {wire:json!({"adapter":"tcp","socket":id,"peer":peer}),opened:Some(Socket {read:Arc::new(Mutex::new(read)),write:Arc::new(Mutex::new(write)),matcher:Arc::new(StdMutex::new(connect_matcher.unwrap())),secret_count,matcher_memory,tls_memory,read_busy:false,write_busy:false,write_closed:false})}
+                            }
                         }
                     },
                     Operation::Read{socket,limit}=>{
@@ -271,9 +324,11 @@ impl Host {
                 read: reading,
                 accepted,
                 closed: false,
+                tls_memory,
                 memory: JOB_MEMORY
                     + matcher_memory
-                    + if socket.is_none() { SOCKET_MEMORY } else { 0 },
+                    + if socket.is_none() { SOCKET_MEMORY } else { 0 }
+                    + tls_memory,
             },
         );
         Ok(())
@@ -293,7 +348,7 @@ impl Host {
         self.retired.push((
             job.handle,
             job.memory.saturating_sub(if job.socket.is_none() {
-                SOCKET_MEMORY
+                SOCKET_MEMORY + job.tls_memory
             } else {
                 0
             }),
@@ -383,6 +438,9 @@ impl Runtime {
         match &operation {
             Operation::Connect { host, .. } => self.protect_tcp_request(&[host.as_bytes()])?,
             Operation::Write { body, .. } => self.protect_tcp_request(&[body.as_slice()])?,
+            Operation::Tls { host, ca, .. } => {
+                self.protect_tcp_request(&[host.as_bytes(), ca.as_slice()])?
+            }
             _ => {}
         }
         self.check_native_allocation(size.saturating_mul(6).saturating_add(4096))?;
@@ -393,6 +451,11 @@ impl Runtime {
         if fresh {
             let submitted = (|| -> std::result::Result<(), &'static str> {
                 operation.validate(timeout)?;
+                let tls_memory = if matches!(operation, Operation::Tls { .. }) {
+                    TLS_MEMORY
+                } else {
+                    0
+                };
                 if let Operation::Close { socket } = operation {
                     if !self
                         .tcp_host
@@ -409,12 +472,13 @@ impl Runtime {
                 }
                 let patterns = self.http_secret_patterns().map_err(|_| "TcpSecretLimit")?;
                 if self.tcp_host.is_none() {
-                    self.check_native_allocation(8 * 1024 * 1024)
+                    self.check_native_allocation(WORKER_MEMORY)
                         .map_err(|_| "TcpMemoryLimit")?;
                     self.tcp_host = Some(Host::new()?);
                 }
                 self.tcp_host.as_mut().unwrap().reap();
-                self.tcp_host.as_mut().unwrap().admission = JOB_MEMORY
+                self.tcp_host.as_mut().unwrap().admission = tls_memory
+                    + JOB_MEMORY
                     + SOCKET_MEMORY
                     + 2 * patterns
                         .iter()
@@ -505,6 +569,9 @@ async fn write_body<S: tokio::io::AsyncWrite + Unpin>(
             }
         }
     }
+    if stream.flush().await.is_err() {
+        return failure("TcpWrite", "Unknown", accepted.load(Ordering::Relaxed));
+    }
     json!({"adapter":"tcp","written":accepted.load(Ordering::Relaxed)})
 }
 #[cfg(test)]
@@ -546,6 +613,141 @@ mod tests {
             let value = write_body(&mut sender, b"never sent", &accepted).await;
             assert_eq!(value["error"]["code"], "TcpWrite");
             assert_eq!(value["error"]["acceptedBytes"], 0);
+        });
+    }
+}
+
+fn client_config(ca: &[u8]) -> std::result::Result<Arc<rustls::ClientConfig>, &'static str> {
+    use rustls::pki_types::{pem::PemObject, CertificateDer};
+    let mut roots = rustls::RootCertStore::empty();
+    // Custom trust is explicit and bounded; native roots are shared by the default connector.
+    if ca.is_empty() {
+        static CONFIG: OnceLock<std::result::Result<Arc<rustls::ClientConfig>, &'static str>> =
+            OnceLock::new();
+        return CONFIG
+            .get_or_init(|| {
+                let mut roots = rustls::RootCertStore::empty();
+                roots.add_parsable_certificates(rustls_native_certs::load_native_certs().certs);
+                build_config(roots)
+            })
+            .clone();
+    }
+    for certificate in CertificateDer::pem_slice_iter(ca) {
+        roots
+            .add(certificate.map_err(|_| "TcpTlsCa")?)
+            .map_err(|_| "TcpTlsCa")?;
+    }
+    if roots.is_empty() {
+        return Err("TcpTlsCa");
+    }
+    build_config(roots)
+}
+fn build_config(
+    roots: rustls::RootCertStore,
+) -> std::result::Result<Arc<rustls::ClientConfig>, &'static str> {
+    if roots.is_empty() {
+        return Err("TcpTlsCa");
+    }
+    Ok(Arc::new(
+        rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .map_err(|_| "TcpTls")?
+        .with_root_certificates(roots)
+        .with_no_client_auth(),
+    ))
+}
+
+#[cfg(test)]
+#[path = "tcp/tls_tests.rs"]
+mod tls_tests;
+
+fn spawn_resolution<F>(
+    slots: Arc<tokio::sync::Semaphore>,
+    work: F,
+) -> std::result::Result<JoinHandle<std::result::Result<Vec<SocketAddr>, &'static str>>, &'static str>
+where
+    F: FnOnce() -> std::result::Result<Vec<SocketAddr>, &'static str> + Send + 'static,
+{
+    let permit = slots.try_acquire_owned().map_err(|_| "TcpBusy")?;
+    Ok(tokio::task::spawn_blocking(move || {
+        // A cancelled caller cannot release admission while getaddrinfo is still running.
+        let _permit = permit;
+        work()
+    }))
+}
+async fn connect_socket(host: String, port: u16) -> std::result::Result<TcpStream, &'static str> {
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return TcpStream::connect(SocketAddr::new(ip, port))
+            .await
+            .map_err(|_| "TcpConnect");
+    }
+    static SLOTS: OnceLock<Arc<tokio::sync::Semaphore>> = OnceLock::new();
+    let slots = SLOTS
+        .get_or_init(|| Arc::new(tokio::sync::Semaphore::new(8)))
+        .clone();
+    let lookup = spawn_resolution(slots, move || {
+        let addresses = (host.as_str(), port)
+            .to_socket_addrs()
+            .map_err(|_| "TcpResolve")?
+            .take(65)
+            .collect::<Vec<_>>();
+        if addresses.len() > 64 {
+            return Err("TcpResolveLimit");
+        }
+        if addresses.is_empty() {
+            return Err("TcpResolve");
+        }
+        Ok(addresses)
+    })?;
+    let addresses = lookup.await.map_err(|_| "TcpResolve")??;
+    TcpStream::connect(addresses.as_slice())
+        .await
+        .map_err(|_| "TcpConnect")
+}
+#[cfg(test)]
+mod dns_tests {
+    use super::*;
+    #[test]
+    fn cancelled_dns_waits_keep_bounded_admission_until_the_blocking_work_finishes() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .max_blocking_threads(8)
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let slots = Arc::new(tokio::sync::Semaphore::new(8));
+            let started = Arc::new(AtomicUsize::new(0));
+            let mut releases = Vec::new();
+            for _ in 0..8 {
+                let (sender, receiver) = mpsc::channel();
+                releases.push(sender);
+                let started = started.clone();
+                let waiting = spawn_resolution(slots.clone(), move || {
+                    started.fetch_add(1, Ordering::SeqCst);
+                    receiver.recv_timeout(Duration::from_secs(5)).unwrap();
+                    Ok(vec![SocketAddr::from(([127, 0, 0, 1], 1234))])
+                })
+                .unwrap();
+                drop(waiting);
+            }
+            let until = std::time::Instant::now() + Duration::from_secs(5);
+            while started.load(Ordering::SeqCst) != 8 {
+                assert!(std::time::Instant::now() < until);
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+            assert_eq!(slots.available_permits(), 0);
+            let refused =
+                spawn_resolution(slots.clone(), || panic!("no extra resolver should start"));
+            assert!(matches!(refused, Err("TcpBusy")));
+            for release in releases {
+                release.send(()).unwrap();
+            }
+            while slots.available_permits() != 8 {
+                assert!(std::time::Instant::now() < until);
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
         });
     }
 }

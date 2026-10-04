@@ -64,6 +64,7 @@ fn proposal(root: &Path) -> Result<Json> {
             | "1.9.21"
             | "1.9.22"
             | "1.9.23"
+            | "1.9.24"
             | "2.0.0"
     ) {
         return Err(Error::InvalidOperation(

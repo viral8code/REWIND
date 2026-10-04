@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.23",
+  "language": "1.9.24",
   "symbols": {
     "fn:close": {
       "async": false,
@@ -19,6 +19,24 @@
       ],
       "return": "Task<Result<Unit,TcpError>>"
     },
+    "fn:configuredTls": {
+      "async": false,
+      "cost": "O(host bytes + PEM trust roots); a nonempty PEM bundle supplies explicit trust roots, up to 65536 bytes.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "TcpError; no hostname/certificate bypass. Empty PEM uses system roots. Client certificate authentication is not provided.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Int",
+        "Bytes",
+        "Int"
+      ],
+      "return": "Task<Result<TcpSocket,TcpError>>"
+    },
     "fn:connect": {
       "async": false,
       "cost": "O(host bytes); at most eight sockets and eight pending operations.",
@@ -28,6 +46,23 @@
         "tasks"
       ],
       "failure": "TcpError; plain TCP, no automatic application retry, deadline 1..120000 ms.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Int",
+        "Int"
+      ],
+      "return": "Task<Result<TcpSocket,TcpError>>"
+    },
+    "fn:connectTls": {
+      "async": false,
+      "cost": "O(host bytes + trust roots); verifies hostname and certificate with the system trust store.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "TcpError; TLS 1.2/1.3, one deadline includes connect and handshake, no automatic application retry.",
       "generics": [],
       "parameters": [
         "String",
