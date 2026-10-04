@@ -489,6 +489,17 @@ impl Runtime {
         {
             state["gui_windows"] = json!({"cursor":self.state.gui_windows_cursor,"observed":self.gui_window_observations.len(),"pending":self.state.gui_windows_pending.keys().collect::<Vec<_>>(),"published":self.gui_window_frames.iter().map(|(id,f)|json!({"id":id,"title":f.title,"width":f.width,"height":f.height,"widgets":f.items.len()})).collect::<Vec<_>>()});
         }
+        if self.external_live_used {
+            state["external_live"] = json!({
+                "retained_operations":self.external_live_entries.len(),
+                "pending_operations":self.external_live_entries.values().filter(|v|v.entry.pending).count(),
+                "recorded_operations":self.external_entries.len(),
+                "recorded_polls":self.external_polls.len(),
+                "native_resources":self.native_resource_count(),
+                "reservations_and_metadata_bytes":self.external_memory_bytes,
+                "outcome_bytes":self.external_live_entries.values().filter_map(|v|v.entry.outcome.as_ref()).map(|v|v.len()).sum::<usize>()
+            });
+        }
         state
     }
 }

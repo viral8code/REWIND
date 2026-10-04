@@ -172,8 +172,9 @@ pub(super) fn validate(p: &Program) -> Result<()> {
                 return Err(e);
             }
             match &s.kind {
-                StmtKind::External(_,b)=>{
+                StmtKind::External(mode,b)=>{
                     if !language_at_least(&p.language,"1.5.0"){return Err(diagnostic(&s.at,"external requires language 1.5.0"));}
+                    if mode.is_live() && !language_at_least(&p.language,"1.9.21") {return Err(diagnostic(&s.at,"external live requires language 1.9.21"));}
                     if region {return Err(diagnostic(&s.at,"ExternalBoundary: nested external region"));}
                     body(p,b,true,true,needs)?;
                 }

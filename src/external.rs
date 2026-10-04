@@ -5,6 +5,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 const LIMIT: usize = 16 * 1024 * 1024;
 const ENTRIES: usize = 1_000_000;
+mod live;
+pub use live::Lease as LiveLease;
+pub(crate) use live::LiveEntry;
 /// Private immutable observation storage. The public wire remains a JSON string.
 #[derive(Clone)]
 pub(crate) struct Outcome {
@@ -29,7 +32,7 @@ impl Outcome {
             digest,
         }
     }
-    fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.len
     }
     pub(crate) fn read(&self) -> Result<Vec<u8>> {
@@ -141,7 +144,35 @@ fn invalid(s: &str) -> Error {
     Error::InvalidOperation(s.into())
 }
 impl Runtime {
+    pub(crate) fn external_operation_pending(&self, id: usize) -> bool {
+        self.external_entries
+            .get(id)
+            .is_some_and(|entry| entry.pending)
+            || self
+                .external_live_entries
+                .get(&id)
+                .is_some_and(|live| live.entry.pending)
+    }
+    pub fn configure_live_external(&mut self, allowed: bool) {
+        self.external_live_allowed = allowed;
+    }
+    pub fn enter_external_live_task(&mut self, owner: u64) -> Result<()> {
+        self.require_internal()?;
+        if self.replaying || !self.external_live_allowed {
+            return Err(invalid("ExternalLiveRecordingUnsupported: live effects cannot be replayed or fully recorded"));
+        }
+        self.external_depth = 1;
+        self.external_owner = owner;
+        self.external_live = true;
+        self.external_live_used = true;
+        Ok(())
+    }
     pub(crate) fn export_external_entries(&self) -> Result<&[Entry]> {
+        if self.external_live_used {
+            return Err(invalid(
+                "ExternalLiveRecordingUnsupported: live execution has no complete observation tape",
+            ));
+        }
         let bytes = self.external_entries.iter().fold(0usize, |n, e| {
             n.saturating_add(e.reservation).saturating_add(192)
         });
@@ -244,6 +275,7 @@ impl Runtime {
         }
         self.external_depth = 0;
         self.external_owner = 0;
+        self.external_live = false;
         Ok(())
     }
     pub fn external_operation(
@@ -267,6 +299,31 @@ impl Runtime {
                     "ExternalSecretRequest: use an opaque credential alias",
                 ));
             }
+        }
+        if self.external_live {
+            self.check_native_allocation(max_result.saturating_mul(16).saturating_add(192))?;
+            self.charge_native_work(max_result.saturating_add(1))?;
+            let mut buffer = Vec::new();
+            buffer
+                .try_reserve_exact(max_result)
+                .map_err(|_| invalid("ExternalAllocation"))?;
+            let result = host();
+            struct Bounded<'a>(&'a mut Vec<u8>, usize);
+            impl std::io::Write for Bounded<'_> {
+                fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                    if self.0.len().saturating_add(bytes.len()) > self.1 {
+                        return Err(std::io::Error::other("external live result limit"));
+                    }
+                    self.0.extend_from_slice(bytes);
+                    Ok(bytes.len())
+                }
+                fn flush(&mut self) -> std::io::Result<()> {
+                    Ok(())
+                }
+            }
+            serde_json::to_writer(Bounded(&mut buffer, max_result), &result)
+                .map_err(|_| invalid("ExternalOutcomeUnknown: live result exceeds reservation"))?;
+            return Ok(result);
         }
         let mut hash = Sha256::new();
         if self.external_owner != 0 {
@@ -459,6 +516,9 @@ impl Runtime {
         if max_result == 0 || max_result > LIMIT || request.len() > LIMIT {
             return Err(invalid("ExternalLimit"));
         }
+        if self.external_live {
+            return self.begin_live_external(kind, request, max_result);
+        }
         let mut hash = Sha256::new();
         if self.external_owner != 0 {
             hash.update(b"task-external-v1");
@@ -525,10 +585,14 @@ impl Runtime {
         id: usize,
         result: std::result::Result<Value, String>,
     ) -> Result<()> {
-        let entry = self
-            .external_entries
-            .get_mut(id)
-            .ok_or_else(|| invalid("ExternalOperationUnknown"))?;
+        let entry = if id >= ENTRIES {
+            self.external_live_entries
+                .get_mut(&id)
+                .map(|live| &mut live.entry)
+        } else {
+            self.external_entries.get_mut(id)
+        }
+        .ok_or_else(|| invalid("ExternalOperationUnknown"))?;
         if !entry.pending {
             return Ok(());
         }
@@ -551,10 +615,13 @@ impl Runtime {
                 Ok(())
             }
         }
-        serde_json::to_writer(Bounded(&mut buffer, entry.reservation), &result)
-            .map_err(|_| invalid("ExternalOutcomeUnknown: result recording failed"))?;
-        buffer.shrink_to_fit();
+        let serialised = serde_json::to_writer(Bounded(&mut buffer, entry.reservation), &result);
         self.external_memory_bytes = self.external_memory_bytes.saturating_sub(entry.reservation);
+        if serialised.is_err() {
+            entry.reservation = 0;
+            return Err(invalid("ExternalOutcomeUnknown: result recording failed"));
+        }
+        buffer.shrink_to_fit();
         entry.reservation = buffer.len();
         entry.outcome = Some(Outcome::new(buffer));
         self.enforce_budget()?;
@@ -564,6 +631,9 @@ impl Runtime {
         &mut self,
         id: usize,
     ) -> Result<Option<std::result::Result<Value, String>>> {
+        if id >= ENTRIES {
+            return self.poll_live_external(id);
+        }
         if id >= self.external_entries.len() {
             return Err(invalid("ExternalOperationUnknown"));
         }

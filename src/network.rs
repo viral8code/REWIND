@@ -339,7 +339,7 @@ impl crate::Runtime {
         }
     }
     pub fn cancel_http(&mut self, id: usize) -> crate::Result<()> {
-        if self.external_entries.get(id).is_some_and(|e| e.pending) {
+        if self.external_operation_pending(id) {
             if self
                 .database_host
                 .as_ref()
@@ -353,6 +353,7 @@ impl crate::Runtime {
                 .network_host
                 .as_mut()
                 .map_or_else(|| failure("HttpCancelled", "NotSent", 0), |h| h.cancel(id));
+            self.capture_live_resources(id, &result);
             result = self.sanitise_http_result(result);
             self.finish_async_external(id, Ok(result))?;
         }

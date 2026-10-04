@@ -1,0 +1,35 @@
+import std.db as db;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value {Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
+fn execute(connection:&mut DbConnection,sql:String)->Task<Result<Int,DbError>> effects {external,db,tasks,live} {
+ var pending:Option<Task<Result<Int,DbError>>>=None;
+ external live {pending=Some(db.execute(connection,sql,freeze(List<DbValue>()),5000));}
+ match pending {Some(task)=>{return move task;},None=>{panic("missing task");}}
+}
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+external live {opening=Some(db.sqlite(":memory:",false,5000));}
+match opening {None=>{panic("missing task");},Some(task)=>{
+ let connection=take(take(await task));
+ assert_eq(take(take(await execute(&mut connection,"CREATE TABLE values_table(value INTEGER)"))),0);
+ var inserting:Option<Task<Result<Int,DbError>>>=None;
+ external live {inserting=Some(db.execute(&mut connection,"INSERT INTO values_table VALUES (1)",freeze(List<DbValue>()),5000));}
+ commit pending;
+ match inserting {Some(task)=>{assert_eq(take(take(await task)),1);},None=>{panic("missing task");}}
+ revert pending;
+ match inserting {Some(task)=>{assert_eq(take(take(await task)),1);},None=>{panic("missing task");}}
+ drop pending;
+ for i in 0..24 {assert_eq(take(take(await execute(&mut connection,"INSERT INTO values_table VALUES (1)"))),1);}
+ var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+ external live {querying=Some(db.query(&mut connection,"SELECT count(*) AS total FROM values_table",freeze(List<DbValue>()),5000));}
+ match querying {None=>{panic("missing task");},Some(task)=>{
+  let cursor=take(take(await task));
+  var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+  external live {reading=Some(db.next(&mut cursor,1,1048576,5000));}
+  match reading {None=>{panic("missing task");},Some(task)=>{
+   let batch=take(take(await task));assert_eq(take(db.integer(batch.rows.get(0),0)),25);
+  }}
+ }}
+}}
+var cleanup:Option<Task<Result<Unit,DbError>>>=None;
+external live {cleanup=Some(db.waitForCleanup(5000));}
+match cleanup {None=>{panic("missing cleanup");},Some(task)=>{take(take(await task));}}
+Out.println("live sqlite");publish;
