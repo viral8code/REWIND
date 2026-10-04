@@ -330,3 +330,7 @@ Int overflow の既定、型安全、borrow 制約、有限予算を単純に無
 ## v1.9.23 の TCP
 
 `std.tcp` は成熟した Tokio transport と既存の外部観測・affine handle・live lease を接続する。plain TCP と TLS の範囲、短い read、送信受理量と remote processing、deadline / cancel 後の接続切断を区別する。[仕様](REWIND_v1.9.23.md)参照。HTTP server / router と残る v2.0 の受入条件は維持する。
+
+## v1.9.24 の TCP TLS
+
+TLS 1.2 / 1.3 は Rustls / tokio-rustls を利用する。公開 CA、verify-before-application、bounded config の寿命、plaintext の受理量と remote outcome、非復元の物理接続を [仕様](REWIND_v1.9.24.md)に分ける。HTTP server と残る v2.0 の受入条件は継続する。

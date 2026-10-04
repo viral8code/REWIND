@@ -14,3 +14,10 @@ pub fn shutdownWrite(socket:&mut TcpSocket,deadlineMillis:Int)->Task<Result<Unit
 // @api close cost O(pending operations); closes both halves and cancels pending operations.
 // @api close failure TcpError; scope exit also closes the socket. A restored VM handle does not recreate the connection.
 pub fn close(socket:&mut TcpSocket,deadlineMillis:Int)->Task<Result<Unit,TcpError>> effects {external,network,tasks} {return stdExternalTcpClose(socket,deadlineMillis);}
+
+// @api connectTls cost O(host bytes + trust roots); verifies hostname and certificate with the system trust store.
+// @api connectTls failure TcpError; TLS 1.2/1.3, one deadline includes connect and handshake, no automatic application retry.
+pub fn connectTls(host:String,port:Int,deadlineMillis:Int)->Task<Result<TcpSocket,TcpError>> effects {external,network,tasks} {match stdEncode("") {Ok(ca)=>{return stdExternalTcpTls(host,port,ca,deadlineMillis);},Err(_)=>{panic("empty encoding failed");}}}
+// @api configuredTls cost O(host bytes + PEM trust roots); a nonempty PEM bundle supplies explicit trust roots, up to 65536 bytes.
+// @api configuredTls failure TcpError; no hostname/certificate bypass. Empty PEM uses system roots. Client certificate authentication is not provided.
+pub fn configuredTls(host:String,port:Int,ca:Bytes,deadlineMillis:Int)->Task<Result<TcpSocket,TcpError>> effects {external,network,tasks} {return stdExternalTcpTls(host,port,ca,deadlineMillis);}

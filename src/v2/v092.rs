@@ -242,6 +242,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdExternalDbCommit",
         "stdExternalDbRollback",
         "stdExternalDbClose",
+        "stdExternalTcpTls",
         "stdExternalTcpConnect",
         "stdExternalTcpRead",
         "stdExternalTcpWrite",
@@ -331,6 +332,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.21"
             | "1.9.22"
             | "1.9.23"
+            | "1.9.24"
             | "2.0.0"
     ) {
         return Ok(());
@@ -626,6 +628,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.21"
             | "1.9.22"
             | "1.9.23"
+            | "1.9.24"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -707,6 +710,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.21"
                 | "1.9.22"
                 | "1.9.23"
+                | "1.9.24"
                 | "2.0.0"
         )
     {
@@ -714,6 +718,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternal") && !language_at_least(&p.language, "1.5.0") {
         return Err(diagnostic(at, "external operations require language 1.5.0"));
+    }
+    if n == "stdExternalTcpTls" && !language_at_least(&p.language, "1.9.24") {
+        return Err(diagnostic(at, "TCP TLS requires language 1.9.24"));
     }
     if n.starts_with("stdExternalTcp") && !language_at_least(&p.language, "1.9.23") {
         return Err(diagnostic(at, "TCP requires language 1.9.23"));
@@ -802,6 +809,10 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdExternalTcpTls" => (
+            &["String", "Int", "Bytes", "Int"],
+            "Task<Result<TcpSocket,TcpError>>",
+        ),
         "stdExternalTcpConnect" => (
             &["String", "Int", "Int"],
             "Task<Result<TcpSocket,TcpError>>",

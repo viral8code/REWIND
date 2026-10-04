@@ -552,3 +552,7 @@ imported function は entry の無関係な global variable を裸の名前で�
 ## TCP（v1.9.23）
 
 `std.tcp.connect` で `TcpSocket` を取得し、`read`, `write`, `shutdownWrite`, `close` を external region で Task として作成する。await は region 外で行う。必要な permission は `external,network,tasks`、live 方式は追加で `live`。平文 TCP であり、TLS は含まない。read の短い chunk / EOF、送信の確認済み量、非復元の接続寿命と例は [TCP 仕様](REWIND_v1.9.23.md)を参照する。
+
+## TCP TLS（v1.9.24）
+
+`std.tcp.connectTls` は system trust、`configuredTls` は明示的な PEM roots を使う。返り値は `Task<Result<TcpSocket,TcpError>>`、既存の read / write / shutdownWrite / close と組み合わせる。verify を無効にするオプションはない。詳細は [TLS 仕様](REWIND_v1.9.24.md)を参照する。

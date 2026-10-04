@@ -131,3 +131,5 @@ compiled 配布時に development manifest が残っていると、run_compiled 
 1.9.22 は `std.guiWindows.nextEventAnyLiveAsync` を追加する。既存の記録付き GUI 入力と区別し、保持された Task の復元、新規入力、main thread、キャンセル、結果の寿命を検証する。[契約と残る作業](REWIND_v1.9.22.md)を参照する。
 
 1.9.23 は bounded な平文 TCP の接続・双方向 chunk・半閉鎖・EOF を追加する。物理資源の寿命、部分送信、checkpoint receipt、secret の分割受信、予算と source-free / disconnected replay を検証する。[契約と残る作業](REWIND_v1.9.23.md)を参照する。
+
+1.9.24 は TCP に明示的な TLS factory を追加し、成熟した Rustls の証明書 / hostname 検証、CA、寿命、checkpoint と両 OS の SDK を検証する。[契約と残る作業](REWIND_v1.9.24.md)を参照する。
