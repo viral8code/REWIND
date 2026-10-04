@@ -538,3 +538,5 @@ v1.9.10 の `std.task.yieldNow()` は追加 Task を作らず明示的に VM tas
 ## v1.9.17: module globals と optimizer
 
 imported function は entry の無関係な global variable を裸の名前で参照できない。module 内の constant と明示した import は維持し、local に出ていた誤った shadow warning を解消する。旧 language mode の判定は維持する。SGD / Adam の signature は同じで、native pass により formula ごとの一時配列を省く。[仕様](REWIND_v1.9.17.md)。
+
+1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](REWIND_v1.9.18.md)を参照する。
