@@ -57,6 +57,7 @@ fn a_retained_live_future_reuses_its_receipt_but_a_new_factory_sends_again() {
                     Err(error) => panic!("{error}"),
                 }
             };
+            stream.set_nonblocking(false).unwrap();
             stream
                 .set_read_timeout(Some(Duration::from_secs(3)))
                 .unwrap();
