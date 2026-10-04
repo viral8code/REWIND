@@ -24,6 +24,26 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.9.26") {
+        if p.structs.contains_key("FftWork")
+            || p.enums.contains_key("FftWork")
+            || p.aliases.contains_key("FftWork")
+        {
+            return Err(Error::InvalidOperation("reserved FFT work type".into()));
+        }
+        p.structs.insert(
+            "FftWork".into(),
+            StructDef {
+                private_fields: BTreeSet::from(["$native".into()]),
+                bounds: BTreeMap::new(),
+                immutable: true,
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                fields: vec![],
+            },
+        );
+    }
     if language_at_least(&p.language, "1.8.1") {
         for (name, fields) in [
             (
@@ -85,6 +105,13 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if !language_at_least(&p.language, "1.8.0") {
         return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
+    }
+    if matches!(
+        n,
+        "stdNumericFftInit" | "stdNumericFftStep" | "stdNumericFftDone" | "stdNumericFftResult"
+    ) && !language_at_least(&p.language, "1.9.26")
+    {
+        return Err(diagnostic(at, "cooperative FFT requires language 1.9.26"));
     }
     if matches!(
         n,
@@ -175,6 +202,70 @@ fn array<'a>(v: &'a Value, rt: &'a Runtime) -> std::result::Result<&'a Array, Nu
         _ => Err(NumericError::Type),
     }
 }
+fn fft_work(
+    value: &Value,
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::FftWork, NumericError> {
+    let Value::Struct(ty, fields) = target(value, rt) else {
+        return Err(NumericError::Type);
+    };
+    if ty != "FftWork" {
+        return Err(NumericError::Type);
+    }
+    let a = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(|value| array(value, rt))
+            .cloned()
+    };
+    let i = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(usize_arg)
+    };
+    let Some(Value::Bool(inverse)) = fields.get("$inverse") else {
+        return Err(NumericError::Type);
+    };
+    let work = rewind::numeric::FftWork {
+        input_real: a("$inputReal")?,
+        input_imag: a("$inputImag")?,
+        real: a("$real")?,
+        imag: a("$imag")?,
+        twiddle_real: a("$twiddleReal")?,
+        twiddle_imag: a("$twiddleImag")?,
+        inverse: *inverse,
+        phase: i("$phase")?,
+        cursor: i("$cursor")?,
+        width: i("$width")?,
+    };
+    work.validate()?;
+    Ok(work)
+}
+fn fft_work_value(work: rewind::numeric::FftWork) -> Value {
+    Value::Struct(
+        "FftWork".into(),
+        BTreeMap::from([
+            ("$inputReal".into(), Value::NumericArray(work.input_real)),
+            ("$inputImag".into(), Value::NumericArray(work.input_imag)),
+            ("$real".into(), Value::NumericArray(work.real)),
+            ("$imag".into(), Value::NumericArray(work.imag)),
+            (
+                "$twiddleReal".into(),
+                Value::NumericArray(work.twiddle_real),
+            ),
+            (
+                "$twiddleImag".into(),
+                Value::NumericArray(work.twiddle_imag),
+            ),
+            ("$inverse".into(), Value::Bool(work.inverse)),
+            ("$phase".into(), Value::Int(work.phase as i64)),
+            ("$cursor".into(), Value::Int(work.cursor as i64)),
+            ("$width".into(), Value::Int(work.width as i64)),
+        ]),
+    )
+}
 fn list<'a>(
     v: &'a Value,
     rt: &'a Runtime,
@@ -258,7 +349,13 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "SgdStep" {
+    let cost = if name == "FftInit" {
+        32768
+    } else if name == "FftStep" {
+        rewind::numeric::FFT_CHUNK * 64 + 1024
+    } else if matches!(name, "FftDone" | "FftResult") {
+        256
+    } else if name == "SgdStep" {
         length(0).saturating_mul(32).saturating_add(128)
     } else if name == "AdamStep" {
         length(0).saturating_mul(128).saturating_add(256)
@@ -454,7 +551,19 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "SgdStep" {
+    if name == "FftInit" {
+        131072
+    } else if name == "FftStep" {
+        fft_work(&args[0], rt).map_or(16384, |work| {
+            work.real
+                .update_estimate()
+                .saturating_add(work.imag.update_estimate())
+                .saturating_mul((rewind::numeric::FFT_CHUNK * 2).div_ceil(256) + 2)
+                .saturating_add(rewind::numeric::FFT_CHUNK * 32 + 16384)
+        })
+    } else if matches!(name, "FftDone" | "FftResult") {
+        16384
+    } else if name == "SgdStep" {
         Array::storage_estimate(length(0)).saturating_add(length(0).saturating_mul(8))
     } else if name == "AdamStep" {
         Array::storage_estimate(length(0))
@@ -689,6 +798,24 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "FftInit" => {
+                let Some(Value::Bool(inverse)) = args.get(2) else {
+                    return Err(NumericError::Type);
+                };
+                fft_work_value(rewind::numeric::FftWork::new(a(0)?, a(1)?, *inverse)?)
+            }
+            "FftStep" => fft_work_value(fft_work(&args[0], rt)?.step()?),
+            "FftDone" => Value::Bool(fft_work(&args[0], rt)?.done()),
+            "FftResult" => {
+                let (real, imag) = fft_work(&args[0], rt)?.result()?;
+                Value::Struct(
+                    "Tuple<FloatArray,FloatArray>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(real)),
+                        ("_1".into(), Value::NumericArray(imag)),
+                    ]),
+                )
+            }
             "SgdStep" => array_value(a(0)?.sgd_step(a(1)?, f(2)?))?,
             "AdamStep" => {
                 let (w, m, v) = a(0)?.adam_step(
@@ -1123,6 +1250,16 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericFftInit" => (
+            &["&FloatArray", "&FloatArray", "Bool"],
+            "Result<FftWork,StdError>",
+        ),
+        "stdNumericFftStep" => (&["&FftWork"], "Result<FftWork,StdError>"),
+        "stdNumericFftDone" => (&["&FftWork"], "Result<Bool,StdError>"),
+        "stdNumericFftResult" => (
+            &["&FftWork"],
+            "Result<Tuple<FloatArray,FloatArray>,StdError>",
+        ),
         "stdNumericSgdStep" => (
             &["&FloatArray", "&FloatArray", "Float"],
             "Result<FloatArray,StdError>",

@@ -337,3 +337,6 @@ TLS 1.2 / 1.3 は Rustls / tokio-rustls を利用する。公開 CA、verify-bef
 
 
 1.9.25 は Hyper を用いた bounded HTTP/1 server と pure な完全一致 router を追加する。物理 response の再送禁止、recorded / live の入力と資源寿命、source-free と disconnected replay、両 OS SDK を検証する。server TLS / private request credentials、GUI / PostgreSQL の統合、長い数値 kernel の分割、一般 container / snapshot の会計と残る v2 の条件は継続する。
+
+
+1.9.26 は初期化・copy・twiddle・butterfly・scale を分割した pure FFT Task と共有 zero page を追加する。独立 DFT、逆変換、private scratch の checkpoint / cancellation、source-free と両記録 mode、両 OS SDK を検証する。solve / QR / eigen / CSR / autodiff の分割、一般 container / snapshot の会計、GUI / DB / 通信の統合、server TLS / private credential と容量監査は継続する。

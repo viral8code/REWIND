@@ -22,7 +22,13 @@ fn runtime() -> (std::path::PathBuf, Runtime) {
 #[test]
 fn numeric_checkpoint_sharing_and_cow_are_charged_incrementally() {
     let (path, mut rt) = runtime();
-    let initial = Array::zeros(DType::Float64, vec![1_000_000]).unwrap();
+    // This contract measures a materialized dense buffer; zeros now share pages.
+    let initial = Array::from_bits(
+        DType::Float64,
+        vec![1_000_000],
+        std::iter::repeat_n(0, 1_000_000),
+    )
+    .unwrap();
     rt.set_global("array", Value::NumericArray(initial.clone()))
         .unwrap();
     let base = rt.retained_numeric_bytes();
@@ -156,7 +162,13 @@ fn numeric_heap_gc_releases_payload_but_checkpoint_keeps_it() {
 #[test]
 fn numeric_gc_trigger_counts_new_pages_instead_of_shared_descriptors() {
     let (path, mut rt) = runtime();
-    let a = Array::zeros(DType::Float64, vec![1000000]).unwrap();
+    // A materialized buffer must cross the collection threshold; shared zeros need not.
+    let a = Array::from_bits(
+        DType::Float64,
+        vec![1000000],
+        std::iter::repeat_n(0, 1000000),
+    )
+    .unwrap();
     rt.set_global("a", Value::NumericArray(a.clone())).unwrap();
     assert!(rt.collection_due());
     rt.collect_heap(&[], 1000000).unwrap();
@@ -169,7 +181,12 @@ fn numeric_gc_trigger_counts_new_pages_instead_of_shared_descriptors() {
     }
     assert!(!rt.collection_due());
     rt.alloc(Value::NumericArray(
-        Array::zeros(DType::Float64, vec![1000000]).unwrap(),
+        Array::from_bits(
+            DType::Float64,
+            vec![1000000],
+            std::iter::repeat_n(0, 1000000),
+        )
+        .unwrap(),
     ))
     .unwrap();
     assert!(rt.collection_due());

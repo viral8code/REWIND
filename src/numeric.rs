@@ -7,6 +7,8 @@ use std::sync::{
     Arc, Mutex, Weak,
 };
 mod chunks;
+mod fft_chunks;
+pub use fft_chunks::{FftWork, FFT_CHUNK};
 mod linalg;
 mod model;
 mod optimizer;
@@ -332,6 +334,44 @@ impl Buffer {
             height,
         })
     }
+    // Identical zero subtrees share immutable pages. The tree has the same
+    // shape/hash as materialized storage; the first write copies its path.
+    fn zeros(len: usize) -> Result<Self> {
+        if len <= PAGE {
+            return Self::from_bits(std::iter::repeat_n(0, len));
+        }
+        if len > MAX_ELEMENTS {
+            return Err(Error::Size);
+        }
+        let pages = len.div_ceil(PAGE).max(1);
+        let height = pages.next_power_of_two().trailing_zeros() as usize;
+        let mut full = vec![Arc::new(Node::new(NodeKind::Leaf(vec![0; PAGE])))];
+        for h in 1..=height {
+            let child = full[h - 1].clone();
+            full.push(Arc::new(Node::new(NodeKind::Branch(child.clone(), child))));
+        }
+        fn build(len: usize, height: usize, full: &[Arc<Node>]) -> Arc<Node> {
+            if len == PAGE << height {
+                return full[height].clone();
+            }
+            if height == 0 {
+                return Arc::new(Node::new(NodeKind::Leaf(vec![0; len])));
+            }
+            let half = PAGE << (height - 1);
+            let left = build(len.min(half), height - 1, full);
+            let right = if len > half {
+                build(len - half, height - 1, full)
+            } else {
+                Arc::new(Node::new(NodeKind::Leaf(Vec::new())))
+            };
+            Arc::new(Node::new(NodeKind::Branch(left, right)))
+        }
+        Ok(Self {
+            len,
+            root: build(len, height, &full),
+            height,
+        })
+    }
     fn get(&self, index: usize) -> u64 {
         self.root.get(self.height, index)
     }
@@ -651,7 +691,15 @@ impl Array {
     }
     pub fn zeros(dtype: DType, shape: Vec<usize>) -> Result<Self> {
         let n = count(&shape)?;
-        Self::from_bits(dtype, shape, std::iter::repeat_n(0, n))
+        let strides = strides(&shape)?;
+        Ok(Self {
+            dtype,
+            shape,
+            strides,
+            offset: 0,
+            writable: true,
+            buffer: Buffer::zeros(n)?,
+        })
     }
     pub fn floats(shape: Vec<usize>, values: &[f64]) -> Result<Self> {
         Self::from_bits(DType::Float64, shape, values.iter().map(|v| v.to_bits()))
@@ -1330,7 +1378,12 @@ mod accounting_tests {
     #[test]
     fn accounts_shared_pages_and_cow_without_holding_storage() {
         let ledger = Accounting::default();
-        let a = Array::zeros(DType::Float64, vec![1_000_000]).unwrap();
+        let a = Array::from_bits(
+            DType::Float64,
+            vec![1_000_000],
+            std::iter::repeat_n(0, 1_000_000),
+        )
+        .unwrap();
         ledger.register(&a);
         let initial = ledger.bytes();
         assert!(initial >= 8_000_000);

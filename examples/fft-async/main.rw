@@ -1,0 +1,11 @@
+import std.numeric as numeric;import std.fftAsync as fft;import std.task as task;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
+async fn marker()->Int effects {tasks}{return 7;}
+let shape=List<Int>();shape.add(16384);let zero=take(numeric.zerosFloat(&shape));let real=take(numeric.mapFloat("exp",&zero));
+let work=spawn fft.transform(real,zero,false);let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+commit halfway;
+let first=take(take(await work));let index=List<Int>();index.add(0);assert_eq(take(numeric.getFloat(&first.real,&index)),16384.0);assert_eq(take(numeric.norm2(&first.imag)),0.0);
+revert halfway;
+let restored=take(take(await work));let restoredIndex=List<Int>();restoredIndex.add(0);assert_eq(take(numeric.getFloat(&restored.real,&restoredIndex)),16384.0);drop halfway;
+let inverse=take(take(await fft.transform(restored.real,restored.imag,true)));assert_eq(take(numeric.sum(&inverse.real)),16384.0);
+Out.println("fft done");publish;
