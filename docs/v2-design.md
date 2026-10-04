@@ -326,3 +326,7 @@ Int overflow の既定、型安全、borrow 制約、有限予算を単純に無
 1.9.21 は明示的な `external live` と `live` effect を追加する。新しい呼出しは物理操作を実行し、保持された既存 Task は復元しても同じ結果を返す。結果は Task / checkpoint の寿命に合わせて解放し、通常の記録付き操作は維持する。完全な record / replay / inspect は実行前に拒否する。[契約と検証](REWIND_v1.9.21.md)を参照する。
 
 1.9.22 は `std.guiWindows.nextEventAnyLiveAsync` を追加する。既存の記録付き GUI 入力と区別し、保持された Task の復元、新規入力、main thread、キャンセル、結果の寿命を検証する。[契約と残る作業](REWIND_v1.9.22.md)を参照する。
+
+## v1.9.23 の TCP
+
+`std.tcp` は成熟した Tokio transport と既存の外部観測・affine handle・live lease を接続する。plain TCP と TLS の範囲、短い read、送信受理量と remote processing、deadline / cancel 後の接続切断を区別する。[仕様](REWIND_v1.9.23.md)参照。HTTP server / router と残る v2.0 の受入条件は維持する。

@@ -1,0 +1,16 @@
+effects {external,network,tasks};
+// @api connect cost O(host bytes); at most eight sockets and eight pending operations.
+// @api connect failure TcpError; plain TCP, no automatic application retry, deadline 1..120000 ms.
+pub fn connect(host:String,port:Int,deadlineMillis:Int)->Task<Result<TcpSocket,TcpError>> effects {external,network,tasks} {return stdExternalTcpConnect(host,port,deadlineMillis);}
+// @api read cost O(chunk bytes); one outstanding read, 1..65536 bytes, EOF returns None.
+// @api read failure TcpError; timeout/cancellation closes the physical socket; a checkpoint retains completed receipts.
+pub fn read(socket:&mut TcpSocket,maxBytes:Int,deadlineMillis:Int)->Task<Result<Option<Bytes>,TcpError>> effects {external,network,tasks} {return stdExternalTcpRead(socket,maxBytes,deadlineMillis);}
+// @api write cost O(body bytes); one outstanding write, at most 65536 bytes per operation.
+// @api write failure TcpError; acceptedBytes counts locally accepted bytes, not peer processing. Unknown phase can include additional in-flight bytes.
+pub fn write(socket:&mut TcpSocket,body:Bytes,deadlineMillis:Int)->Task<Result<Int,TcpError>> effects {external,network,tasks} {return stdExternalTcpWrite(socket,body,deadlineMillis);}
+// @api shutdownWrite cost O(1); sends EOF while keeping the read half available.
+// @api shutdownWrite failure TcpError; physical half-close cannot be undone by revert.
+pub fn shutdownWrite(socket:&mut TcpSocket,deadlineMillis:Int)->Task<Result<Unit,TcpError>> effects {external,network,tasks} {return stdExternalTcpShutdownWrite(socket,deadlineMillis);}
+// @api close cost O(pending operations); closes both halves and cancels pending operations.
+// @api close failure TcpError; scope exit also closes the socket. A restored VM handle does not recreate the connection.
+pub fn close(socket:&mut TcpSocket,deadlineMillis:Int)->Task<Result<Unit,TcpError>> effects {external,network,tasks} {return stdExternalTcpClose(socket,deadlineMillis);}

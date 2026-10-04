@@ -24,6 +24,7 @@ pub mod numeric;
 pub mod regular;
 mod replay;
 pub mod suffix;
+pub mod tcp;
 pub mod unicode;
 use journal::{Journal, Segment};
 
@@ -804,6 +805,7 @@ pub struct Runtime {
     external_polls: Vec<external::Poll>,
     external_buffers: BTreeMap<usize, Vec<u8>>,
     network_host: Option<network::Host>,
+    tcp_host: Option<tcp::Host>,
     database_host: Option<database::Host>,
     network_credentials: BTreeMap<String, Arc<str>>,
     sensitive_bytes: BTreeSet<Arc<Vec<u8>>>,
@@ -1384,6 +1386,7 @@ impl Runtime {
             external_polls: Vec::new(),
             external_buffers: BTreeMap::new(),
             network_host: None,
+            tcp_host: None,
             database_host: None,
             network_credentials: BTreeMap::new(),
             sensitive_bytes: BTreeSet::new(),
@@ -1825,6 +1828,7 @@ impl Runtime {
                     .as_ref()
                     .map_or(0, database::Host::reserved_bytes),
             )
+            .saturating_add(self.tcp_host.as_ref().map_or(0, tcp::Host::reserved_bytes))
             .saturating_add(self.external_polls.len().saturating_mul(32))
             .saturating_add(
                 self.network_host

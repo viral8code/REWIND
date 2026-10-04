@@ -54,7 +54,7 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
                     if matches!(n.as_str(), "stdExternalClock" | "stdExternalInstant") {
                         needs.insert("clock".into());
                     }
-                    if n.starts_with("stdExternalHttp") {
+                    if n.starts_with("stdExternalHttp") || n.starts_with("stdExternalTcp") {
                         needs.insert("network".into());
                         needs.insert("tasks".into());
                     }
@@ -223,7 +223,8 @@ impl Scan<'_> {
                         if matches!(base, "stdExternalClock" | "stdExternalInstant") {
                             self.needs.insert("clock".into());
                         }
-                        if base.starts_with("stdExternalHttp") {
+                        if base.starts_with("stdExternalHttp") || base.starts_with("stdExternalTcp")
+                        {
                             self.needs.insert("network".into());
                             self.needs.insert("tasks".into());
                         }
