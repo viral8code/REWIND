@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Actual native GUI input during a pending HTTP request, SQLite undo boundary, offline replay."""
 import ctypes as C
+from contextlib import closing
 import ctypes.util
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
@@ -111,7 +112,7 @@ for mode in ["debug", "compact"]:
         assert process.returncode==0,error.decode("utf-8",errors="replace")
         assert output==b"cancelled\n",output
         assert received==["/pending"],received
-        with sqlite3.connect(root/"state.sqlite") as db:
+        with closing(sqlite3.connect(root/"state.sqlite")) as db:
             assert db.execute("SELECT text FROM notes").fetchall()==[("日本語",)]
     finally:
         if process.poll() is None: process.kill();process.communicate()
