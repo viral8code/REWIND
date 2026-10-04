@@ -19,6 +19,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "autodiff",
             include_str!("../../../libraries/std/autodiff.rw"),
         ),
+        (
+            "fftAsync",
+            include_str!("../../../libraries/std/fftAsync.rw"),
+        ),
         ("fft", include_str!("../../../libraries/std/fft.rw")),
         ("sparse", include_str!("../../../libraries/std/sparse.rw")),
         (
@@ -411,7 +415,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/http-server/README.md",
             include_str!("../../../examples/http-server/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/fft-async/main.rw",
+            include_str!("../../../examples/fft-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/fft-async/README.md",
+            include_str!("../../../examples/fft-async/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.26.md",
+                include_str!("../../../docs/REWIND_v1.9.26.md"),
+            ),
             (
                 "REWIND_v1.9.25.md",
                 include_str!("../../../docs/REWIND_v1.9.25.md"),

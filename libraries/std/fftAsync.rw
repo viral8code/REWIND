@@ -1,0 +1,10 @@
+effects {tasks};
+import fft as fft;
+import task as task;
+// @api transform cost O(n log n); at most 4096 copy, twiddle, butterfly or scale items per native step, then hands off to ready tasks. O(n) COW storage, cached twiddles and contiguous page writes.
+// @api transform failure NumericShape/Type/Size/NonFinite; equal rank-one power-of-two inputs, maximum 2^20 samples. Native scratch stays private on failure or cancellation; checkpoint-retained tasks retain their pages. No host worker is started.
+pub async fn transform(real:FloatArray,imag:FloatArray,inverse:Bool)->Result<fft.Spectrum,StdError> effects {tasks} {
+ var work=stdNumericFftInit(&real,&imag,inverse)?;
+ while !stdNumericFftDone(&work)? {work=stdNumericFftStep(&work)?;task.yieldNow();}
+ let result=stdNumericFftResult(&work)?;return Ok(fft.Spectrum(result._0,result._1));
+}

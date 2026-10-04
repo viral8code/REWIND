@@ -35,7 +35,7 @@ impl Progress {
     }
 }
 impl Node {
-    fn write_range(node: &mut Arc<Self>, height: usize, index: usize, values: &[u64]) {
+    pub(super) fn write_range(node: &mut Arc<Self>, height: usize, index: usize, values: &[u64]) {
         if values.is_empty() {
             return;
         }

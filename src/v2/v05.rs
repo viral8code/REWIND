@@ -99,6 +99,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.23"
             | "1.9.24"
             | "1.9.25"
+            | "1.9.26"
             | "2.0.0"
     ) {
         return Ok(());
@@ -193,6 +194,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.23"
             | "1.9.24"
             | "1.9.25"
+            | "1.9.26"
             | "2.0.0"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
@@ -322,6 +324,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.23"
             | "1.9.24"
             | "1.9.25"
+            | "1.9.26"
             | "2.0.0"
     ) {
         program
@@ -607,6 +610,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
             | "1.9.23"
             | "1.9.24"
             | "1.9.25"
+            | "1.9.26"
             | "2.0.0"
     ) {
         return v06::validate(program, config);
@@ -825,7 +829,7 @@ pub(super) fn task_copy(rt: &mut Runtime, value: &Value) -> Result<Value> {
                     Value::HeapRef(id)
                 }
             }
-            Value::Struct(ty, _) if rewind::native_resources::resource_type(ty) => {
+            Value::Struct(_, _) if rewind::native_resources::token(v).is_some() => {
                 rt.check_native(v)?;
                 if rewind::native_resources::token(v).is_some_and(|(_, lease)| lease != 0) {
                     return Err(Error::InvalidOperation("NativeResourceRequiresMove".into()));
@@ -914,6 +918,8 @@ pub(super) fn contains_native_type(
         return false;
     }
     if rewind::native_resources::resource_type(ty)
+        && (!matches!(ty, "HttpServer" | "HttpServerRequest")
+            || language_at_least(&program.language, "1.9.25"))
         && (!ty.starts_with("Db") || language_at_least(&program.language, "1.7.0"))
     {
         return true;
@@ -952,6 +958,8 @@ pub(super) fn transfer_type(
         return false;
     }
     if rewind::native_resources::resource_type(ty)
+        && (!matches!(ty, "HttpServer" | "HttpServerRequest")
+            || language_at_least(&program.language, "1.9.25"))
         && (!ty.starts_with("Db") || language_at_least(&program.language, "1.7.0"))
     {
         return !shared;
@@ -1020,6 +1028,7 @@ pub(super) fn transfer_type(
                 | "1.9.23"
                 | "1.9.24"
                 | "1.9.25"
+                | "1.9.26"
                 | "2.0.0"
         )
     {
@@ -1083,6 +1092,7 @@ pub(super) fn transfer_type(
             | "1.9.23"
             | "1.9.24"
             | "1.9.25"
+            | "1.9.26"
             | "2.0.0"
     ) {
         if let Some((base, inner)) = ty.split_once('<') {
@@ -1154,6 +1164,7 @@ pub(super) fn transfer_type(
                 | "1.9.23"
                 | "1.9.24"
                 | "1.9.25"
+                | "1.9.26"
                 | "2.0.0"
         ) {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
@@ -1230,6 +1241,7 @@ pub(super) fn transfer_type(
             | "1.9.23"
             | "1.9.24"
             | "1.9.25"
+            | "1.9.26"
             | "2.0.0"
     ) {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
@@ -1601,6 +1613,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     | "1.9.23"
                     | "1.9.24"
                     | "1.9.25"
+                    | "1.9.26"
                     | "2.0.0"
             ) {
                 let checker = Checker {

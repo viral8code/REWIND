@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.25 / `language = "1.9.25"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.26 / `language = "1.9.26"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -10,6 +10,7 @@ compiler 1.9.25 / `language = "1.9.25"` の標準ライブラリ。collection st
 | autodiff | Tape, Node, Gradients, parameter/constant, binary/unary, matmul, transpose, reshape, broadcast, sum/mean, backward/gradient | native Float64 buffers、private graph handles、COW checkpoint、同期 reverse-mode |
 | optimize | sgd, Adam, adam, adamStep, steps | native moment、bias correction、typed error atomicity、checkpoint |
 | models | Model, create, get, weights, encode, decode, save, load | bounded canonical binary、checksum、native pages、fileRead/fileWrite と publish 境界 |
+| fftAsync | transform | cold pure Task、4096 個までの分割、初期化から handoff、COW scratch / checkpoint、cancel |
 | fft | Spectrum, transform, convolve | native complex radix-2 / Float64 linear convolution、2^20、O(n log n)、pure / COW / replay |
 | sparse | Matrix, create, matvec | canonical CSR、stable COO duplicate sum、borrowed pages、dense 展開なし |
 | sparseAsync | SolveResult, conjugateGradient | SPD 前提、反復間の handoff、実 residual、typed exhaustion / cancel |
@@ -177,7 +178,7 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 
 1.9.14 は manifest / lock を保持した source-free `.rwc` の実行・replay に対応する。実行時に source / vendor の graph を開き直さず、effect と assets の検証は保持する。[契約](../docs/REWIND_v1.9.14.md)を参照。
 
-勾配・model の基本契約は[1.9.16](../docs/REWIND_v1.9.16.md)、module scope / optimizer の改善は[1.9.25](../docs/REWIND_v1.9.25.md)を参照。
+勾配・model の基本契約は[1.9.16](../docs/REWIND_v1.9.16.md)、module scope / optimizer の改善は[1.9.26](../docs/REWIND_v1.9.26.md)を参照。
 
 1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](../docs/REWIND_v1.9.18.md)を参照する。
 

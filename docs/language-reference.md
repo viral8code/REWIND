@@ -561,3 +561,8 @@ imported function は entry の無関係な global variable を裸の名前で�
 ## HTTP server / router（v1.9.25）
 
 `std.httpServer.listen` / `configured` で listener を取得し、`next` で affine な要求を待ち、`respond` で一回だけ応答を queue する。factory は external region、await はその外で行う。`external live` も利用できる。`std.httpRouter.find` は method / URI path の完全一致により最初の Route を返す。物理応答・接続寿命・size / concurrency の上限は [server 仕様](REWIND_v1.9.25.md) と [例](../examples/http-server/README.md) を参照する。
+
+
+## 協調的 FFT（v1.9.26）
+
+`std.fftAsync.transform` は入力配列を共有する pure な cold Task を返す。初期化以後は最大 4096 個の処理ごとに実行権を渡す。既存の同期 FFT と数学的な条件・逆変換の scale を共有し、cancel と checkpoint は VM 内の計算状態に適用する。[仕様](REWIND_v1.9.26.md) と [例](../examples/fft-async/README.md) を参照する。
