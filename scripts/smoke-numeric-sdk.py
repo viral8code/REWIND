@@ -302,3 +302,14 @@ print("Verified extracted native-array model training: reverse-mode, Adam, model
 
 assert run("replay", root / "model-reader-trace.json", "--root", root, "--allow-effects", "fileRead") == observed
 print("Verified extracted model reader: actual host file observation, source-free run and missing-file replay")
+
+readiness = root / "readiness.rw"
+readiness.write_bytes((sdk / "share/rewind/examples/task-readiness/main.rw").read_bytes())
+run("compile", readiness)
+readiness.unlink()
+if cache.exists(): shutil.rmtree(cache)
+for mode in ["debug", "compact"]:
+    actual = run("run", root / "readiness.rwc", "--record", root / "readiness-trace.json", "--record-mode", mode)
+    assert actual == b"ready\n42\n", actual
+    assert run("replay", root / "readiness-trace.json", "--root", root) == actual
+print("Verified heterogeneous Task readiness: source-free debug and compact replay")

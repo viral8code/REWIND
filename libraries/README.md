@@ -175,3 +175,5 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 1.9.14 は manifest / lock を保持した source-free `.rwc` の実行・replay に対応する。実行時に source / vendor の graph を開き直さず、effect と assets の検証は保持する。[契約](../docs/REWIND_v1.9.14.md)を参照。
 
 勾配・model の基本契約は[1.9.16](../docs/REWIND_v1.9.16.md)、module scope / optimizer の改善は[1.9.17](../docs/REWIND_v1.9.17.md)を参照。
+
+1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](../docs/REWIND_v1.9.18.md)を参照する。

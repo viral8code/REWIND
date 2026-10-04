@@ -300,3 +300,10 @@ test fn native_gradient_optimizer_model_contracts() {
  let weights=Map<String,FloatArray>();weights.set("x",parameter);let updated=transformTake(optimize.sgd(&weights,&gradient,0.25));
  let model=transformTake(models.create(move updated));let bytes=transformTake(models.encode(&model));let restored=transformTake(models.decode(bytes));match models.get(&restored,"x"){Some(array)=>{assert_eq(numeric.sum(&array),Ok(1.0));},None=>{panic("model weight");}}
 }
+
+async fn readyNumber()->Int effects {tasks} {task.yieldNow();return 42;}
+async fn readyText()->String effects {} {return "ready";}
+test fn heterogeneous_task_readiness() {
+ let left=readyNumber();let right=readyText();assert_eq(await task.selectReady(left,right),Ok(1));
+ assert_eq(await right,Ok("ready"));assert_eq(await left,Ok(42));
+}

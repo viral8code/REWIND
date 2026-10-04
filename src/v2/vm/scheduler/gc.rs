@@ -173,7 +173,8 @@ impl<R: BufRead> Vm<R> {
                                             TaskBody::Join(id) => {
                                                 pending.push(Root::Id(Id::Group(*id)))
                                             }
-                                            TaskBody::Select(a, b) => {
+                                            TaskBody::Select(a, b)
+                                            | TaskBody::SelectReady(a, b) => {
                                                 pending.push(Root::Id(Id::Task(*a)));
                                                 pending.push(Root::Id(Id::Task(*b)));
                                             }

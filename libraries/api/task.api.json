@@ -1,8 +1,31 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.10",
+  "language": "1.9.18",
   "symbols": {
+    "fn:selectReady": {
+      "async": false,
+      "cost": "A cold scheduler action; starts both inputs when started. Constant metadata and no result copy.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "Reports completion (including failure or cancellation) with index 0/1; left wins an observed tie. Await the selected input to obtain its result. Cancelling this waiter leaves both inputs running.",
+      "generics": [
+        [
+          "A",
+          null
+        ],
+        [
+          "B",
+          null
+        ]
+      ],
+      "parameters": [
+        "Task<A>",
+        "Task<B>"
+      ],
+      "return": "Task<Int>"
+    },
     "fn:yieldNow": {
       "async": false,
       "cost": "One scheduler handoff. Default choices rotate among ready tasks of the best priority; explicit recorded choices take precedence.",

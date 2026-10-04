@@ -321,9 +321,15 @@ impl Runtime {
         if self.gui_window_observations.len() > 1_000_000 {
             return Err(invalid("named GUI event journal too large"));
         }
+        self.gui_window_observation_ends.clear();
+        let mut end = 0usize;
         for e in &self.gui_window_observations {
             e.validate()
                 .map_err(|_| invalid("invalid named GUI event"))?;
+            end = end
+                .checked_add(e.repeat)
+                .ok_or_else(|| invalid("named GUI journal cursor overflow"))?;
+            self.gui_window_observation_ends.push(end);
         }
         self.gui_window_observation_bytes = self
             .gui_window_observations

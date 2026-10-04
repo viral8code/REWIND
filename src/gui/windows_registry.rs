@@ -24,15 +24,26 @@ impl WindowEvent {
         self.window.len() + self.event.key.len() + 192
     }
 }
+fn one() -> usize {
+    1
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct WindowInput {
     pub request: Option<String>,
     pub poll: bool,
     pub result: Option<WindowEvent>,
+    #[serde(default = "one")]
+    pub repeat: usize,
 }
 impl WindowInput {
     pub(crate) fn validate(&self) -> std::io::Result<()> {
+        if self.repeat == 0
+            || self.repeat > 1_000_000
+            || (self.repeat != 1 && (!self.poll || self.result.is_some()))
+        {
+            return Err(super::invalid("GuiInvalidWindowJournal"));
+        }
         if let Some(id) = &self.request {
             valid_id(id)?;
         }
@@ -51,7 +62,7 @@ impl WindowInput {
     pub(crate) fn bytes(&self) -> usize {
         self.request.as_ref().map_or(0, String::len)
             + self.result.as_ref().map_or(0, WindowEvent::bytes)
-            + 96
+            + 112
     }
 }
 fn valid_id(id: &str) -> std::io::Result<()> {
@@ -180,10 +191,13 @@ impl Runtime {
             return Ok(None);
         }
         let cursor = self.state.gui_windows_cursor;
-        if cursor >= 1_000_000 {
-            return Err(Error::InvalidOperation("GuiWindowEventLimit".into()));
-        }
-        let result = if let Some(record) = self.gui_window_observations.get(cursor) {
+        let next_cursor = cursor
+            .checked_add(1)
+            .ok_or_else(|| Error::InvalidOperation("GuiWindowEventLimit".into()))?;
+        let index = self
+            .gui_window_observation_ends
+            .partition_point(|end| *end <= cursor);
+        let result = if let Some(record) = self.gui_window_observations.get(index) {
             if record.request.as_deref() != request || record.poll != poll {
                 return Err(Error::InvalidOperation(
                     "ReplayMismatch: named GUI request or polling mode".into(),
@@ -195,6 +209,9 @@ impl Runtime {
                 return Err(Error::InvalidOperation(
                     "ReplayMismatch: named GUI journal exhausted".into(),
                 ));
+            }
+            if self.gui_window_observations.len() >= 1_000_000 {
+                return Err(Error::InvalidOperation("GuiWindowEventLimit".into()));
             }
             // Reserve the largest admitted event before consuming any native/scripted input.
             self.check_native_allocation(8192)?;
@@ -274,10 +291,24 @@ impl Runtime {
                 request: request.map(str::to_owned),
                 poll,
                 result: result.clone(),
+                repeat: 1,
             };
             record.validate()?;
-            self.gui_window_observation_bytes += record.bytes();
-            self.gui_window_observations.push(record);
+            let compress = self.gui_window_observations.last().is_some_and(|previous| {
+                poll && result.is_none()
+                    && previous.poll
+                    && previous.result.is_none()
+                    && previous.request == record.request
+                    && previous.repeat < 1_000_000
+            });
+            if compress {
+                self.gui_window_observations.last_mut().unwrap().repeat += 1;
+                *self.gui_window_observation_ends.last_mut().unwrap() = next_cursor;
+            } else {
+                self.gui_window_observation_bytes += record.bytes();
+                self.gui_window_observations.push(record);
+                self.gui_window_observation_ends.push(next_cursor);
+            }
             self.enforce_budget()?;
             result
         };
@@ -289,7 +320,7 @@ impl Runtime {
                 "ReplayMismatch: event window not published".into(),
             ));
         }
-        self.state.gui_windows_cursor += 1;
+        self.state.gui_windows_cursor = next_cursor;
         self.gui_window_high_water = self
             .gui_window_high_water
             .max(self.state.gui_windows_cursor);
@@ -398,6 +429,85 @@ mod tests {
     }
     fn publish(rt: &mut Runtime) {
         rt.publish(false, &mut Vec::new(), &mut Vec::new()).unwrap();
+    }
+    #[test]
+    fn empty_poll_runs_keep_exact_restore_positions_and_bounded_storage() {
+        let mut rt = runtime();
+        rt.enable_virtual_publish();
+        rt.gui_window_stage("one", Some(frame("One"))).unwrap();
+        publish(&mut rt);
+        rt.configure_gui_window_events(vec![]).unwrap();
+        for _ in 0..100 {
+            assert!(rt.gui_window_poll_any().unwrap().is_none());
+        }
+        rt.commit("inside").unwrap();
+        for _ in 0..10000 {
+            assert!(rt.gui_window_poll_any().unwrap().is_none());
+        }
+        assert_eq!(rt.gui_window_observations.len(), 1);
+        assert_eq!(rt.gui_window_observations[0].repeat, 10100);
+        assert!(rt.gui_window_observation_bytes < 256);
+        rt.revert("inside").unwrap();
+        assert_eq!(rt.state.gui_windows_cursor, 100);
+        for _ in 0..10000 {
+            assert!(rt.gui_window_poll_any().unwrap().is_none());
+        }
+        // Extending a consumed run must be visible again after a later restore.
+        assert!(rt.gui_window_poll_any().unwrap().is_none());
+        assert_eq!(rt.gui_window_observations[0].repeat, 10101);
+        rt.revert("inside").unwrap();
+        rt.gui_window_continue_input();
+        assert_eq!(rt.state.gui_windows_cursor, 10101);
+        rt.configure_gui_window_events(vec![WindowEvent {
+            window: "one".into(),
+            event: Event::simple("close"),
+        }])
+        .unwrap();
+        assert_eq!(
+            rt.gui_window_poll_any().unwrap().unwrap().event.kind,
+            "close"
+        );
+        let data = rt.export_observations().unwrap();
+        let mut replay = runtime();
+        replay.import_observations(&data).unwrap();
+        replay.gui_window_stage("one", Some(frame("One"))).unwrap();
+        publish(&mut replay);
+        for _ in 0..10101 {
+            assert!(replay.gui_window_poll_any().unwrap().is_none());
+        }
+        assert_eq!(
+            replay.gui_window_poll_any().unwrap().unwrap().event.kind,
+            "close"
+        );
+        assert!(replay.gui_window_hosts.is_empty());
+    }
+    #[test]
+    fn old_single_poll_tapes_load_and_invalid_repeated_events_are_rejected() {
+        let mut rt = runtime();
+        rt.enable_virtual_publish();
+        rt.gui_window_stage("one", Some(frame("One"))).unwrap();
+        publish(&mut rt);
+        rt.configure_gui_window_events(vec![]).unwrap();
+        rt.gui_window_poll_any().unwrap();
+        let mut data = rt.export_observations().unwrap();
+        data["gui_window_events"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("repeat");
+        let mut replay = runtime();
+        replay.import_observations(&data).unwrap();
+        assert_eq!(replay.gui_window_observation_ends, vec![1]);
+        for repeat in [0, 1000001] {
+            data["gui_window_events"][0]["repeat"] = serde_json::json!(repeat);
+            assert!(runtime().import_observations(&data).is_err());
+        }
+        data["gui_window_events"][0]["repeat"] = serde_json::json!(2);
+        data["gui_window_events"][0]["poll"] = serde_json::json!(false);
+        assert!(runtime().import_observations(&data).is_err());
+        data["gui_window_events"][0]["poll"] = serde_json::json!(true);
+        data["gui_window_events"][0]["result"] =
+            serde_json::json!({"window":"one","event":Event::simple("close")});
+        assert!(runtime().import_observations(&data).is_err());
     }
     #[test]
     fn staged_windows_revert_published_windows_survive_and_journal_replays() {
@@ -573,7 +683,7 @@ mod tests {
         );
         let previous = rt.gui_window_scripted_bytes;
         let mut low = rt.budget;
-        low.history_memory = 2 * 1024 * 1024;
+        low.history_memory = 512 * 1024;
         rt.set_budget(low).unwrap();
         assert!(rt
             .configure_gui_window_events(vec![

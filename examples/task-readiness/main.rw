@@ -1,0 +1,8 @@
+import std.task as task;
+async fn number()->Int effects {tasks} {task.yieldNow();return 42;}
+async fn text()->String effects {} {return "ready";}
+let left=number();let right=text();
+assert_eq(await task.selectReady(left,right),Ok(1));
+match await right {Ok(value)=>{Out.println(value);},Err(_)=>{panic("text task");}}
+match await left {Ok(value)=>{Out.println(value);},Err(_)=>{panic("number task");}}
+publish;

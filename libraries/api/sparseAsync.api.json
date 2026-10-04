@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.16",
+  "language": "1.9.18",
   "symbols": {
     "dependency:numeric.rw": {
       "fn:$import$numeric$activation": {
@@ -581,6 +581,27 @@
       }
     },
     "dependency:task.rw": {
+      "fn:$import$task$selectReady": {
+        "async": false,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [
+          [
+            "A",
+            null
+          ],
+          [
+            "B",
+            null
+          ]
+        ],
+        "parameters": [
+          "Task<A>",
+          "Task<B>"
+        ],
+        "return": "Task<Int>"
+      },
       "fn:$import$task$yieldNow": {
         "async": false,
         "effects": [

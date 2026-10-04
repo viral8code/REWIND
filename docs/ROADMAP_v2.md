@@ -119,3 +119,5 @@ compiled 配布時に development manifest が残っていると、run_compiled 
 1.9.16 は native-array reverse-mode、SGD / Adam と bounded model codec / deferred save-load を実装する。勾配の独立有限差分、typed failure の atomicity、checkpoint、source-free model-free replay と両 OS SDK を検証する。単一 kernel の途中の協調動作、GUI / DB / 通信、HTTP server / TCP と残る到達条件は継続する。
 
 1.9.17 は imported function の global scope を declaration origin に限定し、不要な shadow warning と暗黙の entry global capture を解消する。optimizer の項ごとの一時配列を省き、既存公開 API / checkpoint / typed failure と巨大な有限 gradient を検証する。残る kernel / GUI / 通信・DB の統合と v2.0 の条件は継続する。
+
+1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](REWIND_v1.9.18.md)を参照する。
