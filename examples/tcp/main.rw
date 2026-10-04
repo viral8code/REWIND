@@ -1,0 +1,34 @@
+import std.tcp as tcp;
+import std.bytes as bytes;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value {Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
+fn shutdown(socket:&mut TcpSocket)->Task<Result<Unit,TcpError>> effects {external,network,tasks} {
+ var pending:Option<Task<Result<Unit,TcpError>>>=None;
+ external {pending=Some(tcp.shutdownWrite(socket,5000));}
+ match pending {Some(task)=>{return move task;},None=>{panic("missing shutdown");}}
+}
+var opening:Option<Task<Result<TcpSocket,TcpError>>>=None;
+external {opening=Some(tcp.connect("127.0.0.1",PORT,5000));}
+match opening {None=>{panic("missing socket");},Some(task)=>{
+ let socket=take(take(await task));
+ var writing:Option<Task<Result<Int,TcpError>>>=None;
+ external {writing=Some(tcp.write(&mut socket,take(bytes.encode("ping")),5000));}
+ commit pending;
+ match writing {Some(task)=>{assert_eq(take(take(await task)),4);},None=>{panic("missing write");}}
+ revert pending;
+ match writing {Some(task)=>{assert_eq(take(take(await task)),4);},None=>{panic("missing restored write");}}
+ drop pending;
+ take(take(await shutdown(&mut socket)));
+ var body="";
+ while true {
+  var reading:Option<Task<Result<Option<Bytes>,TcpError>>>=None;
+  external {reading=Some(tcp.read(&mut socket,1,5000));}
+  match reading {None=>{panic("missing read");},Some(task)=>{
+   match take(take(await task)) {None=>{break;},Some(chunk)=>{body=body+take(bytes.decode(chunk));}}
+  }}
+ }
+ assert_eq(body,"ok");
+ var closing:Option<Task<Result<Unit,TcpError>>>=None;
+ external {closing=Some(tcp.close(&mut socket,5000));}
+ match closing {None=>{panic("missing close");},Some(task)=>{take(take(await task));}}
+}}
+Out.println("tcp done");publish;

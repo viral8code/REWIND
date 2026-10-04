@@ -57,7 +57,7 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
                     if matches!(base, "stdExternalClock" | "stdExternalInstant") {
                         required.insert("clock".into());
                     }
-                    if base.starts_with("stdExternalHttp") {
+                    if base.starts_with("stdExternalHttp") || base.starts_with("stdExternalTcp") {
                         required.insert("network".into());
                         required.insert("tasks".into());
                     }

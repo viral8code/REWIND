@@ -192,24 +192,44 @@ impl crate::Runtime {
         Ok(id)
     }
     pub fn has_native_resources(&self) -> bool {
-        self.database_host
+        self.tcp_host
             .as_ref()
             .is_some_and(|h| h.resource_ids().next().is_some())
+            || self
+                .database_host
+                .as_ref()
+                .is_some_and(|h| h.resource_ids().next().is_some())
             || self
                 .network_host
                 .as_ref()
                 .is_some_and(|h| !h.downloads.is_empty() || !h.uploads.is_empty())
     }
     pub fn native_resource_count(&self) -> usize {
-        self.database_host
+        self.tcp_host
             .as_ref()
             .map_or(0, |h| h.resource_ids().count())
+            + self
+                .database_host
+                .as_ref()
+                .map_or(0, |h| h.resource_ids().count())
             + self
                 .network_host
                 .as_ref()
                 .map_or(0, |h| h.downloads.len() + h.uploads.len())
     }
     pub fn collect_native_resources(&mut self, roots: &[crate::Value]) -> crate::Result<()> {
+        if let Some(host) = &self.tcp_host {
+            let live = self.live_native_ids(roots);
+            let abandoned = host
+                .resource_ids()
+                .filter(|id| !live.contains(&(**id as u64)) && !host.owns_pending_socket(**id))
+                .copied()
+                .collect::<Vec<_>>();
+            for id in abandoned {
+                self.close_native_resource(id as u64)?;
+                self.forget_native_owner(id as u64);
+            }
+        }
         if let Some(host) = &self.database_host {
             let live = self.live_native_ids(roots);
             let abandoned = host
@@ -263,6 +283,13 @@ impl crate::Runtime {
             .map_err(|_| crate::Error::InvalidOperation("NativeResourceInvalid".into()))?;
         if let Some(host) = self.database_host.as_mut() {
             host.close_resource(stream);
+        }
+        let tcp_jobs = self
+            .tcp_host
+            .as_mut()
+            .map_or_else(Vec::new, |h| h.close(stream));
+        for job in tcp_jobs {
+            self.cancel_http(job)?;
         }
         let jobs = self
             .network_host
@@ -340,6 +367,13 @@ impl crate::Runtime {
     }
     pub fn cancel_http(&mut self, id: usize) -> crate::Result<()> {
         if self.external_operation_pending(id) {
+            if self.tcp_host.as_ref().is_some_and(|h| h.contains_job(id)) {
+                let result = self.tcp_host.as_mut().unwrap().cancel(id);
+                self.capture_live_resources(id, &result);
+                let result = self.sanitise_tcp_result(result);
+                self.finish_async_external(id, Ok(result))?;
+                return Ok(());
+            }
             if self
                 .database_host
                 .as_ref()

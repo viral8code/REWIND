@@ -299,7 +299,7 @@ impl<R: BufRead> Vm<R> {
     fn shared_task_quota(&self) -> bool {
         matches!(
             self.engine.program.language.as_str(),
-            "1.9.20" | "1.9.21" | "1.9.22" | "2.0.0"
+            "1.9.20" | "1.9.21" | "1.9.22" | "1.9.23" | "2.0.0"
         )
     }
     pub(super) fn task_instruction_count(&self, id: u64) -> usize {
@@ -504,6 +504,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.20"
                 | "1.9.21"
                 | "1.9.22"
+                | "1.9.23"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -840,6 +841,77 @@ impl<R: BufRead> Vm<R> {
             state.phase = TaskPhase::Ready;
             return Ok(Some(task));
         }
+        if name.starts_with("stdExternalTcp") {
+            use rewind::tcp::Operation;
+            let invalid = || rewind::Error::InvalidOperation("invalid TCP arguments".into());
+            let Some(Value::Int(timeout)) = args.last() else {
+                return Err(invalid());
+            };
+            let (operation, result_type) = if name == "stdExternalTcpConnect" {
+                let [Value::Text(host), Value::Int(port), _] = args else {
+                    return Err(invalid());
+                };
+                (
+                    Operation::Connect {
+                        host: host.clone(),
+                        port: u16::try_from(*port).unwrap_or(0),
+                    },
+                    "Result<TcpSocket,TcpError>",
+                )
+            } else {
+                let socket = self.engine.runtime.check_native(&self.resolve(&args[0]))? as usize;
+                match name {
+                    "stdExternalTcpRead" => {
+                        let Some(Value::Int(limit)) = args.get(1) else {
+                            return Err(invalid());
+                        };
+                        (
+                            Operation::Read {
+                                socket,
+                                limit: usize::try_from(*limit).unwrap_or(usize::MAX),
+                            },
+                            "Result<Option<Bytes>,TcpError>",
+                        )
+                    }
+                    "stdExternalTcpWrite" => {
+                        let Some(Value::Bytes(body)) = args.get(1) else {
+                            return Err(invalid());
+                        };
+                        (
+                            Operation::Write {
+                                socket,
+                                body: body.clone(),
+                            },
+                            "Result<Int,TcpError>",
+                        )
+                    }
+                    "stdExternalTcpShutdownWrite" => {
+                        (Operation::ShutdownWrite { socket }, "Result<Unit,TcpError>")
+                    }
+                    "stdExternalTcpClose" => (Operation::Close { socket }, "Result<Unit,TcpError>"),
+                    _ => return Err(invalid()),
+                }
+            };
+            let task = self.new_action(
+                TaskBody::HostOperation(usize::MAX),
+                result_type.into(),
+                Vec::new(),
+                at,
+            )?;
+            let operation = self
+                .engine
+                .runtime
+                .start_tcp(operation, u64::try_from(*timeout).unwrap_or(u64::MAX))?;
+            let state = self
+                .scheduler
+                .tasks
+                .get_mut(&handle_id(&task).unwrap())
+                .unwrap();
+            state.external_lease = self.engine.runtime.live_external_lease(operation);
+            state.body = TaskBody::HostOperation(operation);
+            state.phase = TaskPhase::Ready;
+            return Ok(Some(task));
+        }
         if matches!(
             name,
             "stdExternalHttpRead"
@@ -1090,6 +1162,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1191,6 +1264,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) =>
                 {
@@ -1261,6 +1335,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) =>
                 {
@@ -1358,6 +1433,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) =>
                 {
@@ -1435,6 +1511,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) =>
                 {
@@ -1509,6 +1586,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) =>
                 {
@@ -1609,6 +1687,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.20"
                 | "1.9.21"
                 | "1.9.22"
+                | "1.9.23"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -1696,6 +1775,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) =>
                 {
@@ -1760,6 +1840,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.20"
                                         | "1.9.21"
                                         | "1.9.22"
+                                        | "1.9.23"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -1838,6 +1919,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
@@ -1926,6 +2008,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.20"
                 | "1.9.21"
                 | "1.9.22"
+                | "1.9.23"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -2026,6 +2109,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.20"
                 | "1.9.21"
                 | "1.9.22"
+                | "1.9.23"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -2127,6 +2211,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.20"
                         | "1.9.21"
                         | "1.9.22"
+                        | "1.9.23"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -2416,6 +2501,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.20"
                             | "1.9.21"
                             | "1.9.22"
+                            | "1.9.23"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -2695,6 +2781,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.20"
                         | "1.9.21"
                         | "1.9.22"
+                        | "1.9.23"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -2815,6 +2902,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.20"
                 | "1.9.21"
                 | "1.9.22"
+                | "1.9.23"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -2963,6 +3051,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.20"
                     | "1.9.21"
                     | "1.9.22"
+                    | "1.9.23"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -3059,6 +3148,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.20"
                 | "1.9.21"
                 | "1.9.22"
+                | "1.9.23"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
@@ -3241,6 +3331,9 @@ fn database_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Valu
     Ok(Value::Result(Ok(Box::new(value))))
 }
 fn http_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
+    if json["adapter"] == "tcp" {
+        return tcp_value(json, runtime);
+    }
     if json["adapter"] == "db" {
         return database_value(json, runtime);
     }
@@ -3348,4 +3441,55 @@ fn http_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
             ("body".into(), Value::Bytes(Arc::new(body))),
         ]),
     )))))
+}
+
+fn tcp_value(json: serde_json::Value, runtime: &mut Runtime) -> Result<Value> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let invalid = || Error::InvalidOperation("ReplayMismatch: invalid TCP response".into());
+    if let Some(error) = json.get("error") {
+        return Ok(Value::Result(Err(Box::new(Value::Struct(
+            "TcpError".into(),
+            BTreeMap::from([
+                (
+                    "code".into(),
+                    Value::Text(error["code"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "phase".into(),
+                    Value::Text(error["phase"].as_str().ok_or_else(invalid)?.into()),
+                ),
+                (
+                    "acceptedBytes".into(),
+                    Value::Int(error["acceptedBytes"].as_i64().ok_or_else(invalid)?),
+                ),
+            ]),
+        )))));
+    }
+    let value = if let Some(id) = json.get("socket") {
+        runtime.native_value(
+            "TcpSocket",
+            id.as_u64().ok_or_else(invalid)?,
+            BTreeMap::from([(
+                "peer".into(),
+                Value::Text(json["peer"].as_str().ok_or_else(invalid)?.into()),
+            )]),
+        )?
+    } else if let Some(written) = json.get("written") {
+        Value::Int(written.as_i64().ok_or_else(invalid)?)
+    } else if let Some(eof) = json.get("eof") {
+        Value::Option(if eof.as_bool().ok_or_else(invalid)? {
+            None
+        } else {
+            Some(Box::new(Value::Bytes(Arc::new(
+                STANDARD
+                    .decode(json["body"].as_str().ok_or_else(invalid)?)
+                    .map_err(|_| invalid())?,
+            ))))
+        })
+    } else if json["closed"] == true || json["shutdown"] == true {
+        Value::Null
+    } else {
+        return Err(invalid());
+    };
+    Ok(Value::Result(Ok(Box::new(value))))
 }

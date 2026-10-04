@@ -87,6 +87,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "external",
             include_str!("../../../libraries/std/external.rw"),
         ),
+        ("tcp", include_str!("../../../libraries/std/tcp.rw")),
         ("http", include_str!("../../../libraries/std/http.rw")),
         ("db", include_str!("../../../libraries/std/db.rw")),
         ("gui", include_str!("../../../libraries/std/gui.rw")),
@@ -382,7 +383,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/doc/REWIND_v1.8.8.md",
             include_str!("../../../docs/REWIND_v1.8.8.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/tcp/main.rw",
+            include_str!("../../../examples/tcp/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/tcp/README.md",
+            include_str!("../../../examples/tcp/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.23.md",
+                include_str!("../../../docs/REWIND_v1.9.23.md"),
+            ),
             (
                 "REWIND_v1.9.22.md",
                 include_str!("../../../docs/REWIND_v1.9.22.md"),

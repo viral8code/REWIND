@@ -39,6 +39,10 @@ pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str>
 }
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
+        "stdExternalTcpRead"
+        | "stdExternalTcpWrite"
+        | "stdExternalTcpShutdownWrite"
+        | "stdExternalTcpClose" => Some("&mut TcpSocket"),
         "stdExternalHttpRead" | "stdExternalHttpClose" => Some("&mut HttpDownload"),
         "stdExternalHttpWrite" | "stdExternalHttpFinish" | "stdExternalHttpCloseUpload" => {
             Some("&mut HttpUpload")
@@ -238,6 +242,11 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdExternalDbCommit",
         "stdExternalDbRollback",
         "stdExternalDbClose",
+        "stdExternalTcpConnect",
+        "stdExternalTcpRead",
+        "stdExternalTcpWrite",
+        "stdExternalTcpShutdownWrite",
+        "stdExternalTcpClose",
         "stdExternalHttpUpload",
         "stdExternalHttpWrite",
         "stdExternalHttpFinish",
@@ -321,6 +330,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.20"
             | "1.9.21"
             | "1.9.22"
+            | "1.9.23"
             | "2.0.0"
     ) {
         return Ok(());
@@ -399,6 +409,38 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
                     .collect(),
             },
         );
+    }
+    if language_at_least(&p.language, "1.9.23") {
+        for (name, fields) in [
+            ("TcpSocket", vec![("peer", "String")]),
+            (
+                "TcpError",
+                vec![
+                    ("code", "String"),
+                    ("phase", "String"),
+                    ("acceptedBytes", "Int"),
+                ],
+            ),
+        ] {
+            if p.structs.contains_key(name) || p.enums.contains_key(name) {
+                return Err(Error::InvalidOperation("reserved TCP type".into()));
+            }
+            p.structs.insert(
+                name.into(),
+                StructDef {
+                    private_fields: BTreeSet::new(),
+                    bounds: BTreeMap::new(),
+                    immutable: true,
+                    type_params: vec![],
+                    public: true,
+                    origin: p.root_origin.clone(),
+                    fields: fields
+                        .into_iter()
+                        .map(|(n, t)| (n.into(), t.into()))
+                        .collect(),
+                },
+            );
+        }
     }
     if language_at_least(&p.language, "1.7.0") {
         for (name, fields) in [
@@ -583,6 +625,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.20"
             | "1.9.21"
             | "1.9.22"
+            | "1.9.23"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -663,6 +706,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.20"
                 | "1.9.21"
                 | "1.9.22"
+                | "1.9.23"
                 | "2.0.0"
         )
     {
@@ -670,6 +714,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternal") && !language_at_least(&p.language, "1.5.0") {
         return Err(diagnostic(at, "external operations require language 1.5.0"));
+    }
+    if n.starts_with("stdExternalTcp") && !language_at_least(&p.language, "1.9.23") {
+        return Err(diagnostic(at, "TCP requires language 1.9.23"));
     }
     if n.starts_with("stdExternalHttp") && !language_at_least(&p.language, "1.6.0") {
         return Err(diagnostic(at, "HTTP requires language 1.6.0"));
@@ -755,6 +802,21 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdExternalTcpConnect" => (
+            &["String", "Int", "Int"],
+            "Task<Result<TcpSocket,TcpError>>",
+        ),
+        "stdExternalTcpRead" => (
+            &["&mut TcpSocket", "Int", "Int"],
+            "Task<Result<Option<Bytes>,TcpError>>",
+        ),
+        "stdExternalTcpWrite" => (
+            &["&mut TcpSocket", "Bytes", "Int"],
+            "Task<Result<Int,TcpError>>",
+        ),
+        "stdExternalTcpShutdownWrite" | "stdExternalTcpClose" => {
+            (&["&mut TcpSocket", "Int"], "Task<Result<Unit,TcpError>>")
+        }
         "stdExternalDbExecuteMany" => (
             &[
                 "&mut DbConnection",
