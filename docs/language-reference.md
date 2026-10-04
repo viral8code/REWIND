@@ -566,3 +566,7 @@ imported function は entry の無関係な global variable を裸の名前で�
 ## 協調的 FFT（v1.9.26）
 
 `std.fftAsync.transform` は入力配列を共有する pure な cold Task を返す。初期化以後は最大 4096 個の処理ごとに実行権を渡す。既存の同期 FFT と数学的な条件・逆変換の scale を共有し、cancel と checkpoint は VM 内の計算状態に適用する。[仕様](REWIND_v1.9.26.md) と [例](../examples/fft-async/README.md) を参照する。
+
+## 協調的 CSR（v1.9.27）
+
+`std.sparseAsync.matvec(matrix,right)` は pure な cold Task を返す。CSR の検証と計算を最大4096項目ごとに区切り、空行と長い1行も分割する。共役勾配法内の CSR 積も同じ処理を使う。vector 演算・norm は同期処理のままである。[仕様](REWIND_v1.9.27.md) と [例](../examples/sparse-async/README.md) を参照する。

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.18",
+  "language": "1.9.27",
   "symbols": {
     "dependency:numeric.rw": {
       "fn:$import$numeric$activation": {
@@ -614,7 +614,7 @@
     },
     "fn:conjugateGradient": {
       "async": true,
-      "cost": "O(iterations * (rows + nnz)); native buffers, yields between iterations, individual native calls remain synchronous.",
+      "cost": "O(iterations * (rows + cols + nnz) * log(max(rows,cols,nnz))); CSR validation/products yield after at most 4096 checks, entries or rows, and between iterations. Vector arithmetic and norms remain synchronous; native buffers share input pages.",
       "effects": [
         "tasks"
       ],
@@ -627,6 +627,20 @@
         "Int"
       ],
       "return": "Result<SolveResult,StdError>"
+    },
+    "fn:matvec": {
+      "async": true,
+      "cost": "O(cols log(cols) + (rows + nnz) log(max(rows,cols,nnz))) work; bounded 4096 input checks, entries or row completions per step. Shared CSR/right pages, O(rows) COW output; no nnz-sized temporary copy or host worker.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type/Index/Size/NonFinite; canonical rank-one CSR and finite right values (including unused cells), compensated sums, same 2^20 size bound as sparse.matvec. Cancellation discards private partial output; retained task checkpoints preserve it.",
+      "generics": [],
+      "parameters": [
+        "$import$sparse$Matrix",
+        "FloatArray"
+      ],
+      "return": "Result<FloatArray,StdError>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -814,6 +828,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
       "constructor": false,
       "fields": [],
@@ -894,6 +914,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -1130,6 +1219,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -1140,6 +1235,36 @@
         [
           "offset",
           "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
         ]
       ],
       "generics": [],
