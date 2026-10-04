@@ -261,7 +261,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "lib/rewind/std/rewind.toml",
             include_str!("../../../libraries/std/rewind.toml"),
         )?;
-        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":env!("CARGO_PKG_VERSION"),"effects":["gui","external","clock","network","db","tasks","random","fileRead","fileWrite"],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
+        write(&output,"lib/rewind/std/rewind.package.json",serde_json::to_vec_pretty(&json!({"name":"std","version":env!("CARGO_PKG_VERSION"),"compiler":env!("CARGO_PKG_VERSION"),"language":env!("CARGO_PKG_VERSION"),"effects":["gui","external","live","clock","network","db","tasks","random","fileRead","fileWrite"],"dependencies":{}})).map_err(|e|invalid(&e.to_string()))?)?;
         let std_root = output.join("lib/rewind/std");
         update_project(&std_root)?;
         // A distribution is only assembled after its embedded standard library
@@ -383,6 +383,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             include_str!("../../../docs/REWIND_v1.8.8.md"),
         )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.22.md",
+                include_str!("../../../docs/REWIND_v1.9.22.md"),
+            ),
             (
                 "REWIND_v1.9.21.md",
                 include_str!("../../../docs/REWIND_v1.9.21.md"),
@@ -666,6 +670,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/task-readiness/main.rw",
             include_str!("../../../examples/task-readiness/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-live/main.rw",
+            include_str!("../../../examples/gui-live/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-live/README.md",
+            include_str!("../../../examples/gui-live/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-live/events.json",
+            include_str!("../../../examples/gui-live/events.json"),
         )?;
         write(
             &output,

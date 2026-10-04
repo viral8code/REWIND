@@ -64,7 +64,9 @@ fn calls(p: &Program, e: &Expr, needs: &BTreeSet<String>) -> bool {
         };
         if let Some(n) = name {
             let n = n.split('<').next().unwrap_or(&n);
-            return n.starts_with("stdExternal") || needs.contains(n);
+            return n.starts_with("stdExternal")
+                || n == "stdGuiWindowNextAnyLiveAsync"
+                || needs.contains(n);
         }
     }
     false
@@ -176,6 +178,20 @@ pub(super) fn validate(p: &Program) -> Result<()> {
                     if !language_at_least(&p.language,"1.5.0"){return Err(diagnostic(&s.at,"external requires language 1.5.0"));}
                     if mode.is_live() && !language_at_least(&p.language,"1.9.21") {return Err(diagnostic(&s.at,"external live requires language 1.9.21"));}
                     if region {return Err(diagnostic(&s.at,"ExternalBoundary: nested external region"));}
+                    if !mode.is_live() {
+                        let mut requires_live=false;
+                        v05::expressions(b,&mut |e| {
+                            if let ExprKind::Call(target,_) = &e.kind {
+                                let name=match &target.kind {
+                                    ExprKind::Name(name)=>Some(resolve_alias(p,name)),
+                                    ExprKind::Member(base,member)=>if let ExprKind::Name(base)=&base.kind {p.import_aliases.get(&format!("{base}.{member}")).cloned()} else {None},
+                                    _=>None,
+                                };
+                                if let Some(name)=name {let base=name.split('<').next().unwrap_or(&name);requires_live |= base=="stdGuiWindowNextAnyLiveAsync" || (needs.contains(base) && v06::function_effects(p,base).contains("live"));}
+                            }
+                        });
+                        if requires_live {return Err(diagnostic(&s.at,"ExternalBoundary: call requires external live { ... }"));}
+                    }
                     body(p,b,true,true,needs)?;
                 }
                 StmtKind::Commit(_) | StmtKind::Revert(_) | StmtKind::Resume(_) | StmtKind::Drop(_) | StmtKind::Publish(_) | StmtKind::Branch(_,_) | StmtKind::Return(_) | StmtKind::Break | StmtKind::Continue | StmtKind::Defer(_) if region=>return Err(diagnostic(&s.at,"ExternalBoundary: checkpoints and escaping control flow are forbidden in this region")),

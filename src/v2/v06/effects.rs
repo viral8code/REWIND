@@ -43,7 +43,10 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
             }
             ExprKind::Name(n) => {
                 let n = resolve_alias(program, n);
-                if matches!(n.as_str(), "stdTaskYieldNow" | "stdGuiWindowNextAnyAsync") {
+                if matches!(
+                    n.as_str(),
+                    "stdTaskYieldNow" | "stdGuiWindowNextAnyAsync" | "stdGuiWindowNextAnyLiveAsync"
+                ) {
                     needs.insert("tasks".into());
                 }
                 if n.starts_with("stdExternal") {
@@ -204,8 +207,16 @@ impl Scan<'_> {
                 };
                 if let Some(n) = &name {
                     let base = n.split('<').next().unwrap_or(n);
-                    if matches!(base, "stdTaskYieldNow" | "stdGuiWindowNextAnyAsync") {
+                    if matches!(
+                        base,
+                        "stdTaskYieldNow"
+                            | "stdGuiWindowNextAnyAsync"
+                            | "stdGuiWindowNextAnyLiveAsync"
+                    ) {
                         self.needs.insert("tasks".into());
+                    }
+                    if base == "stdGuiWindowNextAnyLiveAsync" {
+                        self.needs.extend(["live".into(), "external".into()]);
                     }
                     if base.starts_with("stdExternal") {
                         self.needs.insert("external".into());

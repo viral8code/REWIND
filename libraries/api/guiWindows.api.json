@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.19",
+  "language": "1.9.22",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
@@ -527,6 +527,20 @@
         "tasks"
       ],
       "failure": "One active any-window wait; competing pending waits return GuiWaitBusy. GuiClosed/GuiWindowNotPublished/GuiWindowEventTapeEnd are typed; cancellation consumes no subsequent event. Factory is called from the application task; staging remains main-task-only.",
+      "generics": [],
+      "parameters": [],
+      "return": "Task<Result<WindowEvent,StdError>>"
+    },
+    "fn:nextEventAnyLiveAsync": {
+      "async": false,
+      "cost": "Nonblocking main-thread polling; retains only results owned by tasks/checkpoints, no input observation tape.",
+      "effects": [
+        "external",
+        "gui",
+        "live",
+        "tasks"
+      ],
+      "failure": "Requires external live region and gui/tasks/external/live permissions; one shared any-window wait. Restored task reuses its event; new factory consumes new input. Complete recording/replay unsupported; cancellation consumes no event.",
       "generics": [],
       "parameters": [],
       "return": "Task<Result<WindowEvent,StdError>>"
