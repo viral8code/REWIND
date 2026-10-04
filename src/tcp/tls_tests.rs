@@ -178,12 +178,13 @@ fn handshake_deadline_is_cached_and_the_tls_peer_is_not_recontacted() {
     let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
     runtime.commit("before").unwrap();
     let operation = Operation::Tls {
-        host: "localhost".into(),
+        // Connect directly so this exercises TLS handshake expiry, not DNS fallback.
+        host: "127.0.0.1".into(),
         port,
         ca: Arc::new(include_bytes!("../../tests/fixtures/tls/localhost-ca.pem").to_vec()),
     };
     runtime.enter_external(false).unwrap();
-    let id = runtime.start_tcp(operation.clone(), 100).unwrap();
+    let id = runtime.start_tcp(operation.clone(), 1_000).unwrap();
     runtime.exit_external().unwrap();
     let value = result(&mut runtime, id);
     assert_eq!(value["error"]["code"], "TcpDeadline");
@@ -191,7 +192,7 @@ fn handshake_deadline_is_cached_and_the_tls_peer_is_not_recontacted() {
     worker.join().unwrap();
     runtime.revert("before").unwrap();
     runtime.enter_external(false).unwrap();
-    assert_eq!(runtime.start_tcp(operation, 100).unwrap(), id);
+    assert_eq!(runtime.start_tcp(operation, 1_000).unwrap(), id);
     runtime.exit_external().unwrap();
     assert_eq!(result(&mut runtime, id), value);
     assert!(!runtime.has_native_resources());
