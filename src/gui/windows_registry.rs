@@ -35,6 +35,10 @@ pub(crate) struct WindowInput {
     pub result: Option<WindowEvent>,
     #[serde(default = "one")]
     pub repeat: usize,
+    #[serde(default)]
+    pub wait: bool,
+    #[serde(default)]
+    pub error: Option<String>,
 }
 impl WindowInput {
     pub(crate) fn validate(&self) -> std::io::Result<()> {
@@ -43,6 +47,18 @@ impl WindowInput {
             || (self.repeat != 1 && (!self.poll || self.result.is_some()))
         {
             return Err(super::invalid("GuiInvalidWindowJournal"));
+        }
+        if self.wait && (!self.poll || self.request.is_some()) {
+            return Err(super::invalid("GuiInvalidWindowJournal"));
+        }
+        if let Some(code) = &self.error {
+            if !self.wait
+                || self.repeat != 1
+                || self.result.is_some()
+                || !matches!(code.as_str(), "GuiClosed" | "GuiWindowEventTapeEnd")
+            {
+                return Err(super::invalid("GuiInvalidWindowJournal"));
+            }
         }
         if let Some(id) = &self.request {
             valid_id(id)?;
@@ -62,7 +78,9 @@ impl WindowInput {
     pub(crate) fn bytes(&self) -> usize {
         self.request.as_ref().map_or(0, String::len)
             + self.result.as_ref().map_or(0, WindowEvent::bytes)
-            + 112
+            + self.error.as_ref().map_or(0, String::len)
+            + std::mem::size_of::<Self>()
+            + std::mem::size_of::<usize>()
     }
 }
 fn valid_id(id: &str) -> std::io::Result<()> {
@@ -160,19 +178,29 @@ impl Runtime {
         })
     }
     pub fn gui_window_next_event(&mut self, id: &str) -> Result<Event> {
-        self.gui_windows_read(Some(id), false)?
+        self.gui_windows_read(Some(id), false, false)?
             .map(|e| e.event)
             .ok_or_else(|| Error::InvalidOperation("GuiWindowEventTapeEnd".into()))
     }
     pub fn gui_window_poll(&mut self, id: &str) -> Result<Option<Event>> {
-        Ok(self.gui_windows_read(Some(id), true)?.map(|e| e.event))
+        Ok(self
+            .gui_windows_read(Some(id), true, false)?
+            .map(|e| e.event))
     }
     pub fn gui_window_next_any(&mut self) -> Result<WindowEvent> {
-        self.gui_windows_read(None, false)?
+        self.gui_windows_read(None, false, false)?
             .ok_or_else(|| Error::InvalidOperation("GuiWindowNotPublished".into()))
     }
     pub fn gui_window_poll_any(&mut self) -> Result<Option<WindowEvent>> {
-        self.gui_windows_read(None, true)
+        self.gui_windows_read(None, true, false)
+    }
+    /// Nonblocking scheduler poll with deterministic terminal input failures.
+    pub fn gui_window_wait_poll_any(&mut self) -> Result<Option<WindowEvent>> {
+        self.charge_native_work(1)?;
+        if self.gui_window_frames.is_empty() {
+            return Err(Error::InvalidOperation("GuiWindowNotPublished".into()));
+        }
+        self.gui_windows_read(None, true, true)
     }
     pub fn gui_window_continue_input(&mut self) {
         self.state.gui_windows_cursor = self.gui_window_high_water;
@@ -181,6 +209,7 @@ impl Runtime {
         &mut self,
         request: Option<&str>,
         poll: bool,
+        wait: bool,
     ) -> Result<Option<WindowEvent>> {
         if let Some(id) = request {
             valid_id(id)?;
@@ -198,10 +227,15 @@ impl Runtime {
             .gui_window_observation_ends
             .partition_point(|end| *end <= cursor);
         let result = if let Some(record) = self.gui_window_observations.get(index) {
-            if record.request.as_deref() != request || record.poll != poll {
+            if record.request.as_deref() != request || record.poll != poll || record.wait != wait {
                 return Err(Error::InvalidOperation(
                     "ReplayMismatch: named GUI request or polling mode".into(),
                 ));
+            }
+            if let Some(code) = &record.error {
+                self.state.gui_windows_cursor = next_cursor;
+                self.gui_window_high_water = self.gui_window_high_water.max(next_cursor);
+                return Err(Error::InvalidOperation(code.clone()));
             }
             record.result.clone()
         } else {
@@ -214,84 +248,107 @@ impl Runtime {
                 return Err(Error::InvalidOperation("GuiWindowEventLimit".into()));
             }
             // Reserve the largest admitted event before consuming any native/scripted input.
-            self.check_native_allocation(8192)?;
-            let result = if let Some(tape) = self.gui_window_scripted.as_mut() {
-                match tape.front() {
-                    Some(e) if request.is_none_or(|id| id == e.window) => {
-                        if !self.gui_window_frames.contains_key(&e.window) {
-                            return Err(Error::InvalidOperation(
-                                "GuiWindowEventTapeUnpublished".into(),
-                            ));
+            self.check_native_allocation(if wait { 65536 } else { 8192 })?;
+            let capture: Result<Option<WindowEvent>> = (|| {
+                let result = if let Some(tape) = self.gui_window_scripted.as_mut() {
+                    match tape.front() {
+                        Some(e) if request.is_none_or(|id| id == e.window) => {
+                            if !self.gui_window_frames.contains_key(&e.window) {
+                                return Err(Error::InvalidOperation(
+                                    "GuiWindowEventTapeUnpublished".into(),
+                                ));
+                            }
+                            let event = tape.pop_front();
+                            self.gui_window_scripted_bytes -=
+                                event.as_ref().map_or(0, WindowEvent::bytes);
+                            event
                         }
-                        let event = tape.pop_front();
-                        self.gui_window_scripted_bytes -=
-                            event.as_ref().map_or(0, WindowEvent::bytes);
-                        event
+                        _ if wait => {
+                            return Err(Error::InvalidOperation("GuiWindowEventTapeEnd".into()))
+                        }
+                        _ if poll => None,
+                        _ => {
+                            return Err(Error::InvalidOperation("GuiWindowEventTapeEnd".into()));
+                        }
                     }
-                    _ if poll => None,
-                    _ => {
-                        return Err(Error::InvalidOperation("GuiWindowEventTapeEnd".into()));
-                    }
-                }
-            } else if let Some(id) = request {
-                let host = self
-                    .gui_window_hosts
-                    .get_mut(id)
-                    .ok_or_else(|| Error::InvalidOperation("GuiWindowNotPublished".into()))?;
-                let event = if poll {
-                    host.poll()?
+                } else if let Some(id) = request {
+                    let host = self
+                        .gui_window_hosts
+                        .get_mut(id)
+                        .ok_or_else(|| Error::InvalidOperation("GuiWindowNotPublished".into()))?;
+                    let event = if poll {
+                        host.poll()?
+                    } else {
+                        Some(host.event()?)
+                    };
+                    event.map(|event| WindowEvent {
+                        window: id.into(),
+                        event,
+                    })
                 } else {
-                    Some(host.event()?)
-                };
-                event.map(|event| WindowEvent {
-                    window: id.into(),
-                    event,
-                })
-            } else {
-                let mut ids: Vec<String> = self.gui_window_frames.keys().cloned().collect();
-                if let Some(last) = &self.gui_window_last_polled {
-                    let start = ids.partition_point(|id| id <= last);
-                    ids.rotate_left(start);
-                }
-                let mut picked = None;
-                loop {
-                    let mut closed = 0usize;
-                    for id in &ids {
-                        if let Some(host) = self.gui_window_hosts.get_mut(id) {
-                            match host.poll() {
-                                Ok(Some(event)) => {
-                                    picked = Some(WindowEvent {
-                                        window: id.clone(),
-                                        event,
-                                    });
-                                    self.gui_window_last_polled = Some(id.clone());
-                                    break;
-                                }
-                                Ok(None) => {}
-                                Err(e) if e.to_string() == "GuiClosed" => {
-                                    closed += 1;
-                                }
-                                Err(e) => {
-                                    return Err(e.into());
+                    let mut ids: Vec<String> = self.gui_window_frames.keys().cloned().collect();
+                    if let Some(last) = &self.gui_window_last_polled {
+                        let start = ids.partition_point(|id| id <= last);
+                        ids.rotate_left(start);
+                    }
+                    let mut picked = None;
+                    loop {
+                        let mut closed = 0usize;
+                        for id in &ids {
+                            if let Some(host) = self.gui_window_hosts.get_mut(id) {
+                                match host.poll() {
+                                    Ok(Some(event)) => {
+                                        picked = Some(WindowEvent {
+                                            window: id.clone(),
+                                            event,
+                                        });
+                                        self.gui_window_last_polled = Some(id.clone());
+                                        break;
+                                    }
+                                    Ok(None) => {}
+                                    Err(e)
+                                        if e.to_string() == "GuiClosed"
+                                            || (wait && e.to_string() == "GuiNotPublished") =>
+                                    {
+                                        closed += 1;
+                                    }
+                                    Err(e) => {
+                                        return Err(e.into());
+                                    }
                                 }
                             }
                         }
+                        if picked.is_none() && wait && closed == ids.len() {
+                            return Err(Error::InvalidOperation("GuiClosed".into()));
+                        }
+                        if picked.is_some() || poll {
+                            break;
+                        }
+                        if closed == ids.len() {
+                            return Err(Error::InvalidOperation("GuiClosed".into()));
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(1));
                     }
-                    if picked.is_some() || poll {
-                        break;
-                    }
-                    if closed == ids.len() {
-                        return Err(Error::InvalidOperation("GuiClosed".into()));
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    picked
+                };
+                Ok(result)
+            })();
+            let (result, error) = match capture {
+                Ok(result) => (result, None),
+                Err(Error::InvalidOperation(code))
+                    if wait && matches!(code.as_str(), "GuiClosed" | "GuiWindowEventTapeEnd") =>
+                {
+                    (None, Some(code))
                 }
-                picked
+                Err(error) => return Err(error),
             };
             let record = WindowInput {
                 request: request.map(str::to_owned),
                 poll,
                 result: result.clone(),
                 repeat: 1,
+                wait,
+                error: error.clone(),
             };
             record.validate()?;
             let compress = self.gui_window_observations.last().is_some_and(|previous| {
@@ -301,6 +358,12 @@ impl Runtime {
                     && previous.request == record.request
                     && previous.repeat < 1_000_000
             });
+            let compress = compress
+                && error.is_none()
+                && self
+                    .gui_window_observations
+                    .last()
+                    .is_some_and(|p| p.error.is_none() && p.wait == wait);
             if compress {
                 self.gui_window_observations.last_mut().unwrap().repeat += 1;
                 *self.gui_window_observation_ends.last_mut().unwrap() = next_cursor;
@@ -310,6 +373,11 @@ impl Runtime {
                 self.gui_window_observation_ends.push(next_cursor);
             }
             self.enforce_budget()?;
+            if let Some(code) = error {
+                self.state.gui_windows_cursor = next_cursor;
+                self.gui_window_high_water = self.gui_window_high_water.max(next_cursor);
+                return Err(Error::InvalidOperation(code));
+            }
             result
         };
         if result
@@ -429,6 +497,53 @@ mod tests {
     }
     fn publish(rt: &mut Runtime) {
         rt.publish(false, &mut Vec::new(), &mut Vec::new()).unwrap();
+    }
+    #[test]
+    fn async_fixture_end_is_recorded_and_replayed_without_host_input() {
+        let mut rt = runtime();
+        rt.enable_virtual_publish();
+        rt.gui_window_stage("one", Some(frame("One"))).unwrap();
+        publish(&mut rt);
+        rt.configure_gui_window_events(vec![WindowEvent {
+            window: "one".into(),
+            event: Event::simple("key"),
+        }])
+        .unwrap();
+        rt.commit("waiting").unwrap();
+        assert_eq!(
+            rt.gui_window_wait_poll_any().unwrap().unwrap().event.kind,
+            "key"
+        );
+        assert!(
+            matches!(rt.gui_window_wait_poll_any(),Err(Error::InvalidOperation(s)) if s=="GuiWindowEventTapeEnd")
+        );
+        rt.revert("waiting").unwrap();
+        assert!(rt.gui_window_wait_poll_any().unwrap().is_some());
+        assert!(
+            matches!(rt.gui_window_wait_poll_any(),Err(Error::InvalidOperation(s)) if s=="GuiWindowEventTapeEnd")
+        );
+        let data = rt.export_observations().unwrap();
+        assert_eq!(
+            data["gui_window_events"][1]["error"],
+            "GuiWindowEventTapeEnd"
+        );
+        let mut replay = runtime();
+        replay.import_observations(&data).unwrap();
+        replay.gui_window_stage("one", Some(frame("One"))).unwrap();
+        publish(&mut replay);
+        assert!(replay.gui_window_wait_poll_any().unwrap().is_some());
+        assert!(
+            matches!(replay.gui_window_wait_poll_any(),Err(Error::InvalidOperation(s)) if s=="GuiWindowEventTapeEnd")
+        );
+        assert!(replay.gui_window_hosts.is_empty());
+        // A sync poll cannot consume an async readiness record.
+        replay.state.gui_windows_cursor = 0;
+        assert!(
+            matches!(replay.gui_window_poll_any(),Err(Error::InvalidOperation(s)) if s.starts_with("ReplayMismatch:"))
+        );
+        let mut corrupt = data.clone();
+        corrupt["gui_window_events"][1]["repeat"] = serde_json::json!(2);
+        assert!(runtime().import_observations(&corrupt).is_err());
     }
     #[test]
     fn empty_poll_runs_keep_exact_restore_positions_and_bounded_storage() {
@@ -713,6 +828,81 @@ mod tests {
         assert!(rt.gui_observations.is_empty());
         rt.set_budget(old).unwrap();
         assert_eq!(rt.gui_poll_event().unwrap().unwrap().kind, "close");
+    }
+    #[test]
+    fn native_gui_surface_async_wait_records_pending_input_and_closed_host() {
+        #[cfg(target_os = "linux")]
+        if std::env::var_os("DISPLAY").is_none() {
+            return;
+        }
+        #[cfg(any(target_os = "linux", windows))]
+        {
+            let mut rt = runtime();
+            rt.gui_window_stage("one", Some(frame("Async wait")))
+                .unwrap();
+            publish(&mut rt);
+            for _ in 0..64 {
+                if rt.gui_window_wait_poll_any().unwrap().is_none() {
+                    break;
+                }
+            }
+            rt.commit("pending").unwrap();
+            for _ in 0..1000 {
+                assert!(rt.gui_window_wait_poll_any().unwrap().is_none());
+            }
+            let last = rt.gui_window_observations.last().unwrap();
+            assert!(last.wait);
+            assert!(last.repeat >= 1000);
+            rt.gui_window_hosts
+                .get_mut("one")
+                .unwrap()
+                .backend
+                .inject_pointer(17, 23);
+            let mut pointer = false;
+            for _ in 0..100 {
+                if let Some(e) = rt.gui_window_wait_poll_any().unwrap() {
+                    if e.event.kind == "pointer" {
+                        assert_eq!((e.event.x, e.event.y), (17, 23));
+                        pointer = true;
+                        break;
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            assert!(pointer);
+            rt.gui_window_hosts.get_mut("one").unwrap().close();
+            let mut closed = false;
+            for _ in 0..100 {
+                match rt.gui_window_wait_poll_any() {
+                    Err(Error::InvalidOperation(code)) if code == "GuiClosed" => {
+                        closed = true;
+                        break;
+                    }
+                    Ok(_) => {}
+                    other => panic!("unexpected close: {other:?}"),
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            assert!(closed);
+            let data = rt.export_observations().unwrap();
+            let mut replay = runtime();
+            replay.import_observations(&data).unwrap();
+            replay
+                .gui_window_stage("one", Some(frame("Async wait")))
+                .unwrap();
+            publish(&mut replay);
+            let mut found = false;
+            for _ in 0..2000 {
+                match replay.gui_window_wait_poll_any() {
+                    Ok(Some(e)) if e.event.kind == "pointer" => found = true,
+                    Ok(_) => {}
+                    Err(Error::InvalidOperation(s)) if s == "GuiClosed" => break,
+                    other => panic!("unexpected replay: {other:?}"),
+                }
+            }
+            assert!(found);
+            assert!(replay.gui_window_hosts.is_empty());
+        }
     }
     #[test]
     fn native_gui_surface_named_windows_route_pointer_and_close_independently() {

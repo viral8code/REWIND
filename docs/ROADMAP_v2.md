@@ -121,3 +121,5 @@ compiled 配布時に development manifest が残っていると、run_compiled 
 1.9.17 は imported function の global scope を declaration origin に限定し、不要な shadow warning と暗黙の entry global capture を解消する。optimizer の項ごとの一時配列を省き、既存公開 API / checkpoint / typed failure と巨大な有限 gradient を検証する。残る kernel / GUI / 通信・DB の統合と v2.0 の条件は継続する。
 
 1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](REWIND_v1.9.18.md)を参照する。
+
+1.9.19 は `std.guiWindows.nextEventAnyAsync` と native GUI / HTTP / SQLite の最小統合を追加する。主 Task の制約・待機中の協調動作・入力の cancellation・terminal error の journal・source-free / disconnected replay を検証する。[契約と残る作業](REWIND_v1.9.19.md)を参照する。

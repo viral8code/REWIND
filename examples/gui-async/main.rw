@@ -1,0 +1,72 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+import std.task as task;
+import std.db as db;
+import std.http as http;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value {Ok(item)=>{return move item;},Err(_)=>{panic("application operation failed");}}}
+let arguments=Args.all();assert(arguments.len()==2);
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+external {opening=Some(db.sqlite("state.sqlite",false,5000));}
+match opening {
+ None=>{panic("missing connection");},
+ Some(started)=>{
+  let connection=take(take(await started));
+  var writing:Option<Task<Result<Int,DbError>>>=None;
+  external {writing=Some(db.execute(&mut connection,"CREATE TABLE notes (text TEXT)",freeze(List<DbValue>()),5000));}
+  match writing {Some(operation)=>{take(take(await operation));},None=>{panic("create");}}
+  var modelState=0;commit beforeWrite;
+  let values=List<DbValue>();values.add(DbValue::Text("日本語"));
+  external {writing=Some(db.execute(&mut connection,"INSERT INTO notes VALUES (?1)",freeze(move values),5000));}
+  match writing {Some(operation)=>{take(take(await operation));},None=>{panic("insert");}}
+  modelState=1;revert beforeWrite;assert_eq(modelState,0);drop beforeWrite;
+  var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+  external fresh {querying=Some(db.query(&mut connection,"SELECT text FROM notes",freeze(List<DbValue>()),5000));}
+  match querying {
+   None=>{panic("query");},
+   Some(operation)=>{
+    let cursor=take(take(await operation));
+    var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+    external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
+    match reading {None=>{panic("read");},Some(operation)=>{
+     let batch=take(take(await operation));assert_eq(batch.rows.len(),1);
+     assert_eq(db.text(batch.rows.get(0),0),Ok("日本語"));
+    }}
+   }
+  }
+  let view=take(gui.window(arguments.get(1),320,160));
+  take(gui.button(&mut view,"cancel","Cancel",10,10,120,36));
+  take(gui.label(&mut view,"status","Loading; one saved row",10,60,290,36));
+  take(windows.present("main",&view));publish;
+  var requesting:Option<Task<Result<HttpResponse,HttpError>>>=None;
+  external {requesting=Some(http.get(arguments.get(0),10000,65536));}
+  match requesting {None=>{panic("request");},Some(request)=>{
+   var done=false;
+   while !done {
+    let input=windows.nextEventAnyAsync();
+    let chosen=take(await task.selectReady(input,request));
+    if chosen==0 {
+     let received=take(take(await input));
+     var cancel=false;
+     match gui.dispatch(&mut view,received.event) {
+      Some(gui.Action::Activate("cancel"))=>{cancel=true;},
+      Some(gui.Action::Close)=>{cancel=true;},_=>{}
+     }
+     if cancel {
+       request.cancel();assert_eq(await request,Err(TaskError::Cancelled));
+       take(gui.setText(&mut view,"status","Cancelled; saved row remains"));Out.println("cancelled");done=true;
+      }
+    } else {
+     input.cancel();
+     match await request {Ok(Ok(response))=>{take(gui.setText(&mut view,"status","HTTP "+response.status));Out.println(response.status);},_=>{take(gui.setText(&mut view,"status","HTTP failed"));Out.println("failed");}}
+     done=true;
+    }
+    take(windows.present("main",&view));publish;
+   }
+  }}
+  take(windows.close("main"));publish;
+ }
+}
+var cleanup:Option<Task<Result<Unit,DbError>>>=None;
+external {cleanup=Some(db.waitForCleanup(5000));}
+match cleanup {None=>{panic("cleanup");},Some(operation)=>{take(take(await operation));}}
+publish;

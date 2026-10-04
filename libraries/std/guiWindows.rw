@@ -1,4 +1,4 @@
-effects {gui};
+effects {gui,tasks};
 import gui as gui;
 pub type GuiError=StdError;
 pub record WindowEvent{window:String,event:gui.Event}
@@ -21,3 +21,7 @@ pub fn pollAny()->Result<Option<WindowEvent>,GuiError> effects {gui} {match stdG
 pub fn nextEventAny()->Result<WindowEvent,GuiError> effects {gui} {return routed(stdGuiWindowNextAny()?);}
 // @api continueInput failure After revert skips only named-window events already delivered in this execution; old gui input has a separate cursor.
 pub fn continueInput()->Unit effects {gui} {stdGuiWindowContinueInput();}
+
+// @api nextEventAnyAsync cost Cold task; nonblocking main-thread polling permits other VM and host tasks to advance. Empty waits use compressed observations.
+// @api nextEventAnyAsync failure One active any-window wait; competing pending waits return GuiWaitBusy. GuiClosed/GuiWindowNotPublished/GuiWindowEventTapeEnd are typed; cancellation consumes no subsequent event. Factory is called from the application task; staging remains main-task-only.
+pub fn nextEventAnyAsync()->Task<Result<WindowEvent,GuiError>> effects {gui,tasks} {return stdGuiWindowNextAnyAsync(routed);}

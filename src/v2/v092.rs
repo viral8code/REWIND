@@ -258,6 +258,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdGuiWindowNext",
         "stdGuiWindowPollAny",
         "stdGuiWindowNextAny",
+        "stdGuiWindowNextAnyAsync",
         "stdGuiWindowContinueInput",
         "stdGuiEdit",
         "stdGuiEditGrapheme",
@@ -315,6 +316,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.16"
             | "1.9.17"
             | "1.9.18"
+            | "1.9.19"
             | "2.0.0"
     ) {
         return Ok(());
@@ -573,6 +575,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.16"
             | "1.9.17"
             | "1.9.18"
+            | "1.9.19"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -649,6 +652,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.16"
                 | "1.9.17"
                 | "1.9.18"
+                | "1.9.19"
                 | "2.0.0"
         )
     {
@@ -676,6 +680,29 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             at,
             "GUI scene serialization requires language 1.9.13",
         ));
+    }
+    if n == "stdGuiWindowNextAnyAsync" {
+        if !language_at_least(&p.language, "1.9.19") {
+            return Err(diagnostic(
+                at,
+                "asynchronous GUI input requires language 1.9.19",
+            ));
+        }
+        let Some((params, ret)) = args.first().and_then(|ty| function_signature(ty)) else {
+            return Err(diagnostic(at, "GUI wait requires a pure event decoder"));
+        };
+        if args.len() != 1
+            || params != ["String"]
+            || !ret.starts_with("Result<")
+            || !ret.ends_with(",StdError>")
+            || !v06::type_effects(&args[0]).is_empty()
+        {
+            return Err(diagnostic(
+                at,
+                "GUI wait requires fn(String)->Result<T,StdError> effects {}",
+            ));
+        }
+        return Ok(Some(format!("Task<{ret}>")));
     }
     if n == "stdTaskYieldNow" && !language_at_least(&p.language, "1.9.10") {
         return Err(diagnostic(at, "task yield requires language 1.9.10"));
@@ -865,6 +892,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdGuiWindowNext" => (&["String"], "Result<String,StdError>"),
         "stdGuiWindowPollAny" => (&[], "Result<Option<String>,StdError>"),
         "stdGuiWindowNextAny" => (&[], "Result<String,StdError>"),
+
         "stdGuiWindowContinueInput" => (&[], "Unit"),
         "stdGuiEdit" | "stdGuiEditGrapheme" => (
             &["String", "Int", "Int", "String", "String", "Bool"],
