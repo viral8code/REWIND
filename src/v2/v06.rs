@@ -8,7 +8,7 @@ pub(super) mod language;
 mod library;
 pub(super) mod resolver;
 pub(super) mod update;
-pub(super) use self::effects::{closure_effects, function_effects, infer, validate};
+pub(super) use self::effects::{closure_effects, entry_effects, function_effects, infer, validate};
 pub(super) const KNOWN: &[&str] = &[
     "fileRead",
     "fileWrite",
@@ -22,6 +22,7 @@ pub(super) const KNOWN: &[&str] = &[
     "tasks",
     "gui",
     "external",
+    "live",
     "network",
     "db",
 ];

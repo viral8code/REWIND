@@ -25,6 +25,10 @@ fn built(base: &str, method: &str) -> Option<&'static str> {
 }
 fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> BTreeSet<String> {
     let mut needs = BTreeSet::new();
+    if live_region(body) {
+        needs.insert("live".into());
+        needs.insert("external".into());
+    }
     v05::expressions(body, &mut |e| match &e.kind {
         ExprKind::Call(t, _) => match &t.kind {
             ExprKind::Member(b, m) => {
@@ -80,6 +84,20 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
     });
     needs
 }
+fn live_region(body: &[Stmt]) -> bool {
+    body.iter().any(|s| match &s.kind {
+        StmtKind::External(mode, b) => mode.is_live() || live_region(b),
+        StmtKind::Block(b)
+        | StmtKind::Branch(_, b)
+        | StmtKind::While(_, b)
+        | StmtKind::For(_, _, _, b) => live_region(b),
+        StmtKind::If(_, a, b) => live_region(a) || live_region(b),
+        StmtKind::Match(_, arms) => arms
+            .iter()
+            .any(|(_, _, s)| live_region(std::slice::from_ref(s))),
+        _ => false,
+    })
+}
 fn summary(program: &Program, n: &str, seen: &mut BTreeSet<String>) -> BTreeSet<String> {
     let Some(f) = program.functions.get(n) else {
         return BTreeSet::new();
@@ -107,6 +125,34 @@ pub(in crate::v2) fn function_effects(program: &Program, n: &str) -> BTreeSet<St
         return e.clone();
     }
     summary(program, n, &mut BTreeSet::new())
+}
+pub(in crate::v2) fn entry_effects(program: &Program, tests: bool) -> Result<BTreeSet<String>> {
+    let checker = Checker {
+        program,
+        scopes: vec![BTreeMap::new()],
+        return_ty: None,
+        loop_depth: 0,
+        bounds: BTreeMap::new(),
+        origin: program.root_origin.clone(),
+    };
+    let mut scan = Scan {
+        checker,
+        needs: BTreeSet::new(),
+        depth: 0,
+        instances: BTreeSet::new(),
+    };
+    scan.body(&program.stmts)?;
+    if program.functions.contains_key("main") {
+        scan.needs.extend(function_effects(program, "main"));
+    }
+    if tests {
+        for (name, f) in &program.functions {
+            if f.test {
+                scan.needs.extend(function_effects(program, name));
+            }
+        }
+    }
+    Ok(scan.needs)
 }
 struct Scan<'a> {
     checker: Checker<'a>,
@@ -411,9 +457,14 @@ impl Scan<'_> {
                         self.expr(e)?;
                     }
                 }
-                StmtKind::External(_, b) | StmtKind::Block(b) | StmtKind::Branch(_, b) => {
+                StmtKind::External(mode, b) => {
+                    if mode.is_live() {
+                        self.needs.insert("live".into());
+                        self.needs.insert("external".into());
+                    }
                     self.scope(b)?
                 }
+                StmtKind::Block(b) | StmtKind::Branch(_, b) => self.scope(b)?,
                 StmtKind::If(e, a, b) => {
                     self.expr(e)?;
                     self.scope(a)?;

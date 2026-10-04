@@ -809,6 +809,13 @@ pub struct Runtime {
     sensitive_bytes: BTreeSet<Arc<Vec<u8>>>,
     external_depth: usize,
     external_owner: u64,
+    external_live: bool,
+    external_live_allowed: bool,
+    external_live_used: bool,
+    external_live_entries: BTreeMap<usize, external::LiveEntry>,
+    external_live_next: usize,
+    external_live_unattached: BTreeMap<usize, Arc<external::LiveLease>>,
+    external_live_releases: Arc<std::sync::Mutex<std::collections::VecDeque<usize>>>,
     next_native_lease: u64,
     gui_scripted: Option<std::collections::VecDeque<gui::Event>>,
     byte_input: Vec<(usize, Arc<Segment>)>,
@@ -1382,6 +1389,15 @@ impl Runtime {
             sensitive_bytes: BTreeSet::new(),
             external_depth: 0,
             external_owner: 0,
+            external_live: false,
+            external_live_allowed: false,
+            external_live_used: false,
+            external_live_entries: BTreeMap::new(),
+            external_live_next: 1_000_000,
+            external_live_unattached: BTreeMap::new(),
+            external_live_releases: Arc::new(std::sync::Mutex::new(
+                std::collections::VecDeque::new(),
+            )),
             next_native_lease: 1,
             gui_scripted: None,
             byte_input: Vec::new(),
@@ -1771,6 +1787,7 @@ impl Runtime {
         for outcome in self
             .external_entries
             .iter()
+            .chain(self.external_live_entries.values().map(|live| &live.entry))
             .filter_map(|e| e.outcome.as_ref())
         {
             if seen_segments.insert(Arc::as_ptr(&outcome.segment) as usize) {

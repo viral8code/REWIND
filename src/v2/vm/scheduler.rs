@@ -41,6 +41,7 @@ struct Context {
 struct Task {
     // Shared by checkpoint clones: restoring execution cannot reset this task's quota.
     instructions: Arc<std::cell::Cell<usize>>,
+    external_lease: Option<Arc<rewind::external::LiveLease>>,
     at: Tok,
     timed_out: bool,
     observed: bool,
@@ -76,6 +77,7 @@ impl Default for Scheduler {
     fn default() -> Self {
         let main = Task {
             instructions: Arc::new(std::cell::Cell::new(0)),
+            external_lease: None,
             at: Tok {
                 source: String::new(),
                 text: String::new(),
@@ -294,7 +296,10 @@ pub(super) fn handle_id(value: &Value) -> Option<u64> {
 }
 impl<R: BufRead> Vm<R> {
     fn shared_task_quota(&self) -> bool {
-        matches!(self.engine.program.language.as_str(), "1.9.20" | "2.0.0")
+        matches!(
+            self.engine.program.language.as_str(),
+            "1.9.20" | "1.9.21" | "2.0.0"
+        )
     }
     pub(super) fn task_instruction_count(&self, id: u64) -> usize {
         if self.shared_task_quota() {
@@ -403,6 +408,7 @@ impl<R: BufRead> Vm<R> {
             id,
             Task {
                 instructions: Arc::new(std::cell::Cell::new(0)),
+                external_lease: None,
                 at: at.clone(),
                 timed_out: false,
                 observed: false,
@@ -495,6 +501,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.18"
                 | "1.9.19"
                 | "1.9.20"
+                | "1.9.21"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -811,6 +818,7 @@ impl<R: BufRead> Vm<R> {
                 .tasks
                 .get_mut(&handle_id(&task).unwrap())
                 .unwrap();
+            state.external_lease = self.engine.runtime.live_external_lease(operation);
             state.body = TaskBody::HostOperation(operation);
             state.phase = TaskPhase::Ready;
             return Ok(Some(task));
@@ -866,6 +874,7 @@ impl<R: BufRead> Vm<R> {
                 .tasks
                 .get_mut(&handle_id(&task).unwrap())
                 .unwrap();
+            state.external_lease = self.engine.runtime.live_external_lease(operation);
             state.body = TaskBody::HostOperation(operation);
             state.phase = TaskPhase::Ready;
             return Ok(Some(task));
@@ -954,6 +963,7 @@ impl<R: BufRead> Vm<R> {
                 },
             })?;
             let state = self.scheduler.tasks.get_mut(&task_id).unwrap();
+            state.external_lease = self.engine.runtime.live_external_lease(operation);
             state.body = TaskBody::HostOperation(operation);
             state.phase = TaskPhase::Ready;
             return Ok(Some(task));
@@ -1061,6 +1071,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1160,6 +1171,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) =>
                 {
@@ -1228,6 +1240,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) =>
                 {
@@ -1323,6 +1336,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) =>
                 {
@@ -1398,6 +1412,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) =>
                 {
@@ -1470,6 +1485,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) =>
                 {
@@ -1568,6 +1584,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.18"
                 | "1.9.19"
                 | "1.9.20"
+                | "1.9.21"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -1653,6 +1670,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) =>
                 {
@@ -1715,6 +1733,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.18"
                                         | "1.9.19"
                                         | "1.9.20"
+                                        | "1.9.21"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -1791,6 +1810,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
@@ -1877,6 +1897,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.18"
                 | "1.9.19"
                 | "1.9.20"
+                | "1.9.21"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -1904,6 +1925,7 @@ impl<R: BufRead> Vm<R> {
             }
         }
         task.phase = TaskPhase::Done;
+        task.external_lease = None;
         task.result = Some(result);
         task.context = None;
         // Preserve older artifact accounting; new tasks discard execution-only inputs.
@@ -1974,6 +1996,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.18"
                 | "1.9.19"
                 | "1.9.20"
+                | "1.9.21"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -2073,6 +2096,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.18"
                         | "1.9.19"
                         | "1.9.20"
+                        | "1.9.21"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -2152,8 +2176,20 @@ impl<R: BufRead> Vm<R> {
                         .runtime
                         .poll_external(*operation)?
                         .map(|value| match value {
-                            Ok(value) => http_value(value, &mut self.engine.runtime)
-                                .map_err(|_| "HttpRecordedResult".into()),
+                            Ok(value) => {
+                                let decoded = http_value(value, &mut self.engine.runtime)
+                                    .map_err(|_| "HttpRecordedResult".into());
+                                if decoded.as_ref().is_ok_and(|value| {
+                                    !self
+                                        .engine
+                                        .runtime
+                                        .live_native_ids(std::slice::from_ref(value))
+                                        .is_empty()
+                                }) {
+                                    self.engine.runtime.claim_live_external(*operation);
+                                }
+                                decoded
+                            }
                             Err(code) => Err(code),
                         }),
                     TaskBody::Send(channel, value) => {
@@ -2340,6 +2376,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.18"
                             | "1.9.19"
                             | "1.9.20"
+                            | "1.9.21"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -2395,6 +2432,7 @@ impl<R: BufRead> Vm<R> {
                 break;
             }
         }
+        self.engine.runtime.reclaim_live_external()?;
         Ok(())
     }
     pub(super) fn scheduler_yield(&mut self, at: &Tok) -> Result<()> {
@@ -2616,6 +2654,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.18"
                         | "1.9.19"
                         | "1.9.20"
+                        | "1.9.21"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -2734,6 +2773,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.18"
                 | "1.9.19"
                 | "1.9.20"
+                | "1.9.21"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -2877,6 +2917,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.18"
                     | "1.9.19"
                     | "1.9.20"
+                    | "1.9.21"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -2971,6 +3012,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.18"
                 | "1.9.19"
                 | "1.9.20"
+                | "1.9.21"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
