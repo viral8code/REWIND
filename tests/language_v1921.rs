@@ -160,6 +160,7 @@ fn live_http_checkpoint_reuses_the_pending_task_and_a_new_factory_submits_again(
                     Err(e) => panic!("{e}"),
                 }
             };
+            socket.set_nonblocking(false).unwrap();
             socket
                 .set_read_timeout(Some(Duration::from_secs(3)))
                 .unwrap();
