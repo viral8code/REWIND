@@ -16,6 +16,7 @@ pub(super) enum TaskPhase {
 enum TaskBody {
     Main,
     HostOperation(usize),
+    GuiInput(String),
     Function(String, Vec<Value>),
     Send(u64, Value),
     Receive(u64),
@@ -451,6 +452,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.16"
                 | "1.9.17"
                 | "1.9.18"
+                | "1.9.19"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -564,6 +566,23 @@ impl<R: BufRead> Vm<R> {
         args: &[Value],
         at: &Tok,
     ) -> Result<Option<Value>> {
+        if name == "stdGuiWindowNextAnyAsync" && args.len() == 1 {
+            self.engine.runtime.require_internal()?;
+            let decoder = match self.resolve(&args[0]) {
+                Value::Function(name, _) => name,
+                Value::Closure(name, _, captures) if captures.is_empty() => name,
+                _ => {
+                    return Err(self.error(
+                        at,
+                        "GUI wait decoder must be a named or capture-free function",
+                    ))
+                }
+            };
+            let task = self.create_async_task(&decoder, vec![Value::Text(String::new())], at)?;
+            let id = handle_id(&task).unwrap();
+            self.scheduler.tasks.get_mut(&id).unwrap().body = TaskBody::GuiInput(decoder);
+            return Ok(Some(task));
+        }
         if name.starts_with("stdExternalDb")
             && !matches!(
                 name,
@@ -998,6 +1017,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1095,6 +1115,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) =>
                 {
@@ -1161,6 +1182,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) =>
                 {
@@ -1254,6 +1276,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) =>
                 {
@@ -1327,6 +1350,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) =>
                 {
@@ -1397,6 +1421,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) =>
                 {
@@ -1493,6 +1518,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.16"
                 | "1.9.17"
                 | "1.9.18"
+                | "1.9.19"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -1576,6 +1602,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) =>
                 {
@@ -1636,6 +1663,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.16"
                                         | "1.9.17"
                                         | "1.9.18"
+                                        | "1.9.19"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -1710,6 +1738,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
@@ -1794,6 +1823,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.16"
                 | "1.9.17"
                 | "1.9.18"
+                | "1.9.19"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -1889,6 +1919,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.16"
                 | "1.9.17"
                 | "1.9.18"
+                | "1.9.19"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -1986,6 +2017,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.16"
                         | "1.9.17"
                         | "1.9.18"
+                        | "1.9.19"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -1997,6 +2029,7 @@ impl<R: BufRead> Vm<R> {
                             | TaskBody::SelectReady(..)
                             | TaskBody::Timeout(..)
                             | TaskBody::HostOperation(..)
+                            | TaskBody::GuiInput(..)
                     )
                 {
                     if let TaskBody::HostOperation(operation) = body {
@@ -2007,6 +2040,58 @@ impl<R: BufRead> Vm<R> {
                     continue;
                 }
                 let result = match body {
+                    TaskBody::GuiInput(decoder) => {
+                        let owner = self
+                            .scheduler
+                            .tasks
+                            .iter()
+                            .find(|(_, t)| {
+                                matches!(t.body, TaskBody::GuiInput(..))
+                                    && matches!(
+                                        t.phase,
+                                        TaskPhase::Ready | TaskPhase::WaitingChannel
+                                    )
+                            })
+                            .map(|(id, _)| *id);
+                        let result = if owner != Some(*id) {
+                            Err(rewind::Error::InvalidOperation("GuiWaitBusy".into()))
+                        } else {
+                            self.engine.runtime.gui_window_wait_poll_any()
+                        };
+                        let outcome = match result {
+                            Ok(None) => None,
+                            Ok(Some(event)) => {
+                                let input =
+                                    Value::Text(serde_json::to_string(&event).map_err(|e| {
+                                        rewind::Error::InvalidOperation(e.to_string())
+                                    })?);
+                                let task = self.scheduler.tasks.get_mut(id).unwrap();
+                                task.body = TaskBody::Function(decoder.clone(), vec![input]);
+                                task.phase = TaskPhase::Ready;
+                                progress = true;
+                                continue;
+                            }
+                            Err(rewind::Error::InvalidOperation(code))
+                                if matches!(
+                                    code.as_str(),
+                                    "GuiWaitBusy"
+                                        | "GuiClosed"
+                                        | "GuiWindowNotPublished"
+                                        | "GuiWindowEventTapeEnd"
+                                ) =>
+                            {
+                                Some(Value::Result(Err(Box::new(Value::Struct(
+                                    "StdError".into(),
+                                    BTreeMap::from([
+                                        ("code".into(), Value::Text(code)),
+                                        ("offset".into(), Value::Int(0)),
+                                    ]),
+                                )))))
+                            }
+                            Err(error) => return Err(error),
+                        };
+                        outcome.map(Ok)
+                    }
                     TaskBody::HostOperation(operation) => self
                         .engine
                         .runtime
@@ -2198,6 +2283,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.16"
                             | "1.9.17"
                             | "1.9.18"
+                            | "1.9.19"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -2300,12 +2386,11 @@ impl<R: BufRead> Vm<R> {
         }
         while !self.scheduler.tasks.values().any(|t| {
             t.phase == TaskPhase::Ready && matches!(t.body, TaskBody::Main | TaskBody::Function(..))
-        }) && self
-            .scheduler
-            .tasks
-            .values()
-            .any(|t| t.phase != TaskPhase::Done && matches!(t.body, TaskBody::HostOperation(_)))
-        {
+        }) && self.scheduler.tasks.values().any(|t| {
+            (t.phase != TaskPhase::Done && matches!(t.body, TaskBody::HostOperation(_)))
+                || (matches!(t.phase, TaskPhase::Ready | TaskPhase::WaitingChannel)
+                    && matches!(t.body, TaskBody::GuiInput(..)))
+        }) {
             self.engine.runtime.wait_external_completion();
             self.pump_actions()?;
         }
@@ -2473,6 +2558,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.16"
                         | "1.9.17"
                         | "1.9.18"
+                        | "1.9.19"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -2589,6 +2675,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.16"
                 | "1.9.17"
                 | "1.9.18"
+                | "1.9.19"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -2730,6 +2817,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.16"
                     | "1.9.17"
                     | "1.9.18"
+                    | "1.9.19"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -2822,6 +2910,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.16"
                 | "1.9.17"
                 | "1.9.18"
+                | "1.9.19"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);

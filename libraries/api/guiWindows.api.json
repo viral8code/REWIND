@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.12",
+  "language": "1.9.19",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
@@ -518,6 +518,18 @@
       "generics": [],
       "parameters": [],
       "return": "Result<WindowEvent,StdError>"
+    },
+    "fn:nextEventAnyAsync": {
+      "async": false,
+      "cost": "Cold task; nonblocking main-thread polling permits other VM and host tasks to advance. Empty waits use compressed observations.",
+      "effects": [
+        "gui",
+        "tasks"
+      ],
+      "failure": "One active any-window wait; competing pending waits return GuiWaitBusy. GuiClosed/GuiWindowNotPublished/GuiWindowEventTapeEnd are typed; cancellation consumes no subsequent event. Factory is called from the application task; staging remains main-task-only.",
+      "generics": [],
+      "parameters": [],
+      "return": "Task<Result<WindowEvent,StdError>>"
     },
     "fn:poll": {
       "async": false,

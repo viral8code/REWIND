@@ -384,6 +384,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         for (name, doc) in [
             (
+                "REWIND_v1.9.19.md",
+                include_str!("../../../docs/REWIND_v1.9.19.md"),
+            ),
+            (
                 "REWIND_v1.9.18.md",
                 include_str!("../../../docs/REWIND_v1.9.18.md"),
             ),
@@ -659,6 +663,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/task-readiness/README.md",
             include_str!("../../../examples/task-readiness/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-async/main.rw",
+            include_str!("../../../examples/gui-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-async/README.md",
+            include_str!("../../../examples/gui-async/README.md"),
         )?;
         write(
             &output,

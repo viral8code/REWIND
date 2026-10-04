@@ -107,7 +107,7 @@ fn task_switch(p: &Program, e: &Expr, seen: &mut BTreeSet<String>) -> bool {
         return false;
     };
     let base = name.split('<').next().unwrap_or(&name);
-    if base == "stdTaskYieldNow" {
+    if matches!(base, "stdTaskYieldNow" | "stdGuiWindowNextAnyAsync") {
         return true;
     }
     if !seen.insert(base.into()) {
