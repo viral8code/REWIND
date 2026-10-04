@@ -164,6 +164,7 @@ impl Compiler {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             return None;
@@ -232,6 +233,7 @@ impl Compiler {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) || name.contains('<')
         {
@@ -420,6 +422,7 @@ impl Compiler {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             ) && stmt.at.text == "@application-entry"
             {
@@ -487,6 +490,7 @@ impl Compiler {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             let signatures = program
@@ -605,6 +609,7 @@ impl Compiler {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
@@ -695,6 +700,7 @@ impl Compiler {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             let mut code = self.code[base..].to_vec();
@@ -1292,6 +1298,7 @@ struct Vm<R: BufRead> {
     audit: Vec<serde_json::Value>,
     inspections: Vec<serde_json::Value>,
     task_instructions: BTreeMap<u64, usize>,
+    task_instruction_total: u64,
     choice_widths: Vec<usize>,
     choices_used: Vec<usize>,
     fingerprint: String,
@@ -1530,6 +1537,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             engine.runtime.enable_allocation_accounting();
@@ -1579,6 +1587,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             engine
@@ -1622,6 +1631,7 @@ impl<R: BufRead> Vm<R> {
             audit: Vec::new(),
             inspections: Vec::new(),
             task_instructions: BTreeMap::new(),
+            task_instruction_total: 0,
             choice_widths: Vec::new(),
             choices_used: Vec::new(),
             fingerprint,
@@ -1690,6 +1700,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             let message = self
@@ -1806,6 +1817,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             v11::enrich(&mut d);
@@ -2168,6 +2180,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             return first_error.map_or(Ok(()), |e| {
@@ -2231,6 +2244,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             first_error.map_or(Ok(()), |e| {
@@ -2523,6 +2537,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             )
         {
@@ -2580,6 +2595,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
@@ -2694,6 +2710,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             ) {
                 let mut failure =
@@ -2755,6 +2772,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             ) && !causes.is_empty()
             {
@@ -2825,6 +2843,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.17"
                 | "1.9.18"
                 | "1.9.19"
+                | "1.9.20"
                 | "2.0.0"
         ) {
             outcome["diagnostic"] = execution_error
@@ -2940,6 +2959,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.17"
                         | "1.9.18"
                         | "1.9.19"
+                        | "1.9.20"
                         | "2.0.0"
                 )
             {
@@ -2987,7 +3007,7 @@ impl<R: BufRead> Vm<R> {
         if self.options.profile {
             eprintln!(
                 "{}",
-                serde_json::json!({"gc":self.engine.runtime.gc_metrics(),"numeric_pages":self.engine.runtime.numeric_metrics(),"storage_work":self.engine.runtime.storage_metrics(),"task_instructions":self.task_instructions.iter().map(|(id,count)|(id.to_string(),*count)).collect::<BTreeMap<_,_>>(),"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"schedule_choices":self.choices_used})
+                serde_json::json!({"gc":self.engine.runtime.gc_metrics(),"numeric_pages":self.engine.runtime.numeric_metrics(),"storage_work":self.engine.runtime.storage_metrics(),"task_instructions":self.task_instruction_profile(),"task_instruction_total":self.task_instruction_total,"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"schedule_choices":self.choices_used})
             );
         }
         Ok(())
@@ -3039,6 +3059,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             ) {
                 return error;
@@ -3156,6 +3177,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
@@ -3207,6 +3229,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             ) && (self.engine.runtime.collection_due() || scheduler_gc)
             {
@@ -3270,11 +3293,7 @@ impl<R: BufRead> Vm<R> {
                 Error::InvalidOperation(format!("invalid program counter {}", self.pc))
             })?;
             if self.scheduler.active != 0
-                && self
-                    .task_instructions
-                    .get(&self.scheduler.active)
-                    .copied()
-                    .unwrap_or(0)
+                && self.task_instruction_count(self.scheduler.active)
                     >= self.options.task_steps.unwrap_or(100_000)
             {
                 return Err(self.error(
@@ -3285,10 +3304,7 @@ impl<R: BufRead> Vm<R> {
                     ),
                 ));
             }
-            *self
-                .task_instructions
-                .entry(self.scheduler.active)
-                .or_default() += 1;
+            self.charge_task_instruction();
             if (self.options.record.is_some() || self.options.replay.is_some())
                 && self.options.record_compact == Some(true)
             {
@@ -3362,6 +3378,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.17"
                         | "1.9.18"
                         | "1.9.19"
+                        | "1.9.20"
                         | "2.0.0"
                 ) {
                     self.index_state(&inst.at)?;
@@ -3421,6 +3438,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.17"
                         | "1.9.18"
                         | "1.9.19"
+                        | "1.9.20"
                         | "2.0.0"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
@@ -3533,6 +3551,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.17"
                                     | "1.9.18"
                                     | "1.9.19"
+                                    | "1.9.20"
                                     | "2.0.0"
                             ) {
                                 let ty = v06::fn_type(
@@ -3716,6 +3735,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) && (matches!(
                         lhs,
@@ -3857,6 +3877,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) && name == "reveal"
                     {
@@ -3926,6 +3947,7 @@ impl<R: BufRead> Vm<R> {
                                 | "1.9.17"
                                 | "1.9.18"
                                 | "1.9.19"
+                                | "1.9.20"
                                 | "2.0.0"
                         )
                     {
@@ -4045,6 +4067,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.17"
                                     | "1.9.18"
                                     | "1.9.19"
+                                    | "1.9.20"
                                     | "2.0.0"
                             ) && !needed.contains(name)
                             {
@@ -4118,6 +4141,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.17"
                                         | "1.9.18"
                                         | "1.9.19"
+                                        | "1.9.20"
                                         | "2.0.0"
                                 ) && !needed.contains(name)
                                 {
@@ -4188,6 +4212,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) {
                         let f =
@@ -4282,6 +4307,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::method_work(
@@ -4345,6 +4371,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) {
                         if let Some(value) =
@@ -4425,6 +4452,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::call_work(
@@ -4487,6 +4515,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
@@ -4674,6 +4703,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
@@ -4906,6 +4936,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.17"
                             | "1.9.18"
                             | "1.9.19"
+                            | "1.9.20"
                             | "2.0.0"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
@@ -5092,6 +5123,7 @@ pub(super) fn execute(
                         | "1.9.17"
                         | "1.9.18"
                         | "1.9.19"
+                        | "1.9.20"
                         | "2.0.0"
                 )
             {
@@ -5166,6 +5198,7 @@ pub(super) fn execute(
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             )
             || options.inspect
@@ -5294,6 +5327,7 @@ fn build_artifact_mode(
             | "1.9.17"
             | "1.9.18"
             | "1.9.19"
+            | "1.9.20"
             | "2.0.0"
     ) && !root.join("rewind.toml").exists()
     {
@@ -5420,6 +5454,7 @@ fn explore_test(
                     | "1.9.17"
                     | "1.9.18"
                     | "1.9.19"
+                    | "1.9.20"
                     | "2.0.0"
             )
         {

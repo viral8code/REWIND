@@ -179,3 +179,5 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](../docs/REWIND_v1.9.18.md)を参照する。
 
 1.9.19 は `std.guiWindows.nextEventAnyAsync` と native GUI / HTTP / SQLite の最小統合を追加する。主 Task の制約・待機中の協調動作・入力の cancellation・terminal error の journal・source-free / disconnected replay を検証する。[契約と残る作業](../docs/REWIND_v1.9.19.md)を参照する。
+
+Task の予算・profile の寿命は [v1.9.20](../docs/REWIND_v1.9.20.md) を参照してください。

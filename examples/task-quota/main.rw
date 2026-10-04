@@ -1,0 +1,8 @@
+async fn work()->Int effects {} {return 7;}
+for i in 0..200 {assert_eq(await work(),Ok(7));}
+let held=work();commit waiting;
+assert_eq(await held,Ok(7));
+revert waiting;
+assert_eq(await held,Ok(7));drop waiting;
+for i in 0..100 {assert_eq(await work(),Ok(7));}
+Out.println("bounded");publish;

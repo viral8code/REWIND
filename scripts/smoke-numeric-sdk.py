@@ -2,6 +2,7 @@
 """Verify typed numeric storage and source-free replay in the actual extracted SDK."""
 from pathlib import Path
 import shutil
+import json as json_codec
 import subprocess
 import sys
 
@@ -313,3 +314,21 @@ for mode in ["debug", "compact"]:
     assert actual == b"ready\n42\n", actual
     assert run("replay", root / "readiness-trace.json", "--root", root) == actual
 print("Verified heterogeneous Task readiness: source-free debug and compact replay")
+
+quota = root / "task-quota.rw"
+quota.write_bytes((sdk / "share/rewind/examples/task-quota/main.rw").read_bytes())
+run("compile", quota)
+quota.unlink()
+if cache.exists(): shutil.rmtree(cache)
+for mode in ["debug", "compact"]:
+    result = subprocess.run([str(binary), "profile", str(root / "task-quota.rwc"),
+                             "--record", str(root / "task-quota-trace.json"),
+                             "--record-mode", mode], cwd=root, capture_output=True, timeout=60)
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    assert result.stdout.replace(b"\r\n", b"\n") == b"bounded\n"
+    profiles = [json_codec.loads(line) for line in result.stderr.decode("utf-8").splitlines() if line.startswith("{")]
+    profile = next(p for p in profiles if "task_instructions" in p)
+    assert len(profile["task_instructions"]) < 80
+    assert profile["task_instruction_total"] > sum(profile["task_instructions"].values()) + 200
+    assert run("replay", root / "task-quota-trace.json", "--root", root) == b"bounded\n"
+print("Verified bounded task quota metadata: checkpoint, source-free debug and compact replay")
