@@ -810,6 +810,7 @@ pub struct Runtime {
     tcp_host: Option<tcp::Host>,
     http_server_host: Option<http_server::Host>,
     http_server_tls_credentials: BTreeMap<String, http_server::TlsCredential>,
+    http_server_bearer_credentials: BTreeMap<String, Arc<http_server::BearerCredential>>,
     database_host: Option<database::Host>,
     network_credentials: BTreeMap<String, Arc<str>>,
     sensitive_bytes: BTreeSet<Arc<Vec<u8>>>,
@@ -1393,6 +1394,7 @@ impl Runtime {
             tcp_host: None,
             http_server_host: None,
             http_server_tls_credentials: BTreeMap::new(),
+            http_server_bearer_credentials: BTreeMap::new(),
             database_host: None,
             network_credentials: BTreeMap::new(),
             sensitive_bytes: BTreeSet::new(),
@@ -1844,6 +1846,11 @@ impl Runtime {
                 self.http_server_tls_credentials
                     .len()
                     .saturating_mul(http_server::TLS_CONFIG_MEMORY),
+            )
+            .saturating_add(
+                self.http_server_bearer_credentials
+                    .len()
+                    .saturating_mul(http_server::AUTH_CONFIG_MEMORY),
             )
             .saturating_add(self.external_polls.len().saturating_mul(32))
             .saturating_add(

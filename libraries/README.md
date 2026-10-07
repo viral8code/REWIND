@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.29 / `language = "1.9.29"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.30 / `language = "1.9.30"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -189,3 +189,5 @@ Task の予算・profile の寿命は [v1.9.20](../docs/REWIND_v1.9.20.md) を�
 名前解決は HTTP / TCP / PostgreSQL 共通の上限で処理する。cancel 後も OS の処理が終わるまで枠を保持し、再送や証明書検証の緩和は行わない。[1.9.28 の契約](../docs/REWIND_v1.9.28.md)を参照する。
 
 TLS HTTP server の秘密鍵登録・接続予算・期限は [1.9.29 の契約](../docs/REWIND_v1.9.29.md)を参照する。
+
+TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay は [1.9.30 の契約](../docs/REWIND_v1.9.30.md)を参照する。

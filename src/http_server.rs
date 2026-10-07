@@ -61,6 +61,27 @@ impl Limits {
     }
 }
 pub(crate) const TLS_CONFIG_MEMORY: usize = 512 * 1024;
+pub(crate) const AUTH_CONFIG_MEMORY: usize = 16 * 1024;
+#[derive(Clone)]
+pub(crate) struct BearerCredential {
+    digest: [u8; 32],
+}
+impl BearerCredential {
+    fn accepts(&self, value: &[u8]) -> bool {
+        use sha2::{Digest, Sha256};
+        use subtle::ConstantTimeEq;
+        if value.len() < 8 || !value[..6].eq_ignore_ascii_case(b"Bearer") || value[6] != b' ' {
+            return false;
+        }
+        let token = value[6..]
+            .iter()
+            .position(|byte| *byte != b' ')
+            .map(|index| &value[6 + index..])
+            .unwrap_or(&[]);
+        let candidate: [u8; 32] = Sha256::digest(token).into();
+        bool::from(self.digest.ct_eq(&candidate))
+    }
+}
 const TLS_CONNECTION_MEMORY: usize = 4 * 1024 * 1024;
 #[derive(Clone)]
 pub(crate) struct TlsCredential {
@@ -72,6 +93,13 @@ trait ConnectionIo: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send 
 impl<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send> ConnectionIo for T {}
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Operation {
+    ListenTlsAuthenticated {
+        address: String,
+        port: i64,
+        limits: Limits,
+        credential: String,
+        authentication: String,
+    },
     ListenTls {
         address: String,
         port: i64,
@@ -100,6 +128,12 @@ pub enum Operation {
 impl Operation {
     fn size(&self) -> usize {
         match self {
+            Self::ListenTlsAuthenticated {
+                address,
+                credential,
+                authentication,
+                ..
+            } => address.len() + credential.len() + authentication.len(),
             Self::Listen { address, .. } => address.len(),
             Self::ListenTls {
                 address,
@@ -158,6 +192,7 @@ impl Shared {
     }
 }
 struct Listener {
+    authentication: Option<Arc<BearerCredential>>,
     tls: Option<Arc<rustls::ServerConfig>>,
     limits: Limits,
     shared: Arc<Shared>,
@@ -183,6 +218,7 @@ impl Listener {
         let peers = self.shared.clone();
         let cfg = self.limits.clone();
         let tls = self.tls.clone();
+        let authentication = self.authentication.clone();
         let cap = Arc::new(Semaphore::new(cfg.connections));
         self.accept = Some(runtime.spawn(async move {
             loop {
@@ -200,6 +236,7 @@ impl Listener {
                 let out = out.clone();
                 let cfg = cfg.clone();
                 let tls = tls.clone();
+                let authentication = authentication.clone();
                 tasks.push(tokio::spawn(async move {
                     let _permit = permit;
                     let lifetime = Duration::from_millis(cfg.lifetime_ms);
@@ -212,8 +249,9 @@ impl Listener {
                         } else {
                             Box::new(stream)
                         };
-                        let service =
-                            service_fn(move |request| dispatch(request, out.clone(), cfg.clone()));
+                        let service = service_fn(move |request| {
+                            dispatch(request, out.clone(), cfg.clone(), authentication.clone())
+                        });
                         let mut builder = http1::Builder::new();
                         builder
                             .timer(TokioTimer::new())
@@ -353,7 +391,7 @@ impl Host {
         operation: Operation,
         timeout: u64,
     ) -> std::result::Result<(), &'static str> {
-        self.submit_with_tls(id, operation, timeout, None)
+        self.submit_with_tls(id, operation, timeout, None, None)
     }
     fn submit_with_tls(
         &mut self,
@@ -361,6 +399,7 @@ impl Host {
         operation: Operation,
         timeout: u64,
         tls: Option<Arc<rustls::ServerConfig>>,
+        authentication: Option<Arc<BearerCredential>>,
     ) -> std::result::Result<(), &'static str> {
         self.reap();
         if timeout == 0 || timeout > 120000 {
@@ -371,7 +410,9 @@ impl Host {
         }
         let creates_listener = matches!(
             operation,
-            Operation::Listen { .. } | Operation::ListenTls { .. }
+            Operation::Listen { .. }
+                | Operation::ListenTls { .. }
+                | Operation::ListenTlsAuthenticated { .. }
         );
         let parent = operation.parent();
         let mut shared = None;
@@ -384,6 +425,12 @@ impl Host {
                 limits,
             }
             | Operation::ListenTls {
+                address,
+                port,
+                limits,
+                ..
+            }
+            | Operation::ListenTlsAuthenticated {
                 address,
                 port,
                 limits,
@@ -401,8 +448,17 @@ impl Host {
                 }
                 address.parse::<IpAddr>().map_err(|_| "HttpServerAddress")?;
                 u16::try_from(*port).map_err(|_| "HttpServerAddress")?;
-                if matches!(operation, Operation::ListenTls { .. }) && tls.is_none() {
+                if matches!(
+                    operation,
+                    Operation::ListenTls { .. } | Operation::ListenTlsAuthenticated { .. }
+                ) && tls.is_none()
+                {
                     return Err("HttpServerTlsCredentialUnknown");
+                }
+                if matches!(operation, Operation::ListenTlsAuthenticated { .. })
+                    && authentication.is_none()
+                {
+                    return Err("HttpServerAuthCredentialUnknown");
                 }
                 limits.memory()
                     + META
@@ -497,14 +553,14 @@ impl Host {
         let handle=self.runtime.spawn(async move {
    let waiting=async {
     match operation {
-     Operation::Listen{address,port,limits}|Operation::ListenTls{address,port,limits,..}=>{
+     Operation::Listen{address,port,limits}|Operation::ListenTls{address,port,limits,..}|Operation::ListenTlsAuthenticated{address,port,limits,..}=>{
       let address=SocketAddr::new(address.parse::<IpAddr>().unwrap(),port as u16);
       match TcpListener::bind(address).await {
        Err(_)=>Completed{wire:failure("HttpServerBind","NotStarted"),listener:None,request:None},
        Ok(socket)=>{
         let address=socket.local_addr().unwrap();let (out,requests)=mpsc::channel(limits.connections);
         let shared=Arc::new(Shared{closed:AtomicBool::new(false),next_busy:AtomicBool::new(false),connections:StdMutex::new(Vec::new())});
-        Completed{wire:json!({"adapter":"server","server":id,"address":address.ip().to_string(),"port":address.port(),"maxBytes":limits.body_bytes}),listener:Some(Listener{tls,limits,shared,receiver:Arc::new(Mutex::new(requests)),accept:None,socket:Some(socket),sender:Some(out)}),request:None}
+        Completed{wire:json!({"adapter":"server","server":id,"address":address.ip().to_string(),"port":address.port(),"maxBytes":limits.body_bytes}),listener:Some(Listener{authentication,tls,limits,shared,receiver:Arc::new(Mutex::new(requests)),accept:None,socket:Some(socket),sender:Some(out)}),request:None}
        }
       }
      },
@@ -658,8 +714,9 @@ async fn dispatch(
     request: Request<Body>,
     out: mpsc::Sender<Packet>,
     limits: Limits,
+    authentication: Option<Arc<BearerCredential>>,
 ) -> std::result::Result<Response<Full<Bytes>>, Infallible> {
-    let (parts, body) = request.into_parts();
+    let (mut parts, body) = request.into_parts();
     let target = parts.uri.to_string();
     if target.len() > 8192 || parts.method.as_str().len() > 32 {
         return Ok(response(StatusCode::URI_TOO_LONG));
@@ -673,6 +730,26 @@ async fn dispatch(
             > HEADERS
     {
         return Ok(response(StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE));
+    }
+    if let Some(authentication) = authentication {
+        let mut credentials = parts.headers.get_all(hyper::header::AUTHORIZATION).iter();
+        let valid = credentials
+            .next()
+            .is_some_and(|value| authentication.accepts(value.as_bytes()))
+            && credentials.next().is_none();
+        if !valid {
+            let mut denied = response(StatusCode::UNAUTHORIZED);
+            denied.headers_mut().insert(
+                hyper::header::WWW_AUTHENTICATE,
+                hyper::header::HeaderValue::from_static("Bearer"),
+            );
+            denied.headers_mut().insert(
+                hyper::header::CONNECTION,
+                hyper::header::HeaderValue::from_static("close"),
+            );
+            return Ok(denied);
+        }
+        parts.headers.remove(hyper::header::AUTHORIZATION);
     }
     let body = match tokio::time::timeout(
         Duration::from_millis(limits.lifetime_ms),
@@ -705,6 +782,51 @@ async fn dispatch(
     Ok(value)
 }
 impl Runtime {
+    pub fn register_http_server_bearer(
+        &mut self,
+        alias: &str,
+        token: &str,
+    ) -> Result<std::result::Result<(), &'static str>> {
+        use sha2::{Digest, Sha256};
+        use subtle::ConstantTimeEq;
+        if self.external_depth != 1 {
+            return Err(Error::InvalidOperation(
+                "ExternalBoundary: server credentials require external region".into(),
+            ));
+        }
+        self.charge_native_work(token.len().saturating_mul(8).saturating_add(1024))?;
+        if alias.is_empty()
+            || alias.len() > 128
+            || !alias
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+            || !(16..=4096).contains(&token.len())
+            || !token.bytes().all(|b| b.is_ascii_graphic())
+        {
+            return Ok(Err("HttpServerAuthCredential"));
+        }
+        self.protect_http_server_fields(&[alias.as_bytes()])?;
+        let digest: [u8; 32] = Sha256::digest(token.as_bytes()).into();
+        if let Some(old) = self.http_server_bearer_credentials.get(alias) {
+            return Ok(if bool::from(old.digest.ct_eq(&digest)) {
+                Ok(())
+            } else {
+                Err("HttpServerAuthCredentialImmutable")
+            });
+        }
+        if self.http_server_bearer_credentials.len() >= 16 {
+            return Ok(Err("HttpServerAuthCredentialLimit"));
+        }
+        self.check_native_allocation(AUTH_CONFIG_MEMORY)?;
+        self.http_server_bearer_credentials
+            .insert(alias.into(), Arc::new(BearerCredential { digest }));
+        if let Err(error) = self.enforce_budget() {
+            self.http_server_bearer_credentials.remove(alias);
+            return Err(error);
+        }
+        self.register_secret_value(&crate::Value::Text(token.into()));
+        Ok(Ok(()))
+    }
     fn protect_http_server_fields(&mut self, fields: &[&[u8]]) -> Result<()> {
         self.protect_tcp_request(fields)
             .map_err(|error| match error {
@@ -861,6 +983,16 @@ impl Runtime {
         self.charge_native_work(size.saturating_mul(4).saturating_add(1))?;
         self.check_native_allocation(size.saturating_mul(6).saturating_add(8192))?;
         match &operation {
+            Operation::ListenTlsAuthenticated {
+                address,
+                credential,
+                authentication,
+                ..
+            } => self.protect_http_server_fields(&[
+                address.as_bytes(),
+                credential.as_bytes(),
+                authentication.as_bytes(),
+            ])?,
             Operation::Listen { address, .. } => {
                 self.protect_http_server_fields(&[address.as_bytes()])?
             }
@@ -906,6 +1038,12 @@ impl Runtime {
                         port,
                         limits,
                         ..
+                    }
+                    | Operation::ListenTlsAuthenticated {
+                        address,
+                        port,
+                        limits,
+                        ..
                     } => {
                         if !limits.valid() {
                             return Err("HttpServerLimit");
@@ -932,7 +1070,9 @@ impl Runtime {
                         .map_err(|_| "HttpServerRecording")?;
                     return Ok(());
                 }
-                let tls = if let Operation::ListenTls { credential, .. } = &operation {
+                let tls = if let Operation::ListenTls { credential, .. }
+                | Operation::ListenTlsAuthenticated { credential, .. } = &operation
+                {
                     Some(
                         self.http_server_tls_credentials
                             .get(credential)
@@ -943,6 +1083,17 @@ impl Runtime {
                 } else {
                     None
                 };
+                let authentication =
+                    if let Operation::ListenTlsAuthenticated { authentication, .. } = &operation {
+                        Some(
+                            self.http_server_bearer_credentials
+                                .get(authentication)
+                                .ok_or("HttpServerAuthCredentialUnknown")?
+                                .clone(),
+                        )
+                    } else {
+                        None
+                    };
                 if self.http_server_host.is_none() {
                     self.check_native_allocation(WORKER)
                         .map_err(|_| "HttpServerMemoryLimit")?;
@@ -950,7 +1101,8 @@ impl Runtime {
                 }
                 let admission = match &operation {
                     Operation::Listen { limits, .. } => limits.memory() + META,
-                    Operation::ListenTls { limits, .. } => {
+                    Operation::ListenTls { limits, .. }
+                    | Operation::ListenTlsAuthenticated { limits, .. } => {
                         limits.memory() + META + limits.connections * TLS_CONNECTION_MEMORY
                     }
                     Operation::Respond { body, .. } => body.len() + META,
@@ -961,10 +1113,13 @@ impl Runtime {
                 let budget = self.enforce_budget();
                 self.http_server_host.as_mut().unwrap().admission = 0;
                 budget.map_err(|_| "HttpServerMemoryLimit")?;
-                self.http_server_host
-                    .as_mut()
-                    .unwrap()
-                    .submit_with_tls(id, operation, timeout, tls)
+                self.http_server_host.as_mut().unwrap().submit_with_tls(
+                    id,
+                    operation,
+                    timeout,
+                    tls,
+                    authentication,
+                )
             })();
             if let Err(code) = submitted {
                 self.finish_async_external(id, Ok(failure(code, "NotStarted")))?;

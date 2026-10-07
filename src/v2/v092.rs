@@ -257,6 +257,8 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdExternalHttpServerListen",
         "stdExternalHttpServerListenTls",
         "stdExternalHttpServerTlsCredential",
+        "stdExternalHttpServerBearerCredential",
+        "stdExternalHttpServerListenTlsAuthenticated",
         "stdExternalHttpServerNext",
         "stdExternalHttpServerRespond",
         "stdExternalHttpServerClose",
@@ -357,6 +359,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.27"
             | "1.9.28"
             | "1.9.29"
+            | "1.9.30"
             | "2.0.0"
     ) {
         return Ok(());
@@ -704,6 +707,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.27"
             | "1.9.28"
             | "1.9.29"
+            | "1.9.30"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -791,6 +795,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.27"
                 | "1.9.28"
                 | "1.9.29"
+                | "1.9.30"
                 | "2.0.0"
         )
     {
@@ -808,6 +813,16 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     ) && !language_at_least(&p.language, "1.9.29")
     {
         return Err(diagnostic(at, "HTTP server TLS requires language 1.9.29"));
+    }
+    if matches!(
+        n,
+        "stdExternalHttpServerBearerCredential" | "stdExternalHttpServerListenTlsAuthenticated"
+    ) && !language_at_least(&p.language, "1.9.30")
+    {
+        return Err(diagnostic(
+            at,
+            "HTTP server authentication requires language 1.9.30",
+        ));
     }
     if n == "stdExternalTcpTls" && !language_at_least(&p.language, "1.9.24") {
         return Err(diagnostic(at, "TCP TLS requires language 1.9.24"));
@@ -899,6 +914,16 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdExternalHttpServerBearerCredential" => (
+            &["String", "Secret<String>"],
+            "Result<Unit,HttpServerError>",
+        ),
+        "stdExternalHttpServerListenTlsAuthenticated" => (
+            &[
+                "String", "String", "String", "Int", "Int", "Int", "Int", "Int",
+            ],
+            "Task<Result<HttpServer,HttpServerError>>",
+        ),
         "stdExternalHttpServerTlsCredential" => (
             &["String", "Bytes", "Secret<String>"],
             "Result<Unit,HttpServerError>",
@@ -1201,6 +1226,31 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
     }
     if let Some(value) = numeric::call(n, args, runtime)? {
         return Ok(Some(value));
+    }
+    if n == "stdExternalHttpServerBearerCredential" {
+        let [Value::Text(alias), secret] = args else {
+            return Err(Error::InvalidOperation(
+                "invalid HTTP server bearer arguments".into(),
+            ));
+        };
+        let Some(Value::Text(token)) = v05::unsecret(secret) else {
+            return Err(Error::InvalidOperation(
+                "HTTP server bearer token requires Secret<String>".into(),
+            ));
+        };
+        let result = runtime.register_http_server_bearer(alias, token)?;
+        return Ok(Some(Value::Result(
+            result.map(|_| Box::new(Value::Null)).map_err(|code| {
+                Box::new(Value::Struct(
+                    "HttpServerError".into(),
+                    BTreeMap::from([
+                        ("code".into(), Value::Text(code.into())),
+                        ("phase".into(), Value::Text("NotSent".into())),
+                        ("status".into(), Value::Int(0)),
+                    ]),
+                ))
+            }),
+        )));
     }
     if n == "stdExternalHttpServerTlsCredential" {
         let [Value::Text(alias), Value::Bytes(certificate), secret] = args else {

@@ -1,6 +1,6 @@
-# REWIND 1.9.29 言語リファレンス
+# REWIND 1.9.30 言語リファレンス
 
-対象はcompiler/language 1.9.29です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象はcompiler/language 1.9.30です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -576,3 +576,5 @@ imported function は entry の無関係な global variable を裸の名前で�
 HTTP / TCP / PostgreSQL の名前解決は process 全体で最大8件を共有する。cancel や deadline でも OS の処理が終了するまで枠を返さず、枠不足は typed failure を返す。数値 IP アドレスはこの枠を使わない。外部の名前解決は `revert` で取り消さず、記録 replay は名前解決を実行しない。[仕様](REWIND_v1.9.28.md)を参照する。
 
 `std.httpServer.tlsCredential` と `configuredTls` は、秘密鍵を記録しない TLS HTTP server を提供する。[鍵登録・予算・期限・非復元の通信](REWIND_v1.9.29.md)を参照する。
+
+`std.httpServer.bearerCredential` / `configuredTlsAuthenticated` は Authorization を native transport 内で検証して除去する。[契約](REWIND_v1.9.30.md)を参照する。
