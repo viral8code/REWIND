@@ -226,7 +226,7 @@ impl Array {
         }
         Ok(state)
     }
-    fn window_bits(&self, start: usize, end: usize) -> Result<ArrayBits<'_>> {
+    pub(super) fn window_bits(&self, start: usize, end: usize) -> Result<ArrayBits<'_>> {
         if start > end || end > self.len() {
             return Err(Error::Index);
         }

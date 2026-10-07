@@ -24,6 +24,26 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.9.33") {
+        if p.structs.contains_key("SolveWork")
+            || p.enums.contains_key("SolveWork")
+            || p.aliases.contains_key("SolveWork")
+        {
+            return Err(Error::InvalidOperation("reserved solve work type".into()));
+        }
+        p.structs.insert(
+            "SolveWork".into(),
+            StructDef {
+                private_fields: BTreeSet::from(["$native".into()]),
+                bounds: BTreeMap::new(),
+                immutable: true,
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                fields: vec![],
+            },
+        );
+    }
     if language_at_least(&p.language, "1.9.27") {
         if p.structs.contains_key("SparseWork")
             || p.enums.contains_key("SparseWork")
@@ -139,6 +159,16 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if !language_at_least(&p.language, "1.8.0") {
         return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
+    }
+    if matches!(
+        n,
+        "stdNumericSolveInit"
+            | "stdNumericSolveStep"
+            | "stdNumericSolveDone"
+            | "stdNumericSolveResult"
+    ) && !language_at_least(&p.language, "1.9.33")
+    {
+        return Err(diagnostic(at, "cooperative solve requires language 1.9.33"));
     }
     if matches!(
         n,
@@ -258,6 +288,75 @@ fn array<'a>(v: &'a Value, rt: &'a Runtime) -> std::result::Result<&'a Array, Nu
         Value::NumericArray(a) => Ok(a),
         _ => Err(NumericError::Type),
     }
+}
+fn solve_work(
+    value: &Value,
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::SolveWork, NumericError> {
+    let Value::Struct(ty, fields) = target(value, rt) else {
+        return Err(NumericError::Type);
+    };
+    if ty != "SolveWork" {
+        return Err(NumericError::Type);
+    }
+    let a = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(|v| array(v, rt))
+            .cloned()
+    };
+    let i = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(usize_arg)
+    };
+    let f = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(floating)
+    };
+    let work = rewind::numeric::SolveWork {
+        input: a("$input")?,
+        right: a("$right")?,
+        matrix: a("$matrix")?,
+        rhs: a("$rhs")?,
+        output: a("$output")?,
+        tolerance: f("$tolerance")?,
+        scale: f("$scale")?,
+        phase: u8::try_from(i("$phase")?).map_err(|_| NumericError::Domain)?,
+        cursor: i("$cursor")?,
+        col: i("$col")?,
+        row: i("$row")?,
+        pivot: i("$pivot")?,
+        factor: f("$factor")?,
+        value: f("$value")?,
+    };
+    work.validate()?;
+    Ok(work)
+}
+fn solve_work_value(w: rewind::numeric::SolveWork) -> Value {
+    Value::Struct(
+        "SolveWork".into(),
+        BTreeMap::from([
+            ("$input".into(), Value::NumericArray(w.input)),
+            ("$right".into(), Value::NumericArray(w.right)),
+            ("$matrix".into(), Value::NumericArray(w.matrix)),
+            ("$rhs".into(), Value::NumericArray(w.rhs)),
+            ("$output".into(), Value::NumericArray(w.output)),
+            ("$tolerance".into(), Value::Float(w.tolerance.to_bits())),
+            ("$scale".into(), Value::Float(w.scale.to_bits())),
+            ("$phase".into(), Value::Int(w.phase as i64)),
+            ("$cursor".into(), Value::Int(w.cursor as i64)),
+            ("$col".into(), Value::Int(w.col as i64)),
+            ("$row".into(), Value::Int(w.row as i64)),
+            ("$pivot".into(), Value::Int(w.pivot as i64)),
+            ("$factor".into(), Value::Float(w.factor.to_bits())),
+            ("$value".into(), Value::Float(w.value.to_bits())),
+        ]),
+    )
 }
 fn sparse_work(
     value: &Value,
@@ -477,7 +576,23 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "SparseInit" {
+    let cost = if name == "SolveInit" {
+        4096
+    } else if name == "SolveStep" {
+        solve_work(&args[0], rt).map_or(1024, |w| {
+            let n = w.right.len();
+            n.saturating_pow(3)
+                .saturating_mul(3)
+                .saturating_add(n.saturating_mul(n).saturating_mul(2))
+                .saturating_add(n.saturating_mul(10))
+                .saturating_add(1)
+                .min(rewind::numeric::SOLVE_CHUNK)
+                .saturating_mul(64)
+                .saturating_add(1024)
+        })
+    } else if matches!(name, "SolveDone" | "SolveResult") {
+        512
+    } else if name == "SparseInit" {
         32768
     } else if name == "SparseStep" {
         sparse_work(&args[0], rt).map_or(2048, |w| {
@@ -717,7 +832,45 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "VectorInit" {
+    if name == "SolveInit" {
+        Array::storage_estimate(length(0))
+            .min(131072)
+            .saturating_add(
+                Array::storage_estimate(length(1))
+                    .min(131072)
+                    .saturating_mul(2),
+            )
+            .saturating_add(16384)
+    } else if name == "SolveStep" {
+        solve_work(&args[0], rt).map_or(16384, |w| {
+            // Each bounded work unit writes at most two matrix cells, two rhs
+            // cells or one result cell. Cap COW reservation by full private
+            // storage, but include bounded row-copy scratch and value metadata.
+            Array::storage_estimate(w.matrix.len())
+                .min(
+                    w.matrix
+                        .update_estimate()
+                        .saturating_mul(rewind::numeric::SOLVE_CHUNK * 2),
+                )
+                .saturating_add(
+                    Array::storage_estimate(w.rhs.len()).min(
+                        w.rhs
+                            .update_estimate()
+                            .saturating_mul(rewind::numeric::SOLVE_CHUNK * 2),
+                    ),
+                )
+                .saturating_add(
+                    Array::storage_estimate(w.output.len()).min(
+                        w.output
+                            .update_estimate()
+                            .saturating_mul(rewind::numeric::SOLVE_CHUNK),
+                    ),
+                )
+                .saturating_add(rewind::numeric::SOLVE_CHUNK * 16 + 16384)
+        })
+    } else if matches!(name, "SolveDone" | "SolveResult") {
+        16384
+    } else if name == "VectorInit" {
         Array::storage_estimate(length(1)).min(131072)
     } else if name == "MatmulInit" {
         a(0).zip(a(1))
@@ -988,6 +1141,10 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "SolveInit" => solve_work_value(rewind::numeric::SolveWork::new(a(0)?, a(1)?, f(2)?)?),
+            "SolveStep" => solve_work_value(solve_work(&args[0], rt)?.step()?),
+            "SolveDone" => Value::Bool(solve_work(&args[0], rt)?.done()),
+            "SolveResult" => Value::NumericArray(solve_work(&args[0], rt)?.result()?),
             "SparseInit" => sparse_work_value(rewind::numeric::SparseWork::new(
                 i(0)?,
                 i(1)?,
@@ -1489,6 +1646,13 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericSolveInit" => (
+            &["&FloatArray", "&FloatArray", "Float"],
+            "Result<SolveWork,StdError>",
+        ),
+        "stdNumericSolveStep" => (&["&SolveWork"], "Result<SolveWork,StdError>"),
+        "stdNumericSolveDone" => (&["&SolveWork"], "Result<Bool,StdError>"),
+        "stdNumericSolveResult" => (&["&SolveWork"], "Result<FloatArray,StdError>"),
         "stdNumericSparseInit" => (
             &[
                 "Int",

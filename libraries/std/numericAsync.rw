@@ -52,3 +52,11 @@ pub async fn zipFloat(operation:String,left:FloatArray,right:FloatArray)->Result
 // @api norm2 cost At most 4096 values per native step; scaled accumulation preserves logical order without materializing input or squaring large magnitudes.
 // @api norm2 failure NumericType/NonFinite/Overflow; arbitrary ranks and views; same scaled result as numeric.norm2, task cancellation and fatal budgets apply.
 pub async fn norm2(array:FloatArray)->Result<Float,StdError> effects {tasks} {return cooperativeNorm(array);}
+
+// @api solve cost Partial-pivot LU O(n^3) arithmetic with O(n^2) shared-page COW private storage; at most 4096 copies, pivot checks, swap pairs or update products per native step, including input initialization and back substitution.
+// @api solve failure NumericShape/Type/NonFinite/Singular/Size; square Float64 matrix, rank-one rhs, finite nonnegative relative pivot tolerance. Same arithmetic order as numeric.solve, no partial output on error/cancel. Fatal work/memory budgets apply; conservative per-step COW admission remains.
+pub async fn solve(matrix:FloatArray,right:FloatArray,tolerance:Float)->Result<FloatArray,StdError> effects {tasks} {
+ var work=stdNumericSolveInit(&matrix,&right,tolerance)?;
+ while !stdNumericSolveDone(&work)? {work=stdNumericSolveStep(&work)?;task.yieldNow();}
+ return stdNumericSolveResult(&work);
+}
