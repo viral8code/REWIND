@@ -60,8 +60,24 @@ impl Limits {
             .saturating_add(HEADERS * 4 + META)
     }
 }
+pub(crate) const TLS_CONFIG_MEMORY: usize = 512 * 1024;
+const TLS_CONNECTION_MEMORY: usize = 4 * 1024 * 1024;
+#[derive(Clone)]
+pub(crate) struct TlsCredential {
+    certificate: Arc<Vec<u8>>,
+    key_digest: [u8; 32],
+    config: Arc<rustls::ServerConfig>,
+}
+trait ConnectionIo: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send {}
+impl<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send> ConnectionIo for T {}
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Operation {
+    ListenTls {
+        address: String,
+        port: i64,
+        limits: Limits,
+        credential: String,
+    },
     Listen {
         address: String,
         port: i64,
@@ -85,6 +101,11 @@ impl Operation {
     fn size(&self) -> usize {
         match self {
             Self::Listen { address, .. } => address.len(),
+            Self::ListenTls {
+                address,
+                credential,
+                ..
+            } => address.len() + credential.len(),
             Self::Respond { headers, body, .. } => {
                 headers
                     .iter()
@@ -137,6 +158,7 @@ impl Shared {
     }
 }
 struct Listener {
+    tls: Option<Arc<rustls::ServerConfig>>,
     limits: Limits,
     shared: Arc<Shared>,
     receiver: Arc<Mutex<mpsc::Receiver<Packet>>>,
@@ -145,6 +167,14 @@ struct Listener {
     sender: Option<mpsc::Sender<Packet>>,
 }
 impl Listener {
+    fn memory(&self) -> usize {
+        self.limits.memory()
+            + if self.tls.is_some() {
+                self.limits.connections * TLS_CONNECTION_MEMORY
+            } else {
+                0
+            }
+    }
     // Binding alone cannot accept or spawn a connection. Activation happens only
     // after the completed listen operation is owned by the host.
     fn activate(&mut self, runtime: &tokio::runtime::Runtime) {
@@ -152,6 +182,7 @@ impl Listener {
         let out = self.sender.take().unwrap();
         let peers = self.shared.clone();
         let cfg = self.limits.clone();
+        let tls = self.tls.clone();
         let cap = Arc::new(Semaphore::new(cfg.connections));
         self.accept = Some(runtime.spawn(async move {
             loop {
@@ -168,22 +199,32 @@ impl Listener {
                 tasks.retain(|task| !task.is_finished());
                 let out = out.clone();
                 let cfg = cfg.clone();
+                let tls = tls.clone();
                 tasks.push(tokio::spawn(async move {
                     let _permit = permit;
                     let lifetime = Duration::from_millis(cfg.lifetime_ms);
-                    let service =
-                        service_fn(move |request| dispatch(request, out.clone(), cfg.clone()));
-                    let mut builder = http1::Builder::new();
-                    builder
-                        .timer(TokioTimer::new())
-                        .header_read_timeout(lifetime)
-                        .max_headers(128)
-                        .max_buf_size(HEADERS);
-                    let _ = tokio::time::timeout(
-                        lifetime,
-                        builder.serve_connection(TokioIo::new(stream), service),
-                    )
-                    .await;
+                    let connection = async move {
+                        let stream: Box<dyn ConnectionIo> = if let Some(config) = tls {
+                            match tokio_rustls::TlsAcceptor::from(config).accept(stream).await {
+                                Ok(stream) => Box::new(stream),
+                                Err(_) => return,
+                            }
+                        } else {
+                            Box::new(stream)
+                        };
+                        let service =
+                            service_fn(move |request| dispatch(request, out.clone(), cfg.clone()));
+                        let mut builder = http1::Builder::new();
+                        builder
+                            .timer(TokioTimer::new())
+                            .header_read_timeout(lifetime)
+                            .max_headers(128)
+                            .max_buf_size(HEADERS);
+                        let _ = builder
+                            .serve_connection(TokioIo::new(stream), service)
+                            .await;
+                    };
+                    let _ = tokio::time::timeout(lifetime, connection).await;
                 }));
             }
         }));
@@ -278,11 +319,7 @@ impl Host {
     pub(crate) fn reserved_bytes(&self) -> usize {
         WORKER
             + self.admission
-            + self
-                .listeners
-                .values()
-                .map(|l| l.limits.memory())
-                .sum::<usize>()
+            + self.listeners.values().map(Listener::memory).sum::<usize>()
             + self.requests.len() * META
             + self.jobs.values().map(|j| j.memory).sum::<usize>()
             + self
@@ -296,7 +333,7 @@ impl Host {
                 .retired_listeners
                 .iter()
                 .filter(|l| !l.finished())
-                .map(|l| l.limits.memory())
+                .map(Listener::memory)
                 .sum::<usize>()
             + self.retired_listeners.len() * META
     }
@@ -309,11 +346,21 @@ impl Host {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn submit(
         &mut self,
         id: usize,
         operation: Operation,
         timeout: u64,
+    ) -> std::result::Result<(), &'static str> {
+        self.submit_with_tls(id, operation, timeout, None)
+    }
+    fn submit_with_tls(
+        &mut self,
+        id: usize,
+        operation: Operation,
+        timeout: u64,
+        tls: Option<Arc<rustls::ServerConfig>>,
     ) -> std::result::Result<(), &'static str> {
         self.reap();
         if timeout == 0 || timeout > 120000 {
@@ -322,7 +369,10 @@ impl Host {
         if self.jobs.len() + self.retired.len() >= 8 {
             return Err("HttpServerBusy");
         }
-        let creates_listener = matches!(operation, Operation::Listen { .. });
+        let creates_listener = matches!(
+            operation,
+            Operation::Listen { .. } | Operation::ListenTls { .. }
+        );
         let parent = operation.parent();
         let mut shared = None;
         let mut receiver = None;
@@ -332,6 +382,12 @@ impl Host {
                 address,
                 port,
                 limits,
+            }
+            | Operation::ListenTls {
+                address,
+                port,
+                limits,
+                ..
             } => {
                 if self.listeners.len()
                     + self.retired_listeners.len()
@@ -345,7 +401,16 @@ impl Host {
                 }
                 address.parse::<IpAddr>().map_err(|_| "HttpServerAddress")?;
                 u16::try_from(*port).map_err(|_| "HttpServerAddress")?;
-                limits.memory() + META
+                if matches!(operation, Operation::ListenTls { .. }) && tls.is_none() {
+                    return Err("HttpServerTlsCredentialUnknown");
+                }
+                limits.memory()
+                    + META
+                    + if tls.is_some() {
+                        limits.connections * TLS_CONNECTION_MEMORY
+                    } else {
+                        0
+                    }
             }
             Operation::Next { server, max_bytes } => {
                 let listener = self.listeners.get(server).ok_or("HttpServerClosed")?;
@@ -432,14 +497,14 @@ impl Host {
         let handle=self.runtime.spawn(async move {
    let waiting=async {
     match operation {
-     Operation::Listen{address,port,limits}=>{
+     Operation::Listen{address,port,limits}|Operation::ListenTls{address,port,limits,..}=>{
       let address=SocketAddr::new(address.parse::<IpAddr>().unwrap(),port as u16);
       match TcpListener::bind(address).await {
        Err(_)=>Completed{wire:failure("HttpServerBind","NotStarted"),listener:None,request:None},
        Ok(socket)=>{
         let address=socket.local_addr().unwrap();let (out,requests)=mpsc::channel(limits.connections);
         let shared=Arc::new(Shared{closed:AtomicBool::new(false),next_busy:AtomicBool::new(false),connections:StdMutex::new(Vec::new())});
-        Completed{wire:json!({"adapter":"server","server":id,"address":address.ip().to_string(),"port":address.port(),"maxBytes":limits.body_bytes}),listener:Some(Listener{limits,shared,receiver:Arc::new(Mutex::new(requests)),accept:None,socket:Some(socket),sender:Some(out)}),request:None}
+        Completed{wire:json!({"adapter":"server","server":id,"address":address.ip().to_string(),"port":address.port(),"maxBytes":limits.body_bytes}),listener:Some(Listener{tls,limits,shared,receiver:Arc::new(Mutex::new(requests)),accept:None,socket:Some(socket),sender:Some(out)}),request:None}
        }
       }
      },
@@ -705,6 +770,92 @@ impl Runtime {
             }
         }
     }
+    /// Private material is retained outside VM checkpoints; operation fingerprints contain only an immutable alias.
+    pub fn register_http_server_tls(
+        &mut self,
+        alias: &str,
+        certificate: &[u8],
+        key: &[u8],
+    ) -> Result<std::result::Result<(), &'static str>> {
+        use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
+        use sha2::{Digest, Sha256};
+        if self.external_depth != 1 {
+            return Err(Error::InvalidOperation(
+                "ExternalBoundary: server TLS credentials require external region".into(),
+            ));
+        }
+        self.charge_native_work(
+            certificate
+                .len()
+                .saturating_add(key.len())
+                .saturating_mul(64)
+                .saturating_add(1024),
+        )?;
+        if alias.is_empty()
+            || alias.len() > 128
+            || !alias
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+            || certificate.is_empty()
+            || certificate.len() > 65536
+            || key.is_empty()
+            || key.len() > 65536
+        {
+            return Ok(Err("HttpServerTlsCredential"));
+        }
+        self.protect_http_server_fields(&[alias.as_bytes()])?;
+        let digest: [u8; 32] = Sha256::digest(key).into();
+        if let Some(old) = self.http_server_tls_credentials.get(alias) {
+            return Ok(
+                if old.certificate.as_slice() == certificate && old.key_digest == digest {
+                    Ok(())
+                } else {
+                    Err("HttpServerTlsCredentialImmutable")
+                },
+            );
+        }
+        if self.http_server_tls_credentials.len() >= 16 {
+            return Ok(Err("HttpServerTlsCredentialLimit"));
+        }
+        self.check_native_allocation(TLS_CONFIG_MEMORY)?;
+        let parsed = (|| {
+            let certificates = CertificateDer::pem_slice_iter(certificate)
+                .take(9)
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(|_| "HttpServerTlsCredential")?;
+            if certificates.is_empty() || certificates.len() > 8 {
+                return Err("HttpServerTlsCredential");
+            }
+            let key = PrivateKeyDer::from_pem_slice(key).map_err(|_| "HttpServerTlsCredential")?;
+            let mut config = rustls::ServerConfig::builder_with_provider(Arc::new(
+                rustls::crypto::ring::default_provider(),
+            ))
+            .with_safe_default_protocol_versions()
+            .map_err(|_| "HttpServerTlsCredential")?
+            .with_no_client_auth()
+            .with_single_cert(certificates, key)
+            .map_err(|_| "HttpServerTlsCredential")?;
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            Ok(TlsCredential {
+                certificate: Arc::new(certificate.to_vec()),
+                key_digest: digest,
+                config: Arc::new(config),
+            })
+        })();
+        match parsed {
+            Err(code) => Ok(Err(code)),
+            Ok(credentials) => {
+                self.http_server_tls_credentials
+                    .insert(alias.into(), credentials);
+                if let Err(error) = self.enforce_budget() {
+                    self.http_server_tls_credentials.remove(alias);
+                    return Err(error);
+                }
+                self.register_secret_value(&crate::Value::Bytes(Arc::new(key.to_vec())));
+                Ok(Ok(()))
+            }
+        }
+    }
     pub fn start_http_server(&mut self, operation: Operation, timeout: u64) -> Result<usize> {
         let size = operation.size();
         self.charge_native_work(size.saturating_mul(4).saturating_add(1))?;
@@ -713,6 +864,11 @@ impl Runtime {
             Operation::Listen { address, .. } => {
                 self.protect_http_server_fields(&[address.as_bytes()])?
             }
+            Operation::ListenTls {
+                address,
+                credential,
+                ..
+            } => self.protect_http_server_fields(&[address.as_bytes(), credential.as_bytes()])?,
             Operation::Respond { headers, body, .. } => {
                 let mut fields = Vec::with_capacity(headers.len() * 2 + 1);
                 fields.push(body.as_slice());
@@ -744,6 +900,12 @@ impl Runtime {
                         address,
                         port,
                         limits,
+                    }
+                    | Operation::ListenTls {
+                        address,
+                        port,
+                        limits,
+                        ..
                     } => {
                         if !limits.valid() {
                             return Err("HttpServerLimit");
@@ -770,6 +932,17 @@ impl Runtime {
                         .map_err(|_| "HttpServerRecording")?;
                     return Ok(());
                 }
+                let tls = if let Operation::ListenTls { credential, .. } = &operation {
+                    Some(
+                        self.http_server_tls_credentials
+                            .get(credential)
+                            .ok_or("HttpServerTlsCredentialUnknown")?
+                            .config
+                            .clone(),
+                    )
+                } else {
+                    None
+                };
                 if self.http_server_host.is_none() {
                     self.check_native_allocation(WORKER)
                         .map_err(|_| "HttpServerMemoryLimit")?;
@@ -777,6 +950,9 @@ impl Runtime {
                 }
                 let admission = match &operation {
                     Operation::Listen { limits, .. } => limits.memory() + META,
+                    Operation::ListenTls { limits, .. } => {
+                        limits.memory() + META + limits.connections * TLS_CONNECTION_MEMORY
+                    }
                     Operation::Respond { body, .. } => body.len() + META,
                     _ => reserve,
                 };
@@ -788,7 +964,7 @@ impl Runtime {
                 self.http_server_host
                     .as_mut()
                     .unwrap()
-                    .submit(id, operation, timeout)
+                    .submit_with_tls(id, operation, timeout, tls)
             })();
             if let Err(code) = submitted {
                 self.finish_async_external(id, Ok(failure(code, "NotStarted")))?;

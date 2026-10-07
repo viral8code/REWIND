@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.25",
+  "language": "1.9.29",
   "symbols": {
     "fn:close": {
       "async": false,
@@ -46,6 +46,27 @@
       "failure": "HttpServerError; body 1..1048576 bytes, connections 1..8, whole connection lifetime 1..120000 ms, deadline 1..120000 ms.",
       "generics": [],
       "parameters": [
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Task<Result<HttpServer,HttpServerError>>"
+    },
+    "fn:configuredTls": {
+      "async": false,
+      "cost": "O(maxBodyBytes * maxConnections); adds 4MiB TLS memory reservation per connection.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpServerError; registered alias required, TLS 1.2/1.3 HTTP/1.1; lifetime includes the handshake. Limits match configured.",
+      "generics": [],
+      "parameters": [
+        "String",
         "String",
         "Int",
         "Int",
@@ -106,6 +127,23 @@
         "Int"
       ],
       "return": "Task<Result<Unit,HttpServerError>>"
+    },
+    "fn:tlsCredential": {
+      "async": false,
+      "cost": "O(PEM bytes); at most 16 immutable private configurations, 512KiB reserved per alias.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpServerError; external boundary required, PEM certificate/key each at most 64KiB. Only the alias enters operation records.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Bytes",
+        "Secret<String>"
+      ],
+      "return": "Result<Unit,HttpServerError>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -290,6 +328,12 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },
@@ -650,6 +694,12 @@
       "kind": "record"
     },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],

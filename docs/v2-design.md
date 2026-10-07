@@ -348,3 +348,7 @@ TLS 1.2 / 1.3 は Rustls / tokio-rustls を利用する。公開 CA、verify-bef
 ## v1.9.28 の名前解決
 
 HTTP / TCP / PostgreSQL の OS 名前解決を process 共通で最大8件に制限し、cancel / deadline 後も実際の終了まで枠を保持する。resolver 自体の中断は保証しない。既存の実接続・TLS・記録の契約を検証する。native idle cache / general snapshot の会計、数値の分割、GUI / DB / 通信の統合と残る v2 の条件は継続する。
+
+## v1.9.29 の HTTPS server
+
+秘密鍵を native configuration に保持し、公開 alias だけを listener operation に含む TLS HTTP/1 server を追加する。handshake は接続数・全接続期限・TLS memory 予約に含める。物理接続と応答は revert で復元・再送しない。private request authentication、GUI / PostgreSQL の統合、長い数値 kernel の分割、一般 container / secret / native cache の会計と残る v2 の受入条件は継続する。[契約](REWIND_v1.9.29.md)を参照する。

@@ -407,6 +407,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/http-server-tls/main.rw",
+            include_str!("../../../examples/http-server-tls/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/http-server-tls/README.md",
+            include_str!("../../../examples/http-server-tls/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/http-server/main.rw",
             include_str!("../../../examples/http-server/main.rw"),
         )?;
@@ -436,6 +446,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             include_str!("../../../examples/sparse-async/README.md"),
         )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.29.md",
+                include_str!("../../../docs/REWIND_v1.9.29.md"),
+            ),
             (
                 "REWIND_v1.9.28.md",
                 include_str!("../../../docs/REWIND_v1.9.28.md"),

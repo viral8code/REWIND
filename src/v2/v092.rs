@@ -255,6 +255,8 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdExternalDbRollback",
         "stdExternalDbClose",
         "stdExternalHttpServerListen",
+        "stdExternalHttpServerListenTls",
+        "stdExternalHttpServerTlsCredential",
         "stdExternalHttpServerNext",
         "stdExternalHttpServerRespond",
         "stdExternalHttpServerClose",
@@ -354,6 +356,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.26"
             | "1.9.27"
             | "1.9.28"
+            | "1.9.29"
             | "2.0.0"
     ) {
         return Ok(());
@@ -700,6 +703,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.26"
             | "1.9.27"
             | "1.9.28"
+            | "1.9.29"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -786,6 +790,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.26"
                 | "1.9.27"
                 | "1.9.28"
+                | "1.9.29"
                 | "2.0.0"
         )
     {
@@ -796,6 +801,13 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if n.starts_with("stdExternalHttpServer") && !language_at_least(&p.language, "1.9.25") {
         return Err(diagnostic(at, "HTTP server requires language 1.9.25"));
+    }
+    if matches!(
+        n,
+        "stdExternalHttpServerListenTls" | "stdExternalHttpServerTlsCredential"
+    ) && !language_at_least(&p.language, "1.9.29")
+    {
+        return Err(diagnostic(at, "HTTP server TLS requires language 1.9.29"));
     }
     if n == "stdExternalTcpTls" && !language_at_least(&p.language, "1.9.24") {
         return Err(diagnostic(at, "TCP TLS requires language 1.9.24"));
@@ -887,6 +899,14 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdExternalHttpServerTlsCredential" => (
+            &["String", "Bytes", "Secret<String>"],
+            "Result<Unit,HttpServerError>",
+        ),
+        "stdExternalHttpServerListenTls" => (
+            &["String", "String", "Int", "Int", "Int", "Int", "Int"],
+            "Task<Result<HttpServer,HttpServerError>>",
+        ),
         "stdExternalHttpServerListen" => (
             &["String", "Int", "Int", "Int", "Int", "Int"],
             "Task<Result<HttpServer,HttpServerError>>",
@@ -1181,6 +1201,31 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
     }
     if let Some(value) = numeric::call(n, args, runtime)? {
         return Ok(Some(value));
+    }
+    if n == "stdExternalHttpServerTlsCredential" {
+        let [Value::Text(alias), Value::Bytes(certificate), secret] = args else {
+            return Err(Error::InvalidOperation(
+                "invalid HTTP server TLS credential arguments".into(),
+            ));
+        };
+        let Some(Value::Text(key)) = v05::unsecret(secret) else {
+            return Err(Error::InvalidOperation(
+                "HTTP server key requires Secret<String>".into(),
+            ));
+        };
+        let result = runtime.register_http_server_tls(alias, certificate, key.as_bytes())?;
+        return Ok(Some(Value::Result(
+            result.map(|_| Box::new(Value::Null)).map_err(|code| {
+                Box::new(Value::Struct(
+                    "HttpServerError".into(),
+                    BTreeMap::from([
+                        ("code".into(), Value::Text(code.into())),
+                        ("phase".into(), Value::Text("NotSent".into())),
+                        ("status".into(), Value::Int(0)),
+                    ]),
+                ))
+            }),
+        )));
     }
     if n == "stdExternalDbCredentials" {
         let [Value::Text(alias), secret, Value::Bytes(certificate)] = args else {
