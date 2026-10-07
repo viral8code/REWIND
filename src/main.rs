@@ -282,7 +282,7 @@ impl<R: BufRead> Runner<R> {
     fn expression(&mut self, min_prec: u8) -> Result<Value> {
         let mut lhs = match self.advance() {
             Token::Number(n) => Value::Int(n),
-            Token::String(s) => Value::Text(s),
+            Token::String(s) => Value::Text(s.into()),
             Token::Symbol('(') => {
                 let v = self.expression(0)?;
                 self.expect(')')?;
@@ -367,7 +367,7 @@ impl<R: BufRead> Runner<R> {
                     Value::Int(n) if n >= 0 => {
                         let bytes = self.runtime.read_handle(id, n as usize)?;
                         String::from_utf8(bytes)
-                            .map(Value::Text)
+                            .map(|text| Value::Text(text.into()))
                             .map_err(|e| Error::InvalidOperation(e.to_string()))
                     }
                     _ => Err(self.syntax("read requires a nonnegative integer".into())),
@@ -396,14 +396,14 @@ impl<R: BufRead> Runner<R> {
             ("In", "readLine", 0) => Ok(self
                 .runtime
                 .input_line(&mut self.input)?
-                .map(Value::Text)
+                .map(|text| Value::Text(text.into()))
                 .unwrap_or(Value::Null)),
-            ("Time", "now", 0) => Ok(Value::Text(self.runtime.now_millis()?.to_string())),
+            ("Time", "now", 0) => Ok(Value::Text(self.runtime.now_millis()?.to_string().into())),
             ("Random", "next", 0) => Ok(Value::Int(self.runtime.random_u64() as i64)),
             ("File", "readText", 1) => {
                 let text = String::from_utf8(self.runtime.read_file(&strings()[0])?)
                     .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-                Ok(Value::Text(text))
+                Ok(Value::Text(text.into()))
             }
             ("File", "open", 1) => Ok(Value::Handle(self.runtime.open_file(&strings()[0])?)),
             ("File", "openSnapshot", 1) => {
@@ -469,7 +469,7 @@ impl<R: BufRead> Runner<R> {
 fn binary(operator: char, lhs: Value, rhs: Value) -> Result<Value> {
     match (operator, lhs, rhs) {
         ('+', Value::Text(a), b) => Ok(Value::Text(a + &b.to_string())),
-        ('+', a, Value::Text(b)) => Ok(Value::Text(a.to_string() + &b)),
+        ('+', a, Value::Text(b)) => Ok(Value::Text((a.to_string() + &b).into())),
         ('+', Value::Int(a), Value::Int(b)) => a
             .checked_add(b)
             .map(Value::Int)

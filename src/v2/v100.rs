@@ -60,6 +60,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) {
         return Ok(());
@@ -185,6 +186,7 @@ pub(super) fn method_work(
         .iter()
         .fold(1usize, |n, v| n.saturating_add(argument_work(v, runtime)));
     match value {
+        Value::Text(s) if method == "byteLen" => base.saturating_add(s.clone_work()),
         Value::Text(s) => base.saturating_add(s.len()),
         Value::Bytes(_) => base,
         Value::TypedList(_, v) => {

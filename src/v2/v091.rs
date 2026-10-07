@@ -84,6 +84,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) {
         return Ok(());
@@ -174,7 +175,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
                     call,
                     Expr {
                         at: at.clone(),
-                        kind: ExprKind::Value(Value::Text(String::new())),
+                        kind: ExprKind::Value(Value::Text(String::new().into())),
                     },
                 ],
             ),
@@ -254,6 +255,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) || !NAMES.contains(&n)
     {
@@ -368,7 +370,7 @@ impl Parser<'_> {
             return Err(("ItemLimit", start));
         }
         match self.text.as_bytes().get(start).copied() {
-            Some(b'"') => Ok(variant("Text", Some(Value::Text(self.string()?)))),
+            Some(b'"') => Ok(variant("Text", Some(Value::Text(self.string()?.into())))),
             Some(b'{') => {
                 self.pos += 1;
                 let mut fields = BTreeMap::new();
@@ -600,7 +602,7 @@ pub(super) fn call(rt: &Runtime, n: &str, args: &[Value]) -> Result<Option<Value
                     if s.len() > BYTE_LIMIT {
                         Err(("ByteLimit", 0))
                     } else {
-                        Ok(Value::Text(s))
+                        Ok(Value::Text(s.into()))
                     }
                 });
             Value::Result(
@@ -645,7 +647,7 @@ pub(super) fn call(rt: &Runtime, n: &str, args: &[Value]) -> Result<Option<Value
             };
             let inner = fields.first().map(|(_, v)| v);
             match n {
-                "jsonKind" => Value::Text(kind.clone()),
+                "jsonKind" => Value::Text(kind.clone().into()),
                 "jsonInt" | "jsonText" | "jsonBool" => {
                     let expected = match n {
                         "jsonInt" => "Int",
@@ -673,7 +675,7 @@ pub(super) fn call(rt: &Runtime, n: &str, args: &[Value]) -> Result<Option<Value
                                 .flat_map(|m| m.keys())
                                 .filter_map(|k| {
                                     if let MapKey::Text(s) = k {
-                                        Some(Value::Text(s.clone()))
+                                        Some(Value::Text(s.clone().into()))
                                     } else {
                                         None
                                     }
@@ -686,7 +688,7 @@ pub(super) fn call(rt: &Runtime, n: &str, args: &[Value]) -> Result<Option<Value
                             _ => return Err(Error::InvalidOperation("expected JSON key".into())),
                         };
                         Value::Option(
-                            map.and_then(|m| m.get(&MapKey::Text(key.clone())))
+                            map.and_then(|m| m.get(&MapKey::Text(key.to_string())))
                                 .cloned()
                                 .map(Box::new),
                         )

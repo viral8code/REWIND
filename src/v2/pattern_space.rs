@@ -113,7 +113,7 @@ fn normalize(p: &Program, pat: &Pattern, ty: &str) -> Node {
         Pattern::Wildcard | Pattern::Bind(_) => Node::Wild,
         Pattern::Literal(Value::Bool(v)) => Node::Ctor(v.to_string(), vec![]),
         Pattern::Literal(Value::Int(v)) => Node::Int(v as i128, v as i128 + 1),
-        Pattern::Literal(Value::Text(v)) => Node::Text(v),
+        Pattern::Literal(Value::Text(v)) => Node::Text(v.to_string()),
         Pattern::Range(a, b) => Node::Int(a as i128, b as i128),
         Pattern::List(parts) => {
             let inner = arguments(ty).first().copied().unwrap_or("Unknown");

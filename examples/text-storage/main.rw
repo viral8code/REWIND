@@ -1,0 +1,19 @@
+var text = "日本語";
+for i in 0..128 {text += " / immutable text";}
+let original = text;
+let remembered = capture value ||->String{return text;};
+let rows = List<String>();rows.add(text);
+let lookup = Map<String,String>();lookup.set("body",text);
+commit saved;
+text += " / changed";
+rows.set(0,text);lookup.set("body",text);
+assert_eq(remembered(),original);
+assert(text.endsWith("changed"));
+revert saved;
+assert_eq(text,original);
+assert_eq(rows.get(0),original);
+assert_eq(lookup.get("body"),Some(original));
+assert(text.startsWith("日本語"));
+assert_eq(text.find(" / immutable text"),Some(9));
+drop saved;
+Out.println("text restored");publish;

@@ -804,7 +804,7 @@ impl crate::Runtime {
             Parameter::Bool(v) => crate::Value::Int(i64::from(*v)),
             Parameter::Int(v) => crate::Value::Int(*v),
             Parameter::Float(v) => crate::Value::Float(v.to_bits()),
-            Parameter::Text(v) => crate::Value::Text(v.clone()),
+            Parameter::Text(v) => crate::Value::Text(v.clone().into()),
             Parameter::Bytes(v) => crate::Value::Bytes(std::sync::Arc::new(v.clone())),
             Parameter::Private(_) => unreachable!(),
         };

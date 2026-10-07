@@ -180,6 +180,7 @@ impl Compiler {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             return None;
@@ -264,6 +265,7 @@ impl Compiler {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) || name.contains('<')
         {
@@ -468,6 +470,7 @@ impl Compiler {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) && stmt.at.text == "@application-entry"
             {
@@ -551,6 +554,7 @@ impl Compiler {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             let signatures = program
@@ -685,6 +689,7 @@ impl Compiler {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
@@ -791,6 +796,7 @@ impl Compiler {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             let mut code = self.code[base..].to_vec();
@@ -1658,6 +1664,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             engine.runtime.enable_allocation_accounting();
@@ -1723,6 +1730,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             engine
@@ -1851,6 +1859,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             let message = self
@@ -1983,6 +1992,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             v11::enrich(&mut d);
@@ -2361,6 +2371,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             return first_error.map_or(Ok(()), |e| {
@@ -2440,6 +2451,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             first_error.map_or(Ok(()), |e| {
@@ -2748,6 +2760,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             )
         {
@@ -2821,6 +2834,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
@@ -2951,6 +2965,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) {
                 let mut failure =
@@ -3028,6 +3043,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) && !causes.is_empty()
             {
@@ -3043,7 +3059,7 @@ impl<R: BufRead> Vm<R> {
     }
     fn finish_tools(&self, execution_error: Option<&Error>) -> Result<()> {
         let digest = self.engine.runtime.state_digest()?;
-        let mut outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string())))});
+        let mut outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string().into())))});
         if matches!(
             self.engine.program.language.as_str(),
             "0.6"
@@ -3114,6 +3130,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             outcome["diagnostic"] = execution_error
@@ -3245,6 +3262,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.33"
                         | "1.9.34"
                         | "1.9.35"
+                        | "1.9.36"
                         | "2.0.0"
                 )
             {
@@ -3360,6 +3378,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) {
                 return error;
@@ -3403,7 +3422,10 @@ impl<R: BufRead> Vm<R> {
                     d.frames_truncated = true;
                 }
             }
-            d.message = self.engine.runtime.masked_value(&Value::Text(d.message));
+            d.message = self
+                .engine
+                .runtime
+                .masked_value(&Value::Text(d.message.into()));
             Error::Diagnostic(Box::new(d))
         })
     }
@@ -3493,6 +3515,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
@@ -3560,6 +3583,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) && (self.engine.runtime.collection_due() || scheduler_gc)
             {
@@ -3724,6 +3748,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.33"
                         | "1.9.34"
                         | "1.9.35"
+                        | "1.9.36"
                         | "2.0.0"
                 ) {
                     self.index_state(&inst.at)?;
@@ -3799,6 +3824,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.33"
                         | "1.9.34"
                         | "1.9.35"
+                        | "1.9.36"
                         | "2.0.0"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
@@ -3927,6 +3953,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.33"
                                     | "1.9.34"
                                     | "1.9.35"
+                                    | "1.9.36"
                                     | "2.0.0"
                             ) {
                                 let ty = v06::fn_type(
@@ -4126,6 +4153,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) && (matches!(
                         lhs,
@@ -4171,21 +4199,25 @@ impl<R: BufRead> Vm<R> {
                     }
                     let result = match value {
                         Value::FileError(error) => match field.as_str() {
-                            "code" => Value::Text(error.code),
-                            "path" => Value::Text(error.path),
+                            "code" => Value::Text(error.code.into()),
+                            "path" => Value::Text(error.path.into()),
                             "cause" => Value::Option(
                                 error
                                     .causes
                                     .first()
                                     .cloned()
-                                    .map(|s| Box::new(Value::Text(s))),
+                                    .map(|s| Box::new(Value::Text(s.into()))),
                             ),
-                            "causes" => {
-                                Value::HeapRef(self.engine.runtime.alloc(Value::TypedList(
+                            "causes" => Value::HeapRef(
+                                self.engine.runtime.alloc(Value::TypedList(
                                     "String".into(),
-                                    error.causes.into_iter().map(Value::Text).collect(),
-                                ))?)
-                            }
+                                    error
+                                        .causes
+                                        .into_iter()
+                                        .map(|text| Value::Text(text.into()))
+                                        .collect(),
+                                ))?,
+                            ),
                             _ => return Err(self.error(&inst.at, "unknown FileError field")),
                         },
                         Value::Handle(id) if field == "position" => {
@@ -4283,6 +4315,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) && name == "reveal"
                     {
@@ -4368,6 +4401,7 @@ impl<R: BufRead> Vm<R> {
                                 | "1.9.33"
                                 | "1.9.34"
                                 | "1.9.35"
+                                | "1.9.36"
                                 | "2.0.0"
                         )
                     {
@@ -4503,6 +4537,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.33"
                                     | "1.9.34"
                                     | "1.9.35"
+                                    | "1.9.36"
                                     | "2.0.0"
                             ) && !needed.contains(name)
                             {
@@ -4592,6 +4627,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.33"
                                         | "1.9.34"
                                         | "1.9.35"
+                                        | "1.9.36"
                                         | "2.0.0"
                                 ) && !needed.contains(name)
                                 {
@@ -4678,6 +4714,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) {
                         let f =
@@ -4788,6 +4825,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::method_work(
@@ -4867,6 +4905,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) {
                         if let Some(value) =
@@ -4963,6 +5002,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::call_work(
@@ -5041,6 +5081,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
@@ -5250,6 +5291,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
@@ -5498,6 +5540,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
@@ -5700,6 +5743,7 @@ pub(super) fn execute(
                         | "1.9.33"
                         | "1.9.34"
                         | "1.9.35"
+                        | "1.9.36"
                         | "2.0.0"
                 )
             {
@@ -5790,6 +5834,7 @@ pub(super) fn execute(
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             )
             || options.inspect
@@ -5934,6 +5979,7 @@ fn build_artifact_mode(
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) && !root.join("rewind.toml").exists()
     {
@@ -6076,6 +6122,7 @@ fn explore_test(
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             )
         {
@@ -6165,10 +6212,14 @@ pub(super) fn session_mode(
         ))
         .collect::<BTreeMap<_, _>>());
     state["stdout"] = serde_json::json!(vm.engine.runtime.masked_value(&Value::Text(
-        String::from_utf8_lossy(&vm.engine.runtime.state().stdout.bytes()?).into_owned()
+        String::from_utf8_lossy(&vm.engine.runtime.state().stdout.bytes()?)
+            .into_owned()
+            .into()
     )));
     state["stderr"] = serde_json::json!(vm.engine.runtime.masked_value(&Value::Text(
-        String::from_utf8_lossy(&vm.engine.runtime.state().stderr.bytes()?).into_owned()
+        String::from_utf8_lossy(&vm.engine.runtime.state().stderr.bytes()?)
+            .into_owned()
+            .into()
     )));
     let outcome = outcome.map_err(|e| match e {
         Error::Diagnostic(d) => {
@@ -6177,11 +6228,15 @@ pub(super) fn session_mode(
                 Err(_) => Error::InvalidOperation(
                     vm.engine
                         .runtime
-                        .masked_value(&Value::Text(d.message.clone())),
+                        .masked_value(&Value::Text(d.message.clone().into())),
                 ),
             }
         }
-        e => Error::InvalidOperation(vm.engine.runtime.masked_value(&Value::Text(e.to_string()))),
+        e => Error::InvalidOperation(
+            vm.engine
+                .runtime
+                .masked_value(&Value::Text(e.to_string().into())),
+        ),
     });
     Ok((
         outcome,

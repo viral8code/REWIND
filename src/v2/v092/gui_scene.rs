@@ -216,6 +216,12 @@ pub(super) fn call(name: &str, args: &[Value], rt: &mut Runtime) -> Result<Optio
     let mut output = Vec::with_capacity(counter.0);
     let result = scene(args, rt)
         .and_then(|s| serde_json::to_writer(&mut output, &s).map_err(|_| "GuiInvalidScene"))
-        .map(|_| Value::Text(String::from_utf8(output).expect("JSON serialization is UTF-8")));
+        .map(|_| {
+            Value::Text(
+                String::from_utf8(output)
+                    .expect("JSON serialization is UTF-8")
+                    .into(),
+            )
+        });
     Ok(Some(outcome(result.map_err(|e| (e, 0)))))
 }

@@ -33,7 +33,7 @@ mod digest_tests {
             "String".into(),
             vec![
                 Value::Text("a\n😀\"\\".into()),
-                Value::Text("x".repeat(32768)),
+                Value::Text("x".repeat(32768).into()),
             ]
             .into(),
         );
@@ -454,7 +454,7 @@ impl Runtime {
     }
     pub fn debug_state(&self) -> Json {
         let deltas=self.state.files.iter().map(|(path,file)| {
-            let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>(),"content":if file.len<=65536 {file.to_vec().ok().map(|bytes|self.masked_value(&String::from_utf8(bytes.clone()).map(Value::Text).unwrap_or(Value::Bytes(bytes.into()))))}else{None}})}else{json!({"operation":"delete"})};(path.clone(),delta)
+            let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>(),"content":if file.len<=65536 {file.to_vec().ok().map(|bytes|self.masked_value(&String::from_utf8(bytes.clone()).map(|text| Value::Text(text.into())).unwrap_or(Value::Bytes(bytes.into()))))}else{None}})}else{json!({"operation":"delete"})};(path.clone(),delta)
         }).collect::<BTreeMap<_,_>>();
         let states = std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))

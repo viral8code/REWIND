@@ -243,8 +243,8 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                 };
                 value(DecimalValue::parse(s))?
             }
-            "stdDecimalFormat" => Value::Text(d(0)?.to_string()),
-            "stdDecimalRepresentation" => Value::Text(d(0)?.representation()),
+            "stdDecimalFormat" => Value::Text(d(0)?.to_string().into()),
+            "stdDecimalRepresentation" => Value::Text(d(0)?.representation().into()),
             "stdDecimalFromCoefficient" => {
                 let Value::BigInt(v) = target(&args[0], rt) else {
                     return Err(DecimalError::Domain);

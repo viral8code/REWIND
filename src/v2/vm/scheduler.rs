@@ -514,6 +514,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -648,7 +649,8 @@ impl<R: BufRead> Vm<R> {
                     ))
                 }
             };
-            let task = self.create_async_task(&decoder, vec![Value::Text(String::new())], at)?;
+            let task =
+                self.create_async_task(&decoder, vec![Value::Text(String::new().into())], at)?;
             let id = handle_id(&task).unwrap();
             let state = self.scheduler.tasks.get_mut(&id).unwrap();
             state.body = if let Some(operation) = operation {
@@ -678,7 +680,7 @@ impl<R: BufRead> Vm<R> {
                 };
                 (
                     Operation::Postgres {
-                        alias: alias.clone(),
+                        alias: alias.to_string(),
                     },
                     "Result<DbConnection,DbError>",
                 )
@@ -688,7 +690,7 @@ impl<R: BufRead> Vm<R> {
                 };
                 (
                     Operation::Sqlite {
-                        path: path.clone(),
+                        path: path.to_string(),
                         read_only: *read_only,
                     },
                     "Result<DbConnection,DbError>",
@@ -725,7 +727,7 @@ impl<R: BufRead> Vm<R> {
                         (
                             Operation::ExecuteMany {
                                 connection: id,
-                                sql: sql.clone(),
+                                sql: sql.to_string(),
                                 parameters,
                             },
                             "Result<Int,DbError>",
@@ -742,7 +744,7 @@ impl<R: BufRead> Vm<R> {
                             let Some(Value::Text(sql)) = args.get(1) else {
                                 return Err(invalid());
                             };
-                            sql.clone()
+                            sql.to_string()
                         };
                         let params = self.resolve(&args[if statement { 1 } else { 2 }]);
                         let params = v05::unfrozen(&params).unwrap_or(&params);
@@ -790,7 +792,7 @@ impl<R: BufRead> Vm<R> {
                         (
                             Operation::Prepare {
                                 connection: id,
-                                sql: sql.clone(),
+                                sql: sql.to_string(),
                             },
                             "Result<DbStatement,DbError>",
                         )
@@ -871,9 +873,9 @@ impl<R: BufRead> Vm<R> {
                 };
                 (
                     Operation::ListenTlsAuthenticated {
-                        credential: credential.clone(),
-                        authentication: authentication.clone(),
-                        address: address.clone(),
+                        credential: credential.to_string(),
+                        authentication: authentication.to_string(),
+                        address: address.to_string(),
                         port: *port,
                         limits: Limits {
                             body_bytes: usize::try_from(*body).unwrap_or(usize::MAX),
@@ -891,8 +893,8 @@ impl<R: BufRead> Vm<R> {
                 };
                 (
                     Operation::ListenTls {
-                        credential: credential.clone(),
-                        address: address.clone(),
+                        credential: credential.to_string(),
+                        address: address.to_string(),
                         port: *port,
                         limits: Limits {
                             body_bytes: usize::try_from(*body).unwrap_or(usize::MAX),
@@ -910,7 +912,7 @@ impl<R: BufRead> Vm<R> {
                 };
                 (
                     Operation::Listen {
-                        address: address.clone(),
+                        address: address.to_string(),
                         port: *port,
                         limits: Limits {
                             body_bytes: usize::try_from(*body).unwrap_or(usize::MAX),
@@ -958,7 +960,7 @@ impl<R: BufRead> Vm<R> {
                             else {
                                 return Err(invalid());
                             };
-                            headers.push((name.clone(), value.as_ref().clone()));
+                            headers.push((name.to_string(), value.as_ref().clone()));
                         }
                         (
                             Operation::Respond {
@@ -1009,7 +1011,7 @@ impl<R: BufRead> Vm<R> {
                 };
                 (
                     Operation::Tls {
-                        host: host.clone(),
+                        host: host.to_string(),
                         port: u16::try_from(*port).unwrap_or(0),
                         ca: ca.clone(),
                     },
@@ -1021,7 +1023,7 @@ impl<R: BufRead> Vm<R> {
                 };
                 (
                     Operation::Connect {
-                        host: host.clone(),
+                        host: host.to_string(),
                         port: u16::try_from(*port).unwrap_or(0),
                     },
                     "Result<TcpSocket,TcpError>",
@@ -1168,7 +1170,7 @@ impl<R: BufRead> Vm<R> {
                     else {
                         return Err(self.error(at, "invalid HTTP header"));
                     };
-                    headers.push((name.clone(), value.as_ref().clone()));
+                    headers.push((name.to_string(), value.as_ref().clone()));
                 }
                 (headers, ca.clone())
             } else {
@@ -1190,8 +1192,8 @@ impl<R: BufRead> Vm<R> {
             )?;
             let task_id = handle_id(&task).unwrap();
             let operation = self.engine.runtime.start_http(rewind::network::Request {
-                method: method.clone(),
-                url: url.clone(),
+                method: method.to_string(),
+                url: url.to_string(),
                 body: body.clone(),
                 timeout_ms: u64::try_from(*timeout).unwrap_or(0),
                 limit: usize::try_from(*limit).unwrap_or(usize::MAX),
@@ -1214,7 +1216,7 @@ impl<R: BufRead> Vm<R> {
                     None
                 },
                 credential: if let Some(Value::Text(alias)) = args.get(7) {
-                    alias.clone()
+                    alias.to_string()
                 } else {
                     String::new()
                 },
@@ -1343,6 +1345,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1457,6 +1460,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) =>
                 {
@@ -1540,6 +1544,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) =>
                 {
@@ -1650,6 +1655,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) =>
                 {
@@ -1740,6 +1746,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) =>
                 {
@@ -1827,6 +1834,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) =>
                 {
@@ -1940,6 +1948,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -2040,6 +2049,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) =>
                 {
@@ -2117,6 +2127,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.33"
                                         | "1.9.34"
                                         | "1.9.35"
+                                        | "1.9.36"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -2208,11 +2219,12 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
                     } else {
-                        Value::Text(error)
+                        Value::Text(error.into())
                     },
                 )),
             })
@@ -2309,6 +2321,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -2422,6 +2435,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -2536,6 +2550,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.33"
                         | "1.9.34"
                         | "1.9.35"
+                        | "1.9.36"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -2586,10 +2601,13 @@ impl<R: BufRead> Vm<R> {
                         let outcome = match result {
                             Ok(None) => None,
                             Ok(Some(event)) => {
-                                let input =
-                                    Value::Text(serde_json::to_string(&event).map_err(|e| {
-                                        rewind::Error::InvalidOperation(e.to_string())
-                                    })?);
+                                let input = Value::Text(
+                                    serde_json::to_string(&event)
+                                        .map_err(|e| {
+                                            rewind::Error::InvalidOperation(e.to_string())
+                                        })?
+                                        .into(),
+                                );
                                 let task = self.scheduler.tasks.get_mut(id).unwrap();
                                 task.body = TaskBody::Function(decoder.clone(), vec![input]);
                                 task.phase = TaskPhase::Ready;
@@ -2609,7 +2627,7 @@ impl<R: BufRead> Vm<R> {
                                 Some(Value::Result(Err(Box::new(Value::Struct(
                                     "StdError".into(),
                                     BTreeMap::from([
-                                        ("code".into(), Value::Text(code)),
+                                        ("code".into(), Value::Text(code.into())),
                                         ("offset".into(), Value::Int(0)),
                                     ]),
                                 )))))
@@ -2838,6 +2856,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.33"
                             | "1.9.34"
                             | "1.9.35"
+                            | "1.9.36"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -3130,6 +3149,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.33"
                         | "1.9.34"
                         | "1.9.35"
+                        | "1.9.36"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -3263,6 +3283,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -3424,6 +3445,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -3533,6 +3555,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
@@ -3568,8 +3591,8 @@ fn database_parameters(value: &Value) -> Result<Vec<rewind::database::Parameter>
                 ("Bool", Some(Value::Bool(v))) => Parameter::Bool(*v),
                 ("Int", Some(Value::Int(v))) => Parameter::Int(*v),
                 ("Float", Some(Value::Float(v))) => Parameter::Float(f64::from_bits(*v)),
-                ("Text", Some(Value::Text(v))) => Parameter::Text(v.clone()),
-                ("Private", Some(Value::Text(v))) => Parameter::Private(v.clone()),
+                ("Text", Some(Value::Text(v))) => Parameter::Text(v.to_string()),
+                ("Private", Some(Value::Text(v))) => Parameter::Private(v.to_string()),
                 ("Bytes", Some(Value::Bytes(v))) => Parameter::Bytes(v.as_ref().clone()),
                 _ => return Err(invalid()),
             })

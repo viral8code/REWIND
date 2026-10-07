@@ -372,6 +372,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) {
         return Ok(());
@@ -725,6 +726,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -818,6 +820,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         )
     {
@@ -1217,7 +1220,7 @@ fn strings(
         if values.len() == ITEMS || bytes > LIMIT {
             return Err(("Limit", 0));
         }
-        values.push(Value::Text(s));
+        values.push(Value::Text(s.into()));
     }
     Ok(Value::TypedList("String".into(), values.into()))
 }
@@ -1345,7 +1348,7 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
             ("Bool", Some(Value::Bool(v))) => Parameter::Bool(*v),
             ("Int", Some(Value::Int(v))) => Parameter::Int(*v),
             ("Float", Some(Value::Float(v))) => Parameter::Float(f64::from_bits(*v)),
-            ("Text", Some(Value::Text(v))) => Parameter::Text(v.clone()),
+            ("Text", Some(Value::Text(v))) => Parameter::Text(v.to_string()),
             ("Bytes", Some(Value::Bytes(v))) => Parameter::Bytes(v.as_ref().clone()),
             _ => return Err(Error::InvalidOperation("invalid private DB value".into())),
         };
@@ -1389,7 +1392,7 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                 output.push(HEX[(byte & 15) as usize] as char);
             }
         }
-        return Ok(Some(outcome(Ok(Value::Text(output)))));
+        return Ok(Some(outcome(Ok(Value::Text(output.into())))));
     }
     if n == "stdExternalHttpCredential" {
         let [Value::Text(alias), secret] = args else {
@@ -1430,7 +1433,7 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
     if n.starts_with("stdGui") {
         fn gui_string<T: serde::Serialize>(event: T) -> Result<Value> {
             serde_json::to_string(&event)
-                .map(Value::Text)
+                .map(|text| Value::Text(text.into()))
                 .map_err(|e| Error::InvalidOperation(e.to_string()))
         }
         fn gui_optional<T: serde::Serialize>(event: Option<T>) -> Result<Value> {
@@ -1455,13 +1458,13 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                 .map_err(|e| Error::InvalidOperation(e.into()))
                 .and_then(|v| {
                     serde_json::to_string(&serde_json::json!({"text":v.text,"cursor":v.cursor,"anchor":v.anchor,"line":v.text.chars().take(v.cursor).filter(|c|*c=='\n').count()}))
-                        .map(Value::Text)
+                        .map(|text| Value::Text(text.into()))
                         .map_err(|e| Error::InvalidOperation(e.to_string()))
                 }),
             ("stdGuiPollEvent", []) => runtime.gui_poll_event().and_then(|e| match e {
                 None => Ok(Value::Option(None)),
                 Some(e) => serde_json::to_string(&e)
-                    .map(|s| Value::Option(Some(Box::new(Value::Text(s)))))
+                    .map(|s| Value::Option(Some(Box::new(Value::Text(s.into())))))
                     .map_err(|e| Error::InvalidOperation(e.to_string())),
             }),
             ("stdGuiStage", [Value::Text(s)]) => {
@@ -1477,7 +1480,7 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
             ("stdGuiClose", []) => runtime.gui_stage(None).map(|_| Value::Null),
             ("stdGuiNextEvent", []) => runtime.gui_next_event().and_then(|event| {
                 serde_json::to_string(&event)
-                    .map(Value::Text)
+                    .map(|text| Value::Text(text.into()))
                     .map_err(|e| Error::InvalidOperation(e.to_string()))
             }),
             _ => {
@@ -1736,7 +1739,7 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                     };
                     let n = f64::from_bits(*bits);
                     if n.is_finite() {
-                        Ok(Value::Text(n.to_string()))
+                        Ok(Value::Text(n.to_string().into()))
                     } else {
                         Err(("NumberRange", 0))
                     }
@@ -1763,7 +1766,7 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                             digits.push(b'-');
                         }
                         digits.reverse();
-                        Ok(Value::Text(String::from_utf8(digits).unwrap()))
+                        Ok(Value::Text(String::from_utf8(digits).unwrap().into()))
                     }
                 }
                 "stdShiftLeft" | "stdShiftRight" | "stdShiftUnsigned" => {

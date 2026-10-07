@@ -1,6 +1,6 @@
-# REWIND 1.9.35 言語リファレンス
+# REWIND 1.9.36 言語リファレンス
 
-対象はcompiler/language 1.9.35です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象はcompiler/language 1.9.36です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -585,4 +585,4 @@ HTTP / TCP / PostgreSQL の名前解決は process 全体で最大8件を共有�
 
 `std.numericAsync.solve(matrix,right,tolerance)` は入力コピー・LU 分解・後退代入を最大4096 work unit ごとに分割する pure Task である。正方 Float64 行列、rank-one rhs と有限非負 tolerance が必要で、同期版と同じ演算順序を維持する。[契約と予算の限界](REWIND_v1.9.33.md)を参照する。
 
-HTTP の origin / CA client cache は最大16件であり、通信・stream が保持する lease も native の予約メモリに含める。`rewind profile` の `runtime.http_cached_clients` / `http_retained_clients` / `http_client_reservation_bytes` と、[1.9.35 の契約](REWIND_v1.9.35.md)を参照する。
+HTTP の origin / CA client cache は最大16件であり、通信・stream が保持する lease も native の予約メモリに含める。`rewind profile` の `runtime.http_cached_clients` / `http_retained_clients` / `http_client_reservation_bytes` と、[1.9.36 の契約](REWIND_v1.9.36.md)を参照する。

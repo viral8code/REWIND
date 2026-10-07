@@ -182,9 +182,9 @@ fn event(e: &Event) -> Value {
         Event::ArrayStart(_) => ("ArrayStart", vec![pos]),
         Event::ArrayEnd(_) => ("ArrayEnd", vec![pos]),
         Event::Null(_) => ("Null", vec![pos]),
-        Event::Key(s, _) => ("Key", vec![Value::Text(s.clone()), pos]),
-        Event::Text(s, _) => ("Text", vec![Value::Text(s.clone()), pos]),
-        Event::Number(s, _) => ("Number", vec![Value::Text(s.clone()), pos]),
+        Event::Key(s, _) => ("Key", vec![Value::Text(s.clone().into()), pos]),
+        Event::Text(s, _) => ("Text", vec![Value::Text(s.clone().into()), pos]),
+        Event::Number(s, _) => ("Number", vec![Value::Text(s.clone().into()), pos]),
         Event::Bool(b, _) => ("Bool", vec![Value::Bool(*b), pos]),
     };
     Value::Enum(
