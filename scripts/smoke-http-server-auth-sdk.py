@@ -8,6 +8,12 @@ context=ssl.create_default_context(cafile=str(fixture/'localhost-ca.pem'))
 environment=dict(os.environ,REWIND_HTTP_SERVER_KEY=private_key,REWIND_HTTP_SERVER_TOKEN=private_token)
 source_path=pathlib.Path(sys.argv[3]) if len(sys.argv)>3 else pathlib.Path(binary).parent.parent/'share/rewind/examples/http-server-auth/main.rw'
 source=source_path.read_text(encoding='utf-8')
+def https_peer(port):
+ # Listener is IPv4; keep localhost as the verified TLS hostname/SNI while
+ # avoiding Windows IPv6 refusal delays on every authentication probe.
+ connection=http.client.HTTPSConnection('localhost',port,timeout=5,context=context)
+ connection._create_connection=lambda address,timeout,source_address=None: socket.create_connection(('127.0.0.1',address[1]),timeout,source_address)
+ return connection
 def assert_key_private(path):
  text=path.read_text(encoding='utf-8')
  for secret_form in (private_key,json.dumps(private_key)[1:-1],private_key.splitlines()[1],base64.b64encode(private_key.encode()).decode(),private_token,base64.b64encode(private_token.encode()).decode(),base64.b64encode(('Bearer '+private_token).encode()).decode()):
@@ -35,7 +41,7 @@ for mode in ('debug','compact','live'):
    try:
     end=time.monotonic()+8
     while True:
-     connection=http.client.HTTPSConnection('localhost',port,timeout=5,context=context)
+     connection=https_peer(port)
      try:connection.connect();break
      except ConnectionRefusedError:
       connection.close()
@@ -43,13 +49,13 @@ for mode in ('debug','compact','live'):
       time.sleep(.01)
     connection.request('POST','/echo?q=one',b'ignored',{'Connection':'close'})
     denied=connection.getresponse();assert denied.status==401;assert denied.read()==b'';connection.close()
-    wrong=http.client.HTTPSConnection('localhost',port,timeout=5,context=context)
+    wrong=https_peer(port)
     wrong.request('POST','/echo?q=one',b'ignored',{'Authorization':'Bearer wrong-client-token-012345','Connection':'close'})
     denied=wrong.getresponse();assert denied.status==401;assert denied.read()==b'';wrong.close()
-    connection=http.client.HTTPSConnection('localhost',port,timeout=5,context=context)
+    connection=https_peer(port)
     connection.request('POST','/echo?q=one',b'ping',{'Authorization':'Bearer '+private_token,'Connection':'close'})
     response=connection.getresponse();assert response.status==200;assert response.read()==b'ok';connection.close()
-    shutdown=http.client.HTTPSConnection('localhost',port,timeout=5,context=context);shutdown.request('GET','/shutdown',headers={'Authorization':'Bearer '+private_token,'Connection':'close'})
+    shutdown=https_peer(port);shutdown.request('GET','/shutdown',headers={'Authorization':'Bearer '+private_token,'Connection':'close'})
     try:shutdown.getresponse();raise AssertionError('shutdown should close the connection')
     except (http.client.RemoteDisconnected,ConnectionResetError):pass
     finally:shutdown.close()
@@ -58,7 +64,11 @@ for mode in ('debug','compact','live'):
   args=['run','main.rwc','--allow-effects',effects,'--secret-env','REWIND_HTTP_SERVER_KEY','--secret-env','REWIND_HTTP_SERVER_TOKEN']
   if live:args[0]='profile'
   else:args+=['--record','trace.json','--record-mode',mode]
-  result=call(args);worker.join(8);assert not worker.is_alive();assert not errors,errors;assert result.stdout.replace(b'\r\n',b'\n')==b'authenticated https server done\n',result.stdout
+  try:result=call(args)
+  except Exception as error:
+   worker.join(8)
+   raise RuntimeError(str(error)+'; peer errors: '+repr(errors)) from error
+  worker.join(8);assert not worker.is_alive();assert not errors,errors;assert result.stdout.replace(b'\r\n',b'\n')==b'authenticated https server done\n',result.stdout
   if not live:
    assert_key_private(root/'trace.json')
    def no_authorization(value):

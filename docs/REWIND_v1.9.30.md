@@ -50,3 +50,8 @@ cooperative numerical kernels and remaining v2 acceptance work continue.
 Validation includes rejection before VM capture, duplicate headers, scheme
 handling, stripping, private body rejection, immutable and capacity-limited
 configuration, memory admission and source-free record/replay/live SDK runs.
+
+The loopback authentication fixture connects to the IPv4 listener directly while
+keeping `localhost` as the certificate-verified TLS hostname and SNI. This avoids
+accumulated IPv6 connection-refusal delays during its consecutive denial probes
+on Windows; certificate and authentication verification remain enabled.
