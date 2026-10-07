@@ -24,6 +24,7 @@ if not dsn:
     raise SystemExit('A real TLS PostgreSQL fixture is required')
 root.mkdir()
 effects = 'gui,external,network,db,tasks,env,fileRead,output'
+profile_sizes = []
 for backend in ['sqlite', 'postgres']:
     for mode in ['source', 'debug', 'compact']:
         directory = root / (backend+'-'+mode)
@@ -65,7 +66,7 @@ for backend in ['sqlite', 'postgres']:
                     self.send_header('Content-Length',str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)
-                except (BrokenPipeError, ConnectionResetError):
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                     pass
             def log_message(self, *_):
                 pass
@@ -80,7 +81,11 @@ for backend in ['sqlite', 'postgres']:
                 '--record',str(trace),'--record-mode','debug' if mode == 'source' else mode,
                 '--',backend,'http://127.0.0.1:'+str(server.server_port)+'/data',title]
         process = subprocess.Popen(args,cwd=directory,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        if sys.platform == 'linux' and os.environ.get('REWIND_TEST_STDERR_PIPE_BYTES'):
+            import fcntl
+            fcntl.fcntl(process.stderr.fileno(),fcntl.F_SETPIPE_SZ,int(os.environ['REWIND_TEST_STDERR_PIPE_BYTES']))
         lines = []
+        errors = []
         events = queue.Queue()
         def consume():
             for line in process.stdout:
@@ -89,13 +94,20 @@ for backend in ['sqlite', 'postgres']:
             events.put(None)
         reader = threading.Thread(target=consume,daemon=True)
         reader.start()
+        def consume_error():
+            for chunk in iter(lambda: process.stderr.read1(4096), b''):
+                errors.append(chunk)
+        error_reader = threading.Thread(target=consume_error,daemon=True)
+        error_reader.start()
         def expect(value):
             try:
                 actual = events.get(timeout=45)
             except queue.Empty:
                 raise RuntimeError('GUI workflow did not progress to '+value.decode())
             if actual != value:
-                detail = process.stderr.read().decode('utf-8',errors='replace') if process.poll() is not None else ''
+                if process.poll() is not None:
+                    error_reader.join(timeout=5)
+                detail = b''.join(errors).decode('utf-8',errors='replace')
                 raise RuntimeError('Unexpected GUI workflow output '+repr(actual)+' '+detail)
         try:
             expect(b'retry')
@@ -109,7 +121,10 @@ for backend in ['sqlite', 'postgres']:
             expect(b'cancelled')
             process.wait(timeout=30)
             reader.join(timeout=5)
-            error = process.stderr.read()
+            error_reader.join(timeout=5)
+            assert not reader.is_alive() and not error_reader.is_alive(),'GUI output readers did not finish'
+            error = b''.join(errors)
+            profile_sizes.append(len(error))
             assert process.returncode == 0,error.decode('utf-8',errors='replace')
             output = b''.join(lines)
             assert output.replace(b'\r\n',b'\n') == b'retry\nsaved\nundone\ncancelled\n',output
@@ -132,6 +147,8 @@ for backend in ['sqlite', 'postgres']:
             if process.poll() is None:
                 process.kill()
                 process.wait()
+            reader.join(timeout=5)
+            error_reader.join(timeout=5)
             release.set()
             server.shutdown()
             worker.join(timeout=5)
@@ -155,4 +172,4 @@ for backend in ['sqlite', 'postgres']:
         assert not (directory/'ca.der').exists()
         if entry.exists():
             entry.unlink()
-print('Verified native GUI data workflow: both DBs, HTTP error/retry/JSON/cancel, Undo and disconnected source-free replay')
+print('Verified native GUI data workflow: both DBs, HTTP error/retry/JSON/cancel, Undo and disconnected source-free replay (max stderr '+str(max(profile_sizes))+' bytes)')

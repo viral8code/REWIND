@@ -62,3 +62,9 @@ behavior. The script also records CPU user/system time for subsequent runs.
 GUI clipboard/dialog/menu, IME/accessibility, cooperative LU/QR/eigen/autodiff,
 general snapshot/secret/native-cache accounting, long-run and numerical
 measurements and the remaining v2 acceptance conditions continue.
+
+The native GUI fixture drains stdout and stderr concurrently. A profile report
+can exceed a Windows pipe buffer; waiting for process exit before draining
+stderr can deadlock the fixture after a successful cancellation. Linux
+verification also uses a 4096-byte stderr pipe. A peer-side connection abort
+after request cancellation is an expected transport outcome.
