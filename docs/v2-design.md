@@ -352,3 +352,7 @@ HTTP / TCP / PostgreSQL の OS 名前解決を process 共通で最大8件に制
 ## v1.9.29 の HTTPS server
 
 秘密鍵を native configuration に保持し、公開 alias だけを listener operation に含む TLS HTTP/1 server を追加する。handshake は接続数・全接続期限・TLS memory 予約に含める。物理接続と応答は revert で復元・再送しない。private request authentication、GUI / PostgreSQL の統合、長い数値 kernel の分割、一般 container / secret / native cache の会計と残る v2 の受入条件は継続する。[契約](REWIND_v1.9.29.md)を参照する。
+
+## v1.9.30 の private request authentication
+
+TLS listener の bearer token を外部境界で登録し、認証ヘッダーを VM 入力の記録前に検証・除去する。native 401、元の秘密値に依存しない token の replay、既存の本文・URI guard と資源上限を維持する。一般 secret / native cache / snapshot の会計、数値の分割、GUI / PostgreSQL の統合と残る v2 の受入条件は継続する。[契約](REWIND_v1.9.30.md)を参照する。

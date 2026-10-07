@@ -5,6 +5,274 @@ use std::{
     thread,
     time::Instant,
 };
+const AUTH_TOKEN: &str = "fixture-only-private-token-0123456789";
+
+fn authenticated_listener(runtime: &mut Runtime) -> (usize, u16) {
+    let (temporary, _) = tls_listener(runtime, 5000);
+    call(
+        runtime,
+        Operation::Close {
+            resource: temporary,
+        },
+    );
+    runtime.enter_external(false).unwrap();
+    assert_eq!(
+        runtime
+            .register_http_server_bearer("clients", AUTH_TOKEN)
+            .unwrap(),
+        Ok(())
+    );
+    runtime.exit_external().unwrap();
+    let wire = call(
+        runtime,
+        Operation::ListenTlsAuthenticated {
+            address: "127.0.0.1".into(),
+            port: 0,
+            credential: "server".into(),
+            authentication: "clients".into(),
+            limits: Limits {
+                body_bytes: 64,
+                connections: 2,
+                lifetime_ms: 5000,
+            },
+        },
+    );
+    (
+        wire["server"].as_u64().unwrap() as usize,
+        wire["port"].as_u64().unwrap() as u16,
+    )
+}
+
+#[test]
+fn authenticated_tls_rejects_missing_wrong_and_duplicate_credentials_without_recording_them() {
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    let (server, port) = authenticated_listener(&mut runtime);
+    let peer = thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async move {
+            let ca = reqwest::Certificate::from_pem(include_bytes!(
+                "../../tests/fixtures/tls/localhost-ca.pem"
+            ))
+            .unwrap();
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .add_root_certificate(ca)
+                .timeout(Duration::from_secs(5))
+                .build()
+                .unwrap();
+            let url = format!("https://localhost:{port}/echo");
+            for token in [None, Some("wrong-password-0123456789")] {
+                let request = client.post(&url).body("discard");
+                let request = if let Some(token) = token {
+                    request.bearer_auth(token)
+                } else {
+                    request
+                };
+                let denied = request.send().await.unwrap();
+                assert_eq!(denied.status(), 401);
+                assert_eq!(denied.headers()["www-authenticate"], "Bearer");
+                assert!(denied.bytes().await.unwrap().is_empty());
+            }
+            let mut headers = reqwest::header::HeaderMap::new();
+            let value =
+                reqwest::header::HeaderValue::from_str(&format!("Bearer {AUTH_TOKEN}")).unwrap();
+            headers.append(reqwest::header::AUTHORIZATION, value.clone());
+            headers.append(reqwest::header::AUTHORIZATION, value);
+            assert_eq!(
+                client
+                    .post(&url)
+                    .headers(headers)
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                401
+            );
+            let accepted = client
+                .post(&url)
+                .header("authorization", format!("bEaReR   {AUTH_TOKEN}"))
+                .body("ping")
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(accepted.status(), 200);
+            assert_eq!(accepted.bytes().await.unwrap().as_ref(), b"ok");
+        });
+    });
+    let packet = call(&mut runtime, next(server));
+    assert_eq!(packet["body"], "cGluZw==");
+    assert!(!packet.to_string().contains(AUTH_TOKEN));
+    assert!(packet["headers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|header| header["name"] != "authorization"));
+    call(
+        &mut runtime,
+        Operation::Respond {
+            request: packet["request"].as_u64().unwrap() as usize,
+            status: 200,
+            headers: vec![],
+            body: Arc::new(b"ok".to_vec()),
+        },
+    );
+    peer.join().unwrap();
+    call(&mut runtime, Operation::Close { resource: server });
+}
+
+#[test]
+fn bearer_configuration_is_bounded_immutable_and_not_part_of_operation_records() {
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    assert!(runtime
+        .register_http_server_bearer("clients", AUTH_TOKEN)
+        .is_err());
+    runtime.enter_external(false).unwrap();
+    assert_eq!(
+        runtime
+            .register_http_server_bearer("clients", AUTH_TOKEN)
+            .unwrap(),
+        Ok(())
+    );
+    assert_eq!(
+        runtime
+            .register_http_server_bearer("clients", AUTH_TOKEN)
+            .unwrap(),
+        Ok(())
+    );
+    assert_eq!(
+        runtime
+            .register_http_server_bearer("clients", "other-private-token-0123456789")
+            .unwrap(),
+        Err("HttpServerAuthCredentialImmutable")
+    );
+    for token in ["short", "bad-token-with-newline\n", &"a".repeat(4097)] {
+        assert_eq!(
+            runtime
+                .register_http_server_bearer("invalid", token)
+                .unwrap(),
+            Err("HttpServerAuthCredential")
+        );
+    }
+    for index in 1..16 {
+        assert_eq!(
+            runtime
+                .register_http_server_bearer(&format!("client{index}"), AUTH_TOKEN)
+                .unwrap(),
+            Ok(())
+        );
+    }
+    assert_eq!(
+        runtime
+            .register_http_server_bearer("overflow", AUTH_TOKEN)
+            .unwrap(),
+        Err("HttpServerAuthCredentialLimit")
+    );
+    runtime.exit_external().unwrap();
+    let encoded = serde_json::to_string(&Operation::ListenTlsAuthenticated {
+        address: "127.0.0.1".into(),
+        port: 0,
+        credential: "server".into(),
+        authentication: "clients".into(),
+        limits: Limits {
+            body_bytes: 64,
+            connections: 1,
+            lifetime_ms: 100,
+        },
+    })
+    .unwrap();
+    assert!(!encoded.contains(AUTH_TOKEN));
+}
+
+#[test]
+fn authenticated_request_still_rejects_private_data_outside_the_authorization_header() {
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    let (server, port) = authenticated_listener(&mut runtime);
+    let peer = thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async move {
+            let ca = reqwest::Certificate::from_pem(include_bytes!(
+                "../../tests/fixtures/tls/localhost-ca.pem"
+            ))
+            .unwrap();
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .add_root_certificate(ca)
+                .timeout(Duration::from_secs(5))
+                .build()
+                .unwrap();
+            assert_eq!(
+                client
+                    .post(format!("https://localhost:{port}/echo"))
+                    .bearer_auth(AUTH_TOKEN)
+                    .body(AUTH_TOKEN)
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                503
+            );
+        });
+    });
+    let packet = call(&mut runtime, next(server));
+    assert_eq!(packet["error"]["code"], "HttpServerSecretRequest");
+    assert!(!packet.to_string().contains(AUTH_TOKEN));
+    peer.join().unwrap();
+    call(&mut runtime, Operation::Close { resource: server });
+}
+
+#[test]
+fn unknown_authentication_and_configuration_budget_do_not_allocate_a_listener() {
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    runtime.enter_external(false).unwrap();
+    assert_eq!(
+        runtime
+            .register_http_server_tls(
+                "server",
+                include_bytes!("../../tests/fixtures/tls/localhost-cert.pem"),
+                include_bytes!("../../tests/fixtures/tls/localhost-key.pem")
+            )
+            .unwrap(),
+        Ok(())
+    );
+    runtime.exit_external().unwrap();
+    let packet = call(
+        &mut runtime,
+        Operation::ListenTlsAuthenticated {
+            address: "127.0.0.1".into(),
+            port: 0,
+            credential: "server".into(),
+            authentication: "missing".into(),
+            limits: Limits {
+                body_bytes: 64,
+                connections: 1,
+                lifetime_ms: 100,
+            },
+        },
+    );
+    assert_eq!(packet["error"]["code"], "HttpServerAuthCredentialUnknown");
+    assert!(runtime.http_server_host.is_none());
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    runtime
+        .set_budget(crate::ResourceBudget {
+            history_memory: 8 * 1024,
+            history_storage: 8 * 1024 * 1024,
+            spill_threshold: 1024,
+        })
+        .unwrap();
+    runtime.enter_external(false).unwrap();
+    assert!(runtime
+        .register_http_server_bearer("clients", AUTH_TOKEN)
+        .is_err());
+    runtime.exit_external().unwrap();
+    assert!(runtime.http_server_bearer_credentials.is_empty());
+    assert!(runtime.http_server_host.is_none());
+}
 fn result(runtime: &mut Runtime, id: usize) -> Value {
     let end = Instant::now() + Duration::from_secs(6);
     loop {

@@ -1,8 +1,24 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.29",
+  "language": "1.9.30",
   "symbols": {
+    "fn:bearerCredential": {
+      "async": false,
+      "cost": "O(token bytes); at most 16 immutable aliases, 16KiB reserved per configuration.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpServerError; external boundary and Secret<String> required; 16..4096 ASCII graphic bytes, never included in operation records.",
+      "generics": [],
+      "parameters": [
+        "String",
+        "Secret<String>"
+      ],
+      "return": "Result<Unit,HttpServerError>"
+    },
     "fn:close": {
       "async": false,
       "cost": "O(active connections and requests); aborts all physical connections and releases pending requests.",
@@ -66,6 +82,28 @@
       "failure": "HttpServerError; registered alias required, TLS 1.2/1.3 HTTP/1.1; lifetime includes the handshake. Limits match configured.",
       "generics": [],
       "parameters": [
+        "String",
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Task<Result<HttpServer,HttpServerError>>"
+    },
+    "fn:configuredTlsAuthenticated": {
+      "async": false,
+      "cost": "O(configured connection capacity); includes TLS memory reservations; authentication is checked before VM input capture.",
+      "effects": [
+        "external",
+        "network",
+        "tasks"
+      ],
+      "failure": "HttpServerError; requires TLS and bearer aliases. Missing/wrong/duplicate authorization receives 401 and closes; accepted authorization is removed from recorded requests.",
+      "generics": [],
+      "parameters": [
+        "String",
         "String",
         "String",
         "Int",

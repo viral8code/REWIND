@@ -1,4 +1,10 @@
 effects {external,network,tasks};
+// @api bearerCredential cost O(token bytes); at most 16 immutable aliases, 16KiB reserved per configuration.
+// @api bearerCredential failure HttpServerError; external boundary and Secret<String> required; 16..4096 ASCII graphic bytes, never included in operation records.
+pub fn bearerCredential(alias:String,token:Secret<String>)->Result<Unit,HttpServerError> effects {external,network,tasks} {return stdExternalHttpServerBearerCredential(alias,token);}
+// @api configuredTlsAuthenticated cost O(configured connection capacity); includes TLS memory reservations; authentication is checked before VM input capture.
+// @api configuredTlsAuthenticated failure HttpServerError; requires TLS and bearer aliases. Missing/wrong/duplicate authorization receives 401 and closes; accepted authorization is removed from recorded requests.
+pub fn configuredTlsAuthenticated(tlsAlias:String,authAlias:String,address:String,port:Int,maxBodyBytes:Int,maxConnections:Int,lifetimeMillis:Int,deadlineMillis:Int)->Task<Result<HttpServer,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerListenTlsAuthenticated(tlsAlias,authAlias,address,port,maxBodyBytes,maxConnections,lifetimeMillis,deadlineMillis);}
 // @api tlsCredential cost O(PEM bytes); at most 16 immutable private configurations, 512KiB reserved per alias.
 // @api tlsCredential failure HttpServerError; external boundary required, PEM certificate/key each at most 64KiB. Only the alias enters operation records.
 pub fn tlsCredential(alias:String,certificate:Bytes,key:Secret<String>)->Result<Unit,HttpServerError> effects {external,network,tasks} {return stdExternalHttpServerTlsCredential(alias,certificate,key);}
