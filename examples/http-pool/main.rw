@@ -1,0 +1,15 @@
+import std.http as http;
+import std.bytes as bytes;
+fn take<T,E>(result:Result<T,E>)->T effects {} {
+ match move result {Ok(value)=>{return move value;},Err(_)=>{panic("HTTP operation failed");}}
+}
+let urls=Args.all();assert(urls.len()>0);
+for url in urls {
+ var pending:Option<Task<Result<HttpResponse,HttpError>>>=None;
+ external fresh {pending=Some(http.get(url,5000,1024));}
+ match pending {
+  Some(work)=>{let response=take(take(await work));assert_eq(response.status,200);assert_eq(bytes.length(response.body),2);},
+  None=>{panic("missing request");}
+ }
+}
+Out.println("requests done");publish;
