@@ -507,6 +507,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.26"
                 | "1.9.27"
                 | "1.9.28"
+                | "1.9.29"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -843,14 +844,34 @@ impl<R: BufRead> Vm<R> {
             state.phase = TaskPhase::Ready;
             return Ok(Some(task));
         }
-        if name.starts_with("stdExternalHttpServer") {
+        if name.starts_with("stdExternalHttpServer") && name != "stdExternalHttpServerTlsCredential"
+        {
             use rewind::http_server::{Limits, Operation};
             let invalid =
                 || rewind::Error::InvalidOperation("invalid HTTP server arguments".into());
             let Some(Value::Int(timeout)) = args.last() else {
                 return Err(invalid());
             };
-            let (operation, result_type) = if name == "stdExternalHttpServerListen" {
+            let (operation, result_type) = if name == "stdExternalHttpServerListenTls" {
+                let [Value::Text(credential), Value::Text(address), Value::Int(port), Value::Int(body), Value::Int(connections), Value::Int(lifetime), _] =
+                    args
+                else {
+                    return Err(invalid());
+                };
+                (
+                    Operation::ListenTls {
+                        credential: credential.clone(),
+                        address: address.clone(),
+                        port: *port,
+                        limits: Limits {
+                            body_bytes: usize::try_from(*body).unwrap_or(usize::MAX),
+                            connections: usize::try_from(*connections).unwrap_or(usize::MAX),
+                            lifetime_ms: u64::try_from(*lifetime).unwrap_or(u64::MAX),
+                        },
+                    },
+                    "Result<HttpServer,HttpServerError>",
+                )
+            } else if name == "stdExternalHttpServerListen" {
                 let [Value::Text(address), Value::Int(port), Value::Int(body), Value::Int(connections), Value::Int(lifetime), _] =
                     args
                 else {
@@ -1284,6 +1305,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1391,6 +1413,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) =>
                 {
@@ -1467,6 +1490,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) =>
                 {
@@ -1570,6 +1594,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) =>
                 {
@@ -1653,6 +1678,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) =>
                 {
@@ -1733,6 +1759,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) =>
                 {
@@ -1839,6 +1866,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.26"
                 | "1.9.27"
                 | "1.9.28"
+                | "1.9.29"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -1932,6 +1960,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) =>
                 {
@@ -2002,6 +2031,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.26"
                                         | "1.9.27"
                                         | "1.9.28"
+                                        | "1.9.29"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -2086,6 +2116,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
@@ -2180,6 +2211,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.26"
                 | "1.9.27"
                 | "1.9.28"
+                | "1.9.29"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -2286,6 +2318,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.26"
                 | "1.9.27"
                 | "1.9.28"
+                | "1.9.29"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -2393,6 +2426,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.26"
                         | "1.9.27"
                         | "1.9.28"
+                        | "1.9.29"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -2688,6 +2722,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.26"
                             | "1.9.27"
                             | "1.9.28"
+                            | "1.9.29"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -2973,6 +3008,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.26"
                         | "1.9.27"
                         | "1.9.28"
+                        | "1.9.29"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -3099,6 +3135,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.26"
                 | "1.9.27"
                 | "1.9.28"
+                | "1.9.29"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -3253,6 +3290,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.26"
                     | "1.9.27"
                     | "1.9.28"
+                    | "1.9.29"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -3355,6 +3393,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.26"
                 | "1.9.27"
                 | "1.9.28"
+                | "1.9.29"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);

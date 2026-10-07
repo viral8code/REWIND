@@ -1,4 +1,10 @@
 effects {external,network,tasks};
+// @api tlsCredential cost O(PEM bytes); at most 16 immutable private configurations, 512KiB reserved per alias.
+// @api tlsCredential failure HttpServerError; external boundary required, PEM certificate/key each at most 64KiB. Only the alias enters operation records.
+pub fn tlsCredential(alias:String,certificate:Bytes,key:Secret<String>)->Result<Unit,HttpServerError> effects {external,network,tasks} {return stdExternalHttpServerTlsCredential(alias,certificate,key);}
+// @api configuredTls cost O(maxBodyBytes * maxConnections); adds 4MiB TLS memory reservation per connection.
+// @api configuredTls failure HttpServerError; registered alias required, TLS 1.2/1.3 HTTP/1.1; lifetime includes the handshake. Limits match configured.
+pub fn configuredTls(alias:String,address:String,port:Int,maxBodyBytes:Int,maxConnections:Int,lifetimeMillis:Int,deadlineMillis:Int)->Task<Result<HttpServer,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerListenTls(alias,address,port,maxBodyBytes,maxConnections,lifetimeMillis,deadlineMillis);}
 // @api listen cost O(configured connection capacity); reserves buffers before binding, at most four listeners.
 // @api listen failure HttpServerError; numeric bind address, port 0 chooses a free port. Plain HTTP/1.1; physical connections cannot be restored.
 pub fn listen(address:String,port:Int,deadlineMillis:Int)->Task<Result<HttpServer,HttpServerError>> effects {external,network,tasks} {return stdExternalHttpServerListen(address,port,65536,8,30000,deadlineMillis);}

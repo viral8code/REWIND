@@ -338,3 +338,213 @@ fn invalid_capacity_is_a_typed_failure_without_worker_or_listener_allocation() {
         assert!(runtime.http_server_host.is_none());
     }
 }
+fn tls_listener(runtime: &mut Runtime, lifetime_ms: u64) -> (usize, u16) {
+    runtime.enter_external(false).unwrap();
+    assert_eq!(
+        runtime
+            .register_http_server_tls(
+                "server",
+                include_bytes!("../../tests/fixtures/tls/localhost-cert.pem"),
+                include_bytes!("../../tests/fixtures/tls/localhost-key.pem")
+            )
+            .unwrap(),
+        Ok(())
+    );
+    runtime.exit_external().unwrap();
+    let wire = call(
+        runtime,
+        Operation::ListenTls {
+            address: "127.0.0.1".into(),
+            port: 0,
+            credential: "server".into(),
+            limits: Limits {
+                body_bytes: 64,
+                connections: 2,
+                lifetime_ms,
+            },
+        },
+    );
+    (
+        wire["server"].as_u64().unwrap() as usize,
+        wire["port"].as_u64().unwrap() as u16,
+    )
+}
+#[test]
+fn tls_server_verifies_transport_and_reuses_a_reply_receipt_without_resending() {
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    let (server, port) = tls_listener(&mut runtime, 5000);
+    let peer = thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async move {
+            let ca = reqwest::Certificate::from_pem(include_bytes!(
+                "../../tests/fixtures/tls/localhost-ca.pem"
+            ))
+            .unwrap();
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .add_root_certificate(ca)
+                .timeout(Duration::from_secs(5))
+                .build()
+                .unwrap();
+            let response = client
+                .post(format!("https://localhost:{port}/echo"))
+                .body("ping")
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 200);
+            assert_eq!(response.bytes().await.unwrap().as_ref(), b"ok");
+        });
+    });
+    let packet = call(
+        &mut runtime,
+        Operation::Next {
+            server,
+            max_bytes: 64,
+        },
+    );
+    assert_eq!(packet["body"], "cGluZw==");
+    let request = packet["request"].as_u64().unwrap() as usize;
+    runtime.commit("reply").unwrap();
+    let operation = Operation::Respond {
+        request,
+        status: 200,
+        headers: vec![],
+        body: Arc::new(b"ok".to_vec()),
+    };
+    let reply = call(&mut runtime, operation.clone());
+    assert_eq!(reply["replied"], true);
+    peer.join().unwrap();
+    runtime.revert("reply").unwrap();
+    assert_eq!(call(&mut runtime, operation), reply);
+    call(&mut runtime, Operation::Close { resource: server });
+}
+#[test]
+fn tls_server_untrusted_peer_cannot_deliver_an_http_request() {
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    let (server, port) = tls_listener(&mut runtime, 2000);
+    let peer = thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async move {
+            let client = reqwest::Client::builder()
+                .no_proxy()
+                .timeout(Duration::from_secs(2))
+                .build()
+                .unwrap();
+            assert!(client
+                .post(format!("https://localhost:{port}/"))
+                .body("never delivered")
+                .send()
+                .await
+                .is_err());
+        });
+    });
+    peer.join().unwrap();
+    let id = start(
+        &mut runtime,
+        Operation::Next {
+            server,
+            max_bytes: 64,
+        },
+        100,
+    );
+    assert_eq!(
+        result(&mut runtime, id)["error"]["code"],
+        "HttpServerDeadline"
+    );
+    call(&mut runtime, Operation::Close { resource: server });
+}
+#[test]
+fn tls_handshake_lifetime_and_private_configuration_remain_bounded() {
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    let (server, port) = tls_listener(&mut runtime, 100);
+    let mut peer = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    peer.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+    let mut byte = [0];
+    match peer.read(&mut byte) {
+        Ok(0) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {}
+        other => panic!("stalled handshake did not close: {other:?}"),
+    }
+    runtime.enter_external(false).unwrap();
+    assert_eq!(
+        runtime
+            .register_http_server_tls(
+                "server",
+                include_bytes!("../../tests/fixtures/tls/localhost-cert.pem"),
+                b"different key"
+            )
+            .unwrap(),
+        Err("HttpServerTlsCredentialImmutable")
+    );
+    assert_eq!(
+        runtime
+            .register_http_server_tls("bad", b"not a certificate", b"not a key")
+            .unwrap(),
+        Err("HttpServerTlsCredential")
+    );
+    runtime.exit_external().unwrap();
+    assert!(runtime
+        .protect_http_server_fields(&[include_bytes!("../../tests/fixtures/tls/localhost-key.pem")])
+        .is_err());
+    let operation = Operation::ListenTls {
+        address: "127.0.0.1".into(),
+        port: 0,
+        credential: "server".into(),
+        limits: Limits {
+            body_bytes: 64,
+            connections: 2,
+            lifetime_ms: 100,
+        },
+    };
+    let encoded = serde_json::to_string(&operation).unwrap();
+    assert!(!encoded.contains("PRIVATE KEY"));
+    assert!(!encoded.contains("CERTIFICATE"));
+    assert_eq!(runtime.http_server_tls_credentials.len(), 1);
+    call(&mut runtime, Operation::Close { resource: server });
+}
+
+#[test]
+fn tls_unknown_alias_and_configuration_memory_are_denied_before_binding() {
+    let mut runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    let wire = call(
+        &mut runtime,
+        Operation::ListenTls {
+            address: "127.0.0.1".into(),
+            port: 0,
+            credential: "missing".into(),
+            limits: Limits {
+                body_bytes: 64,
+                connections: 1,
+                lifetime_ms: 100,
+            },
+        },
+    );
+    assert_eq!(wire["error"]["code"], "HttpServerTlsCredentialUnknown");
+    assert!(runtime.http_server_host.is_none());
+    runtime = Runtime::new(std::env::temp_dir()).unwrap();
+    runtime
+        .set_budget(crate::ResourceBudget {
+            history_memory: 256 * 1024,
+            history_storage: 8 * 1024 * 1024,
+            spill_threshold: 1024,
+        })
+        .unwrap();
+    runtime.enter_external(false).unwrap();
+    assert!(runtime
+        .register_http_server_tls(
+            "server",
+            include_bytes!("../../tests/fixtures/tls/localhost-cert.pem"),
+            include_bytes!("../../tests/fixtures/tls/localhost-key.pem"),
+        )
+        .is_err());
+    runtime.exit_external().unwrap();
+    assert!(runtime.http_server_tls_credentials.is_empty());
+    assert!(runtime.http_server_host.is_none());
+}
