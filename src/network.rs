@@ -680,6 +680,7 @@ impl Host {
                 tokio::runtime::Builder::new_multi_thread()
                     .worker_threads(2)
                     .max_blocking_threads(2)
+                    .thread_stack_size(1024 * 1024)
                     .enable_all()
                     .build()
                     .map_err(|_| "HttpWorker")
@@ -687,6 +688,7 @@ impl Host {
             .as_ref()
             .map_err(|e| *e)?;
         let client = reqwest::Client::builder()
+            .dns_resolver(Arc::new(crate::resolver::HttpResolver))
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .connect_timeout(Duration::from_secs(10))
@@ -797,6 +799,7 @@ impl Host {
                 }
                 let ca = reqwest::Certificate::from_pem(&request.ca).map_err(|_| "HttpCa")?;
                 let client = reqwest::Client::builder()
+                    .dns_resolver(Arc::new(crate::resolver::HttpResolver))
                     .redirect(reqwest::redirect::Policy::none())
                     .retry(reqwest::retry::never())
                     .connect_timeout(Duration::from_secs(10))
@@ -1005,7 +1008,7 @@ async fn execute_with_body(
                     if e.is_timeout() {
                         "HttpTimeout"
                     } else {
-                        "HttpTransport"
+                        crate::resolver::http_error(&e).unwrap_or("HttpTransport")
                     },
                     if e.is_connect() { "NotSent" } else { "Unknown" },
                     0,

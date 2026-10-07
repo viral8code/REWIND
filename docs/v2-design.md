@@ -344,3 +344,7 @@ TLS 1.2 / 1.3 は Rustls / tokio-rustls を利用する。公開 CA、verify-bef
 ## v1.9.27 の協調的 CSR
 
 1.9.27 は bounded CSR 積と共役勾配法内の積の分割を追加する。空行・長い行・補償和・checkpoint・cancel・source-free と両記録 mode を検証する。vector / LU / QR / eigen / autodiff の分割、一般 container の会計、GUI / DB / 通信の統合と残る v2 の条件は継続する。
+
+## v1.9.28 の名前解決
+
+HTTP / TCP / PostgreSQL の OS 名前解決を process 共通で最大8件に制限し、cancel / deadline 後も実際の終了まで枠を保持する。resolver 自体の中断は保証しない。既存の実接続・TLS・記録の契約を検証する。native idle cache / general snapshot の会計、数値の分割、GUI / DB / 通信の統合と残る v2 の条件は継続する。

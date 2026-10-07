@@ -85,9 +85,13 @@ impl Credentials {
         self.certificate.len() + 65536
     }
     async fn transport(&self) -> Result<Box<dyn Io>> {
-        let addresses = tokio::net::lookup_host((self.host.as_str(), self.port))
+        let addresses = crate::resolver::resolve(&self.host, self.port)
             .await
-            .map_err(|_| Error::Disconnected)?;
+            .map_err(|e| match e {
+                crate::resolver::ResolveError::Busy => Error::Busy,
+                crate::resolver::ResolveError::Limit => Error::Limit,
+                crate::resolver::ResolveError::Lookup => Error::Disconnected,
+            })?;
         // One selected address, one connect attempt. No implicit failover or write retries.
         let address = addresses
             .into_iter()
@@ -277,6 +281,8 @@ impl Worker {
                 let mut close_reply = None;
                 let result = (|| {
                     let runtime = tokio::runtime::Builder::new_current_thread()
+                        .max_blocking_threads(1)
+                        .thread_stack_size(1024 * 1024)
                         .enable_all()
                         .build()
                         .map_err(|_| Error::Worker)?;
