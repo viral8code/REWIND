@@ -171,3 +171,7 @@ partial-pivot LU の入力 copy / pivot / row swap / elimination / back substitu
 ## v1.9.34 の HTTP cache / 初期 copy admission
 
 origin / CA ごとの HTTP client を最大16件に抑え、cache から外れた通信中・stream 所有の lease とその予約を弱い registry で会計する。keepalive / eviction / malformed CA / 両 OS の source-free SDK と offline replay を検証し、LU 初期 copy の admission を bounded page に合わせる。全 OS / TLS allocator の正確な容量監査、snapshot / secret / 数値 / GUI と残る v2 の条件は継続する。[契約](REWIND_v1.9.34.md)を参照する。
+
+### v1.9.35 — HTTP の信頼設定共有
+
+HTTP host ごとに OS root を一度読込み、CA fingerprint ごとに immutable Rustls 設定を共有する。接続先 cache の入替えで証明書一覧を読み直さず、最大9設定・各32 server entry（最大256 TLS 1.3 ticket と32 TLS 1.2 session）に制限する。CA / hostname検証、lease / cancellation / source-free replay を維持し、接続がなくても残る設定を会計に含める。独立 loopback origin の release wall / CPU / RSS 測定を含めて確認する。[契約](REWIND_v1.9.35.md)を参照する。一般 snapshot / secret 会計、GUI 拡充、数値 Task 分割と残る v2 の到達条件は継続する。

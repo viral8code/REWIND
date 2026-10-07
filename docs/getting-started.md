@@ -4,7 +4,7 @@
 
 ## Linux SDKをダウンロードする
 
-[Release v1.9.34](https://github.com/viral8code/REWIND/releases/tag/v1.9.34)から次を同じdirectoryへ保存します。
+[Release v1.9.35](https://github.com/viral8code/REWIND/releases/tag/v1.9.35)から次を同じdirectoryへ保存します。
 
 - `rewind-1.9.32-linux-x86_64.tar.gz`：rewind/rewindc、71 module、文書、例
 - `rewind-1.9.32-sdk.pub`：このreleaseの公開鍵
@@ -24,7 +24,7 @@ SDK archiveと公開鍵の両方がchecksum検証でOKになることを確認�
 
 ## Windows SDKをダウンロードする
 
-[Release v1.9.34](https://github.com/viral8code/REWIND/releases/tag/v1.9.34)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
+[Release v1.9.35](https://github.com/viral8code/REWIND/releases/tag/v1.9.35)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
 
 - `rewind-1.9.32-windows-x86_64.zip`
 - `rewind-1.9.32-windows-x86_64-sdk.pub`
