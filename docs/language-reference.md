@@ -1,6 +1,6 @@
-# REWIND 1.9.31 言語リファレンス
+# REWIND 1.9.32 言語リファレンス
 
-対象はcompiler/language 1.9.31です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象はcompiler/language 1.9.32です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -580,3 +580,5 @@ HTTP / TCP / PostgreSQL の名前解決は process 全体で最大8件を共有�
 `std.httpServer.bearerCredential` / `configuredTlsAuthenticated` は Authorization を native transport 内で検証して除去する。[契約](REWIND_v1.9.30.md)を参照する。
 
 `std.numericAsync.scale` / `zipFloat` / `norm2` は最大4096値ごとの pure Task である。任意 rank と view、入力を変更しない失敗、途中 checkpoint と cancel の [契約](REWIND_v1.9.31.md)を参照する。
+
+`rewind profile` の `runtime.native_resources` は現在の native 資源数を常に含む。操作履歴や credential 設定の量とは異なる。[GUI / HTTP / 両 DB の統合例](../examples/gui-data/README.md)と [1.9.32仕様](REWIND_v1.9.32.md)を参照する。

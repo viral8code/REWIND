@@ -360,3 +360,7 @@ TLS listener の bearer token を外部境界で登録し、認証ヘッダー�
 ## v1.9.31 の協調的 vector / norm
 
 scale / zipFloat / norm2 を最大4096値ごとに分割し、共役勾配法内の vector / norm / dot も同じ Task 内で協調動作させる。shared zero の初期 admission と最終 chunk の費用を物理 storage・残る work に合わせ、checkpoint / late failure / cancellation / source-free SDK を検証する。LU / QR / eigen / autodiff、一般 snapshot / secret / cache の会計、GUI / PostgreSQL と残る v2 の条件は継続する。[契約](REWIND_v1.9.31.md)を参照する。
+
+## v1.9.32 の GUI / HTTP / 両 DB 統合
+
+複数の native window と HTTP JSON、SQLite / verified TLS PostgreSQL を組み合わせ、error / Retry / 保存 transaction / VM Undo / Reload / Cancel を動作する SDK サンプルとして検証する。公開済み DB を保持し、両 DB の独立な確認、source-free compiled / disconnected replay と cleanup の resource profile を加える。GUI の残る機能、cooperative LU / QR / eigen / autodiff、一般 snapshot / secret / native cache の会計、数値・長時間測定と残る v2 の条件は継続する。[契約](REWIND_v1.9.32.md)を参照する。

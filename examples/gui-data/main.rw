@@ -1,0 +1,139 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+import std.task as task;
+import std.http as http;
+import std.json as json;
+import std.db as db;
+fn take<T,E>(r:Result<T,E>)->T effects {} {
+ match move r {Ok(v)=>{return move v;},Err(_)=>{panic("application operation failed");}}
+}
+fn database<T>(r:Result<T,DbError>)->T effects {} {
+ match move r {Ok(v)=>{return move v;},Err(e)=>{panic("database: "+e.code+" ["+e.phase+"]");}}
+}
+fn execute(connection:&mut DbConnection,sql:String,parameters:Frozen<List<DbValue>>)->Task<Result<Int,DbError>> effects {external,db,tasks} {
+ var pending:Option<Task<Result<Int,DbError>>>=None;
+ external fresh {pending=Some(db.execute(connection,sql,parameters,5000));}
+ match pending {Some(work)=>{return move work;},None=>{panic("missing execute");}}
+}
+fn query(connection:&mut DbConnection,sql:String,parameters:Frozen<List<DbValue>>)->Task<Result<DbCursor,DbError>> effects {external,db,tasks} {
+ var pending:Option<Task<Result<DbCursor,DbError>>>=None;
+ external fresh {pending=Some(db.query(connection,sql,parameters,5000));}
+ match pending {Some(work)=>{return move work;},None=>{panic("missing query");}}
+}
+fn read(cursor:&mut DbCursor)->Task<Result<DbBatch,DbError>> effects {external,db,tasks} {
+ var pending:Option<Task<Result<DbBatch,DbError>>>=None;
+ external fresh {pending=Some(db.next(cursor,64,1048576,5000));}
+ match pending {Some(work)=>{return move work;},None=>{panic("missing read");}}
+}
+let args=Args.all();assert(args.len()==3);
+let backend=args.get(0);assert(backend=="sqlite" || backend=="postgres");
+let url=args.get(1);let title=args.get(2);
+var insertSql="INSERT INTO rewind_gui_data (entry,text) VALUES (?1,?2)";
+var selectSql="SELECT text FROM rewind_gui_data WHERE entry=?1";
+if backend=="postgres" {insertSql="INSERT INTO rewind_gui_data (entry,text) VALUES ($1,$2)";selectSql="SELECT text FROM rewind_gui_data WHERE entry=$1";}
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+if backend=="sqlite" {external {opening=Some(db.sqlite("state.sqlite",false,5000));}}
+else {
+ match Env.getSecret("REWIND_PG_DSN") {
+  None=>{panic("supply REWIND_PG_DSN as secret environment");},
+  Some(dsn)=>{let ca=take(File.readBytes("ca.der"));external {take(db.credentials("gui-data",move dsn,move ca));opening=Some(db.postgres("gui-data",5000));}}
+ }
+}
+match opening {None=>{panic("missing connection");},Some(started)=>{
+ let connection=database(take(await started));
+ database(take(await execute(&mut connection,"CREATE TABLE IF NOT EXISTS rewind_gui_data (entry TEXT PRIMARY KEY,text TEXT NOT NULL)",freeze(List<DbValue>()))));
+ let view=take(gui.window(title,480,220));
+ take(gui.label(&mut view,"status","Loading",10,10,450,36));
+ take(gui.button(&mut view,"retry","Retry / Reload",10,60,140,36));
+ take(gui.button(&mut view,"cancel","Cancel",170,60,120,36));
+ take(gui.button(&mut view,"undo","Undo view",310,60,150,36));
+ take(gui.setEnabled(&mut view,"undo",false));
+ let detail=take(gui.window(title+" — Saved data",480,160));
+ take(gui.label(&mut detail,"row","No saved row",10,10,450,80));
+ take(windows.present("main",&view));take(windows.present("detail",&detail));publish;
+ var running=true;var wantsRequest=true;var saved=false;var draft="";
+ commit beforeSave;
+ while running {
+  if wantsRequest {
+   take(gui.setText(&mut view,"status","Loading"));take(windows.present("main",&view));publish;
+   var requesting:Option<Task<Result<HttpResponse,HttpError>>>=None;
+   external fresh {requesting=Some(http.get(url,10000,65536));}
+   match requesting {None=>{panic("missing request");},Some(request)=>{
+    var waiting=true;
+    while waiting {
+     let input=windows.nextEventAnyAsync();let chosen=take(await task.selectReady(input,request));
+     if chosen==0 {
+      let event=take(take(await input));
+      if event.window=="main" {
+       match gui.dispatch(&mut view,event.event) {
+        Some(gui.Action::Activate("cancel"))=>{
+         request.cancel();assert_eq(await request,Err(TaskError::Cancelled));
+         take(gui.setText(&mut view,"status","Cancelled; saved data retained"));Out.println("cancelled");waiting=false;running=false;
+        },
+        Some(gui.Action::Close)=>{request.cancel();await request;waiting=false;running=false;},_=>{}
+       }
+      } else {if event.event.kind=="close" {request.cancel();await request;waiting=false;running=false;}}
+     } else {
+      input.cancel();
+      match await request {
+       Ok(Ok(response))=>{
+        if response.status!=200 {take(gui.setText(&mut view,"status","HTTP "+response.status+"; press Retry"));Out.println("retry");}
+        else {
+         match json.parseBytes(response.body) {
+          Err(_)=>{take(gui.setText(&mut view,"status","Invalid JSON; press Retry"));Out.println("retry");},
+          Ok(data)=>{match json.get(data,"text") {
+           Some(Json::Text(text))=>{draft=text;take(gui.setText(&mut view,"status","Loaded; saving"));},
+           _=>{take(gui.setText(&mut view,"status","Missing text; press Retry"));Out.println("retry");}
+          }}
+         }
+        }
+       },
+       _=>{take(gui.setText(&mut view,"status","Request failed; press Retry"));Out.println("retry");}
+      }
+      waiting=false;
+     }
+    }
+   }}
+   wantsRequest=false;
+   if running && draft!="" && !saved {
+    let params=List<DbValue>();params.add(DbValue::Text(title));params.add(DbValue::Text(draft));
+    var beginning:Option<Task<Result<Unit,DbError>>>=None;
+    external fresh {beginning=Some(db.beginTransaction(&mut connection,5000));}
+    match beginning {Some(work)=>{database(take(await work));},None=>{panic("transaction");}}
+    database(take(await execute(&mut connection,insertSql,freeze(move params))));
+    var committing:Option<Task<Result<Unit,DbError>>>=None;
+    external fresh {committing=Some(db.commitTransaction(&mut connection,5000));}
+    match committing {Some(work)=>{database(take(await work));},None=>{panic("commit transaction");}}
+    saved=true;take(gui.setText(&mut view,"status","Saved; Undo affects view only"));
+    take(gui.setText(&mut detail,"row",draft));take(gui.setEnabled(&mut view,"undo",true));Out.println("saved");
+   }
+  } else {
+   let event=take(take(await windows.nextEventAnyAsync()));
+   if event.window=="main" {
+    match gui.dispatch(&mut view,event.event) {
+     Some(gui.Action::Activate("retry"))=>{wantsRequest=true;draft="";},
+     Some(gui.Action::Activate("undo"))=>{
+      revert beforeSave;windows.continueInput();assert(!saved);
+      let keys=List<DbValue>();keys.add(DbValue::Text(title));
+      {
+       let cursor=database(take(await query(&mut connection,selectSql,freeze(move keys))));
+       let batch=database(take(await read(&mut cursor)));assert_eq(batch.rows.len(),1);
+       let durable=take(db.text(batch.rows.get(0),0));assert(durable!="");
+       take(gui.setText(&mut detail,"row",durable));
+      }
+      saved=true;wantsRequest=false;take(gui.setText(&mut view,"status","View restored; DB row remains"));
+      take(gui.setEnabled(&mut view,"undo",false));drop beforeSave;Out.println("undone");
+     },
+     Some(gui.Action::Activate("cancel"))=>{running=false;},
+     Some(gui.Action::Close)=>{running=false;},_=>{}
+    }
+   } else {if event.event.kind=="close" {running=false;}}
+  }
+  take(windows.present("main",&view));take(windows.present("detail",&detail));publish;
+ }
+ take(windows.close("main"));take(windows.close("detail"));publish;
+}}
+var cleaning:Option<Task<Result<Unit,DbError>>>=None;
+external fresh {cleaning=Some(db.waitForCleanup(5000));}
+match cleaning {Some(work)=>{database(take(await work));},None=>{panic("cleanup");}}
+publish;
