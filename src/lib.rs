@@ -24,6 +24,7 @@ pub mod network;
 pub mod numeric;
 pub mod regular;
 mod replay;
+mod resolver;
 pub mod suffix;
 pub mod tcp;
 pub mod unicode;

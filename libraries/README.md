@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.27 / `language = "1.9.27"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.28 / `language = "1.9.28"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -185,3 +185,5 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 1.9.19 は `std.guiWindows.nextEventAnyAsync` と native GUI / HTTP / SQLite の最小統合を追加する。主 Task の制約・待機中の協調動作・入力の cancellation・terminal error の journal・source-free / disconnected replay を検証する。[契約と残る作業](../docs/REWIND_v1.9.19.md)を参照する。
 
 Task の予算・profile の寿命は [v1.9.20](../docs/REWIND_v1.9.20.md) を参照してください。
+
+名前解決は HTTP / TCP / PostgreSQL 共通の上限で処理する。cancel 後も OS の処理が終わるまで枠を保持し、再送や証明書検証の緩和は行わない。[1.9.28 の契約](../docs/REWIND_v1.9.28.md)を参照する。

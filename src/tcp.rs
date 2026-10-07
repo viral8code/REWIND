@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
-    net::{IpAddr, SocketAddr, ToSocketAddrs},
+    net::{IpAddr, SocketAddr},
     sync::{
         atomic::{AtomicUsize, Ordering},
         mpsc, Arc, Mutex as StdMutex, OnceLock,
@@ -663,45 +663,19 @@ fn build_config(
 #[path = "tcp/tls_tests.rs"]
 mod tls_tests;
 
-fn spawn_resolution<F>(
-    slots: Arc<tokio::sync::Semaphore>,
-    work: F,
-) -> std::result::Result<JoinHandle<std::result::Result<Vec<SocketAddr>, &'static str>>, &'static str>
-where
-    F: FnOnce() -> std::result::Result<Vec<SocketAddr>, &'static str> + Send + 'static,
-{
-    let permit = slots.try_acquire_owned().map_err(|_| "TcpBusy")?;
-    Ok(tokio::task::spawn_blocking(move || {
-        // A cancelled caller cannot release admission while getaddrinfo is still running.
-        let _permit = permit;
-        work()
-    }))
-}
 async fn connect_socket(host: String, port: u16) -> std::result::Result<TcpStream, &'static str> {
     if let Ok(ip) = host.parse::<IpAddr>() {
         return TcpStream::connect(SocketAddr::new(ip, port))
             .await
             .map_err(|_| "TcpConnect");
     }
-    static SLOTS: OnceLock<Arc<tokio::sync::Semaphore>> = OnceLock::new();
-    let slots = SLOTS
-        .get_or_init(|| Arc::new(tokio::sync::Semaphore::new(8)))
-        .clone();
-    let lookup = spawn_resolution(slots, move || {
-        let addresses = (host.as_str(), port)
-            .to_socket_addrs()
-            .map_err(|_| "TcpResolve")?
-            .take(65)
-            .collect::<Vec<_>>();
-        if addresses.len() > 64 {
-            return Err("TcpResolveLimit");
-        }
-        if addresses.is_empty() {
-            return Err("TcpResolve");
-        }
-        Ok(addresses)
-    })?;
-    let addresses = lookup.await.map_err(|_| "TcpResolve")??;
+    let addresses = crate::resolver::resolve(&host, port)
+        .await
+        .map_err(|e| match e {
+            crate::resolver::ResolveError::Busy => "TcpBusy",
+            crate::resolver::ResolveError::Limit => "TcpResolveLimit",
+            crate::resolver::ResolveError::Lookup => "TcpResolve",
+        })?;
     TcpStream::connect(addresses.as_slice())
         .await
         .map_err(|_| "TcpConnect")
@@ -724,7 +698,7 @@ mod dns_tests {
                 let (sender, receiver) = mpsc::channel();
                 releases.push(sender);
                 let started = started.clone();
-                let waiting = spawn_resolution(slots.clone(), move || {
+                let waiting = crate::resolver::spawn_with_slots(slots.clone(), move || {
                     started.fetch_add(1, Ordering::SeqCst);
                     receiver.recv_timeout(Duration::from_secs(5)).unwrap();
                     Ok(vec![SocketAddr::from(([127, 0, 0, 1], 1234))])
@@ -738,9 +712,10 @@ mod dns_tests {
                 tokio::time::sleep(Duration::from_millis(1)).await;
             }
             assert_eq!(slots.available_permits(), 0);
-            let refused =
-                spawn_resolution(slots.clone(), || panic!("no extra resolver should start"));
-            assert!(matches!(refused, Err("TcpBusy")));
+            let refused = crate::resolver::spawn_with_slots(slots.clone(), || {
+                panic!("no extra resolver should start")
+            });
+            assert!(matches!(refused, Err(crate::resolver::ResolveError::Busy)));
             for release in releases {
                 release.send(()).unwrap();
             }

@@ -570,3 +570,7 @@ imported function は entry の無関係な global variable を裸の名前で�
 ## 協調的 CSR（v1.9.27）
 
 `std.sparseAsync.matvec(matrix,right)` は pure な cold Task を返す。CSR の検証と計算を最大4096項目ごとに区切り、空行と長い1行も分割する。共役勾配法内の CSR 積も同じ処理を使う。vector 演算・norm は同期処理のままである。[仕様](REWIND_v1.9.27.md) と [例](../examples/sparse-async/README.md) を参照する。
+
+## 名前解決の資源上限（v1.9.28）
+
+HTTP / TCP / PostgreSQL の名前解決は process 全体で最大8件を共有する。cancel や deadline でも OS の処理が終了するまで枠を返さず、枠不足は typed failure を返す。数値 IP アドレスはこの枠を使わない。外部の名前解決は `revert` で取り消さず、記録 replay は名前解決を実行しない。[仕様](REWIND_v1.9.28.md)を参照する。
