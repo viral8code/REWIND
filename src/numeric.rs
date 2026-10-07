@@ -11,6 +11,8 @@ mod sparse_chunks;
 pub use sparse_chunks::{SparseWork, SPARSE_CHUNK};
 mod solve_chunks;
 pub use solve_chunks::{SolveWork, SOLVE_CHUNK};
+mod qr_chunks;
+pub use qr_chunks::{QrWork, QR_CHUNK};
 mod fft_chunks;
 pub use fft_chunks::{FftWork, FFT_CHUNK};
 mod linalg;

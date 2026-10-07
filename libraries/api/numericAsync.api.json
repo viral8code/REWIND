@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.33",
+  "language": "1.9.37",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
@@ -75,6 +75,20 @@
         "FloatArray"
       ],
       "return": "Result<Float,StdError>"
+    },
+    "fn:qr": {
+      "async": true,
+      "cost": "Column-pivoted Householder O(m*n*min(m,n)); bounded native steps of at most 4096 scalar units, private shared-page COW work and task handoff between steps.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Size; economy Q and R, permutation as native IntArray; same arithmetic order as numeric.qr. No partial result on failure or cancellation, fatal work/memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "FloatArray",
+        "Float"
+      ],
+      "return": "Result<QrArrayResult,StdError>"
     },
     "fn:scale": {
       "async": true,
@@ -645,6 +659,29 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -665,6 +702,12 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },

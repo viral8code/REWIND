@@ -1,0 +1,42 @@
+import std.numeric as numeric;
+import std.numericAsync as jobs;
+import std.task as task;
+fn take<T,E>(result:Result<T,E>)->T effects {} {
+ match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric failure");}}
+}
+async fn marker()->Int effects {tasks} {return 7;}
+let shape=List<Int>();shape.add(65);shape.add(7);
+var builder=take(numeric.zerosFloat(&shape));
+var factor=1.0;
+for column in 0..7 {
+ for row in 0..65 {
+  let index=List<Int>();index.add(row);index.add(column);
+  var value=factor*0.01;if row%7==column {value=factor;}
+  builder=take(numeric.withFloat(&builder,&index,value));
+ }
+ factor*=2.0;
+}
+let matrix=builder;
+let work=spawn jobs.qr(matrix,1e-13);
+let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+commit factoring;
+{
+ let answer=take(take(await work));let expected=take(numeric.qr(&matrix,1e-13));
+ assert_eq(answer.q,expected.q);assert_eq(answer.r,expected.r);assert_eq(answer.rank,7);
+ for column in 0..7 {
+  let index=List<Int>();index.add(column);
+  assert_eq(take(numeric.getInt(&answer.permutation,&index)),expected.permutation.get(column));
+ }
+ Out.println("factored");
+}
+publish;
+revert factoring;
+{
+ let answer=take(take(await work));let expected=take(numeric.qr(&matrix,1e-13));
+ assert_eq(answer.q,expected.q);assert_eq(answer.r,expected.r);
+ Out.println("restored");
+}
+drop factoring;publish;
+let cancelled=spawn jobs.qr(matrix,1e-13);task.yieldNow();assert(!cancelled.isDone());cancelled.cancel();
+match await cancelled {Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("qr done");publish;

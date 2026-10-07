@@ -149,6 +149,10 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdNumericCheckFinite",
         "stdNumericTensorKey",
         "stdNumericSparseInit",
+        "stdNumericQrInit",
+        "stdNumericQrStep",
+        "stdNumericQrDone",
+        "stdNumericQrResult",
         "stdNumericSolveInit",
         "stdNumericSolveStep",
         "stdNumericSolveDone",
@@ -373,6 +377,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.34"
             | "1.9.35"
             | "1.9.36"
+            | "1.9.37"
             | "2.0.0"
     ) {
         return Ok(());
@@ -727,6 +732,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.34"
             | "1.9.35"
             | "1.9.36"
+            | "1.9.37"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -821,6 +827,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.34"
                 | "1.9.35"
                 | "1.9.36"
+                | "1.9.37"
                 | "2.0.0"
         )
     {
