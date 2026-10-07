@@ -24,6 +24,48 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.9.37") {
+        for (name, fields) in [
+            ("QrWork", vec![]),
+            (
+                "QrArrayResult",
+                vec![
+                    ("q", "FloatArray"),
+                    ("r", "FloatArray"),
+                    ("permutation", "IntArray"),
+                    ("rank", "Int"),
+                ],
+            ),
+        ] {
+            if p.structs.contains_key(name)
+                || p.enums.contains_key(name)
+                || p.aliases.contains_key(name)
+            {
+                return Err(Error::InvalidOperation(
+                    "reserved cooperative QR type".into(),
+                ));
+            }
+            p.structs.insert(
+                name.into(),
+                StructDef {
+                    private_fields: if name == "QrWork" {
+                        BTreeSet::from(["$native".into()])
+                    } else {
+                        BTreeSet::new()
+                    },
+                    bounds: BTreeMap::new(),
+                    immutable: true,
+                    type_params: vec![],
+                    public: true,
+                    origin: p.root_origin.clone(),
+                    fields: fields
+                        .into_iter()
+                        .map(|(n, t)| (n.into(), t.into()))
+                        .collect(),
+                },
+            );
+        }
+    }
     if language_at_least(&p.language, "1.9.33") {
         if p.structs.contains_key("SolveWork")
             || p.enums.contains_key("SolveWork")
@@ -162,6 +204,13 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if matches!(
         n,
+        "stdNumericQrInit" | "stdNumericQrStep" | "stdNumericQrDone" | "stdNumericQrResult"
+    ) && !language_at_least(&p.language, "1.9.37")
+    {
+        return Err(diagnostic(at, "cooperative QR requires language 1.9.37"));
+    }
+    if matches!(
+        n,
         "stdNumericSolveInit"
             | "stdNumericSolveStep"
             | "stdNumericSolveDone"
@@ -288,6 +337,90 @@ fn array<'a>(v: &'a Value, rt: &'a Runtime) -> std::result::Result<&'a Array, Nu
         Value::NumericArray(a) => Ok(a),
         _ => Err(NumericError::Type),
     }
+}
+fn qr_work(
+    value: &Value,
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::QrWork, NumericError> {
+    let Value::Struct(ty, fields) = target(value, rt) else {
+        return Err(NumericError::Type);
+    };
+    if ty != "QrWork" {
+        return Err(NumericError::Type);
+    }
+    let a = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(|v| array(v, rt))
+            .cloned()
+    };
+    let i = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(usize_arg)
+    };
+    let f = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(floating)
+    };
+    let work = rewind::numeric::QrWork {
+        input: a("$input")?,
+        matrix: a("$matrix")?,
+        reflectors: a("$reflectors")?,
+        q: a("$q")?,
+        r: a("$r")?,
+        permutation: a("$permutation")?,
+        tolerance: f("$tolerance")?,
+        scale: f("$scale")?,
+        original_norm: f("$original_norm")?,
+        pivot_norm: f("$pivot_norm")?,
+        sign: f("$sign")?,
+        v_norm: f("$v_norm")?,
+        sum: f("$sum")?,
+        correction: f("$correction")?,
+        cursor: i("$cursor")?,
+        k: i("$k")?,
+        col: i("$col")?,
+        pivot: i("$pivot")?,
+        rank: i("$rank")?,
+        phase: u8::try_from(i("$phase")?).map_err(|_| NumericError::Domain)?,
+    };
+    work.validate()?;
+    Ok(work)
+}
+fn qr_work_value(w: rewind::numeric::QrWork) -> Value {
+    Value::Struct(
+        "QrWork".into(),
+        BTreeMap::from([
+            ("$input".into(), Value::NumericArray(w.input)),
+            ("$matrix".into(), Value::NumericArray(w.matrix)),
+            ("$reflectors".into(), Value::NumericArray(w.reflectors)),
+            ("$q".into(), Value::NumericArray(w.q)),
+            ("$r".into(), Value::NumericArray(w.r)),
+            ("$permutation".into(), Value::NumericArray(w.permutation)),
+            ("$tolerance".into(), Value::Float(w.tolerance.to_bits())),
+            ("$scale".into(), Value::Float(w.scale.to_bits())),
+            (
+                "$original_norm".into(),
+                Value::Float(w.original_norm.to_bits()),
+            ),
+            ("$pivot_norm".into(), Value::Float(w.pivot_norm.to_bits())),
+            ("$sign".into(), Value::Float(w.sign.to_bits())),
+            ("$v_norm".into(), Value::Float(w.v_norm.to_bits())),
+            ("$sum".into(), Value::Float(w.sum.to_bits())),
+            ("$correction".into(), Value::Float(w.correction.to_bits())),
+            ("$cursor".into(), Value::Int(w.cursor as i64)),
+            ("$k".into(), Value::Int(w.k as i64)),
+            ("$col".into(), Value::Int(w.col as i64)),
+            ("$pivot".into(), Value::Int(w.pivot as i64)),
+            ("$rank".into(), Value::Int(w.rank as i64)),
+            ("$phase".into(), Value::Int(w.phase as i64)),
+        ]),
+    )
 }
 fn solve_work(
     value: &Value,
@@ -576,7 +709,13 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "SolveInit" {
+    let cost = if name == "QrInit" {
+        32768
+    } else if name == "QrStep" {
+        rewind::numeric::QR_CHUNK * 128 + 2048
+    } else if matches!(name, "QrDone" | "QrResult") {
+        2048
+    } else if name == "SolveInit" {
         4096
     } else if name == "SolveStep" {
         solve_work(&args[0], rt).map_or(1024, |w| {
@@ -832,7 +971,45 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "SolveInit" {
+    if name == "QrInit" {
+        // All zero arrays have shared logarithmic storage, including the permutation.
+        1024 * 1024
+    } else if name == "QrStep" {
+        qr_work(&args[0], rt).map_or(32768, |w| {
+            if w.phase == 0 && w.matrix.len().saturating_sub(w.cursor) >= rewind::numeric::QR_CHUNK
+            {
+                return Array::storage_estimate(w.matrix.len())
+                    .min(
+                        w.matrix
+                            .update_estimate()
+                            .saturating_mul(rewind::numeric::QR_CHUNK.div_ceil(256) + 1),
+                    )
+                    .saturating_add(rewind::numeric::QR_CHUNK * 16 + 32768);
+            }
+            let arrays = [&w.matrix, &w.reflectors, &w.q, &w.r, &w.permutation];
+            let nodes = arrays.iter().fold(0usize, |sum, a| {
+                sum.saturating_add(a.len().div_ceil(256).saturating_mul(2).saturating_add(1))
+            });
+            // At most two cell writes per scalar unit; each touches a bounded tree path.
+            // 32 bytes per touched node bounds HashSet buckets/control and growth slack.
+            let dirty_bytes = nodes
+                .min(rewind::numeric::QR_CHUNK * 2 * 17)
+                .saturating_mul(32)
+                .saturating_add(1024);
+            arrays
+                .iter()
+                .fold(32768usize.saturating_add(dirty_bytes), |sum, a| {
+                    sum.saturating_add(
+                        Array::storage_estimate(a.len()).min(
+                            a.update_estimate()
+                                .saturating_mul(rewind::numeric::QR_CHUNK * 2),
+                        ),
+                    )
+                })
+        })
+    } else if matches!(name, "QrDone" | "QrResult") {
+        32768
+    } else if name == "SolveInit" {
         Array::storage_estimate(length(0))
             .min(131072)
             .saturating_add(
@@ -1152,6 +1329,21 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "QrInit" => qr_work_value(rewind::numeric::QrWork::new(a(0)?, f(1)?)?),
+            "QrStep" => qr_work_value(qr_work(&args[0], rt)?.step()?),
+            "QrDone" => Value::Bool(qr_work(&args[0], rt)?.done()),
+            "QrResult" => {
+                let (q, r, permutation, rank) = qr_work(&args[0], rt)?.result()?;
+                Value::Struct(
+                    "QrArrayResult".into(),
+                    BTreeMap::from([
+                        ("q".into(), Value::NumericArray(q)),
+                        ("r".into(), Value::NumericArray(r)),
+                        ("permutation".into(), Value::NumericArray(permutation)),
+                        ("rank".into(), Value::Int(rank as i64)),
+                    ]),
+                )
+            }
             "SolveInit" => solve_work_value(rewind::numeric::SolveWork::new(a(0)?, a(1)?, f(2)?)?),
             "SolveStep" => solve_work_value(solve_work(&args[0], rt)?.step()?),
             "SolveDone" => Value::Bool(solve_work(&args[0], rt)?.done()),
@@ -1657,6 +1849,10 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericQrInit" => (&["&FloatArray", "Float"], "Result<QrWork,StdError>"),
+        "stdNumericQrStep" => (&["&QrWork"], "Result<QrWork,StdError>"),
+        "stdNumericQrDone" => (&["&QrWork"], "Result<Bool,StdError>"),
+        "stdNumericQrResult" => (&["&QrWork"], "Result<QrArrayResult,StdError>"),
         "stdNumericSolveInit" => (
             &["&FloatArray", "&FloatArray", "Float"],
             "Result<SolveWork,StdError>",

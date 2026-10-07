@@ -179,3 +179,7 @@ HTTP host ごとに OS root を一度読込み、CA fingerprint ごとに immuta
 ### v1.9.36 — VM の不変文字列の共有
 
 長い String の代入・引数・戻り値・capture・保持状態のコピーで byte buffer を共有し、内容変更は COW とする。短い文字列には追加 Arc allocation を入れず、内容比較・Unicode・旧 wire format を維持する。byteLen の受信値コピーの費用を実処理へ合わせ、capture / List / Map / restore / source-free SDK と既存 secret / codec / task を検証する。長いコピーと短い文字列の release wall / CPU / RSS 測定を行う。[契約](REWIND_v1.9.36.md)を参照する。一般履歴の物理会計・secret の寿命・数値 Task 分割・GUI 拡充と残る v2 条件は継続する。
+
+### 1.9.37 の公開単位
+
+column-pivoted Householder QR の初期化・pivot・反射・Q/R 生成を4096 unit 以下の pure Task に分割する。native permutation を保持する結果型、checkpoint / cancellation / 予算と source-free SDK を検証する。eigen / least squares / autodiff の協調化、一般会計・GUI と残る v2 条件は継続する。[契約](REWIND_v1.9.37.md)を参照する。

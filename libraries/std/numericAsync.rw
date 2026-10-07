@@ -60,3 +60,11 @@ pub async fn solve(matrix:FloatArray,right:FloatArray,tolerance:Float)->Result<F
  while !stdNumericSolveDone(&work)? {work=stdNumericSolveStep(&work)?;task.yieldNow();}
  return stdNumericSolveResult(&work);
 }
+
+// @api qr cost Column-pivoted Householder O(m*n*min(m,n)); bounded native steps of at most 4096 scalar units, private shared-page COW work and task handoff between steps.
+// @api qr failure NumericShape/Type/Domain/NonFinite/Overflow/Size; economy Q and R, permutation as native IntArray; same arithmetic order as numeric.qr. No partial result on failure or cancellation, fatal work/memory budgets apply.
+pub async fn qr(matrix:FloatArray,tolerance:Float)->Result<QrArrayResult,StdError> effects {tasks} {
+ var work=stdNumericQrInit(&matrix,tolerance)?;
+ while !stdNumericQrDone(&work)? {work=stdNumericQrStep(&work)?;task.yieldNow();}
+ return stdNumericQrResult(&work);
+}

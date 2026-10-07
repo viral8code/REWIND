@@ -96,6 +96,7 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
             | "1.9.34"
             | "1.9.35"
             | "1.9.36"
+            | "1.9.37"
             | "2.0.0"
     ) {
         return Err(Error::InvalidOperation(
@@ -255,6 +256,7 @@ fn document(root: &Path) -> Result<Json> {
             | "1.9.34"
             | "1.9.35"
             | "1.9.36"
+            | "1.9.37"
             | "2.0.0"
     ) {
         let source = fs::read_to_string(&p.root_origin)?;
