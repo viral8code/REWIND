@@ -2,6 +2,7 @@ use super::*;
 use std::sync::Mutex as SyncMutex;
 use tokio::sync::mpsc as queue;
 pub(super) struct Upload {
+    _client: Arc<client_pool::Lease>,
     data: Mutex<UploadData>,
     cancel: SyncMutex<Option<oneshot::Sender<()>>>,
     busy: AtomicBool,
@@ -30,15 +31,16 @@ impl Host {
         &mut self,
         id: usize,
         request: Request,
-        client: reqwest::Client,
+        client: Arc<client_pool::Lease>,
     ) -> Result<(), &'static str> {
-        if self.uploads.len() >= 8 {
+        if self.uploads.len() + self.retired_uploads.len() >= 8 {
             return Err("HttpUploadLimit");
         }
         let (chunks, incoming) = queue::channel(1);
         let (result, response) = oneshot::channel();
         let (cancel, cancelled) = oneshot::channel();
         let slot = Arc::new(Upload {
+            _client: client.clone(),
             data: Mutex::new(UploadData {
                 sender: Some(chunks),
                 response: Some(response),
@@ -57,9 +59,9 @@ impl Host {
         let worker = slot.clone();
         self.runtime.spawn(async move {
             let body=reqwest::Body::wrap_stream(futures_util::stream::unfold(incoming,|mut receiver|async move{receiver.recv().await.map(|bytes|(Ok::<_,std::io::Error>(bytes),receiver))}));
-            let future=async {if worker_phase.compare_exchange(0,1,Ordering::SeqCst,Ordering::SeqCst).is_err(){return failure("HttpCancelled","NotSent",0);}execute_with_body(client,request,&worker_phase,None,Some(body)).await};
+            let future=async {if worker_phase.compare_exchange(0,1,Ordering::SeqCst,Ordering::SeqCst).is_err(){return failure("HttpCancelled","NotSent",0);}execute_with_body(client.client.clone(),request,&worker_phase,None,Some(body)).await};
             let outcome=tokio::select!{biased;_=cancelled=>failure("HttpCancelled",if worker_phase.load(Ordering::SeqCst)==0{"NotSent"}else{"Unknown"},0),v=future=>v};
-            let _=result.send(outcome);worker.closed.store(true,Ordering::SeqCst);
+            let _=result.send(outcome);worker.closed.store(true,Ordering::SeqCst);drop(client);
         });
         self.uploads.insert(id, slot);
         let (sender, receiver) = mpsc::channel();

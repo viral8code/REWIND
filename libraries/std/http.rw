@@ -18,13 +18,13 @@ pub fn send(value:Request)->Task<Result<HttpResponse,HttpError>> effects {extern
 pub fn request(method:String,url:String,body:Bytes,deadlineMillis:Int,maxBytes:Int)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {
     return stdExternalHttpStart(method,url,body,deadlineMillis,maxBytes);
 }
-// @api get cost O(response bytes); submits immediately and returns a Task.
+// @api get cost O(response bytes), with bounded origin/CA client caching and cold-client memory admission; returns a Task.
 // @api get failure HttpError after awaiting; no automatic redirect or retry.
 pub fn get(url:String,deadlineMillis:Int,maxBytes:Int)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {
     match stdEncode("") {Ok(body)=>{return stdExternalHttpStart("GET",url,body,deadlineMillis,maxBytes);},Err(_)=>{panic("empty encoding failed");}}
 }
-// @api configured cost O(request bytes + response bytes); reuses connections for the same CA.
-// @api configured failure HttpError after awaiting; PEM CA adds trust, certificate and hostname verification remain enabled.
+// @api configured cost O(request bytes + response bytes); bounded 16 origin/CA client cache, native lease allowance and cold-client setup; same-origin connections are reused.
+// @api configured failure HttpError after awaiting; nonempty PEM certificates add trust, hostname/chain verification remains enabled. Client admission can return HttpMemoryLimit/NotSent before physical submission.
 pub fn configured(method:String,url:String,body:Bytes,deadlineMillis:Int,maxBytes:Int,headers:Frozen<List<HttpHeader>>,ca:Bytes)->Task<Result<HttpResponse,HttpError>> effects {external,network,tasks} {
     return stdExternalHttpConfigured(method,url,body,deadlineMillis,maxBytes,headers,ca);
 }

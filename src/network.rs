@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{oneshot, Mutex};
+mod client_pool;
 mod upload;
 
 impl crate::Runtime {
@@ -145,7 +146,13 @@ impl crate::Runtime {
                     } else {
                         4096
                     };
-                self.network_host.as_mut().unwrap().admission = estimate;
+                let client_estimate = self
+                    .network_host
+                    .as_mut()
+                    .unwrap()
+                    .clients
+                    .admission(&request)?;
+                self.network_host.as_mut().unwrap().admission = estimate + client_estimate;
                 let budget = self.enforce_budget();
                 self.network_host.as_mut().unwrap().admission = 0;
                 if budget.is_err() {
@@ -227,6 +234,21 @@ impl crate::Runtime {
                 .network_host
                 .as_ref()
                 .map_or(0, |h| h.downloads.len() + h.uploads.len())
+    }
+    pub fn http_cached_clients(&self) -> usize {
+        self.network_host
+            .as_ref()
+            .map_or(0, |host| host.clients.cached())
+    }
+    pub fn http_retained_clients(&self) -> usize {
+        self.network_host
+            .as_ref()
+            .map_or(0, |host| host.clients.retained())
+    }
+    pub fn http_client_reservation_bytes(&self) -> usize {
+        self.network_host
+            .as_ref()
+            .map_or(0, |host| host.clients.reserved_bytes())
     }
     pub fn collect_native_resources(&mut self, roots: &[crate::Value]) -> crate::Result<()> {
         if let Some(host) = &self.http_server_host {
@@ -617,6 +639,7 @@ struct DownloadData {
     matcher: SecretMatcher,
 }
 struct Download {
+    _client: Arc<client_pool::Lease>,
     data: Mutex<DownloadData>,
     busy: AtomicBool,
     closed: AtomicBool,
@@ -625,10 +648,9 @@ struct Download {
 }
 pub(crate) struct Host {
     runtime: &'static tokio::runtime::Runtime,
-    client: reqwest::Client,
+    clients: client_pool::ClientPool,
     jobs: BTreeMap<usize, Job>,
     admission: usize,
-    ca_clients: BTreeMap<String, reqwest::Client>,
     downloads: BTreeMap<usize, Arc<Download>>,
     retired: Vec<Arc<Download>>,
     uploads: BTreeMap<usize, Arc<upload::Upload>>,
@@ -687,21 +709,11 @@ impl Host {
             })
             .as_ref()
             .map_err(|e| *e)?;
-        let client = reqwest::Client::builder()
-            .dns_resolver(Arc::new(crate::resolver::HttpResolver))
-            .redirect(reqwest::redirect::Policy::none())
-            .retry(reqwest::retry::never())
-            .connect_timeout(Duration::from_secs(10))
-            .pool_max_idle_per_host(2)
-            .pool_idle_timeout(Duration::from_secs(30))
-            .build()
-            .map_err(|_| "HttpTls")?;
         Ok(Self {
             runtime,
-            client,
+            clients: client_pool::ClientPool::default(),
             jobs: BTreeMap::new(),
             admission: 0,
-            ca_clients: BTreeMap::new(),
             downloads: BTreeMap::new(),
             retired: Vec::new(),
             uploads: BTreeMap::new(),
@@ -710,6 +722,7 @@ impl Host {
     }
     pub fn reserved_bytes(&self) -> usize {
         self.admission
+            + self.clients.reserved_bytes()
             + self.jobs.values().map(|j| j.bytes).sum::<usize>()
             + self
                 .downloads
@@ -744,7 +757,7 @@ impl Host {
         if self.jobs.contains_key(&id) {
             return Err("HttpAlreadySubmitted");
         }
-        if request.download && self.downloads.len() >= 8 {
+        if request.download && self.downloads.len() + self.retired.len() >= 8 {
             return Err("HttpDownloadLimit");
         }
         let bytes = request.body.len()
@@ -754,6 +767,7 @@ impl Host {
                 response_reservation(request.limit)
             })
             + MAX_HEADERS;
+        let client = self.clients.client(&request)?;
         let download = if request.download {
             let hold = secrets
                 .iter()
@@ -762,6 +776,7 @@ impl Host {
                 .unwrap_or(0)
                 .saturating_sub(1);
             let slot = Arc::new(Download {
+                _client: client.clone(),
                 data: Mutex::new(DownloadData {
                     response: None,
                     pending: VecDeque::new(),
@@ -788,30 +803,6 @@ impl Host {
         let (cancel, cancelled) = oneshot::channel();
         let phase = Arc::new(AtomicU8::new(0));
         let worker_phase = phase.clone();
-        let client = if request.ca.is_empty() {
-            self.client.clone()
-        } else {
-            use sha2::{Digest, Sha256};
-            let key = format!("{:x}", Sha256::digest(request.ca.as_slice()));
-            if !self.ca_clients.contains_key(&key) {
-                if self.ca_clients.len() >= 8 {
-                    return Err("HttpCaLimit");
-                }
-                let ca = reqwest::Certificate::from_pem(&request.ca).map_err(|_| "HttpCa")?;
-                let client = reqwest::Client::builder()
-                    .dns_resolver(Arc::new(crate::resolver::HttpResolver))
-                    .redirect(reqwest::redirect::Policy::none())
-                    .retry(reqwest::retry::never())
-                    .connect_timeout(Duration::from_secs(10))
-                    .pool_max_idle_per_host(2)
-                    .pool_idle_timeout(Duration::from_secs(30))
-                    .add_root_certificate(ca)
-                    .build()
-                    .map_err(|_| "HttpTls")?;
-                self.ca_clients.insert(key.clone(), client);
-            }
-            self.ca_clients[&key].clone()
-        };
         if request.upload_limit.is_some() {
             return self.submit_upload(id, request, client);
         }
@@ -821,7 +812,7 @@ impl Host {
         self.runtime.spawn(async move {
             let future = async {
                 if worker_phase.compare_exchange(0,1,Ordering::SeqCst,Ordering::SeqCst).is_err() {return failure("HttpCancelled","NotSent",0);}
-                execute(client, request, &worker_phase,download.map(|d|(id,d))).await
+                execute(client.client.clone(), request, &worker_phase,download.map(|d|(id,d))).await
             };
             let result = tokio::select! {
                 biased;
@@ -829,6 +820,7 @@ impl Host {
                 response = future => response,
             };
             let _ = sender.send(result);
+            drop(client);
         });
         self.jobs.insert(
             id,

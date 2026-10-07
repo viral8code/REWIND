@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.6.1",
+  "language": "1.9.34",
   "symbols": {
     "fn:close": {
       "async": false,
@@ -46,13 +46,13 @@
     },
     "fn:configured": {
       "async": false,
-      "cost": "O(request bytes + response bytes); reuses connections for the same CA.",
+      "cost": "O(request bytes + response bytes); bounded 16 origin/CA client cache, native lease allowance and cold-client setup; same-origin connections are reused.",
       "effects": [
         "external",
         "network",
         "tasks"
       ],
-      "failure": "HttpError after awaiting; PEM CA adds trust, certificate and hostname verification remain enabled.",
+      "failure": "HttpError after awaiting; nonempty PEM certificates add trust, hostname/chain verification remains enabled. Client admission can return HttpMemoryLimit/NotSent before physical submission.",
       "generics": [],
       "parameters": [
         "String",
@@ -113,7 +113,7 @@
     },
     "fn:get": {
       "async": false,
-      "cost": "O(response bytes); submits immediately and returns a Task.",
+      "cost": "O(response bytes), with bounded origin/CA client caching and cold-client memory admission; returns a Task.",
       "effects": [
         "external",
         "network",
@@ -210,6 +210,223 @@
       ],
       "return": "Task<Result<Unit,HttpError>>"
     },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:HttpDownload": {
       "constructor": true,
       "fields": [
@@ -278,6 +495,75 @@
       "generics": [],
       "kind": "record"
     },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:HttpUpload": {
       "constructor": true,
       "fields": [
@@ -286,6 +572,18 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },
@@ -355,6 +653,117 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Request": {
       "constructor": true,
       "fields": [
@@ -394,6 +803,18 @@
       "generics": [],
       "kind": "record"
     },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -404,6 +825,36 @@
         [
           "offset",
           "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
         ]
       ],
       "generics": [],

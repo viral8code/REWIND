@@ -167,3 +167,7 @@ scale / zipFloat / norm2 を最大4096値ごとに分割し、共役勾配法内
 ## v1.9.33 の協調的 LU
 
 partial-pivot LU の入力 copy / pivot / row swap / elimination / back substitution を最大4096 unit ごとに分割し、VM Task として checkpoint / cancel を扱う。同期版の演算順序と独立残差、source-free SDK、予算と回収を検証する。QR / eigen / autodiff、snapshot / secret / cache、GUI と統合、残る v2 の到達条件は継続する。[契約](REWIND_v1.9.33.md)を参照する。
+
+## v1.9.34 の HTTP cache / 初期 copy admission
+
+origin / CA ごとの HTTP client を最大16件に抑え、cache から外れた通信中・stream 所有の lease とその予約を弱い registry で会計する。keepalive / eviction / malformed CA / 両 OS の source-free SDK と offline replay を検証し、LU 初期 copy の admission を bounded page に合わせる。全 OS / TLS allocator の正確な容量監査、snapshot / secret / 数値 / GUI と残る v2 の条件は継続する。[契約](REWIND_v1.9.34.md)を参照する。

@@ -843,6 +843,17 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
             .saturating_add(16384)
     } else if name == "SolveStep" {
         solve_work(&args[0], rt).map_or(16384, |w| {
+            if w.phase == 0
+                && w.matrix.len().saturating_sub(w.cursor) >= rewind::numeric::SOLVE_CHUNK
+            {
+                // The entire step stays in contiguous input copy. Reserve only
+                // touched pages and their paths, rather than a full private LU.
+                return Array::storage_estimate(w.matrix.len())
+                    .min(w.matrix.update_estimate().saturating_mul(
+                        rewind::numeric::SOLVE_CHUNK.div_ceil(256).saturating_add(1),
+                    ))
+                    .saturating_add(rewind::numeric::SOLVE_CHUNK * 16 + 16384);
+            }
             // Each bounded work unit writes at most two matrix cells, two rhs
             // cells or one result cell. Cap COW reservation by full private
             // storage, but include bounded row-copy scratch and value metadata.
