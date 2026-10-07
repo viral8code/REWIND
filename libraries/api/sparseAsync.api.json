@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.27",
+  "language": "1.9.31",
   "symbols": {
     "dependency:numeric.rw": {
       "fn:$import$numeric$activation": {
@@ -614,7 +614,7 @@
     },
     "fn:conjugateGradient": {
       "async": true,
-      "cost": "O(iterations * (rows + cols + nnz) * log(max(rows,cols,nnz))); CSR validation/products yield after at most 4096 checks, entries or rows, and between iterations. Vector arithmetic and norms remain synchronous; native buffers share input pages.",
+      "cost": "O(iterations * (rows + cols + nnz) * log(max(rows,cols,nnz))); CSR validation/products and vector/norm/dot kernels yield after at most 4096 logical items; helpers share the current Task and native input pages.",
       "effects": [
         "tasks"
       ],

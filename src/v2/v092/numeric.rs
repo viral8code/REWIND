@@ -119,6 +119,20 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     }
     Ok(())
 }
+fn vector_operation(
+    name: &Value,
+    factor: &Value,
+) -> std::result::Result<rewind::numeric::VectorOperation, NumericError> {
+    use rewind::numeric::VectorOperation;
+    Ok(match operation(name)? {
+        "scale" => VectorOperation::Scale(floating(factor)?),
+        "add" => VectorOperation::Add,
+        "sub" => VectorOperation::Sub,
+        "mul" => VectorOperation::Mul,
+        "div" => VectorOperation::Div,
+        _ => return Err(NumericError::Domain),
+    })
+}
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
     if !n.starts_with("stdNumeric") {
         return Ok(None);
@@ -166,6 +180,16 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         && !language_at_least(&p.language, "1.9.8")
     {
         return Err(diagnostic(at, "suffix primitives require language 1.9.8"));
+    }
+    if matches!(
+        n,
+        "stdNumericVectorInit" | "stdNumericVectorStep" | "stdNumericNormStep"
+    ) && !language_at_least(&p.language, "1.9.31")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative vector kernels require language 1.9.31",
+        ));
     }
     if matches!(
         n,
@@ -616,22 +640,40 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             .saturating_mul((usize::BITS - length(1).max(1).leading_zeros()) as usize)
             .saturating_mul(8)
             .saturating_add(length(1).saturating_mul(8))
-    } else if name.starts_with("Zeros") || name.starts_with("From") {
+    } else if name == "VectorInit" || name == "MatmulInit" || name.starts_with("Zeros") {
+        1024
+    } else if name == "VectorStep" {
+        length(1)
+            .saturating_sub(args.get(5).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
+            .min(rewind::numeric::COOPERATIVE_MACS)
+            .saturating_mul(32)
+            .saturating_add(256)
+    } else if name == "NormStep" {
+        length(0)
+            .saturating_sub(args.get(1).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
+            .min(rewind::numeric::COOPERATIVE_MACS)
+            .saturating_mul(16)
+            .saturating_add(128)
+    } else if name == "DotStep" {
+        length(0)
+            .saturating_sub(args.get(2).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
+            .min(rewind::numeric::COOPERATIVE_MACS)
+            .saturating_mul(32)
+            .saturating_add(128)
+    } else if name == "MatmulStep" {
+        a(0).zip(a(1))
+            .and_then(|(a, b)| a.matmul_work(b).ok())
+            .map_or(0, |(_, _, _, total)| total)
+            .saturating_sub(args.get(3).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
+            .min(rewind::numeric::COOPERATIVE_MACS)
+            .saturating_mul(32)
+            .saturating_add(256)
+    } else if name.starts_with("From") {
         args.first()
             .and_then(|s| indices(s, rt).ok())
             .and_then(|s| elements(&s).ok())
             .unwrap_or(1)
             .saturating_mul(2)
-    } else if matches!(name, "DotStep" | "MatmulStep") {
-        rewind::numeric::COOPERATIVE_MACS
-            .saturating_mul(32)
-            .saturating_add(1024)
-    } else if name == "MatmulInit" {
-        a(0).zip(a(1))
-            .and_then(|(a, b)| a.matmul_work(b).ok())
-            .map_or(1, |(m, _, n, _)| {
-                m.saturating_mul(n).saturating_mul(2).saturating_add(1)
-            })
     } else if name == "Matmul" {
         match (a(0).map(Array::shape), a(1).map(Array::shape)) {
             (Some([m, k]), Some([l, n])) if k == l && elements(&[*m, *n]).is_ok() => m
@@ -675,7 +717,26 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "SparseInit" {
+    if name == "VectorInit" {
+        Array::storage_estimate(length(1)).min(131072)
+    } else if name == "MatmulInit" {
+        a(0).zip(a(1))
+            .and_then(|(a, b)| a.matmul_work(b).ok())
+            .map_or(0, |(m, _, n, _)| {
+                Array::storage_estimate(m.saturating_mul(n)).min(131072)
+            })
+    } else if name.starts_with("Zeros") {
+        args.first()
+            .and_then(|s| indices(s, rt).ok())
+            .and_then(|s| elements(&s).ok())
+            .map_or(0, |n| Array::storage_estimate(n).min(131072))
+    } else if name == "VectorStep" {
+        a(3).map_or(0, Array::update_estimate)
+            .saturating_mul(rewind::numeric::COOPERATIVE_MACS.div_ceil(256) + 1)
+            .saturating_add(rewind::numeric::COOPERATIVE_MACS * 8 + 16384)
+    } else if name == "NormStep" {
+        1024
+    } else if name == "SparseInit" {
         131072
     } else if name == "SparseStep" {
         sparse_work(&args[0], rt).map_or(16384, |w| {
@@ -800,7 +861,7 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
         length(0).saturating_mul(8).saturating_add(2048)
     } else if name == "Histogram" {
         length(1).saturating_mul(32).saturating_add(4096)
-    } else if name.starts_with("Zeros") || name.starts_with("From") {
+    } else if name.starts_with("From") {
         args.first()
             .and_then(|s| indices(s, rt).ok())
             .and_then(|s| elements(&s).ok())
@@ -813,12 +874,6 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
             .saturating_mul(cells.div_ceil(256).saturating_add(1))
             .saturating_add(cells.saturating_mul(8))
             .saturating_add(1024)
-    } else if name == "MatmulInit" {
-        a(0).zip(a(1))
-            .and_then(|(a, b)| a.matmul_work(b).ok())
-            .map_or(0, |(m, _, n, _)| {
-                Array::storage_estimate(m.saturating_mul(n))
-            })
     } else if name == "Matmul" {
         let count = match (a(0).map(Array::shape), a(1).map(Array::shape)) {
             (Some([m, k]), Some([l, n])) if k == l && elements(&[*m, *n]).is_ok() => {
@@ -1273,6 +1328,44 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             "Sum" => Value::Float(a(0)?.sum()?.to_bits()),
             "Mean" => Value::Float(a(0)?.mean_variance(0)?.0.to_bits()),
             "Variance" => Value::Float(a(0)?.mean_variance(i(1)?)?.1.to_bits()),
+            "VectorInit" => {
+                array_value(a(1)?.vector_init(a(2)?, vector_operation(&args[0], &args[3])?))?
+            }
+            "VectorStep" => {
+                let (out, cursor) = a(1)?.vector_step(
+                    a(2)?,
+                    a(3)?,
+                    vector_operation(&args[0], &args[4])?,
+                    usize_arg(&args[5])?,
+                )?;
+                Value::Struct(
+                    "Tuple<FloatArray,Int,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(out)),
+                        ("_1".into(), Value::Int(cursor as i64)),
+                        ("_2".into(), Value::Bool(cursor == a(1)?.len())),
+                    ]),
+                )
+            }
+            "NormStep" => {
+                let state = a(0)?.norm_step(rewind::numeric::NormProgress {
+                    cursor: usize_arg(&args[1])?,
+                    scale: f(2)?,
+                    sum: f(3)?,
+                })?;
+                let done = state.cursor == a(0)?.len();
+                let value = if done { state.value()? } else { 0.0 };
+                Value::Struct(
+                    "Tuple<Int,Float,Float,Float,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::Int(state.cursor as i64)),
+                        ("_1".into(), Value::Float(state.scale.to_bits())),
+                        ("_2".into(), Value::Float(state.sum.to_bits())),
+                        ("_3".into(), Value::Float(value.to_bits())),
+                        ("_4".into(), Value::Bool(done)),
+                    ]),
+                )
+            }
             "DotStep" => {
                 let state = rewind::numeric::KernelProgress {
                     cursor: usize_arg(&args[2])?,
@@ -1550,6 +1643,25 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
         "stdNumericSum" => (&["&FloatArray"], "Result<Float,StdError>"),
         "stdNumericMean" => (&["&FloatArray"], "Result<Float,StdError>"),
         "stdNumericVariance" => (&["&FloatArray", "Int"], "Result<Float,StdError>"),
+        "stdNumericVectorInit" => (
+            &["String", "&FloatArray", "&FloatArray", "Float"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericVectorStep" => (
+            &[
+                "String",
+                "&FloatArray",
+                "&FloatArray",
+                "&FloatArray",
+                "Float",
+                "Int",
+            ],
+            "Result<Tuple<FloatArray,Int,Bool>,StdError>",
+        ),
+        "stdNumericNormStep" => (
+            &["&FloatArray", "Int", "Float", "Float"],
+            "Result<Tuple<Int,Float,Float,Float,Bool>,StdError>",
+        ),
         "stdNumericDotStep" => (
             &["&FloatArray", "&FloatArray", "Int", "Float", "Float"],
             "Result<Tuple<Int,Float,Float,Bool>,StdError>",

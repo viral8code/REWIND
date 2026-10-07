@@ -13,7 +13,7 @@ pub async fn dot(left:FloatArray,right:FloatArray)->Result<Float,StdError> effec
  }
  return Err(StdError("NumericState",0));
 }
-// @api matmul cost Native chunks of at most 4096 products and page-range COW writes; yields between chunks. Output initialization is synchronous O(m*n).
+// @api matmul cost Native chunks of at most 4096 products and page-range COW writes; yields between chunks. Output initialization shares logarithmic zero storage.
 // @api matmul failure NumericShape/Type/Size/NonFinite/Overflow; task cancellation and fatal budgets apply. No partial output escapes a failed task.
 pub async fn matmul(left:FloatArray,right:FloatArray)->Result<FloatArray,StdError> effects {tasks} {
  var output=stdNumericMatmulInit(&left,&right)?;
@@ -26,3 +26,29 @@ pub async fn matmul(left:FloatArray,right:FloatArray)->Result<FloatArray,StdErro
  }
  return Err(StdError("NumericState",0));
 }
+
+fn cooperativeVector(operation:String,left:FloatArray,right:FloatArray,factor:Float)->Result<FloatArray,StdError> effects {tasks} {
+ var output=stdNumericVectorInit(operation,&left,&right,factor)?;var cursor=0;
+ while true {
+  let step=stdNumericVectorStep(operation,&left,&right,&output,factor,cursor)?;
+  output=step._0;cursor=step._1;if step._2 {return Ok(output);}task.yieldNow();
+ }
+ return Err(StdError("NumericState",0));
+}
+fn cooperativeNorm(array:FloatArray)->Result<Float,StdError> effects {tasks} {
+ var cursor=0;var scale=0.0;var sum=1.0;
+ while true {
+  let step=stdNumericNormStep(&array,cursor,scale,sum)?;cursor=step._0;scale=step._1;sum=step._2;
+  if step._4 {return Ok(step._3);}task.yieldNow();
+ }
+ return Err(StdError("NumericState",0));
+}
+// @api scale cost Shared logarithmic zero initialization; at most 4096 values per native step, bounded scratch and page-range COW writes.
+// @api scale failure NumericType/NonFinite/Overflow; arbitrary ranks and strided input; finite factor, no partial result on failure or cancellation.
+pub async fn scale(array:FloatArray,factor:Float)->Result<FloatArray,StdError> effects {tasks} {return cooperativeVector("scale",array,array,factor);}
+// @api zipFloat cost At most 4096 element pairs per native step; shared inputs and logarithmic zero initialization, bounded scratch and page-range COW output.
+// @api zipFloat failure NumericShape/Type/Domain/NonFinite; add/sub/mul/div and matching shapes; division by zero fails. No partial result escapes.
+pub async fn zipFloat(operation:String,left:FloatArray,right:FloatArray)->Result<FloatArray,StdError> effects {tasks} {return cooperativeVector(operation,left,right,0.0);}
+// @api norm2 cost At most 4096 values per native step; scaled accumulation preserves logical order without materializing input or squaring large magnitudes.
+// @api norm2 failure NumericType/NonFinite/Overflow; arbitrary ranks and views; same scaled result as numeric.norm2, task cancellation and fatal budgets apply.
+pub async fn norm2(array:FloatArray)->Result<Float,StdError> effects {tasks} {return cooperativeNorm(array);}

@@ -1,5 +1,39 @@
 use super::*;
 pub const COOPERATIVE_MACS: usize = 4096;
+#[derive(Clone, Copy, Debug)]
+pub enum VectorOperation {
+    Scale(f64),
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NormProgress {
+    pub cursor: usize,
+    pub scale: f64,
+    pub sum: f64,
+}
+impl NormProgress {
+    pub fn initial() -> Self {
+        Self {
+            cursor: 0,
+            scale: 0.0,
+            sum: 1.0,
+        }
+    }
+    pub fn value(self) -> Result<f64> {
+        if !self.scale.is_finite() || self.scale < 0.0 || !self.sum.is_finite() || self.sum < 1.0 {
+            return Err(Error::NonFinite);
+        }
+        let value = self.scale * self.sum.sqrt();
+        if value.is_finite() {
+            Ok(value)
+        } else {
+            Err(Error::Overflow)
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Progress {
     pub cursor: usize,
@@ -59,6 +93,139 @@ impl Node {
     }
 }
 impl Array {
+    fn vector_require(&self, other: &Self, operation: VectorOperation) -> Result<()> {
+        if self.dtype != DType::Float64 {
+            return Err(Error::Type);
+        }
+        if let VectorOperation::Scale(factor) = operation {
+            if !factor.is_finite() {
+                return Err(Error::NonFinite);
+            }
+        } else {
+            if other.dtype != self.dtype {
+                return Err(Error::Type);
+            }
+            if other.shape != self.shape {
+                return Err(Error::Shape);
+            }
+        }
+        Ok(())
+    }
+    pub fn vector_init(&self, other: &Self, operation: VectorOperation) -> Result<Self> {
+        self.vector_require(other, operation)?;
+        Self::zeros(DType::Float64, self.shape.clone())
+    }
+    pub fn vector_step(
+        &self,
+        other: &Self,
+        output: &Self,
+        operation: VectorOperation,
+        cursor: usize,
+    ) -> Result<(Self, usize)> {
+        self.vector_require(other, operation)?;
+        if cursor > self.len() {
+            return Err(Error::Index);
+        }
+        if output.dtype != self.dtype {
+            return Err(Error::Type);
+        }
+        if output.shape != self.shape || !output.contiguous() {
+            return Err(Error::Shape);
+        }
+        if !output.writable {
+            return Err(Error::ReadOnly);
+        }
+        let end = cursor.saturating_add(COOPERATIVE_MACS).min(self.len());
+        let mut completed = Vec::with_capacity(end - cursor);
+        let mut right = if matches!(operation, VectorOperation::Scale(_)) {
+            None
+        } else {
+            Some(other.window_bits(cursor, end)?)
+        };
+        for bit in self.window_bits(cursor, end)? {
+            let left = f64::from_bits(bit);
+            if !left.is_finite() {
+                return Err(Error::NonFinite);
+            }
+            let value = if let VectorOperation::Scale(factor) = operation {
+                left * factor
+            } else {
+                let right = f64::from_bits(right.as_mut().unwrap().next().unwrap());
+                if !right.is_finite() {
+                    return Err(Error::NonFinite);
+                }
+                match operation {
+                    VectorOperation::Add => left + right,
+                    VectorOperation::Sub => left - right,
+                    VectorOperation::Mul => left * right,
+                    VectorOperation::Div => {
+                        if right == 0.0 {
+                            return Err(Error::Domain);
+                        }
+                        left / right
+                    }
+                    VectorOperation::Scale(_) => unreachable!(),
+                }
+            };
+            if !value.is_finite() {
+                return Err(if matches!(operation, VectorOperation::Scale(_)) {
+                    Error::Overflow
+                } else {
+                    Error::NonFinite
+                });
+            }
+            completed.push(value.to_bits());
+        }
+        let mut result = output.clone();
+        Node::write_range(
+            &mut result.buffer.root,
+            result.buffer.height,
+            result.offset as usize + cursor,
+            &completed,
+        );
+        Ok((result, end))
+    }
+    pub fn norm_step(&self, mut state: NormProgress) -> Result<NormProgress> {
+        if self.dtype != DType::Float64 {
+            return Err(Error::Type);
+        }
+        if state.cursor > self.len() {
+            return Err(Error::Index);
+        }
+        if !state.scale.is_finite()
+            || state.scale < 0.0
+            || !state.sum.is_finite()
+            || state.sum < 1.0
+        {
+            return Err(Error::NonFinite);
+        }
+        let end = state
+            .cursor
+            .saturating_add(COOPERATIVE_MACS)
+            .min(self.len());
+        for bit in self.window_bits(state.cursor, end)? {
+            let value = f64::from_bits(bit);
+            if !value.is_finite() {
+                return Err(Error::NonFinite);
+            }
+            let x = value.abs();
+            if x != 0.0 {
+                if state.scale < x {
+                    let ratio = state.scale / x;
+                    state.sum = 1.0 + state.sum * ratio * ratio;
+                    state.scale = x;
+                } else {
+                    let ratio = x / state.scale;
+                    state.sum += ratio * ratio;
+                }
+            }
+        }
+        state.cursor = end;
+        if end == self.len() {
+            state.value()?;
+        }
+        Ok(state)
+    }
     fn window_bits(&self, start: usize, end: usize) -> Result<ArrayBits<'_>> {
         if start > end || end > self.len() {
             return Err(Error::Index);
@@ -192,6 +359,118 @@ impl Array {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn vector_steps_match_strided_references_and_keep_partial_snapshots() {
+        let values = (0..9001)
+            .map(|i| (i % 29) as f64 / 3.0 - 4.0)
+            .collect::<Vec<_>>();
+        let base = Array::floats(vec![values.len()], &values).unwrap();
+        let right = Array::floats(vec![1], &[2.0])
+            .unwrap()
+            .broadcast(vec![values.len()])
+            .unwrap();
+        for left in [
+            base.clone(),
+            base.slice(0, values.len() - 1, values.len(), -1).unwrap(),
+        ] {
+            for operation in [
+                VectorOperation::Scale(1.75),
+                VectorOperation::Add,
+                VectorOperation::Sub,
+                VectorOperation::Mul,
+                VectorOperation::Div,
+            ] {
+                let mut output = left.vector_init(&right, operation).unwrap();
+                let (first, cursor) = left.vector_step(&right, &output, operation, 0).unwrap();
+                assert_eq!(cursor, COOPERATIVE_MACS);
+                let saved = first.clone();
+                output = first;
+                let mut position = cursor;
+                while position < left.len() {
+                    let next = left
+                        .vector_step(&right, &output, operation, position)
+                        .unwrap();
+                    assert!(next.1 - position <= COOPERATIVE_MACS);
+                    output = next.0;
+                    position = next.1;
+                }
+                let reference = left
+                    .float_values()
+                    .unwrap()
+                    .iter()
+                    .map(|&a| match operation {
+                        VectorOperation::Scale(f) => a * f,
+                        VectorOperation::Add => a + 2.0,
+                        VectorOperation::Sub => a - 2.0,
+                        VectorOperation::Mul => a * 2.0,
+                        VectorOperation::Div => a / 2.0,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    output.bits().collect::<Vec<_>>(),
+                    reference.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
+                );
+                assert!(saved.bits().skip(cursor).all(|bit| bit == 0));
+                assert_eq!(base.float_values().unwrap(), values);
+            }
+        }
+    }
+    #[test]
+    fn norm_steps_preserve_scaled_order_and_extreme_magnitudes() {
+        for values in [
+            vec![],
+            vec![0.0; 9001],
+            vec![1e-200; 9001],
+            vec![1e200; 9001],
+            (0..9001).map(|i| (i % 37) as f64 - 18.0).collect(),
+        ] {
+            let input = Array::floats(vec![values.len()], &values).unwrap();
+            let mut state = NormProgress::initial();
+            loop {
+                let next = input.norm_step(state).unwrap();
+                assert!(next.cursor - state.cursor <= COOPERATIVE_MACS);
+                state = next;
+                if state.cursor == input.len() {
+                    break;
+                }
+            }
+            assert_eq!(
+                state.value().unwrap().to_bits(),
+                crate::transforms::norm2(&input).unwrap().to_bits()
+            );
+        }
+    }
+    #[test]
+    fn vector_and_norm_late_failures_expose_no_mutated_output() {
+        let good = Array::floats(vec![5000], &vec![1.0; 5000]).unwrap();
+        let mut values = vec![1.0; 5000];
+        values[4999] = f64::NAN;
+        let bad = Array::floats(vec![5000], &values).unwrap();
+        let output = good.vector_init(&bad, VectorOperation::Add).unwrap();
+        let (partial, cursor) = good
+            .vector_step(&bad, &output, VectorOperation::Add, 0)
+            .unwrap();
+        assert!(matches!(
+            good.vector_step(&bad, &partial, VectorOperation::Add, cursor),
+            Err(Error::NonFinite)
+        ));
+        assert!(partial.bits().skip(cursor).all(|bit| bit == 0));
+        let state = bad.norm_step(NormProgress::initial()).unwrap();
+        assert_eq!(bad.norm_step(state), Err(Error::NonFinite));
+        let readonly = output.broadcast(vec![5000]).unwrap();
+        assert!(matches!(
+            good.vector_step(&good, &readonly, VectorOperation::Add, 0),
+            Err(Error::ReadOnly)
+        ));
+        assert!(matches!(
+            good.vector_step(&good, &output, VectorOperation::Div, 5001),
+            Err(Error::Index)
+        ));
+        assert!(matches!(
+            good.vector_init(&good, VectorOperation::Scale(f64::INFINITY)),
+            Err(Error::NonFinite)
+        ));
+    }
     #[test]
     fn dot_steps_preserve_order_strides_and_compensation() {
         let values: Vec<_> = (0..10003)

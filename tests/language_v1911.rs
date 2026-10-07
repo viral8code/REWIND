@@ -113,7 +113,7 @@ fn numeric_checkpoint_versions_fit_shared_page_budget_and_restore_values() {
             "run",
             "main.rwc",
             "--history-memory",
-            "1MiB",
+            "256KiB",
             "--native-work",
             "100000000",
         ],
