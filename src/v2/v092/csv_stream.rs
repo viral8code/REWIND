@@ -141,7 +141,7 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                     "String".into(),
                     row.iter()
                         .cloned()
-                        .map(Value::Text)
+                        .map(|text| Value::Text(text.into()))
                         .collect::<Vec<_>>()
                         .into(),
                 ))

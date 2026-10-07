@@ -184,7 +184,8 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                 input
                     .get(index(&args[1])?..index(&args[2])?)
                     .ok_or(RegexError::Index)?
-                    .to_owned(),
+                    .to_owned()
+                    .into(),
             ))
         })();
         return Ok(Some(result(value)));
@@ -225,7 +226,7 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                 "Option<String>".into(),
                 names
                     .into_iter()
-                    .map(|name| Value::Option(name.map(|name| Box::new(Value::Text(name)))))
+                    .map(|name| Value::Option(name.map(|name| Box::new(Value::Text(name.into())))))
                     .collect::<Vec<_>>()
                     .into(),
             )

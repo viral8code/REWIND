@@ -27,6 +27,7 @@ mod replay;
 mod resolver;
 pub mod suffix;
 pub mod tcp;
+pub mod text_storage;
 pub mod unicode;
 use journal::{Journal, Segment};
 
@@ -114,7 +115,7 @@ impl MapKey {
             Value::Bool(v) => Self::Bool(*v),
             Value::Int(v) => Self::Int(*v),
             Value::Float(v) => Self::Float(*v),
-            Value::Text(v) => Self::Text(v.clone()),
+            Value::Text(v) => Self::Text(v.to_string()),
             Value::Bytes(v) => Self::Bytes(v.as_ref().clone()),
             _ => return None,
         })
@@ -129,7 +130,7 @@ impl MapKey {
             Self::Bool(v) => Value::Bool(*v),
             Self::Int(v) => Value::Int(*v),
             Self::Float(v) => Value::Float(*v),
-            Self::Text(v) => Value::Text(v.clone()),
+            Self::Text(v) => Value::Text(v.clone().into()),
             Self::Bytes(v) => Value::Bytes(v.clone().into()),
         }
     }
@@ -180,7 +181,7 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Float(u64),
-    Text(String),
+    Text(text_storage::Text),
     Bytes(Arc<Vec<u8>>),
     NumericArray(numeric::Array),
     Regex(regular::Pattern),
@@ -952,13 +953,13 @@ impl Runtime {
     pub fn mask_debug_json(&self, value: &serde_json::Value) -> serde_json::Value {
         use serde_json::Value as Json;
         match value {
-            Json::String(s) => Json::String(self.masked_value(&Value::Text(s.clone()))),
+            Json::String(s) => Json::String(self.masked_value(&Value::Text(s.clone().into()))),
             Json::Array(a) => Json::Array(a.iter().map(|v| self.mask_debug_json(v)).collect()),
             Json::Object(o) => Json::Object(
                 o.iter()
                     .map(|(k, v)| {
                         (
-                            self.masked_value(&Value::Text(k.clone())),
+                            self.masked_value(&Value::Text(k.clone().into())),
                             self.mask_debug_json(v),
                         )
                     })
@@ -1021,7 +1022,7 @@ impl Runtime {
         };
         if let Some(text) = &value {
             self.secret_input_indices.insert(cursor);
-            self.register_secret_value(&Value::Text(text.clone()));
+            self.register_secret_value(&Value::Text(text.clone().into()));
         }
         Ok(value)
     }
@@ -1034,7 +1035,7 @@ impl Runtime {
         self.env_secrets.insert(name.into());
         let value = self.environment_value(name)?;
         if let Some(text) = &value {
-            self.register_secret_value(&Value::Text(text.clone()));
+            self.register_secret_value(&Value::Text(text.clone().into()));
         }
         Ok(value)
     }

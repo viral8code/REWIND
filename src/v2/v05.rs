@@ -109,6 +109,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) {
         return Ok(());
@@ -213,6 +214,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
@@ -352,6 +354,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) {
         program
@@ -647,6 +650,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) {
         return v06::validate(program, config);
@@ -736,7 +740,10 @@ pub(super) fn new_iterator(rt: &mut Runtime, value: &Value) -> Result<Option<Val
         Value::TypedList(_, v) => v.iter().cloned().collect(),
         Value::Map(v) | Value::TypedMap(_, _, v) => v.keys().map(MapKey::value).collect(),
         Value::OrderedMap(_, _, v) => v.iter().map(|(k, _)| k.clone()).collect(),
-        Value::Text(s) => s.chars().map(|c| Value::Text(c.to_string())).collect(),
+        Value::Text(s) => s
+            .chars()
+            .map(|c| Value::Text(c.to_string().into()))
+            .collect(),
         Value::Bytes(v) => v.iter().map(|b| Value::Int(i64::from(*b))).collect(),
         Value::Struct(t, fields) if t.starts_with("Iterator<") => {
             let Value::TypedList(_, v) = &fields["$values"] else {
@@ -1074,6 +1081,7 @@ pub(super) fn transfer_type(
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         )
     {
@@ -1147,6 +1155,7 @@ pub(super) fn transfer_type(
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) {
         if let Some((base, inner)) = ty.split_once('<') {
@@ -1228,6 +1237,7 @@ pub(super) fn transfer_type(
                 | "1.9.33"
                 | "1.9.34"
                 | "1.9.35"
+                | "1.9.36"
                 | "2.0.0"
         ) {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
@@ -1314,6 +1324,7 @@ pub(super) fn transfer_type(
             | "1.9.33"
             | "1.9.34"
             | "1.9.35"
+            | "1.9.36"
             | "2.0.0"
     ) {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
@@ -1695,6 +1706,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     | "1.9.33"
                     | "1.9.34"
                     | "1.9.35"
+                    | "1.9.36"
                     | "2.0.0"
             ) {
                 let checker = Checker {

@@ -495,7 +495,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/http-pool/README.md",
             include_str!("../../../examples/http-pool/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/text-storage/main.rw",
+            include_str!("../../../examples/text-storage/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/text-storage/README.md",
+            include_str!("../../../examples/text-storage/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.36.md",
+                include_str!("../../../docs/REWIND_v1.9.36.md"),
+            ),
             (
                 "REWIND_v1.9.35.md",
                 include_str!("../../../docs/REWIND_v1.9.35.md"),

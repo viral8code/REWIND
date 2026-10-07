@@ -40,9 +40,9 @@ pub(in crate::v2) fn value(d: &rewind::DiagnosticRecord) -> Value {
     Value::Struct(
         "Diagnostic".into(),
         BTreeMap::from([
-            ("code".into(), Value::Text(d.code.clone())),
-            ("message".into(), Value::Text(d.message.clone())),
-            ("source".into(), Value::Text(d.source.clone())),
+            ("code".into(), Value::Text(d.code.clone().into())),
+            ("message".into(), Value::Text(d.message.clone().into())),
+            ("source".into(), Value::Text(d.source.clone().into())),
             ("line".into(), Value::Int(d.line as i64)),
             ("column".into(), Value::Int(d.column as i64)),
             (
@@ -111,7 +111,7 @@ fn graph(d: &rewind::DiagnosticRecord) -> Value {
     Value::Struct(
         "WaitGraph".into(),
         BTreeMap::from([
-            ("description".into(), Value::Text(d.message.clone())),
+            ("description".into(), Value::Text(d.message.clone().into())),
             (
                 "edges".into(),
                 Value::TypedList(
@@ -150,7 +150,8 @@ pub(in crate::v2) fn masked_record(
     rt: &Runtime,
 ) -> serde_json::Value {
     let mut value = serde_json::to_value(d).unwrap_or(serde_json::Value::Null);
-    value["message"] = serde_json::Value::String(rt.masked_value(&Value::Text(d.message.clone())));
+    value["message"] =
+        serde_json::Value::String(rt.masked_value(&Value::Text(d.message.clone().into())));
     value["causes"] =
         serde_json::Value::Array(d.causes.iter().map(|d| masked_record(d, rt)).collect());
     value

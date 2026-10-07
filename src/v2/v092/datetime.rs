@@ -174,8 +174,8 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                 Value::Duration(Duration::new(int(&args[0])?, int(&args[1])?)?)
             }
             "stdDateTimeParse" => Value::Instant(Instant::parse(text(&args[0])?)?),
-            "stdDateTimeFormat" => Value::Text(i(0)?.format()),
-            "stdDateTimeFormatOffset" => Value::Text(i(0)?.format_offset(int(&args[1])?)?),
+            "stdDateTimeFormat" => Value::Text(i(0)?.format().into()),
+            "stdDateTimeFormatOffset" => Value::Text(i(0)?.format_offset(int(&args[1])?)?.into()),
             "stdDateTimeSeconds" => Value::Int(i(0)?.seconds()),
             "stdDateTimeNanos" => Value::Int(i(0)?.nanos()),
             "stdDateTimeDurationSeconds" => Value::Int(d(0)?.seconds()),

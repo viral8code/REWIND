@@ -175,3 +175,7 @@ origin / CA ごとの HTTP client を最大16件に抑え、cache から外れ�
 ### v1.9.35 — HTTP の信頼設定共有
 
 HTTP host ごとに OS root を一度読込み、CA fingerprint ごとに immutable Rustls 設定を共有する。接続先 cache の入替えで証明書一覧を読み直さず、最大9設定・各32 server entry（最大256 TLS 1.3 ticket と32 TLS 1.2 session）に制限する。CA / hostname検証、lease / cancellation / source-free replay を維持し、接続がなくても残る設定を会計に含める。独立 loopback origin の release wall / CPU / RSS 測定を含めて確認する。[契約](REWIND_v1.9.35.md)を参照する。一般 snapshot / secret 会計、GUI 拡充、数値 Task 分割と残る v2 の到達条件は継続する。
+
+### v1.9.36 — VM の不変文字列の共有
+
+長い String の代入・引数・戻り値・capture・保持状態のコピーで byte buffer を共有し、内容変更は COW とする。短い文字列には追加 Arc allocation を入れず、内容比較・Unicode・旧 wire format を維持する。byteLen の受信値コピーの費用を実処理へ合わせ、capture / List / Map / restore / source-free SDK と既存 secret / codec / task を検証する。長いコピーと短い文字列の release wall / CPU / RSS 測定を行う。[契約](REWIND_v1.9.36.md)を参照する。一般履歴の物理会計・secret の寿命・数値 Task 分割・GUI 拡充と残る v2 条件は継続する。

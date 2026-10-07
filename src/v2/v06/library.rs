@@ -170,18 +170,18 @@ pub(in crate::v2) fn primitive_method(
         (Value::Bytes(b), "byteLen", []) => Value::Int(b.len() as i64),
         (Value::Text(s), "encodeUtf8", []) => Value::Bytes(s.as_bytes().to_vec().into()),
         (Value::Bytes(b), "decodeUtf8", []) => match String::from_utf8(b.to_vec()) {
-            Ok(s) => success(Value::Text(s)),
+            Ok(s) => success(Value::Text(s.into())),
             Err(_) => failure("InvalidUtf8"),
         },
-        (Value::Text(s), "contains", [Value::Text(p)]) => Value::Bool(s.contains(p)),
-        (Value::Text(s), "startsWith", [Value::Text(p)]) => Value::Bool(s.starts_with(p)),
-        (Value::Text(s), "endsWith", [Value::Text(p)]) => Value::Bool(s.ends_with(p)),
+        (Value::Text(s), "contains", [Value::Text(p)]) => Value::Bool(s.contains(p.as_str())),
+        (Value::Text(s), "startsWith", [Value::Text(p)]) => Value::Bool(s.starts_with(p.as_str())),
+        (Value::Text(s), "endsWith", [Value::Text(p)]) => Value::Bool(s.ends_with(p.as_str())),
         (Value::Text(s), "find", [Value::Text(p)]) => {
-            Value::Option(s.find(p).map(|n| Box::new(Value::Int(n as i64))))
+            Value::Option(s.find(p.as_str()).map(|n| Box::new(Value::Int(n as i64))))
         }
         (Value::Text(s), "split", [Value::Text(p)]) => Value::TypedList(
             "String".into(),
-            s.split(p).map(|s| Value::Text(s.into())).collect(),
+            s.split(p.as_str()).map(|s| Value::Text(s.into())).collect(),
         ),
         (Value::Text(s), "slice", [Value::Int(a), Value::Int(b)]) => {
             if *a >= 0 && *b >= *a {
@@ -211,8 +211,8 @@ pub(in crate::v2) fn primitive_method(
             .filter(|n| n.is_finite())
             .map(|n| success(Value::Float(n.to_bits())))
             .unwrap_or_else(|| failure("InvalidFloatOrNonFinite")),
-        (Value::Int(n), "format", []) => Value::Text(n.to_string()),
-        (Value::Float(n), "format", []) => Value::Text(f64::from_bits(*n).to_string()),
+        (Value::Int(n), "format", []) => Value::Text(n.to_string().into()),
+        (Value::Float(n), "format", []) => Value::Text(f64::from_bits(*n).to_string().into()),
         (Value::Float(n), "isFinite", []) => Value::Bool(f64::from_bits(*n).is_finite()),
         (Value::Float(n), "isNaN", []) => Value::Bool(f64::from_bits(*n).is_nan()),
         (Value::Float(n), "toIntChecked", []) => {

@@ -57,7 +57,7 @@ fn collection_releases_all_unrooted_storage_at_multiple_sizes() {
     for n in [4096, 8192, 16384] {
         let (p, mut rt) = runtime();
         for _ in 0..n {
-            rt.alloc(Value::Text("payload".repeat(8))).unwrap();
+            rt.alloc(Value::Text("payload".repeat(8).into())).unwrap();
         }
         assert_eq!(rt.collect_heap(&[], n).unwrap().0, n);
         assert_eq!(rt.state().heap.len(), 0);

@@ -93,15 +93,17 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             _ => Err(UnicodeError::Index),
         };
         Ok(match n {
-            "stdUnicodeNormalize" => Value::Text(uni::normalize(t(0)?, t(1)?)?),
+            "stdUnicodeNormalize" => Value::Text(uni::normalize(t(0)?, t(1)?)?.into()),
             "stdUnicodeIsNormalized" => Value::Bool(uni::is_normalized(t(0)?, t(1)?)?),
             "stdUnicodeCount" => Value::Int(uni::grapheme_count(t(0)?)? as i64),
-            "stdUnicodeSlice" => Value::Text(uni::grapheme_slice(t(0)?, index(1)?, index(2)?)?),
+            "stdUnicodeSlice" => {
+                Value::Text(uni::grapheme_slice(t(0)?, index(1)?, index(2)?)?.into())
+            }
             "stdUnicodeSplit" => Value::TypedList(
                 "String".into(),
                 uni::split(t(0)?, t(1)?)?
                     .into_iter()
-                    .map(Value::Text)
+                    .map(|text| Value::Text(text.into()))
                     .collect::<Vec<_>>()
                     .into(),
             ),
@@ -113,8 +115,8 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                     .collect::<Vec<_>>()
                     .into(),
             ),
-            "stdUnicodeCase" => Value::Text(uni::case(t(0)?, t(1)?)?),
-            "stdUnicodeVersions" => Value::Text(uni::versions()),
+            "stdUnicodeCase" => Value::Text(uni::case(t(0)?, t(1)?)?.into()),
+            "stdUnicodeVersions" => Value::Text(uni::versions().into()),
             _ => return Err(UnicodeError::Operation),
         })
     })();

@@ -219,7 +219,9 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             "stdBigIntFromInt" => Value::BigInt(IntegerValue::from_int(int(&args[0])?)),
             "stdBigIntToInt" => Value::Int(a(0)?.to_int()?),
             "stdBigIntFormat" => Value::Text(
-                a(0)?.format(u32::try_from(int(&args[1])?).map_err(|_| BigError::Radix)?)?,
+                a(0)?
+                    .format(u32::try_from(int(&args[1])?).map_err(|_| BigError::Radix)?)?
+                    .into(),
             ),
             "stdBigIntBinary" => integer(a(1)?.binary(text(&args[0])?, a(2)?))?,
             "stdBigIntUnary" => integer(a(1)?.unary(text(&args[0])?))?,
