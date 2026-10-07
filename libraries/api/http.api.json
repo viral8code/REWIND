@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.34",
+  "language": "1.9.35",
   "symbols": {
     "fn:close": {
       "async": false,

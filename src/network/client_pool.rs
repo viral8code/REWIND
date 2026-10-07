@@ -5,9 +5,11 @@ use std::{collections::BTreeSet, sync::Weak, time::Instant};
 pub(super) const MAX_CLIENTS: usize = 16;
 const CLIENT_ALLOWANCE: usize = 1024 * 1024;
 type Key = (String, String);
+mod trust;
 pub(super) struct Lease {
     pub client: reqwest::Client,
     bytes: usize,
+    trust_slot: usize,
 }
 struct Cached {
     lease: Arc<Lease>,
@@ -18,6 +20,7 @@ pub(super) struct ClientPool {
     clients: BTreeMap<Key, Cached>,
     authorities: BTreeSet<String>,
     retained: Vec<Weak<Lease>>,
+    trust: trust::TrustCache,
 }
 impl ClientPool {
     fn key(request: &Request) -> Result<Key, &'static str> {
@@ -52,11 +55,14 @@ impl ClientPool {
         })
     }
     pub fn reserved_bytes(&self) -> usize {
-        self.retained
-            .iter()
-            .filter_map(Weak::upgrade)
-            .map(|entry| entry.bytes)
-            .sum::<usize>()
+        let mut covered = [false; 9];
+        let mut bytes = 0;
+        for entry in self.retained.iter().filter_map(Weak::upgrade) {
+            covered[entry.trust_slot] = true;
+            bytes += entry.bytes;
+        }
+        bytes
+            + self.trust.uncovered_bytes(&covered)
             + self
                 .authorities
                 .iter()
@@ -83,23 +89,15 @@ impl ClientPool {
         if !key.1.is_empty() && !self.authorities.contains(&key.1) && self.authorities.len() >= 8 {
             return Err("HttpCaLimit");
         }
-        let mut builder = reqwest::Client::builder()
+        let (config, trust_slot) = self.trust.configuration(&key.1, &request.ca)?;
+        let builder = reqwest::Client::builder()
+            .use_preconfigured_tls(config.as_ref().clone())
             .dns_resolver(Arc::new(crate::resolver::HttpResolver))
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .connect_timeout(Duration::from_secs(10))
             .pool_max_idle_per_host(2)
             .pool_idle_timeout(Duration::from_secs(30));
-        if !request.ca.is_empty() {
-            let certificates =
-                reqwest::Certificate::from_pem_bundle(&request.ca).map_err(|_| "HttpCa")?;
-            if certificates.is_empty() {
-                return Err("HttpCa");
-            }
-            for certificate in certificates {
-                builder = builder.add_root_certificate(certificate);
-            }
-        }
         let client = builder.build().map_err(|_| "HttpTls")?;
         if self.clients.len() == MAX_CLIENTS {
             let oldest = self
@@ -117,6 +115,7 @@ impl ClientPool {
         let lease = Arc::new(Lease {
             client,
             bytes: Self::allowance(request, &key),
+            trust_slot,
         });
         self.retained.push(Arc::downgrade(&lease));
         self.clients.insert(
@@ -146,6 +145,50 @@ mod tests {
             download: false,
             upload_limit: None,
         }
+    }
+    #[test]
+    fn shared_trust_survives_origin_eviction_without_unaccounted_cache_storage() {
+        let mut pool = ClientPool::default();
+        let first = request("http://127.0.0.1:10000/");
+        pool.client(&first).unwrap();
+        let (config, slot) = pool.trust.configuration("", &[]).unwrap();
+        for port in 10001..10033 {
+            pool.client(&request(&format!("https://127.0.0.1:{port}/")))
+                .unwrap();
+        }
+        let (reused, reused_slot) = pool.trust.configuration("", &[]).unwrap();
+        assert!(Arc::ptr_eq(&config, &reused));
+        assert_eq!(slot, reused_slot);
+        assert_eq!(pool.trust.len(), 1);
+        assert_eq!(pool.cached(), MAX_CLIENTS);
+        for entry in pool.clients.values_mut() {
+            entry.used = Instant::now() - Duration::from_secs(31);
+        }
+        pool.admission(&first).unwrap();
+        assert_eq!(pool.retained(), 0);
+        assert_eq!(pool.cached(), 0);
+        let unused = pool.reserved_bytes();
+        assert!(
+            unused >= CLIENT_ALLOWANCE,
+            "trust remained allocated but unaccounted"
+        );
+        pool.client(&first).unwrap();
+        assert_eq!(pool.trust.len(), 1);
+        assert!(
+            pool.reserved_bytes() < unused + CLIENT_ALLOWANCE,
+            "shared configuration was counted twice"
+        );
+        let mut invalid = request("https://example.test/");
+        invalid.ca =
+            Arc::new(b"-----BEGIN CERTIFICATE-----\nAQID\n-----END CERTIFICATE-----\n".to_vec());
+        let mut failed = ClientPool::default();
+        assert!(matches!(failed.client(&invalid), Err("HttpTls")));
+        assert_eq!(failed.trust.len(), 0);
+        assert_eq!(
+            failed.reserved_bytes(),
+            0,
+            "failed config retained trust storage"
+        );
     }
     #[test]
     fn canonical_origin_reuses_client_without_merging_protocols_or_ports() {
