@@ -4,7 +4,7 @@
 
 ## Linux SDKをダウンロードする
 
-[Release v1.9.32](https://github.com/viral8code/REWIND/releases/tag/v1.9.32)から次を同じdirectoryへ保存します。
+[Release v1.9.33](https://github.com/viral8code/REWIND/releases/tag/v1.9.33)から次を同じdirectoryへ保存します。
 
 - `rewind-1.9.32-linux-x86_64.tar.gz`：rewind/rewindc、71 module、文書、例
 - `rewind-1.9.32-sdk.pub`：このreleaseの公開鍵
@@ -24,7 +24,7 @@ SDK archiveと公開鍵の両方がchecksum検証でOKになることを確認�
 
 ## Windows SDKをダウンロードする
 
-[Release v1.9.32](https://github.com/viral8code/REWIND/releases/tag/v1.9.32)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
+[Release v1.9.33](https://github.com/viral8code/REWIND/releases/tag/v1.9.33)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
 
 - `rewind-1.9.32-windows-x86_64.zip`
 - `rewind-1.9.32-windows-x86_64-sdk.pub`
@@ -181,3 +181,5 @@ HTTPS listener は SDK の `share/rewind/examples/http-server-auth` を参照し
 数値処理の協調的な scale / zipFloat / norm2 と途中 checkpoint は SDK の `share/rewind/examples/vector-async` と [1.9.31仕様](REWIND_v1.9.31.md)を参照してください。
 
 GUI と HTTP / SQLite / PostgreSQL の統合例は SDK の `share/rewind/examples/gui-data` と [1.9.32仕様](REWIND_v1.9.32.md)を参照してください。
+
+協調的な連立方程式ソルバーは SDK の `share/rewind/examples/solve-async` と [1.9.33仕様](REWIND_v1.9.33.md)を参照してください。

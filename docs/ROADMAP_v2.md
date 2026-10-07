@@ -163,3 +163,7 @@ scale / zipFloat / norm2 を最大4096値ごとに分割し、共役勾配法内
 ## v1.9.32 の GUI / HTTP / 両 DB 統合
 
 複数の native window と HTTP JSON、SQLite / verified TLS PostgreSQL を組み合わせ、error / Retry / 保存 transaction / VM Undo / Reload / Cancel を動作する SDK サンプルとして検証する。公開済み DB を保持し、両 DB の独立な確認、source-free compiled / disconnected replay と cleanup の resource profile を加える。GUI の残る機能、cooperative LU / QR / eigen / autodiff、一般 snapshot / secret / native cache の会計、数値・長時間測定と残る v2 の条件は継続する。[契約](REWIND_v1.9.32.md)を参照する。
+
+## v1.9.33 の協調的 LU
+
+partial-pivot LU の入力 copy / pivot / row swap / elimination / back substitution を最大4096 unit ごとに分割し、VM Task として checkpoint / cancel を扱う。同期版の演算順序と独立残差、source-free SDK、予算と回収を検証する。QR / eigen / autodiff、snapshot / secret / cache、GUI と統合、残る v2 の到達条件は継続する。[契約](REWIND_v1.9.33.md)を参照する。

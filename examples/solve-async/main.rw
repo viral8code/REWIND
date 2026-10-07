@@ -1,0 +1,45 @@
+import std.numeric as numeric;
+import std.numericAsync as jobs;
+import std.task as task;
+fn take<T,E>(result:Result<T,E>)->T effects {} {
+ match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric failure");}}
+}
+async fn marker()->Int effects {tasks} {return 7;}
+let size=65;
+let matrixShape=List<Int>();matrixShape.add(size);matrixShape.add(size);
+let vectorShape=List<Int>();vectorShape.add(size);
+let matrixZero=take(numeric.zerosFloat(&matrixShape));
+let matrixOnes=take(numeric.mapFloat("exp",&matrixZero));
+var builder=take(numeric.scale(&matrixOnes,0.01));
+for row in 0..size {
+ // Permuted diagonally dominant system; the first pivot needs a row swap.
+ let index=List<Int>();index.add(row);index.add((row+1)%size);
+ builder=take(numeric.withFloat(&builder,&index,100.0));
+}
+let matrix=builder;
+let vectorZero=take(numeric.zerosFloat(&vectorShape));
+let vectorOnes=take(numeric.mapFloat("exp",&vectorZero));
+let rhs=take(numeric.scale(&vectorOnes,100.64));
+let work=spawn jobs.solve(matrix,rhs,1e-13);
+let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+commit copying;
+{
+ let solution=take(take(await work));
+ assert_eq(solution,take(numeric.solve(&matrix,&rhs,1e-13)));
+ let index=List<Int>();index.add(0);let first=take(numeric.getFloat(&solution,&index));
+ assert(first>0.999999999999 && first<1.000000000001);
+ Out.println("solved");
+}
+publish;
+revert copying;
+{
+ let solution=take(take(await work));
+ assert_eq(solution,take(numeric.solve(&matrix,&rhs,1e-13)));
+ Out.println("restored");
+}
+drop copying;publish;
+let cancelled=spawn jobs.solve(matrix,rhs,1e-13);
+for turn in 0..6 {task.yieldNow();}
+assert(!cancelled.isDone());cancelled.cancel();
+match await cancelled {Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("solve done");publish;

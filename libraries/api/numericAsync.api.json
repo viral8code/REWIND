@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.31",
+  "language": "1.9.33",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
@@ -85,6 +85,21 @@
       "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and strided input; finite factor, no partial result on failure or cancellation.",
       "generics": [],
       "parameters": [
+        "FloatArray",
+        "Float"
+      ],
+      "return": "Result<FloatArray,StdError>"
+    },
+    "fn:solve": {
+      "async": true,
+      "cost": "Partial-pivot LU O(n^3) arithmetic with O(n^2) shared-page COW private storage; at most 4096 copies, pivot checks, swap pairs or update products per native step, including input initialization and back substitution.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type/NonFinite/Singular/Size; square Float64 matrix, rank-one rhs, finite nonnegative relative pivot tolerance. Same arithmetic order as numeric.solve, no partial output on error/cancel. Fatal work/memory budgets apply; conservative per-step COW admission remains.",
+      "generics": [],
+      "parameters": [
+        "FloatArray",
         "FloatArray",
         "Float"
       ],
@@ -654,6 +669,12 @@
       "kind": "record"
     },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
