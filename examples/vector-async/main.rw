@@ -1,0 +1,39 @@
+import std.numeric as numeric;
+import std.numericAsync as jobs;
+import std.task as task;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {Ok(v)=>{return move v;},Err(_)=>{panic("numeric operation failed");}}
+}
+async fn marker()->Int effects {tasks} {return 7;}
+let scalarShape=List<Int>();scalarShape.add(1);
+let scalarValues=List<Float>();scalarValues.add(2.0);
+let scalar=take(numeric.fromFloat(&scalarShape,&scalarValues));
+let shape=List<Int>();shape.add(16384);
+let repeated=take(numeric.broadcastFloat(&scalar,&shape));
+let reversed=take(numeric.sliceFloat(&repeated,0,16383,16384,-1));
+let work=spawn jobs.scale(reversed,3.0);
+let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+commit halfway;
+{
+ let scaled=take(take(await work));
+ assert_eq(scaled,take(numeric.scale(&reversed,3.0)));
+ Out.println(take(numeric.sum(&scaled)));
+}
+publish;
+revert halfway;
+{
+ let restored=take(take(await work));
+ assert_eq(restored,take(numeric.scale(&reversed,3.0)));
+ Out.println(take(numeric.sum(&restored)));
+}
+drop halfway;publish;
+let operations=List<String>();operations.add("add");operations.add("sub");operations.add("mul");operations.add("div");
+for operation in operations {
+ let zipped=take(take(await spawn jobs.zipFloat(operation,reversed,repeated)));
+ assert_eq(zipped,take(numeric.zipFloat(operation,&reversed,&repeated)));
+}
+let norm=take(take(await spawn jobs.norm2(reversed)));
+assert_eq(norm,take(numeric.norm2(&reversed)));
+let cancelled=spawn jobs.norm2(reversed);task.yieldNow();assert(!cancelled.isDone());
+cancelled.cancel();match await cancelled {Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("vector done");publish;

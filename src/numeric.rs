@@ -16,7 +16,7 @@ mod model;
 mod optimizer;
 mod stats;
 mod tensor;
-pub use chunks::{Progress as KernelProgress, COOPERATIVE_MACS};
+pub use chunks::{NormProgress, Progress as KernelProgress, VectorOperation, COOPERATIVE_MACS};
 pub use linalg::{Eigen, Qr};
 pub use model::{decode_model, encode_model, model_size, MAX_MODEL_BYTES, MAX_MODEL_PARAMETERS};
 pub use stats::Histogram;

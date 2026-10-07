@@ -3,7 +3,7 @@ import sparse as sparse;
 import numeric as numeric;
 import task as task;
 pub record SolveResult {solution:FloatArray,iterations:Int,residual:Float,converged:Bool}
-// @api conjugateGradient cost O(iterations * (rows + cols + nnz) * log(max(rows,cols,nnz))); CSR validation/products yield after at most 4096 checks, entries or rows, and between iterations. Vector arithmetic and norms remain synchronous; native buffers share input pages.
+// @api conjugateGradient cost O(iterations * (rows + cols + nnz) * log(max(rows,cols,nnz))); CSR validation/products and vector/norm/dot kernels yield after at most 4096 logical items; helpers share the current Task and native input pages.
 // @api conjugateGradient failure NumericShape/Domain/NonFinite; positive tolerance, 1..100000 iterations; NumericDomain also reports underflow of the squared search residual, square symmetric positive-definite input required. No dense materialization; zero initial guess, residual is ||b-Ax||, convergence target tolerance * max(1,||b||). Returns converged=false on iteration exhaustion; fatal budgets/cancellation apply.
 pub async fn conjugateGradient(matrix:sparse.Matrix,right:FloatArray,tolerance:Float,maxIterations:Int)->Result<SolveResult,StdError> effects {tasks} {
  if matrix.rows!=matrix.cols {return Err(StdError("NumericShape",0));}
@@ -11,28 +11,28 @@ pub async fn conjugateGradient(matrix:sparse.Matrix,right:FloatArray,tolerance:F
  let shape=numeric.shapeFloat(&right)?;
  if shape.len()!=1 || shape.get(0)!=matrix.rows {return Err(StdError("NumericShape",0));}
  var solution=numeric.zerosFloat(&shape)?;var initialWork=stdNumericSparseInit(matrix.rows,matrix.cols,&matrix.offsets,&matrix.indices,&matrix.values,&solution)?;while !stdNumericSparseDone(&initialWork)? {initialWork=stdNumericSparseStep(&initialWork)?;task.yieldNow();}stdNumericSparseResult(&initialWork)?;var residual=right;var direction=residual;
- let bnorm=numeric.norm2(&residual)?;var target=tolerance;if bnorm>1.0 {target*=bnorm;}
+ let bnorm=cooperativeNorm(residual)?;var target=tolerance;if bnorm>1.0 {target*=bnorm;}
  if !target.isFinite(){return Err(StdError("NumericOverflow",0));}
  if bnorm<=target{return Ok(SolveResult(solution,0,bnorm,true));}
- var squaredResidual=numeric.dot(&residual,&residual)?;if squaredResidual<=0.0{return Err(StdError("NumericDomain",0));}
+ var squaredResidual=cooperativeDot(residual,residual)?;if squaredResidual<=0.0{return Err(StdError("NumericDomain",0));}
  var iteration=0;
  while iteration<maxIterations {
-  var directionWork=stdNumericSparseInit(matrix.rows,matrix.cols,&matrix.offsets,&matrix.indices,&matrix.values,&direction)?;while !stdNumericSparseDone(&directionWork)? {directionWork=stdNumericSparseStep(&directionWork)?;task.yieldNow();}let product=stdNumericSparseResult(&directionWork)?;let denominator=numeric.dot(&direction,&product)?;
+  var directionWork=stdNumericSparseInit(matrix.rows,matrix.cols,&matrix.offsets,&matrix.indices,&matrix.values,&direction)?;while !stdNumericSparseDone(&directionWork)? {directionWork=stdNumericSparseStep(&directionWork)?;task.yieldNow();}let product=stdNumericSparseResult(&directionWork)?;let denominator=cooperativeDot(direction,product)?;
   if denominator<=0.0{return Err(StdError("NumericDomain",iteration));}
   let alpha=squaredResidual/denominator;if !alpha.isFinite(){return Err(StdError("NumericOverflow",iteration));}
-  let step=numeric.scale(&direction,alpha)?;solution=numeric.zipFloat("add",&solution,&step)?;
-  let change=numeric.scale(&product,alpha)?;residual=numeric.zipFloat("sub",&residual,&change)?;
-  let next=numeric.dot(&residual,&residual)?;iteration+=1;let norm=numeric.norm2(&residual)?;if next<=0.0 && norm>target{return Err(StdError("NumericDomain",iteration));}
+  let step=cooperativeVector("scale",direction,direction,alpha)?;solution=cooperativeVector("add",solution,step,0.0)?;
+  let change=cooperativeVector("scale",product,product,alpha)?;residual=cooperativeVector("sub",residual,change,0.0)?;
+  let next=cooperativeDot(residual,residual)?;iteration+=1;let norm=cooperativeNorm(residual)?;if next<=0.0 && norm>target{return Err(StdError("NumericDomain",iteration));}
   if norm<=target {
    // Validate actual residual before claiming convergence, avoiding recurrence drift.
-   var actualWork=stdNumericSparseInit(matrix.rows,matrix.cols,&matrix.offsets,&matrix.indices,&matrix.values,&solution)?;while !stdNumericSparseDone(&actualWork)? {actualWork=stdNumericSparseStep(&actualWork)?;task.yieldNow();}let actualProduct=stdNumericSparseResult(&actualWork)?;residual=numeric.zipFloat("sub",&right,&actualProduct)?;
-   squaredResidual=numeric.dot(&residual,&residual)?;let actual=numeric.norm2(&residual)?;
+   var actualWork=stdNumericSparseInit(matrix.rows,matrix.cols,&matrix.offsets,&matrix.indices,&matrix.values,&solution)?;while !stdNumericSparseDone(&actualWork)? {actualWork=stdNumericSparseStep(&actualWork)?;task.yieldNow();}let actualProduct=stdNumericSparseResult(&actualWork)?;residual=cooperativeVector("sub",right,actualProduct,0.0)?;
+   squaredResidual=cooperativeDot(residual,residual)?;let actual=cooperativeNorm(residual)?;
    if actual<=target{return Ok(SolveResult(solution,iteration,actual,true));}
    direction=residual;
-  } else {let beta=next/squaredResidual;let scaled=numeric.scale(&direction,beta)?;direction=numeric.zipFloat("add",&residual,&scaled)?;squaredResidual=next;}
+  } else {let beta=next/squaredResidual;let scaled=cooperativeVector("scale",direction,direction,beta)?;direction=cooperativeVector("add",residual,scaled,0.0)?;squaredResidual=next;}
   task.yieldNow();
  }
- var finalWork=stdNumericSparseInit(matrix.rows,matrix.cols,&matrix.offsets,&matrix.indices,&matrix.values,&solution)?;while !stdNumericSparseDone(&finalWork)? {finalWork=stdNumericSparseStep(&finalWork)?;task.yieldNow();}let product=stdNumericSparseResult(&finalWork)?;let error=numeric.zipFloat("sub",&right,&product)?;let finalNorm=numeric.norm2(&error)?;return Ok(SolveResult(solution,iteration,finalNorm,finalNorm<=target));
+ var finalWork=stdNumericSparseInit(matrix.rows,matrix.cols,&matrix.offsets,&matrix.indices,&matrix.values,&solution)?;while !stdNumericSparseDone(&finalWork)? {finalWork=stdNumericSparseStep(&finalWork)?;task.yieldNow();}let product=stdNumericSparseResult(&finalWork)?;let error=cooperativeVector("sub",right,product,0.0)?;let finalNorm=cooperativeNorm(error)?;return Ok(SolveResult(solution,iteration,finalNorm,finalNorm<=target));
 }
 
 // @api matvec cost O(cols log(cols) + (rows + nnz) log(max(rows,cols,nnz))) work; bounded 4096 input checks, entries or row completions per step. Shared CSR/right pages, O(rows) COW output; no nnz-sized temporary copy or host worker.
@@ -42,3 +42,30 @@ pub async fn matvec(matrix:sparse.Matrix,right:FloatArray)->Result<FloatArray,St
  while !stdNumericSparseDone(&work)? {work=stdNumericSparseStep(&work)?;task.yieldNow();}
  return stdNumericSparseResult(&work);
 }
+
+fn cooperativeVector(operation:String,left:FloatArray,right:FloatArray,factor:Float)->Result<FloatArray,StdError> effects {tasks} {
+ var output=stdNumericVectorInit(operation,&left,&right,factor)?;var cursor=0;
+ while true {
+  let step=stdNumericVectorStep(operation,&left,&right,&output,factor,cursor)?;
+  output=step._0;cursor=step._1;if step._2 {return Ok(output);}task.yieldNow();
+ }
+ return Err(StdError("NumericState",0));
+}
+fn cooperativeNorm(array:FloatArray)->Result<Float,StdError> effects {tasks} {
+ var cursor=0;var scale=0.0;var sum=1.0;
+ while true {
+  let step=stdNumericNormStep(&array,cursor,scale,sum)?;cursor=step._0;scale=step._1;sum=step._2;
+  if step._4 {return Ok(step._3);}task.yieldNow();
+ }
+ return Err(StdError("NumericState",0));
+}
+fn cooperativeDot(left:FloatArray,right:FloatArray)->Result<Float,StdError> effects {tasks} {
+ var cursor=0;var sum=0.0;var correction=0.0;
+ while true {
+  let step=stdNumericDotStep(&left,&right,cursor,sum,correction)?;cursor=step._0;sum=step._1;correction=step._2;
+  if step._3 {return Ok(sum+correction);}task.yieldNow();
+ }
+ return Err(StdError("NumericState",0));
+}
+
+// From 1.9.31, vector arithmetic, norms and dot products in conjugateGradient also yield in bounded native steps, without spawning child tasks.

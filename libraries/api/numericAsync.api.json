@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.18",
+  "language": "1.9.31",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
@@ -51,13 +51,55 @@
     },
     "fn:matmul": {
       "async": true,
-      "cost": "Native chunks of at most 4096 products and page-range COW writes; yields between chunks. Output initialization is synchronous O(m*n).",
+      "cost": "Native chunks of at most 4096 products and page-range COW writes; yields between chunks. Output initialization shares logarithmic zero storage.",
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Size/NonFinite/Overflow; task cancellation and fatal budgets apply. No partial output escapes a failed task.",
       "generics": [],
       "parameters": [
+        "FloatArray",
+        "FloatArray"
+      ],
+      "return": "Result<FloatArray,StdError>"
+    },
+    "fn:norm2": {
+      "async": true,
+      "cost": "At most 4096 values per native step; scaled accumulation preserves logical order without materializing input or squaring large magnitudes.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and views; same scaled result as numeric.norm2, task cancellation and fatal budgets apply.",
+      "generics": [],
+      "parameters": [
+        "FloatArray"
+      ],
+      "return": "Result<Float,StdError>"
+    },
+    "fn:scale": {
+      "async": true,
+      "cost": "Shared logarithmic zero initialization; at most 4096 values per native step, bounded scratch and page-range COW writes.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and strided input; finite factor, no partial result on failure or cancellation.",
+      "generics": [],
+      "parameters": [
+        "FloatArray",
+        "Float"
+      ],
+      "return": "Result<FloatArray,StdError>"
+    },
+    "fn:zipFloat": {
+      "async": true,
+      "cost": "At most 4096 element pairs per native step; shared inputs and logarithmic zero initialization, bounded scratch and page-range COW output.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type/Domain/NonFinite; add/sub/mul/div and matching shapes; division by zero fails. No partial result escapes.",
+      "generics": [],
+      "parameters": [
+        "String",
         "FloatArray",
         "FloatArray"
       ],
@@ -249,6 +291,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
       "constructor": false,
       "fields": [],
@@ -329,6 +377,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -542,6 +659,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -552,6 +675,36 @@
         [
           "offset",
           "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
         ]
       ],
       "generics": [],

@@ -139,6 +139,7 @@ python3 scripts/smoke-numeric-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/nume
 python3 scripts/smoke-tcp-tls-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/tcp-tls"
 python3 scripts/smoke-fft-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/fft-async"
 python3 scripts/smoke-sparse-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/sparse-async"
+python3 scripts/smoke-vector-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/vector-async"
 python3 scripts/smoke-http-server-auth-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-server-auth"
 python3 scripts/smoke-http-server-tls-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-server-tls"
 python3 scripts/smoke-http-server-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-server"

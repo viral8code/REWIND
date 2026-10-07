@@ -1,6 +1,6 @@
-# REWIND 1.9.30 言語リファレンス
+# REWIND 1.9.31 言語リファレンス
 
-対象はcompiler/language 1.9.30です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象はcompiler/language 1.9.31です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -569,7 +569,7 @@ imported function は entry の無関係な global variable を裸の名前で�
 
 ## 協調的 CSR（v1.9.27）
 
-`std.sparseAsync.matvec(matrix,right)` は pure な cold Task を返す。CSR の検証と計算を最大4096項目ごとに区切り、空行と長い1行も分割する。共役勾配法内の CSR 積も同じ処理を使う。vector 演算・norm は同期処理のままである。[仕様](REWIND_v1.9.27.md) と [例](../examples/sparse-async/README.md) を参照する。
+`std.sparseAsync.matvec(matrix,right)` は pure な cold Task を返す。CSR の検証と計算を最大4096項目ごとに区切り、空行と長い1行も分割する。共役勾配法内の CSR 積も同じ処理を使う。1.9.31 から vector 演算・norm・dot も同じ Task 内で分割する。[仕様](REWIND_v1.9.27.md) と [例](../examples/sparse-async/README.md) を参照する。
 
 ## 名前解決の資源上限（v1.9.28）
 
@@ -578,3 +578,5 @@ HTTP / TCP / PostgreSQL の名前解決は process 全体で最大8件を共有�
 `std.httpServer.tlsCredential` と `configuredTls` は、秘密鍵を記録しない TLS HTTP server を提供する。[鍵登録・予算・期限・非復元の通信](REWIND_v1.9.29.md)を参照する。
 
 `std.httpServer.bearerCredential` / `configuredTlsAuthenticated` は Authorization を native transport 内で検証して除去する。[契約](REWIND_v1.9.30.md)を参照する。
+
+`std.numericAsync.scale` / `zipFloat` / `norm2` は最大4096値ごとの pure Task である。任意 rank と view、入力を変更しない失敗、途中 checkpoint と cancel の [契約](REWIND_v1.9.31.md)を参照する。
