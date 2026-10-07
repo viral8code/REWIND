@@ -146,6 +146,7 @@ python3 scripts/smoke-http-server-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/
 python3 scripts/smoke-tcp-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/tcp"
 python3 scripts/smoke-live-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/live"
 python3 scripts/smoke-gui-async-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-async"
+python3 scripts/smoke-gui-data-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-data"
 python3 scripts/smoke-gui-async-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-live" --live
 python3 scripts/smoke-db-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/database"
 python3 scripts/smoke-postgres-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/postgres"

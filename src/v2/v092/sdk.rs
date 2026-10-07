@@ -465,7 +465,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/vector-async/README.md",
             include_str!("../../../examples/vector-async/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-data/main.rw",
+            include_str!("../../../examples/gui-data/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-data/README.md",
+            include_str!("../../../examples/gui-data/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.32.md",
+                include_str!("../../../docs/REWIND_v1.9.32.md"),
+            ),
             (
                 "REWIND_v1.9.31.md",
                 include_str!("../../../docs/REWIND_v1.9.31.md"),

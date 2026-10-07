@@ -63,9 +63,12 @@ with tempfile.TemporaryDirectory(prefix='rewind-vector-benchmark-') as temporary
             if ticks is not None:
                 assert ticks > 0
             if sample:
-                samples.append({'elapsed_seconds': elapsed, 'peak_rss_kib': usage.ru_maxrss, 'foreground_handoffs': ticks})
+                samples.append({'elapsed_seconds': elapsed, 'cpu_user_seconds': usage.ru_utime,
+                                'cpu_system_seconds': usage.ru_stime, 'peak_rss_kib': usage.ru_maxrss,
+                                'foreground_handoffs': ticks})
         report['variants'][name] = {'samples': samples,
             'median_seconds': statistics.median(s['elapsed_seconds'] for s in samples),
+            'median_cpu_seconds': statistics.median(s['cpu_user_seconds'] + s['cpu_system_seconds'] for s in samples),
             'median_peak_rss_kib': statistics.median(s['peak_rss_kib'] for s in samples)}
 encoded = json.dumps(report, indent=2) + '\n'
 if a.output:
