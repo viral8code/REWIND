@@ -50,7 +50,10 @@ for mode in ['debug', 'compact']:
     def expect(value):
         actual = delivered.get(timeout=15)
         if actual != value:
-            raise RuntimeError('Expected ' + repr(value) + ', received ' + repr(actual))
+            if actual is None:
+                error_reader.join(timeout=5)
+            detail = b''.join(errors).decode('utf-8', errors='replace')
+            raise RuntimeError('Expected ' + repr(value) + ', received ' + repr(actual) + ': ' + detail)
     try:
         expect('ready')
         ctrl_key(title + ' copy', 'C')
