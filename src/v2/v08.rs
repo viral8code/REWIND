@@ -100,6 +100,7 @@ pub(in crate::v2) fn inspection_trace(mut value: Json) -> Result<Json> {
                     | "1.9.44"
                     | "1.9.45"
                     | "1.9.46"
+                    | "1.9.47"
                     | "2.0.0"
             )
         )

@@ -620,3 +620,7 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 ## 永続コンテナの GC（1.9.46）
 
 永続 List／Map のノードは heap 参照の有無を保持し、GC は参照を含まない部分を省略する。同じ GC で共有ノードを重複して探索しない。捕捉された CellRef と入れ子の値を追跡し、参照先は毎回現在の heap から調べる。checkpoint の heap は独立して保持する。探索と sweep は native work の上限に従い、失敗時は heap の削除を行わない。過去の言語版は従来の探索費用を維持する。[契約](REWIND_v1.9.46.md)を参照する。
+
+## heap entry の GC（1.9.47）
+
+参照された heap ID は保持したうえで、entry が HeapRef／CellRef を含まない場合は内容の走査を省く。値を変更した場合と checkpoint を復元した場合は、それぞれの entry の参照情報を使う。検索時の一時バッファ確保も省く。ID の順序、wire format、過去の言語版の GC work 契約は維持する。[契約](REWIND_v1.9.47.md)を参照する。

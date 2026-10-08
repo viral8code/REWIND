@@ -894,6 +894,7 @@ pub struct Runtime {
     native_remaining: Option<usize>,
     allocation_accounting: bool,
     cached_heap_traversal: bool,
+    cached_heap_entries: bool,
     numeric_accounting: Option<numeric::Accounting>,
     numeric_checked_generation: std::cell::Cell<usize>,
     numeric_gc_start: usize,
@@ -1293,6 +1294,11 @@ impl Runtime {
         result
     }
     /// Skip persistent subtrees without heap edges; retain bounded mark/sweep.
+    /// Resolve current heap edges from immutable entry summaries.
+    pub fn enable_cached_heap_entries(&mut self) {
+        self.enable_cached_heap_traversal();
+        self.cached_heap_entries = true;
+    }
     pub fn enable_cached_heap_traversal(&mut self) {
         self.cached_heap_traversal = true;
     }
@@ -1772,6 +1778,7 @@ impl Runtime {
             native_remaining: None,
             allocation_accounting: false,
             cached_heap_traversal: false,
+            cached_heap_entries: false,
             numeric_accounting: None,
             numeric_checked_generation: std::cell::Cell::new(0),
             numeric_gc_start: 0,
@@ -2605,7 +2612,12 @@ impl Runtime {
             match value {
                 Value::HeapRef(id) | Value::CellRef(id) => {
                     if live.insert(*id) {
-                        if let Some(v) = self.state.heap.get(id) {
+                        let edge = if self.cached_heap_entries {
+                            self.state.heap.edge_value(*id)
+                        } else {
+                            self.state.heap.get(id)
+                        };
+                        if let Some(v) = edge {
                             gc.push(v)?;
                         }
                     }
