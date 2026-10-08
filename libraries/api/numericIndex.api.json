@@ -3,166 +3,77 @@
   "kind": "rewind-api",
   "language": "1.9.48",
   "symbols": {
-    "dependency:task.rw": {
-      "fn:$import$task$selectReady": {
-        "async": false,
-        "effects": [
-          "tasks"
-        ],
-        "generics": [
-          [
-            "A",
-            null
-          ],
-          [
-            "B",
-            null
-          ]
-        ],
-        "parameters": [
-          "Task<A>",
-          "Task<B>"
-        ],
-        "return": "Task<Int>"
-      },
-      "fn:$import$task$yieldNow": {
-        "async": false,
-        "effects": [
-          "tasks"
-        ],
-        "generics": [],
-        "parameters": [],
-        "return": "Unit"
-      }
-    },
-    "fn:dot": {
-      "async": true,
-      "cost": "Native chunks of at most 4096 products, preserving Neumaier ordering; yields between chunks. Inputs share native storage.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/NonFinite/Overflow; task cancellation and fatal budgets apply. No host worker is started.",
+    "fn:getFloat": {
+      "async": false,
+      "cost": "O(rank + log pages); no coordinate List.",
+      "effects": [],
+      "failure": "StdError NumericIndex; fatal VM work and memory budgets apply.",
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "FloatArray"
-      ],
-      "return": "Result<Float,StdError>"
-    },
-    "fn:eigenSymmetric": {
-      "async": true,
-      "cost": "Cyclic Jacobi bounded to maxSweeps; copy, symmetry check, scans, rotations, stable sorting and outputs execute at most 4096 scalar units per step with shared-page COW work, cached storage digests and bounded page-range rotation buffers.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Convergence/Size; finite symmetric square Float64 matrix, finite nonnegative tolerance and maxSweeps 0..10000. Same rotation/arithmetic order and stable eigenvalue order as numeric.eigenSymmetric, no partial result on error/cancel; fatal memory/work budgets apply.",
-      "generics": [],
-      "parameters": [
-        "FloatArray",
-        "Float",
+        "&FloatArray",
         "Int"
       ],
-      "return": "Result<EigenResult,StdError>"
-    },
-    "fn:leastSquares": {
-      "async": true,
-      "cost": "Full-column-rank QR O(m*n^2); bounded rhs validation, QR, compensated projection, upper substitution and permutation, with at most 4096 scalar units per step. Inputs and private numeric pages are shared; no full rhs/Q/R materialization or second factorization.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Singular/Size; m>=n, rank-one rhs and finite nonnegative relative rank tolerance. Same arithmetic order as numeric.leastSquares. No partial output on error/cancel; fatal work/memory budgets apply.",
-      "generics": [],
-      "parameters": [
-        "FloatArray",
-        "FloatArray",
-        "Float"
-      ],
-      "return": "Result<FloatArray,StdError>"
-    },
-    "fn:matmul": {
-      "async": true,
-      "cost": "Native chunks of at most 4096 products and page-range COW writes; yields between chunks. Output initialization shares logarithmic zero storage.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Size/NonFinite/Overflow; task cancellation and fatal budgets apply. No partial output escapes a failed task.",
-      "generics": [],
-      "parameters": [
-        "FloatArray",
-        "FloatArray"
-      ],
-      "return": "Result<FloatArray,StdError>"
-    },
-    "fn:norm2": {
-      "async": true,
-      "cost": "At most 4096 values per native step; scaled accumulation preserves logical order without materializing input or squaring large magnitudes.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and views; same scaled result as numeric.norm2, task cancellation and fatal budgets apply.",
-      "generics": [],
-      "parameters": [
-        "FloatArray"
-      ],
       "return": "Result<Float,StdError>"
     },
-    "fn:qr": {
-      "async": true,
-      "cost": "Column-pivoted Householder O(m*n*min(m,n)); bounded native steps of at most 4096 scalar units, private shared-page COW work and task handoff between steps.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Size; economy Q and R, permutation as native IntArray; same arithmetic order as numeric.qr. No partial result on failure or cancellation, fatal work/memory budgets apply.",
+    "fn:getInt": {
+      "async": false,
+      "cost": "O(rank + log pages); no coordinate List.",
+      "effects": [],
+      "failure": "StdError NumericIndex; fatal VM work and memory budgets apply.",
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "Float"
+        "&IntArray",
+        "Int"
       ],
-      "return": "Result<QrArrayResult,StdError>"
+      "return": "Result<Int,StdError>"
     },
-    "fn:scale": {
-      "async": true,
-      "cost": "Shared logarithmic zero initialization; at most 4096 values per native step, bounded scratch and page-range COW writes.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and strided input; finite factor, no partial result on failure or cancellation.",
+    "fn:lengthFloat": {
+      "async": false,
+      "cost": "O(rank); no coordinate List or payload copy.",
+      "effects": [],
+      "failure": "Fatal VM work and memory budgets apply.",
       "generics": [],
       "parameters": [
-        "FloatArray",
+        "&FloatArray"
+      ],
+      "return": "Result<Int,StdError>"
+    },
+    "fn:lengthInt": {
+      "async": false,
+      "cost": "O(rank); no coordinate List or payload copy.",
+      "effects": [],
+      "failure": "Fatal VM work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&IntArray"
+      ],
+      "return": "Result<Int,StdError>"
+    },
+    "fn:withFloat": {
+      "async": false,
+      "cost": "O(rank + 256 + log pages); COW copies one 256-element page and tree path.",
+      "effects": [],
+      "failure": "StdError NumericIndex/ReadOnly; fatal VM work and memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "&FloatArray",
+        "Int",
         "Float"
       ],
       "return": "Result<FloatArray,StdError>"
     },
-    "fn:solve": {
-      "async": true,
-      "cost": "Partial-pivot LU O(n^3) arithmetic with O(n^2) shared-page COW private storage; at most 4096 copies, pivot checks, swap pairs or update products per native step, including input initialization and back substitution.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/NonFinite/Singular/Size; square Float64 matrix, rank-one rhs, finite nonnegative relative pivot tolerance. Same arithmetic order as numeric.solve, no partial output on error/cancel. Fatal work/memory budgets apply; conservative per-step COW admission remains.",
+    "fn:withInt": {
+      "async": false,
+      "cost": "O(rank + 256 + log pages); COW copies one 256-element page and tree path.",
+      "effects": [],
+      "failure": "StdError NumericIndex/ReadOnly; fatal VM work and memory budgets apply.",
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "FloatArray",
-        "Float"
+        "&IntArray",
+        "Int",
+        "Int"
       ],
-      "return": "Result<FloatArray,StdError>"
-    },
-    "fn:zipFloat": {
-      "async": true,
-      "cost": "At most 4096 element pairs per native step; shared inputs and logarithmic zero initialization, bounded scratch and page-range COW output.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Domain/NonFinite; add/sub/mul/div and matching shapes; division by zero fails. No partial result escapes.",
-      "generics": [],
-      "parameters": [
-        "String",
-        "FloatArray",
-        "FloatArray"
-      ],
-      "return": "Result<FloatArray,StdError>"
+      "return": "Result<IntArray,StdError>"
     },
     "type:BigInt": {
       "constructor": false,

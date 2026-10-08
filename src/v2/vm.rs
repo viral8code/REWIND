@@ -192,6 +192,7 @@ impl Compiler {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             return None;
@@ -288,6 +289,7 @@ impl Compiler {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) || name.contains('<')
         {
@@ -504,6 +506,7 @@ impl Compiler {
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             ) && stmt.at.text == "@application-entry"
             {
@@ -599,6 +602,7 @@ impl Compiler {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             let signatures = program
@@ -745,6 +749,7 @@ impl Compiler {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
@@ -863,6 +868,7 @@ impl Compiler {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             let mut code = self.code[base..].to_vec();
@@ -1757,6 +1763,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             engine.runtime.enable_allocation_accounting();
@@ -1834,6 +1841,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             engine
@@ -1974,6 +1982,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             let message = self
@@ -2118,6 +2127,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             v11::enrich(&mut d);
@@ -2508,6 +2518,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             return first_error.map_or(Ok(()), |e| {
@@ -2599,6 +2610,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             first_error.map_or(Ok(()), |e| {
@@ -2919,6 +2931,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             )
         {
@@ -3004,6 +3017,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             ) {
                 if let Some(error) = self.unhandled_task_diagnostic() {
@@ -3146,6 +3160,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             ) {
                 let mut failure =
@@ -3235,6 +3250,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             ) && !causes.is_empty()
             {
@@ -3333,6 +3349,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.45"
                 | "1.9.46"
                 | "1.9.47"
+                | "1.9.48"
                 | "2.0.0"
         ) {
             outcome["diagnostic"] = execution_error
@@ -3476,6 +3493,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.45"
                         | "1.9.46"
                         | "1.9.47"
+                        | "1.9.48"
                         | "2.0.0"
                 )
             {
@@ -3603,6 +3621,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             ) {
                 return error;
@@ -3751,6 +3770,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             ) {
                 self.expire_timeouts(&self.code[self.pc].at.clone())?;
@@ -3830,6 +3850,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             ) && (self.engine.runtime.collection_due() || scheduler_gc)
             {
@@ -4006,6 +4027,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.45"
                         | "1.9.46"
                         | "1.9.47"
+                        | "1.9.48"
                         | "2.0.0"
                 ) {
                     self.index_state(&inst.at)?;
@@ -4093,6 +4115,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.45"
                         | "1.9.46"
                         | "1.9.47"
+                        | "1.9.48"
                         | "2.0.0"
                 ) {
                     event["source"] = serde_json::json!(inst.at.source);
@@ -4233,6 +4256,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.45"
                                     | "1.9.46"
                                     | "1.9.47"
+                                    | "1.9.48"
                                     | "2.0.0"
                             ) {
                                 let ty = v06::fn_type(
@@ -4444,6 +4468,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) && (matches!(
                         lhs,
@@ -4617,6 +4642,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) && name == "reveal"
                     {
@@ -4714,6 +4740,7 @@ impl<R: BufRead> Vm<R> {
                                 | "1.9.45"
                                 | "1.9.46"
                                 | "1.9.47"
+                                | "1.9.48"
                                 | "2.0.0"
                         )
                     {
@@ -4861,6 +4888,7 @@ impl<R: BufRead> Vm<R> {
                                     | "1.9.45"
                                     | "1.9.46"
                                     | "1.9.47"
+                                    | "1.9.48"
                                     | "2.0.0"
                             ) && !needed.contains(name)
                             {
@@ -4962,6 +4990,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.45"
                                         | "1.9.46"
                                         | "1.9.47"
+                                        | "1.9.48"
                                         | "2.0.0"
                                 ) && !needed.contains(name)
                                 {
@@ -5060,6 +5089,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) {
                         let f =
@@ -5182,6 +5212,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::method_work(
@@ -5273,6 +5304,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) {
                         if let Some(value) =
@@ -5381,6 +5413,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) {
                         self.engine.runtime.charge_native_work(v100::call_work(
@@ -5472,6 +5505,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) && matches!(
                         (receiver.as_str(), method.as_str()),
@@ -5693,6 +5727,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) && matches!(
                         self.engine.runtime.state().stack.last(),
@@ -5953,6 +5988,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.45"
                             | "1.9.46"
                             | "1.9.47"
+                            | "1.9.48"
                             | "2.0.0"
                     ) {
                         if let Some(error) = self.unhandled_task_error() {
@@ -6167,6 +6203,7 @@ pub(super) fn execute(
                         | "1.9.45"
                         | "1.9.46"
                         | "1.9.47"
+                        | "1.9.48"
                         | "2.0.0"
                 )
             {
@@ -6269,6 +6306,7 @@ pub(super) fn execute(
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             )
             || options.inspect
@@ -6425,6 +6463,7 @@ fn build_artifact_mode(
             | "1.9.45"
             | "1.9.46"
             | "1.9.47"
+            | "1.9.48"
             | "2.0.0"
     ) && !root.join("rewind.toml").exists()
     {
@@ -6579,6 +6618,7 @@ fn explore_test(
                     | "1.9.45"
                     | "1.9.46"
                     | "1.9.47"
+                    | "1.9.48"
                     | "2.0.0"
             )
         {

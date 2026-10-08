@@ -786,6 +786,50 @@ impl Array {
         }
         offset as usize
     }
+    /// Address the view in logical row-major order, without a coordinate buffer.
+    fn checked_flat_index(&self, index: usize) -> Result<usize> {
+        if index >= self.len() {
+            return Err(Error::Index);
+        }
+        // Array construction and wire decoding validate every reachable offset.
+        Ok(self.flat_index(index))
+    }
+    pub fn float_flat(&self, index: usize) -> Result<f64> {
+        if self.dtype != DType::Float64 {
+            return Err(Error::Type);
+        }
+        Ok(f64::from_bits(
+            self.buffer.get(self.checked_flat_index(index)?),
+        ))
+    }
+    pub fn integer_flat(&self, index: usize) -> Result<i64> {
+        if self.dtype != DType::Int64 {
+            return Err(Error::Type);
+        }
+        Ok(self.buffer.get(self.checked_flat_index(index)?) as i64)
+    }
+    pub fn set_float_flat(&mut self, index: usize, value: f64) -> Result<()> {
+        if !self.writable {
+            return Err(Error::ReadOnly);
+        }
+        if self.dtype != DType::Float64 {
+            return Err(Error::Type);
+        }
+        let index = self.checked_flat_index(index)?;
+        self.buffer.set(index, value.to_bits());
+        Ok(())
+    }
+    pub fn set_integer_flat(&mut self, index: usize, value: i64) -> Result<()> {
+        if !self.writable {
+            return Err(Error::ReadOnly);
+        }
+        if self.dtype != DType::Int64 {
+            return Err(Error::Type);
+        }
+        let index = self.checked_flat_index(index)?;
+        self.buffer.set(index, value as u64);
+        Ok(())
+    }
     pub fn float(&self, indices: &[usize]) -> Result<f64> {
         if self.dtype != DType::Float64 {
             return Err(Error::Type);
