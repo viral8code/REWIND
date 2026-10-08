@@ -21,10 +21,12 @@ mod fft_chunks;
 pub use fft_chunks::{FftWork, FFT_CHUNK};
 mod least_squares_chunks;
 pub use least_squares_chunks::{LeastSquaresWork, LEAST_SQUARES_CHUNK};
+mod graph;
 mod linalg;
 mod model;
 mod optimizer;
 mod stats;
+pub use graph::{graph_adjacency, graph_bfs, MAX_GRAPH_ITEMS};
 mod tensor;
 pub use chunks::{NormProgress, Progress as KernelProgress, VectorOperation, COOPERATIVE_MACS};
 pub use linalg::{Eigen, Qr};
@@ -741,6 +743,24 @@ impl Array {
     }
     pub fn floats(shape: Vec<usize>, values: &[f64]) -> Result<Self> {
         Self::from_bits(DType::Float64, shape, values.iter().map(|v| v.to_bits()))
+    }
+    /// Checked arithmetic progression in typed pages, without a VM List.
+    pub fn integer_range(start: i64, step: i64, length: usize) -> Result<Self> {
+        if length > MAX_ELEMENTS {
+            return Err(Error::Size);
+        }
+        if length > 0 {
+            let last = start as i128 + step as i128 * (length - 1) as i128;
+            i64::try_from(last).map_err(|_| Error::Overflow)?;
+        }
+        if start == 0 && step == 0 {
+            return Self::zeros(DType::Int64, vec![length]);
+        }
+        Self::from_bits(
+            DType::Int64,
+            vec![length],
+            (0..length).map(|i| (start as i128 + step as i128 * i as i128) as i64 as u64),
+        )
     }
     pub fn integers(shape: Vec<usize>, values: &[i64]) -> Result<Self> {
         Self::from_bits(DType::Int64, shape, values.iter().map(|&v| v as u64))

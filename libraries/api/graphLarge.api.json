@@ -1,0 +1,1086 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "1.9.49",
+  "symbols": {
+    "dependency:disjointSet.rw": {
+      "fn:$import$disjointSet$create": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<$import$disjointSet$DisjointSet,String>"
+      },
+      "fn:$import$disjointSet$root": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$disjointSet$same": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Bool,String>"
+      },
+      "fn:$import$disjointSet$size": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$disjointSet$unite": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Bool,String>"
+      },
+      "type:$import$disjointSet$DisjointSet": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      }
+    },
+    "dependency:heap.rw": {
+      "fn:$import$heap$peek": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>"
+        ],
+        "return": "Option<T>"
+      },
+      "fn:$import$heap$pop": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Option<T>"
+      },
+      "fn:$import$heap$push": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "T",
+          "Int",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Result<Unit,String>"
+      }
+    },
+    "dependency:integer.rw": {
+      "fn:$import$integer$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$combination": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$extendedGcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Tuple<Int,Int,Int>,String>"
+      },
+      "fn:$import$integer$factors": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      },
+      "fn:$import$integer$gcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$lcm": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$primes": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      }
+    },
+    "dependency:sort.rw": {
+      "fn:$import$sort$inPlace": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Unit"
+      },
+      "fn:$import$sort$integers": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>"
+        ],
+        "return": "List<Int>"
+      },
+      "fn:$import$sort$stable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "List<T>"
+      },
+      "fn:$import$sort$tryStable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<List<T>,E>"
+      }
+    },
+    "fn:add": {
+      "async": false,
+      "cost": "Four COW point updates; bulk construction is preferred for large edge sets.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Graph",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,String>"
+    },
+    "fn:ancestors": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<Ancestors,String>"
+    },
+    "fn:bellmanFord": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<List<Option<Int>>,String>"
+    },
+    "fn:bfs": {
+      "async": false,
+      "cost": "O(vertices + edges) bounded native traversal, times page lookup; returns native IntArray, -1 for unreachable vertices.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<IntArray,String>"
+    },
+    "fn:components": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:create": {
+      "async": false,
+      "cost": "O(1) virtual-zero storage; pages are admitted as touched. Capacity is at most 1048576.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Graph,String>"
+    },
+    "fn:dfs": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:dijkstra": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph",
+        "Int"
+      ],
+      "return": "Result<List<Option<Int>>,String>"
+    },
+    "fn:edges": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Int"
+    },
+    "fn:fromEdges": {
+      "async": false,
+      "cost": "O(edges log pages); native bulk adjacency builder, no per-edge VM callback or coordinate List.",
+      "effects": [],
+      "failure": "Capacity/Shape or NumericIndex; input arrays are rank-one, equal length and retained immutable views.",
+      "generics": [],
+      "parameters": [
+        "Int",
+        "&IntArray",
+        "IntArray",
+        "IntArray"
+      ],
+      "return": "Result<Graph,String>"
+    },
+    "fn:lca": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Ancestors",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:minimumForest": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Result<Forest,String>"
+    },
+    "fn:topological": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:vertices": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Int"
+    },
+    "type:Ancestors": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Forest": {
+      "constructor": true,
+      "fields": [
+        [
+          "weight",
+          "Int"
+        ],
+        [
+          "components",
+          "Int"
+        ],
+        [
+          "froms",
+          "List<Int>"
+        ],
+        [
+          "tos",
+          "List<Int>"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Graph": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

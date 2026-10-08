@@ -193,3 +193,5 @@ TLS HTTP server の秘密鍵登録・接続予算・期限は [1.9.29 の契約]
 TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay は [1.9.30 の契約](../docs/REWIND_v1.9.30.md)を参照する。
 
 `numericIndex` (language 1.9.48) は型付き数値配列を単一の整数で読み書きします。`getFloat/Int` と `withFloat/Int` はビュー上の行優先順序、`lengthFloat/Int` は論理要素数です。座標 List を生成せず、broadcast の更新は NumericReadOnly、範囲外は NumericIndex になります。
+
+`graphLarge`（language 1.9.49）は数値配列に隣接データを保持します。`fromEdges` は辺をまとめて構築し、`bfs` は到達しない頂点を -1 とする IntArray を返します。`numericRange.integers(start,step,length)` は途中の List を作らず整数配列を生成します。既存の `graph`、`numeric`、`numericIndex` の API は維持します。

@@ -126,6 +126,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "numericIndex",
             include_str!("../../../libraries/std/numericIndex.rw"),
         ),
+        (
+            "numericRange",
+            include_str!("../../../libraries/std/numericRange.rw"),
+        ),
         ("numeric", include_str!("../../../libraries/std/numeric.rw")),
         ("task", include_str!("../../../libraries/std/task.rw")),
         (
@@ -153,6 +157,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("modular", include_str!("../../../libraries/std/modular.rw")),
         ("fenwick", include_str!("../../../libraries/std/fenwick.rw")),
         ("segment", include_str!("../../../libraries/std/segment.rw")),
+        (
+            "graphLarge",
+            include_str!("../../../libraries/std/graphLarge.rw"),
+        ),
         ("graph", include_str!("../../../libraries/std/graph.rw")),
         ("scanner", include_str!("../../../libraries/std/scanner.rw")),
         ("stream", include_str!("../../../libraries/std/stream.rw")),
@@ -599,7 +607,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/numeric-index/README.md",
             include_str!("../../../examples/numeric-index/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/graph-large/main.rw",
+            include_str!("../../../examples/graph-large/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/graph-large/README.md",
+            include_str!("../../../examples/graph-large/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.49.md",
+                include_str!("../../../docs/REWIND_v1.9.49.md"),
+            ),
             (
                 "REWIND_v1.9.48.md",
                 include_str!("../../../docs/REWIND_v1.9.48.md"),
@@ -817,7 +839,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/numeric-index/README.md",
             include_str!("../../../examples/numeric-index/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/graph-large/main.rw",
+            include_str!("../../../examples/graph-large/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/graph-large/README.md",
+            include_str!("../../../examples/graph-large/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.49.md",
+                include_str!("../../../docs/REWIND_v1.9.49.md"),
+            ),
             (
                 "REWIND_v1.9.48.md",
                 include_str!("../../../docs/REWIND_v1.9.48.md"),

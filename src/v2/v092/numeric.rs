@@ -246,6 +246,16 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if matches!(
         n,
+        "stdNumericGraphAdjacency" | "stdNumericGraphBfs" | "stdNumericRangeInt"
+    ) && !language_at_least(&p.language, "1.9.49")
+    {
+        return Err(diagnostic(
+            at,
+            "native graph/range kernels require language 1.9.49",
+        ));
+    }
+    if matches!(
+        n,
         "stdNumericGetFlatFloat"
             | "stdNumericGetFlatInt"
             | "stdNumericWithFlatFloat"
@@ -949,7 +959,25 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "LeastSquaresInit" {
+    let cost = if name == "RangeInt"
+        && matches!(args.first(), Some(Value::Int(0)))
+        && matches!(args.get(1), Some(Value::Int(0)))
+    {
+        1024
+    } else if name == "RangeInt" {
+        args.get(2)
+            .and_then(|v| usize_arg(v).ok())
+            .unwrap_or(0)
+            .saturating_mul(4)
+            .saturating_add(1024)
+    } else if name == "GraphAdjacency" {
+        length(1).saturating_mul(64).saturating_add(1024)
+    } else if name == "GraphBfs" {
+        length(0)
+            .saturating_add(args.get(3).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
+            .saturating_mul(128)
+            .saturating_add(1024)
+    } else if name == "LeastSquaresInit" {
         32768
     } else if name == "LeastSquaresStep" {
         least_squares_work(&args[0], rt).map_or(2048, |w| {
@@ -1272,7 +1300,42 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "LeastSquaresInit" {
+    if name == "RangeInt"
+        && matches!(args.first(), Some(Value::Int(0)))
+        && matches!(args.get(1), Some(Value::Int(0)))
+    {
+        2048
+    } else if name == "RangeInt" {
+        Array::storage_estimate(
+            args.get(2)
+                .and_then(|v| usize_arg(v).ok())
+                .unwrap_or(0)
+                .min(rewind::numeric::MAX_ELEMENTS),
+        )
+        .saturating_add(4096)
+    } else if name == "GraphAdjacency" {
+        Array::storage_estimate(
+            args.first()
+                .and_then(|v| usize_arg(v).ok())
+                .unwrap_or(0)
+                .min(rewind::numeric::MAX_GRAPH_ITEMS),
+        )
+        .saturating_add(Array::storage_estimate(
+            length(1).min(rewind::numeric::MAX_GRAPH_ITEMS),
+        ))
+        .saturating_add(4096)
+    } else if name == "GraphBfs" {
+        let vertices = length(0).min(rewind::numeric::MAX_GRAPH_ITEMS);
+        Array::storage_estimate(vertices)
+            .saturating_add(vertices.saturating_mul(16))
+            .saturating_add(
+                args.get(3)
+                    .and_then(|v| usize_arg(v).ok())
+                    .unwrap_or(0)
+                    .min(rewind::numeric::MAX_GRAPH_ITEMS),
+            )
+            .saturating_add(4096)
+    } else if name == "LeastSquaresInit" {
         1024 * 1024 + 65536
     } else if name == "LeastSquaresStep" {
         least_squares_work(&args[0], rt).map_or(32768, |w| {
@@ -1700,6 +1763,28 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "RangeInt" => array_value(Array::integer_range(
+                integer(&args[0])?,
+                integer(&args[1])?,
+                i(2)?,
+            ))?,
+            "GraphAdjacency" => {
+                let (heads, links) = rewind::numeric::graph_adjacency(i(0)?, a(1)?, a(2)?)?;
+                Value::Struct(
+                    "Tuple<IntArray,IntArray>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(heads)),
+                        ("_1".into(), Value::NumericArray(links)),
+                    ]),
+                )
+            }
+            "GraphBfs" => array_value(rewind::numeric::graph_bfs(
+                a(0)?,
+                a(1)?,
+                a(2)?,
+                i(3)?,
+                i(4)?,
+            ))?,
             "LeastSquaresInit" => least_squares_work_value(rewind::numeric::LeastSquaresWork::new(
                 a(0)?,
                 a(1)?,
@@ -2384,6 +2469,15 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
         ),
         "stdNumericShapeFloat" => (&["&FloatArray"], "Result<List<Int>,StdError>"),
         "stdNumericStridesFloat" => (&["&FloatArray"], "Result<List<Int>,StdError>"),
+        "stdNumericRangeInt" => (&["Int", "Int", "Int"], "Result<IntArray,StdError>"),
+        "stdNumericGraphAdjacency" => (
+            &["Int", "&IntArray", "&IntArray"],
+            "Result<Tuple<IntArray,IntArray>,StdError>",
+        ),
+        "stdNumericGraphBfs" => (
+            &["&IntArray", "&IntArray", "&IntArray", "Int", "Int"],
+            "Result<IntArray,StdError>",
+        ),
         "stdNumericLengthFloat" => (&["&FloatArray"], "Result<Int,StdError>"),
         "stdNumericLengthInt" => (&["&IntArray"], "Result<Int,StdError>"),
         "stdNumericGetFlatFloat" => (&["&FloatArray", "Int"], "Result<Float,StdError>"),

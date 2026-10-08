@@ -1,6 +1,6 @@
-# REWIND 1.9.48
+# REWIND 1.9.49
 
-REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.48 では `std.numericIndex` により、数値配列とビューを単一の整数インデックスで読み書きできます。座標用 List の生成を省き、更新は既存のページ COW を使います。
+REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.49 では `std.graphLarge` に数値配列を使う隣接データ、辺の一括構築、native BFS を追加します。既存の `std.graph` は維持します。
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 

@@ -152,6 +152,7 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     run([sys.executable,root/'scripts/smoke-gc-storage-sdk.py',exe,work/'gc-storage'])
     run([sys.executable,root/'scripts/smoke-numeric-digests-sdk.py',exe,work/'numeric-digests'])
     run([sys.executable,root/'scripts/smoke-numeric-index-sdk.py',exe,work/'numeric-index'])
+    run([sys.executable,root/'scripts/smoke-graph-large-sdk.py',exe,work/'graph-large'])
     run([sys.executable,root/'scripts/smoke-solve-sdk.py',exe,work/'solve-async'])
     run([sys.executable,root/'scripts/smoke-qr-sdk.py',exe,work/'qr-async'])
     run([sys.executable,root/'scripts/smoke-least-squares-sdk.py',exe,work/'least-squares-async'])
