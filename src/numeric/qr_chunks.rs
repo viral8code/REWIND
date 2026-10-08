@@ -3,35 +3,7 @@ use super::*;
 use std::collections::HashSet;
 pub const QR_CHUNK: usize = 4096;
 
-// Writes keep arithmetic order, but refresh each touched page/path once when
-// the private step finishes. Pointer keys are identities only: never dereferenced.
-// No edited array is cloned or exposed between the first edit and finish.
-fn edit(node: &mut Arc<Node>, height: usize, index: usize, value: u64, dirty: &mut HashSet<usize>) {
-    let node = Arc::make_mut(node);
-    dirty.insert(node as *const Node as usize);
-    match &mut node.kind {
-        NodeKind::Leaf(bits) => bits[index] = value,
-        NodeKind::Branch(left, right) => {
-            let half = PAGE << (height - 1);
-            if index < half {
-                edit(left, height - 1, index, value, dirty);
-            } else {
-                edit(right, height - 1, index - half, value, dirty);
-            }
-        }
-    }
-}
-fn finish_edits(node: &mut Arc<Node>, dirty: &mut HashSet<usize>) {
-    if !dirty.remove(&(Arc::as_ptr(node) as usize)) {
-        return;
-    }
-    let node = Arc::get_mut(node).expect("QR private edited page unexpectedly shared");
-    if let NodeKind::Branch(left, right) = &mut node.kind {
-        finish_edits(left, dirty);
-        finish_edits(right, dirty);
-    }
-    node.refresh();
-}
+use super::private_edits::{edit, finish_edits};
 
 #[derive(Clone)]
 pub struct QrWork {

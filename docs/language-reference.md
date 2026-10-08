@@ -1,4 +1,4 @@
-# REWIND 1.9.37 言語リファレンス
+# REWIND 1.9.38 言語リファレンス
 
 対象はcompiler/language 1.9.37です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
@@ -590,3 +590,7 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 ## 協調的 QR 分解（1.9.37）
 
 `std.numericAsync.qr(matrix,tolerance)` は Householder QR のコピー・pivot・反射・Q/R 生成を最大4096 work unit ごとに分割する。`await` の内側は `Result<QrArrayResult,StdError>`、外側は Task の失敗・キャンセルである。`q` / `r` は FloatArray、`permutation` は IntArray、`rank` は Int。置換の要素は `std.numeric.getInt` で読む。同期版 `std.numeric.qr` は既存の QrResult と Frozen<List<Int>> の置換を維持する。[契約](REWIND_v1.9.37.md)を参照する。
+
+## 協調的固有値計算（1.9.38）
+
+`std.numericAsync.eigenSymmetric(matrix,tolerance,maxSweeps)` は対称 FloatArray を Jacobi 法で分解し、走査・回転・安定な並べ替え・結果生成を分割する。`await` の内側は `Result<EigenResult,StdError>`。`values` / `vectors` は FloatArray、`sweeps` は Int で、同期版と同じ型を使う。固有ベクトルは列、固有値は昇順。maxSweeps は0..10000、tolerance は有限非負。[契約と予算](REWIND_v1.9.38.md)を参照する。

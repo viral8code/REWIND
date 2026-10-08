@@ -1,4 +1,4 @@
-language = "1.9.37"
+language = "1.9.38"
 source_root = "."
 entry = "tests.rw"
 effects = "tasks"

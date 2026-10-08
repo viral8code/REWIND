@@ -1,0 +1,36 @@
+import std.numeric as numeric;
+import std.numericAsync as jobs;
+import std.task as task;
+fn take<T,E>(result:Result<T,E>)->T effects {} {
+ match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric failure");}}
+}
+async fn marker()->Int effects {tasks} {return 7;}
+let size=65;
+let shape=List<Int>();shape.add(size);shape.add(size);
+let zero=take(numeric.zerosFloat(&shape));let ones=take(numeric.mapFloat("exp",&zero));
+var builder=take(numeric.scale(&ones,0.01));var diagonal=2.0;
+for row in 0..size {
+ let index=List<Int>();index.add(row);index.add(row);
+ builder=take(numeric.withFloat(&builder,&index,diagonal));diagonal+=0.1;
+}
+let matrix=builder;
+let work=spawn jobs.eigenSymmetric(matrix,1e-13,40);
+let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+for turn in 0..8 {task.yieldNow();}
+assert(!work.isDone());commit diagonalizing;
+{
+ let answer=take(take(await work));let expected=take(numeric.eigenSymmetric(&matrix,1e-13,40));
+ assert_eq(answer.values,expected.values);assert_eq(answer.vectors,expected.vectors);assert_eq(answer.sweeps,expected.sweeps);
+ Out.println("diagonalized");
+}
+publish;
+revert diagonalizing;
+{
+ let answer=take(take(await work));let expected=take(numeric.eigenSymmetric(&matrix,1e-13,40));
+ assert_eq(answer.values,expected.values);assert_eq(answer.vectors,expected.vectors);
+ Out.println("restored");
+}
+drop diagonalizing;publish;
+let cancelled=spawn jobs.eigenSymmetric(matrix,1e-13,40);task.yieldNow();assert(!cancelled.isDone());cancelled.cancel();
+match await cancelled {Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("eigen done");publish;
