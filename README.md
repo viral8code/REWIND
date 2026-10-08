@@ -1,6 +1,6 @@
-# REWIND 1.9.52
+# REWIND 1.9.53
 
-REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.52 ではネイティブ GUI のテキスト入力にコピー・貼り付け・切り取りを追加します。VM 内の編集は巻き戻せますが、OS のクリップボードは巻き戻しません。[変更点](docs/REWIND_v1.9.52.md)を参照してください。
+REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.53 では単項数値変換と活性化関数を小さな単位に分け、処理の間に他のタスクへ実行を渡せるようにします。[変更点](docs/REWIND_v1.9.53.md)を参照してください。
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 

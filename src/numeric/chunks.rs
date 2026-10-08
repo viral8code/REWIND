@@ -7,6 +7,7 @@ pub enum VectorOperation {
     Sub,
     Mul,
     Div,
+    Unary(UnaryOperation),
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NormProgress {
@@ -101,7 +102,7 @@ impl Array {
             if !factor.is_finite() {
                 return Err(Error::NonFinite);
             }
-        } else {
+        } else if !matches!(operation, VectorOperation::Unary(_)) {
             if other.dtype != self.dtype {
                 return Err(Error::Type);
             }
@@ -137,7 +138,10 @@ impl Array {
         }
         let end = cursor.saturating_add(COOPERATIVE_MACS).min(self.len());
         let mut completed = Vec::with_capacity(end - cursor);
-        let mut right = if matches!(operation, VectorOperation::Scale(_)) {
+        let mut right = if matches!(
+            operation,
+            VectorOperation::Scale(_) | VectorOperation::Unary(_)
+        ) {
             None
         } else {
             Some(other.window_bits(cursor, end)?)
@@ -149,6 +153,8 @@ impl Array {
             }
             let value = if let VectorOperation::Scale(factor) = operation {
                 left * factor
+            } else if let VectorOperation::Unary(unary) = operation {
+                unary.apply(left)?
             } else {
                 let right = f64::from_bits(right.as_mut().unwrap().next().unwrap());
                 if !right.is_finite() {
@@ -164,7 +170,7 @@ impl Array {
                         }
                         left / right
                     }
-                    VectorOperation::Scale(_) => unreachable!(),
+                    VectorOperation::Scale(_) | VectorOperation::Unary(_) => unreachable!(),
                 }
             };
             if !value.is_finite() {
@@ -404,6 +410,7 @@ mod tests {
                         VectorOperation::Sub => a - 2.0,
                         VectorOperation::Mul => a * 2.0,
                         VectorOperation::Div => a / 2.0,
+                        VectorOperation::Unary(_) => unreachable!(),
                     })
                     .collect::<Vec<_>>();
                 assert_eq!(

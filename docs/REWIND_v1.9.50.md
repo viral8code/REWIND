@@ -55,8 +55,9 @@ retained bytes are shown from a sample.
 RSS stays approximately level across these cases, and the discarded tapes and
 gradients are collected. This does not prove memory behavior for larger networks,
 long-lived checkpoints or GUI latency. CPU time grows with updates. The 5000-update
-case still cumulatively allocates about 4.5 GB of shared VM payload/metadata despite
-small retained storage; allocation churn and interpreter overhead remain an
-optimization target. GC duration alone does not explain the execution cost.
+case reports about 4.5 GB in the cumulative shared-storage charging counter despite
+small retained storage. This counter includes conservative metadata fees; it is
+not an allocator measurement or 4.5 GB of simultaneously live memory. Repeated
+metadata construction and interpreter overhead remain optimization targets. GC duration alone does not explain the execution cost.
 Reproduce with `scripts/benchmark-nonlinear-training.py`; reports contain bounded
 metrics and omit heap contents.
