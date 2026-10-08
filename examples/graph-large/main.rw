@@ -1,0 +1,22 @@
+import std.graphLarge as graph;
+import std.numericRange as range;
+import std.numericIndex as index;
+fn take<T,E>(result:Result<T,E>)->T effects {} {match move result{Ok(value)=>{return move value;},Err(_)=>{panic("graph failure");}}}
+let froms=take(range.integers(0,1,5));
+var tos=take(range.integers(1,1,5));
+let weights=take(range.integers(1,0,5));
+let chain=take(graph.fromEdges(6,&froms,tos,weights));
+assert_eq(graph.vertices(&chain),6);assert_eq(graph.edges(&chain),5);
+commit saved;
+tos=take(index.withInt(&tos,0,5));
+let distances=take(graph.bfs(&chain,0));
+assert_eq(take(index.getInt(&distances,5)),5);
+assert_eq(take(graph.dijkstra(&chain,0)).get(5),Some(5));
+assert_eq(graph.add(&mut chain,0,1,0),Err("Capacity"));
+Out.println(take(index.getInt(&distances,5)));publish;
+revert saved;
+assert_eq(take(index.getInt(&tos,0)),1);
+let reversed=take(graph.bfs(&chain,5));
+assert_eq(take(index.getInt(&reversed,0)),-1);
+drop saved;
+Out.println(take(index.getInt(&reversed,0)));publish;

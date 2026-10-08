@@ -626,3 +626,5 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 参照された heap ID は保持したうえで、entry が HeapRef／CellRef を含まない場合は内容の走査を省く。値を変更した場合と checkpoint を復元した場合は、それぞれの entry の参照情報を使う。検索時の一時バッファ確保も省く。ID の順序、wire format、過去の言語版の GC work 契約は維持する。[契約](REWIND_v1.9.47.md)を参照する。
 
 `std.numericIndex`（language 1.9.48）では `lengthFloat/Int`、`getFloat/Int`、`withFloat/Int` を使えます。index はビューの論理的な行優先順序の 0 始まり整数です。転置・逆順スライスにも対応し、broadcast は読み取り専用です。更新は変更したページを COW で複製します。
+
+`std.graphLarge`（language 1.9.49）は数値配列を使うグラフです。`fromEdges(vertices,&froms,tos,weights)` で rank-one IntArray からまとめて構築でき、`bfs` は IntArray を返します。`std.numericRange.integers(start,step,length)` は checked Int64 の等差配列を作ります。グラフの頂点・辺は最大 1,048,576、各処理には work/memory 予算が適用されます。

@@ -1,0 +1,4 @@
+// Typed native arithmetic progression; language 1.9.49.
+// @api integers cost O(length) native page construction without per-element VM objects.
+// @api integers failure NumericSize/Index/Overflow; length 0..16777216, checked Int64 endpoints; VM work/memory budgets apply.
+pub fn integers(start:Int,step:Int,length:Int)->Result<IntArray,StdError> effects {} {return stdNumericRangeInt(start,step,length);}

@@ -3,166 +3,403 @@
   "kind": "rewind-api",
   "language": "1.9.49",
   "symbols": {
-    "dependency:task.rw": {
-      "fn:$import$task$selectReady": {
+    "dependency:disjointSet.rw": {
+      "fn:$import$disjointSet$create": {
         "async": false,
-        "effects": [
-          "tasks"
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
         ],
+        "return": "Result<$import$disjointSet$DisjointSet,String>"
+      },
+      "fn:$import$disjointSet$root": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$disjointSet$same": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Bool,String>"
+      },
+      "fn:$import$disjointSet$size": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$disjointSet$unite": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$disjointSet$DisjointSet",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Bool,String>"
+      },
+      "type:$import$disjointSet$DisjointSet": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      }
+    },
+    "dependency:heap.rw": {
+      "fn:$import$heap$peek": {
+        "async": false,
+        "effects": [],
         "generics": [
           [
-            "A",
-            null
-          ],
-          [
-            "B",
-            null
+            "T",
+            "Share"
           ]
         ],
         "parameters": [
-          "Task<A>",
-          "Task<B>"
+          "&List<T>"
         ],
-        "return": "Task<Int>"
+        "return": "Option<T>"
       },
-      "fn:$import$task$yieldNow": {
+      "fn:$import$heap$pop": {
         "async": false,
-        "effects": [
-          "tasks"
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
         ],
-        "generics": [],
-        "parameters": [],
-        "return": "Unit"
+        "parameters": [
+          "&mut List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Option<T>"
+      },
+      "fn:$import$heap$push": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "T",
+          "Int",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Result<Unit,String>"
       }
     },
-    "fn:dot": {
-      "async": true,
-      "cost": "Native chunks of at most 4096 products, preserving Neumaier ordering; yields between chunks. Inputs share native storage.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/NonFinite/Overflow; task cancellation and fatal budgets apply. No host worker is started.",
-      "generics": [],
-      "parameters": [
-        "FloatArray",
-        "FloatArray"
-      ],
-      "return": "Result<Float,StdError>"
+    "dependency:integer.rw": {
+      "fn:$import$integer$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$combination": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$extendedGcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Tuple<Int,Int,Int>,String>"
+      },
+      "fn:$import$integer$factors": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      },
+      "fn:$import$integer$gcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$lcm": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$primes": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      }
     },
-    "fn:eigenSymmetric": {
-      "async": true,
-      "cost": "Cyclic Jacobi bounded to maxSweeps; copy, symmetry check, scans, rotations, stable sorting and outputs execute at most 4096 scalar units per step with shared-page COW work, cached storage digests and bounded page-range rotation buffers.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Convergence/Size; finite symmetric square Float64 matrix, finite nonnegative tolerance and maxSweeps 0..10000. Same rotation/arithmetic order and stable eigenvalue order as numeric.eigenSymmetric, no partial result on error/cancel; fatal memory/work budgets apply.",
+    "dependency:sort.rw": {
+      "fn:$import$sort$inPlace": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Unit"
+      },
+      "fn:$import$sort$integers": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>"
+        ],
+        "return": "List<Int>"
+      },
+      "fn:$import$sort$stable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "List<T>"
+      },
+      "fn:$import$sort$tryStable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<List<T>,E>"
+      }
+    },
+    "fn:add": {
+      "async": false,
+      "cost": "Four COW point updates; bulk construction is preferred for large edge sets.",
+      "effects": [],
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "Float",
+        "&mut Graph",
+        "Int",
+        "Int",
         "Int"
       ],
-      "return": "Result<EigenResult,StdError>"
+      "return": "Result<Unit,String>"
     },
-    "fn:leastSquares": {
-      "async": true,
-      "cost": "Full-column-rank QR O(m*n^2); bounded rhs validation, QR, compensated projection, upper substitution and permutation, with at most 4096 scalar units per step. Inputs and private numeric pages are shared; no full rhs/Q/R materialization or second factorization.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Singular/Size; m>=n, rank-one rhs and finite nonnegative relative rank tolerance. Same arithmetic order as numeric.leastSquares. No partial output on error/cancel; fatal work/memory budgets apply.",
+    "fn:ancestors": {
+      "async": false,
+      "effects": [],
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "FloatArray",
-        "Float"
+        "&Graph",
+        "Int"
       ],
-      "return": "Result<FloatArray,StdError>"
+      "return": "Result<Ancestors,String>"
     },
-    "fn:matmul": {
-      "async": true,
-      "cost": "Native chunks of at most 4096 products and page-range COW writes; yields between chunks. Output initialization shares logarithmic zero storage.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Size/NonFinite/Overflow; task cancellation and fatal budgets apply. No partial output escapes a failed task.",
+    "fn:bellmanFord": {
+      "async": false,
+      "effects": [],
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "FloatArray"
+        "&Graph",
+        "Int"
       ],
-      "return": "Result<FloatArray,StdError>"
+      "return": "Result<List<Option<Int>>,String>"
     },
-    "fn:norm2": {
-      "async": true,
-      "cost": "At most 4096 values per native step; scaled accumulation preserves logical order without materializing input or squaring large magnitudes.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and views; same scaled result as numeric.norm2, task cancellation and fatal budgets apply.",
+    "fn:bfs": {
+      "async": false,
+      "cost": "O(vertices + edges) bounded native traversal, times page lookup; returns native IntArray, -1 for unreachable vertices.",
+      "effects": [],
       "generics": [],
       "parameters": [
-        "FloatArray"
+        "&Graph",
+        "Int"
       ],
-      "return": "Result<Float,StdError>"
+      "return": "Result<IntArray,String>"
     },
-    "fn:qr": {
-      "async": true,
-      "cost": "Column-pivoted Householder O(m*n*min(m,n)); bounded native steps of at most 4096 scalar units, private shared-page COW work and task handoff between steps.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Size; economy Q and R, permutation as native IntArray; same arithmetic order as numeric.qr. No partial result on failure or cancellation, fatal work/memory budgets apply.",
+    "fn:components": {
+      "async": false,
+      "effects": [],
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "Float"
+        "&Graph"
       ],
-      "return": "Result<QrArrayResult,StdError>"
+      "return": "Result<List<Int>,String>"
     },
-    "fn:scale": {
-      "async": true,
-      "cost": "Shared logarithmic zero initialization; at most 4096 values per native step, bounded scratch and page-range COW writes.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and strided input; finite factor, no partial result on failure or cancellation.",
+    "fn:create": {
+      "async": false,
+      "cost": "O(1) virtual-zero storage; pages are admitted as touched. Capacity is at most 1048576.",
+      "effects": [],
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "Float"
+        "Int",
+        "Int"
       ],
-      "return": "Result<FloatArray,StdError>"
+      "return": "Result<Graph,String>"
     },
-    "fn:solve": {
-      "async": true,
-      "cost": "Partial-pivot LU O(n^3) arithmetic with O(n^2) shared-page COW private storage; at most 4096 copies, pivot checks, swap pairs or update products per native step, including input initialization and back substitution.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/NonFinite/Singular/Size; square Float64 matrix, rank-one rhs, finite nonnegative relative pivot tolerance. Same arithmetic order as numeric.solve, no partial output on error/cancel. Fatal work/memory budgets apply; conservative per-step COW admission remains.",
+    "fn:dfs": {
+      "async": false,
+      "effects": [],
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "FloatArray",
-        "Float"
+        "&Graph",
+        "Int"
       ],
-      "return": "Result<FloatArray,StdError>"
+      "return": "Result<List<Int>,String>"
     },
-    "fn:zipFloat": {
-      "async": true,
-      "cost": "At most 4096 element pairs per native step; shared inputs and logarithmic zero initialization, bounded scratch and page-range COW output.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericShape/Type/Domain/NonFinite; add/sub/mul/div and matching shapes; division by zero fails. No partial result escapes.",
+    "fn:dijkstra": {
+      "async": false,
+      "effects": [],
       "generics": [],
       "parameters": [
-        "String",
-        "FloatArray",
-        "FloatArray"
+        "&Graph",
+        "Int"
       ],
-      "return": "Result<FloatArray,StdError>"
+      "return": "Result<List<Option<Int>>,String>"
+    },
+    "fn:edges": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Int"
+    },
+    "fn:fromEdges": {
+      "async": false,
+      "cost": "O(edges log pages); native bulk adjacency builder, no per-edge VM callback or coordinate List.",
+      "effects": [],
+      "failure": "Capacity/Shape or NumericIndex; input arrays are rank-one, equal length and retained immutable views.",
+      "generics": [],
+      "parameters": [
+        "Int",
+        "&IntArray",
+        "IntArray",
+        "IntArray"
+      ],
+      "return": "Result<Graph,String>"
+    },
+    "fn:lca": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Ancestors",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,String>"
+    },
+    "fn:minimumForest": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Result<Forest,String>"
+    },
+    "fn:topological": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Result<List<Int>,String>"
+    },
+    "fn:vertices": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Graph"
+      ],
+      "return": "Int"
+    },
+    "type:Ancestors": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
     },
     "type:BigInt": {
       "constructor": false,
@@ -367,6 +604,35 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:Forest": {
+      "constructor": true,
+      "fields": [
+        [
+          "weight",
+          "Int"
+        ],
+        [
+          "components",
+          "Int"
+        ],
+        [
+          "froms",
+          "List<Int>"
+        ],
+        [
+          "tos",
+          "List<Int>"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Graph": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
     },
     "type:HistogramResult": {
       "constructor": true,
