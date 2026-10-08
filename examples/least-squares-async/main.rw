@@ -1,0 +1,41 @@
+import std.numeric as numeric;
+import std.numericAsync as jobs;
+import std.task as task;
+fn take<T,E>(result:Result<T,E>)->T effects {} {
+ match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric failure");}}
+}
+async fn marker()->Int effects {tasks} {return 7;}
+let shape=List<Int>();shape.add(65);shape.add(7);
+var builder=take(numeric.zerosFloat(&shape));
+var factor=1.0;
+for column in 0..7 {
+ for row in 0..65 {
+  let index=List<Int>();index.add(row);index.add(column);
+  var value=factor*0.01;if row%7==column {value=factor;}
+  builder=take(numeric.withFloat(&builder,&index,value));
+ }
+ factor*=2.0;
+}
+let matrix=builder;
+let rhsShape=List<Int>();rhsShape.add(65);var rhsBuilder=take(numeric.zerosFloat(&rhsShape));
+for row in 0..65 {let index=List<Int>();index.add(row);rhsBuilder=take(numeric.withFloat(&rhsBuilder,&index,1.0));}
+let right=rhsBuilder;
+let work=spawn jobs.leastSquares(matrix,right,1e-13);
+let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+commit solving;
+{
+ let answer=take(take(await work));let expected=take(numeric.leastSquares(&matrix,&right,1e-13));
+ assert_eq(answer,expected);
+ Out.println("solved");
+}
+publish;
+revert solving;
+{
+ let answer=take(take(await work));let expected=take(numeric.leastSquares(&matrix,&right,1e-13));
+ assert_eq(answer,expected);
+ Out.println("restored");
+}
+drop solving;publish;
+let cancelled=spawn jobs.leastSquares(matrix,right,1e-13);task.yieldNow();assert(!cancelled.isDone());cancelled.cancel();
+match await cancelled {Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("least squares done");publish;

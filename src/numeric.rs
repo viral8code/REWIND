@@ -19,6 +19,8 @@ mod qr_chunks;
 pub use qr_chunks::{QrWork, QR_CHUNK};
 mod fft_chunks;
 pub use fft_chunks::{FftWork, FFT_CHUNK};
+mod least_squares_chunks;
+pub use least_squares_chunks::{LeastSquaresWork, LEAST_SQUARES_CHUNK};
 mod linalg;
 mod model;
 mod optimizer;

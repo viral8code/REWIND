@@ -149,6 +149,7 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     run([sys.executable,root/'scripts/smoke-numeric-digests-sdk.py',exe,work/'numeric-digests'])
     run([sys.executable,root/'scripts/smoke-solve-sdk.py',exe,work/'solve-async'])
     run([sys.executable,root/'scripts/smoke-qr-sdk.py',exe,work/'qr-async'])
+    run([sys.executable,root/'scripts/smoke-least-squares-sdk.py',exe,work/'least-squares-async'])
     run([sys.executable,root/'scripts/smoke-eigen-sdk.py',exe,work/'eigen-async'])
     run([sys.executable,root/'scripts/smoke-http-server-auth-sdk.py',exe,work/'http-server-auth'])
     run([sys.executable,root/'scripts/smoke-http-server-tls-sdk.py',exe,work/'http-server-tls'])

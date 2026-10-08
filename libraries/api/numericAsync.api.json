@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.41",
+  "language": "1.9.42",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
@@ -63,6 +63,21 @@
         "Int"
       ],
       "return": "Result<EigenResult,StdError>"
+    },
+    "fn:leastSquares": {
+      "async": true,
+      "cost": "Full-column-rank QR O(m*n^2); bounded rhs validation, QR, compensated projection, upper substitution and permutation, with at most 4096 scalar units per step. Inputs and private numeric pages are shared; no full rhs/Q/R materialization or second factorization.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Singular/Size; m>=n, rank-one rhs and finite nonnegative relative rank tolerance. Same arithmetic order as numeric.leastSquares. No partial output on error/cancel; fatal work/memory budgets apply.",
+      "generics": [],
+      "parameters": [
+        "FloatArray",
+        "FloatArray",
+        "Float"
+      ],
+      "return": "Result<FloatArray,StdError>"
     },
     "fn:matmul": {
       "async": true,
@@ -675,6 +690,12 @@
       }
     },
     "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
       "constructor": false,
       "fields": [],
       "generics": [],

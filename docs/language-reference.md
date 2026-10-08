@@ -600,3 +600,7 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 1.9.40 は協調的固有値計算の内部配置とページアクセスを改善する。公開される固有ベクトルの配列形式と演算順序は維持する。private scratch の費用と検証条件は[詳細](REWIND_v1.9.40.md)を参照する。
 
 1.9.41 は GUI と HTTP サーバー、DB transaction を組み合わせる[サンプル](../examples/service-data/README.md)を提供する。非同期 cursor の close 完了を待ってから接続を再利用し、VM の checkpoint と外部 transaction の境界を確認する。[検証条件](REWIND_v1.9.41.md)を参照する。
+
+## 協調的最小二乗法（1.9.42）
+
+`std.numericAsync.leastSquares(matrix,right,tolerance)` は m >= n の FloatArray 行列と長さ m の rank-one rhs に対する全列 rank の最小二乗法である。rhs の検証・QR 分解・補償和による射影・後退代入・置換を最大4096 work unit ごとに分割する。`await` の内側は `Result<FloatArray,StdError>`、外側は Task の失敗・キャンセル。有限非負 tolerance を必要とし、rank 不足は NumericSingular。同期版と同じ演算順序を維持する。[契約](REWIND_v1.9.42.md)を参照する。

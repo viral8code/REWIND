@@ -545,7 +545,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/service-data/README.md",
             include_str!("../../../examples/service-data/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/least-squares-async/main.rw",
+            include_str!("../../../examples/least-squares-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/least-squares-async/README.md",
+            include_str!("../../../examples/least-squares-async/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.42.md",
+                include_str!("../../../docs/REWIND_v1.9.42.md"),
+            ),
             (
                 "REWIND_v1.9.41.md",
                 include_str!("../../../docs/REWIND_v1.9.41.md"),
