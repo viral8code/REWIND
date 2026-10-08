@@ -68,3 +68,11 @@ pub async fn qr(matrix:FloatArray,tolerance:Float)->Result<QrArrayResult,StdErro
  while !stdNumericQrDone(&work)? {work=stdNumericQrStep(&work)?;task.yieldNow();}
  return stdNumericQrResult(&work);
 }
+
+// @api eigenSymmetric cost Cyclic Jacobi bounded to maxSweeps; copy, symmetry check, scans, rotations, stable sorting and outputs execute at most 4096 scalar units per step with shared-page COW work and grouped digest refreshes.
+// @api eigenSymmetric failure NumericShape/Type/Domain/NonFinite/Overflow/Convergence/Size; finite symmetric square Float64 matrix, finite nonnegative tolerance and maxSweeps 0..10000. Same rotation/arithmetic order and stable eigenvalue order as numeric.eigenSymmetric, no partial result on error/cancel; fatal memory/work budgets apply.
+pub async fn eigenSymmetric(matrix:FloatArray,tolerance:Float,maxSweeps:Int)->Result<EigenResult,StdError> effects {tasks} {
+ var work=stdNumericEigenInit(&matrix,tolerance,maxSweeps)?;
+ while !stdNumericEigenDone(&work)? {work=stdNumericEigenStep(&work)?;task.yieldNow();}
+ return stdNumericEigenResult(&work);
+}

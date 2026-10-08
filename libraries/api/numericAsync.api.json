@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.37",
+  "language": "1.9.38",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
@@ -48,6 +48,21 @@
         "FloatArray"
       ],
       "return": "Result<Float,StdError>"
+    },
+    "fn:eigenSymmetric": {
+      "async": true,
+      "cost": "Cyclic Jacobi bounded to maxSweeps; copy, symmetry check, scans, rotations, stable sorting and outputs execute at most 4096 scalar units per step with shared-page COW work and grouped digest refreshes.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Convergence/Size; finite symmetric square Float64 matrix, finite nonnegative tolerance and maxSweeps 0..10000. Same rotation/arithmetic order and stable eigenvalue order as numeric.eigenSymmetric, no partial result on error/cancel; fatal memory/work budgets apply.",
+      "generics": [],
+      "parameters": [
+        "FloatArray",
+        "Float",
+        "Int"
+      ],
+      "return": "Result<EigenResult,StdError>"
     },
     "fn:matmul": {
       "async": true,
@@ -317,6 +332,12 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },

@@ -24,6 +24,26 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.9.38") {
+        if p.structs.contains_key("EigenWork")
+            || p.enums.contains_key("EigenWork")
+            || p.aliases.contains_key("EigenWork")
+        {
+            return Err(Error::InvalidOperation("reserved eigen work type".into()));
+        }
+        p.structs.insert(
+            "EigenWork".into(),
+            StructDef {
+                private_fields: BTreeSet::from(["$native".into()]),
+                bounds: BTreeMap::new(),
+                immutable: true,
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                fields: vec![],
+            },
+        );
+    }
     if language_at_least(&p.language, "1.9.37") {
         for (name, fields) in [
             ("QrWork", vec![]),
@@ -204,6 +224,19 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if matches!(
         n,
+        "stdNumericEigenInit"
+            | "stdNumericEigenStep"
+            | "stdNumericEigenDone"
+            | "stdNumericEigenResult"
+    ) && !language_at_least(&p.language, "1.9.38")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative eigen decomposition requires language 1.9.38",
+        ));
+    }
+    if matches!(
+        n,
         "stdNumericQrInit" | "stdNumericQrStep" | "stdNumericQrDone" | "stdNumericQrResult"
     ) && !language_at_least(&p.language, "1.9.37")
     {
@@ -337,6 +370,100 @@ fn array<'a>(v: &'a Value, rt: &'a Runtime) -> std::result::Result<&'a Array, Nu
         Value::NumericArray(a) => Ok(a),
         _ => Err(NumericError::Type),
     }
+}
+fn eigen_work(
+    value: &Value,
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::EigenWork, NumericError> {
+    let Value::Struct(ty, fields) = target(value, rt) else {
+        return Err(NumericError::Type);
+    };
+    if ty != "EigenWork" {
+        return Err(NumericError::Type);
+    }
+    let a = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(|v| array(v, rt))
+            .cloned()
+    };
+    let i = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(usize_arg)
+    };
+    let f = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(floating)
+    };
+    let w = rewind::numeric::EigenWork {
+        input: a("$input")?,
+        matrix: a("$matrix")?,
+        vectors: a("$vectors")?,
+        order: a("$order")?,
+        order_scratch: a("$order_scratch")?,
+        sorted: a("$sorted")?,
+        values: a("$values")?,
+        tolerance: f("$tolerance")?,
+        scale: f("$scale")?,
+        largest: f("$largest")?,
+        cosine: f("$cosine")?,
+        sine: f("$sine")?,
+        max_sweeps: i("$max_sweeps")?,
+        sweeps: i("$sweeps")?,
+        cursor: i("$cursor")?,
+        p: i("$p")?,
+        q: i("$q")?,
+        width: i("$width")?,
+        base: i("$base")?,
+        left: i("$left")?,
+        mid: i("$mid")?,
+        right: i("$right")?,
+        end: i("$end")?,
+        out: i("$out")?,
+        phase: u8::try_from(i("$phase")?).map_err(|_| NumericError::Domain)?,
+    };
+    w.validate()?;
+    Ok(w)
+}
+fn eigen_work_value(w: rewind::numeric::EigenWork) -> Value {
+    Value::Struct(
+        "EigenWork".into(),
+        BTreeMap::from([
+            ("$input".into(), Value::NumericArray(w.input)),
+            ("$matrix".into(), Value::NumericArray(w.matrix)),
+            ("$vectors".into(), Value::NumericArray(w.vectors)),
+            ("$order".into(), Value::NumericArray(w.order)),
+            (
+                "$order_scratch".into(),
+                Value::NumericArray(w.order_scratch),
+            ),
+            ("$sorted".into(), Value::NumericArray(w.sorted)),
+            ("$values".into(), Value::NumericArray(w.values)),
+            ("$tolerance".into(), Value::Float(w.tolerance.to_bits())),
+            ("$scale".into(), Value::Float(w.scale.to_bits())),
+            ("$largest".into(), Value::Float(w.largest.to_bits())),
+            ("$cosine".into(), Value::Float(w.cosine.to_bits())),
+            ("$sine".into(), Value::Float(w.sine.to_bits())),
+            ("$max_sweeps".into(), Value::Int(w.max_sweeps as i64)),
+            ("$sweeps".into(), Value::Int(w.sweeps as i64)),
+            ("$cursor".into(), Value::Int(w.cursor as i64)),
+            ("$p".into(), Value::Int(w.p as i64)),
+            ("$q".into(), Value::Int(w.q as i64)),
+            ("$width".into(), Value::Int(w.width as i64)),
+            ("$base".into(), Value::Int(w.base as i64)),
+            ("$left".into(), Value::Int(w.left as i64)),
+            ("$mid".into(), Value::Int(w.mid as i64)),
+            ("$right".into(), Value::Int(w.right as i64)),
+            ("$end".into(), Value::Int(w.end as i64)),
+            ("$out".into(), Value::Int(w.out as i64)),
+            ("$phase".into(), Value::Int(w.phase as i64)),
+        ]),
+    )
 }
 fn qr_work(
     value: &Value,
@@ -709,7 +836,29 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "QrInit" {
+    let cost = if name == "EigenInit" {
+        32768
+    } else if name == "EigenStep" {
+        eigen_work(&args[0], rt).map_or(2048, |w| {
+            let n = w.values.len();
+            let sweeps = if n < 2 {
+                0
+            } else {
+                w.max_sweeps.saturating_sub(w.sweeps)
+            };
+            n.saturating_pow(3)
+                .saturating_mul(6)
+                .saturating_mul(sweeps)
+                .saturating_add(n.saturating_mul(n).saturating_mul(8))
+                .saturating_add(n.saturating_mul(32))
+                .saturating_add(32)
+                .min(rewind::numeric::EIGEN_CHUNK)
+                .saturating_mul(192)
+                .saturating_add(2048)
+        })
+    } else if matches!(name, "EigenDone" | "EigenResult") {
+        2048
+    } else if name == "QrInit" {
         32768
     } else if name == "QrStep" {
         rewind::numeric::QR_CHUNK * 128 + 2048
@@ -971,7 +1120,50 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "QrInit" {
+    if name == "EigenInit" {
+        1024 * 1024
+    } else if name == "EigenStep" {
+        eigen_work(&args[0], rt).map_or(32768, |w| {
+            if w.phase == 0
+                && w.matrix.len().saturating_sub(w.cursor) >= rewind::numeric::EIGEN_CHUNK
+            {
+                return Array::storage_estimate(w.matrix.len())
+                    .min(
+                        w.matrix
+                            .update_estimate()
+                            .saturating_mul(rewind::numeric::EIGEN_CHUNK.div_ceil(256) + 1),
+                    )
+                    .saturating_add(rewind::numeric::EIGEN_CHUNK * 16 + 32768);
+            }
+            let arrays = [
+                &w.matrix,
+                &w.vectors,
+                &w.order,
+                &w.order_scratch,
+                &w.sorted,
+                &w.values,
+            ];
+            let nodes = arrays.iter().fold(0usize, |sum, a| {
+                sum.saturating_add(a.len().div_ceil(256).saturating_mul(4).saturating_add(17))
+            });
+            let dirty = nodes
+                .min(rewind::numeric::EIGEN_CHUNK * 6 * 17)
+                .saturating_mul(32)
+                .saturating_add(1024);
+            arrays
+                .iter()
+                .fold(32768usize.saturating_add(dirty), |sum, a| {
+                    sum.saturating_add(
+                        Array::storage_estimate(a.len()).min(
+                            a.update_estimate()
+                                .saturating_mul(rewind::numeric::EIGEN_CHUNK * 6),
+                        ),
+                    )
+                })
+        })
+    } else if matches!(name, "EigenDone" | "EigenResult") {
+        32768
+    } else if name == "QrInit" {
         // All zero arrays have shared logarithmic storage, including the permutation.
         1024 * 1024
     } else if name == "QrStep" {
@@ -1329,6 +1521,20 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "EigenInit" => eigen_work_value(rewind::numeric::EigenWork::new(a(0)?, f(1)?, i(2)?)?),
+            "EigenStep" => eigen_work_value(eigen_work(&args[0], rt)?.step()?),
+            "EigenDone" => Value::Bool(eigen_work(&args[0], rt)?.done()),
+            "EigenResult" => {
+                let w = eigen_work(&args[0], rt)?.result()?;
+                Value::Struct(
+                    "EigenResult".into(),
+                    BTreeMap::from([
+                        ("values".into(), Value::NumericArray(w.values)),
+                        ("vectors".into(), Value::NumericArray(w.vectors)),
+                        ("sweeps".into(), Value::Int(w.sweeps as i64)),
+                    ]),
+                )
+            }
             "QrInit" => qr_work_value(rewind::numeric::QrWork::new(a(0)?, f(1)?)?),
             "QrStep" => qr_work_value(qr_work(&args[0], rt)?.step()?),
             "QrDone" => Value::Bool(qr_work(&args[0], rt)?.done()),
@@ -1849,6 +2055,13 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericEigenInit" => (
+            &["&FloatArray", "Float", "Int"],
+            "Result<EigenWork,StdError>",
+        ),
+        "stdNumericEigenStep" => (&["&EigenWork"], "Result<EigenWork,StdError>"),
+        "stdNumericEigenDone" => (&["&EigenWork"], "Result<Bool,StdError>"),
+        "stdNumericEigenResult" => (&["&EigenWork"], "Result<EigenResult,StdError>"),
         "stdNumericQrInit" => (&["&FloatArray", "Float"], "Result<QrWork,StdError>"),
         "stdNumericQrStep" => (&["&QrWork"], "Result<QrWork,StdError>"),
         "stdNumericQrDone" => (&["&QrWork"], "Result<Bool,StdError>"),

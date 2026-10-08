@@ -183,3 +183,7 @@ HTTP host ごとに OS root を一度読込み、CA fingerprint ごとに immuta
 ### 1.9.37 の公開単位
 
 column-pivoted Householder QR の初期化・pivot・反射・Q/R 生成を4096 unit 以下の pure Task に分割する。native permutation を保持する結果型、checkpoint / cancellation / 予算と source-free SDK を検証する。eigen / least squares / autodiff の協調化、一般会計・GUI と残る v2 条件は継続する。[契約](REWIND_v1.9.37.md)を参照する。
+
+### 1.9.38 の公開単位
+
+cyclic Jacobi の走査・回転と安定な固有値の並べ替えを4096 unit 以下の pure Task に分割する。同期版との bit 一致、独立残差・直交性、checkpoint / cancellation / 予算と source-free SDK を検証する。least squares / autodiff の協調化、一般会計・GUI と残る v2 条件は継続する。[契約](REWIND_v1.9.38.md)を参照する。
