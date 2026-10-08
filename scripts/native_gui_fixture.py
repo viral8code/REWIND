@@ -21,14 +21,44 @@ def click(title, px=20, py=20, timeout=10, _key=None):
             window = api.FindWindowW(None, title)
             if window:
                 if _key:
-                    api.SetForegroundWindow.argtypes = [C.c_void_p]
-                    api.keybd_event.argtypes = [C.c_ubyte, C.c_ubyte, C.c_uint, C.c_size_t]
-                    api.SetForegroundWindow(window)
-                    api.keybd_event(0x11, 0, 0, 0)
-                    api.keybd_event(ord(_key), 0, 0, 0)
-                    time.sleep(.05)
-                    api.keybd_event(ord(_key), 0, 2, 0)
-                    api.keybd_event(0x11, 0, 2, 0)
+                    # Foreground activation can be denied on a hosted desktop.
+                    # Join the target input queue and deliver a bounded native
+                    # key message with its Ctrl state, without global key events.
+                    kernel = C.WinDLL('kernel32', use_last_error=True)
+                    kernel.GetCurrentThreadId.restype = C.c_uint
+                    api.GetWindowThreadProcessId.argtypes = [C.c_void_p, C.POINTER(C.c_uint)]
+                    api.GetWindowThreadProcessId.restype = C.c_uint
+                    api.AttachThreadInput.argtypes = [C.c_uint, C.c_uint, C.c_int]
+                    api.AttachThreadInput.restype = C.c_int
+                    api.GetKeyboardState.argtypes = [C.POINTER(C.c_ubyte)]
+                    api.SetKeyboardState.argtypes = [C.POINTER(C.c_ubyte)]
+                    api.SendMessageTimeoutW.argtypes = [C.c_void_p, C.c_uint, C.c_size_t,
+                                                       C.c_ssize_t, C.c_uint, C.c_uint,
+                                                       C.POINTER(C.c_size_t)]
+                    api.SendMessageTimeoutW.restype = C.c_ssize_t
+                    api.PeekMessageW.argtypes = [C.c_void_p, C.c_void_p, C.c_uint, C.c_uint, C.c_uint]
+                    message = C.create_string_buffer(64)
+                    api.PeekMessageW(message, None, 0, 0, 0)
+                    sender = kernel.GetCurrentThreadId()
+                    target = api.GetWindowThreadProcessId(window, None)
+                    attached = sender != target
+                    if attached and not api.AttachThreadInput(sender, target, 1):
+                        raise C.WinError(C.get_last_error())
+                    saved = (C.c_ubyte * 256)()
+                    try:
+                        if not api.GetKeyboardState(saved):
+                            raise C.WinError(C.get_last_error())
+                        pressed = (C.c_ubyte * 256)(*saved)
+                        pressed[0x11] = 0x80
+                        if not api.SetKeyboardState(pressed):
+                            raise C.WinError(C.get_last_error())
+                        result = C.c_size_t()
+                        if not api.SendMessageTimeoutW(window, 0x100, ord(_key), 0, 3, 5000, C.byref(result)):
+                            raise C.WinError(C.get_last_error())
+                    finally:
+                        api.SetKeyboardState(saved)
+                        if attached:
+                            api.AttachThreadInput(sender, target, 0)
                     return
                 assert api.PostMessageW(window, 0x201, 1, px | (py << 16))
                 assert api.PostMessageW(window, 0x202, 0, px | (py << 16))
