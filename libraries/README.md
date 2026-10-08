@@ -195,3 +195,5 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 `numericIndex` (language 1.9.48) は型付き数値配列を単一の整数で読み書きします。`getFloat/Int` と `withFloat/Int` はビュー上の行優先順序、`lengthFloat/Int` は論理要素数です。座標 List を生成せず、broadcast の更新は NumericReadOnly、範囲外は NumericIndex になります。
 
 `graphLarge`（language 1.9.49）は数値配列に隣接データを保持します。`fromEdges` は辺をまとめて構築し、`bfs` は到達しない頂点を -1 とする IntArray を返します。`numericRange.integers(start,step,length)` は途中の List を作らず整数配列を生成します。既存の `graph`、`numeric`、`numericIndex` の API は維持します。
+
+`std.training` provides named gradient extraction, mean-square loss, sample-weighted batch-mean merging and global-norm clipping. See [the nonlinear training example](../examples/nonlinear-training/README.md).

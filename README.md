@@ -1,6 +1,6 @@
-# REWIND 1.9.49
+# REWIND 1.9.50
 
-REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.49 では `std.graphLarge` に数値配列を使う隣接データ、辺の一括構築、native BFS を追加します。既存の `std.graph` は維持します。
+REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.50 では `std.training` に名前付き勾配の取得、平均二乗誤差、バッチ平均の重み付け、勾配クリッピングを追加します。非線形のミニバッチ学習サンプルを提供します。
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 
@@ -110,3 +110,5 @@ JSON・設定/引数・application entry/exit status・asset 付き production �
 List/heapのpersistent storageと、基本アルゴリズム・データ構造・区間/グラフ処理・byte scannerを追加しました。[実装状況](docs/v0.9.3-status.md)、[最短距離CLI](examples/v093/README.md)、[v0.9.4計画](docs/REWIND_v0.9.4.md)を参照してください。今後の作業branchは`codex/develop`です。
 
 PostgreSQL の opaque credential alias、verified TLS、逐次 cursor は [v1.7.1](docs/REWIND_v1.7.1.md) と [実行例](examples/postgres/README.md) を参照。
+
+`std.training` provides named gradient extraction, mean-square loss, sample-weighted batch-mean merging and global-norm clipping. See [the nonlinear training example](examples/nonlinear-training/README.md).

@@ -143,6 +143,7 @@ python3 scripts/smoke-gc-storage-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/g
 python3 scripts/smoke-numeric-digests-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric-digests"
 python3 scripts/smoke-numeric-index-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric-index"
 python3 scripts/smoke-graph-large-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/graph-large"
+python3 scripts/smoke-nonlinear-training-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/nonlinear-training"
 python3 scripts/smoke-http-stream-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-stream"
 python3 scripts/smoke-numeric-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric"
 python3 scripts/smoke-tcp-tls-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/tcp-tls"
