@@ -453,7 +453,12 @@ impl HeapStore {
             .saturating_sub(self.len().saturating_mul(8))
     }
     pub fn get(&self, id: &u64) -> Option<&Value> {
-        self.0.get(&Self::key(*id))
+        self.0.heap_entry(*id).map(|(v, _)| v)
+    }
+    pub(crate) fn edge_value(&self, id: u64) -> Option<&Value> {
+        self.0
+            .heap_entry(id)
+            .and_then(|(v, edges)| edges.then_some(v))
     }
     pub fn contains_key(&self, id: &u64) -> bool {
         self.get(id).is_some()

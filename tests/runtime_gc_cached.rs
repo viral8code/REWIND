@@ -210,51 +210,57 @@ fn nested_edges(edges: Vec<Value>, kind: usize) -> Value {
 }
 #[test]
 fn sparse_nested_graphs_match_independently_computed_reachability() {
-    for seed in 0..12u64 {
-        let d = Dir::new();
-        let mut rt = Runtime::new(&d.0).unwrap();
-        rt.enable_cached_heap_traversal();
-        let ids = (0..48)
-            .map(|_| rt.alloc(Value::Null).unwrap())
-            .collect::<Vec<_>>();
-        let mut random = seed + 1;
-        let mut adjacency = vec![Vec::new(); ids.len()];
-        for i in 0..ids.len() {
-            for _ in 0..(i % 3) {
-                random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
-                adjacency[i].push((random as usize) % ids.len());
+    for cached_entries in [false, true] {
+        for seed in 0..12u64 {
+            let d = Dir::new();
+            let mut rt = Runtime::new(&d.0).unwrap();
+            if cached_entries {
+                rt.enable_cached_heap_entries();
+            } else {
+                rt.enable_cached_heap_traversal();
             }
-            let edges = adjacency[i]
-                .iter()
-                .enumerate()
-                .map(|(j, &k)| {
-                    if j % 2 == 0 {
-                        Value::HeapRef(ids[k])
-                    } else {
-                        Value::CellRef(ids[k])
-                    }
-                })
-                .collect();
-            rt.heap_set(ids[i], nested_edges(edges, i)).unwrap();
-        }
-        let mut list = scalar_list(4096);
-        list.set(3999, Value::HeapRef(ids[seed as usize]));
-        let root = Value::TypedList("Object".into(), list);
-        let mut expected = BTreeSet::new();
-        let mut pending = vec![seed as usize];
-        while let Some(i) = pending.pop() {
-            if expected.insert(i) {
-                pending.extend(&adjacency[i]);
+            let ids = (0..48)
+                .map(|_| rt.alloc(Value::Null).unwrap())
+                .collect::<Vec<_>>();
+            let mut random = seed + 1;
+            let mut adjacency = vec![Vec::new(); ids.len()];
+            for i in 0..ids.len() {
+                for _ in 0..(i % 3) {
+                    random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    adjacency[i].push((random as usize) % ids.len());
+                }
+                let edges = adjacency[i]
+                    .iter()
+                    .enumerate()
+                    .map(|(j, &k)| {
+                        if j % 2 == 0 {
+                            Value::HeapRef(ids[k])
+                        } else {
+                            Value::CellRef(ids[k])
+                        }
+                    })
+                    .collect();
+                rt.heap_set(ids[i], nested_edges(edges, i)).unwrap();
             }
-        }
-        let (reclaimed, _) = rt.collect_heap(&[root], 2048).unwrap();
-        assert_eq!(reclaimed, ids.len() - expected.len());
-        for (i, &id) in ids.iter().enumerate() {
-            assert_eq!(
-                rt.heap_get(id).is_some(),
-                expected.contains(&i),
-                "seed={seed}, node={i}"
-            );
+            let mut list = scalar_list(4096);
+            list.set(3999, Value::HeapRef(ids[seed as usize]));
+            let root = Value::TypedList("Object".into(), list);
+            let mut expected = BTreeSet::new();
+            let mut pending = vec![seed as usize];
+            while let Some(i) = pending.pop() {
+                if expected.insert(i) {
+                    pending.extend(&adjacency[i]);
+                }
+            }
+            let (reclaimed, _) = rt.collect_heap(&[root], 2048).unwrap();
+            assert_eq!(reclaimed, ids.len() - expected.len());
+            for (i, &id) in ids.iter().enumerate() {
+                assert_eq!(
+                    rt.heap_get(id).is_some(),
+                    expected.contains(&i),
+                    "seed={seed}, node={i}"
+                );
+            }
         }
     }
 }

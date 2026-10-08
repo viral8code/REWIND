@@ -78,6 +78,7 @@ pub(in crate::v2) fn record_arguments(
                 | "1.9.44"
                 | "1.9.45"
                 | "1.9.46"
+                | "1.9.47"
                 | "2.0.0"
         )
     }) {
@@ -272,6 +273,7 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
                 | "1.9.44"
                 | "1.9.45"
                 | "1.9.46"
+                | "1.9.47"
                 | "2.0.0"
         ) {
             v091::write_release(output, &installed)?;

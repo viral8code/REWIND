@@ -226,6 +226,7 @@ fn run_with_policy(
             | "1.9.44"
             | "1.9.45"
             | "1.9.46"
+            | "1.9.47"
             | "2.0.0"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
@@ -331,6 +332,7 @@ fn run_with_policy(
             | "1.9.44"
             | "1.9.45"
             | "1.9.46"
+            | "1.9.47"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
         != serde_json::to_value(standard.structs.get("StdError")).ok()
@@ -504,6 +506,7 @@ fn run_with_policy(
             | "1.9.44"
             | "1.9.45"
             | "1.9.46"
+            | "1.9.47"
             | "2.0.0"
     ) {
         for n in ["Json", "JsonError"] {
@@ -603,6 +606,7 @@ fn run_with_policy(
             | "1.9.44"
             | "1.9.45"
             | "1.9.46"
+            | "1.9.47"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
@@ -718,6 +722,7 @@ fn run_with_policy(
             | "1.9.44"
             | "1.9.45"
             | "1.9.46"
+            | "1.9.47"
             | "2.0.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
@@ -805,6 +810,7 @@ fn run_with_policy(
             | "1.9.44"
             | "1.9.45"
             | "1.9.46"
+            | "1.9.47"
             | "2.0.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
@@ -958,6 +964,7 @@ fn run_with_policy(
             | "1.9.44"
             | "1.9.45"
             | "1.9.46"
+            | "1.9.47"
             | "2.0.0"
     ) {
         v06::infer(&mut program)?;

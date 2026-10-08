@@ -343,6 +343,24 @@ impl PersistentMap {
         }
         None
     }
+    /// HeapStore owns only eight-byte, big-endian ID keys. Borrow the lookup
+    /// bytes rather than allocating a temporary MapKey for every VM read.
+    pub(crate) fn heap_entry(&self, id: u64) -> Option<(&Value, bool)> {
+        let bytes = id.to_be_bytes();
+        let mut cursor = self.root.as_deref();
+        while let Some(n) = cursor {
+            let MapKey::Bytes(key) = n.entry.key.as_ref() else {
+                unreachable!("invalid heap key")
+            };
+            debug_assert_eq!(key.len(), 8);
+            match bytes.as_slice().cmp(key.as_slice()) {
+                Ordering::Less => cursor = n.left.as_deref(),
+                Ordering::Greater => cursor = n.right.as_deref(),
+                Ordering::Equal => return Some((&n.entry.value, n.entry.has_heap_refs)),
+            }
+        }
+        None
+    }
     pub fn contains_key(&self, key: &MapKey) -> bool {
         self.get(key).is_some()
     }

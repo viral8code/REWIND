@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.46",
+  "language": "1.9.47",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
