@@ -10,6 +10,7 @@ struct Entry {
     numeric_bytes: usize,
     shared_bytes: usize,
     byte_payload: (usize, usize),
+    has_heap_refs: bool,
     registered: crate::shared_payload::Registration,
 }
 impl Entry {
@@ -36,6 +37,7 @@ impl Entry {
         let numeric_bytes = Runtime::numeric_payload_bytes(&value);
         let shared_bytes = Runtime::shared_payload_bytes(&value);
         let byte_payload = Runtime::byte_payload_info(&value);
+        let has_heap_refs = Runtime::contains_heap_refs(&value);
         Arc::new(Self {
             key,
             value,
@@ -44,6 +46,7 @@ impl Entry {
             numeric_bytes,
             shared_bytes,
             byte_payload,
+            has_heap_refs,
             registered: Default::default(),
         })
     }
@@ -59,6 +62,7 @@ struct Node {
     numeric_bytes: usize,
     shared_bytes: usize,
     byte_payload: (usize, usize),
+    has_heap_refs: bool,
     shared_registered: crate::shared_payload::Registration,
     numeric_registered: crate::numeric::RegistrationMemo,
 }
@@ -84,6 +88,9 @@ fn bytes(n: &Link) -> usize {
 fn node(entry: Arc<Entry>, left: Link, right: Link) -> Arc<Node> {
     NODES.with(|n| n.set(n.get() + 1));
     Arc::new(Node {
+        has_heap_refs: entry.has_heap_refs
+            || left.as_ref().is_some_and(|n| n.has_heap_refs)
+            || right.as_ref().is_some_and(|n| n.has_heap_refs),
         numeric_bytes: entry
             .numeric_bytes
             .saturating_add(left.as_ref().map_or(0, |n| n.numeric_bytes))
@@ -221,6 +228,30 @@ impl PersistentMap {
     }
     pub fn is_empty(&self) -> bool {
         self.root.is_none()
+    }
+    pub(crate) fn has_heap_refs(&self) -> bool {
+        self.root.as_ref().is_some_and(|n| n.has_heap_refs)
+    }
+    pub(crate) fn trace_heap_refs<'a>(
+        &'a self,
+        gc: &mut crate::HeapTraversal<'a>,
+    ) -> crate::Result<()> {
+        fn visit<'a>(node: &'a Arc<Node>, gc: &mut crate::HeapTraversal<'a>) -> crate::Result<()> {
+            if !gc.visit(Arc::as_ptr(node) as usize)? || !node.has_heap_refs {
+                return Ok(());
+            }
+            if node.entry.has_heap_refs {
+                gc.push(&node.entry.value)?;
+            }
+            for child in [&node.left, &node.right].into_iter().flatten() {
+                visit(child, gc)?;
+            }
+            Ok(())
+        }
+        if let Some(root) = &self.root {
+            visit(root, gc)?;
+        }
+        Ok(())
     }
     pub fn allocation_bytes(&self) -> usize {
         self.root.as_ref().map_or(0, |n| n.allocation_bytes)

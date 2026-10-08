@@ -12,6 +12,7 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('binary',type=Path)
 parser.add_argument('--repetitions',type=int,default=3)
 parser.add_argument('--output',type=Path)
+parser.add_argument('--include-large',action='store_true',help='also measure 65,536 scalar values and 32 changed checkpoint roots')
 args=parser.parse_args()
 if not hasattr(os,'wait4') or args.repetitions<1:parser.error('requires Linux wait4 and positive repetitions')
 binary=args.binary.resolve()
@@ -19,6 +20,7 @@ report={'version':subprocess.check_output([str(binary),'--version'],text=True).s
         'workload':'source-free changed list checkpoint roots; compilation excluded; startup included',
         'variants':{}}
 variants={'small_history':(4096,32),'larger_history':(8192,128)}
+if args.include_large:variants['large_scalar_history']=(65536,32)
 with tempfile.TemporaryDirectory(prefix='rewind-container-benchmark-') as temp:
     root=Path(temp)
     for name,(length,iterations) in variants.items():

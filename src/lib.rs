@@ -214,6 +214,38 @@ pub enum Value {
     Null,
 }
 
+/// Borrowed, bounded mark traversal; identities are scoped to one collection.
+pub(crate) struct HeapTraversal<'a> {
+    pending: Vec<&'a Value>,
+    seen: HashSet<usize>,
+    work: usize,
+    limit: usize,
+}
+impl<'a> HeapTraversal<'a> {
+    fn failure() -> Error {
+        Error::InvalidOperation("NativeWorkBudgetExceeded: heap collection".into())
+    }
+    pub(crate) fn charge(&mut self, units: usize) -> Result<()> {
+        let next = self.work.checked_add(units).ok_or_else(Self::failure)?;
+        if next > self.limit || self.pending.len() > self.limit - next {
+            return Err(Self::failure());
+        }
+        self.work = next;
+        Ok(())
+    }
+    pub(crate) fn visit(&mut self, identity: usize) -> Result<bool> {
+        self.charge(1)?;
+        Ok(self.seen.insert(identity))
+    }
+    pub(crate) fn push(&mut self, value: &'a Value) -> Result<()> {
+        if self.pending.len() >= self.limit.saturating_sub(self.work) {
+            return Err(Self::failure());
+        }
+        self.pending.push(value);
+        Ok(())
+    }
+}
+
 mod value_map_pairs {
     use super::*;
     use serde::{Deserialize, Serialize};
@@ -861,6 +893,7 @@ pub struct Runtime {
     allocation_bytes_since_gc: usize,
     native_remaining: Option<usize>,
     allocation_accounting: bool,
+    cached_heap_traversal: bool,
     numeric_accounting: Option<numeric::Accounting>,
     numeric_checked_generation: std::cell::Cell<usize>,
     numeric_gc_start: usize,
@@ -1258,6 +1291,29 @@ impl Runtime {
         let result = self.enforce_budget();
         self.external_memory_bytes = previous;
         result
+    }
+    /// Skip persistent subtrees without heap edges; retain bounded mark/sweep.
+    pub fn enable_cached_heap_traversal(&mut self) {
+        self.cached_heap_traversal = true;
+    }
+    pub(crate) fn contains_heap_refs(value: &Value) -> bool {
+        match value {
+            Value::HeapRef(_) | Value::CellRef(_) => true,
+            Value::TypedList(_, v) => v.has_heap_refs(),
+            Value::Map(v) | Value::TypedMap(_, _, v) => v.has_heap_refs(),
+            Value::List(v) => v.iter().any(Self::contains_heap_refs),
+            Value::OrderedMap(_, _, v) => v
+                .iter()
+                .any(|(k, v)| Self::contains_heap_refs(k) || Self::contains_heap_refs(v)),
+            Value::Struct(_, v) | Value::Closure(_, _, v) => {
+                v.values().any(Self::contains_heap_refs)
+            }
+            Value::Enum(_, _, v) => v.iter().any(|(_, v)| Self::contains_heap_refs(v)),
+            Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                Self::contains_heap_refs(v)
+            }
+            _ => false,
+        }
     }
     pub fn enable_allocation_accounting(&mut self) {
         self.allocation_accounting = true;
@@ -1715,6 +1771,7 @@ impl Runtime {
             allocation_bytes_since_gc: 0,
             native_remaining: None,
             allocation_accounting: false,
+            cached_heap_traversal: false,
             numeric_accounting: None,
             numeric_checked_generation: std::cell::Cell::new(0),
             numeric_gc_start: 0,
@@ -2423,6 +2480,10 @@ impl Runtime {
         let work_limit = self
             .native_remaining
             .map_or(work_limit, |n| n.min(work_limit));
+        if self.cached_heap_traversal {
+            let (live, work) = self.trace_heap_cached(external_roots, work_limit)?;
+            return self.sweep_heap(live, work);
+        }
         let mut live = BTreeSet::new();
         let mut pending = self
             .state
@@ -2510,6 +2571,78 @@ impl Runtime {
                 "NativeWorkBudgetExceeded: heap collection".into(),
             ));
         }
+        self.sweep_heap(live, work)
+    }
+    fn trace_heap_cached(
+        &self,
+        external_roots: &[&Value],
+        limit: usize,
+    ) -> Result<(BTreeSet<u64>, usize)> {
+        let mut gc = HeapTraversal {
+            pending: Vec::new(),
+            seen: HashSet::new(),
+            work: 0,
+            limit,
+        };
+        for value in self
+            .state
+            .globals
+            .values()
+            .chain(self.state.stack.iter())
+            .chain(
+                self.state
+                    .call_frames
+                    .iter()
+                    .flat_map(|f| f.locals.values()),
+            )
+            .chain(external_roots.iter().copied())
+        {
+            gc.push(value)?;
+        }
+        let mut live = BTreeSet::new();
+        while let Some(value) = gc.pending.pop() {
+            gc.charge(1)?;
+            match value {
+                Value::HeapRef(id) | Value::CellRef(id) => {
+                    if live.insert(*id) {
+                        if let Some(v) = self.state.heap.get(id) {
+                            gc.push(v)?;
+                        }
+                    }
+                }
+                Value::TypedList(_, v) => v.trace_heap_refs(&mut gc)?,
+                Value::Map(v) | Value::TypedMap(_, _, v) => v.trace_heap_refs(&mut gc)?,
+                Value::List(v) => {
+                    for v in v {
+                        gc.push(v)?;
+                    }
+                }
+                Value::OrderedMap(_, _, v) => {
+                    for (k, v) in v {
+                        gc.push(k)?;
+                        gc.push(v)?;
+                    }
+                }
+                Value::Struct(_, v) | Value::Closure(_, _, v) => {
+                    for v in v.values() {
+                        gc.push(v)?;
+                    }
+                }
+                Value::Enum(_, _, v) => {
+                    for (_, v) in v {
+                        gc.push(v)?;
+                    }
+                }
+                Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                    gc.push(v)?
+                }
+                _ => {}
+            }
+        }
+        gc.charge(self.state.heap.len())?;
+        Ok((live, gc.work))
+    }
+    fn sweep_heap(&mut self, live: BTreeSet<u64>, work: usize) -> Result<(usize, usize)> {
         self.charge_native_work(work)?;
         let dead = self
             .state

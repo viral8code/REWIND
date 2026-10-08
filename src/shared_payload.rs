@@ -51,6 +51,9 @@ impl Accounting {
             ..Ledger::default()
         }))
     }
+    pub fn identity(&self) -> usize {
+        self.0.id
+    }
     pub fn includes_containers(&self) -> bool {
         self.0.includes_containers
     }

@@ -616,3 +616,7 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 ## 共有コンテナのメモリ計上（1.9.45）
 
 永続 List・Map・heap の内部ノード、entry、値・キーの所有元を Runtime ごとに一度計上する。checkpoint 間で共有する部分は重複計上せず、変更部分と独立した所有元は別に計上する。`shared_payloads` は共有 payload とこれらの native 管理情報の予約量を含む。値・キーの弱参照索引は GC・profile・メモリ上限の判定時に整理し、ノードは最後の参照が消えると計上を取り消す。[契約と対象範囲](REWIND_v1.9.45.md)を参照する。
+
+## 永続コンテナの GC（1.9.46）
+
+永続 List／Map のノードは heap 参照の有無を保持し、GC は参照を含まない部分を省略する。同じ GC で共有ノードを重複して探索しない。捕捉された CellRef と入れ子の値を追跡し、参照先は毎回現在の heap から調べる。checkpoint の heap は独立して保持する。探索と sweep は native work の上限に従い、失敗時は heap の削除を行わない。過去の言語版は従来の探索費用を維持する。[契約](REWIND_v1.9.46.md)を参照する。
