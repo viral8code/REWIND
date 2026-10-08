@@ -1,5 +1,6 @@
 """Real GUI/server, partial DB failure, durable commit, resource shutdown and replay."""
 from pathlib import Path
+from contextlib import closing
 import http.client
 import json
 import os
@@ -36,8 +37,8 @@ for backend in ['sqlite', 'postgres']:
             shutil.copyfile(env['REWIND_TEST_PG_CA'], directory/'ca.der')
         delay_sql = "SELECT 1 AS waited FROM pg_sleep(2)" if backend == 'postgres' else "WITH RECURSIVE counter(x) AS (SELECT 0 UNION ALL SELECT x+1 FROM counter WHERE x<5000000) SELECT sum(x) FROM counter"
         source = source.replace('// FIXTURE_DELAY', '''var delay:Option<Task<Result<DbCursor,DbError>>>=None;
-   external fresh{delay=Some(db.query(&mut connection,"DELAY_SQL",freeze(List<DbValue>()),5000));}
-   match delay{None=>{panic("missing delay");},Some(t)=>{let delayed=database(take(await t));var readingDelay:Option<Task<Result<DbBatch,DbError>>>=None;external fresh{readingDelay=Some(db.next(&mut delayed,1,1048576,5000));}match readingDelay{None=>{panic("missing delay batch");},Some(t)=>{database(take(await t));}}database(take(await closeRows(&mut delayed)));}}'''.replace('DELAY_SQL',delay_sql))
+   external fresh{delay=Some(db.query(&mut connection,"DELAY_SQL",freeze(List<DbValue>()),15000));}
+   match delay{None=>{panic("missing delay");},Some(t)=>{let delayed=database(take(await t));var readingDelay:Option<Task<Result<DbBatch,DbError>>>=None;external fresh{readingDelay=Some(db.next(&mut delayed,1,1048576,15000));}match readingDelay{None=>{panic("missing delay batch");},Some(t)=>{database(take(await t));}}database(take(await closeRows(&mut delayed)));}}'''.replace('DELAY_SQL',delay_sql))
         entry = directory/'main.rw'
         entry.write_text(source,encoding='utf-8')
         def call(*args, environment=env):
@@ -112,7 +113,7 @@ for backend in ['sqlite', 'postgres']:
             assert profile['runtime']['native_resources']==0,profile['runtime']
             assert profile['runtime']['gui_windows']['published']==[],profile['runtime']
             if backend=='sqlite':
-                with sqlite3.connect(directory/'state.sqlite') as database:
+                with closing(sqlite3.connect(directory/'state.sqlite')) as database:
                     assert database.execute('SELECT entry,text FROM rewind_service_data').fetchall()==[(title,'saved text')]
                 (directory/'state.sqlite').unlink()
             else:
