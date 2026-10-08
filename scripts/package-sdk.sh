@@ -138,6 +138,7 @@ python3 scripts/smoke-http-pool-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/ht
 python3 scripts/smoke-text-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/text-storage"
 python3 scripts/smoke-text-admission-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/text-admission"
 python3 scripts/smoke-bytes-admission-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/bytes-admission"
+python3 scripts/smoke-container-admission-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/container-admission"
 python3 scripts/smoke-numeric-digests-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric-digests"
 python3 scripts/smoke-http-stream-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-stream"
 python3 scripts/smoke-numeric-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric"

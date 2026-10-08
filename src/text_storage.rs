@@ -29,6 +29,13 @@ impl Clone for SharedText {
 #[derive(Clone)]
 pub struct Text(Storage);
 impl Text {
+    pub(crate) fn owned_capacity_extra(&self) -> usize {
+        match &self.0 {
+            Storage::Owned(s) => s.capacity().saturating_sub(s.len()),
+            Storage::Shared(_) => 0,
+        }
+    }
+
     /// Work needed to clone the payload, excluding the Value/frame metadata.
     pub fn clone_work(&self) -> usize {
         match &self.0 {

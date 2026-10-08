@@ -10,6 +10,7 @@ struct Entry {
     numeric_bytes: usize,
     shared_bytes: usize,
     byte_payload: (usize, usize),
+    registered: crate::shared_payload::Registration,
 }
 impl Entry {
     fn new(key: Arc<MapKey>, value: Arc<Value>) -> Arc<Self> {
@@ -43,6 +44,7 @@ impl Entry {
             numeric_bytes,
             shared_bytes,
             byte_payload,
+            registered: Default::default(),
         })
     }
 }
@@ -248,13 +250,46 @@ impl PersistentMap {
     }
     pub(crate) fn register_shared_payloads(&self, accounting: &crate::shared_payload::Accounting) {
         fn visit(node: &Node, accounting: &crate::shared_payload::Accounting) {
-            if (node.shared_bytes == 0
+            if (!accounting.includes_containers()
+                && node.shared_bytes == 0
                 && (!accounting.includes_bytes() || node.byte_payload.1 == 0))
-                || !node.shared_registered.register(accounting, 0)
+                || !node.shared_registered.register(
+                    accounting,
+                    if accounting.includes_containers() {
+                        std::mem::size_of::<Node>() + 256
+                    } else {
+                        0
+                    },
+                )
             {
                 return;
             }
-            Runtime::register_shared_value(&node.entry.value, accounting);
+            if accounting.includes_containers() {
+                if node
+                    .entry
+                    .registered
+                    .register(accounting, std::mem::size_of::<Entry>() + 128)
+                {
+                    accounting.register_key(&node.entry.key, || {
+                        let payload = match node.entry.key.as_ref() {
+                            MapKey::Text(s) => s.capacity(),
+                            MapKey::Bytes(b) => b.capacity(),
+                            MapKey::Instant(_) | MapKey::Duration(_) => 16,
+                            MapKey::Regex(v) => v.retained_bytes(),
+                            MapKey::BigInt(v) => v.retained_bytes(),
+                            MapKey::Decimal(v) => v.retained_bytes(),
+                            MapKey::Bool(_) => 1,
+                            _ => 8,
+                        };
+                        payload
+                            .saturating_add(std::mem::size_of::<MapKey>())
+                            .saturating_add(128)
+                    });
+                    Runtime::register_owned_value(&node.entry.value, accounting);
+                }
+            } else {
+                Runtime::register_shared_value(&node.entry.value, accounting);
+            }
             for child in [&node.left, &node.right].into_iter().flatten() {
                 visit(child, accounting);
             }
@@ -486,5 +521,26 @@ mod tests {
         drop(saved);
         ledger.prune_bytes();
         assert_eq!(ledger.bytes(), 0);
+    }
+    #[test]
+    fn scalar_map_rotations_share_entries_keys_and_values_across_snapshots() {
+        let a = crate::shared_payload::Accounting::with_containers();
+        let mut map = PersistentMap::default();
+        for i in 0..8192 {
+            map.insert(MapKey::Int(i), Value::Int(i));
+        }
+        map.register_shared_payloads(&a);
+        let visits = a.visits();
+        let bytes = a.bytes();
+        let saved = map.clone();
+        map.insert(MapKey::Int(4096), Value::Int(-1));
+        map.register_shared_payloads(&a);
+        assert!(a.visits() - visits < 128);
+        assert!(a.bytes() - bytes < 32768);
+        assert_eq!(saved.get(&MapKey::Int(4096)), Some(&Value::Int(4096)));
+        drop(map);
+        drop(saved);
+        a.prune_bytes();
+        assert_eq!(a.bytes(), 0);
     }
 }

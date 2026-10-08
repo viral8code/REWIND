@@ -1,18 +1,22 @@
 //! Runtime-scoped admission for immutable shared payload owners.
 //! Registrations retain only weak ledger references, never payload owners.
 use std::collections::HashMap;
+type OwnerMap<T> = HashMap<usize, OwnerRecord<T>>;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex, Weak,
 };
 static NEXT: AtomicUsize = AtomicUsize::new(1);
-struct ByteRecord {
-    owner: Weak<Vec<u8>>,
+struct OwnerRecord<T> {
+    owner: Weak<T>,
     charge: usize,
 }
 struct Ledger {
     includes_bytes: bool,
-    byte_owners: Mutex<HashMap<usize, ByteRecord>>,
+    includes_containers: bool,
+    value_owners: Mutex<OwnerMap<crate::Value>>,
+    key_owners: Mutex<OwnerMap<crate::MapKey>>,
+    byte_owners: Mutex<OwnerMap<Vec<u8>>>,
     id: usize,
     bytes: AtomicUsize,
     allocated: AtomicUsize,
@@ -23,7 +27,10 @@ impl Default for Ledger {
     fn default() -> Self {
         Self {
             includes_bytes: false,
-            byte_owners: Mutex::new(HashMap::new()),
+            includes_containers: false,
+            value_owners: Mutex::new(HashMap::default()),
+            key_owners: Mutex::new(HashMap::default()),
+            byte_owners: Mutex::new(HashMap::default()),
             id: NEXT
                 .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| v.checked_add(1))
                 .expect("shared payload ledger ID exhausted"),
@@ -37,6 +44,79 @@ impl Default for Ledger {
 #[derive(Clone, Default)]
 pub(crate) struct Accounting(Arc<Ledger>);
 impl Accounting {
+    pub fn with_containers() -> Self {
+        Self(Arc::new(Ledger {
+            includes_bytes: true,
+            includes_containers: true,
+            ..Ledger::default()
+        }))
+    }
+    pub fn includes_containers(&self) -> bool {
+        self.0.includes_containers
+    }
+    pub fn register_value(
+        &self,
+        value: &Arc<crate::Value>,
+        charge: impl FnOnce() -> usize,
+    ) -> bool {
+        self.register_owner(&self.0.value_owners, value, charge)
+    }
+    pub fn register_key(&self, value: &Arc<crate::MapKey>, charge: impl FnOnce() -> usize) -> bool {
+        self.register_owner(&self.0.key_owners, value, charge)
+    }
+    fn register_owner<T>(
+        &self,
+        index: &Mutex<OwnerMap<T>>,
+        value: &Arc<T>,
+        charge: impl FnOnce() -> usize,
+    ) -> bool {
+        if !self.includes_containers() {
+            return false;
+        }
+        let key = Arc::as_ptr(value) as usize;
+        let owner = Arc::downgrade(value);
+        let mut entries = index.lock().unwrap();
+        if entries
+            .get(&key)
+            .is_some_and(|v| Weak::ptr_eq(&v.owner, &owner))
+        {
+            return false;
+        }
+        if let Some(old) = entries.remove(&key) {
+            self.0.bytes.fetch_sub(old.charge, Ordering::Relaxed);
+        }
+        let charge = charge();
+        entries.insert(key, OwnerRecord { owner, charge });
+        self.0.bytes.fetch_add(charge, Ordering::Relaxed);
+        self.0
+            .allocated
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+                Some(n.saturating_add(charge))
+            })
+            .unwrap();
+        self.0.generation.fetch_add(1, Ordering::Relaxed);
+        self.0.visits.fetch_add(1, Ordering::Relaxed);
+        true
+    }
+    fn prune_index<T>(&self, index: &Mutex<OwnerMap<T>>) -> usize {
+        let mut entries = index.lock().unwrap();
+        let mut removed = 0usize;
+        entries.retain(|_, v| {
+            if v.owner.strong_count() == 0 {
+                removed = removed.saturating_add(v.charge);
+                false
+            } else {
+                true
+            }
+        });
+        if entries.is_empty() || entries.len() < entries.capacity() / 4 {
+            entries.shrink_to_fit();
+        }
+        if removed != 0 {
+            self.0.bytes.fetch_sub(removed, Ordering::Relaxed);
+        }
+        removed
+    }
     pub fn with_bytes() -> Self {
         Self(Arc::new(Ledger {
             includes_bytes: true,
@@ -67,7 +147,7 @@ impl Accounting {
             self.0.bytes.fetch_sub(old.charge, Ordering::Relaxed);
         }
         let charge = value.capacity().saturating_add(256);
-        entries.insert(key, ByteRecord { owner, charge });
+        entries.insert(key, OwnerRecord { owner, charge });
         self.0.bytes.fetch_add(charge, Ordering::Relaxed);
         self.0
             .allocated
@@ -99,7 +179,10 @@ impl Accounting {
         if removed != 0 {
             self.0.bytes.fetch_sub(removed, Ordering::Relaxed);
         }
+        drop(entries);
         removed
+            .saturating_add(self.prune_index(&self.0.value_owners))
+            .saturating_add(self.prune_index(&self.0.key_owners))
     }
 
     pub fn bytes(&self) -> usize {
@@ -245,5 +328,51 @@ mod tests {
         old.register_bytes(&bytes);
         assert_eq!(a.bytes(), 256);
         assert_eq!(old.bytes(), 0);
+    }
+    #[test]
+    fn container_indices_are_lazy_distinct_and_do_not_retain_values_or_keys() {
+        let a = Accounting::with_containers();
+        let b = Accounting::with_containers();
+        let v = Arc::new(crate::Value::Int(7));
+        let k = Arc::new(crate::MapKey::Text("key".into()));
+        let weak = Arc::downgrade(&v);
+        assert!(a.register_value(&v, || 123));
+        assert!(!a.register_value(&v, || panic!("duplicate must not compute charge")));
+        assert!(b.register_value(&v, || 123));
+        assert!(a.register_key(&k, || 456));
+        assert_eq!(a.bytes(), 579);
+        assert_eq!(b.bytes(), 123);
+        drop(v);
+        drop(k);
+        assert!(weak.upgrade().is_none());
+        assert_eq!(a.prune_bytes(), 579);
+        assert_eq!(b.prune_bytes(), 123);
+        assert_eq!(a.bytes(), 0);
+        assert_eq!(a.0.value_owners.lock().unwrap().capacity(), 0);
+        assert_eq!(a.0.key_owners.lock().unwrap().capacity(), 0);
+    }
+    #[test]
+    fn inline_names_short_text_and_unused_vector_capacity_are_admitted() {
+        let a = Accounting::with_containers();
+        let mut name = String::with_capacity(8192);
+        name.push('T');
+        let named = Arc::new(crate::Value::TypedList(
+            name,
+            crate::storage::PagedValues::default(),
+        ));
+        crate::Runtime::register_owned_value(&named, &a);
+        assert!(a.bytes() >= 8192 + std::mem::size_of::<crate::Value>() + 128);
+        let mut text = String::with_capacity(4096);
+        text.push('x');
+        let text = Arc::new(crate::Value::Text(text.into()));
+        crate::Runtime::register_owned_value(&text, &a);
+        let empty = Arc::new(crate::Value::List(Vec::with_capacity(4096)));
+        crate::Runtime::register_owned_value(&empty, &a);
+        assert!(a.bytes() >= 8192 + 4096 + 4096 * std::mem::size_of::<crate::Value>());
+        drop(named);
+        drop(text);
+        drop(empty);
+        a.prune_bytes();
+        assert_eq!(a.bytes(), 0);
     }
 }
