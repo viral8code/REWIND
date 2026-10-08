@@ -565,7 +565,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/text-admission/README.md",
             include_str!("../../../examples/text-admission/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/bytes-admission/main.rw",
+            include_str!("../../../examples/bytes-admission/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/bytes-admission/README.md",
+            include_str!("../../../examples/bytes-admission/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.44.md",
+                include_str!("../../../docs/REWIND_v1.9.44.md"),
+            ),
             (
                 "REWIND_v1.9.43.md",
                 include_str!("../../../docs/REWIND_v1.9.43.md"),
@@ -754,6 +768,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             write(&output, &format!("share/rewind/doc/{name}"), doc)?;
         }
         for (name, doc) in [
+            (
+                "REWIND_v1.9.44.md",
+                include_str!("../../../docs/REWIND_v1.9.44.md"),
+            ),
             (
                 "gui-controls",
                 include_str!("../../../examples/gui-controls/README.md"),

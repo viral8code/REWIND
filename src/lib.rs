@@ -1221,8 +1221,19 @@ impl Runtime {
     pub fn enable_shared_payload_accounting(&mut self) {
         self.shared_accounting.get_or_insert_with(Default::default);
     }
+    pub fn enable_byte_payload_accounting(&mut self) {
+        if !self
+            .shared_accounting
+            .as_ref()
+            .is_some_and(|a| a.includes_bytes())
+        {
+            self.shared_accounting = Some(shared_payload::Accounting::with_bytes());
+            self.shared_gc_start = 0;
+            self.shared_checked_generation.set(0);
+        }
+    }
     pub fn shared_payload_metrics(&self) -> Option<serde_json::Value> {
-        self.shared_accounting.as_ref().map(|a|serde_json::json!({"live_bytes":a.bytes(),"allocated_bytes":a.allocated_bytes(),"registration_visits":a.visits()}))
+        self.shared_accounting.as_ref().map(|a|{a.prune_bytes(); serde_json::json!({"live_bytes":a.bytes(),"allocated_bytes":a.allocated_bytes(),"registration_visits":a.visits()})})
     }
     pub fn check_numeric_accounting(&self) -> Result<()> {
         if self
@@ -1264,6 +1275,9 @@ impl Runtime {
         if let Some(a) = &self.shared_accounting {
             Self::register_shared_value(value, a);
             bytes = bytes.saturating_sub(Self::shared_payload_bytes(value));
+            if a.includes_bytes() {
+                bytes = bytes.saturating_sub(Self::byte_payload_info(value).0);
+            }
         }
         bytes
     }
@@ -1353,9 +1367,39 @@ impl Runtime {
             _ => 0,
         }
     }
+    pub(crate) fn byte_payload_info(value: &Value) -> (usize, usize) {
+        fn add(a: (usize, usize), b: (usize, usize)) -> (usize, usize) {
+            (a.0.saturating_add(b.0), a.1.saturating_add(b.1))
+        }
+        match value {
+            Value::Bytes(bytes) => (bytes.len(), 1),
+            Value::TypedList(_, values) => values.byte_payload_info(),
+            Value::Map(values) | Value::TypedMap(_, _, values) => values.byte_payload_info(),
+            Value::List(values) => values
+                .iter()
+                .fold((0, 0), |n, v| add(n, Self::byte_payload_info(v))),
+            Value::OrderedMap(_, _, values) => values.iter().fold((0, 0), |n, (k, v)| {
+                add(
+                    add(n, Self::byte_payload_info(k)),
+                    Self::byte_payload_info(v),
+                )
+            }),
+            Value::Struct(_, values) | Value::Closure(_, _, values) => values
+                .values()
+                .fold((0, 0), |n, v| add(n, Self::byte_payload_info(v))),
+            Value::Enum(_, _, values) => values
+                .iter()
+                .fold((0, 0), |n, (_, v)| add(n, Self::byte_payload_info(v))),
+            Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                Self::byte_payload_info(v)
+            }
+            _ => (0, 0),
+        }
+    }
     pub(crate) fn register_shared_value(value: &Value, accounting: &shared_payload::Accounting) {
         match value {
             Value::Text(text) => text.register_shared(accounting),
+            Value::Bytes(bytes) => accounting.register_bytes(bytes),
             Value::TypedList(_, values) => values.register_shared_payloads(accounting),
             Value::Map(values) | Value::TypedMap(_, _, values) => {
                 values.register_shared_payloads(accounting)
@@ -1540,7 +1584,7 @@ impl Runtime {
     }
     /// Runtime-scoped live storage vs cumulative allocations; neither is VM state.
     pub fn numeric_metrics(&self) -> Option<serde_json::Value> {
-        self.numeric_accounting.as_ref().map(|a|serde_json::json!({"live_bytes":a.bytes(),"allocated_bytes":a.allocated_bytes(),"registration_visits":a.visits()}))
+        self.numeric_accounting.as_ref().map(|a|{serde_json::json!({"live_bytes":a.bytes(),"allocated_bytes":a.allocated_bytes(),"registration_visits":a.visits()})})
     }
     pub fn storage_metrics(&self) -> (usize, usize, usize) {
         let (nodes, slots) = storage::storage_work();
@@ -1823,6 +1867,9 @@ impl Runtime {
                 if let Some(a) = &self.shared_accounting {
                     state.heap.register_shared_payloads(a);
                     bytes = bytes.saturating_sub(state.heap.shared_bytes());
+                    if a.includes_bytes() {
+                        bytes = bytes.saturating_sub(state.heap.byte_payload_info().0);
+                    }
                 }
                 compute_memory = compute_memory.saturating_add(bytes);
             }
@@ -1981,6 +2028,11 @@ impl Runtime {
                         .saturating_mul(frame.height as usize)
                         .saturating_mul(4),
                 );
+        }
+        if compute_memory > self.budget.history_memory {
+            if let Some(a) = &self.shared_accounting {
+                compute_memory = compute_memory.saturating_sub(a.prune_bytes());
+            }
         }
         if compute_memory > self.budget.history_memory {
             self.history_budget_kind.set("HistoryMemory");
@@ -2316,6 +2368,10 @@ impl Runtime {
             self.state.heap = previous;
             return Err(error);
         }
+        drop(previous);
+        if let Some(a) = &self.shared_accounting {
+            a.prune_bytes();
+        }
         self.allocations_since_gc = 0;
         self.allocation_bytes_since_gc = 0;
         self.numeric_gc_start = self
@@ -2334,8 +2390,11 @@ impl Runtime {
         } else {
             Self::value_bytes(&value)
         };
-        if self.shared_accounting.is_some() {
+        if let Some(a) = &self.shared_accounting {
             bytes = bytes.saturating_sub(Self::shared_payload_bytes(&value));
+            if a.includes_bytes() {
+                bytes = bytes.saturating_sub(Self::byte_payload_info(&value).0);
+            }
         }
         let id = self.state.next_heap_id;
         let previous = self.state.heap.clone();
@@ -2358,8 +2417,11 @@ impl Runtime {
             if self.numeric_accounting.is_some() {
                 total = total.saturating_sub(Self::numeric_payload_bytes(value));
             }
-            if self.shared_accounting.is_some() {
+            if let Some(a) = &self.shared_accounting {
                 total = total.saturating_sub(Self::shared_payload_bytes(value));
+                if a.includes_bytes() {
+                    total = total.saturating_sub(Self::byte_payload_info(value).0);
+                }
             }
             total
         };
