@@ -67,7 +67,36 @@ union XEvent {
     button: Button,
     configure: Configure,
     client: Client,
+    selection_request: SelectionRequest,
+    selection: Selection,
     pad: [c_long; 24],
+}
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct SelectionRequest {
+    kind: c_int,
+    serial: c_ulong,
+    send: c_int,
+    display: *mut c_void,
+    owner: Window,
+    requestor: Window,
+    selection: c_ulong,
+    target: c_ulong,
+    property: c_ulong,
+    time: c_ulong,
+}
+#[derive(Clone, Copy)]
+#[repr(C)]
+struct Selection {
+    kind: c_int,
+    serial: c_ulong,
+    send: c_int,
+    display: *mut c_void,
+    requestor: Window,
+    selection: c_ulong,
+    target: c_ulong,
+    property: c_ulong,
+    time: c_ulong,
 }
 struct Library(*mut c_void);
 impl Drop for Library {
@@ -108,6 +137,12 @@ fn XDestroyWindow(*mut c_void,Window)->c_int;
 fn XSetClipRectangles(*mut c_void,*mut c_void,c_int,c_int,*mut Rectangle,c_int,c_int)->c_int;
 fn XSetClipMask(*mut c_void,*mut c_void,c_ulong)->c_int;
 fn XChangeProperty(*mut c_void,Window,c_ulong,c_ulong,c_int,c_int,*const u8,c_int)->c_int;
+fn XSetSelectionOwner(*mut c_void,c_ulong,Window,c_ulong)->c_int;
+fn XGetSelectionOwner(*mut c_void,c_ulong)->Window;
+fn XConvertSelection(*mut c_void,c_ulong,c_ulong,c_ulong,Window,c_ulong)->c_int;
+fn XGetWindowProperty(*mut c_void,Window,c_ulong,c_long,c_long,c_int,c_ulong,*mut c_ulong,*mut c_int,*mut c_ulong,*mut c_ulong,*mut *mut u8)->c_int;
+fn XFree(*mut c_void)->c_int;
+fn XDeleteProperty(*mut c_void,Window,c_ulong)->c_int;
 fn XStoreName(*mut c_void,Window,*const c_char)->c_int;
 fn XResizeWindow(*mut c_void,Window,c_uint,c_uint)->c_int;
 fn XSelectInput(*mut c_void,Window,c_long)->c_int;
@@ -140,8 +175,27 @@ pub(super) struct Surface {
     frame: Option<Frame>,
     im: *mut c_void,
     ic: *mut c_void,
+    clipboard_enabled: bool,
+    clipboard_text: Option<String>,
+    clipboard_pending: Option<(String, c_ulong, std::time::Instant, c_ulong)>,
 }
 impl Surface {
+    #[cfg(test)]
+    pub fn inject_clipboard_key(&mut self, key: u8) {
+        unsafe {
+            let mut event: XEvent = std::mem::zeroed();
+            event.button.kind = 2;
+            event.button.display = self.display;
+            event.button.window = self.window;
+            event.button.state = 4;
+            event.button.button =
+                (self.api.XKeysymToKeycode)(self.display, key.to_ascii_lowercase() as c_ulong)
+                    as u32;
+            event.button.same = 1;
+            (self.api.XSendEvent)(self.display, self.window, 0, 1, &mut event);
+            (self.api.XFlush)(self.display);
+        }
+    }
     pub fn new() -> io::Result<Self> {
         let _setup = SETUP.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
@@ -199,7 +253,144 @@ impl Surface {
                 frame: None,
                 im,
                 ic: std::ptr::null_mut(),
+                clipboard_enabled: false,
+                clipboard_text: None,
+                clipboard_pending: None,
             })
+        }
+    }
+    pub fn configure_clipboard(&mut self, enabled: bool) {
+        self.clipboard_enabled = enabled;
+    }
+    unsafe fn clipboard_atom(&self, name: &std::ffi::CStr) -> c_ulong {
+        unsafe { (self.api.XInternAtom)(self.display, name.as_ptr(), 0) }
+    }
+    unsafe fn answer_selection(&self, request: SelectionRequest) {
+        unsafe {
+            let clipboard = self.clipboard_atom(c"CLIPBOARD");
+            let utf8 = self.clipboard_atom(c"UTF8_STRING");
+            let targets = self.clipboard_atom(c"TARGETS");
+            let property = if request.property == 0 {
+                request.target
+            } else {
+                request.property
+            };
+            let mut accepted = false;
+            if request.selection == clipboard && request.owner == self.window {
+                if let Some(text) = &self.clipboard_text {
+                    if request.target == targets {
+                        let supported = [targets, utf8];
+                        (self.api.XChangeProperty)(
+                            self.display,
+                            request.requestor,
+                            property,
+                            4,
+                            32,
+                            0,
+                            supported.as_ptr().cast(),
+                            supported.len() as c_int,
+                        );
+                        accepted = true;
+                    } else if request.target == utf8 {
+                        (self.api.XChangeProperty)(
+                            self.display,
+                            request.requestor,
+                            property,
+                            utf8,
+                            8,
+                            0,
+                            text.as_ptr(),
+                            text.len() as c_int,
+                        );
+                        accepted = true;
+                    }
+                }
+            }
+            let mut reply = XEvent {
+                selection: Selection {
+                    kind: 31,
+                    serial: 0,
+                    send: 1,
+                    display: self.display,
+                    requestor: request.requestor,
+                    selection: request.selection,
+                    target: request.target,
+                    property: if accepted { property } else { 0 },
+                    time: request.time,
+                },
+            };
+            (self.api.XSendEvent)(self.display, request.requestor, 0, 0, &mut reply);
+            (self.api.XFlush)(self.display);
+        }
+    }
+    unsafe fn receive_selection(&mut self, selection: Selection) -> Option<Event> {
+        unsafe {
+            let utf8 = self.clipboard_atom(c"UTF8_STRING");
+            if selection.requestor != self.window
+                || selection.selection != self.clipboard_atom(c"CLIPBOARD")
+                || selection.target != utf8
+            {
+                return None;
+            }
+            let (_, property, _, time) = self.clipboard_pending.as_ref()?;
+            if selection.time != *time {
+                return None;
+            }
+            let property = *property;
+            if selection.property != 0 && selection.property != property {
+                return None;
+            }
+            let (focused, _, deadline, _) = self.clipboard_pending.take()?;
+            if selection.property == 0 || std::time::Instant::now() > deadline {
+                return None;
+            }
+            let mut actual_type = 0;
+            let mut format = 0;
+            let mut count = 0;
+            let mut remaining = 0;
+            let mut data = std::ptr::null_mut();
+            let status = (self.api.XGetWindowProperty)(
+                self.display,
+                self.window,
+                property,
+                0,
+                1025,
+                1,
+                utf8,
+                &mut actual_type,
+                &mut format,
+                &mut count,
+                &mut remaining,
+                &mut data,
+            );
+            let result = if status == 0
+                && actual_type == utf8
+                && format == 8
+                && remaining == 0
+                && count <= clipboard::MAX_TEXT_BYTES as c_ulong
+                && !data.is_null()
+            {
+                std::str::from_utf8(std::slice::from_raw_parts(data, count as usize))
+                    .ok()
+                    .map(str::to_owned)
+                    .and_then(clipboard::text_event)
+            } else {
+                None
+            };
+            if !data.is_null() {
+                (self.api.XFree)(data.cast());
+            }
+            (self.api.XDeleteProperty)(self.display, self.window, property);
+            if self
+                .frame
+                .as_ref()
+                .and_then(clipboard::focused_input)
+                .is_some_and(|item| item.id == focused)
+            {
+                result
+            } else {
+                None
+            }
         }
     }
     pub fn present(&mut self, frame: &Frame) -> io::Result<()> {
@@ -443,6 +634,17 @@ impl Surface {
                     continue;
                 }
                 match e.kind {
+                    29 if self.clipboard_enabled => {
+                        self.clipboard_text = None;
+                    }
+                    30 if self.clipboard_enabled => {
+                        self.answer_selection(e.selection_request);
+                    }
+                    31 if self.clipboard_enabled => {
+                        if let Some(event) = self.receive_selection(e.selection) {
+                            return Ok(Some(event));
+                        }
+                    }
                     12 => {
                         self.paint();
                         (self.api.XFlush)(self.display);
@@ -465,6 +667,81 @@ impl Surface {
                         let mut b = e.button;
                         let key =
                             (self.api.XLookupKeysym)(&mut b, if b.state & 1 != 0 { 1 } else { 0 });
+                        if self.clipboard_enabled
+                            && b.state & 4 != 0
+                            && matches!(key, 0x63 | 0x43 | 0x76 | 0x56 | 0x78 | 0x58)
+                        {
+                            let focused = self
+                                .frame
+                                .as_ref()
+                                .and_then(clipboard::focused_input)
+                                .map(|item| item.id.clone());
+                            if let Some(focused) = focused {
+                                let atom = self.clipboard_atom(c"CLIPBOARD");
+                                if matches!(key, 0x76 | 0x56) {
+                                    if (self.api.XGetSelectionOwner)(self.display, atom)
+                                        == self.window
+                                    {
+                                        if let Some(event) = self
+                                            .clipboard_text
+                                            .clone()
+                                            .and_then(clipboard::text_event)
+                                        {
+                                            return Ok(Some(event));
+                                        }
+                                    } else {
+                                        if self.clipboard_pending.as_ref().is_some_and(
+                                            |(_, _, deadline, _)| {
+                                                std::time::Instant::now() > *deadline
+                                            },
+                                        ) {
+                                            self.clipboard_pending = None;
+                                        }
+                                        if self.clipboard_pending.is_some() {
+                                            continue;
+                                        }
+                                        let property =
+                                            self.clipboard_atom(c"REWIND_CLIPBOARD_TEXT");
+                                        self.clipboard_pending = Some((
+                                            focused,
+                                            property,
+                                            std::time::Instant::now()
+                                                + std::time::Duration::from_secs(2),
+                                            b.time,
+                                        ));
+                                        (self.api.XConvertSelection)(
+                                            self.display,
+                                            atom,
+                                            self.clipboard_atom(c"UTF8_STRING"),
+                                            property,
+                                            self.window,
+                                            b.time,
+                                        );
+                                        (self.api.XFlush)(self.display);
+                                    }
+                                } else if let Some(text) =
+                                    self.frame.as_ref().and_then(clipboard::selected_text)
+                                {
+                                    self.clipboard_text = Some(text);
+                                    (self.api.XSetSelectionOwner)(
+                                        self.display,
+                                        atom,
+                                        self.window,
+                                        b.time,
+                                    );
+                                    (self.api.XFlush)(self.display);
+                                    if matches!(key, 0x78 | 0x58)
+                                        && (self.api.XGetSelectionOwner)(self.display, atom)
+                                            == self.window
+                                    {
+                                        let mut event = Event::simple("key");
+                                        event.key = "Delete".into();
+                                        return Ok(Some(event));
+                                    }
+                                }
+                            }
+                            continue;
+                        }
                         if !self.ic.is_null()
                             && b.state & 4 == 0
                             && key != 0x20

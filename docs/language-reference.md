@@ -632,3 +632,5 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 `std.training` composes native autodiff and optimizers with sample-weighted batch means and global-norm clipping. These APIs are synchronous; their contracts are in [v1.9.50](REWIND_v1.9.50.md).
 
 Selected language 1.9.51 admits execution-wide sensitive text patterns and shared binary owners in the memory budget. Redaction roots survive revert/begin/GC; see [the contract](REWIND_v1.9.51.md).
+
+GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl+C / Ctrl+V / Ctrl+X で利用できます。コピー元は公開した scene の選択範囲です。貼り付けは記録される text 入力であり、編集 model は revert の対象ですが、OS のクリップボードは対象外です。Windows / Linux の形式・容量・寿命は [v1.9.52](REWIND_v1.9.52.md) を参照してください。

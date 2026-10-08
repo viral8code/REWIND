@@ -1,0 +1,34 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {Ok(result)=>{return move result;},Err(_)=>{panic("GUI operation failed");}}
+}
+fn textInput()->windows.WindowEvent effects {gui} {
+ while true {let input=take(windows.nextEventAny());if input.event.kind=="text"{return input;}if input.event.kind=="close"{panic("window closed");}}
+ panic("unreachable");
+}
+let args=Args.all();
+var title="REWIND clipboard";if args.len()>0{title=args.get(0);}
+let original="界🙂clipboard";
+let left=take(gui.window(title+" copy",320,160));
+let right=take(gui.window(title+" paste",320,160));
+take(gui.textBox(&mut left,"text",original,10,10,280,36));
+take(gui.textBox(&mut right,"text","",10,10,280,36));
+take(gui.focus(&mut left,"text"));take(gui.focus(&mut right,"text"));
+take(gui.setSelection(&mut left,"text",0,11));
+take(windows.present("copy",&left));take(windows.present("paste",&right));
+Out.println("ready");publish;
+commit editing;
+let first=textInput();assert_eq(first.window,"paste");
+gui.dispatch(&mut right,first.event);
+assert_eq(gui.text(&right,"text"),Ok(original));
+Out.println(original);publish;
+revert editing;windows.continueInput();
+assert_eq(gui.text(&right,"text"),Ok(""));
+take(windows.present("paste",&right));Out.println("undo");publish;
+let second=textInput();assert_eq(second.window,"paste");
+gui.dispatch(&mut right,second.event);
+assert_eq(gui.text(&right,"text"),Ok(original));
+Out.println(original);publish;
+drop editing;
+take(windows.close("copy"));take(windows.close("paste"));publish;

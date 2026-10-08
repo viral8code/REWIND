@@ -109,10 +109,13 @@ impl Runtime {
             && self.gui_scripted.is_none()
             && self.gui_host.is_none()
         {
-            self.gui_host = Some(
-                Host::prepare()
-                    .map_err(|e| Error::InvalidOperation(format!("GuiUnavailable: {e}")))?,
-            );
+            if self.gui_clipboard_enabled {
+                self.check_native_allocation(super::clipboard::HOST_RESERVATION)?;
+            }
+            let mut host = Host::prepare()
+                .map_err(|e| Error::InvalidOperation(format!("GuiUnavailable: {e}")))?;
+            host.configure_clipboard(self.gui_clipboard_enabled);
+            self.gui_host = Some(host);
         }
         Ok(())
     }

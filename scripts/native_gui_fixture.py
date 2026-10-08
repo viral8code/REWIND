@@ -4,7 +4,12 @@ import ctypes.util
 import sys
 import time
 
-def click(title, px=20, py=20, timeout=10):
+def ctrl_key(title, key, timeout=10):
+    if key not in ('C', 'V', 'X'):
+        raise ValueError('Unsupported clipboard test key')
+    click(title, timeout=timeout, _key=key)
+
+def click(title, px=20, py=20, timeout=10, _key=None):
     deadline = time.monotonic() + timeout
     if sys.platform == "win32":
         api = C.WinDLL("user32", use_last_error=True)
@@ -15,6 +20,16 @@ def click(title, px=20, py=20, timeout=10):
         while time.monotonic() < deadline:
             window = api.FindWindowW(None, title)
             if window:
+                if _key:
+                    api.SetForegroundWindow.argtypes = [C.c_void_p]
+                    api.keybd_event.argtypes = [C.c_ubyte, C.c_ubyte, C.c_uint, C.c_size_t]
+                    api.SetForegroundWindow(window)
+                    api.keybd_event(0x11, 0, 0, 0)
+                    api.keybd_event(ord(_key), 0, 0, 0)
+                    time.sleep(.05)
+                    api.keybd_event(ord(_key), 0, 2, 0)
+                    api.keybd_event(0x11, 0, 2, 0)
+                    return
                 assert api.PostMessageW(window, 0x201, 1, px | (py << 16))
                 assert api.PostMessageW(window, 0x202, 0, px | (py << 16))
                 return
@@ -28,6 +43,8 @@ def click(title, px=20, py=20, timeout=10):
         x.XFree.argtypes = [C.c_void_p]
         x.XCloseDisplay.argtypes = [C.c_void_p]
         x.XFlush.argtypes = [C.c_void_p]
+        x.XKeysymToKeycode.argtypes = [C.c_void_p, C.c_ulong]
+        x.XKeysymToKeycode.restype = C.c_ubyte
         class Button(C.Structure):
             _fields_ = [("type",C.c_int),("serial",C.c_ulong),("send_event",C.c_int),("display",C.c_void_p),("window",C.c_ulong),("root",C.c_ulong),("subwindow",C.c_ulong),("time",C.c_ulong),("x",C.c_int),("y",C.c_int),("x_root",C.c_int),("y_root",C.c_int),("state",C.c_uint),("button",C.c_uint),("same_screen",C.c_int)]
         class Event(C.Union):
@@ -57,7 +74,11 @@ def click(title, px=20, py=20, timeout=10):
                 window=find(root_window)
                 if window:
                     event=Event();event.button=Button(4,0,1,display,window,root_window,0,0,px,py,px,py,0,1,1)
-                    assert x.XSendEvent(display,window,0,1<<2,C.byref(event))
+                    if _key:
+                        event.button.type = 2
+                        event.button.state = 4
+                        event.button.button = x.XKeysymToKeycode(display, ord(_key.lower()))
+                    assert x.XSendEvent(display,window,0,1 if _key else 1<<2,C.byref(event))
                     x.XFlush(display)
                     return
                 time.sleep(.01)

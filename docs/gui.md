@@ -91,3 +91,17 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 ## フォームと表
 
 1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。
+
+## Native clipboard (selected language 1.9.52)
+
+Enabled, focused textboxes and textareas support Ctrl+C / Ctrl+V / Ctrl+X.
+Copy uses the selection in the published scene. Paste is ordinary recorded text
+input and the view can be restored with revert. OS clipboard state remains
+external; replay never reads or writes it. Use continueInput after reverting if
+you want subsequent input rather than previous observations.
+
+Windows uses Unicode clipboard text and Linux uses X11 CLIPBOARD UTF8_STRING.
+Only valid, NUL-free text of at most 4096 UTF-8 bytes is accepted. X11 transfers
+are asynchronous with a two-second reply deadline; unsupported formats and
+failed transfers cause no edit. X11 copy ownership expires when the window
+closes. See [v1.9.52](REWIND_v1.9.52.md) and the shipped gui-clipboard example.
