@@ -1,0 +1,19 @@
+import std.numeric as numeric;
+import std.autodiff as ad;
+fn take<T>(r:Result<T,StdError>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(e)=>{panic(e.code);}}}
+let shape=List<Int>();shape.add(513);
+var array=take(numeric.zerosFloat(&shape));
+let index=List<Int>();index.add(256);
+var tape=ad.create();let original=take(ad.parameter(&mut tape,"original",array));
+var number=0.0;
+commit cached;
+for i in 0..128{array=take(numeric.withFloat(&array,&index,number));number+=1.0;}
+let changed=take(ad.parameter(&mut tape,"changed",array));
+let oldValue=take(ad.value(&tape,original));assert_eq(take(numeric.getFloat(&oldValue,&index)),0.0);
+let current=take(ad.value(&tape,changed));assert_eq(take(numeric.getFloat(&current,&index)),127.0);
+Out.println(127);publish;
+revert cached;
+assert_eq(take(numeric.getFloat(&array,&index)),0.0);
+let restored=take(ad.value(&tape,original));assert_eq(take(numeric.getFloat(&restored,&index)),0.0);
+drop cached;
+Out.println(0);publish;

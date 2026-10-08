@@ -930,7 +930,9 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             _ => 1,
         }
     } else if name == "TensorKey" {
-        1024
+        // Trace/debug formatting may warm the digest cache. Admission must not
+        // depend on that cache, or debug and compact replay could diverge.
+        a(4).map_or(1024, Array::storage_digest_work)
     } else if name == "Activation" {
         length(1).saturating_mul(64).saturating_add(64)
     } else if name == "SumToShape" {

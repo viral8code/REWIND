@@ -95,7 +95,8 @@ fn old_language_work_name_remains_user_defined_and_new_work_is_opaque() {
 
 #[test]
 fn cancelled_sparse_loops_release_pages_and_task_quota_metadata() {
-    for count in [128, 512] {
+    let mut input_bytes = None;
+    for count in [0, 128, 512, 2048] {
         let root = root();
         let source = format!(
             r#"import std.numeric as numeric;import std.sparse as sparse;import std.sparseAsync as sparseAsync;import std.task as task;
@@ -112,7 +113,7 @@ Out.println(done);publish;"#
                 "profile",
                 "main.rw",
                 "--native-work",
-                "2500000000",
+                "20000000000",
                 "--steps",
                 "20000000",
                 "--history-memory",
@@ -128,15 +129,23 @@ Out.println(done);publish;"#
         let profile: serde_json::Value =
             serde_json::from_str(stderr.lines().rev().find(|s| s.starts_with('{')).unwrap())
                 .unwrap();
+        let live_bytes = profile["numeric_pages"]["live_bytes"].as_u64().unwrap();
+        // The GC threshold bounds allocations since the last collection, not
+        // total storage: the fixture's reachable input arrays remain alive.
+        if count == 0 {
+            input_bytes = Some(live_bytes);
+        }
         assert!(
-            profile["numeric_pages"]["live_bytes"].as_u64().unwrap() < 4 * 1024 * 1024,
+            live_bytes < input_bytes.unwrap() + 4 * 1024 * 1024,
             "{profile}"
         );
         let quotas = profile["task_instructions"].as_object().unwrap();
         let tasks = profile["scheduler"]["tasks"].as_object().unwrap();
         assert_eq!(quotas.len(), tasks.len());
         assert!(quotas.len() < 64, "{profile}");
-        assert!(profile["gc"]["completed"].as_u64().unwrap() > 0);
+        if count > 0 {
+            assert!(profile["gc"]["completed"].as_u64().unwrap() > 0);
+        }
         fs::remove_dir_all(root).unwrap();
     }
 }

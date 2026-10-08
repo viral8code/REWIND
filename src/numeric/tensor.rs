@@ -31,7 +31,8 @@ impl Array {
     }
 
     /// Structural identity of an immutable view and its storage version, not a
-    /// flattened logical-content digest. Cached page hashes make this O(rank).
+    /// flattened logical-content digest. Cold identity hashes backing storage;
+    /// cached identity costs O(rank). No payload copies are made.
     pub fn tensor_key(&self, tag: &str, index: i64, left: &[u8], right: &[u8]) -> Result<[u8; 32]> {
         if self.dtype != DType::Float64 {
             return Err(Error::Type);
@@ -61,7 +62,7 @@ impl Array {
         }
         h.update((self.offset as i64).to_le_bytes());
         h.update([self.writable as u8]);
-        h.update(self.buffer.root.hash);
+        h.update(self.buffer.root.digest());
         Ok(h.finalize().into())
     }
 

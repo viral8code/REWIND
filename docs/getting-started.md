@@ -4,7 +4,7 @@
 
 ## Linux SDKをダウンロードする
 
-[Release v1.9.38](https://github.com/viral8code/REWIND/releases/tag/v1.9.37)から次を同じdirectoryへ保存します。
+[Release v1.9.39](https://github.com/viral8code/REWIND/releases/tag/v1.9.37)から次を同じdirectoryへ保存します。
 
 - `rewind-1.9.32-linux-x86_64.tar.gz`：rewind/rewindc、71 module、文書、例
 - `rewind-1.9.32-sdk.pub`：このreleaseの公開鍵

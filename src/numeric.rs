@@ -4,15 +4,16 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc, Mutex, Weak,
+    Arc, Mutex, OnceLock, Weak,
 };
 mod chunks;
+#[cfg(test)]
+mod digest_tests;
 mod sparse_chunks;
 pub use sparse_chunks::{SparseWork, SPARSE_CHUNK};
 mod solve_chunks;
 pub use solve_chunks::{SolveWork, SOLVE_CHUNK};
 mod eigen_chunks;
-mod private_edits;
 pub use eigen_chunks::{EigenWork, EIGEN_CHUNK};
 mod qr_chunks;
 pub use qr_chunks::{QrWork, QR_CHUNK};
@@ -57,7 +58,7 @@ enum NodeKind {
 }
 struct Node {
     kind: NodeKind,
-    hash: [u8; 32],
+    hash: OnceLock<[u8; 32]>,
     bytes: usize,
     ledger_cost: usize,
     ledgers: Mutex<Vec<Weak<Ledger>>>,
@@ -155,10 +156,10 @@ impl Clone for Node {
                 NodeKind::Branch(_, _) => 0,
             };
         // Cloning does not change content. Preserve its digest instead of hashing
-        // every old page again before the caller writes and hashes the new data.
+        // every old page again; an uncached clone stays uncached.
         let mut n = Self {
             kind,
-            hash: self.hash,
+            hash: self.hash.clone(),
             bytes: self.bytes - self.ledger_cost + own_cost,
             ledger_cost: own_cost,
             ledgers: Mutex::new(Vec::new()),
@@ -219,7 +220,7 @@ impl Node {
     fn new(kind: NodeKind) -> Self {
         let mut n = Self {
             kind,
-            hash: [0; 32],
+            hash: OnceLock::new(),
             bytes: 0,
             ledger_cost: 0,
             ledgers: Mutex::new(Vec::new()),
@@ -229,25 +230,15 @@ impl Node {
         n
     }
     fn refresh(&mut self) {
-        let mut hash = Sha256::new();
+        // Only an exclusively owned node can change. Invalidate its cached
+        // digest while updating byte metadata; immutable old versions retain
+        // their own cache. Hashing is deferred until content identity is needed.
+        self.hash.take();
         self.bytes = std::mem::size_of::<Self>() + 64;
         match &self.kind {
-            NodeKind::Leaf(bits) => {
-                hash.update([0]);
-                hash.update((bits.len() as u64).to_le_bytes());
-                for bit in bits {
-                    hash.update(bit.to_le_bytes());
-                }
-                self.bytes += bits.capacity() * 8;
-            }
-            NodeKind::Branch(a, b) => {
-                hash.update([1]);
-                hash.update(a.hash);
-                hash.update(b.hash);
-                self.bytes += a.bytes + b.bytes;
-            }
+            NodeKind::Leaf(bits) => self.bytes += bits.capacity() * 8,
+            NodeKind::Branch(a, b) => self.bytes += a.bytes + b.bytes,
         }
-        self.hash = hash.finalize().into();
         let cost = std::mem::size_of::<Self>()
             + 64
             + match &self.kind {
@@ -272,6 +263,26 @@ impl Node {
             }
         }
         self.ledger_cost = cost;
+    }
+    fn digest(&self) -> [u8; 32] {
+        *self.hash.get_or_init(|| {
+            let mut hash = Sha256::new();
+            match &self.kind {
+                NodeKind::Leaf(bits) => {
+                    hash.update([0]);
+                    hash.update((bits.len() as u64).to_le_bytes());
+                    for bit in bits {
+                        hash.update(bit.to_le_bytes());
+                    }
+                }
+                NodeKind::Branch(a, b) => {
+                    hash.update([1]);
+                    hash.update(a.digest());
+                    hash.update(b.digest());
+                }
+            }
+            hash.finalize().into()
+        })
     }
     fn get(&self, height: usize, index: usize) -> u64 {
         match &self.kind {
@@ -472,7 +483,7 @@ impl PartialEq for Buffer {
     fn eq(&self, other: &Self) -> bool {
         self.len == other.len
             && (Arc::ptr_eq(&self.root, &other.root)
-                || (self.root.hash == other.root.hash
+                || (self.root.digest() == other.root.digest()
                     && (0..self.len).all(|i| self.get(i) == other.get(i))))
     }
 }
@@ -495,11 +506,16 @@ impl std::fmt::Debug for Array {
             .field("strides", &self.strides)
             .field("offset", &self.offset)
             .field("writable", &self.writable)
-            .field("storageHash", &self.buffer.root.hash)
+            .field("storageHash", &self.buffer.root.digest())
             .finish()
     }
 }
 impl Array {
+    /// Deterministic work bound for content identity, independent of cache
+    /// warmth and view size. Views retain the entire backing storage version.
+    pub fn storage_digest_work(&self) -> usize {
+        self.buffer.len.saturating_mul(16).saturating_add(1024)
+    }
     pub fn storage_bytes(&self) -> usize {
         self.buffer.root.bytes
     }
@@ -510,9 +526,20 @@ impl Array {
             + std::mem::size_of::<Self>()
     }
     pub fn storage_estimate(elements: usize) -> usize {
+        // Bound canonical materialized storage, including the empty right
+        // leaf used at each odd tree level. Native node layout varies by OS;
+        // a fixed per-page constant can underprice the digest cache on Windows.
+        let mut width = elements.div_ceil(PAGE).max(1);
+        let mut nodes = width;
+        while width > 1 {
+            nodes = nodes
+                .saturating_add(width.div_ceil(2))
+                .saturating_add(width % 2);
+            width = width.div_ceil(2);
+        }
         elements
             .saturating_mul(8)
-            .saturating_add(elements.div_ceil(PAGE).saturating_mul(384))
+            .saturating_add(nodes.saturating_mul(std::mem::size_of::<Node>() + 64))
             .saturating_add(2048)
     }
     pub fn update_estimate(&self) -> usize {
