@@ -84,60 +84,8 @@ impl Array {
     }
 
     pub fn activation(&self, operation: &str) -> Result<Self> {
-        if !matches!(
-            operation,
-            "relu" | "reluGrad" | "sigmoid" | "sigmoidGrad" | "tanhGrad" | "reciprocal"
-        ) {
-            return Err(Error::Domain);
-        }
-        self.map_float(|x| {
-            if !x.is_finite() {
-                return Err(Error::NonFinite);
-            }
-            let y = match operation {
-                "relu" => x.max(0.0),
-                "reluGrad" => {
-                    if x > 0.0 {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                }
-                "sigmoid" => {
-                    if x >= 0.0 {
-                        1.0 / (1.0 + (-x).exp())
-                    } else {
-                        let e = x.exp();
-                        e / (1.0 + e)
-                    }
-                }
-                // Gradient operations consume the corresponding forward output.
-                "sigmoidGrad" => {
-                    if !(0.0..=1.0).contains(&x) {
-                        return Err(Error::Domain);
-                    }
-                    x * (1.0 - x)
-                }
-                "tanhGrad" => {
-                    if !(-1.0..=1.0).contains(&x) {
-                        return Err(Error::Domain);
-                    }
-                    1.0 - x * x
-                }
-                "reciprocal" => {
-                    if x == 0.0 {
-                        return Err(Error::Domain);
-                    }
-                    1.0 / x
-                }
-                _ => unreachable!(),
-            };
-            if y.is_finite() {
-                Ok(y)
-            } else {
-                Err(Error::Overflow)
-            }
-        })
+        let operation = UnaryOperation::activation(operation)?;
+        self.map_float(|value| operation.apply(value))
     }
 
     /// Sum over dimensions added or expanded by explicit broadcasting. Shape

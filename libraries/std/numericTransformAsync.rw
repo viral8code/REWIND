@@ -1,0 +1,22 @@
+effects {tasks};
+import task as task;
+
+fn transform(operation:String,array:FloatArray)->Result<FloatArray,StdError> effects {tasks} {
+ var output=stdNumericUnaryInit(operation,&array)?;var cursor=0;
+ while true {
+  let step=stdNumericUnaryStep(operation,&array,&output,cursor)?;
+  output=step._0;cursor=step._1;if step._2{return Ok(output);}
+  task.yieldNow();
+ }
+ return Err(StdError("NumericState",0));
+}
+// @api mapFloat cost At most 4096 logical values per native step; shared inputs, logarithmic zero initialization, page-range COW output, handoff between steps.
+// @api mapFloat failure Same operations/domain/finite/rounding contract as numeric.mapFloat; no partial result on typed failure or cancellation. Fatal memory/work budgets apply.
+pub async fn mapFloat(operation:String,array:FloatArray)->Result<FloatArray,StdError> effects {tasks} {
+ return transform("map:"+operation,array);
+}
+// @api activation cost At most 4096 values per step, bounded scratch and task handoff; strided/broadcast input without full materialization.
+// @api activation failure relu/reluGrad/sigmoid/sigmoidGrad/tanhGrad/reciprocal with the existing tensor activation contract. Grad operations consume forward outputs. No partial result on failure/cancel.
+pub async fn activation(operation:String,array:FloatArray)->Result<FloatArray,StdError> effects {tasks} {
+ return transform("activation:"+operation,array);
+}

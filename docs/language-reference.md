@@ -634,3 +634,5 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 Selected language 1.9.51 admits execution-wide sensitive text patterns and shared binary owners in the memory budget. Redaction roots survive revert/begin/GC; see [the contract](REWIND_v1.9.51.md).
 
 GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl+C / Ctrl+V / Ctrl+X で利用できます。コピー元は公開した scene の選択範囲です。貼り付けは記録される text 入力であり、編集 model は revert の対象ですが、OS のクリップボードは対象外です。Windows / Linux の形式・容量・寿命は [v1.9.52](REWIND_v1.9.52.md) を参照してください。
+
+選択言語 1.9.53 の `std.numericTransformAsync.mapFloat` / `activation` は、単項数値変換を 4096 論理要素以下の native step に分けます。step 間でタスクを切り替え、部分結果の checkpoint と取消を扱います。入力は shared native array であり、host thread は起動しません。[v1.9.53](REWIND_v1.9.53.md)。

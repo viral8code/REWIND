@@ -199,3 +199,5 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 `std.training` provides named gradient extraction, mean-square loss, sample-weighted batch-mean merging and global-norm clipping. See [the nonlinear training example](../examples/nonlinear-training/README.md).
 
 `std.gui` / `std.guiWindows` のネイティブ text input は選択言語 1.9.52 で Ctrl+C / Ctrl+V / Ctrl+X に対応します。公開 scene の選択をコピーし、貼り付けを記録する text 入力として受け取ります。OS クリップボードの状態は巻き戻しません。[仕様と制限](../docs/REWIND_v1.9.52.md)、SDK の gui-clipboard 例を参照してください。
+
+`std.numericTransformAsync` は選択言語 1.9.53 の協調的な単項数値変換・活性化関数です。既存の scalar 演算と精度・失敗契約を共有し、4096 要素以下の native step 間でタスクを切り替えます。autodiff.backward 自体は同期のままです。[契約と制限](../docs/REWIND_v1.9.53.md)、SDK の unary-async 例を参照してください。

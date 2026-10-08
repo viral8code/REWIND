@@ -127,6 +127,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/numericIndex.rw"),
         ),
         (
+            "numericTransformAsync",
+            include_str!("../../../libraries/std/numericTransformAsync.rw"),
+        ),
+        (
             "numericRange",
             include_str!("../../../libraries/std/numericRange.rw"),
         ),
@@ -613,6 +617,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/unary-async/main.rw",
+            include_str!("../../../examples/unary-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/unary-async/README.md",
+            include_str!("../../../examples/unary-async/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/gui-clipboard/main.rw",
             include_str!("../../../examples/gui-clipboard/main.rw"),
         )?;
@@ -672,6 +686,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.52.md",
                 include_str!("../../../docs/REWIND_v1.9.52.md"),
+            ),
+            (
+                "REWIND_v1.9.53.md",
+                include_str!("../../../docs/REWIND_v1.9.53.md"),
             ),
             (
                 "REWIND_v1.9.48.md",
@@ -892,6 +910,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/unary-async/main.rw",
+            include_str!("../../../examples/unary-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/unary-async/README.md",
+            include_str!("../../../examples/unary-async/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/gui-clipboard/main.rw",
             include_str!("../../../examples/gui-clipboard/main.rw"),
         )?;
@@ -953,6 +981,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.52.md"),
             ),
             (
+                "REWIND_v1.9.53.md",
+                include_str!("../../../docs/REWIND_v1.9.53.md"),
+            ),
+            (
                 "REWIND_v1.9.48.md",
                 include_str!("../../../docs/REWIND_v1.9.48.md"),
             ),
@@ -1006,6 +1038,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/gui-clipboard/README.md"),
             ),
             (
+                "unary-async",
+                include_str!("../../../examples/unary-async/README.md"),
+            ),
+            (
                 "unicode",
                 include_str!("../../../examples/unicode/README.md"),
             ),
@@ -1048,6 +1084,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-clipboard",
                 include_str!("../../../examples/gui-clipboard/main.rw"),
+            ),
+            (
+                "unary-async",
+                include_str!("../../../examples/unary-async/main.rw"),
             ),
             (
                 "numeric-memory",

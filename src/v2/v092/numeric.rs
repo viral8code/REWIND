@@ -237,12 +237,33 @@ fn vector_operation(
         _ => return Err(NumericError::Domain),
     })
 }
+fn unary_operation(
+    name: &Value,
+) -> std::result::Result<rewind::numeric::VectorOperation, NumericError> {
+    let name = operation(name)?;
+    let unary = if let Some(name) = name.strip_prefix("map:") {
+        rewind::numeric::UnaryOperation::map(name)?
+    } else if let Some(name) = name.strip_prefix("activation:") {
+        rewind::numeric::UnaryOperation::activation(name)?
+    } else {
+        return Err(NumericError::Domain);
+    };
+    Ok(rewind::numeric::VectorOperation::Unary(unary))
+}
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
     if !n.starts_with("stdNumeric") {
         return Ok(None);
     }
     if !language_at_least(&p.language, "1.8.0") {
         return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
+    }
+    if matches!(n, "stdNumericUnaryInit" | "stdNumericUnaryStep")
+        && !language_at_least(&p.language, "1.9.53")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative unary kernels require language 1.9.53",
+        ));
     }
     if matches!(
         n,
@@ -1222,8 +1243,15 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             .saturating_mul((usize::BITS - length(1).max(1).leading_zeros()) as usize)
             .saturating_mul(8)
             .saturating_add(length(1).saturating_mul(8))
-    } else if name == "VectorInit" || name == "MatmulInit" || name.starts_with("Zeros") {
+    } else if matches!(name, "VectorInit" | "UnaryInit" | "MatmulInit") || name.starts_with("Zeros")
+    {
         1024
+    } else if name == "UnaryStep" {
+        length(1)
+            .saturating_sub(args.get(3).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
+            .min(rewind::numeric::COOPERATIVE_MACS)
+            .saturating_mul(32)
+            .saturating_add(256)
     } else if name == "VectorStep" {
         length(1)
             .saturating_sub(args.get(5).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
@@ -1492,7 +1520,7 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
         })
     } else if matches!(name, "SolveDone" | "SolveResult") {
         16384
-    } else if name == "VectorInit" {
+    } else if matches!(name, "VectorInit" | "UnaryInit") {
         Array::storage_estimate(length(1)).min(131072)
     } else if name == "MatmulInit" {
         a(0).zip(a(1))
@@ -1505,6 +1533,10 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
             .and_then(|s| indices(s, rt).ok())
             .and_then(|s| elements(&s).ok())
             .map_or(0, |n| Array::storage_estimate(n).min(131072))
+    } else if name == "UnaryStep" {
+        a(2).map_or(0, Array::update_estimate)
+            .saturating_mul(rewind::numeric::COOPERATIVE_MACS.div_ceil(256) + 1)
+            .saturating_add(rewind::numeric::COOPERATIVE_MACS * 8 + 16384)
     } else if name == "VectorStep" {
         a(3).map_or(0, Array::update_estimate)
             .saturating_mul(rewind::numeric::COOPERATIVE_MACS.div_ceil(256) + 1)
@@ -1678,64 +1710,10 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
         2048
     }
 }
-fn math(op: &str, v: f64) -> std::result::Result<f64, NumericError> {
-    if !v.is_finite() {
-        return Err(NumericError::NonFinite);
-    }
-    let answer = match op {
-        "sqrt" => {
-            if v < 0.0 {
-                return Err(NumericError::Domain);
-            }
-            v.sqrt()
-        }
-        "exp" => v.exp(),
-        "expM1" => v.exp_m1(),
-        "log" => {
-            if v <= 0.0 {
-                return Err(NumericError::Domain);
-            }
-            v.ln()
-        }
-        "log1p" => {
-            if v <= -1.0 {
-                return Err(NumericError::Domain);
-            }
-            v.ln_1p()
-        }
-        "sin" => v.sin(),
-        "cos" => v.cos(),
-        "tan" => v.tan(),
-        "asin" => {
-            if v.abs() > 1.0 {
-                return Err(NumericError::Domain);
-            }
-            v.asin()
-        }
-        "acos" => {
-            if v.abs() > 1.0 {
-                return Err(NumericError::Domain);
-            }
-            v.acos()
-        }
-        "atan" => v.atan(),
-        "sinh" => v.sinh(),
-        "cosh" => v.cosh(),
-        "tanh" => v.tanh(),
-        "abs" => v.abs(),
-        "floor" => v.floor(),
-        "ceil" => v.ceil(),
-        "trunc" => v.trunc(),
-        "round" => v.round(),
-        "roundEven" => v.round_ties_even(),
-        _ => return Err(NumericError::Domain),
-    };
-    if answer.is_finite() {
-        Ok(answer)
-    } else {
-        Err(NumericError::NonFinite)
-    }
+fn math(op: &str, value: f64) -> std::result::Result<f64, NumericError> {
+    rewind::numeric::UnaryOperation::map(op)?.apply(value)
 }
+
 pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<Value>> {
     if signature(n).is_none() {
         return Ok(None);
@@ -2183,6 +2161,23 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             "VectorInit" => {
                 array_value(a(1)?.vector_init(a(2)?, vector_operation(&args[0], &args[3])?))?
             }
+            "UnaryInit" => array_value(a(1)?.vector_init(a(1)?, unary_operation(&args[0])?))?,
+            "UnaryStep" => {
+                let (output, cursor) = a(1)?.vector_step(
+                    a(1)?,
+                    a(2)?,
+                    unary_operation(&args[0])?,
+                    usize_arg(&args[3])?,
+                )?;
+                Value::Struct(
+                    "Tuple<FloatArray,Int,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(output)),
+                        ("_1".into(), Value::Int(cursor as i64)),
+                        ("_2".into(), Value::Bool(cursor == a(1)?.len())),
+                    ]),
+                )
+            }
             "VectorStep" => {
                 let (out, cursor) = a(1)?.vector_step(
                     a(2)?,
@@ -2265,34 +2260,9 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             "Solve" => array_value(a(0)?.solve(a(1)?, f(2)?))?,
             "Math" => Value::Float(math(operation(&args[0])?, f(1)?)?.to_bits()),
             "MapFloat" => {
-                let op = operation(&args[0])?;
-                // Validate the operation even for empty arrays.
-                if !matches!(
-                    op,
-                    "sqrt"
-                        | "exp"
-                        | "expM1"
-                        | "log"
-                        | "log1p"
-                        | "sin"
-                        | "cos"
-                        | "tan"
-                        | "asin"
-                        | "acos"
-                        | "atan"
-                        | "sinh"
-                        | "cosh"
-                        | "tanh"
-                        | "abs"
-                        | "floor"
-                        | "ceil"
-                        | "trunc"
-                        | "round"
-                        | "roundEven"
-                ) {
-                    return Err(NumericError::Domain);
-                }
-                array_value(a(1)?.map_float(|v| math(op, v)))?
+                // Parse before traversal, including for empty inputs.
+                let unary = rewind::numeric::UnaryOperation::map(operation(&args[0])?)?;
+                array_value(a(1)?.map_float(|value| unary.apply(value)))?
             }
             "ZipFloat" => {
                 let op = operation(&args[0])?;
@@ -2543,6 +2513,11 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
         "stdNumericVectorInit" => (
             &["String", "&FloatArray", "&FloatArray", "Float"],
             "Result<FloatArray,StdError>",
+        ),
+        "stdNumericUnaryInit" => (&["String", "&FloatArray"], "Result<FloatArray,StdError>"),
+        "stdNumericUnaryStep" => (
+            &["String", "&FloatArray", "&FloatArray", "Int"],
+            "Result<Tuple<FloatArray,Int,Bool>,StdError>",
         ),
         "stdNumericVectorStep" => (
             &[

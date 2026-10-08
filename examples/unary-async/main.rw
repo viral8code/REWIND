@@ -1,0 +1,26 @@
+import std.numeric as numeric;
+import std.numericTransformAsync as jobs;
+import std.task as task;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {Ok(v)=>{return move v;},Err(_)=>{panic("numeric operation failed");}}
+}
+async fn marker()->Int effects {tasks} {return 7;}
+let scalarShape=List<Int>();scalarShape.add(1);
+let scalarValues=List<Float>();scalarValues.add(0.5);
+let scalar=take(numeric.fromFloat(&scalarShape,&scalarValues));
+let shape=List<Int>();shape.add(16384);
+let repeated=take(numeric.broadcastFloat(&scalar,&shape));
+let reversed=take(numeric.sliceFloat(&repeated,0,16383,16384,-1));
+let work=spawn jobs.activation("sigmoid",reversed);
+let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+commit halfway;
+{let result=take(take(await work));assert_eq(result,take(stdNumericActivation("sigmoid",&reversed)));Out.println(true);}
+publish;
+revert halfway;
+{let result=take(take(await work));assert_eq(result,take(stdNumericActivation("sigmoid",&reversed)));Out.println(true);}
+drop halfway;publish;
+let mapped=take(take(await spawn jobs.mapFloat("tanh",reversed)));
+assert_eq(mapped,take(numeric.mapFloat("tanh",&reversed)));
+let cancelled=spawn jobs.activation("relu",reversed);task.yieldNow();assert(!cancelled.isDone());
+cancelled.cancel();match await cancelled{Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("unary done");publish;
