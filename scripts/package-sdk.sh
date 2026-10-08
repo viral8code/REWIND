@@ -136,6 +136,7 @@ PYCLOCK
 python3 scripts/smoke-http-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http"
 python3 scripts/smoke-http-pool-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-pool"
 python3 scripts/smoke-text-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/text-storage"
+python3 scripts/smoke-numeric-digests-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric-digests"
 python3 scripts/smoke-http-stream-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/http-stream"
 python3 scripts/smoke-numeric-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric"
 python3 scripts/smoke-tcp-tls-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/tcp-tls"

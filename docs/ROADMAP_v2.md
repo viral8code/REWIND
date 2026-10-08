@@ -187,3 +187,7 @@ column-pivoted Householder QR の初期化・pivot・反射・Q/R 生成を4096 
 ### 1.9.38 の公開単位
 
 cyclic Jacobi の走査・回転と安定な固有値の並べ替えを4096 unit 以下の pure Task に分割する。同期版との bit 一致、独立残差・直交性、checkpoint / cancellation / 予算と source-free SDK を検証する。least squares / autodiff の協調化、一般会計・GUI と残る v2 条件は継続する。[契約](REWIND_v1.9.38.md)を参照する。
+
+### 1.9.39 の公開単位
+
+数値 storage の内容ハッシュを必要時に計算・再利用し、更新時の繰り返す SHA 計算を省く。内容同一性、COW / checkpoint、弱い会計、record / replay と backing storage の費用を照合し、同じ入力の同期・協調実行を再測定する。残る page access / kernel、公平性、GUI と v2 条件は継続する。[契約](REWIND_v1.9.39.md)を参照する。

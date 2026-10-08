@@ -249,9 +249,9 @@ mod tests {
         let imag = Array::zeros(DType::Float64, vec![n]).unwrap();
         let initial = FftWork::new(&real, &imag, false).unwrap();
         let saved = initial.step().unwrap().step().unwrap();
-        let hash = saved.real.buffer.root.hash;
+        let hash = saved.real.buffer.root.digest();
         assert!(matches!(saved.step(), Err(Error::NonFinite)));
-        assert_eq!(saved.real.buffer.root.hash, hash);
+        assert_eq!(saved.real.buffer.root.digest(), hash);
         let mut broken = initial.clone();
         broken.width = 0;
         assert!(matches!(broken.step(), Err(Error::Domain)));
@@ -274,7 +274,7 @@ mod tests {
         for n in [0, 1, 255, 256, 257, 511, 512, 513, 768, 1023, 1024, 65537] {
             let zero = Array::zeros(DType::Float64, vec![n]).unwrap();
             let materialized = Array::floats(vec![n], &vec![0.0; n]).unwrap();
-            assert_eq!(zero.buffer.root.hash, materialized.buffer.root.hash);
+            assert_eq!(zero.buffer.root.digest(), materialized.buffer.root.digest());
             let accounting = Accounting::default();
             accounting.register(&zero);
             assert!(accounting.bytes() < 32768);
@@ -342,8 +342,8 @@ mod tests {
         while !b.done() {
             b = b.step().unwrap();
         }
-        assert_eq!(a.real.buffer.root.hash, b.real.buffer.root.hash);
-        assert_eq!(a.imag.buffer.root.hash, b.imag.buffer.root.hash);
+        assert_eq!(a.real.buffer.root.digest(), b.real.buffer.root.digest());
+        assert_eq!(a.imag.buffer.root.digest(), b.imag.buffer.root.digest());
         let (r, z) = crate::transforms::fft(&re, &im, false).unwrap();
         for i in 0..n {
             assert!((a.real.float(&[i]).unwrap() - r.float(&[i]).unwrap()).abs() < 1e-8);

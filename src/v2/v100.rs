@@ -63,6 +63,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.36"
             | "1.9.37"
             | "1.9.38"
+            | "1.9.39"
             | "2.0.0"
     ) {
         return Ok(());
@@ -168,7 +169,12 @@ pub(super) fn argument_work(value: &Value, runtime: &Runtime) -> usize {
         _ => Runtime::value_bytes(value).saturating_add(1),
     }
 }
-pub(super) fn call_work(name: &str, args: &[Value], runtime: &Runtime) -> usize {
+pub(super) fn call_work(name: &str, args: &[Value], runtime: &Runtime, language: &str) -> usize {
+    // Older artifacts retain their published fixed identity fee. New source
+    // accounts for cold hashing without depending on mutable cache warmth.
+    if name == "stdNumericTensorKey" && !language_at_least(language, "1.9.39") {
+        return 1024;
+    }
     v092::work(name, args, runtime).unwrap_or_else(|| {
         args.iter()
             .fold(1usize, |n, v| n.saturating_add(argument_work(v, runtime)))

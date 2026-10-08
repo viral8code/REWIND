@@ -1,9 +1,6 @@
 //! Column-pivoted Householder QR with persistent, bounded private scratch.
 use super::*;
-use std::collections::HashSet;
 pub const QR_CHUNK: usize = 4096;
-
-use super::private_edits::{edit, finish_edits};
 
 #[derive(Clone)]
 pub struct QrWork {
@@ -153,8 +150,8 @@ impl QrWork {
     fn get(a: &Array, i: usize) -> f64 {
         f64::from_bits(a.buffer.get(i))
     }
-    fn write(a: &mut Array, i: usize, v: f64, dirty: &mut HashSet<usize>) {
-        edit(&mut a.buffer.root, a.buffer.height, i, v.to_bits(), dirty);
+    fn write(a: &mut Array, i: usize, v: f64) {
+        Node::write(&mut a.buffer.root, a.buffer.height, i, v.to_bits());
     }
     fn bits(a: &mut Array, i: usize, v: &[u64]) {
         let height = a.buffer.height;
@@ -209,7 +206,6 @@ impl QrWork {
         let n = self.input.shape[1];
         let p = m.min(n);
         let mut used = 0;
-        let mut dirty = HashSet::new();
         while used < QR_CHUNK && !w.done() {
             used += 1;
             match w.phase {
@@ -298,19 +294,17 @@ impl QrWork {
                     if w.cursor == m || w.pivot == w.k {
                         let a = w.permutation.buffer.get(w.k);
                         let b = w.permutation.buffer.get(w.pivot);
-                        edit(
+                        Node::write(
                             &mut w.permutation.buffer.root,
                             w.permutation.buffer.height,
                             w.k,
                             b,
-                            &mut dirty,
                         );
-                        edit(
+                        Node::write(
                             &mut w.permutation.buffer.root,
                             w.permutation.buffer.height,
                             w.pivot,
                             a,
-                            &mut dirty,
                         );
                         w.phase = 5;
                         w.cursor = w.k;
@@ -324,8 +318,8 @@ impl QrWork {
                     }
                     let a = Self::get(&w.matrix, w.cursor * n + w.k);
                     let b = Self::get(&w.matrix, w.cursor * n + w.pivot);
-                    Self::write(&mut w.matrix, w.cursor * n + w.k, b, &mut dirty);
-                    Self::write(&mut w.matrix, w.cursor * n + w.pivot, a, &mut dirty);
+                    Self::write(&mut w.matrix, w.cursor * n + w.k, b);
+                    Self::write(&mut w.matrix, w.cursor * n + w.pivot, a);
                     w.cursor += 1;
                 }
                 5 => {
@@ -343,7 +337,7 @@ impl QrWork {
                         v += w.sign;
                     }
                     w.v_norm = w.v_norm.hypot(v);
-                    Self::write(&mut w.reflectors, w.k * m + w.cursor, v, &mut dirty);
+                    Self::write(&mut w.reflectors, w.k * m + w.cursor, v);
                     w.cursor += 1;
                 }
                 6 => {
@@ -356,7 +350,7 @@ impl QrWork {
                         continue;
                     }
                     let v = Self::get(&w.reflectors, w.k * m + w.cursor) / w.v_norm;
-                    Self::write(&mut w.reflectors, w.k * m + w.cursor, v, &mut dirty);
+                    Self::write(&mut w.reflectors, w.k * m + w.cursor, v);
                     w.cursor += 1;
                 }
                 7 | 11 => {
@@ -405,7 +399,7 @@ impl QrWork {
                     let a = if a_phase { &mut w.matrix } else { &mut w.q };
                     let i = w.cursor * columns + w.col;
                     let value = Self::finite(Self::get(a, i) - (2.0 * v) * w.sum)?;
-                    Self::write(a, i, value, &mut dirty);
+                    Self::write(a, i, value);
                     w.cursor += 1;
                 }
                 9 => {
@@ -418,7 +412,7 @@ impl QrWork {
                     } else {
                         0.0
                     };
-                    Self::write(&mut w.matrix, w.cursor * n + w.k, v, &mut dirty);
+                    Self::write(&mut w.matrix, w.cursor * n + w.k, v);
                     w.cursor += 1;
                 }
                 10 => {
@@ -431,7 +425,7 @@ impl QrWork {
                         w.correction = 0.0;
                         continue;
                     }
-                    Self::write(&mut w.q, w.cursor * p + w.cursor, 1.0, &mut dirty);
+                    Self::write(&mut w.q, w.cursor * p + w.cursor, 1.0);
                     w.cursor += 1;
                 }
                 13 => {
@@ -444,7 +438,7 @@ impl QrWork {
                     let col = i % n;
                     if col >= row {
                         let v = Self::finite(Self::get(&w.matrix, i) * w.scale)?;
-                        Self::write(&mut w.r, i, v, &mut dirty);
+                        Self::write(&mut w.r, i, v);
                     }
                     w.cursor += 1;
                 }
@@ -454,28 +448,17 @@ impl QrWork {
                         w.cursor = 0;
                         continue;
                     }
-                    edit(
+                    Node::write(
                         &mut w.permutation.buffer.root,
                         w.permutation.buffer.height,
                         w.cursor,
                         w.cursor as u64,
-                        &mut dirty,
                     );
                     w.cursor += 1;
                 }
                 _ => return Err(Error::Domain),
             }
         }
-        for array in [
-            &mut w.matrix,
-            &mut w.reflectors,
-            &mut w.q,
-            &mut w.r,
-            &mut w.permutation,
-        ] {
-            finish_edits(&mut array.buffer.root, &mut dirty);
-        }
-        debug_assert!(dirty.is_empty());
         Ok(w)
     }
 }

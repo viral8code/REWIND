@@ -1,7 +1,5 @@
 //! Pure cyclic Jacobi eigen decomposition with bounded steps and stable sorting.
-use super::private_edits::{edit, finish_edits};
 use super::*;
-use std::collections::HashSet;
 pub const EIGEN_CHUNK: usize = 4096;
 #[derive(Clone)]
 pub struct EigenWork {
@@ -174,8 +172,8 @@ impl EigenWork {
             Err(Error::Overflow)
         }
     }
-    fn put(a: &mut Array, i: usize, v: f64, d: &mut HashSet<usize>) {
-        edit(&mut a.buffer.root, a.buffer.height, i, v.to_bits(), d);
+    fn put(a: &mut Array, i: usize, v: f64) {
+        Node::write(&mut a.buffer.root, a.buffer.height, i, v.to_bits());
     }
     fn order_at(&self, i: usize) -> Result<usize> {
         if i >= self.values.len() {
@@ -200,7 +198,6 @@ impl EigenWork {
         let n = self.values.len();
         let mut w = self.clone();
         let mut used = 0;
-        let mut dirty = HashSet::new();
         while used < EIGEN_CHUNK && !w.done() {
             used += 1;
             match w.phase {
@@ -259,8 +256,8 @@ impl EigenWork {
                         return Err(Error::Domain);
                     }
                     let value = 0.5 * a + 0.5 * b;
-                    Self::put(&mut w.matrix, w.p * n + w.q, value, &mut dirty);
-                    Self::put(&mut w.matrix, w.q * n + w.p, value, &mut dirty);
+                    Self::put(&mut w.matrix, w.p * n + w.q, value);
+                    Self::put(&mut w.matrix, w.q * n + w.p, value);
                     w.next_pair(n);
                 }
                 3 => {
@@ -271,7 +268,7 @@ impl EigenWork {
                         w.largest = 0.0;
                         continue;
                     }
-                    Self::put(&mut w.vectors, w.cursor * n + w.cursor, 1.0, &mut dirty);
+                    Self::put(&mut w.vectors, w.cursor * n + w.cursor, 1.0);
                     w.cursor += 1;
                 }
                 4 => {
@@ -323,10 +320,10 @@ impl EigenWork {
                     w.sine = t * w.cosine;
                     let a = Self::finite(Self::get(&w.matrix, w.p * n + w.p) - t * cross)?;
                     let b = Self::finite(Self::get(&w.matrix, w.q * n + w.q) + t * cross)?;
-                    Self::put(&mut w.matrix, w.p * n + w.p, a, &mut dirty);
-                    Self::put(&mut w.matrix, w.q * n + w.q, b, &mut dirty);
-                    Self::put(&mut w.matrix, w.p * n + w.q, 0.0, &mut dirty);
-                    Self::put(&mut w.matrix, w.q * n + w.p, 0.0, &mut dirty);
+                    Self::put(&mut w.matrix, w.p * n + w.p, a);
+                    Self::put(&mut w.matrix, w.q * n + w.q, b);
+                    Self::put(&mut w.matrix, w.p * n + w.q, 0.0);
+                    Self::put(&mut w.matrix, w.q * n + w.p, 0.0);
                     w.phase = 6;
                     w.cursor = 0;
                 }
@@ -342,25 +339,15 @@ impl EigenWork {
                         let y = Self::get(&w.matrix, row * n + w.q);
                         let xp = w.cosine * x - w.sine * y;
                         let yq = w.sine * x + w.cosine * y;
-                        Self::put(&mut w.matrix, row * n + w.p, xp, &mut dirty);
-                        Self::put(&mut w.matrix, w.p * n + row, xp, &mut dirty);
-                        Self::put(&mut w.matrix, row * n + w.q, yq, &mut dirty);
-                        Self::put(&mut w.matrix, w.q * n + row, yq, &mut dirty);
+                        Self::put(&mut w.matrix, row * n + w.p, xp);
+                        Self::put(&mut w.matrix, w.p * n + row, xp);
+                        Self::put(&mut w.matrix, row * n + w.q, yq);
+                        Self::put(&mut w.matrix, w.q * n + row, yq);
                     }
                     let x = Self::get(&w.vectors, row * n + w.p);
                     let y = Self::get(&w.vectors, row * n + w.q);
-                    Self::put(
-                        &mut w.vectors,
-                        row * n + w.p,
-                        w.cosine * x - w.sine * y,
-                        &mut dirty,
-                    );
-                    Self::put(
-                        &mut w.vectors,
-                        row * n + w.q,
-                        w.sine * x + w.cosine * y,
-                        &mut dirty,
-                    );
+                    Self::put(&mut w.vectors, row * n + w.p, w.cosine * x - w.sine * y);
+                    Self::put(&mut w.vectors, row * n + w.q, w.sine * x + w.cosine * y);
                     w.cursor += 1;
                 }
                 7 => {
@@ -370,12 +357,11 @@ impl EigenWork {
                         w.base = 0;
                         continue;
                     }
-                    edit(
+                    Node::write(
                         &mut w.order.buffer.root,
                         w.order.buffer.height,
                         w.cursor,
                         w.cursor as u64,
-                        &mut dirty,
                     );
                     w.cursor += 1;
                 }
@@ -421,12 +407,11 @@ impl EigenWork {
                         w.right += 1;
                         v
                     };
-                    edit(
+                    Node::write(
                         &mut w.order_scratch.buffer.root,
                         w.order_scratch.buffer.height,
                         w.out,
                         index as u64,
-                        &mut dirty,
                     );
                     w.out += 1;
                 }
@@ -438,7 +423,7 @@ impl EigenWork {
                     }
                     let index = w.order_at(w.cursor)?;
                     let v = Self::finite(Self::get(&w.matrix, index * n + index) * w.scale)?;
-                    Self::put(&mut w.values, w.cursor, v, &mut dirty);
+                    Self::put(&mut w.values, w.cursor, v);
                     w.cursor += 1;
                 }
                 11 => {
@@ -450,23 +435,12 @@ impl EigenWork {
                     let col = w.cursor % n;
                     let old = w.order_at(col)?;
                     let v = Self::get(&w.vectors, row * n + old);
-                    Self::put(&mut w.sorted, w.cursor, v, &mut dirty);
+                    Self::put(&mut w.sorted, w.cursor, v);
                     w.cursor += 1;
                 }
                 _ => return Err(Error::Domain),
             }
         }
-        for a in [
-            &mut w.matrix,
-            &mut w.vectors,
-            &mut w.order,
-            &mut w.order_scratch,
-            &mut w.sorted,
-            &mut w.values,
-        ] {
-            finish_edits(&mut a.buffer.root, &mut dirty);
-        }
-        debug_assert!(dirty.is_empty());
         Ok(w)
     }
 }

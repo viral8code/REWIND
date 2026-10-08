@@ -15,6 +15,8 @@ fn entry(tape:&Tape,node:Node)->Result<Entry,StdError> effects {} {
  if node.index<0 || node.index>=tape.entries.len(){return Err(StdError("AutodiffNode",0));}
  let item=tape.entries.get(node.index);if item.key!=node.key{return Err(StdError("AutodiffNode",node.index));}return Ok(item);
 }
+// Node identity may hash the full backing storage on first use. Native work
+// admission is conservative and independent of debug/compact cache warmth.
 fn append(tape:&mut Tape,array:FloatArray,operation:Operation,needed:Bool,tag:String,left:Bytes,right:Bytes)->Result<Node,StdError> effects {} {
  if tape.entries.len()>=100000{return Err(StdError("AutodiffSize",0));}
  let index=tape.entries.len();let key=stdNumericTensorKey(tag,index,left,right,&array)?;

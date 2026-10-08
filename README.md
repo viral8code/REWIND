@@ -1,6 +1,6 @@
-# REWIND 1.9.38
+# REWIND 1.9.39
 
-REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.38 では対称行列の固有値計算と並べ替えを分割し、計算中のタスク切替・復元・キャンセルに対応します。
+REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.39 では数値配列の内容ハッシュを必要な時に計算して再利用し、配列更新時の繰り返し計算を削減します。
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 
@@ -8,7 +8,7 @@ REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う
 
 ## SDKを試す
 
-[GitHub Releases](https://github.com/viral8code/REWIND/releases/tag/v1.9.37)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
+[GitHub Releases](https://github.com/viral8code/REWIND/releases/latest)で Linux x86_64 / Windows x64 SDK を配布します。[導入](docs/getting-started.md)を参照してください。
 
 v0.9 adds multiline REPL sessions with verified transcripts, API contracts for implementations and dependencies, production-only installs, Share generic records, ordered property shrinkers, and signed inspection timelines. Select `language = "0.9"`; see [implementation and limits](docs/v0.9-status.md) and the [v0.9.1 application proposal](docs/REWIND_v0.9.1.md).
 
