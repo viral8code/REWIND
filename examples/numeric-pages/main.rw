@@ -1,0 +1,25 @@
+import std.numeric as numeric;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {Ok(v)=>{return move v;},Err(_)=>{panic("numeric operation failed");}}
+}
+let shape=List<Int>();shape.add(8193);
+var input=take(numeric.zerosFloat(&shape));
+let index=List<Int>();index.add(8192);
+input=take(numeric.withFloat(&input,&index,4.0));
+let reverse=take(numeric.sliceFloat(&input,0,8192,8193,-1));
+let first=List<Int>();first.add(0);
+commit saved;
+var output=take(numeric.mapFloat("sqrt",&reverse));
+assert_eq(take(numeric.getFloat(&output,&first)),2.0);
+let zipped=take(numeric.zipFloat("add",&output,&output));
+assert_eq(take(numeric.getFloat(&zipped,&first)),4.0);
+output=take(numeric.withFloat(&output,&first,9.0));
+assert_eq(take(numeric.getFloat(&reverse,&first)),4.0);
+let integers=take(numeric.zerosInt(&shape));
+let intResult=take(numeric.zipInt("add",&integers,&integers));
+assert_eq(take(numeric.getInt(&intResult,&index)),0);
+Out.println("pages done");publish;
+revert saved;
+assert_eq(take(numeric.getFloat(&reverse,&first)),4.0);
+drop saved;
+Out.println("restore done");publish;
