@@ -1,0 +1,19 @@
+// Flat logical row-major indexing of existing typed numeric views. Language 1.9.48.
+// @api lengthFloat cost O(rank); no coordinate List or payload copy.
+// @api lengthFloat failure Fatal VM work and memory budgets apply.
+pub fn lengthFloat(array:&FloatArray)->Result<Int,StdError> effects {} {return stdNumericLengthFloat(array);}
+// @api getFloat cost O(rank + log pages); no coordinate List.
+// @api getFloat failure StdError NumericIndex; fatal VM work and memory budgets apply.
+pub fn getFloat(array:&FloatArray,index:Int)->Result<Float,StdError> effects {} {return stdNumericGetFlatFloat(array,index);}
+// @api withFloat cost O(rank + 256 + log pages); COW copies one 256-element page and tree path.
+// @api withFloat failure StdError NumericIndex/ReadOnly; fatal VM work and memory budgets apply.
+pub fn withFloat(array:&FloatArray,index:Int,value:Float)->Result<FloatArray,StdError> effects {} {return stdNumericWithFlatFloat(array,index,value);}
+// @api lengthInt cost O(rank); no coordinate List or payload copy.
+// @api lengthInt failure Fatal VM work and memory budgets apply.
+pub fn lengthInt(array:&IntArray)->Result<Int,StdError> effects {} {return stdNumericLengthInt(array);}
+// @api getInt cost O(rank + log pages); no coordinate List.
+// @api getInt failure StdError NumericIndex; fatal VM work and memory budgets apply.
+pub fn getInt(array:&IntArray,index:Int)->Result<Int,StdError> effects {} {return stdNumericGetFlatInt(array,index);}
+// @api withInt cost O(rank + 256 + log pages); COW copies one 256-element page and tree path.
+// @api withInt failure StdError NumericIndex/ReadOnly; fatal VM work and memory budgets apply.
+pub fn withInt(array:&IntArray,index:Int,value:Int)->Result<IntArray,StdError> effects {} {return stdNumericWithFlatInt(array,index,value);}

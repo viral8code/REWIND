@@ -1,0 +1,32 @@
+import std.numeric as n;
+import std.numericIndex as flat;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("numeric failure");}}}
+let shape=List<Int>();shape.add(3);shape.add(2);
+let values=List<Int>();for i in 0..6{values.add(i);}
+let original=take(n.fromInt(&shape,&values));
+let axes=List<Int>();axes.add(1);axes.add(0);
+var view=take(n.transposeInt(&original,&axes));
+assert_eq(take(flat.lengthInt(&view)),6);
+assert_eq(take(flat.getInt(&view,1)),2);
+assert_eq(take(flat.getInt(&view,4)),3);
+commit unchanged;
+view=take(flat.withInt(&view,1,99));
+assert_eq(take(flat.getInt(&original,2)),2);
+assert_eq(flat.getInt(&view,-1),Err(StdError("NumericIndex",0)));
+assert_eq(flat.withInt(&view,6,0),Err(StdError("NumericIndex",0)));
+Out.println(take(flat.getInt(&view,1)));publish;
+revert unchanged;
+Out.println(take(flat.getInt(&view,1)));publish;
+drop unchanged;
+let reversed=take(n.sliceInt(&view,1,2,3,-1));
+assert_eq(take(flat.getInt(&reversed,0)),4);
+assert_eq(take(flat.getInt(&reversed,5)),1);
+let scalarShape=List<Int>();let floats=List<Float>();floats.add(3.5);
+let scalar=take(n.fromFloat(&scalarShape,&floats));
+assert_eq(take(flat.lengthFloat(&scalar)),1);
+let broad=take(n.broadcastFloat(&scalar,&shape));
+assert_eq(take(flat.getFloat(&broad,5)),3.5);
+assert_eq(flat.withFloat(&broad,0,8.0),Err(StdError("NumericReadOnly",0)));
+let changed=take(flat.withFloat(&scalar,0,8.0));
+assert_eq(take(flat.getFloat(&scalar,0)),3.5);
+assert_eq(take(flat.getFloat(&changed,0)),8.0);

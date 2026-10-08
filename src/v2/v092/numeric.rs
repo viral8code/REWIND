@@ -246,6 +246,21 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if matches!(
         n,
+        "stdNumericGetFlatFloat"
+            | "stdNumericGetFlatInt"
+            | "stdNumericWithFlatFloat"
+            | "stdNumericWithFlatInt"
+            | "stdNumericLengthFloat"
+            | "stdNumericLengthInt"
+    ) && !language_at_least(&p.language, "1.9.48")
+    {
+        return Err(diagnostic(
+            at,
+            "flat numeric indexing requires language 1.9.48",
+        ));
+    }
+    if matches!(
+        n,
         "stdNumericLeastSquaresInit"
             | "stdNumericLeastSquaresStep"
             | "stdNumericLeastSquaresDone"
@@ -1233,6 +1248,7 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     } else if name.starts_with("With") {
         2048
     } else if name.starts_with("Get")
+        || name.starts_with("Length")
         || name.starts_with("Shape")
         || name.starts_with("Strides")
         || name.starts_with("Reshape")
@@ -1981,6 +1997,18 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             "StridesFloat" | "StridesInt" => {
                 list_int(a(0)?.strides().iter().map(|&n| n as i64).collect())
             }
+            "LengthFloat" | "LengthInt" => Value::Int(a(0)?.len() as i64),
+            "GetFlatFloat" => Value::Float(a(0)?.float_flat(i(1)?)?.to_bits()),
+            "GetFlatInt" => Value::Int(a(0)?.integer_flat(i(1)?)?),
+            "WithFlatFloat" | "WithFlatInt" => {
+                let mut array = a(0)?.clone();
+                if name == "WithFlatFloat" {
+                    array.set_float_flat(i(1)?, f(2)?)?;
+                } else {
+                    array.set_integer_flat(i(1)?, integer(&args[2])?)?;
+                }
+                Value::NumericArray(array)
+            }
             "GetFloat" => Value::Float(a(0)?.float(&ids(1)?)?.to_bits()),
             "GetInt" => Value::Int(a(0)?.integer(&ids(1)?)?),
             "WithFloat" | "WithInt" => {
@@ -2356,6 +2384,15 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
         ),
         "stdNumericShapeFloat" => (&["&FloatArray"], "Result<List<Int>,StdError>"),
         "stdNumericStridesFloat" => (&["&FloatArray"], "Result<List<Int>,StdError>"),
+        "stdNumericLengthFloat" => (&["&FloatArray"], "Result<Int,StdError>"),
+        "stdNumericLengthInt" => (&["&IntArray"], "Result<Int,StdError>"),
+        "stdNumericGetFlatFloat" => (&["&FloatArray", "Int"], "Result<Float,StdError>"),
+        "stdNumericGetFlatInt" => (&["&IntArray", "Int"], "Result<Int,StdError>"),
+        "stdNumericWithFlatFloat" => (
+            &["&FloatArray", "Int", "Float"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericWithFlatInt" => (&["&IntArray", "Int", "Int"], "Result<IntArray,StdError>"),
         "stdNumericGetFloat" => (&["&FloatArray", "&List<Int>"], "Result<Float,StdError>"),
         "stdNumericWithFloat" => (
             &["&FloatArray", "&List<Int>", "Float"],

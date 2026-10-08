@@ -122,6 +122,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("config", include_str!("../../../libraries/std/config.rw")),
         ("json", include_str!("../../../libraries/std/json.rw")),
         ("map", include_str!("../../../libraries/std/map.rw")),
+        (
+            "numericIndex",
+            include_str!("../../../libraries/std/numericIndex.rw"),
+        ),
         ("numeric", include_str!("../../../libraries/std/numeric.rw")),
         ("task", include_str!("../../../libraries/std/task.rw")),
         (
@@ -585,7 +589,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/container-admission/README.md",
             include_str!("../../../examples/container-admission/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/numeric-index/main.rw",
+            include_str!("../../../examples/numeric-index/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/numeric-index/README.md",
+            include_str!("../../../examples/numeric-index/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.48.md",
+                include_str!("../../../docs/REWIND_v1.9.48.md"),
+            ),
             (
                 "REWIND_v1.9.47.md",
                 include_str!("../../../docs/REWIND_v1.9.47.md"),
@@ -789,7 +807,21 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         ] {
             write(&output, &format!("share/rewind/doc/{name}"), doc)?;
         }
+        write(
+            &output,
+            "share/rewind/examples/numeric-index/main.rw",
+            include_str!("../../../examples/numeric-index/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/numeric-index/README.md",
+            include_str!("../../../examples/numeric-index/README.md"),
+        )?;
         for (name, doc) in [
+            (
+                "REWIND_v1.9.48.md",
+                include_str!("../../../docs/REWIND_v1.9.48.md"),
+            ),
             (
                 "REWIND_v1.9.44.md",
                 include_str!("../../../docs/REWIND_v1.9.44.md"),
