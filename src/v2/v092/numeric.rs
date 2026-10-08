@@ -1154,14 +1154,20 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
                 .saturating_add(1024);
             arrays
                 .iter()
-                .fold(32768usize.saturating_add(dirty), |sum, a| {
-                    sum.saturating_add(
-                        Array::storage_estimate(a.len()).min(
-                            a.update_estimate()
-                                .saturating_mul(rewind::numeric::EIGEN_CHUNK * 6),
-                        ),
-                    )
-                })
+                // Four bounded row/column staging buffers can coexist.
+                .fold(
+                    32768usize
+                        .saturating_add(dirty)
+                        .saturating_add(rewind::numeric::EIGEN_CHUNK * 32),
+                    |sum, a| {
+                        sum.saturating_add(
+                            Array::storage_estimate(a.len()).min(
+                                a.update_estimate()
+                                    .saturating_mul(rewind::numeric::EIGEN_CHUNK * 6),
+                            ),
+                        )
+                    },
+                )
         })
     } else if matches!(name, "EigenDone" | "EigenResult") {
         32768

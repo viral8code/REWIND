@@ -1,6 +1,6 @@
-# REWIND 1.9.39 言語リファレンス
+# REWIND 1.9.40 言語リファレンス
 
-対象はcompiler/language 1.9.39です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象はcompiler/language 1.9.40です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -596,3 +596,5 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 `std.numericAsync.eigenSymmetric(matrix,tolerance,maxSweeps)` は対称 FloatArray を Jacobi 法で分解し、走査・回転・安定な並べ替え・結果生成を分割する。`await` の内側は `Result<EigenResult,StdError>`。`values` / `vectors` は FloatArray、`sweeps` は Int で、同期版と同じ型を使う。固有ベクトルは列、固有値は昇順。maxSweeps は0..10000、tolerance は有限非負。[契約と予算](REWIND_v1.9.38.md)を参照する。
 
 1.9.39 の数値 storage は内容ハッシュを必要な時に計算し、共有 page / checkpoint と再利用する。内容・wire・計算順序は維持する。autodiff の node identity の費用は view の論理要素数ではなく backing storage の要素数で保守的に見積もり、record mode と cache の温まり方によらず同じ予算を検査する。古い language の固定費用は維持する。[詳細](REWIND_v1.9.39.md)を参照する。
+
+1.9.40 は協調的固有値計算の内部配置とページアクセスを改善する。公開される固有ベクトルの配列形式と演算順序は維持する。private scratch の費用と検証条件は[詳細](REWIND_v1.9.40.md)を参照する。

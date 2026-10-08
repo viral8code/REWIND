@@ -5,6 +5,7 @@ pub const EIGEN_CHUNK: usize = 4096;
 pub struct EigenWork {
     pub input: Array,
     pub matrix: Array,
+    // Private eigenvectors are stored by column for contiguous rotation updates.
     pub vectors: Array,
     pub order: Array,
     pub order_scratch: Array,
@@ -256,8 +257,14 @@ impl EigenWork {
                         return Err(Error::Domain);
                     }
                     let value = 0.5 * a + 0.5 * b;
-                    Self::put(&mut w.matrix, w.p * n + w.q, value);
-                    Self::put(&mut w.matrix, w.q * n + w.p, value);
+                    // Preserve averaging and signed-zero bits, but do not copy
+                    // already identical symmetric storage just to rewrite it.
+                    if value.to_bits() != a.to_bits() {
+                        Self::put(&mut w.matrix, w.p * n + w.q, value);
+                    }
+                    if value.to_bits() != b.to_bits() {
+                        Self::put(&mut w.matrix, w.q * n + w.p, value);
+                    }
                     w.next_pair(n);
                 }
                 3 => {
@@ -333,22 +340,81 @@ impl EigenWork {
                         w.phase = 5;
                         continue;
                     }
-                    let row = w.cursor;
-                    if row != w.p && row != w.q {
-                        let x = Self::get(&w.matrix, row * n + w.p);
-                        let y = Self::get(&w.matrix, row * n + w.q);
-                        let xp = w.cosine * x - w.sine * y;
-                        let yq = w.sine * x + w.cosine * y;
-                        Self::put(&mut w.matrix, row * n + w.p, xp);
-                        Self::put(&mut w.matrix, w.p * n + row, xp);
-                        Self::put(&mut w.matrix, row * n + w.q, yq);
-                        Self::put(&mut w.matrix, w.q * n + row, yq);
+                    let start = w.cursor;
+                    let end = (start + EIGEN_CHUNK - used + 1).min(n);
+                    let count = end - start;
+                    let mut matrix_p = Vec::with_capacity(count);
+                    let mut matrix_q = Vec::with_capacity(count);
+                    let mut vector_p = Vec::with_capacity(count);
+                    let mut vector_q = Vec::with_capacity(count);
+                    // Symmetry makes row p/q reads identical to column p/q.
+                    // Each row's arithmetic is independent; stage bounded values
+                    // before bulk row writes and mirrored column writes.
+                    let matrix = w
+                        .matrix
+                        .window_bits(w.p * n + start, w.p * n + end)?
+                        .zip(w.matrix.window_bits(w.q * n + start, w.q * n + end)?);
+                    let vectors = w
+                        .vectors
+                        .window_bits(w.p * n + start, w.p * n + end)?
+                        .zip(w.vectors.window_bits(w.q * n + start, w.q * n + end)?);
+                    for (offset, ((x, y), (vx, vy))) in matrix.zip(vectors).enumerate() {
+                        let row = start + offset;
+                        let (x, y) = (f64::from_bits(x), f64::from_bits(y));
+                        if row == w.p || row == w.q {
+                            matrix_p.push(x.to_bits());
+                            matrix_q.push(y.to_bits());
+                        } else {
+                            matrix_p.push((w.cosine * x - w.sine * y).to_bits());
+                            matrix_q.push((w.sine * x + w.cosine * y).to_bits());
+                        }
+                        let (vx, vy) = (f64::from_bits(vx), f64::from_bits(vy));
+                        vector_p.push((w.cosine * vx - w.sine * vy).to_bits());
+                        vector_q.push((w.sine * vx + w.cosine * vy).to_bits());
                     }
-                    let x = Self::get(&w.vectors, row * n + w.p);
-                    let y = Self::get(&w.vectors, row * n + w.q);
-                    Self::put(&mut w.vectors, row * n + w.p, w.cosine * x - w.sine * y);
-                    Self::put(&mut w.vectors, row * n + w.q, w.sine * x + w.cosine * y);
-                    w.cursor += 1;
+                    for offset in 0..count {
+                        let row = start + offset;
+                        if row != w.p && row != w.q {
+                            Self::put(
+                                &mut w.matrix,
+                                row * n + w.p,
+                                f64::from_bits(matrix_p[offset]),
+                            );
+                            Self::put(
+                                &mut w.matrix,
+                                row * n + w.q,
+                                f64::from_bits(matrix_q[offset]),
+                            );
+                        }
+                    }
+                    let height = w.matrix.buffer.height;
+                    Node::write_range(
+                        &mut w.matrix.buffer.root,
+                        height,
+                        w.p * n + start,
+                        &matrix_p,
+                    );
+                    Node::write_range(
+                        &mut w.matrix.buffer.root,
+                        height,
+                        w.q * n + start,
+                        &matrix_q,
+                    );
+                    let height = w.vectors.buffer.height;
+                    Node::write_range(
+                        &mut w.vectors.buffer.root,
+                        height,
+                        w.p * n + start,
+                        &vector_p,
+                    );
+                    Node::write_range(
+                        &mut w.vectors.buffer.root,
+                        height,
+                        w.q * n + start,
+                        &vector_q,
+                    );
+                    used += count - 1;
+                    w.cursor = end;
                 }
                 7 => {
                     if w.cursor == n {
@@ -434,7 +500,7 @@ impl EigenWork {
                     let row = w.cursor / n;
                     let col = w.cursor % n;
                     let old = w.order_at(col)?;
-                    let v = Self::get(&w.vectors, row * n + old);
+                    let v = Self::get(&w.vectors, old * n + row);
                     Self::put(&mut w.sorted, w.cursor, v);
                     w.cursor += 1;
                 }
@@ -552,6 +618,32 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn partial_column_rotation_crosses_pages_without_changing_old_versions() {
+        let n = 257;
+        let input = Array::zeros(DType::Float64, vec![n, n]).unwrap();
+        let mut work = EigenWork::new(&input, 0.0, 1).unwrap();
+        for i in 0..n {
+            work.vectors.set_float(&[i, i], 1.0).unwrap();
+        }
+        work.phase = 6;
+        work.p = 0;
+        work.q = n - 1;
+        work.cursor = 250;
+        work.cosine = std::f64::consts::FRAC_1_SQRT_2;
+        work.sine = std::f64::consts::FRAC_1_SQRT_2;
+        let old = work.vectors.clone();
+        let first = work.step().unwrap();
+        let repeated = work.step().unwrap();
+        assert_eq!(first.vectors, repeated.vectors);
+        assert_eq!(work.vectors, old);
+        assert_eq!(old.buffer.get(n - 1), 0);
+        assert_eq!(first.vectors.buffer.get(n - 1), (-work.sine).to_bits());
+        assert_eq!(first.vectors.buffer.get(n * n - 1), work.cosine.to_bits());
+        assert_eq!(first.vectors.buffer.get(0), 1.0f64.to_bits());
+        assert_eq!(first.matrix, work.matrix);
+    }
+
     #[test]
     fn large_zero_copy_is_bounded_and_late_failures_preserve_versions_and_ledger() {
         let input = Array::zeros(DType::Float64, vec![4096, 4096]).unwrap();
