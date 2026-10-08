@@ -25,6 +25,7 @@ pub mod numeric;
 pub mod regular;
 mod replay;
 mod resolver;
+mod shared_payload;
 pub mod suffix;
 pub mod tcp;
 pub mod text_storage;
@@ -863,6 +864,9 @@ pub struct Runtime {
     numeric_accounting: Option<numeric::Accounting>,
     numeric_checked_generation: std::cell::Cell<usize>,
     numeric_gc_start: usize,
+    shared_accounting: Option<shared_payload::Accounting>,
+    shared_checked_generation: std::cell::Cell<usize>,
+    shared_gc_start: usize,
     execution_remaining: Option<usize>,
 }
 
@@ -1214,11 +1218,21 @@ impl Runtime {
     pub fn enable_numeric_accounting(&mut self) {
         self.numeric_accounting.get_or_insert_with(Default::default);
     }
+    pub fn enable_shared_payload_accounting(&mut self) {
+        self.shared_accounting.get_or_insert_with(Default::default);
+    }
+    pub fn shared_payload_metrics(&self) -> Option<serde_json::Value> {
+        self.shared_accounting.as_ref().map(|a|serde_json::json!({"live_bytes":a.bytes(),"allocated_bytes":a.allocated_bytes(),"registration_visits":a.visits()}))
+    }
     pub fn check_numeric_accounting(&self) -> Result<()> {
         if self
             .numeric_accounting
             .as_ref()
             .is_some_and(|a| a.generation() != self.numeric_checked_generation.get())
+            || self
+                .shared_accounting
+                .as_ref()
+                .is_some_and(|a| a.generation() != self.shared_checked_generation.get())
         {
             self.enforce_budget()?;
         }
@@ -1230,26 +1244,28 @@ impl Runtime {
             .map_or(0, numeric::Accounting::bytes)
     }
     pub fn retained_payload_bytes(&self, value: &Value) -> usize {
-        let bytes = Self::value_bytes(value);
-        if let Some(accounting) = &self.numeric_accounting {
-            Self::register_numeric_value(value, accounting);
-            bytes.saturating_sub(Self::numeric_payload_bytes(value))
-        } else {
-            bytes
-        }
+        self.retained_bytes(value, Self::value_bytes(value))
     }
     fn retained_value_bytes(&self, value: &Value) -> usize {
-        if self.allocation_accounting {
-            let bytes = Self::allocation_bytes(value);
-            if let Some(accounting) = &self.numeric_accounting {
-                Self::register_numeric_value(value, accounting);
-                bytes.saturating_sub(Self::numeric_payload_bytes(value))
+        self.retained_bytes(
+            value,
+            if self.allocation_accounting {
+                Self::allocation_bytes(value)
             } else {
-                bytes
-            }
-        } else {
-            self.retained_payload_bytes(value)
+                Self::value_bytes(value)
+            },
+        )
+    }
+    fn retained_bytes(&self, value: &Value, mut bytes: usize) -> usize {
+        if let Some(a) = &self.numeric_accounting {
+            Self::register_numeric_value(value, a);
+            bytes = bytes.saturating_sub(Self::numeric_payload_bytes(value));
         }
+        if let Some(a) = &self.shared_accounting {
+            Self::register_shared_value(value, a);
+            bytes = bytes.saturating_sub(Self::shared_payload_bytes(value));
+        }
+        bytes
     }
     pub(crate) fn numeric_payload_bytes(value: &Value) -> usize {
         match value {
@@ -1307,6 +1323,66 @@ impl Runtime {
             }
             Value::Option(Some(value)) | Value::Result(Ok(value)) | Value::Result(Err(value)) => {
                 Self::register_numeric_value(value, accounting)
+            }
+            _ => {}
+        }
+    }
+    pub(crate) fn shared_payload_bytes(value: &Value) -> usize {
+        match value {
+            Value::Text(text) => text.shared_payload_bytes(),
+            Value::TypedList(_, values) => values.shared_bytes(),
+            Value::Map(values) | Value::TypedMap(_, _, values) => values.shared_bytes(),
+            Value::List(values) => values.iter().fold(0usize, |n, v| {
+                n.saturating_add(Self::shared_payload_bytes(v))
+            }),
+            Value::OrderedMap(_, _, values) => values.iter().fold(0usize, |n, (k, v)| {
+                n.saturating_add(Self::shared_payload_bytes(k))
+                    .saturating_add(Self::shared_payload_bytes(v))
+            }),
+            Value::Struct(_, values) | Value::Closure(_, _, values) => {
+                values.values().fold(0usize, |n, v| {
+                    n.saturating_add(Self::shared_payload_bytes(v))
+                })
+            }
+            Value::Enum(_, _, values) => values.iter().fold(0usize, |n, (_, v)| {
+                n.saturating_add(Self::shared_payload_bytes(v))
+            }),
+            Value::Option(Some(value)) | Value::Result(Ok(value)) | Value::Result(Err(value)) => {
+                Self::shared_payload_bytes(value)
+            }
+            _ => 0,
+        }
+    }
+    pub(crate) fn register_shared_value(value: &Value, accounting: &shared_payload::Accounting) {
+        match value {
+            Value::Text(text) => text.register_shared(accounting),
+            Value::TypedList(_, values) => values.register_shared_payloads(accounting),
+            Value::Map(values) | Value::TypedMap(_, _, values) => {
+                values.register_shared_payloads(accounting)
+            }
+            Value::List(values) => {
+                for value in values {
+                    Self::register_shared_value(value, accounting);
+                }
+            }
+            Value::OrderedMap(_, _, values) => {
+                for (key, value) in values {
+                    Self::register_shared_value(key, accounting);
+                    Self::register_shared_value(value, accounting);
+                }
+            }
+            Value::Struct(_, values) | Value::Closure(_, _, values) => {
+                for value in values.values() {
+                    Self::register_shared_value(value, accounting);
+                }
+            }
+            Value::Enum(_, _, values) => {
+                for (_, value) in values {
+                    Self::register_shared_value(value, accounting);
+                }
+            }
+            Value::Option(Some(value)) | Value::Result(Ok(value)) | Value::Result(Err(value)) => {
+                Self::register_shared_value(value, accounting)
             }
             _ => {}
         }
@@ -1449,6 +1525,9 @@ impl Runtime {
             numeric_accounting: None,
             numeric_checked_generation: std::cell::Cell::new(0),
             numeric_gc_start: 0,
+            shared_accounting: None,
+            shared_checked_generation: std::cell::Cell::new(0),
+            shared_gc_start: 0,
             execution_remaining: None,
         })
     }
@@ -1732,23 +1811,20 @@ impl Runtime {
                 );
             }
             if seen_compute.insert(Arc::as_ptr(&state.heap) as usize) {
-                compute_memory = compute_memory.saturating_add(if self.allocation_accounting {
-                    let bytes = state.heap.allocation_bytes();
-                    if let Some(accounting) = &self.numeric_accounting {
-                        state.heap.register_numerics(accounting);
-                        bytes.saturating_sub(state.heap.numeric_bytes())
-                    } else {
-                        bytes
-                    }
+                let mut bytes = if self.allocation_accounting {
+                    state.heap.allocation_bytes()
                 } else {
-                    let bytes = state.heap.logical_bytes();
-                    if let Some(accounting) = &self.numeric_accounting {
-                        state.heap.register_numerics(accounting);
-                        bytes.saturating_sub(state.heap.numeric_bytes())
-                    } else {
-                        bytes
-                    }
-                });
+                    state.heap.logical_bytes()
+                };
+                if let Some(a) = &self.numeric_accounting {
+                    state.heap.register_numerics(a);
+                    bytes = bytes.saturating_sub(state.heap.numeric_bytes());
+                }
+                if let Some(a) = &self.shared_accounting {
+                    state.heap.register_shared_payloads(a);
+                    bytes = bytes.saturating_sub(state.heap.shared_bytes());
+                }
+                compute_memory = compute_memory.saturating_add(bytes);
             }
             if seen_compute.insert(Arc::as_ptr(&state.stack) as usize) {
                 compute_memory = compute_memory.saturating_add(
@@ -1832,6 +1908,11 @@ impl Runtime {
             )
             .saturating_add(self.external_memory_bytes)
             .saturating_add(self.retained_numeric_bytes())
+            .saturating_add(
+                self.shared_accounting
+                    .as_ref()
+                    .map_or(0, shared_payload::Accounting::bytes),
+            )
             .saturating_add(
                 self.database_host
                     .as_ref()
@@ -1939,6 +2020,9 @@ impl Runtime {
         }
         if let Some(accounting) = &self.numeric_accounting {
             self.numeric_checked_generation.set(accounting.generation());
+        }
+        if let Some(a) = &self.shared_accounting {
+            self.shared_checked_generation.set(a.generation());
         }
         Ok(())
     }
@@ -2070,8 +2154,15 @@ impl Runtime {
         let numeric = self.numeric_accounting.as_ref().map_or(0, |a| {
             a.allocated_bytes().saturating_sub(self.numeric_gc_start)
         });
+        let shared = self.shared_accounting.as_ref().map_or(0, |a| {
+            a.allocated_bytes().saturating_sub(self.shared_gc_start)
+        });
         self.allocations_since_gc >= 256
-            || self.allocation_bytes_since_gc.saturating_add(numeric) >= 4 * 1024 * 1024
+            || self
+                .allocation_bytes_since_gc
+                .saturating_add(numeric)
+                .saturating_add(shared)
+                >= 4 * 1024 * 1024
     }
     /// Embedders must supply every external live Value at a safe point.
     /// Checkpoints keep independent roots; collection never mutates those roots.
@@ -2231,14 +2322,21 @@ impl Runtime {
             .numeric_accounting
             .as_ref()
             .map_or(0, numeric::Accounting::allocated_bytes);
+        self.shared_gc_start = self
+            .shared_accounting
+            .as_ref()
+            .map_or(0, shared_payload::Accounting::allocated_bytes);
         Ok((dead.len(), work))
     }
     pub fn alloc(&mut self, value: Value) -> Result<u64> {
-        let bytes = if self.numeric_accounting.is_some() {
+        let mut bytes = if self.numeric_accounting.is_some() {
             Self::value_bytes(&value).saturating_sub(Self::numeric_payload_bytes(&value))
         } else {
             Self::value_bytes(&value)
         };
+        if self.shared_accounting.is_some() {
+            bytes = bytes.saturating_sub(Self::shared_payload_bytes(&value));
+        }
         let id = self.state.next_heap_id;
         let previous = self.state.heap.clone();
         self.state.next_heap_id = id
@@ -2256,12 +2354,14 @@ impl Runtime {
     }
     pub fn heap_set(&mut self, id: u64, value: Value) -> Result<()> {
         let bytes = |value: &Value| {
-            let total = Self::value_bytes(value);
+            let mut total = Self::value_bytes(value);
             if self.numeric_accounting.is_some() {
-                total.saturating_sub(Self::numeric_payload_bytes(value))
-            } else {
-                total
+                total = total.saturating_sub(Self::numeric_payload_bytes(value));
             }
+            if self.shared_accounting.is_some() {
+                total = total.saturating_sub(Self::shared_payload_bytes(value));
+            }
+            total
         };
         let growth = bytes(&value).saturating_sub(self.state.heap.get(&id).map_or(0, bytes));
         let previous = self.state.heap.clone();

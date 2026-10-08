@@ -8,6 +8,7 @@ struct Entry {
     bytes: usize,
     allocation_bytes: usize,
     numeric_bytes: usize,
+    shared_bytes: usize,
 }
 impl Entry {
     fn new(key: Arc<MapKey>, value: Arc<Value>) -> Arc<Self> {
@@ -24,14 +25,21 @@ impl Entry {
         let bytes = key_bytes + Runtime::value_bytes(&value);
         let allocation_bytes = key_bytes
             .saturating_add(Runtime::allocation_bytes(&value))
-            .saturating_add(192);
+            .saturating_add(
+                std::mem::size_of::<Node>()
+                    + std::mem::size_of::<Entry>()
+                    + std::mem::size_of::<MapKey>()
+                    + 256,
+            );
         let numeric_bytes = Runtime::numeric_payload_bytes(&value);
+        let shared_bytes = Runtime::shared_payload_bytes(&value);
         Arc::new(Self {
             key,
             value,
             bytes,
             allocation_bytes,
             numeric_bytes,
+            shared_bytes,
         })
     }
 }
@@ -44,6 +52,8 @@ struct Node {
     bytes: usize,
     allocation_bytes: usize,
     numeric_bytes: usize,
+    shared_bytes: usize,
+    shared_registered: crate::shared_payload::Registration,
     numeric_registered: crate::numeric::RegistrationMemo,
 }
 impl std::ops::Deref for Node {
@@ -72,6 +82,11 @@ fn node(entry: Arc<Entry>, left: Link, right: Link) -> Arc<Node> {
             .numeric_bytes
             .saturating_add(left.as_ref().map_or(0, |n| n.numeric_bytes))
             .saturating_add(right.as_ref().map_or(0, |n| n.numeric_bytes)),
+        shared_bytes: entry
+            .shared_bytes
+            .saturating_add(left.as_ref().map_or(0, |n| n.shared_bytes))
+            .saturating_add(right.as_ref().map_or(0, |n| n.shared_bytes)),
+        shared_registered: Default::default(),
         numeric_registered: Default::default(),
         height: 1 + height(&left).max(height(&right)),
         size: 1 + size(&left) + size(&right),
@@ -205,6 +220,23 @@ impl PersistentMap {
                 return;
             }
             Runtime::register_numeric_value(&node.entry.value, accounting);
+            for child in [&node.left, &node.right].into_iter().flatten() {
+                visit(child, accounting);
+            }
+        }
+        if let Some(root) = &self.root {
+            visit(root, accounting);
+        }
+    }
+    pub(crate) fn shared_bytes(&self) -> usize {
+        self.root.as_ref().map_or(0, |n| n.shared_bytes)
+    }
+    pub(crate) fn register_shared_payloads(&self, accounting: &crate::shared_payload::Accounting) {
+        fn visit(node: &Node, accounting: &crate::shared_payload::Accounting) {
+            if node.shared_bytes == 0 || !node.shared_registered.register(accounting, 0) {
+                return;
+            }
+            Runtime::register_shared_value(&node.entry.value, accounting);
             for child in [&node.left, &node.right].into_iter().flatten() {
                 visit(child, accounting);
             }
@@ -386,5 +418,30 @@ mod tests {
         );
         assert!(snapshot.len() > map.len());
         assert!(map.root.as_ref().unwrap().height <= 16);
+    }
+    #[test]
+    fn shared_text_values_register_only_changed_avl_paths() {
+        let ledger = crate::shared_payload::Accounting::default();
+        let text = crate::text_storage::Text::from("a".repeat(4096));
+        let mut map = PersistentMap::default();
+        for i in 0..8192 {
+            map.insert(MapKey::Int(i), Value::Text(text.clone()));
+        }
+        map.register_shared_payloads(&ledger);
+        let before = ledger.visits();
+        assert_eq!(ledger.bytes(), text.capacity() + 256);
+        map.register_shared_payloads(&ledger);
+        assert_eq!(ledger.visits(), before);
+        let old = map.clone();
+        map.insert(MapKey::Int(4096), Value::Text("tiny".into()));
+        map.register_shared_payloads(&ledger);
+        assert!(ledger.visits() - before < 64);
+        assert_eq!(old.shared_bytes(), 8192 * 4096);
+        assert_eq!(map.shared_bytes(), 8191 * 4096);
+        drop(text);
+        drop(map);
+        assert!(ledger.bytes() > 0);
+        drop(old);
+        assert_eq!(ledger.bytes(), 0);
     }
 }
