@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.39",
+  "language": "1.9.40",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
@@ -51,7 +51,7 @@
     },
     "fn:eigenSymmetric": {
       "async": true,
-      "cost": "Cyclic Jacobi bounded to maxSweeps; copy, symmetry check, scans, rotations, stable sorting and outputs execute at most 4096 scalar units per step with shared-page COW work and grouped digest refreshes.",
+      "cost": "Cyclic Jacobi bounded to maxSweeps; copy, symmetry check, scans, rotations, stable sorting and outputs execute at most 4096 scalar units per step with shared-page COW work, cached storage digests and bounded page-range rotation buffers.",
       "effects": [
         "tasks"
       ],
