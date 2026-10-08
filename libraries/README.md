@@ -197,3 +197,5 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 `graphLarge`（language 1.9.49）は数値配列に隣接データを保持します。`fromEdges` は辺をまとめて構築し、`bfs` は到達しない頂点を -1 とする IntArray を返します。`numericRange.integers(start,step,length)` は途中の List を作らず整数配列を生成します。既存の `graph`、`numeric`、`numericIndex` の API は維持します。
 
 `std.training` provides named gradient extraction, mean-square loss, sample-weighted batch-mean merging and global-norm clipping. See [the nonlinear training example](../examples/nonlinear-training/README.md).
+
+`std.gui` / `std.guiWindows` のネイティブ text input は選択言語 1.9.52 で Ctrl+C / Ctrl+V / Ctrl+X に対応します。公開 scene の選択をコピーし、貼り付けを記録する text 入力として受け取ります。OS クリップボードの状態は巻き戻しません。[仕様と制限](../docs/REWIND_v1.9.52.md)、SDK の gui-clipboard 例を参照してください。

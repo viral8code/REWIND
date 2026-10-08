@@ -1,5 +1,6 @@
 //! Native single-window surfaces. Scenes are data; only publish touches a surface.
 use serde::{Deserialize, Serialize};
+pub(crate) mod clipboard;
 pub mod edit;
 mod live;
 mod runtime;
@@ -140,6 +141,12 @@ pub(crate) struct Host {
     backend: windows::Surface,
 }
 impl Host {
+    pub fn configure_clipboard(&mut self, enabled: bool) {
+        #[cfg(any(target_os = "linux", windows))]
+        self.backend.configure_clipboard(enabled);
+        #[cfg(not(any(target_os = "linux", windows)))]
+        let _ = enabled;
+    }
     pub fn prepare() -> io::Result<Self> {
         #[cfg(target_os = "linux")]
         {

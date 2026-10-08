@@ -82,6 +82,17 @@ unsafe extern "system" {
     fn UpdateWindow(hwnd: Handle) -> i32;
     fn PeekMessageW(message: *mut Message, hwnd: Handle, min: u32, max: u32, remove: u32) -> i32;
     fn GetKeyState(key: i32) -> i16;
+    #[cfg(test)]
+    fn GetKeyboardState(state: *mut u8) -> i32;
+    #[cfg(test)]
+    fn SetKeyboardState(state: *const u8) -> i32;
+    #[cfg(test)]
+    fn SendMessageW(window: Handle, message: u32, wparam: usize, lparam: isize) -> isize;
+    fn OpenClipboard(window: Handle) -> i32;
+    fn CloseClipboard() -> i32;
+    fn EmptyClipboard() -> i32;
+    fn SetClipboardData(format: u32, data: Handle) -> Handle;
+    fn GetClipboardData(format: u32) -> Handle;
     fn GetMessageW(message: *mut Message, hwnd: Handle, min: u32, max: u32) -> i32;
     fn TranslateMessage(message: *const Message) -> i32;
     fn DispatchMessageW(message: *const Message) -> isize;
@@ -112,6 +123,75 @@ unsafe extern "system" {
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn GetModuleHandleW(name: *const u16) -> Handle;
+    fn GlobalAlloc(flags: u32, bytes: usize) -> Handle;
+    fn GlobalFree(memory: Handle) -> Handle;
+    fn GlobalLock(memory: Handle) -> *mut c_void;
+    fn GlobalUnlock(memory: Handle) -> i32;
+    fn GlobalSize(memory: Handle) -> usize;
+}
+struct ClipboardGuard;
+impl Drop for ClipboardGuard {
+    fn drop(&mut self) {
+        unsafe {
+            CloseClipboard();
+        }
+    }
+}
+fn copy_text(window: Handle, text: &str) -> bool {
+    if !clipboard::valid_text(text) {
+        return false;
+    }
+    unsafe {
+        if OpenClipboard(window) == 0 {
+            return false;
+        }
+        let _guard = ClipboardGuard;
+        let data = wide(text);
+        let memory = GlobalAlloc(2, data.len() * 2);
+        if memory == 0 {
+            return false;
+        }
+        let pointer = GlobalLock(memory).cast::<u16>();
+        if pointer.is_null() {
+            GlobalFree(memory);
+            return false;
+        }
+        std::ptr::copy_nonoverlapping(data.as_ptr(), pointer, data.len());
+        GlobalUnlock(memory);
+        if EmptyClipboard() == 0 || SetClipboardData(13, memory) == 0 {
+            GlobalFree(memory);
+            return false;
+        }
+        true
+    }
+}
+fn paste_text(window: Handle) -> Option<String> {
+    unsafe {
+        if OpenClipboard(window) == 0 {
+            return None;
+        }
+        let _guard = ClipboardGuard;
+        let memory = GetClipboardData(13);
+        if memory == 0 {
+            return None;
+        }
+        let bytes = GlobalSize(memory);
+        // Never scan an unbounded OS allocation, even if its terminator is missing.
+        if bytes < 2 || bytes > (clipboard::MAX_TEXT_BYTES + 1) * 2 || bytes % 2 != 0 {
+            return None;
+        }
+        let pointer = GlobalLock(memory).cast::<u16>();
+        if pointer.is_null() {
+            return None;
+        }
+        let units = std::slice::from_raw_parts(pointer, bytes / 2);
+        let text = units
+            .iter()
+            .position(|unit| *unit == 0)
+            .and_then(|end| String::from_utf16(&units[..end]).ok());
+        GlobalUnlock(memory);
+        text.filter(|text| clipboard::valid_text(text))
+    }
 }
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(Some(0)).collect()
@@ -120,6 +200,7 @@ fn color(rgb: u32) -> u32 {
     ((rgb & 0xff) << 16) | (rgb & 0xff00) | (rgb >> 16)
 }
 struct State {
+    clipboard_enabled: bool,
     frame: Option<Arc<Frame>>,
     events: VecDeque<Event>,
     closed: bool,
@@ -181,6 +262,33 @@ unsafe extern "system" fn procedure(
             0
         }
         0x100 => {
+            let state = unsafe { &mut *ptr };
+            if state.clipboard_enabled
+                && unsafe { GetKeyState(0x11) } < 0
+                && matches!(wparam, 0x43 | 0x56 | 0x58)
+            {
+                let focused = state
+                    .frame
+                    .as_deref()
+                    .and_then(clipboard::focused_input)
+                    .is_some();
+                if focused {
+                    if wparam == 0x56 {
+                        if let Some(event) = paste_text(hwnd).and_then(clipboard::text_event) {
+                            state.push(event);
+                        }
+                    } else if let Some(text) =
+                        state.frame.as_deref().and_then(clipboard::selected_text)
+                    {
+                        if copy_text(hwnd, &text) && wparam == 0x58 {
+                            let mut event = Event::simple("key");
+                            event.key = "Delete".into();
+                            state.push(event);
+                        }
+                    }
+                }
+                return 0;
+            }
             let key = match wparam {
                 0x0d => "Enter",
                 0x09 => "Tab",
@@ -384,6 +492,23 @@ pub(super) struct Surface {
     instance: Handle,
 }
 impl Surface {
+    #[cfg(test)]
+    pub fn inject_clipboard_key(&mut self, key: u8) {
+        unsafe {
+            let mut saved = [0u8; 256];
+            assert_ne!(GetKeyboardState(saved.as_mut_ptr()), 0);
+            let mut pressed = saved;
+            pressed[0x11] = 0x80;
+            assert_ne!(SetKeyboardState(pressed.as_ptr()), 0);
+            SendMessageW(self.window, 0x100, key as usize, 0);
+            assert_ne!(SetKeyboardState(saved.as_ptr()), 0);
+        }
+    }
+    pub fn configure_clipboard(&mut self, enabled: bool) {
+        unsafe {
+            (*self.state.get()).clipboard_enabled = enabled;
+        }
+    }
     fn state(&self) -> &State {
         unsafe { &*self.state.get() }
     }
@@ -414,6 +539,7 @@ impl Surface {
             Ok(Self {
                 window: 0,
                 state: Box::new(UnsafeCell::new(State {
+                    clipboard_enabled: false,
                     frame: None,
                     events: VecDeque::new(),
                     closed: false,

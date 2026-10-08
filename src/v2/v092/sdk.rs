@@ -613,6 +613,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-clipboard/main.rw",
+            include_str!("../../../examples/gui-clipboard/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-clipboard/README.md",
+            include_str!("../../../examples/gui-clipboard/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/graph-large/main.rw",
             include_str!("../../../examples/graph-large/main.rw"),
         )?;
@@ -658,6 +668,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.51.md",
                 include_str!("../../../docs/REWIND_v1.9.51.md"),
+            ),
+            (
+                "REWIND_v1.9.52.md",
+                include_str!("../../../docs/REWIND_v1.9.52.md"),
             ),
             (
                 "REWIND_v1.9.48.md",
@@ -878,6 +892,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-clipboard/main.rw",
+            include_str!("../../../examples/gui-clipboard/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-clipboard/README.md",
+            include_str!("../../../examples/gui-clipboard/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/graph-large/main.rw",
             include_str!("../../../examples/graph-large/main.rw"),
         )?;
@@ -923,6 +947,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.51.md",
                 include_str!("../../../docs/REWIND_v1.9.51.md"),
+            ),
+            (
+                "REWIND_v1.9.52.md",
+                include_str!("../../../docs/REWIND_v1.9.52.md"),
             ),
             (
                 "REWIND_v1.9.48.md",
@@ -974,6 +1002,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/gui-grapheme/README.md"),
             ),
             (
+                "gui-clipboard",
+                include_str!("../../../examples/gui-clipboard/README.md"),
+            ),
+            (
                 "unicode",
                 include_str!("../../../examples/unicode/README.md"),
             ),
@@ -1012,6 +1044,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-grapheme",
                 include_str!("../../../examples/gui-grapheme/main.rw"),
+            ),
+            (
+                "gui-clipboard",
+                include_str!("../../../examples/gui-clipboard/main.rw"),
             ),
             (
                 "numeric-memory",

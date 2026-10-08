@@ -418,6 +418,22 @@ impl Runtime {
         if self.replaying || self.virtual_publish || self.gui_window_scripted.is_some() {
             return Ok(());
         }
+        if self.gui_clipboard_enabled {
+            let new_hosts = self
+                .state
+                .gui_windows_pending
+                .iter()
+                .filter(|(id, r)| {
+                    r.frame.is_some()
+                        && !self.published_operations.contains(&r.id)
+                        && !self.gui_window_hosts.contains_key(*id)
+                })
+                .count();
+            self.check_native_allocation(
+                allocation
+                    .saturating_add(new_hosts.saturating_mul(super::clipboard::HOST_RESERVATION)),
+            )?;
+        }
         self.gui_window_hosts.retain(|id, _| {
             self.gui_window_frames.contains_key(id)
                 || self
@@ -432,11 +448,10 @@ impl Runtime {
                 && !self.published_operations.contains(&r.id)
                 && !self.gui_window_hosts.contains_key(id)
             {
-                prepared.insert(
-                    id.clone(),
-                    Host::prepare()
-                        .map_err(|e| Error::InvalidOperation(format!("GuiUnavailable: {e}")))?,
-                );
+                let mut host = Host::prepare()
+                    .map_err(|e| Error::InvalidOperation(format!("GuiUnavailable: {e}")))?;
+                host.configure_clipboard(self.gui_clipboard_enabled);
+                prepared.insert(id.clone(), host);
             }
         }
         self.gui_window_hosts.extend(prepared);
@@ -737,6 +752,34 @@ mod tests {
         rt.gui_window_stage("extra", Some(frame("extra"))).unwrap();
         publish(&mut rt);
         assert_eq!(rt.gui_window_frames.len(), MAX_WINDOWS);
+    }
+    #[test]
+    fn clipboard_host_is_admitted_before_native_window_preparation() {
+        let mut rt = runtime();
+        rt.enable_gui_clipboard();
+        rt.gui_window_stage("one", Some(frame("clipboard budget")))
+            .unwrap();
+        let mut budget = rt.budget;
+        budget.history_memory = 80 * 1024;
+        rt.set_budget(budget).unwrap();
+        assert!(matches!(
+            rt.gui_windows_prepare(),
+            Err(Error::HistoryBudgetExceeded)
+        ));
+        assert!(rt.gui_window_hosts.is_empty());
+        assert_eq!(rt.state.gui_windows_pending.len(), 1);
+        // The earlier host contract fits; the new clipboard reservation causes rejection.
+        rt.gui_clipboard_enabled = false;
+        let frame = rt
+            .state
+            .gui_windows_pending
+            .get("one")
+            .unwrap()
+            .frame
+            .as_ref()
+            .unwrap();
+        let legacy = frame.bytes() * 2 + frame.width as usize * frame.height as usize * 4 + 8192;
+        rt.check_native_allocation(legacy).unwrap();
     }
     #[test]
     fn completed_window_effects_are_kept_on_later_publish_failure() {
