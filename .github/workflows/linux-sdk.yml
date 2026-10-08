@@ -13,6 +13,8 @@ jobs:
         with:
           toolchain: 1.98.1
           components: rustfmt
+      - name: Check committed standard-library version metadata
+        run: python scripts/check-standard-library-lock.py
       - run: cargo fmt --check
       - name: Disposable PostgreSQL SCRAM and TLS server
         run: |

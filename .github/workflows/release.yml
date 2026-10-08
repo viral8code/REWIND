@@ -45,6 +45,8 @@ jobs:
               assert os.environ['RELEASE_REF'] == 'refs/heads/codex/develop'
               assert os.environ['RELEASE_MESSAGE'].splitlines()[0] == 'Release ' + tag
           PY
+      - name: Check committed standard-library version metadata
+        run: python scripts/check-standard-library-lock.py
       - run: cargo fmt --check
       - name: Linux PostgreSQL SCRAM and TLS fixture
         if: matrix.platform == 'linux'
