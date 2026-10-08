@@ -157,40 +157,54 @@ Out.println("checked");publish;
 #[test]
 fn repeated_cancel_reclaims_work_pages_and_task_quota_metadata() {
     let r = root();
-    fs::write(r.join("main.rw"),r#"
+    let source = r#"
 import std.numeric as n;import std.numericAsync as jobs;import std.task as task;
 fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
 let shape=List<Int>();shape.add(65);shape.add(65);let a=take(n.zerosFloat(&shape));var done=0;
 for i in 0..128{let work=spawn jobs.qr(a,0.0);task.yieldNow();assert(!work.isDone());work.cancel();
 match await work{Err(TaskError::Cancelled)=>{done+=1;},_=>{panic("cancel");}}}
 Out.println(done);publish;
-"#).unwrap();
-    let out = call(
-        &r,
-        &[
-            "profile",
-            "main.rw",
-            "--native-work",
-            "100000000",
-            "--steps",
-            "20000000",
-            "--history-memory",
-            "8MiB",
-        ],
-    );
-    ok(&out);
-    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "128");
-    let stderr = String::from_utf8(out.stderr).unwrap();
-    let p: serde_json::Value =
-        serde_json::from_str(stderr.lines().rev().find(|s| s.starts_with('{')).unwrap()).unwrap();
-    assert!(
-        p["numeric_pages"]["live_bytes"].as_u64().unwrap() < 1024 * 1024,
-        "{p}"
-    );
-    assert!(
-        p["task_instructions"].as_object().unwrap().len() < 64,
-        "{p}"
-    );
-    assert!(p["gc"]["completed"].as_u64().unwrap() > 0, "{p}");
+"#;
+    for count in [128, 512, 1024] {
+        fs::write(
+            r.join("main.rw"),
+            source.replace("0..128", &format!("0..{count}")),
+        )
+        .unwrap();
+        let out = call(
+            &r,
+            &[
+                "profile",
+                "main.rw",
+                "--native-work",
+                "1000000000",
+                "--steps",
+                "20000000",
+                "--history-memory",
+                "8MiB",
+            ],
+        );
+        ok(&out);
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout).trim(),
+            count.to_string()
+        );
+        let stderr = String::from_utf8(out.stderr).unwrap();
+        let p: serde_json::Value =
+            serde_json::from_str(stderr.lines().rev().find(|s| s.starts_with('{')).unwrap())
+                .unwrap();
+        // Unreachable work remains until the cumulative native-allocation GC
+        // trigger (4 MiB), not until a particular cancellation count. Increasing
+        // workloads must keep the live tail and task quota table bounded.
+        assert!(
+            p["numeric_pages"]["live_bytes"].as_u64().unwrap() < 4 * 1024 * 1024,
+            "{p}"
+        );
+        assert!(
+            p["task_instructions"].as_object().unwrap().len() < 64,
+            "{p}"
+        );
+        assert!(p["gc"]["completed"].as_u64().unwrap() > 0, "{p}");
+    }
     fs::remove_dir_all(r).unwrap();
 }

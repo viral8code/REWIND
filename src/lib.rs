@@ -1197,7 +1197,54 @@ impl Runtime {
             }
             _ => Self::value_bytes(value),
         };
+        let extra = match value {
+            Value::Text(text) => text.owned_capacity_extra(),
+            Value::TypedList(name, _) | Value::Struct(name, _) => name.capacity(),
+            Value::TypedMap(k, v, _) => k.capacity().saturating_add(v.capacity()),
+            Value::Closure(name, ty, _) => name.capacity().saturating_add(ty.capacity()),
+            Value::Function(name, ty) => name
+                .capacity()
+                .saturating_sub(name.len())
+                .saturating_add(ty.capacity().saturating_sub(ty.len())),
+            Value::Enum(name, variant, fields) => name
+                .capacity()
+                .saturating_add(variant.capacity())
+                .saturating_add(
+                    fields
+                        .capacity()
+                        .saturating_sub(fields.len())
+                        .saturating_mul(std::mem::size_of::<(String, Value)>()),
+                )
+                .saturating_add(
+                    fields
+                        .iter()
+                        .map(|(k, _)| k.capacity().saturating_sub(k.len()))
+                        .sum::<usize>(),
+                ),
+            Value::List(values) => values
+                .capacity()
+                .saturating_sub(values.len())
+                .saturating_mul(std::mem::size_of::<Value>().saturating_sub(16)),
+            Value::OrderedMap(k, v, values) => {
+                k.capacity().saturating_add(v.capacity()).saturating_add(
+                    values
+                        .capacity()
+                        .saturating_sub(values.len())
+                        .saturating_mul(std::mem::size_of::<(Value, Value)>().saturating_sub(16)),
+                )
+            }
+            _ => 0,
+        };
+        let key_extra = match value {
+            Value::Struct(_, values) | Value::Closure(_, _, values) => values
+                .keys()
+                .map(|k| k.capacity().saturating_sub(k.len()))
+                .sum(),
+            _ => 0usize,
+        };
         children
+            .saturating_add(extra)
+            .saturating_add(key_extra)
             .saturating_add(std::mem::size_of::<Value>())
             .saturating_add(32)
     }
@@ -1220,6 +1267,19 @@ impl Runtime {
     }
     pub fn enable_shared_payload_accounting(&mut self) {
         self.shared_accounting.get_or_insert_with(Default::default);
+    }
+    pub fn enable_container_accounting(&mut self) {
+        self.enable_allocation_accounting();
+        self.enable_numeric_accounting();
+        if !self
+            .shared_accounting
+            .as_ref()
+            .is_some_and(|a| a.includes_containers())
+        {
+            self.shared_accounting = Some(shared_payload::Accounting::with_containers());
+            self.shared_checked_generation.set(0);
+            self.shared_gc_start = 0;
+        }
     }
     pub fn enable_byte_payload_accounting(&mut self) {
         if !self
@@ -1255,7 +1315,7 @@ impl Runtime {
             .map_or(0, numeric::Accounting::bytes)
     }
     pub fn retained_payload_bytes(&self, value: &Value) -> usize {
-        self.retained_bytes(value, Self::value_bytes(value))
+        self.retained_bytes(value, Self::value_bytes(value), false)
     }
     fn retained_value_bytes(&self, value: &Value) -> usize {
         self.retained_bytes(
@@ -1265,9 +1325,10 @@ impl Runtime {
             } else {
                 Self::value_bytes(value)
             },
+            self.allocation_accounting,
         )
     }
-    fn retained_bytes(&self, value: &Value, mut bytes: usize) -> usize {
+    fn retained_bytes(&self, value: &Value, mut bytes: usize, allocations: bool) -> usize {
         if let Some(a) = &self.numeric_accounting {
             Self::register_numeric_value(value, a);
             bytes = bytes.saturating_sub(Self::numeric_payload_bytes(value));
@@ -1277,6 +1338,9 @@ impl Runtime {
             bytes = bytes.saturating_sub(Self::shared_payload_bytes(value));
             if a.includes_bytes() {
                 bytes = bytes.saturating_sub(Self::byte_payload_info(value).0);
+            }
+            if allocations && a.includes_containers() {
+                bytes = bytes.saturating_sub(Self::container_discount(value));
             }
         }
         bytes
@@ -1394,6 +1458,91 @@ impl Runtime {
                 Self::byte_payload_info(v)
             }
             _ => (0, 0),
+        }
+    }
+    /// Existing per-root native contribution replaced by unique owners. Payload
+    /// totals have already been removed separately, so never subtract them twice.
+    pub(crate) fn container_discount(value: &Value) -> usize {
+        match value {
+            Value::TypedList(_, values) => values
+                .allocation_bytes()
+                .saturating_sub(values.numeric_bytes())
+                .saturating_sub(values.shared_bytes())
+                .saturating_sub(values.byte_payload_info().0),
+            Value::Map(values) | Value::TypedMap(_, _, values) => values
+                .allocation_bytes()
+                .saturating_sub(values.numeric_bytes())
+                .saturating_sub(values.shared_bytes())
+                .saturating_sub(values.byte_payload_info().0),
+            Value::List(values) => values
+                .iter()
+                .fold(0usize, |n, v| n.saturating_add(Self::container_discount(v))),
+            Value::OrderedMap(_, _, values) => values.iter().fold(0usize, |n, (k, v)| {
+                n.saturating_add(Self::container_discount(k))
+                    .saturating_add(Self::container_discount(v))
+            }),
+            Value::Struct(_, values) | Value::Closure(_, _, values) => values
+                .values()
+                .fold(0usize, |n, v| n.saturating_add(Self::container_discount(v))),
+            Value::Enum(_, _, values) => values.iter().fold(0usize, |n, (_, v)| {
+                n.saturating_add(Self::container_discount(v))
+            }),
+            Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                Self::container_discount(v)
+            }
+            _ => 0,
+        }
+    }
+    pub(crate) fn container_logical_discount(value: &Value) -> usize {
+        match value {
+            Value::TypedList(_, values) => values
+                .logical_bytes()
+                .saturating_sub(values.numeric_bytes())
+                .saturating_sub(values.shared_bytes())
+                .saturating_sub(values.byte_payload_info().0),
+            Value::Map(values) | Value::TypedMap(_, _, values) => values
+                .logical_bytes()
+                .saturating_sub(values.numeric_bytes())
+                .saturating_sub(values.shared_bytes())
+                .saturating_sub(values.byte_payload_info().0),
+            Value::List(values) => values.iter().fold(0usize, |n, v| {
+                n.saturating_add(Self::container_logical_discount(v))
+            }),
+            Value::OrderedMap(_, _, values) => values.iter().fold(0usize, |n, (k, v)| {
+                n.saturating_add(Self::container_logical_discount(k))
+                    .saturating_add(Self::container_logical_discount(v))
+            }),
+            Value::Struct(_, values) | Value::Closure(_, _, values) => {
+                values.values().fold(0usize, |n, v| {
+                    n.saturating_add(Self::container_logical_discount(v))
+                })
+            }
+            Value::Enum(_, _, values) => values.iter().fold(0usize, |n, (_, v)| {
+                n.saturating_add(Self::container_logical_discount(v))
+            }),
+            Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                Self::container_logical_discount(v)
+            }
+            _ => 0,
+        }
+    }
+    pub(crate) fn register_owned_value(
+        value: &Arc<Value>,
+        accounting: &shared_payload::Accounting,
+    ) {
+        if !accounting.includes_containers() {
+            Self::register_shared_value(value, accounting);
+            return;
+        }
+        if accounting.register_value(value, || {
+            Self::allocation_bytes(value)
+                .saturating_sub(Self::numeric_payload_bytes(value))
+                .saturating_sub(Self::shared_payload_bytes(value))
+                .saturating_sub(Self::byte_payload_info(value).0)
+                .saturating_sub(Self::container_discount(value))
+                .saturating_add(128)
+        }) {
+            Self::register_shared_value(value, accounting);
         }
     }
     pub(crate) fn register_shared_value(value: &Value, accounting: &shared_payload::Accounting) {
@@ -1869,6 +2018,15 @@ impl Runtime {
                     bytes = bytes.saturating_sub(state.heap.shared_bytes());
                     if a.includes_bytes() {
                         bytes = bytes.saturating_sub(state.heap.byte_payload_info().0);
+                    }
+                    if a.includes_containers() {
+                        let discount = state
+                            .heap
+                            .allocation_bytes()
+                            .saturating_sub(state.heap.numeric_bytes())
+                            .saturating_sub(state.heap.shared_bytes())
+                            .saturating_sub(state.heap.byte_payload_info().0);
+                        bytes = bytes.saturating_sub(discount);
                     }
                 }
                 compute_memory = compute_memory.saturating_add(bytes);
@@ -2395,6 +2553,9 @@ impl Runtime {
             if a.includes_bytes() {
                 bytes = bytes.saturating_sub(Self::byte_payload_info(&value).0);
             }
+            if a.includes_containers() {
+                bytes = bytes.saturating_sub(Self::container_logical_discount(&value));
+            }
         }
         let id = self.state.next_heap_id;
         let previous = self.state.heap.clone();
@@ -2421,6 +2582,9 @@ impl Runtime {
                 total = total.saturating_sub(Self::shared_payload_bytes(value));
                 if a.includes_bytes() {
                     total = total.saturating_sub(Self::byte_payload_info(value).0);
+                }
+                if a.includes_containers() {
+                    total = total.saturating_sub(Self::container_logical_discount(value));
                 }
             }
             total

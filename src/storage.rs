@@ -105,16 +105,29 @@ impl PagedValues {
     }
     pub(crate) fn register_shared_payloads(&self, accounting: &crate::shared_payload::Accounting) {
         fn visit(node: &Node, accounting: &crate::shared_payload::Accounting) {
-            if (node.shared_bytes == 0
+            if (!accounting.includes_containers()
+                && node.shared_bytes == 0
                 && (!accounting.includes_bytes() || node.byte_payload.1 == 0))
-                || !node.shared_registered.register(accounting, 0)
+                || !node.shared_registered.register(
+                    accounting,
+                    if accounting.includes_containers() {
+                        std::mem::size_of::<Node>()
+                            + 256
+                            + match &node.kind {
+                                Kind::Leaf(v) => v.capacity() * std::mem::size_of::<Arc<Value>>(),
+                                _ => 0,
+                            }
+                    } else {
+                        0
+                    },
+                )
             {
                 return;
             }
             match &node.kind {
                 Kind::Leaf(values) => {
                     for value in values {
-                        Runtime::register_shared_value(value, accounting);
+                        Runtime::register_owned_value(value, accounting);
                     }
                 }
                 Kind::Branch(left, right) => {
@@ -506,6 +519,50 @@ mod tests {
         drop(saved);
         ledger.prune_bytes();
         assert_eq!(ledger.bytes(), 0);
+    }
+    #[test]
+    fn shared_list_native_owners_match_independent_counts_and_preserve_old_pages() {
+        let a = crate::shared_payload::Accounting::with_containers();
+        let mut xs = PagedValues::default();
+        for i in 0..32 {
+            xs.push(Value::Int(i));
+        }
+        xs.register_shared_payloads(&a);
+        let node = std::mem::size_of::<Node>() + 256 + 32 * std::mem::size_of::<Arc<Value>>();
+        let value = std::mem::size_of::<Value>() + 32 + 8 + 128;
+        assert_eq!(a.bytes(), node + 32 * value);
+        let saved = xs.clone();
+        let removed = xs.set(0, Value::Int(-1));
+        drop(removed);
+        xs.register_shared_payloads(&a);
+        assert_eq!(a.bytes(), 2 * node + 33 * value);
+        assert_eq!(saved.get(0), Some(&Value::Int(0)));
+        drop(xs);
+        a.prune_bytes();
+        assert_eq!(a.bytes(), node + 32 * value);
+        drop(saved);
+        a.prune_bytes();
+        assert_eq!(a.bytes(), 0);
+    }
+    #[test]
+    fn scalar_lists_register_only_changed_paths_in_unique_owner_mode() {
+        let a = crate::shared_payload::Accounting::with_containers();
+        let mut xs = PagedValues::default();
+        for i in 0..65536 {
+            xs.push(Value::Int(i));
+        }
+        xs.register_shared_payloads(&a);
+        let before = a.visits();
+        let bytes = a.bytes();
+        let saved = xs.clone();
+        xs.set(32768, Value::Int(-1));
+        xs.register_shared_payloads(&a);
+        assert!(a.visits() - before < 64);
+        assert!(a.bytes() - bytes < 32768);
+        drop(xs);
+        drop(saved);
+        a.prune_bytes();
+        assert_eq!(a.bytes(), 0);
     }
 }
 
