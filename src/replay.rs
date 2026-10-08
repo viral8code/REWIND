@@ -210,7 +210,7 @@ impl Runtime {
                         .ok_or_else(|| invalid("secret input requires --secret-input FILE"))?;
                     secret_index += 1;
                     self.secret_input_indices.insert(index);
-                    self.sensitive_values.insert(text.clone());
+                    self.register_sensitive_text(text.clone());
                     Ok(format!("{text}\n"))
                 } else {
                     string(value).map(str::to_string)
