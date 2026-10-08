@@ -161,6 +161,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "graphLarge",
             include_str!("../../../libraries/std/graphLarge.rw"),
         ),
+        (
+            "training",
+            include_str!("../../../libraries/std/training.rw"),
+        ),
         ("graph", include_str!("../../../libraries/std/graph.rw")),
         ("scanner", include_str!("../../../libraries/std/scanner.rw")),
         ("stream", include_str!("../../../libraries/std/stream.rw")),
@@ -614,13 +618,32 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/nonlinear-training/main.rw",
+            include_str!("../../../examples/nonlinear-training/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/nonlinear-training/trace-small.rw",
+            include_str!("../../../examples/nonlinear-training/trace-small.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/graph-large/README.md",
             include_str!("../../../examples/graph-large/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/nonlinear-training/README.md",
+            include_str!("../../../examples/nonlinear-training/README.md"),
         )?;
         for (name, doc) in [
             (
                 "REWIND_v1.9.49.md",
                 include_str!("../../../docs/REWIND_v1.9.49.md"),
+            ),
+            (
+                "REWIND_v1.9.50.md",
+                include_str!("../../../docs/REWIND_v1.9.50.md"),
             ),
             (
                 "REWIND_v1.9.48.md",
@@ -846,13 +869,32 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/nonlinear-training/main.rw",
+            include_str!("../../../examples/nonlinear-training/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/nonlinear-training/trace-small.rw",
+            include_str!("../../../examples/nonlinear-training/trace-small.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/graph-large/README.md",
             include_str!("../../../examples/graph-large/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/nonlinear-training/README.md",
+            include_str!("../../../examples/nonlinear-training/README.md"),
         )?;
         for (name, doc) in [
             (
                 "REWIND_v1.9.49.md",
                 include_str!("../../../docs/REWIND_v1.9.49.md"),
+            ),
+            (
+                "REWIND_v1.9.50.md",
+                include_str!("../../../docs/REWIND_v1.9.50.md"),
             ),
             (
                 "REWIND_v1.9.48.md",

@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory(prefix='rewind-model-bench-') as directory:
     if proc.returncode:raise RuntimeError((root/'err').read_text()[:3000])
     assert (root/'out').read_bytes()==f'{loops}\n'.encode()
     profiles=[json.loads(line) for line in (root/'err').read_text().splitlines() if line.startswith('{')];assert profiles
-    if index:samples.append({'elapsed_seconds':elapsed,'peak_rss_kib':usage.ru_maxrss,'storage_work':profiles[-1]['storage_work'],'gc':profiles[-1]['gc'],'numeric_pages':profiles[-1]['numeric_pages'],'runtime':profiles[-1]['runtime']})
+    if index:samples.append({'elapsed_seconds':elapsed,'peak_rss_kib':usage.ru_maxrss,'storage_work':profiles[-1]['storage_work'],'gc':profiles[-1]['gc'],'numeric_pages':profiles[-1]['numeric_pages']})
    report['workloads'][f'{n}x{loops}']={'samples':samples,'median_seconds':statistics.median(x['elapsed_seconds'] for x in samples),'median_peak_rss_kib':statistics.median(x['peak_rss_kib'] for x in samples)}
 encoded=json.dumps(report,indent=2)+'\n'
 if a.output:a.output.write_text(encoded,encoding='utf-8')

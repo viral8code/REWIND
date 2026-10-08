@@ -1,0 +1,53 @@
+import autodiff as ad;
+import numeric as numeric;
+
+// @api meanSquaredError cost O(elements) native forward kernels; same shape required, mean is over every element. Synchronous and subject to native work/memory budgets.
+// @api meanSquaredError failure AutodiffNode/Size or numeric validation errors; intermediate successful tape operations remain on a later failure.
+pub fn meanSquaredError(tape:&mut ad.Tape,predicted:ad.Node,target:ad.Node)->Result<ad.Node,StdError> effects {} {
+ let error=ad.binary(tape,"sub",predicted,target)?;
+ let squared=ad.unary(tape,"square",error)?;
+ return ad.mean(tape,squared);
+}
+// @api gradients cost One backward pass plus named metadata and model validation of selected cells; <=128 selected nodes, native pages shared. Returned map retains selected gradients only; intermediate gradients become collectible when the local owner is dropped.
+// @api gradients failure TrainingParameters/Unused, AutodiffNode/Loss or numeric errors; names follow the model contract, tape and selected nodes unchanged. Selecting constants or unreachable nodes is an error, not an invented zero gradient.
+pub fn gradients(tape:&ad.Tape,loss:ad.Node,parameters:&Map<String,ad.Node>)->Result<Map<String,FloatArray>,StdError> effects {} {
+ if parameters.len()==0 || parameters.len()>128{return Err(StdError("TrainingParameters",0));}
+ let names=parameters.keys();
+ for i in 0..names.len(){let name=names.get(i);if name=="" || name.byteLen()>128 || stdTextFind(name,"\0")!=None{return Err(StdError("TrainingParameters",i));}}
+ let all=ad.backward(tape,loss)?;let output=Map<String,FloatArray>();
+ for i in 0..names.len(){let name=names.get(i);match parameters.get(name){None=>{return Err(StdError("TrainingParameters",i));},Some(node)=>{match ad.gradient(&all,node)?{None=>{return Err(StdError("TrainingUnused",i));},Some(array)=>{output.set(name,array);}}}}}
+ stdNumericModelCheck(&output)?;return Ok(move output);
+}
+fn find(values:&Map<String,FloatArray>,name:String)->Result<FloatArray,StdError> effects {} {
+ match values.get(name){None=>{return Err(StdError("TrainingParameters",0));},Some(v)=>{return Ok(v);}}
+}
+// @api mergeMean cost O(parameters + elements), native scale/add outputs; weights batch means by their positive sample counts. <=128 named parameters /32 MiB model; exact names and shapes required, inputs unchanged.
+// @api mergeMean failure TrainingSamples/Parameters, NumericShape/NonFinite/Overflow/Size; total count <=2^53-1 for exact conversion. Fatal budgets apply, no partial map escapes.
+pub fn mergeMean(left:&Map<String,FloatArray>,leftSamples:Int,right:&Map<String,FloatArray>,rightSamples:Int)->Result<Map<String,FloatArray>,StdError> effects {} {
+ if leftSamples<=0 || rightSamples<=0 || leftSamples>9007199254740991 || rightSamples>9007199254740991-leftSamples{return Err(StdError("TrainingSamples",0));}
+ if left.len()!=right.len(){return Err(StdError("TrainingParameters",0));}
+ stdNumericModelCheck(left)?;stdNumericModelCheck(right)?;
+ let total=leftSamples+rightSamples;var count=0.0;var amount=0.0;var rightAmount=0.0;
+ match total.toFloatChecked(){Ok(n)=>{count=n;},Err(_)=>{return Err(StdError("TrainingSamples",0));}}
+ match leftSamples.toFloatChecked(){Ok(n)=>{amount=n;},Err(_)=>{return Err(StdError("TrainingSamples",0));}}
+ match rightSamples.toFloatChecked(){Ok(n)=>{rightAmount=n;},Err(_)=>{return Err(StdError("TrainingSamples",0));}}
+ let fraction=amount/count;let rightFraction=rightAmount/count;let output=Map<String,FloatArray>();let names=left.keys();
+ for i in 0..names.len(){let name=names.get(i);let a=find(left,name)?;let b=find(right,name)?;
+  let scaledA=numeric.scale(&a,fraction)?;let scaledB=numeric.scale(&b,rightFraction)?;
+  output.set(name,numeric.zipFloat("add",&scaledA,&scaledB)?);
+ }
+ return Ok(move output);
+}
+// @api clipGlobalNorm cost O(elements) scaled native norms, then O(elements) scaling only when clipping is needed; unchanged arrays share storage. Model parameter bounds apply. Synchronous.
+// @api clipGlobalNorm failure TrainingNorm or numeric/model validation errors; positive finite maximum, finite per-array norm required. Global combination avoids squaring large norms or materializing all gradient cells in a VM List. Inputs unchanged.
+pub fn clipGlobalNorm(gradients:&Map<String,FloatArray>,maximum:Float)->Result<Map<String,FloatArray>,StdError> effects {} {
+ if !maximum.isFinite() || maximum<=0.0{return Err(StdError("TrainingNorm",0));}
+ stdNumericModelCheck(gradients)?;let names=gradients.keys();var scale=0.0;var squares=1.0;
+ for i in 0..names.len(){let array=find(gradients,names.get(i))?;let norm=numeric.norm2(&array)?;
+  if norm!=0.0{if scale<norm{let ratio=scale/norm;squares=1.0+squares*ratio*ratio;scale=norm;}else{let ratio=norm/scale;squares+=ratio*ratio;}}
+ }
+ var factor=1.0;
+ if scale!=0.0{let root=numeric.math("sqrt",squares)?;if scale>maximum/root{factor=(maximum/scale)/root;}}
+ let output=Map<String,FloatArray>();for i in 0..names.len(){let name=names.get(i);let array=find(gradients,name)?;if factor==1.0{output.set(name,array);}else{output.set(name,numeric.scale(&array,factor)?);}}
+ return Ok(move output);
+}

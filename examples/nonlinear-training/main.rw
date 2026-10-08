@@ -1,0 +1,20 @@
+effects {fileRead,fileWrite};
+import std.autodiff as ad;import std.numeric as numeric;import std.optimize as optimize;import std.models as models;import std.training as training;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("training");}}}
+fn matrix(rows:Int,columns:Int,values:&List<Float>)->FloatArray effects {} {let shape=List<Int>();shape.add(rows);shape.add(columns);return take(numeric.fromFloat(&shape,values));}
+fn batch(weights:&Map<String,FloatArray>,inputs:FloatArray,labels:FloatArray)->(Float,Map<String,FloatArray>) effects {} {
+ var tape=ad.create();let x=take(ad.constant(&mut tape,inputs));let target=take(ad.constant(&mut tape,labels));var array=labels;
+ match weights.get("linear"){Some(a)=>{array=a;},None=>{panic("weight");}}
+ let weight=take(ad.parameter(&mut tape,"linear",array));let logits=take(ad.matmul(&mut tape,x,weight));let predicted=take(ad.unary(&mut tape,"sigmoid",logits));let loss=take(training.meanSquaredError(&mut tape,predicted,target));let scalar=take(ad.value(&tape,loss));let nodes=Map<String,ad.Node>();nodes.set("linear",weight);
+ let gradients=take(training.gradients(&tape,loss,&nodes));return (take(numeric.sum(&scalar)),move gradients);
+}
+let data=List<Float>();let targets=List<Float>();for i in 0..8{var value=0.0;match i.toFloatChecked(){Ok(n)=>{value=n*0.5-1.0;},Err(_)=>{panic("input");}}data.add(value);data.add(1.0);targets.add(1.0/(1.0+take(numeric.math("exp",-(2.0*value-0.5)))));}
+let inputs=matrix(8,2,&data);let labels=matrix(8,1,&targets);let xa=take(numeric.sliceFloat(&inputs,0,0,3,1));let xb=take(numeric.sliceFloat(&inputs,0,3,5,1));let ya=take(numeric.sliceFloat(&labels,0,0,3,1));let yb=take(numeric.sliceFloat(&labels,0,3,5,1));
+let initial=List<Float>();initial.add(0.0);initial.add(0.0);var weights=Map<String,FloatArray>();weights.set("linear",matrix(2,1,&initial));var optimizer=take(optimize.adam(&weights,0.9,0.999,0.00000001));var first=0.0;var last=0.0;
+let arguments=Args.all();var iterations=250;if arguments.len()>0{iterations=take(stdParseInt(arguments.get(0),10));assert(iterations>=250 && iterations<=10000);}
+commit initial;
+for epoch in 0..iterations{let a=batch(&weights,xa,ya);let b=batch(&weights,xb,yb);last=(a._0*3.0+b._0*5.0)/8.0;if epoch==0{first=last;}
+ let mean=take(training.mergeMean(&a._1,3,&b._1,5));let clipped=take(training.clipGlobalNorm(&mean,0.5));weights=take(optimize.adamStep(&mut optimizer,&weights,&clipped,0.05));}
+assert(last<first*0.001);assert_eq(optimize.steps(&optimizer),iterations);
+let model=take(models.create(move weights));let restored=take(models.decode(take(models.encode(&model))));match models.get(&restored,"linear"){None=>{panic("model");},Some(a)=>{let values=take(numeric.valuesFloat(&a));assert(take(numeric.math("abs",values.get(0)-2.0))<0.05);assert(take(numeric.math("abs",values.get(1)+0.5))<0.05);}}
+take(models.save(&restored,"nonlinear.rwm"));publish;let loaded=take(models.load("nonlinear.rwm"));assert_eq(models.get(&loaded,"linear"),models.get(&restored,"linear"));drop initial;Out.println(true);publish;

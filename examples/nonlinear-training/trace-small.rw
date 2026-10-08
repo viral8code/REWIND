@@ -1,0 +1,7 @@
+import std.training as training;import std.numeric as numeric;import std.autodiff as ad;import std.optimize as optimize;
+fn take<T>(r:Result<T,StdError>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(e)=>{panic(e.code);}}}
+let shape=List<Int>();shape.add(1);let cells=List<Float>();cells.add(3.0);let input=take(numeric.fromFloat(&shape,&cells));var weights=Map<String,FloatArray>();weights.set("x",input);var optimizer=take(optimize.adam(&weights,0.9,0.999,0.00000001));
+commit before;
+var tape=ad.create();let x=take(ad.parameter(&mut tape,"x",input));let square=take(ad.unary(&mut tape,"square",x));let loss=take(ad.mean(&mut tape,square));let nodes=Map<String,ad.Node>();nodes.set("x",x);let gradients=take(training.gradients(&tape,loss,&nodes));let clipped=take(training.clipGlobalNorm(&gradients,2.0));let mean=take(training.mergeMean(&gradients,1,&clipped,1));
+match mean.get("x"){Some(a)=>{let values=take(numeric.valuesFloat(&a));assert_eq(values.get(0),4.0);},None=>{panic("gradient");}}
+weights=take(optimize.adamStep(&mut optimizer,&weights,&mean,0.1));assert_eq(optimize.steps(&optimizer),1);revert before;assert_eq(optimize.steps(&optimizer),0);assert_eq(weights.get("x"),Some(input));drop before;Out.println(true);publish;
