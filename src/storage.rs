@@ -20,6 +20,8 @@ struct Node {
     bytes: usize,
     allocation_bytes: usize,
     numeric_bytes: usize,
+    shared_bytes: usize,
+    shared_registered: crate::shared_payload::Registration,
     numeric_registered: crate::numeric::RegistrationMemo,
 }
 impl Clone for Node {
@@ -39,6 +41,8 @@ impl Clone for Node {
             bytes: self.bytes,
             allocation_bytes: self.allocation_bytes,
             numeric_bytes: self.numeric_bytes,
+            shared_bytes: self.shared_bytes,
+            shared_registered: Default::default(),
             numeric_registered: Default::default(),
             kind: match &self.kind {
                 Kind::Leaf(xs) => Kind::Leaf(xs.clone()),
@@ -91,6 +95,31 @@ impl PagedValues {
             visit(root, accounting);
         }
     }
+    pub(crate) fn shared_bytes(&self) -> usize {
+        self.root.as_ref().map_or(0, |n| n.shared_bytes)
+    }
+    pub(crate) fn register_shared_payloads(&self, accounting: &crate::shared_payload::Accounting) {
+        fn visit(node: &Node, accounting: &crate::shared_payload::Accounting) {
+            if node.shared_bytes == 0 || !node.shared_registered.register(accounting, 0) {
+                return;
+            }
+            match &node.kind {
+                Kind::Leaf(values) => {
+                    for value in values {
+                        Runtime::register_shared_value(value, accounting);
+                    }
+                }
+                Kind::Branch(left, right) => {
+                    for child in [left, right].into_iter().flatten() {
+                        visit(child, accounting);
+                    }
+                }
+            }
+        }
+        if let Some(root) = &self.root {
+            visit(root, accounting);
+        }
+    }
     pub fn get(&self, index: usize) -> Option<&Value> {
         if index >= self.len {
             return None;
@@ -128,8 +157,10 @@ impl PagedValues {
                     Kind::Branch(None, None)
                 },
                 bytes: 0,
-                allocation_bytes: 128,
+                allocation_bytes: std::mem::size_of::<Node>() + 256,
                 numeric_bytes: 0,
+                shared_bytes: 0,
+                shared_registered: Default::default(),
                 numeric_registered: Default::default(),
             })
         }));
@@ -154,7 +185,8 @@ impl PagedValues {
                 };
                 n.bytes = xs.iter().map(|v| Runtime::value_bytes(v)).sum();
                 n.numeric_bytes = xs.iter().map(|v| Runtime::numeric_payload_bytes(v)).sum();
-                n.allocation_bytes = xs.iter().fold(128usize, |n, v| {
+                n.shared_bytes = xs.iter().map(|v| Runtime::shared_payload_bytes(v)).sum();
+                n.allocation_bytes = xs.iter().fold(std::mem::size_of::<Node>() + 256, |n, v| {
                     n.saturating_add(Runtime::allocation_bytes(v))
                         .saturating_add(32)
                 });
@@ -175,21 +207,30 @@ impl PagedValues {
                     .as_ref()
                     .map_or(0, |n| n.numeric_bytes)
                     .saturating_add(b.as_ref().map_or(0, |n| n.numeric_bytes));
-                n.allocation_bytes = 128usize
+                n.shared_bytes = a
+                    .as_ref()
+                    .map_or(0, |n| n.shared_bytes)
+                    .saturating_add(b.as_ref().map_or(0, |n| n.shared_bytes));
+                n.allocation_bytes = (std::mem::size_of::<Node>() + 256)
                     .saturating_add(a.as_ref().map_or(0, |n| n.allocation_bytes))
                     .saturating_add(b.as_ref().map_or(0, |n| n.allocation_bytes));
                 old
             }
         };
         n.numeric_registered = Default::default();
+        n.shared_registered = Default::default();
         old
     }
     pub fn push(&mut self, value: Value) {
         if self.len == 64usize << self.height {
             self.root = Some(Arc::new(Node {
                 bytes: self.logical_bytes(),
-                allocation_bytes: self.allocation_bytes().saturating_add(128),
+                allocation_bytes: self
+                    .allocation_bytes()
+                    .saturating_add(std::mem::size_of::<Node>() + 256),
                 numeric_bytes: self.numeric_bytes(),
+                shared_bytes: self.shared_bytes(),
+                shared_registered: Default::default(),
                 numeric_registered: Default::default(),
                 kind: Kind::Branch(self.root.take(), None),
             }));
@@ -265,6 +306,12 @@ impl HeapStore {
     }
     pub(crate) fn numeric_bytes(&self) -> usize {
         self.0.numeric_bytes()
+    }
+    pub(crate) fn shared_bytes(&self) -> usize {
+        self.0.shared_bytes()
+    }
+    pub(crate) fn register_shared_payloads(&self, a: &crate::shared_payload::Accounting) {
+        self.0.register_shared_payloads(a);
     }
     pub(crate) fn register_numerics(&self, accounting: &crate::numeric::Accounting) {
         self.0.register_numerics(accounting);
@@ -387,6 +434,32 @@ mod tests {
         }
         assert_eq!(xs.pop(), None);
         assert_eq!(saved.len(), 130);
+    }
+    #[test]
+    fn shared_text_registration_reuses_unchanged_list_pages() {
+        let ledger = crate::shared_payload::Accounting::default();
+        let text = crate::text_storage::Text::from("a".repeat(4096));
+        let mut xs = PagedValues::default();
+        for _ in 0..65536 {
+            xs.push(Value::Text(text.clone()));
+        }
+        xs.register_shared_payloads(&ledger);
+        let visits = ledger.visits();
+        assert_eq!(ledger.bytes(), text.capacity() + 256);
+        xs.register_shared_payloads(&ledger);
+        assert_eq!(ledger.visits(), visits);
+        let old = xs.clone();
+        xs.set(32000, Value::Text("small".into()));
+        xs.register_shared_payloads(&ledger);
+        assert!(ledger.visits() - visits < 64);
+        assert_eq!(ledger.bytes(), text.capacity() + 256);
+        assert_eq!(old.shared_bytes(), 65536 * 4096);
+        assert_eq!(xs.shared_bytes(), 65535 * 4096);
+        drop(text);
+        drop(xs);
+        assert!(ledger.bytes() > 0);
+        drop(old);
+        assert_eq!(ledger.bytes(), 0);
     }
 }
 

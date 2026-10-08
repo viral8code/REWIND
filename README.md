@@ -1,6 +1,6 @@
-# REWIND 1.9.42
+# REWIND 1.9.43
 
-REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.42 では最小二乗法を協調的タスクとして実行する標準 API を追加します。計算中のタスク切替、checkpoint、キャンセルに対応します。
+REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.43 では、checkpoint やコンテナで共有される長い文字列を、保持しているバッファ単位でメモリ予算に計上します。編集時のコピーと解放にも対応します。
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 

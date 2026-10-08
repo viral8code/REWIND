@@ -1,0 +1,5 @@
+var text="x";for i in 0..20{text+=text;}
+let items=List<String>();commit saved;
+for i in 0..32{items.add(text);}
+Out.println(items.len());publish;
+revert saved;assert_eq(items.len(),0);Out.println(items.len());drop saved;publish;

@@ -604,3 +604,7 @@ HTTP の origin / CA client cache は最大16件であり、通信・stream が�
 ## 協調的最小二乗法（1.9.42）
 
 `std.numericAsync.leastSquares(matrix,right,tolerance)` は m >= n の FloatArray 行列と長さ m の rank-one rhs に対する全列 rank の最小二乗法である。rhs の検証・QR 分解・補償和による射影・後退代入・置換を最大4096 work unit ごとに分割する。`await` の内側は `Result<FloatArray,StdError>`、外側は Task の失敗・キャンセル。有限非負 tolerance を必要とし、rank 不足は NumericSingular。同期版と同じ演算順序を維持する。[契約](REWIND_v1.9.42.md)を参照する。
+
+## 共有文字列のメモリ計上（1.9.43）
+
+長い Text の共有バッファは、Runtime ごとに容量と管理情報の予約分を一度計上する。独立した文字列と編集で作るコピーは別に計上し、checkpoint や Task の最後の参照がなくなるまで保持する。profile の `shared_payloads` は `numeric_pages` と別の指標で、RSS の測定値ではない。過去の言語版を選んだ場合は文字列の論理 payload の計上を維持する。[契約と対象範囲](REWIND_v1.9.43.md)を参照する。

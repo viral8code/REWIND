@@ -12,7 +12,19 @@ const SHARED_THRESHOLD: usize = 256;
 #[derive(Clone)]
 enum Storage {
     Owned(String),
-    Shared(Arc<String>),
+    Shared(Arc<SharedText>),
+}
+struct SharedText {
+    value: String,
+    registration: crate::shared_payload::Registration,
+}
+impl Clone for SharedText {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.clone(),
+            registration: Default::default(),
+        }
+    }
 }
 #[derive(Clone)]
 pub struct Text(Storage);
@@ -27,13 +39,27 @@ impl Text {
     pub fn into_owned(self) -> String {
         match self.0 {
             Storage::Owned(value) => value,
-            Storage::Shared(value) => {
-                Arc::try_unwrap(value).unwrap_or_else(|shared| shared.as_ref().clone())
-            }
+            Storage::Shared(value) => match Arc::try_unwrap(value) {
+                Ok(owner) => owner.value,
+                Err(shared) => shared.value.clone(),
+            },
         }
     }
     pub fn into_bytes(self) -> Vec<u8> {
         self.into_owned().into_bytes()
+    }
+    pub(crate) fn shared_payload_bytes(&self) -> usize {
+        match &self.0 {
+            Storage::Shared(owner) => owner.value.len(),
+            Storage::Owned(_) => 0,
+        }
+    }
+    pub(crate) fn register_shared(&self, accounting: &crate::shared_payload::Accounting) {
+        if let Storage::Shared(owner) = &self.0 {
+            owner
+                .registration
+                .register(accounting, owner.value.capacity().saturating_add(256));
+        }
     }
     pub fn capacity(&self) -> usize {
         self.deref().capacity()
@@ -44,7 +70,10 @@ impl From<String> for Text {
         if value.len() <= SHARED_THRESHOLD {
             Self(Storage::Owned(value))
         } else {
-            Self(Storage::Shared(Arc::new(value)))
+            Self(Storage::Shared(Arc::new(SharedText {
+                value,
+                registration: Default::default(),
+            })))
         }
     }
 }
@@ -124,7 +153,7 @@ impl Deref for Text {
     fn deref(&self) -> &String {
         match &self.0 {
             Storage::Owned(value) => value,
-            Storage::Shared(value) => value,
+            Storage::Shared(value) => &value.value,
         }
     }
 }
@@ -132,7 +161,14 @@ impl DerefMut for Text {
     fn deref_mut(&mut self) -> &mut String {
         match &mut self.0 {
             Storage::Owned(value) => value,
-            Storage::Shared(value) => Arc::make_mut(value),
+            Storage::Shared(value) => {
+                let owner = Arc::make_mut(value);
+                // Builders may change capacity through String's mutable API.
+                // Remove the old capacity charge before mutation. Admission of
+                // the resulting Value registers the new owner/capacity again.
+                owner.registration.clear();
+                &mut owner.value
+            }
         }
     }
 }
@@ -211,5 +247,62 @@ mod tests {
             serde_json::to_string(&value).unwrap(),
             r#"{"Text":"unchanged"}"#
         );
+    }
+    #[test]
+    fn shared_admission_tracks_last_owner_cow_capacity_and_owned_transfer() {
+        let ledger = crate::shared_payload::Accounting::default();
+        let original = Text::from("x".repeat(8192));
+        let another = original.clone();
+        original.register_shared(&ledger);
+        another.register_shared(&ledger);
+        let one = original.capacity() + 256;
+        assert_eq!(ledger.bytes(), one);
+        assert_eq!(ledger.visits(), 1);
+        let mut edited = another.clone();
+        edited.push_str(" changed");
+        edited.register_shared(&ledger);
+        let other = edited.capacity() + 256;
+        assert_eq!(ledger.bytes(), one + other);
+        assert_eq!(original.len(), 8192);
+        assert!(edited.ends_with(" changed"));
+        drop(original);
+        assert_eq!(ledger.bytes(), one + other);
+        drop(another);
+        assert_eq!(ledger.bytes(), other);
+        let string = edited.into_owned();
+        assert_eq!(ledger.bytes(), 0);
+        assert!(string.ends_with(" changed"));
+    }
+    #[test]
+    fn unique_builder_growth_is_readmitted_at_its_actual_capacity() {
+        let ledger = crate::shared_payload::Accounting::default();
+        let mut text = Text::from("x".repeat(4096));
+        text.register_shared(&ledger);
+        let old = ledger.bytes();
+        text.reserve(65536);
+        assert_eq!(ledger.bytes(), 0);
+        text.register_shared(&ledger);
+        assert_eq!(ledger.bytes(), text.capacity() + 256);
+        assert!(ledger.bytes() > old);
+        assert_eq!(ledger.allocated_bytes(), old + ledger.bytes());
+        drop(text);
+        assert_eq!(ledger.bytes(), 0);
+        let small = Text::from("tiny");
+        small.register_shared(&ledger);
+        assert_eq!(ledger.bytes(), 0);
+    }
+    #[test]
+    fn equal_independent_texts_are_not_interned_or_undercharged() {
+        let a = Text::from("same".repeat(2048));
+        let b = Text::from("same".repeat(2048));
+        let ledger = crate::shared_payload::Accounting::default();
+        a.register_shared(&ledger);
+        b.register_shared(&ledger);
+        assert_eq!(a, b);
+        assert_eq!(ledger.bytes(), a.capacity() + b.capacity() + 512);
+        drop(a);
+        assert_eq!(ledger.bytes(), b.capacity() + 256);
+        drop(b);
+        assert_eq!(ledger.bytes(), 0);
     }
 }
