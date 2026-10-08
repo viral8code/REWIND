@@ -24,6 +24,28 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.9.42") {
+        if p.structs.contains_key("LeastSquaresWork")
+            || p.enums.contains_key("LeastSquaresWork")
+            || p.aliases.contains_key("LeastSquaresWork")
+        {
+            return Err(Error::InvalidOperation(
+                "reserved least squares work type".into(),
+            ));
+        }
+        p.structs.insert(
+            "LeastSquaresWork".into(),
+            StructDef {
+                private_fields: BTreeSet::from(["$native".into()]),
+                bounds: BTreeMap::new(),
+                immutable: true,
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                fields: vec![],
+            },
+        );
+    }
     if language_at_least(&p.language, "1.9.38") {
         if p.structs.contains_key("EigenWork")
             || p.enums.contains_key("EigenWork")
@@ -224,6 +246,19 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if matches!(
         n,
+        "stdNumericLeastSquaresInit"
+            | "stdNumericLeastSquaresStep"
+            | "stdNumericLeastSquaresDone"
+            | "stdNumericLeastSquaresResult"
+    ) && !language_at_least(&p.language, "1.9.42")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative least squares requires language 1.9.42",
+        ));
+    }
+    if matches!(
+        n,
         "stdNumericEigenInit"
             | "stdNumericEigenStep"
             | "stdNumericEigenDone"
@@ -370,6 +405,69 @@ fn array<'a>(v: &'a Value, rt: &'a Runtime) -> std::result::Result<&'a Array, Nu
         Value::NumericArray(a) => Ok(a),
         _ => Err(NumericError::Type),
     }
+}
+fn least_squares_work(
+    value: &Value,
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::LeastSquaresWork, NumericError> {
+    let Value::Struct(ty, fields) = target(value, rt) else {
+        return Err(NumericError::Type);
+    };
+    if ty != "LeastSquaresWork" {
+        return Err(NumericError::Type);
+    }
+    let a = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(|v| array(v, rt))
+            .cloned()
+    };
+    let i = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(usize_arg)
+    };
+    let f = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(floating)
+    };
+    let work = rewind::numeric::LeastSquaresWork {
+        qr: qr_work(fields.get("$qr").ok_or(NumericError::Type)?, rt)?,
+        right: a("$right")?,
+        projected: a("$projected")?,
+        output: a("$output")?,
+        tolerance_bits: f("$tolerance")?.to_bits(),
+        phase: u8::try_from(i("$phase")?).map_err(|_| NumericError::Domain)?,
+        cursor: i("$cursor")?,
+        column: i("$column")?,
+        row: i("$row")?,
+        sum: f("$sum")?,
+        correction: f("$correction")?,
+    };
+    work.validate()?;
+    Ok(work)
+}
+fn least_squares_work_value(w: rewind::numeric::LeastSquaresWork) -> Value {
+    Value::Struct(
+        "LeastSquaresWork".into(),
+        BTreeMap::from([
+            ("$qr".into(), qr_work_value(w.qr)),
+            ("$right".into(), Value::NumericArray(w.right)),
+            ("$projected".into(), Value::NumericArray(w.projected)),
+            ("$output".into(), Value::NumericArray(w.output)),
+            ("$tolerance".into(), Value::Float(w.tolerance_bits)),
+            ("$phase".into(), Value::Int(w.phase as i64)),
+            ("$cursor".into(), Value::Int(w.cursor as i64)),
+            ("$column".into(), Value::Int(w.column as i64)),
+            ("$row".into(), Value::Int(w.row as i64)),
+            ("$sum".into(), Value::Float(w.sum.to_bits())),
+            ("$correction".into(), Value::Float(w.correction.to_bits())),
+        ]),
+    )
 }
 fn eigen_work(
     value: &Value,
@@ -836,7 +934,43 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
     let name = n.strip_prefix("stdNumeric")?;
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(1, Array::len);
-    let cost = if name == "EigenInit" {
+    let cost = if name == "LeastSquaresInit" {
+        32768
+    } else if name == "LeastSquaresStep" {
+        least_squares_work(&args[0], rt).map_or(2048, |w| {
+            if w.phase == 0 {
+                w.right
+                    .len()
+                    .saturating_sub(w.cursor)
+                    .min(rewind::numeric::LEAST_SQUARES_CHUNK)
+                    .saturating_mul(32)
+                    .saturating_add(2048)
+            } else if w.phase == 1 && !w.qr.done() {
+                let tolerance = f64::from_bits(w.tolerance_bits);
+                if !tolerance.is_finite() || tolerance < 0.0 {
+                    2048
+                } else if w.output.len() == 0 {
+                    // Empty QR only advances validation/empty permutation phases.
+                    16 * 128 + 2048
+                } else {
+                    rewind::numeric::QR_CHUNK * 128 + 2048
+                }
+            } else {
+                let n = w.output.len();
+                w.right
+                    .len()
+                    .saturating_mul(n)
+                    .saturating_add(n.saturating_mul(n))
+                    .saturating_add(n.saturating_mul(8))
+                    .saturating_add(16)
+                    .min(rewind::numeric::LEAST_SQUARES_CHUNK)
+                    .saturating_mul(64)
+                    .saturating_add(2048)
+            }
+        })
+    } else if matches!(name, "LeastSquaresDone" | "LeastSquaresResult") {
+        2048
+    } else if name == "EigenInit" {
         32768
     } else if name == "EigenStep" {
         eigen_work(&args[0], rt).map_or(2048, |w| {
@@ -1122,7 +1256,28 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
 fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
     let a = |i| args.get(i).and_then(|v| array(v, rt).ok());
     let length = |i| a(i).map_or(0, Array::len);
-    if name == "EigenInit" {
+    if name == "LeastSquaresInit" {
+        1024 * 1024 + 65536
+    } else if name == "LeastSquaresStep" {
+        least_squares_work(&args[0], rt).map_or(32768, |w| {
+            if w.phase == 1 && !w.qr.done() {
+                scratch("QrStep", &[qr_work_value(w.qr.clone())], rt).saturating_add(32768)
+            } else if w.phase == 0 {
+                32768
+            } else {
+                [&w.projected, &w.output].iter().fold(32768usize, |sum, a| {
+                    sum.saturating_add(
+                        Array::storage_estimate(a.len()).min(
+                            a.update_estimate()
+                                .saturating_mul(rewind::numeric::LEAST_SQUARES_CHUNK),
+                        ),
+                    )
+                })
+            }
+        })
+    } else if matches!(name, "LeastSquaresDone" | "LeastSquaresResult") {
+        32768
+    } else if name == "EigenInit" {
         1024 * 1024
     } else if name == "EigenStep" {
         eigen_work(&args[0], rt).map_or(32768, |w| {
@@ -1529,6 +1684,16 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             Value::TypedList("Int".into(), iter.into_iter().map(Value::Int).collect())
         };
         Ok(match name {
+            "LeastSquaresInit" => least_squares_work_value(rewind::numeric::LeastSquaresWork::new(
+                a(0)?,
+                a(1)?,
+                f(2)?,
+            )?),
+            "LeastSquaresStep" => {
+                least_squares_work_value(least_squares_work(&args[0], rt)?.step()?)
+            }
+            "LeastSquaresDone" => Value::Bool(least_squares_work(&args[0], rt)?.done()),
+            "LeastSquaresResult" => array_value(least_squares_work(&args[0], rt)?.result())?,
             "EigenInit" => eigen_work_value(rewind::numeric::EigenWork::new(a(0)?, f(1)?, i(2)?)?),
             "EigenStep" => eigen_work_value(eigen_work(&args[0], rt)?.step()?),
             "EigenDone" => Value::Bool(eigen_work(&args[0], rt)?.done()),
@@ -2063,6 +2228,15 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericLeastSquaresInit" => (
+            &["&FloatArray", "&FloatArray", "Float"],
+            "Result<LeastSquaresWork,StdError>",
+        ),
+        "stdNumericLeastSquaresStep" => {
+            (&["&LeastSquaresWork"], "Result<LeastSquaresWork,StdError>")
+        }
+        "stdNumericLeastSquaresDone" => (&["&LeastSquaresWork"], "Result<Bool,StdError>"),
+        "stdNumericLeastSquaresResult" => (&["&LeastSquaresWork"], "Result<FloatArray,StdError>"),
         "stdNumericEigenInit" => (
             &["&FloatArray", "Float", "Int"],
             "Result<EigenWork,StdError>",

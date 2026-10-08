@@ -76,3 +76,11 @@ pub async fn eigenSymmetric(matrix:FloatArray,tolerance:Float,maxSweeps:Int)->Re
  while !stdNumericEigenDone(&work)? {work=stdNumericEigenStep(&work)?;task.yieldNow();}
  return stdNumericEigenResult(&work);
 }
+
+// @api leastSquares cost Full-column-rank QR O(m*n^2); bounded rhs validation, QR, compensated projection, upper substitution and permutation, with at most 4096 scalar units per step. Inputs and private numeric pages are shared; no full rhs/Q/R materialization or second factorization.
+// @api leastSquares failure NumericShape/Type/Domain/NonFinite/Overflow/Singular/Size; m>=n, rank-one rhs and finite nonnegative relative rank tolerance. Same arithmetic order as numeric.leastSquares. No partial output on error/cancel; fatal work/memory budgets apply.
+pub async fn leastSquares(matrix:FloatArray,right:FloatArray,tolerance:Float)->Result<FloatArray,StdError> effects {tasks} {
+ var work=stdNumericLeastSquaresInit(&matrix,&right,tolerance)?;
+ while !stdNumericLeastSquaresDone(&work)? {work=stdNumericLeastSquaresStep(&work)?;task.yieldNow();}
+ return stdNumericLeastSquaresResult(&work);
+}
