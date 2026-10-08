@@ -27,6 +27,8 @@ mod model;
 mod optimizer;
 mod stats;
 pub use graph::{graph_adjacency, graph_bfs, MAX_GRAPH_ITEMS};
+#[cfg(test)]
+mod page_builder_tests;
 mod tensor;
 mod unary;
 pub use chunks::{NormProgress, Progress as KernelProgress, VectorOperation, COOPERATIVE_MACS};
@@ -337,6 +339,28 @@ impl Buffer {
                 bits.by_ref().take(PAGE).collect(),
             ))));
         }
+        Self::from_pages(len, pages)
+    }
+    fn from_fallible_bits(mut bits: impl ExactSizeIterator<Item = Result<u64>>) -> Result<Self> {
+        let len = bits.len();
+        if len > MAX_ELEMENTS {
+            return Err(Error::Size);
+        }
+        let mut pages = Vec::with_capacity(len.div_ceil(PAGE).max(1));
+        for start in (0..len).step_by(PAGE) {
+            let count = (len - start).min(PAGE);
+            let mut page = Vec::with_capacity(count);
+            for _ in 0..count {
+                page.push(bits.next().ok_or(Error::Shape)??);
+            }
+            pages.push(Arc::new(Node::new(NodeKind::Leaf(page))));
+        }
+        if bits.next().is_some() {
+            return Err(Error::Shape);
+        }
+        Self::from_pages(len, pages)
+    }
+    fn from_pages(len: usize, mut pages: Vec<Arc<Node>>) -> Result<Self> {
         if pages.is_empty() {
             pages.push(Arc::new(Node::new(NodeKind::Leaf(Vec::new()))));
         }
@@ -517,6 +541,25 @@ impl std::fmt::Debug for Array {
     }
 }
 impl Array {
+    fn from_fallible_bits(
+        dtype: DType,
+        shape: Vec<usize>,
+        bits: impl ExactSizeIterator<Item = Result<u64>>,
+    ) -> Result<Self> {
+        let len = count(&shape)?;
+        if bits.len() != len {
+            return Err(Error::Shape);
+        }
+        let strides = strides(&shape)?;
+        Ok(Self {
+            dtype,
+            shape,
+            strides,
+            offset: 0,
+            writable: true,
+            buffer: Buffer::from_fallible_bits(bits)?,
+        })
+    }
     /// Deterministic work bound for content identity, independent of cache
     /// warmth and view size. Views retain the entire backing storage version.
     pub fn storage_digest_work(&self) -> usize {
@@ -997,15 +1040,17 @@ impl Array {
         if self.dtype != DType::Float64 {
             return Err(Error::Type);
         }
-        let mut values = Vec::with_capacity(self.len());
-        for bit in self.bits() {
-            let v = f(f64::from_bits(bit))?;
-            if !v.is_finite() {
-                return Err(Error::NonFinite);
-            }
-            values.push(v);
-        }
-        Self::floats(self.shape.clone(), &values)
+        Self::from_fallible_bits(
+            DType::Float64,
+            self.shape.clone(),
+            self.bits().map(|bit| {
+                let v = f(f64::from_bits(bit))?;
+                if !v.is_finite() {
+                    return Err(Error::NonFinite);
+                }
+                Ok(v.to_bits())
+            }),
+        )
     }
     pub fn zip_float(
         &self,
@@ -1018,17 +1063,19 @@ impl Array {
         if self.shape != other.shape {
             return Err(Error::Shape);
         }
-        let mut values = Vec::with_capacity(self.len());
-        for (a, b) in self.bits().zip(other.bits()) {
-            let a = f64::from_bits(a);
-            let b = f64::from_bits(b);
-            let v = f(a, b)?;
-            if !v.is_finite() {
-                return Err(Error::NonFinite);
-            }
-            values.push(v);
-        }
-        Self::floats(self.shape.clone(), &values)
+        Self::from_fallible_bits(
+            DType::Float64,
+            self.shape.clone(),
+            self.bits().zip(other.bits()).map(|(a, b)| {
+                let a = f64::from_bits(a);
+                let b = f64::from_bits(b);
+                let v = f(a, b)?;
+                if !v.is_finite() {
+                    return Err(Error::NonFinite);
+                }
+                Ok(v.to_bits())
+            }),
+        )
     }
     pub fn zip_integer(
         &self,
@@ -1041,11 +1088,15 @@ impl Array {
         if self.shape != other.shape {
             return Err(Error::Shape);
         }
-        let mut values = Vec::with_capacity(self.len());
-        for (a, b) in self.bits().zip(other.bits()) {
-            values.push(f(a as i64, b as i64).ok_or(Error::Overflow)?);
-        }
-        Self::integers(self.shape.clone(), &values)
+        Self::from_fallible_bits(
+            DType::Int64,
+            self.shape.clone(),
+            self.bits().zip(other.bits()).map(|(a, b)| {
+                f(a as i64, b as i64)
+                    .map(|value| value as u64)
+                    .ok_or(Error::Overflow)
+            }),
+        )
     }
     pub fn sum(&self) -> Result<f64> {
         if self.dtype != DType::Float64 {
