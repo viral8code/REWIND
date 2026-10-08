@@ -867,6 +867,8 @@ pub struct Runtime {
     env_allowed: BTreeSet<String>,
     env_secrets: BTreeSet<String>,
     sensitive_values: BTreeSet<String>,
+    sensitive_text_bytes: usize,
+    sensitive_accounting: bool,
     secret_input_indices: BTreeSet<usize>,
     supplied_secret_input: Option<Vec<String>>,
     history_budget_kind: std::cell::Cell<&'static str>,
@@ -984,9 +986,51 @@ impl Runtime {
             &mut BTreeSet::new(),
             0,
         );
-        self.sensitive_bytes.extend(binary);
-        self.sensitive_values
-            .extend(values.into_iter().filter(|s| !s.is_empty()));
+        for bytes in binary {
+            if self.sensitive_bytes.insert(bytes.clone()) && self.sensitive_accounting {
+                self.shared_accounting
+                    .as_ref()
+                    .expect("sensitive ledger")
+                    .register_bytes(&bytes);
+            }
+        }
+        for text in values.into_iter().filter(|s| !s.is_empty()) {
+            self.register_sensitive_text(text);
+        }
+    }
+    fn register_sensitive_text(&mut self, text: String) {
+        let charge = text.capacity().saturating_add(96);
+        if self.sensitive_values.insert(text) {
+            self.sensitive_text_bytes = self.sensitive_text_bytes.saturating_add(charge);
+        }
+    }
+    /// Security patterns remain strong execution-wide roots, including after
+    /// revert/drop. This charges retained storage; it does not forget patterns.
+    pub fn enable_sensitive_accounting(&mut self) {
+        self.enable_container_accounting();
+        self.sensitive_accounting = true;
+        for bytes in &self.sensitive_bytes {
+            self.shared_accounting
+                .as_ref()
+                .expect("sensitive ledger")
+                .register_bytes(bytes);
+        }
+    }
+    pub fn check_sensitive_accounting(&mut self) -> Result<()> {
+        if self.sensitive_accounting {
+            self.check_native_allocation(0)?;
+        }
+        Ok(())
+    }
+    pub fn sensitive_registry_metrics(&self) -> Option<serde_json::Value> {
+        self.sensitive_accounting.then(|| {
+            serde_json::json!({
+                "text_patterns":self.sensitive_values.len(),
+                "text_bytes":self.sensitive_text_bytes,
+                "binary_patterns":self.sensitive_bytes.len(),
+                "binary_entry_bytes":self.sensitive_bytes.len().saturating_mul(96)
+            })
+        })
     }
     pub fn mask_debug_json(&self, value: &serde_json::Value) -> serde_json::Value {
         use serde_json::Value as Json;
@@ -1751,6 +1795,8 @@ impl Runtime {
             env_allowed: BTreeSet::new(),
             env_secrets: BTreeSet::new(),
             sensitive_values: BTreeSet::new(),
+            sensitive_text_bytes: 0,
+            sensitive_accounting: false,
             secret_input_indices: BTreeSet::new(),
             supplied_secret_input: None,
             history_budget_kind: std::cell::Cell::new("HistoryMemory"),
@@ -2169,12 +2215,15 @@ impl Runtime {
                     .map(|(a, v)| a.len() + v.len() + 128)
                     .sum::<usize>(),
             )
-            .saturating_add(
+            .saturating_add(if self.sensitive_accounting {
+                self.sensitive_text_bytes
+                    .saturating_add(self.sensitive_bytes.len().saturating_mul(96))
+            } else {
                 self.sensitive_bytes
                     .iter()
                     .map(|v| v.len() + 64)
-                    .sum::<usize>(),
-            )
+                    .sum::<usize>()
+            })
             .saturating_add(self.external_memory_bytes)
             .saturating_add(self.retained_numeric_bytes())
             .saturating_add(

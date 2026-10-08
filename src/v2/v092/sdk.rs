@@ -623,6 +623,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/secret-accounting/main.rw",
+            include_str!("../../../examples/secret-accounting/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/nonlinear-training/trace-small.rw",
             include_str!("../../../examples/nonlinear-training/trace-small.rw"),
         )?;
@@ -636,6 +641,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/nonlinear-training/README.md",
             include_str!("../../../examples/nonlinear-training/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/secret-accounting/README.md",
+            include_str!("../../../examples/secret-accounting/README.md"),
+        )?;
         for (name, doc) in [
             (
                 "REWIND_v1.9.49.md",
@@ -644,6 +654,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.50.md",
                 include_str!("../../../docs/REWIND_v1.9.50.md"),
+            ),
+            (
+                "REWIND_v1.9.51.md",
+                include_str!("../../../docs/REWIND_v1.9.51.md"),
             ),
             (
                 "REWIND_v1.9.48.md",
@@ -874,6 +888,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/secret-accounting/main.rw",
+            include_str!("../../../examples/secret-accounting/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/nonlinear-training/trace-small.rw",
             include_str!("../../../examples/nonlinear-training/trace-small.rw"),
         )?;
@@ -887,6 +906,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             "share/rewind/examples/nonlinear-training/README.md",
             include_str!("../../../examples/nonlinear-training/README.md"),
         )?;
+        write(
+            &output,
+            "share/rewind/examples/secret-accounting/README.md",
+            include_str!("../../../examples/secret-accounting/README.md"),
+        )?;
         for (name, doc) in [
             (
                 "REWIND_v1.9.49.md",
@@ -895,6 +919,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.50.md",
                 include_str!("../../../docs/REWIND_v1.9.50.md"),
+            ),
+            (
+                "REWIND_v1.9.51.md",
+                include_str!("../../../docs/REWIND_v1.9.51.md"),
             ),
             (
                 "REWIND_v1.9.48.md",

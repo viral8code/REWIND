@@ -1,0 +1,9 @@
+let text="example-sensitive";
+let first=secret(text);
+commit retained;
+for i in 0..64{let duplicate=secret(text);}
+revert retained;drop retained;
+Out.println(first);publish;
+revert begin;
+let again=secret("example-sensitive");
+Out.println(again);publish;
