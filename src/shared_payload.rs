@@ -1,11 +1,18 @@
 //! Runtime-scoped admission for immutable shared payload owners.
 //! Registrations retain only weak ledger references, never payload owners.
+use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex, Weak,
 };
 static NEXT: AtomicUsize = AtomicUsize::new(1);
+struct ByteRecord {
+    owner: Weak<Vec<u8>>,
+    charge: usize,
+}
 struct Ledger {
+    includes_bytes: bool,
+    byte_owners: Mutex<HashMap<usize, ByteRecord>>,
     id: usize,
     bytes: AtomicUsize,
     allocated: AtomicUsize,
@@ -15,6 +22,8 @@ struct Ledger {
 impl Default for Ledger {
     fn default() -> Self {
         Self {
+            includes_bytes: false,
+            byte_owners: Mutex::new(HashMap::new()),
             id: NEXT
                 .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| v.checked_add(1))
                 .expect("shared payload ledger ID exhausted"),
@@ -28,6 +37,71 @@ impl Default for Ledger {
 #[derive(Clone, Default)]
 pub(crate) struct Accounting(Arc<Ledger>);
 impl Accounting {
+    pub fn with_bytes() -> Self {
+        Self(Arc::new(Ledger {
+            includes_bytes: true,
+            ..Ledger::default()
+        }))
+    }
+    pub fn includes_bytes(&self) -> bool {
+        self.0.includes_bytes
+    }
+    /// Weak entries do not retain the buffer. Safe Arc mutation dissociates a
+    /// weak owner, so a registered identity cannot silently grow its capacity.
+    pub fn register_bytes(&self, value: &Arc<Vec<u8>>) {
+        if !self.includes_bytes() {
+            return;
+        }
+        let key = Arc::as_ptr(value) as usize;
+        let owner = Arc::downgrade(value);
+        let mut entries = self.0.byte_owners.lock().unwrap();
+        if entries
+            .get(&key)
+            .is_some_and(|entry| Weak::ptr_eq(&entry.owner, &owner))
+        {
+            return;
+        }
+        // Address reuse is impossible while the old Weak exists, but handle
+        // replacement conservatively rather than relying on allocator details.
+        if let Some(old) = entries.remove(&key) {
+            self.0.bytes.fetch_sub(old.charge, Ordering::Relaxed);
+        }
+        let charge = value.capacity().saturating_add(256);
+        entries.insert(key, ByteRecord { owner, charge });
+        self.0.bytes.fetch_add(charge, Ordering::Relaxed);
+        self.0
+            .allocated
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+                Some(n.saturating_add(charge))
+            })
+            .unwrap();
+        self.0.generation.fetch_add(1, Ordering::Relaxed);
+        self.0.visits.fetch_add(1, Ordering::Relaxed);
+    }
+    /// Called at collection, observation, or budget pressure, not every opcode.
+    pub fn prune_bytes(&self) -> usize {
+        if !self.includes_bytes() {
+            return 0;
+        }
+        let mut entries = self.0.byte_owners.lock().unwrap();
+        let mut removed = 0usize;
+        entries.retain(|_, entry| {
+            if entry.owner.strong_count() == 0 {
+                removed = removed.saturating_add(entry.charge);
+                false
+            } else {
+                true
+            }
+        });
+        if entries.is_empty() || entries.len() < entries.capacity() / 4 {
+            entries.shrink_to_fit();
+        }
+        if removed != 0 {
+            self.0.bytes.fetch_sub(removed, Ordering::Relaxed);
+        }
+        removed
+    }
+
     pub fn bytes(&self) -> usize {
         self.0.bytes.load(Ordering::Relaxed)
     }
@@ -118,5 +192,58 @@ mod tests {
         assert_eq!(r.ledgers.lock().unwrap().len(), 1);
         drop(r);
         assert_eq!(b.bytes(), 0);
+    }
+    #[test]
+    fn byte_aliases_charge_capacity_once_and_weak_entries_do_not_retain_payload() {
+        let a = Accounting::with_bytes();
+        let b = Accounting::with_bytes();
+        let mut data = Vec::with_capacity(8192);
+        data.extend_from_slice(&[7; 16]);
+        let owner = Arc::new(data);
+        let weak = Arc::downgrade(&owner);
+        a.register_bytes(&owner);
+        a.register_bytes(&owner.clone());
+        b.register_bytes(&owner);
+        assert_eq!(a.bytes(), 8192 + 256);
+        assert_eq!(a.visits(), 1);
+        assert_eq!(b.bytes(), a.bytes());
+        drop(owner);
+        assert!(weak.upgrade().is_none());
+        assert_eq!(a.prune_bytes(), 8192 + 256);
+        assert_eq!(a.bytes(), 0);
+        assert_eq!(b.prune_bytes(), 8192 + 256);
+        assert_eq!(a.0.byte_owners.lock().unwrap().capacity(), 0);
+    }
+    #[test]
+    fn byte_cow_and_independent_equal_buffers_have_distinct_admission() {
+        let a = Accounting::with_bytes();
+        let mut value = Arc::new(vec![1; 4096]);
+        a.register_bytes(&value);
+        let old = value.clone();
+        Arc::make_mut(&mut value).resize(8192, 2);
+        a.register_bytes(&value);
+        let equal = Arc::new(old.as_ref().clone());
+        a.register_bytes(&equal);
+        assert_eq!(
+            a.bytes(),
+            old.capacity() + value.capacity() + equal.capacity() + 3 * 256
+        );
+        drop(old);
+        drop(equal);
+        a.prune_bytes();
+        assert_eq!(a.bytes(), value.capacity() + 256);
+        drop(value);
+        a.prune_bytes();
+        assert_eq!(a.bytes(), 0);
+    }
+    #[test]
+    fn empty_bytes_charge_metadata_and_text_only_mode_is_unchanged() {
+        let a = Accounting::with_bytes();
+        let old = Accounting::default();
+        let bytes = Arc::new(Vec::new());
+        a.register_bytes(&bytes);
+        old.register_bytes(&bytes);
+        assert_eq!(a.bytes(), 256);
+        assert_eq!(old.bytes(), 0);
     }
 }

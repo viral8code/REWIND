@@ -21,6 +21,7 @@ struct Node {
     allocation_bytes: usize,
     numeric_bytes: usize,
     shared_bytes: usize,
+    byte_payload: (usize, usize),
     shared_registered: crate::shared_payload::Registration,
     numeric_registered: crate::numeric::RegistrationMemo,
 }
@@ -42,6 +43,7 @@ impl Clone for Node {
             allocation_bytes: self.allocation_bytes,
             numeric_bytes: self.numeric_bytes,
             shared_bytes: self.shared_bytes,
+            byte_payload: self.byte_payload,
             shared_registered: Default::default(),
             numeric_registered: Default::default(),
             kind: match &self.kind {
@@ -95,12 +97,18 @@ impl PagedValues {
             visit(root, accounting);
         }
     }
+    pub(crate) fn byte_payload_info(&self) -> (usize, usize) {
+        self.root.as_ref().map_or((0, 0), |n| n.byte_payload)
+    }
     pub(crate) fn shared_bytes(&self) -> usize {
         self.root.as_ref().map_or(0, |n| n.shared_bytes)
     }
     pub(crate) fn register_shared_payloads(&self, accounting: &crate::shared_payload::Accounting) {
         fn visit(node: &Node, accounting: &crate::shared_payload::Accounting) {
-            if node.shared_bytes == 0 || !node.shared_registered.register(accounting, 0) {
+            if (node.shared_bytes == 0
+                && (!accounting.includes_bytes() || node.byte_payload.1 == 0))
+                || !node.shared_registered.register(accounting, 0)
+            {
                 return;
             }
             match &node.kind {
@@ -160,6 +168,7 @@ impl PagedValues {
                 allocation_bytes: std::mem::size_of::<Node>() + 256,
                 numeric_bytes: 0,
                 shared_bytes: 0,
+                byte_payload: (0, 0),
                 shared_registered: Default::default(),
                 numeric_registered: Default::default(),
             })
@@ -186,6 +195,10 @@ impl PagedValues {
                 n.bytes = xs.iter().map(|v| Runtime::value_bytes(v)).sum();
                 n.numeric_bytes = xs.iter().map(|v| Runtime::numeric_payload_bytes(v)).sum();
                 n.shared_bytes = xs.iter().map(|v| Runtime::shared_payload_bytes(v)).sum();
+                n.byte_payload = xs.iter().fold((0usize, 0usize), |n, v| {
+                    let b = Runtime::byte_payload_info(v);
+                    (n.0.saturating_add(b.0), n.1.saturating_add(b.1))
+                });
                 n.allocation_bytes = xs.iter().fold(std::mem::size_of::<Node>() + 256, |n, v| {
                     n.saturating_add(Runtime::allocation_bytes(v))
                         .saturating_add(32)
@@ -211,6 +224,9 @@ impl PagedValues {
                     .as_ref()
                     .map_or(0, |n| n.shared_bytes)
                     .saturating_add(b.as_ref().map_or(0, |n| n.shared_bytes));
+                let av = a.as_ref().map_or((0usize, 0usize), |n| n.byte_payload);
+                let bv = b.as_ref().map_or((0usize, 0usize), |n| n.byte_payload);
+                n.byte_payload = (av.0.saturating_add(bv.0), av.1.saturating_add(bv.1));
                 n.allocation_bytes = (std::mem::size_of::<Node>() + 256)
                     .saturating_add(a.as_ref().map_or(0, |n| n.allocation_bytes))
                     .saturating_add(b.as_ref().map_or(0, |n| n.allocation_bytes));
@@ -230,6 +246,7 @@ impl PagedValues {
                     .saturating_add(std::mem::size_of::<Node>() + 256),
                 numeric_bytes: self.numeric_bytes(),
                 shared_bytes: self.shared_bytes(),
+                byte_payload: self.byte_payload_info(),
                 shared_registered: Default::default(),
                 numeric_registered: Default::default(),
                 kind: Kind::Branch(self.root.take(), None),
@@ -306,6 +323,9 @@ impl HeapStore {
     }
     pub(crate) fn numeric_bytes(&self) -> usize {
         self.0.numeric_bytes()
+    }
+    pub(crate) fn byte_payload_info(&self) -> (usize, usize) {
+        self.0.byte_payload_info()
     }
     pub(crate) fn shared_bytes(&self) -> usize {
         self.0.shared_bytes()
@@ -459,6 +479,32 @@ mod tests {
         drop(xs);
         assert!(ledger.bytes() > 0);
         drop(old);
+        assert_eq!(ledger.bytes(), 0);
+    }
+    #[test]
+    fn byte_cache_tracks_empty_payloads_and_changed_pages_without_rescan() {
+        let ledger = crate::shared_payload::Accounting::with_bytes();
+        let payload = Arc::new(vec![1; 4096]);
+        let mut xs = PagedValues::default();
+        for _ in 0..65536 {
+            xs.push(Value::Bytes(payload.clone()));
+        }
+        xs.register_shared_payloads(&ledger);
+        let visits = ledger.visits();
+        assert_eq!(ledger.bytes(), 4096 + 256);
+        let saved = xs.clone();
+        xs.set(32000, Value::Bytes(Arc::new(Vec::new())));
+        xs.register_shared_payloads(&ledger);
+        assert!(ledger.visits() - visits < 64);
+        assert_eq!(xs.byte_payload_info(), (65535 * 4096, 65536));
+        assert_eq!(saved.byte_payload_info(), (65536 * 4096, 65536));
+        assert_eq!(ledger.bytes(), 4096 + 512);
+        drop(payload);
+        drop(xs);
+        ledger.prune_bytes();
+        assert_eq!(ledger.bytes(), 4096 + 256);
+        drop(saved);
+        ledger.prune_bytes();
         assert_eq!(ledger.bytes(), 0);
     }
 }

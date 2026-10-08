@@ -9,6 +9,7 @@ struct Entry {
     allocation_bytes: usize,
     numeric_bytes: usize,
     shared_bytes: usize,
+    byte_payload: (usize, usize),
 }
 impl Entry {
     fn new(key: Arc<MapKey>, value: Arc<Value>) -> Arc<Self> {
@@ -33,6 +34,7 @@ impl Entry {
             );
         let numeric_bytes = Runtime::numeric_payload_bytes(&value);
         let shared_bytes = Runtime::shared_payload_bytes(&value);
+        let byte_payload = Runtime::byte_payload_info(&value);
         Arc::new(Self {
             key,
             value,
@@ -40,6 +42,7 @@ impl Entry {
             allocation_bytes,
             numeric_bytes,
             shared_bytes,
+            byte_payload,
         })
     }
 }
@@ -53,6 +56,7 @@ struct Node {
     allocation_bytes: usize,
     numeric_bytes: usize,
     shared_bytes: usize,
+    byte_payload: (usize, usize),
     shared_registered: crate::shared_payload::Registration,
     numeric_registered: crate::numeric::RegistrationMemo,
 }
@@ -86,6 +90,14 @@ fn node(entry: Arc<Entry>, left: Link, right: Link) -> Arc<Node> {
             .shared_bytes
             .saturating_add(left.as_ref().map_or(0, |n| n.shared_bytes))
             .saturating_add(right.as_ref().map_or(0, |n| n.shared_bytes)),
+        byte_payload: {
+            let l = left.as_ref().map_or((0usize, 0usize), |n| n.byte_payload);
+            let r = right.as_ref().map_or((0usize, 0usize), |n| n.byte_payload);
+            (
+                entry.byte_payload.0.saturating_add(l.0).saturating_add(r.0),
+                entry.byte_payload.1.saturating_add(l.1).saturating_add(r.1),
+            )
+        },
         shared_registered: Default::default(),
         numeric_registered: Default::default(),
         height: 1 + height(&left).max(height(&right)),
@@ -228,12 +240,18 @@ impl PersistentMap {
             visit(root, accounting);
         }
     }
+    pub(crate) fn byte_payload_info(&self) -> (usize, usize) {
+        self.root.as_ref().map_or((0, 0), |n| n.byte_payload)
+    }
     pub(crate) fn shared_bytes(&self) -> usize {
         self.root.as_ref().map_or(0, |n| n.shared_bytes)
     }
     pub(crate) fn register_shared_payloads(&self, accounting: &crate::shared_payload::Accounting) {
         fn visit(node: &Node, accounting: &crate::shared_payload::Accounting) {
-            if node.shared_bytes == 0 || !node.shared_registered.register(accounting, 0) {
+            if (node.shared_bytes == 0
+                && (!accounting.includes_bytes() || node.byte_payload.1 == 0))
+                || !node.shared_registered.register(accounting, 0)
+            {
                 return;
             }
             Runtime::register_shared_value(&node.entry.value, accounting);
@@ -442,6 +460,31 @@ mod tests {
         drop(map);
         assert!(ledger.bytes() > 0);
         drop(old);
+        assert_eq!(ledger.bytes(), 0);
+    }
+    #[test]
+    fn byte_values_share_owners_across_distinct_map_roots_and_empty_values() {
+        let ledger = crate::shared_payload::Accounting::with_bytes();
+        let payload = Arc::new(vec![1; 4096]);
+        let mut map = PersistentMap::default();
+        for i in 0..8192 {
+            map.insert(MapKey::Int(i), Value::Bytes(payload.clone()));
+        }
+        map.register_shared_payloads(&ledger);
+        let visits = ledger.visits();
+        let saved = map.clone();
+        map.insert(MapKey::Int(4096), Value::Bytes(Arc::new(Vec::new())));
+        map.register_shared_payloads(&ledger);
+        assert!(ledger.visits() - visits < 64);
+        assert_eq!(map.byte_payload_info(), (8191 * 4096, 8192));
+        assert_eq!(saved.byte_payload_info(), (8192 * 4096, 8192));
+        assert_eq!(ledger.bytes(), 4096 + 512);
+        drop(payload);
+        drop(map);
+        ledger.prune_bytes();
+        assert_eq!(ledger.bytes(), 4096 + 256);
+        drop(saved);
+        ledger.prune_bytes();
         assert_eq!(ledger.bytes(), 0);
     }
 }
