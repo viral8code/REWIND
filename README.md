@@ -1,6 +1,6 @@
-# REWIND 1.9.45
+# REWIND 1.9.46
 
-REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.45 では、共有文字列・Bytes に加え、永続コンテナの内部ノード・値・キーを所有元ごとにメモリ予算へ計上します。複数の checkpoint で共有する部分の重複計上を減らし、確保容量と解放にも対応します。
+REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.46 では、永続 List／Map の参照情報を更新時に記憶し、GC が参照を含まない領域を繰り返し走査する費用を減らします。参照のある領域、循環と checkpoint の保持、有限の探索予算は維持します。
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 

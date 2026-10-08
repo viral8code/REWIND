@@ -11,8 +11,57 @@ pub fn storage_work() -> (usize, usize) {
 fn reset_work() {
     WORK.with(|w| w.set((0, 0)));
 }
+struct Slot {
+    value: Arc<Value>,
+    has_heap_refs: bool,
+    admitted: std::sync::atomic::AtomicUsize,
+}
+impl Slot {
+    fn new(value: Value) -> Self {
+        let has_heap_refs = Runtime::contains_heap_refs(&value);
+        Self {
+            value: Arc::new(value),
+            has_heap_refs,
+            admitted: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+}
+impl Clone for Slot {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.clone(),
+            has_heap_refs: self.has_heap_refs,
+            admitted: std::sync::atomic::AtomicUsize::new(
+                self.admitted.load(std::sync::atomic::Ordering::Acquire),
+            ),
+        }
+    }
+}
+impl Slot {
+    fn register(&self, a: &crate::shared_payload::Accounting) {
+        if a.includes_containers() {
+            if self.admitted.load(std::sync::atomic::Ordering::Acquire) == a.identity() {
+                return;
+            }
+            Runtime::register_owned_value(&self.value, a);
+            // A cloned slot retains the same immutable strong Arc. Weak index
+            // pruning cannot remove its owner while any such slot is live.
+            // Ledger identities never reset/reuse; another Runtime checks anew.
+            self.admitted
+                .store(a.identity(), std::sync::atomic::Ordering::Release);
+        } else {
+            Runtime::register_owned_value(&self.value, a);
+        }
+    }
+}
+impl std::ops::Deref for Slot {
+    type Target = Arc<Value>;
+    fn deref(&self) -> &Arc<Value> {
+        &self.value
+    }
+}
 enum Kind {
-    Leaf(Vec<Arc<Value>>),
+    Leaf(Vec<Slot>),
     Branch(Option<Arc<Node>>, Option<Arc<Node>>),
 }
 struct Node {
@@ -22,6 +71,7 @@ struct Node {
     numeric_bytes: usize,
     shared_bytes: usize,
     byte_payload: (usize, usize),
+    has_heap_refs: bool,
     shared_registered: crate::shared_payload::Registration,
     numeric_registered: crate::numeric::RegistrationMemo,
 }
@@ -44,6 +94,7 @@ impl Clone for Node {
             numeric_bytes: self.numeric_bytes,
             shared_bytes: self.shared_bytes,
             byte_payload: self.byte_payload,
+            has_heap_refs: self.has_heap_refs,
             shared_registered: Default::default(),
             numeric_registered: Default::default(),
             kind: match &self.kind {
@@ -65,6 +116,39 @@ impl PagedValues {
     }
     pub fn is_empty(&self) -> bool {
         self.len == 0
+    }
+    pub(crate) fn has_heap_refs(&self) -> bool {
+        self.root.as_ref().is_some_and(|n| n.has_heap_refs)
+    }
+    pub(crate) fn trace_heap_refs<'a>(
+        &'a self,
+        gc: &mut crate::HeapTraversal<'a>,
+    ) -> crate::Result<()> {
+        fn visit<'a>(node: &'a Arc<Node>, gc: &mut crate::HeapTraversal<'a>) -> crate::Result<()> {
+            if !gc.visit(Arc::as_ptr(node) as usize)? || !node.has_heap_refs {
+                return Ok(());
+            }
+            match &node.kind {
+                Kind::Leaf(values) => {
+                    for slot in values {
+                        gc.charge(1)?;
+                        if slot.has_heap_refs {
+                            gc.push(&slot.value)?;
+                        }
+                    }
+                }
+                Kind::Branch(a, b) => {
+                    for child in [a, b].into_iter().flatten() {
+                        visit(child, gc)?;
+                    }
+                }
+            }
+            Ok(())
+        }
+        if let Some(root) = &self.root {
+            visit(root, gc)?;
+        }
+        Ok(())
     }
     pub fn allocation_bytes(&self) -> usize {
         self.root.as_ref().map_or(0, |n| n.allocation_bytes)
@@ -114,7 +198,7 @@ impl PagedValues {
                         std::mem::size_of::<Node>()
                             + 256
                             + match &node.kind {
-                                Kind::Leaf(v) => v.capacity() * std::mem::size_of::<Arc<Value>>(),
+                                Kind::Leaf(v) => v.capacity() * std::mem::size_of::<Slot>(),
                                 _ => 0,
                             }
                     } else {
@@ -127,7 +211,7 @@ impl PagedValues {
             match &node.kind {
                 Kind::Leaf(values) => {
                     for value in values {
-                        Runtime::register_owned_value(value, accounting);
+                        value.register(accounting);
                     }
                 }
                 Kind::Branch(left, right) => {
@@ -150,7 +234,7 @@ impl PagedValues {
         let mut i = index;
         loop {
             match &n.kind {
-                Kind::Leaf(xs) => return xs.get(i).map(Arc::as_ref),
+                Kind::Leaf(xs) => return xs.get(i).map(|s| s.value.as_ref()),
                 Kind::Branch(a, b) => {
                     let half = 64usize << (h - 1);
                     n = if i < half {
@@ -182,6 +266,7 @@ impl PagedValues {
                 numeric_bytes: 0,
                 shared_bytes: 0,
                 byte_payload: (0, 0),
+                has_heap_refs: false,
                 shared_registered: Default::default(),
                 numeric_registered: Default::default(),
             })
@@ -196,15 +281,16 @@ impl PagedValues {
                 match value {
                     Some(v) => {
                         if index == xs.len() {
-                            xs.push(Arc::new(v));
+                            xs.push(Slot::new(v));
                         } else {
-                            xs[index] = Arc::new(v);
+                            xs[index] = Slot::new(v);
                         }
                     }
                     None => {
                         xs.pop();
                     }
                 };
+                n.has_heap_refs = xs.iter().any(|s| s.has_heap_refs);
                 n.bytes = xs.iter().map(|v| Runtime::value_bytes(v)).sum();
                 n.numeric_bytes = xs.iter().map(|v| Runtime::numeric_payload_bytes(v)).sum();
                 n.shared_bytes = xs.iter().map(|v| Runtime::shared_payload_bytes(v)).sum();
@@ -225,6 +311,8 @@ impl PagedValues {
                 } else {
                     Self::write(b, height - 1, index - half, value)
                 };
+                n.has_heap_refs = a.as_ref().is_some_and(|n| n.has_heap_refs)
+                    || b.as_ref().is_some_and(|n| n.has_heap_refs);
                 n.bytes = a
                     .as_ref()
                     .map_or(0, |n| n.bytes)
@@ -260,6 +348,7 @@ impl PagedValues {
                 numeric_bytes: self.numeric_bytes(),
                 shared_bytes: self.shared_bytes(),
                 byte_payload: self.byte_payload_info(),
+                has_heap_refs: self.has_heap_refs(),
                 shared_registered: Default::default(),
                 numeric_registered: Default::default(),
                 kind: Kind::Branch(self.root.take(), None),
@@ -528,7 +617,7 @@ mod tests {
             xs.push(Value::Int(i));
         }
         xs.register_shared_payloads(&a);
-        let node = std::mem::size_of::<Node>() + 256 + 32 * std::mem::size_of::<Arc<Value>>();
+        let node = std::mem::size_of::<Node>() + 256 + 32 * std::mem::size_of::<Slot>();
         let value = std::mem::size_of::<Value>() + 32 + 8 + 128;
         assert_eq!(a.bytes(), node + 32 * value);
         let saved = xs.clone();
@@ -544,6 +633,38 @@ mod tests {
         a.prune_bytes();
         assert_eq!(a.bytes(), 0);
     }
+    #[test]
+    fn copied_slot_admission_is_separate_for_each_runtime_and_survives_live_pruning() {
+        let a = crate::shared_payload::Accounting::with_containers();
+        let b = crate::shared_payload::Accounting::with_containers();
+        let mut xs: PagedValues = (0..32).map(Value::Int).collect();
+        xs.register_shared_payloads(&a);
+        xs.register_shared_payloads(&b);
+        let node = std::mem::size_of::<Node>() + 256 + 32 * std::mem::size_of::<Slot>();
+        let value = std::mem::size_of::<Value>() + 32 + 8 + 128;
+        let saved = xs.clone();
+        xs.set(0, Value::Int(-1));
+        a.prune_bytes();
+        b.prune_bytes();
+        xs.register_shared_payloads(&a);
+        xs.register_shared_payloads(&b);
+        assert_eq!(a.bytes(), 2 * node + 33 * value);
+        assert_eq!(b.bytes(), a.bytes());
+        drop(xs);
+        a.prune_bytes();
+        b.prune_bytes();
+        assert_eq!(a.bytes(), node + 32 * value);
+        assert_eq!(b.bytes(), a.bytes());
+        drop(a);
+        drop(b);
+        let c = crate::shared_payload::Accounting::with_containers();
+        saved.register_shared_payloads(&c);
+        assert_eq!(c.bytes(), node + 32 * value);
+        drop(saved);
+        c.prune_bytes();
+        assert_eq!(c.bytes(), 0);
+    }
+
     #[test]
     fn scalar_lists_register_only_changed_paths_in_unique_owner_mode() {
         let a = crate::shared_payload::Accounting::with_containers();
