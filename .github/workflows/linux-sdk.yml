@@ -25,7 +25,7 @@ jobs:
       - name: Native X11 window and pointer events
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xfonts-base libgtk-3-0
+          sudo apt-get install -y xvfb xfonts-base libgtk-3-0 at-spi2-core dbus-x11
           xvfb-run -a cargo test --locked --lib native_gui_surface -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1956 native_pointer_cancels -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1958 native_pointer_cancels -- --nocapture
