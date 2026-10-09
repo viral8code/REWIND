@@ -1,0 +1,25 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+import std.numericRange as range;
+import std.graphLargeAsync as jobs;
+import std.task as task;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {Ok(result)=>{return move result;},Err(_)=>{panic("operation failed");}}
+}
+let args=Args.all();var title="REWIND graph";if args.len()>0{title=args.get(0);}
+let view=take(gui.window(title,320,160));
+take(gui.label(&mut view,"state","Click to cancel graph computation",10,10,300,36));
+take(windows.present("work",&view));publish;
+let froms=take(range.integers(0,0,1048576));
+let work=spawn jobs.bfs(1048576,froms,froms,0);
+Out.println("ready");publish;
+var clicked=false;
+while !clicked {
+ task.yieldNow();
+ if work.isDone(){let result=take(take(await work));Out.println("completed");take(windows.close("work"));publish;break;}
+ match take(windows.pollAny()){
+  None=>{},Some(input)=>{if input.window=="work" && input.event.kind=="pointer"{clicked=true;}}
+ }
+}
+if clicked{work.cancel();match await work{Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("cancelled");take(windows.close("work"));publish;}

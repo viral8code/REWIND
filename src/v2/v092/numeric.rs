@@ -24,6 +24,29 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.9.56") {
+        let name = "GraphBfsWork";
+        if p.structs.contains_key(name)
+            || p.enums.contains_key(name)
+            || p.aliases.contains_key(name)
+        {
+            return Err(Error::InvalidOperation(
+                "reserved graph BFS work type".into(),
+            ));
+        }
+        p.structs.insert(
+            name.into(),
+            StructDef {
+                private_fields: BTreeSet::from(["$native".into()]),
+                bounds: BTreeMap::new(),
+                immutable: true,
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                fields: vec![],
+            },
+        );
+    }
     if language_at_least(&p.language, "1.9.42") {
         if p.structs.contains_key("LeastSquaresWork")
             || p.enums.contains_key("LeastSquaresWork")
@@ -257,6 +280,19 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if !language_at_least(&p.language, "1.8.0") {
         return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
     }
+    if matches!(
+        n,
+        "stdNumericGraphBfsInit"
+            | "stdNumericGraphBfsStep"
+            | "stdNumericGraphBfsDone"
+            | "stdNumericGraphBfsResult"
+    ) && !language_at_least(&p.language, "1.9.56")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative graph traversal requires language 1.9.56",
+        ));
+    }
     if matches!(n, "stdNumericSumStep" | "stdNumericMomentsStep")
         && !language_at_least(&p.language, "1.9.55")
     {
@@ -459,6 +495,67 @@ fn array<'a>(v: &'a Value, rt: &'a Runtime) -> std::result::Result<&'a Array, Nu
         Value::NumericArray(a) => Ok(a),
         _ => Err(NumericError::Type),
     }
+}
+fn graph_bfs_work(
+    value: &Value,
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::GraphBfsWork, NumericError> {
+    let Value::Struct(ty, fields) = target(value, rt) else {
+        return Err(NumericError::Type);
+    };
+    if ty != "GraphBfsWork" {
+        return Err(NumericError::Type);
+    }
+    let a = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(|v| array(v, rt))
+            .cloned()
+    };
+    let i = |name: &str| {
+        fields
+            .get(name)
+            .ok_or(NumericError::Type)
+            .and_then(usize_arg)
+    };
+    let work = rewind::numeric::GraphBfsWork {
+        froms: a("$froms")?,
+        tos: a("$tos")?,
+        heads: a("$heads")?,
+        links: a("$links")?,
+        distance: a("$distance")?,
+        queue: a("$queue")?,
+        source: i("$source")?,
+        cursor: i("$cursor")?,
+        read: i("$read")?,
+        write: i("$write")?,
+        current: i("$current")?,
+        edge: i("$edge")?,
+        phase: u8::try_from(i("$phase")?).map_err(|_| NumericError::Domain)?,
+    };
+    work.validate()?;
+    Ok(work)
+}
+fn graph_bfs_work_value(w: rewind::numeric::GraphBfsWork) -> Value {
+    Value::Struct(
+        "GraphBfsWork".into(),
+        BTreeMap::from([
+            ("$froms".into(), Value::NumericArray(w.froms)),
+            ("$tos".into(), Value::NumericArray(w.tos)),
+            ("$heads".into(), Value::NumericArray(w.heads)),
+            ("$links".into(), Value::NumericArray(w.links)),
+            ("$distance".into(), Value::NumericArray(w.distance)),
+            ("$queue".into(), Value::NumericArray(w.queue)),
+            ("$source".into(), Value::Int(w.source as i64)),
+            ("$cursor".into(), Value::Int(w.cursor as i64)),
+            ("$read".into(), Value::Int(w.read as i64)),
+            ("$write".into(), Value::Int(w.write as i64)),
+            ("$current".into(), Value::Int(w.current as i64)),
+            ("$edge".into(), Value::Int(w.edge as i64)),
+            ("$phase".into(), Value::Int(w.phase as i64)),
+        ]),
+    )
 }
 fn least_squares_work(
     value: &Value,
@@ -1006,6 +1103,16 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             .saturating_add(args.get(3).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
             .saturating_mul(128)
             .saturating_add(1024)
+    } else if name == "GraphBfsInit" {
+        4096
+    } else if name == "GraphBfsStep" {
+        args.first()
+            .and_then(|v| graph_bfs_work(v, rt).ok())
+            .map_or(2048, |w| {
+                w.units_bound().saturating_mul(128).saturating_add(2048)
+            })
+    } else if matches!(name, "GraphBfsDone" | "GraphBfsResult") {
+        2048
     } else if name == "LeastSquaresInit" {
         32768
     } else if name == "LeastSquaresStep" {
@@ -1382,6 +1489,14 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
                     .min(rewind::numeric::MAX_GRAPH_ITEMS),
             )
             .saturating_add(4096)
+    } else if name == "GraphBfsInit" {
+        32768
+    } else if name == "GraphBfsStep" {
+        args.first()
+            .and_then(|v| graph_bfs_work(v, rt).ok())
+            .map_or(8192, |w| w.scratch_estimate())
+    } else if matches!(name, "GraphBfsDone" | "GraphBfsResult") {
+        8192
     } else if name == "LeastSquaresInit" {
         1024 * 1024 + 65536
     } else if name == "LeastSquaresStep" {
@@ -1784,6 +1899,15 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                 i(3)?,
                 i(4)?,
             ))?,
+            "GraphBfsInit" => graph_bfs_work_value(rewind::numeric::GraphBfsWork::new(
+                i(0)?,
+                a(1)?,
+                a(2)?,
+                i(3)?,
+            )?),
+            "GraphBfsStep" => graph_bfs_work_value(graph_bfs_work(&args[0], rt)?.step()?),
+            "GraphBfsDone" => Value::Bool(graph_bfs_work(&args[0], rt)?.done()),
+            "GraphBfsResult" => array_value(graph_bfs_work(&args[0], rt)?.result())?,
             "LeastSquaresInit" => least_squares_work_value(rewind::numeric::LeastSquaresWork::new(
                 a(0)?,
                 a(1)?,
@@ -2375,6 +2499,13 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericGraphBfsInit" => (
+            &["Int", "&IntArray", "&IntArray", "Int"],
+            "Result<GraphBfsWork,StdError>",
+        ),
+        "stdNumericGraphBfsStep" => (&["&GraphBfsWork"], "Result<GraphBfsWork,StdError>"),
+        "stdNumericGraphBfsDone" => (&["&GraphBfsWork"], "Result<Bool,StdError>"),
+        "stdNumericGraphBfsResult" => (&["&GraphBfsWork"], "Result<IntArray,StdError>"),
         "stdNumericLeastSquaresInit" => (
             &["&FloatArray", "&FloatArray", "Float"],
             "Result<LeastSquaresWork,StdError>",

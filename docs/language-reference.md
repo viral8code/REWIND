@@ -638,3 +638,5 @@ GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl
 選択言語 1.9.53 の `std.numericTransformAsync.mapFloat` / `activation` は、単項数値変換を 4096 論理要素以下の native step に分けます。step 間でタスクを切り替え、部分結果の checkpoint と取消を扱います。入力は shared native array であり、host thread は起動しません。[v1.9.53](REWIND_v1.9.53.md)。
 
 選択言語 1.9.55 の `std.numericReduceAsync.sum` / `mean` / `variance` は、合計・平均・分散を4096論理要素以下の native step に分け、step 間でタスクを切り替えます。既存の計算順序と失敗契約を保ち、巻き戻しと取消を扱います。`autodiff.backward` 自体は同期のままです。[v1.9.55](REWIND_v1.9.55.md)。
+
+選択言語 1.9.56 の `std.graphLargeAsync.bfs(vertices,froms,tos,source)` は、IntArray の辺の両端を受け取り、グラフ構築と幅優先探索を4096単位以下に分割してタスクを切り替えます。戻り値は最短距離の IntArray（未到達は -1）です。処理途中の状態も commit/revert と取消の対象です。[v1.9.56](REWIND_v1.9.56.md)。

@@ -1,0 +1,12 @@
+effects {tasks};
+import task as task;
+// @api bfs cost Owns shared immutable edge snapshots; validates/builds/traverses/converts distances in steps of at most 4096 units, yielding between steps. Up to 1048576 vertices/edges; page COW and queue storage are charged to VM budgets.
+// @api bfs failure NumericType/Shape/Size/Index/Domain; validates all endpoints before building adjacency. Returns shortest directed distances, -1 unreachable; no partial result after typed failure or cancellation. Fatal work/memory budgets apply.
+pub async fn bfs(vertices:Int,froms:IntArray,tos:IntArray,source:Int)->Result<IntArray,StdError> effects {tasks} {
+ var work=stdNumericGraphBfsInit(vertices,&froms,&tos,source)?;
+ while !stdNumericGraphBfsDone(&work)? {
+  work=stdNumericGraphBfsStep(&work)?;
+  task.yieldNow();
+ }
+ return stdNumericGraphBfsResult(&work);
+}
