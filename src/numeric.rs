@@ -32,6 +32,8 @@ mod shape_chunks;
 pub use graph_chunks::{GraphBfsWork, GRAPH_CHUNK};
 pub use shape_chunks::{SumShapeProgress, SHAPE_CHUNK};
 mod identity_chunks;
+mod input_chunks;
+pub use input_chunks::INPUT_CHUNK;
 #[cfg(test)]
 mod page_builder_tests;
 #[cfg(test)]

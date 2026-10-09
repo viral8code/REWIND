@@ -650,3 +650,16 @@ GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl
 `std.guiDialog` のファイル選択は `gui,external,tasks` 効果を持ちます。アプリケーションタスクの external 領域で Task を作成し、その領域の外で await します。選択結果は外部観測として記録され、revert と replay は OS のダイアログを開き直しません。選択したパスにアクセスする権限は別途必要です。
 
 選択言語1.9.61では、ネイティブIMEの未確定文字列を公開した入力欄のカーソル位置へ表示します。確定した文字だけがVMのtext入力となります。変換途中のOS状態は巻き戻しません。変換中に異なる入力状態をpublishすると旧コンテキストをキャンセルします。LinuxのXIMサービスとWindowsのIMMコンテキスト、容量・寿命・検証範囲は[v1.9.61](REWIND_v1.9.61.md)を参照してください。
+
+### 所有する List からの数値入力（1.9.64 以降、開発中）
+
+`std.numericInputAsync.fromFloat(shape, values)` と `fromInt(shape, values)` は
+List を所有する task として数値配列を作る。`await spawn` に渡す入力は
+`move` で所有権を渡す。結果は `Result<FloatArray,StdError>` /
+`Result<IntArray,StdError>` で、task の待機には別に `TaskError` がある。
+
+最大 4096 セルをコピーした後、未完了なら他の task に制御を返す。
+途中の配列は公開せず、取消では部分結果を返さない。
+既存の同期 `std.numeric.fromFloat` / `fromInt` も引き続き利用できる。
+作業を保持する checkpoint のメモリと、task の命令予算・native work・
+history memory の上限はそれぞれ適用される。

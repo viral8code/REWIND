@@ -1,0 +1,16 @@
+effects {tasks};
+import task as task;
+// @api fromFloat cost O(elements times log pages), at most 4096 raw cells per step; input List pages shared, bounded output COW and handoff between chunks.
+// @api fromFloat failure NumericShape/Type/Index/ReadOnly/Size; preserves raw float bits including NaN and signed zero like synchronous numeric.fromFloat; no partial result on cancellation, fatal budgets apply. Existing synchronous API is unchanged.
+pub async fn fromFloat(shape:List<Int>,values:List<Float>)->Result<FloatArray,StdError> effects {tasks} {
+ var output=stdNumericFromFloatInit(&shape,&values)?;var cursor=0;
+ while true{let step=stdNumericFromFloatStep(&values,&output,cursor)?;output=step._0;cursor=step._1;if step._2{return Ok(output);}task.yieldNow();}
+ return Err(StdError("NumericState",0));
+}
+// @api fromInt cost O(elements times log pages), at most 4096 raw cells per step; shared input pages and bounded COW output, yields between steps.
+// @api fromInt failure NumericShape/Type/Index/ReadOnly/Size; exact Int bits and synchronous result, no partial result on cancellation, retained checkpoints keep independent work versions, fatal budgets apply.
+pub async fn fromInt(shape:List<Int>,values:List<Int>)->Result<IntArray,StdError> effects {tasks} {
+ var output=stdNumericFromIntInit(&shape,&values)?;var cursor=0;
+ while true{let step=stdNumericFromIntStep(&values,&output,cursor)?;output=step._0;cursor=step._1;if step._2{return Ok(output);}task.yieldNow();}
+ return Err(StdError("NumericState",0));
+}

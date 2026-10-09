@@ -1,6 +1,6 @@
 # v2.0 到達条件の残件
 
-v1.9.61の公開待ち実装、v1.9.62のforwardのローカル受入、v1.9.63のOS accessibility開発を基準にした作業整理。これは v2.0 の完了宣言ではない。
+v1.9.63までのWindows / Linux公開版と、v1.9.64の数値入力・統合負荷の開発を基準にした作業整理。これは v2.0 の完了宣言ではない。
 公開の判定は、実装、実 adapter での検証、Linux / Windows の配布検証を区別する。
 到達条件の原文は [ロードマップ](ROADMAP_v2.md)、設計は [詳細設計](v2-design.md) にある。
 過去の各版にある「残る作業」の記述はその版の時点の情報であり、現在の不足一覧として再利用しない。
@@ -15,14 +15,17 @@ GC、共有 storage、履歴と native resource の会計にも実装と個別�
 これらを未実装として再計画しない。
 
 最近の追加は、協調的 backward（1.9.58）、メニュー（1.9.59）、
-ファイルダイアログと SDK の streaming hash（1.9.60）。
+ファイルダイアログと SDK の streaming hash（1.9.60）、native IME（1.9.61）、
+協調的forward（1.9.62）、OS accessibilityとfont検証（1.9.63）。
 各版の契約と検証記録を参照し、実装済みと配布検証済みを混同しない。
 
 1.9.61ではIMEのnative preeditと入力コンテキストの寿命を実装し、Linuxの実IBus/Anthyで変換途中・確定・変換・フォーカス移動を検証する。Windowsのcontext/queue試験とUnicode確定入力は、実際の日本語変換エンジンの検証とは区別する。OS accessibilityとフォントサービスの確認は継続する。GUI・HTTP・両DBの8サイクル反復検証も追加するが、数値計算を同時に走らせた長時間安定性の完了には扱わない。
 
-1.9.62のforward開発では、既存演算すべての分割実行と同期版とのNode／値／勾配一致、保存領域の分割identity準備、途中のcheckpoint復元・取消・source-free replayを確認している。64／256回の取消でGCとlive数値ページの上限を確認し、Linuxのnative pointerによる計算中の取消も検証する。最適化測定・全回帰・両OS SDKは別の公開判定とし、初期入力や長時間統合負荷の完了へ広げない。
+1.9.62の公開版では、既存演算すべての分割実行と同期版とのNode／値／勾配一致、保存領域の分割identity準備、途中のcheckpoint復元・取消・source-free replayを確認している。64／256回の取消でGCとlive数値ページの上限を確認し、Linuxのnative pointerによる計算中の取消も検証する。全回帰・両OSの展開後SDKも通過した。最適化測定では協調実行に追加費用があり、初期入力や長時間統合負荷の完了へこの結果を広げない。
 
-1.9.63の開発では、Linuxの実AT-SPI registry / system clientで名前・役割・状態・Unicode Text・既定操作・変更通知を確認した。source-freeのdebug / compact実行でnative操作によるVM復元とサービスなしreplayを確認し、実X11 captureでLatin / 日本語の異なる字形を確認した。Windowsの実COM clientとfont capture、展開後SDKと全回帰は公開の受入として残る。Windowsの実日本語変換エンジンの確認や数値・通信との長時間負荷を、この結果だけで完了にはしない。
+1.9.63の公開版では、Linuxの実AT-SPI registry / system clientで名前・役割・状態・Unicode Text・既定操作・変更通知を確認した。source-freeのdebug / compact実行でnative操作によるVM復元とサービスなしreplayを確認し、実X11 captureでLatin / 日本語の異なる字形を確認した。Windowsの実COM clientとfont capture、両OSの展開後SDKと全回帰も通過した。Windowsの実日本語変換エンジンの確認や数値・通信との長時間負荷を、この結果だけで完了にはしない。
+
+1.9.64 の開発では、所有する List からの分割数値入力、途中復元と取消後の回収を Linux の直接ビルドで確認した。数値計算と GUI / HTTP / 両 DB の同時実行は各 2 サイクルで確認し、両 DB 各 16 サイクルでは計算完了と終了時の回収、確定結果の独立照合、サービスなし replay を確認した。長い compact replay は出力が一致する一方で再生の費用が大きく、性能監査に残す。Windows、展開後 SDK、より長い反復と切断・早期終了をこの結果だけで完了にはしない。
 
 ## 必須の残件と完了判定
 
@@ -40,7 +43,8 @@ GC、共有 storage、履歴と native resource の会計にも実装と個別�
 - PostgreSQL の接続開始には 192 MiB の保守的な admission 予約がある。GUI などの同時利用では
   追加の容量が必要。予約量は実際に同時使用している RSS と同じ値ではない。
 - 協調実行には scheduler / step の追加費用がある。分割しただけで高速化・省メモリ化したと
-  扱わない。既存の同期 API と実測の比較を残す。
+  扱わない。入力変換の262144要素では分割版に約2.27倍の時間・約1.75倍のpeak RSSを
+  要した。既存の同期 API と実測の比較を残す。
 - 個別 kernel の回収試験と、複数 adapter を使い続けたシステム全体の安定性は別の検証とする。
 
 ## 作業と公開の単位
@@ -50,3 +54,7 @@ GC、共有 storage、履歴と native resource の会計にも実装と個別�
 各公開版の両 OS 検証、署名付き Release、main への統合は維持する。
 新しい不足を見つけた場合は、この一覧の該当行に具体例と完了判定を追加する。
 版番号やテスト数の増加を v2.0 の到達判定に使わない。
+
+数値の協調ライブラリで子taskの失敗を `AutodiffTask` へ変換する経路は、
+元の原因が隠れるため、最終診断の監査対象に残す。処理全体の失敗を成功や取消へ
+読み替えず、budgetと通常の数値エラーを利用者が区別できる形にする。
