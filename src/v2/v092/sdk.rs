@@ -45,6 +45,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "numericIdentityAsync",
             include_str!("../../../libraries/std/numericIdentityAsync.rw"),
         ),
+        (
+            "numericInputAsync",
+            include_str!("../../../libraries/std/numericInputAsync.rw"),
+        ),
         ("models", include_str!("../../../libraries/std/models.rw")),
         (
             "optimize",
@@ -712,6 +716,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/service-numeric/main.rw",
+            include_str!("../../../examples/service-numeric/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/gui-dialog/main.rw",
             include_str!("../../../examples/gui-dialog/main.rw"),
         )?;
@@ -754,6 +763,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-accessibility/README.md",
             include_str!("../../../examples/gui-accessibility/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/service-numeric/README.md",
+            include_str!("../../../examples/service-numeric/README.md"),
         )?;
         write(
             &output,
@@ -917,6 +931,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.63.md",
                 include_str!("../../../docs/REWIND_v1.9.63.md"),
+            ),
+            (
+                "REWIND_v1.9.64.md",
+                include_str!("../../../docs/REWIND_v1.9.64.md"),
             ),
             ("v2-status.md", include_str!("../../../docs/v2-status.md")),
             ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
@@ -1177,6 +1195,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/service-numeric/main.rw",
+            include_str!("../../../examples/service-numeric/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/gui-dialog/main.rw",
             include_str!("../../../examples/gui-dialog/main.rw"),
         )?;
@@ -1219,6 +1242,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-accessibility/README.md",
             include_str!("../../../examples/gui-accessibility/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/service-numeric/README.md",
+            include_str!("../../../examples/service-numeric/README.md"),
         )?;
         write(
             &output,
@@ -1383,6 +1411,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 "REWIND_v1.9.63.md",
                 include_str!("../../../docs/REWIND_v1.9.63.md"),
             ),
+            (
+                "REWIND_v1.9.64.md",
+                include_str!("../../../docs/REWIND_v1.9.64.md"),
+            ),
             ("v2-status.md", include_str!("../../../docs/v2-status.md")),
             ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
             (
@@ -1473,6 +1505,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-accessibility",
                 include_str!("../../../examples/gui-accessibility/README.md"),
+            ),
+            (
+                "service-numeric",
+                include_str!("../../../examples/service-numeric/README.md"),
             ),
             (
                 "gui-dialog",
@@ -1573,6 +1609,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-accessibility",
                 include_str!("../../../examples/gui-accessibility/main.rw"),
+            ),
+            (
+                "service-numeric",
+                include_str!("../../../examples/service-numeric/main.rw"),
             ),
             (
                 "gui-dialog",

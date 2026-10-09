@@ -1,0 +1,138 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+import std.httpServer as server;
+import std.bytes as bytes;
+import std.db as db;
+import std.task as task;
+import std.numeric as numeric;
+import std.numericInputAsync as inputJobs;
+import std.numericReduceAsync as reduceJobs;
+import std.autodiff as ad;
+import std.autodiffForwardAsync as forward;
+import std.autodiffAsync as backward;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("service operation failed");}}}
+fn value<T>(r:Result<T,StdError>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(e)=>{panic("numeric: "+e.code+" at "+e.offset.format());}}}
+fn finished<T>(r:Result<T,TaskError>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(TaskError::Failed(d))=>{panic("task: "+d.code+": "+d.message);},Err(_)=>{panic("task cancelled or budget exhausted");}}}
+fn http<T>(r:Result<T,HttpServerError>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(e)=>{panic("http: "+e.code+" ["+e.phase+"]");}}}
+fn database<T>(r:Result<T,DbError>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(e)=>{panic("database: "+e.code+" ["+e.phase+"]");}}}
+fn execute(c:&mut DbConnection,sql:String,p:Frozen<List<DbValue>>)->Task<Result<Int,DbError>> effects {external,db,tasks} {
+ var pending:Option<Task<Result<Int,DbError>>>=None;external fresh{pending=Some(db.execute(c,sql,p,5000));}
+ match pending{Some(t)=>{return move t;},None=>{panic("missing execute");}}
+}
+fn transaction(c:&mut DbConnection,operation:String)->Task<Result<Unit,DbError>> effects {external,db,tasks} {
+ var pending:Option<Task<Result<Unit,DbError>>>=None;
+ external fresh{if operation=="begin"{pending=Some(db.beginTransaction(c,5000));}else if operation=="commit"{pending=Some(db.commitTransaction(c,5000));}else{pending=Some(db.rollbackTransaction(c,5000));}}
+ match pending{Some(t)=>{return move t;},None=>{panic("missing transaction");}}
+}
+fn closeRows(cursor:&mut DbCursor)->Task<Result<Unit,DbError>> effects {external,db,tasks} {
+ var pending:Option<Task<Result<Unit,DbError>>>=None;external fresh{pending=Some(db.closeCursor(cursor,5000));}
+ match pending{Some(t)=>{return move t;},None=>{panic("missing cursor close");}}
+}
+// This task keeps materialized numerical work active while HTTP/DB and native input progress.
+async fn calculate(messages:Channel<String>)->Unit effects {tasks} {
+ // FIXTURE_CALCULATION
+ for pass in 0..1 {
+  let dimensions=List<Int>();dimensions.add(128);
+  let zero=value(numeric.zerosFloat(&dimensions));let prepared=value(numeric.affine(&zero,0.0,0.5));
+  let values=value(numeric.valuesFloat(&prepared));
+  let input=value(finished(await spawn inputJobs.fromFloat(move dimensions,move values)));
+  let first=value(finished(await spawn forward.parameter(ad.create(),"x",input)));let tape=move first._0;let x=first._1;
+  let activated=value(finished(await spawn forward.unary(move tape,"sigmoid",x)));let tape2=move activated._0;let sigmoid=activated._1;
+  let squared=value(finished(await spawn forward.unary(move tape2,"square",sigmoid)));let tape3=move squared._0;let square=squared._1;
+  let reduced=value(finished(await spawn forward.mean(move tape3,square)));let tape4=move reduced._0;let loss=reduced._1;
+  let sigma=0.6224593312018546;
+  let scalarIndices=List<Int>();let lossArray=value(ad.value(&tape4,loss));let actual=value(numeric.getFloat(&lossArray,&scalarIndices));let difference=actual-sigma*sigma;assert(difference>-0.0000000001 && difference<0.0000000001);
+  let gradients=value(finished(await spawn backward.backward(move tape4,loss)));
+  match value(ad.gradient(&gradients,x)){None=>{panic("missing gradient");},Some(g)=>{
+   let sum=value(finished(await spawn reduceJobs.sum(g)));let expected=2.0*sigma*sigma*(1.0-sigma);let gradientDifference=sum-expected;assert(gradientDifference>-0.00000001 && gradientDifference<0.00000001);
+  }}
+  take(await messages.send("calculated"));
+  task.yieldNow();
+ }
+ return ();
+}
+async fn serve(listener:HttpServer,connection:DbConnection,backend:String,entry:String,messages:Channel<String>)->Unit effects {external,network,db,tasks,output} {
+ var insertSql="INSERT INTO rewind_service_data (entry,text) VALUES (?1,?2)";
+ var countSql="SELECT COUNT(*) FROM rewind_service_data WHERE entry=?1";
+ if backend=="postgres"{insertSql="INSERT INTO rewind_service_data (entry,text) VALUES ($1,$2)";countSql="SELECT COUNT(*) FROM rewind_service_data WHERE entry=$1";}
+ for round in 0..2{
+  var waiting:Option<Task<Result<HttpServerRequest,HttpServerError>>>=None;
+  external fresh{waiting=Some(server.next(&mut listener,10000));}
+  match waiting{None=>{panic("missing request");},Some(started)=>{
+   let request=http(take(await started));assert_eq(request.method,"POST");
+   if round==0{assert_eq(request.path,"/rollback");}else{assert_eq(request.path,"/save");}
+   assert_eq(take(bytes.decode(request.body)),"saved text");
+   take(await messages.send("transaction"));
+   // FIXTURE_DELAY
+   database(take(await transaction(&mut connection,"begin")));
+   let params=List<DbValue>();params.add(DbValue::Text(entry));params.add(DbValue::Text("saved text"));
+   database(take(await execute(&mut connection,insertSql,freeze(params))));
+   if round==0{
+    match take(await execute(&mut connection,insertSql,freeze(params))){Err(_)=>{},Ok(_)=>{panic("duplicate insert unexpectedly succeeded");}}
+    database(take(await transaction(&mut connection,"rollback")));
+   }else{database(take(await transaction(&mut connection,"commit")));}
+   let keys=List<DbValue>();keys.add(DbValue::Text(entry));
+   var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+   external fresh{querying=Some(db.query(&mut connection,countSql,freeze(move keys),5000));}
+   match querying{None=>{panic("missing count");},Some(started)=>{
+    let cursor=database(take(await started));var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+    external fresh{reading=Some(db.next(&mut cursor,1,1048576,5000));}
+    match reading{None=>{panic("missing batch");},Some(started)=>{let batch=database(take(await started));assert_eq(database(db.integer(batch.rows.get(0),0)),round);}}
+    database(take(await closeRows(&mut cursor)));
+   }}
+   var result="saved";if round==0{result="rolled back";}
+   var replying:Option<Task<Result<Unit,HttpServerError>>>=None;
+   external fresh{replying=Some(server.respond(&mut request,200,freeze(List<HttpHeader>()),take(bytes.encode(result)),5000));}
+   match replying{None=>{panic("missing response");},Some(started)=>{match take(await started){Ok(_)=>{},Err(e)=>{if e.code!="HttpServerRequestClosed"{panic("http: "+e.code+" ["+e.phase+"]");}}}}}
+   take(await messages.send(result));
+  }}
+ }
+ var waiting:Option<Task<Result<HttpServerRequest,HttpServerError>>>=None;
+ external fresh{waiting=Some(server.next(&mut listener,10000));}
+ match waiting{None=>{panic("missing shutdown");},Some(started)=>{let request=http(take(await started));assert_eq(request.path,"/shutdown");}}
+ var closing:Option<Task<Result<Unit,HttpServerError>>>=None;
+ external fresh{closing=Some(server.close(&mut listener,5000));}
+ match closing{None=>{panic("missing server close");},Some(started)=>{http(take(await started));}}
+ var closingDb:Option<Task<Result<Unit,DbError>>>=None;
+ external fresh{closingDb=Some(db.close(&mut connection,5000));}
+ match closingDb{None=>{panic("missing DB close");},Some(started)=>{database(take(await started));}}
+ return ();
+}
+let args=Args.all();assert_eq(args.len(),4);let backend=args.get(0);let port=take(args.get(1).parseInt());let title=args.get(2);let entry=args.get(3);
+assert(backend=="sqlite" || backend=="postgres");
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+if backend=="sqlite"{external{opening=Some(db.sqlite("state.sqlite",false,5000));}}
+else{match Env.getSecret("REWIND_PG_DSN"){None=>{panic("missing secret DSN");},Some(dsn)=>{let ca=take(File.readBytes("ca.der"));external{database(db.credentials("service-data",move dsn,move ca));opening=Some(db.postgres("service-data",5000));}}}}
+match opening{None=>{panic("missing database");},Some(started)=>{
+ let connection=database(take(await started));database(take(await execute(&mut connection,"CREATE TABLE IF NOT EXISTS rewind_service_data (entry TEXT PRIMARY KEY,text TEXT NOT NULL)",freeze(List<DbValue>()))));
+ var listening:Option<Task<Result<HttpServer,HttpServerError>>>=None;
+ external{listening=Some(server.configured("127.0.0.1",port,65536,2,15000,5000));}
+ match listening{None=>{panic("missing listener");},Some(started)=>{
+  let listener=http(take(await started));let view=take(gui.window(title,480,160));
+  take(gui.label(&mut view,"status","Serving; database transactions run asynchronously",10,10,450,40));
+  take(gui.button(&mut view,"check","Check responsiveness",10,65,260,40));
+  take(gui.button(&mut view,"stop","Stop",290,65,120,40));
+  take(windows.present("main",&view));Out.println("ready");publish;
+  let messages=Channel<String>(1);let calculation=spawn calculate(messages);
+ let service=spawn serve(move listener,move connection,backend,entry,messages);
+  var running=true;
+  while running{
+   let input=windows.nextEventAnyAsync();let message=messages.receive();let progress=task.selectReady(message,service);
+   let chosen=take(await task.selectReady(input,progress));
+   if chosen==0{progress.cancel();message.cancel();match await message{Ok(note)=>{Out.println(note);},Err(_)=>{}}let event=take(take(await input));match gui.dispatch(&mut view,event.event){Some(gui.Action::Activate("check"))=>{Out.println("responsive");},Some(gui.Action::Activate("stop"))=>{service.cancel();await service;Out.println("stopped early");running=false;},Some(gui.Action::Close)=>{service.cancel();await service;running=false;},_=>{}}take(windows.present("main",&view));publish;}
+   else{input.cancel();let which=take(await progress);
+    if which==0{Out.println(take(await message));publish;}
+    else{message.cancel();match await message{Ok(note)=>{Out.println(note);},Err(_)=>{}}assert_eq(await service,Ok(()));commit completed;
+     take(gui.setText(&mut view,"status","Saved; external transaction remains committed"));take(windows.present("main",&view));publish;
+     revert completed;take(await service);drop completed;
+     take(gui.setText(&mut view,"status","View restored; database row remains"));take(windows.present("main",&view));Out.println("stopped");running=false;publish;
+    }
+   }
+  }
+  calculation.cancel();match await calculation{Ok(_)=>{},Err(TaskError::Cancelled)=>{},Err(_)=>{panic("calculation failed");}}
+  take(windows.close("main"));publish;
+ }}
+}}
+var cleanup:Option<Task<Result<Unit,DbError>>>=None;external fresh{cleanup=Some(db.waitForCleanup(5000));}
+match cleanup{None=>{panic("missing cleanup");},Some(started)=>{database(take(await started));}}
+publish;

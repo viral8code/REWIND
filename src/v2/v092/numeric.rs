@@ -296,6 +296,19 @@ fn unary_operation(
     Ok(rewind::numeric::VectorOperation::Unary(unary))
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
+    if matches!(
+        n,
+        "stdNumericFromFloatInit"
+            | "stdNumericFromFloatStep"
+            | "stdNumericFromIntInit"
+            | "stdNumericFromIntStep"
+    ) && !language_at_least(&p.language, "1.9.64")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative numeric input requires language 1.9.64",
+        ));
+    }
     if !n.starts_with("stdNumeric") {
         return Ok(None);
     }
@@ -1196,6 +1209,10 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             .saturating_add(args.get(3).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
             .saturating_mul(128)
             .saturating_add(1024)
+    } else if matches!(name, "FromFloatInit" | "FromIntInit") {
+        4096
+    } else if matches!(name, "FromFloatStep" | "FromIntStep") {
+        rewind::numeric::INPUT_CHUNK * 128 + 2048
     } else if matches!(name, "ReshapeLogicalInit" | "SumShapeInit") {
         4096
     } else if name == "ReshapeLogicalStep" {
@@ -1616,6 +1633,12 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
                     .min(rewind::numeric::MAX_GRAPH_ITEMS),
             )
             .saturating_add(4096)
+    } else if matches!(name, "FromFloatInit" | "FromIntInit") {
+        32768
+    } else if matches!(name, "FromFloatStep" | "FromIntStep") {
+        a(1).map_or(0, Array::update_estimate)
+            .saturating_mul(rewind::numeric::INPUT_CHUNK.div_ceil(256) + 2)
+            .saturating_add(rewind::numeric::INPUT_CHUNK * 8 + 8192)
     } else if matches!(name, "ReshapeLogicalInit" | "SumShapeInit") {
         32768
     } else if name == "ReshapeLogicalStep" {
@@ -2388,6 +2411,62 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                 },
                 ids(0)?,
             )?),
+            "FromFloatInit" | "FromIntInit" => {
+                let dtype = if name == "FromFloatInit" {
+                    DType::Float64
+                } else {
+                    DType::Int64
+                };
+                let output = Array::zeros(dtype, ids(0)?)?;
+                if output.len() != list(&args[1], rt)?.len() {
+                    return Err(NumericError::Shape);
+                }
+                Value::NumericArray(output)
+            }
+            "FromFloatStep" | "FromIntStep" => {
+                let output = a(1)?;
+                let cursor = i(2)?;
+                let values = list(&args[0], rt)?;
+                let dtype = if name == "FromFloatStep" {
+                    DType::Float64
+                } else {
+                    DType::Int64
+                };
+                if output.dtype() != dtype {
+                    return Err(NumericError::Type);
+                }
+                if values.len() != output.len() {
+                    return Err(NumericError::Shape);
+                }
+                if cursor > values.len() {
+                    return Err(NumericError::Index);
+                }
+                // Range-map iterator nth/skip jumps directly; it never scans a completed prefix.
+                let bits = values
+                    .iter()
+                    .skip(cursor)
+                    .take(rewind::numeric::INPUT_CHUNK)
+                    .map(|v| match (dtype, v) {
+                        (DType::Float64, Value::Float(bits)) => Ok(*bits),
+                        (DType::Int64, Value::Int(n)) => Ok(*n as u64),
+                        _ => Err(NumericError::Type),
+                    })
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                let (next, end, done) = output.input_bits_step(cursor, &bits)?;
+                let ty = if dtype == DType::Float64 {
+                    "Tuple<FloatArray,Int,Bool>"
+                } else {
+                    "Tuple<IntArray,Int,Bool>"
+                };
+                Value::Struct(
+                    ty.into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(next)),
+                        ("_1".into(), Value::Int(end as i64)),
+                        ("_2".into(), Value::Bool(done)),
+                    ]),
+                )
+            }
             "FromFloat" | "FromInt" => {
                 let shape = ids(0)?;
                 let values = list(&args[1], rt)?;
@@ -2714,6 +2793,19 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericFromFloatInit" => (
+            &["&List<Int>", "&List<Float>"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericFromIntInit" => (&["&List<Int>", "&List<Int>"], "Result<IntArray,StdError>"),
+        "stdNumericFromFloatStep" => (
+            &["&List<Float>", "&FloatArray", "Int"],
+            "Result<Tuple<FloatArray,Int,Bool>,StdError>",
+        ),
+        "stdNumericFromIntStep" => (
+            &["&List<Int>", "&IntArray", "Int"],
+            "Result<Tuple<IntArray,Int,Bool>,StdError>",
+        ),
         "stdNumericReshapeLogicalInit" => (
             &["&FloatArray", "&List<Int>"],
             "Result<FloatArray,StdError>",

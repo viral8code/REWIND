@@ -179,6 +179,10 @@ python3 scripts/smoke-live-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/live"
 python3 scripts/smoke-gui-async-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-async"
 python3 scripts/smoke-gui-data-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-data"
 python3 scripts/smoke-service-data-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/service-data"
+python3 scripts/smoke-service-numeric-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/service-numeric"
+for SCENARIO in disconnect early-stop; do
+  python3 scripts/smoke-service-numeric-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/service-numeric-$SCENARIO" "$EXTRACTED/share/rewind/examples/service-numeric/main.rw" 1 sqlite,postgres "$SCENARIO"
+done
 python3 scripts/smoke-service-stress-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/service-stress"
 python3 scripts/smoke-gui-async-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-live" --live
 python3 scripts/smoke-db-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/database"

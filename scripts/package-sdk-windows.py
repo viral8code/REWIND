@@ -183,6 +183,9 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     run([sys.executable,root/'scripts/smoke-gui-async-sdk.py',exe,work/'gui-async'])
     run([sys.executable,root/'scripts/smoke-gui-data-sdk.py',exe,work/'gui-data'])
     run([sys.executable,root/'scripts/smoke-service-data-sdk.py',exe,work/'service-data'])
+    run([sys.executable,root/'scripts/smoke-service-numeric-sdk.py',exe,work/'service-numeric'])
+    for scenario in ['disconnect','early-stop']:
+        run([sys.executable,root/'scripts/smoke-service-numeric-sdk.py',exe,work/('service-numeric-'+scenario),exe.parent.parent/'share/rewind/examples/service-numeric/main.rw','1','sqlite,postgres',scenario])
     run([sys.executable,root/'scripts/smoke-service-stress-sdk.py',exe,work/'service-stress'])
     run([sys.executable,root/'scripts/smoke-gui-async-sdk.py',exe,work/'gui-live','--live'])
     run([sys.executable,root/'scripts/smoke-postgres-sdk.py',exe,work/'postgres'])
