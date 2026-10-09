@@ -31,7 +31,19 @@ def dialog_response(title, accept, timeout=10):
             if button and api.IsWindowEnabled(button) and api.IsWindowVisible(window):
                 if ready_since is None:ready_since=time.monotonic()
                 if time.monotonic()-ready_since>=.25:
-                    if not api.PostMessageW(button,0xf5,0,0):raise C.WinError(C.get_last_error())
+                    kernel=C.WinDLL('kernel32',use_last_error=True);kernel.GetCurrentThreadId.restype=C.c_uint
+                    api.GetWindowThreadProcessId.argtypes=[C.c_void_p,C.c_void_p];api.GetWindowThreadProcessId.restype=C.c_uint
+                    api.AttachThreadInput.argtypes=[C.c_uint,C.c_uint,C.c_int];api.AttachThreadInput.restype=C.c_int
+                    api.SetActiveWindow.argtypes=[C.c_void_p];api.SetActiveWindow.restype=C.c_void_p
+                    api.PeekMessageW.argtypes=[C.c_void_p,C.c_void_p,C.c_uint,C.c_uint,C.c_uint]
+                    message=C.create_string_buffer(64);api.PeekMessageW(message,None,0,0,0)
+                    sender=kernel.GetCurrentThreadId();target=api.GetWindowThreadProcessId(window,None)
+                    attached=sender!=target and bool(api.AttachThreadInput(sender,target,1))
+                    try:
+                        api.SetActiveWindow(window)
+                        if not api.PostMessageW(button,0xf5,0,0):raise C.WinError(C.get_last_error())
+                    finally:
+                        if attached:api.AttachThreadInput(sender,target,0)
                     return
             else:ready_since=None
             time.sleep(.01)

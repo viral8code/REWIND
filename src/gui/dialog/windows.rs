@@ -42,6 +42,22 @@ unsafe extern "system" {
     fn GetParent(h: Handle) -> Handle;
     fn GetDlgItem(h: Handle, id: i32) -> Handle;
     fn IsWindowEnabled(h: Handle) -> i32;
+    #[cfg(test)]
+    fn AttachThreadInput(a: u32, b: u32, attach: i32) -> i32;
+    #[cfg(test)]
+    fn SetActiveWindow(h: Handle) -> Handle;
+    #[cfg(test)]
+    fn EnumChildWindows(
+        h: Handle,
+        callback: unsafe extern "system" fn(Handle, isize) -> i32,
+        data: isize,
+    ) -> i32;
+    #[cfg(test)]
+    fn GetWindowTextW(h: Handle, text: *mut u16, len: i32) -> i32;
+    #[cfg(test)]
+    fn GetClassNameW(h: Handle, text: *mut u16, len: i32) -> i32;
+    #[cfg(test)]
+    fn GetDlgCtrlID(h: Handle) -> i32;
     fn PostMessageW(h: Handle, m: u32, w: usize, l: isize) -> i32;
     fn GetWindowThreadProcessId(h: Handle, p: *mut u32) -> u32;
 }
@@ -237,8 +253,54 @@ impl Session {
             return false;
         }
         let button = unsafe { GetDlgItem(window, if accept { 1 } else { 2 }) };
-        button != 0
-            && unsafe { IsWindowEnabled(button) != 0 && PostMessageW(button, 0xf5, 0, 0) != 0 }
+        if button == 0 || unsafe { IsWindowEnabled(button) } == 0 {
+            return false;
+        }
+        let sender = unsafe { GetCurrentThreadId() };
+        let target = self.cancel.thread.load(Ordering::Acquire);
+        let attached = sender != target && unsafe { AttachThreadInput(sender, target, 1) } != 0;
+        unsafe {
+            SetActiveWindow(window);
+        }
+        let delivered = unsafe { PostMessageW(button, 0xf5, 0, 0) } != 0;
+        if attached {
+            unsafe {
+                AttachThreadInput(sender, target, 0);
+            }
+        }
+        delivered
+    }
+    #[cfg(test)]
+    pub fn test_diagnostics(&self) -> String {
+        unsafe extern "system" fn child(window: Handle, data: isize) -> i32 {
+            let lines = unsafe { &mut *(data as *mut Vec<String>) };
+            let mut text = [0u16; 512];
+            let mut class = [0u16; 128];
+            let t = unsafe { GetWindowTextW(window, text.as_mut_ptr(), text.len() as i32) }.max(0)
+                as usize;
+            let c = unsafe { GetClassNameW(window, class.as_mut_ptr(), class.len() as i32) }.max(0)
+                as usize;
+            lines.push(format!(
+                "id={} class={} enabled={} text={}",
+                unsafe { GetDlgCtrlID(window) },
+                String::from_utf16_lossy(&class[..c]),
+                unsafe { IsWindowEnabled(window) },
+                String::from_utf16_lossy(&text[..t])
+            ));
+            1
+        }
+        let mut lines = Vec::new();
+        let window = self.cancel.window.load(Ordering::Acquire);
+        unsafe {
+            EnumChildWindows(window, child, &mut lines as *mut Vec<String> as isize);
+        }
+        format!(
+            "ready={} window={} worker_finished={} controls={:?}",
+            self.cancel.ready.load(Ordering::Acquire),
+            window,
+            self.worker.as_ref().is_some_and(|w| w.is_finished()),
+            lines
+        )
     }
 }
 impl Drop for Session {
