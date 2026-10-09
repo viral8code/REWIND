@@ -3,295 +3,6 @@
   "kind": "rewind-api",
   "language": "1.9.59",
   "symbols": {
-    "alias:FormError": {
-      "generics": [],
-      "target": "StdError"
-    },
-    "dependency:datetime.rw": {
-      "fn:$import$datetime$add": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant",
-          "&Duration"
-        ],
-        "return": "Result<Instant,StdError>"
-      },
-      "fn:$import$datetime$addDurations": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Duration",
-          "&Duration"
-        ],
-        "return": "Result<Duration,StdError>"
-      },
-      "fn:$import$datetime$calendar": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant",
-          "String"
-        ],
-        "return": "Result<$import$datetime$LocalTime,StdError>"
-      },
-      "fn:$import$datetime$calendarOffset": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant",
-          "Int"
-        ],
-        "return": "Result<$import$datetime$LocalTime,StdError>"
-      },
-      "fn:$import$datetime$databaseVersion": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [],
-        "return": "Result<String,StdError>"
-      },
-      "fn:$import$datetime$difference": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant",
-          "&Instant"
-        ],
-        "return": "Result<Duration,StdError>"
-      },
-      "fn:$import$datetime$duration": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "Int",
-          "Int"
-        ],
-        "return": "Result<Duration,StdError>"
-      },
-      "fn:$import$datetime$durationFromJson": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "Json"
-        ],
-        "return": "Result<Duration,StdError>"
-      },
-      "fn:$import$datetime$durationNanoseconds": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Duration"
-        ],
-        "return": "Result<Int,StdError>"
-      },
-      "fn:$import$datetime$durationSeconds": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Duration"
-        ],
-        "return": "Result<Int,StdError>"
-      },
-      "fn:$import$datetime$durationToJson": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Duration"
-        ],
-        "return": "Result<Json,StdError>"
-      },
-      "fn:$import$datetime$format": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant"
-        ],
-        "return": "Result<String,StdError>"
-      },
-      "fn:$import$datetime$formatOffset": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant",
-          "Int"
-        ],
-        "return": "Result<String,StdError>"
-      },
-      "fn:$import$datetime$fromJson": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "Json"
-        ],
-        "return": "Result<Instant,StdError>"
-      },
-      "fn:$import$datetime$instant": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "Int",
-          "Int"
-        ],
-        "return": "Result<Instant,StdError>"
-      },
-      "fn:$import$datetime$nanoseconds": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant"
-        ],
-        "return": "Result<Int,StdError>"
-      },
-      "fn:$import$datetime$negateDuration": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Duration"
-        ],
-        "return": "Result<Duration,StdError>"
-      },
-      "fn:$import$datetime$parse": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "String"
-        ],
-        "return": "Result<Instant,StdError>"
-      },
-      "fn:$import$datetime$resolve": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "$import$datetime$Calendar",
-          "String",
-          "$import$datetime$Ambiguity"
-        ],
-        "return": "Result<Instant,StdError>"
-      },
-      "fn:$import$datetime$resolveOffset": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "$import$datetime$Calendar",
-          "Int"
-        ],
-        "return": "Result<Instant,StdError>"
-      },
-      "fn:$import$datetime$seconds": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant"
-        ],
-        "return": "Result<Int,StdError>"
-      },
-      "fn:$import$datetime$subtractDurations": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Duration",
-          "&Duration"
-        ],
-        "return": "Result<Duration,StdError>"
-      },
-      "fn:$import$datetime$toJson": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "&Instant"
-        ],
-        "return": "Result<Json,StdError>"
-      },
-      "type:$import$datetime$Ambiguity": {
-        "generics": [],
-        "variants": {
-          "Earlier": [],
-          "Later": [],
-          "Reject": []
-        }
-      },
-      "type:$import$datetime$Calendar": {
-        "bounds": {},
-        "fields": [
-          [
-            "year",
-            "Int"
-          ],
-          [
-            "month",
-            "Int"
-          ],
-          [
-            "day",
-            "Int"
-          ],
-          [
-            "hour",
-            "Int"
-          ],
-          [
-            "minute",
-            "Int"
-          ],
-          [
-            "second",
-            "Int"
-          ],
-          [
-            "nanosecond",
-            "Int"
-          ]
-        ],
-        "generics": [],
-        "immutable": false
-      },
-      "type:$import$datetime$LocalTime": {
-        "bounds": {},
-        "fields": [
-          [
-            "calendar",
-            "$import$datetime$Calendar"
-          ],
-          [
-            "offsetSeconds",
-            "Int"
-          ],
-          [
-            "weekday",
-            "Int"
-          ],
-          [
-            "dayOfYear",
-            "Int"
-          ]
-        ],
-        "generics": [],
-        "immutable": false
-      }
-    },
     "dependency:gui.rw": {
       "alias:$import$gui$GuiError": {
         "params": [],
@@ -788,162 +499,119 @@
         "immutable": false
       }
     },
-    "fn:create": {
+    "fn:add": {
       "async": false,
-      "cost": "O(fields + schema bytes); at most 64 fields, 1..32 visible rows, maxBytes 1..4096 per value.",
       "effects": [],
-      "failure": "Schema/Id/Text; initial numeric input can be incomplete until validate.",
+      "failure": "GuiMenuLimit/Id/Text/Shortcut/State; at most 256 unique commands, short captions and explicit shortcuts.",
       "generics": [],
       "parameters": [
-        "&List<Field>",
-        "Int"
+        "&mut Menu",
+        "Item"
       ],
-      "return": "Result<Form,StdError>"
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:checked": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Menu",
+        "String"
+      ],
+      "return": "Result<Bool,StdError>"
+    },
+    "fn:close": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Menu"
+      ],
+      "return": "Unit"
+    },
+    "fn:create": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [],
+      "return": "Menu"
     },
     "fn:dispatch": {
       "async": false,
+      "cost": "At most 256 commands for shortcut lookup or enabled navigation. Unconsumed input may be delivered to the underlying view.",
       "effects": [],
-      "failure": "InvalidText; rejected over-limit edits restore the view text and selection. Submit validates all fields.",
       "generics": [],
       "parameters": [
-        "&mut Form",
-        "&mut $import$gui$View",
-        "$import$gui$Event",
-        "String"
+        "&mut Menu",
+        "$import$gui$Event"
       ],
-      "return": "Result<Option<Action>,StdError>"
+      "return": "Outcome"
     },
-    "fn:error": {
+    "fn:draw": {
       "async": false,
       "effects": [],
+      "failure": "GuiMenuBounds/Id or view composition errors; base and menu remain unchanged, focus/scroll retained in base. Prefix bounds prevent oversized native widget IDs.",
       "generics": [],
       "parameters": [
-        "&Form",
-        "String"
-      ],
-      "return": "Result<Option<String>,StdError>"
-    },
-    "fn:position": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&Form"
-      ],
-      "return": "Int"
-    },
-    "fn:render": {
-      "async": false,
-      "cost": "O(visible fields); new logical view only, preserves model selection/focus and shows validation errors.",
-      "effects": [],
-      "failure": "Bounds/Id; rowHeight 64..128, caller chooses enough height and publishes the returned view.",
-      "generics": [],
-      "parameters": [
-        "&Form",
-        "String",
-        "Int",
-        "Int",
-        "Int",
+        "&Menu",
+        "&$import$gui$View",
         "String"
       ],
       "return": "Result<$import$gui$View,StdError>"
     },
-    "fn:reset": {
+    "fn:isOpen": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "&mut Form"
-      ],
-      "return": "Unit"
-    },
-    "fn:scroll": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Form",
-        "Int"
-      ],
-      "return": "Unit"
-    },
-    "fn:setValue": {
-      "async": false,
-      "effects": [],
-      "failure": "UnknownId/Text; validates input bounds before mutation, not its final typed value.",
-      "generics": [],
-      "parameters": [
-        "&mut Form",
-        "String",
-        "String"
-      ],
-      "return": "Result<Unit,StdError>"
-    },
-    "fn:toJson": {
-      "async": false,
-      "effects": [],
-      "failure": "Required/Integer/Real/Range/Timestamp; readonly, returns typed values or the first error with field index.",
-      "generics": [],
-      "parameters": [
-        "&Form"
-      ],
-      "return": "Result<Json,StdError>"
-    },
-    "fn:validate": {
-      "async": false,
-      "cost": "O(all fields + value bytes); stores every error, never discards the edited text.",
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut Form"
+        "&Menu"
       ],
       "return": "Bool"
     },
-    "fn:value": {
+    "fn:open": {
+      "async": false,
+      "effects": [],
+      "failure": "GuiMenuEmpty/Bounds; geometry prevalidated before changing state. Long menus use a bounded visible viewport.",
+      "generics": [],
+      "parameters": [
+        "&mut Menu",
+        "Int",
+        "Int",
+        "Int",
+        "$import$gui$Rect"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:selected": {
       "async": false,
       "effects": [],
       "generics": [],
       "parameters": [
-        "&Form",
-        "String"
+        "&Menu"
       ],
-      "return": "Result<String,StdError>"
+      "return": "Option<String>"
     },
-    "type:Action": {
+    "fn:setChecked": {
+      "async": false,
+      "effects": [],
       "generics": [],
-      "kind": "enum",
-      "variants": {
-        "Close": [],
-        "Edited": [
-          [
-            "0",
-            "String"
-          ]
-        ],
-        "Invalid": [],
-        "Resize": [
-          [
-            "0",
-            "Int"
-          ],
-          [
-            "1",
-            "Int"
-          ]
-        ],
-        "Scrolled": [
-          [
-            "0",
-            "Int"
-          ]
-        ],
-        "Submitted": [
-          [
-            "0",
-            "Json"
-          ]
-        ]
-      }
+      "parameters": [
+        "&mut Menu",
+        "String",
+        "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:setEnabled": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Menu",
+        "String",
+        "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -1143,48 +811,11 @@
       "generics": [],
       "kind": "record"
     },
-    "type:Field": {
-      "constructor": true,
-      "fields": [
-        [
-          "id",
-          "String"
-        ],
-        [
-          "caption",
-          "String"
-        ],
-        [
-          "kind",
-          "Kind"
-        ],
-        [
-          "required",
-          "Bool"
-        ],
-        [
-          "maxBytes",
-          "Int"
-        ],
-        [
-          "initial",
-          "String"
-        ]
-      ],
-      "generics": [],
-      "kind": "record"
-    },
     "type:FloatArray": {
       "constructor": false,
       "fields": [],
       "generics": [],
       "kind": "record"
-    },
-    "type:Form": {
-      "constructor": false,
-      "fields": [],
-      "generics": [],
-      "kind": "struct"
     },
     "type:GraphBfsWork": {
       "constructor": false,
@@ -1371,6 +1002,37 @@
       "generics": [],
       "kind": "record"
     },
+    "type:Item": {
+      "constructor": true,
+      "fields": [
+        [
+          "id",
+          "String"
+        ],
+        [
+          "label",
+          "String"
+        ],
+        [
+          "shortcut",
+          "String"
+        ],
+        [
+          "enabled",
+          "Bool"
+        ],
+        [
+          "checkable",
+          "Bool"
+        ],
+        [
+          "checked",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Json": {
       "generics": [],
       "kind": "enum",
@@ -1519,39 +1181,30 @@
       "generics": [],
       "kind": "record"
     },
-    "type:Kind": {
-      "generics": [],
-      "kind": "enum",
-      "variants": {
-        "Check": [],
-        "Integer": [
-          [
-            "0",
-            "Int"
-          ],
-          [
-            "1",
-            "Int"
-          ]
-        ],
-        "Multiline": [],
-        "Real": [
-          [
-            "0",
-            "Float"
-          ],
-          [
-            "1",
-            "Float"
-          ]
-        ],
-        "Text": [],
-        "Timestamp": []
-      }
-    },
     "type:LeastSquaresWork": {
       "constructor": false,
       "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Menu": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Outcome": {
+      "constructor": true,
+      "fields": [
+        [
+          "consumed",
+          "Bool"
+        ],
+        [
+          "command",
+          "Option<Item>"
+        ]
+      ],
       "generics": [],
       "kind": "record"
     },

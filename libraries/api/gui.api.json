@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.12",
+  "language": "1.9.59",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
@@ -30,6 +30,16 @@
         "Int"
       ],
       "return": "Result<Unit,StdError>"
+    },
+    "fn:bounds": {
+      "async": false,
+      "cost": "O(1); client area geometry for composing bounded overlays.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&View"
+      ],
+      "return": "Rect"
     },
     "fn:button": {
       "async": false,
@@ -145,6 +155,15 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:graphemeMode": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&View"
+      ],
+      "return": "Bool"
+    },
     "fn:label": {
       "async": false,
       "effects": [],
@@ -169,6 +188,18 @@
       "generics": [],
       "parameters": [],
       "return": "Result<Event,StdError>"
+    },
+    "fn:overlay": {
+      "async": false,
+      "cost": "O(combined widget count); at most 2048 controls. Copies bounded VM metadata; captions remain shared.",
+      "effects": [],
+      "failure": "GuiInvalidSize/EditingModeMismatch/WidgetLimit/DuplicateId; input views remain unchanged. Layer controls draw above base controls and take focus when the layer has focus.",
+      "generics": [],
+      "parameters": [
+        "&View",
+        "&View"
+      ],
+      "return": "Result<View,StdError>"
     },
     "fn:pollEvent": {
       "async": false,
@@ -613,6 +644,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Event": {
       "constructor": true,
       "fields": [
@@ -644,7 +681,19 @@
       "generics": [],
       "kind": "record"
     },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -724,6 +773,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -908,6 +1026,35 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -928,6 +1075,12 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },
@@ -960,6 +1113,18 @@
       "generics": [],
       "kind": "record"
     },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -970,6 +1135,36 @@
         [
           "offset",
           "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
         ]
       ],
       "generics": [],

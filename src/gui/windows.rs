@@ -201,6 +201,8 @@ fn color(rgb: u32) -> u32 {
 }
 struct State {
     clipboard_enabled: bool,
+    command_keys_enabled: bool,
+    suppress_syschar: Option<u16>,
     frame: Option<Arc<Frame>>,
     events: VecDeque<Event>,
     closed: bool,
@@ -261,10 +263,18 @@ unsafe extern "system" fn procedure(
             }
             0
         }
-        0x100 => {
+        0x100 | 0x104 => {
             let state = unsafe { &mut *ptr };
+            state.suppress_syschar = None;
+            let control = unsafe { GetKeyState(0x11) } < 0;
+            let alt = unsafe { GetKeyState(0x12) } < 0;
+            let shift = unsafe { GetKeyState(0x10) } < 0;
+            if message == 0x104 && !state.command_keys_enabled {
+                return unsafe { DefWindowProcW(hwnd, message, wparam, lparam) };
+            }
             if state.clipboard_enabled
-                && unsafe { GetKeyState(0x11) } < 0
+                && (!state.command_keys_enabled || (!alt && !shift))
+                && control
                 && matches!(wparam, 0x43 | 0x56 | 0x58)
             {
                 let focused = state
@@ -287,7 +297,32 @@ unsafe extern "system" fn procedure(
                         }
                     }
                 }
-                return 0;
+                if focused || !state.command_keys_enabled {
+                    return 0;
+                }
+            }
+            if state.command_keys_enabled {
+                let letter = (0x41..=0x5a)
+                    .contains(&wparam)
+                    .then(|| char::from_u32(wparam as u32))
+                    .flatten();
+                let function = (0x70..=0x87)
+                    .contains(&wparam)
+                    .then(|| (wparam - 0x70 + 1) as u8);
+                if let Some(key) =
+                    command_keys::command_key(letter, function, control, alt, shift, false)
+                {
+                    let mut event = Event::simple("key");
+                    event.key = key;
+                    if alt {
+                        state.suppress_syschar = letter.map(|c| c.to_ascii_uppercase() as u16);
+                    }
+                    state.push(event);
+                    return 0;
+                }
+            }
+            if message == 0x104 {
+                return unsafe { DefWindowProcW(hwnd, message, wparam, lparam) };
             }
             let key = match wparam {
                 0x0d => "Enter",
@@ -316,6 +351,18 @@ unsafe extern "system" fn procedure(
             };
             state.push(e);
             0
+        }
+        0x106 => {
+            let state = unsafe { &mut *ptr };
+            if state.command_keys_enabled
+                && state.suppress_syschar.take().is_some_and(|c| {
+                    char::from_u32(wparam as u32)
+                        .is_some_and(|key| key.to_ascii_uppercase() as u32 == c as u32)
+                })
+            {
+                return 0;
+            }
+            unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
         }
         0x20a => {
             let state = unsafe { &mut *ptr };
@@ -504,6 +551,35 @@ impl Surface {
             assert_ne!(SetKeyboardState(saved.as_ptr()), 0);
         }
     }
+    #[cfg(test)]
+    pub fn inject_command_key(
+        &mut self,
+        letter: Option<char>,
+        function: Option<u8>,
+        control: bool,
+        alt: bool,
+        shift: bool,
+    ) {
+        unsafe {
+            let mut saved = [0u8; 256];
+            assert_ne!(GetKeyboardState(saved.as_mut_ptr()), 0);
+            let mut pressed = saved;
+            pressed[0x11] = if control { 0x80 } else { 0 };
+            pressed[0x12] = if alt { 0x80 } else { 0 };
+            pressed[0x10] = if shift { 0x80 } else { 0 };
+            assert_ne!(SetKeyboardState(pressed.as_ptr()), 0);
+            let key = function
+                .map(|n| 0x70 + n as usize - 1)
+                .unwrap_or_else(|| letter.unwrap().to_ascii_uppercase() as usize);
+            SendMessageW(self.window, if alt { 0x104 } else { 0x100 }, key, 0);
+            assert_ne!(SetKeyboardState(saved.as_ptr()), 0);
+        }
+    }
+    pub fn configure_command_keys(&mut self, enabled: bool) {
+        unsafe {
+            (*self.state.get()).command_keys_enabled = enabled;
+        }
+    }
     pub fn configure_clipboard(&mut self, enabled: bool) {
         unsafe {
             (*self.state.get()).clipboard_enabled = enabled;
@@ -540,6 +616,8 @@ impl Surface {
                 window: 0,
                 state: Box::new(UnsafeCell::new(State {
                     clipboard_enabled: false,
+                    command_keys_enabled: false,
+                    suppress_syschar: None,
                     frame: None,
                     events: VecDeque::new(),
                     closed: false,

@@ -145,3 +145,21 @@ pub fn setScrollPosition(view:&mut View,id:String,line:Int)->Result<Unit,GuiErro
  match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);if w.kind!="textarea"{return Err(StdError("GuiNotTextArea",0));}if line<0 || line>=w.caption.split("\n").len(){return Err(StdError("GuiInvalidScroll",0));}}}
  view.scroll.set(id,line);return Ok(());
 }
+
+// @api bounds cost O(1); client area geometry for composing bounded overlays.
+pub fn bounds(view:&View)->Rect effects {} {return Rect(0,0,view.width,view.height);}
+pub fn graphemeMode(view:&View)->Bool effects {} {return view.grapheme;}
+// @api overlay cost O(combined widget count); at most 2048 controls. Copies bounded VM metadata; captions remain shared.
+// @api overlay failure GuiInvalidSize/EditingModeMismatch/WidgetLimit/DuplicateId; input views remain unchanged. Layer controls draw above base controls and take focus when the layer has focus.
+pub fn overlay(base:&View,layer:&View)->Result<View,GuiError> effects {} {
+ if base.width!=layer.width || base.height!=layer.height{return Err(StdError("GuiInvalidSize",0));}
+ if base.grapheme!=layer.grapheme{return Err(StdError("GuiEditingModeMismatch",0));}
+ if base.widgets.len()+layer.widgets.len()>2048{return Err(StdError("GuiWidgetLimit",0));}
+ let ids=Map<String,Bool>();for i in 0..base.widgets.len(){ids.set(base.widgets.get(i).id,true);}
+ for i in 0..layer.widgets.len(){let id=layer.widgets.get(i).id;if ids.get(id)!=None{return Err(StdError("GuiDuplicateId",0));}ids.set(id,true);}
+ var result=window(base.title,base.width,base.height)?;result.background=base.background;result.grapheme=base.grapheme;
+ for i in 0..base.widgets.len(){let widget=base.widgets.get(i);result.indices.set(widget.id,result.widgets.len());result.widgets.add(widget);match base.scroll.get(widget.id){Some(line)=>{result.scroll.set(widget.id,line);},None=>{}}}
+ for i in 0..layer.widgets.len(){let widget=layer.widgets.get(i);result.indices.set(widget.id,result.widgets.len());result.widgets.add(widget);match layer.scroll.get(widget.id){Some(line)=>{result.scroll.set(widget.id,line);},None=>{}}}
+ if layer.focus>=0{result.focus=base.widgets.len()+layer.focus;}else{result.focus=base.focus;}
+ return Ok(move result);
+}

@@ -176,6 +176,7 @@ pub(super) struct Surface {
     im: *mut c_void,
     ic: *mut c_void,
     clipboard_enabled: bool,
+    command_keys_enabled: bool,
     clipboard_text: Option<String>,
     clipboard_pending: Option<(String, c_ulong, std::time::Instant, c_ulong)>,
 }
@@ -254,10 +255,40 @@ impl Surface {
                 im,
                 ic: std::ptr::null_mut(),
                 clipboard_enabled: false,
+                command_keys_enabled: false,
                 clipboard_text: None,
                 clipboard_pending: None,
             })
         }
+    }
+    #[cfg(test)]
+    pub fn inject_command_key(
+        &mut self,
+        letter: Option<char>,
+        function: Option<u8>,
+        control: bool,
+        alt: bool,
+        shift: bool,
+    ) {
+        unsafe {
+            let symbol = function
+                .map(|n| 0xffbe + n as c_ulong - 1)
+                .unwrap_or_else(|| letter.unwrap().to_ascii_lowercase() as c_ulong);
+            let mut event: XEvent = std::mem::zeroed();
+            event.button.kind = 2;
+            event.button.display = self.display;
+            event.button.window = self.window;
+            event.button.state = (if control { 4 } else { 0 })
+                | (if alt { 8 } else { 0 })
+                | (if shift { 1 } else { 0 });
+            event.button.button = (self.api.XKeysymToKeycode)(self.display, symbol) as u32;
+            event.button.same = 1;
+            (self.api.XSendEvent)(self.display, self.window, 0, 1, &mut event);
+            (self.api.XFlush)(self.display);
+        }
+    }
+    pub fn configure_command_keys(&mut self, enabled: bool) {
+        self.command_keys_enabled = enabled;
     }
     pub fn configure_clipboard(&mut self, enabled: bool) {
         self.clipboard_enabled = enabled;
@@ -668,6 +699,7 @@ impl Surface {
                         let key =
                             (self.api.XLookupKeysym)(&mut b, if b.state & 1 != 0 { 1 } else { 0 });
                         if self.clipboard_enabled
+                            && (!self.command_keys_enabled || b.state & (1 | 8 | 128) == 0)
                             && b.state & 4 != 0
                             && matches!(key, 0x63 | 0x43 | 0x76 | 0x56 | 0x78 | 0x58)
                         {
@@ -740,10 +772,38 @@ impl Surface {
                                     }
                                 }
                             }
-                            continue;
+                            if self
+                                .frame
+                                .as_ref()
+                                .and_then(clipboard::focused_input)
+                                .is_some()
+                                || !self.command_keys_enabled
+                            {
+                                continue;
+                            }
+                        }
+                        if self.command_keys_enabled {
+                            let letter = u32::try_from(key).ok().and_then(char::from_u32);
+                            let function = (0xffbe..=0xffd5)
+                                .contains(&key)
+                                .then(|| (key - 0xffbe + 1) as u8);
+                            if let Some(name) = command_keys::command_key(
+                                letter,
+                                function,
+                                b.state & 4 != 0,
+                                b.state & 8 != 0,
+                                b.state & 1 != 0,
+                                b.state & 128 != 0,
+                            ) {
+                                let mut event = Event::simple("key");
+                                event.key = name;
+                                return Ok(Some(event));
+                            }
                         }
                         if !self.ic.is_null()
-                            && b.state & 4 == 0
+                            && (b.state & 4 == 0
+                                || (self.command_keys_enabled
+                                    && (b.state & 128 != 0 || b.state & (4 | 8) == (4 | 8))))
                             && key != 0x20
                             && !(0xff00..=0xffff).contains(&key)
                         {

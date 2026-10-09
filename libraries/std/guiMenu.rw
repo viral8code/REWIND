@@ -1,0 +1,77 @@
+import gui as gui;
+pub record Item {id:String,label:String,shortcut:String,enabled:Bool,checkable:Bool,checked:Bool}
+pub record Outcome {consumed:Bool,command:Option<Item>}
+pub struct Menu {private items:List<Item>,private ids:Map<String,Int>,private visible:Bool,private selected:Int,private first:Int,private x:Int,private y:Int,private width:Int,private rows:Int}
+pub fn create()->Menu effects {} {return Menu(List<Item>(),Map<String,Int>(),false,-1,0,0,0,160,1);}
+// @api add failure GuiMenuLimit/Id/Text/Shortcut/State; at most 256 unique commands, short captions and explicit shortcuts.
+pub fn add(menu:&mut Menu,item:Item)->Result<Unit,StdError> effects {} {
+ if menu.items.len()>=256{return Err(StdError("GuiMenuLimit",0));}
+ if item.id=="" || item.id.byteLen()>64 || stdTextFind(item.id,"\0")!=None || menu.ids.get(item.id)!=None{return Err(StdError("GuiMenuId",0));}
+ if item.label=="" || item.label.byteLen()>256 || stdTextFind(item.label,"\0")!=None{return Err(StdError("GuiMenuText",0));}
+ if item.shortcut.byteLen()>32 || stdTextFind(item.shortcut,"\0")!=None{return Err(StdError("GuiMenuShortcut",0));}
+ if item.checked && !item.checkable{return Err(StdError("GuiMenuState",0));}
+ menu.ids.set(item.id,menu.items.len());menu.items.add(item);return Ok(());
+}
+fn navigate(menu:&mut Menu,start:Int,direction:Int)->Unit effects {} {
+ var i=start;var count=0;let n=menu.items.len();menu.selected=-1;
+ while count<n{i=(i+direction+n)%n;if menu.items.get(i).enabled{menu.selected=i;break;}count+=1;}
+ if menu.selected>=0{if menu.selected<menu.first{menu.first=menu.selected;}if menu.selected>=menu.first+menu.rows{menu.first=menu.selected-menu.rows+1;}}
+}
+// @api open failure GuiMenuEmpty/Bounds; geometry prevalidated before changing state. Long menus use a bounded visible viewport.
+pub fn open(menu:&mut Menu,x:Int,y:Int,width:Int,bounds:gui.Rect)->Result<Unit,StdError> effects {} {
+ if menu.items.len()==0{return Err(StdError("GuiMenuEmpty",0));}
+ if bounds.x!=0 || bounds.y!=0 || bounds.width<64 || bounds.width>4096 || bounds.height<64 || bounds.height>4096{return Err(StdError("GuiMenuBounds",0));}
+ if x<0 || y<0 || width<64 || width>4096 || x>bounds.width-width || y>bounds.height-24{return Err(StdError("GuiMenuBounds",0));}
+ var rows=(bounds.height-y)/24;if rows>menu.items.len(){rows=menu.items.len();}
+ menu.x=x;menu.y=y;menu.width=width;menu.rows=rows;menu.first=0;menu.visible=true;navigate(menu,-1,1);return Ok(());
+}
+pub fn close(menu:&mut Menu)->Unit effects {} {menu.visible=false;}
+pub fn isOpen(menu:&Menu)->Bool effects {} {return menu.visible;}
+pub fn selected(menu:&Menu)->Option<String> effects {} {if menu.selected<0{return None;}return Some(menu.items.get(menu.selected).id);}
+fn activate(menu:&mut Menu,index:Int)->Outcome effects {} {
+ let old=menu.items.get(index);if !old.enabled{return Outcome(true,None);}var checked=old.checked;if old.checkable{checked=!checked;}
+ let item=Item(old.id,old.label,old.shortcut,old.enabled,old.checkable,checked);menu.items.set(index,item);menu.visible=false;return Outcome(true,Some(item));
+}
+// @api dispatch cost At most 256 commands for shortcut lookup or enabled navigation. Unconsumed input may be delivered to the underlying view.
+pub fn dispatch(menu:&mut Menu,event:gui.Event)->Outcome effects {} {
+ if event.kind=="key"{for i in 0..menu.items.len(){let item=menu.items.get(i);if item.enabled && item.shortcut!="" && item.shortcut==event.key{return activate(menu,i);}}}
+ if !menu.visible{return Outcome(false,None);}
+ if event.kind=="close" || event.kind=="resize"{menu.visible=false;return Outcome(false,None);}
+ if event.kind=="pointer"{
+  if event.x>=menu.x && event.x<menu.x+menu.width && event.y>=menu.y && event.y<menu.y+menu.rows*24{let i=menu.first+(event.y-menu.y)/24;if i<menu.items.len(){return activate(menu,i);}return Outcome(true,None);}
+  menu.visible=false;return Outcome(false,None);
+ }
+ if event.kind=="key"{
+  if event.key=="Escape"{menu.visible=false;return Outcome(true,None);}
+  if event.key=="Tab"{menu.visible=false;return Outcome(false,None);}
+  if event.key=="Down"{navigate(menu,menu.selected,1);return Outcome(true,None);}
+  if event.key=="Up"{var start=menu.selected;if start<0{start=0;}navigate(menu,start,-1);return Outcome(true,None);}
+  if event.key=="Home"{navigate(menu,-1,1);return Outcome(true,None);}
+  if event.key=="End"{navigate(menu,0,-1);return Outcome(true,None);}
+  if event.key=="Enter" || event.key=="Space"{if menu.selected>=0{return activate(menu,menu.selected);}return Outcome(true,None);}
+ }
+ return Outcome(false,None);
+}
+pub fn setEnabled(menu:&mut Menu,id:String,enabled:Bool)->Result<Unit,StdError> effects {} {
+ match menu.ids.get(id){None=>{return Err(StdError("GuiMenuId",0));},Some(i)=>{let old=menu.items.get(i);menu.items.set(i,Item(old.id,old.label,old.shortcut,enabled,old.checkable,old.checked));if menu.selected==i && !enabled{navigate(menu,i,1);}else{if menu.visible && menu.selected<0 && enabled{navigate(menu,i-1,1);}}}}return Ok(());
+}
+pub fn setChecked(menu:&mut Menu,id:String,checked:Bool)->Result<Unit,StdError> effects {} {
+ match menu.ids.get(id){None=>{return Err(StdError("GuiMenuId",0));},Some(i)=>{let old=menu.items.get(i);if !old.checkable{return Err(StdError("GuiMenuNotCheckable",0));}menu.items.set(i,Item(old.id,old.label,old.shortcut,old.enabled,old.checkable,checked));}}return Ok(());
+}
+pub fn checked(menu:&Menu,id:String)->Result<Bool,StdError> effects {} {
+ match menu.ids.get(id){None=>{return Err(StdError("GuiMenuId",0));},Some(i)=>{let item=menu.items.get(i);if !item.checkable{return Err(StdError("GuiMenuNotCheckable",0));}return Ok(item.checked);}}
+}
+// @api draw failure GuiMenuBounds/Id or view composition errors; base and menu remain unchanged, focus/scroll retained in base. Prefix bounds prevent oversized native widget IDs.
+pub fn draw(menu:&Menu,base:&gui.View,prefix:String)->Result<gui.View,StdError> effects {} {
+ if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiMenuId",0));}
+ let bounds=gui.bounds(base);let layer=gui.window("",bounds.width,bounds.height)?;gui.graphemeEditing(&mut layer,gui.graphemeMode(base))?;
+ if menu.visible{
+  if menu.x>bounds.width-menu.width || menu.y>bounds.height-menu.rows*24{return Err(StdError("GuiMenuBounds",0));}
+  gui.rectangle(&mut layer,prefix+":background",menu.x,menu.y,menu.width,menu.rows*24,0xffffff)?;
+  for row in 0..menu.rows{let i=menu.first+row;if i<menu.items.len(){let item=menu.items.get(i);let id=prefix+":item:"+i.format();var text=item.label;if item.shortcut!=""{text+="    "+item.shortcut;}
+   if item.checkable{gui.checkbox(&mut layer,id,text,item.checked,menu.x,menu.y+row*24,menu.width,24)?;}else{gui.button(&mut layer,id,text,menu.x,menu.y+row*24,menu.width,24)?;}
+   gui.setEnabled(&mut layer,id,item.enabled)?;var color=0xffffff;if i==menu.selected{color=0xdbeafe;gui.focus(&mut layer,id)?;}gui.style(&mut layer,id,0x111827,color)?;
+  }}
+ }
+ return gui.overlay(base,&layer);
+}

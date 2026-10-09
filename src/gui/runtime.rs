@@ -115,6 +115,7 @@ impl Runtime {
             let mut host = Host::prepare()
                 .map_err(|e| Error::InvalidOperation(format!("GuiUnavailable: {e}")))?;
             host.configure_clipboard(self.gui_clipboard_enabled);
+            host.configure_command_keys(self.gui_command_keys_enabled);
             self.gui_host = Some(host);
         }
         Ok(())
