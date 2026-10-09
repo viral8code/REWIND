@@ -1,0 +1,17 @@
+import std.numeric as n;
+import std.numericIndex as index;
+import std.numericShapeAsync as jobs;
+import std.task as task;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("shape operation failed");}}}
+fn dims(length:Int)->List<Int> effects {} {let shape=List<Int>();if length>=0{shape.add(length);}return move shape;}
+async fn marker()->Int effects {tasks}{return 7;}
+let one=dims(1);let values=List<Float>();values.add(0.5);let scalar=take(n.fromFloat(&one,&values));
+let shape=dims(32769);let repeated=take(n.broadcastFloat(&scalar,&shape));let reverse=take(n.sliceFloat(&repeated,0,32768,32769,-1));
+let work=spawn jobs.sumToShape(reverse,dims(-1));let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+commit halfway;
+let answer=take(take(await work));assert_eq(take(index.getFloat(&answer,0)),16384.5);Out.println(true);publish;
+revert halfway;
+let again=take(take(await work));assert_eq(take(index.getFloat(&again,0)),16384.5);Out.println(true);drop halfway;publish;
+let reshaped=take(take(await spawn jobs.reshapeLogical(reverse,dims(32769))));assert_eq(take(index.getFloat(&reshaped,0)),0.5);assert_eq(take(index.getFloat(&reshaped,32768)),0.5);
+let cancelled=spawn jobs.reshapeLogical(reverse,dims(32769));task.yieldNow();assert(!cancelled.isDone());cancelled.cancel();match await cancelled{Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("shape done");publish;

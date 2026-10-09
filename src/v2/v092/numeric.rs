@@ -282,6 +282,19 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     }
     if matches!(
         n,
+        "stdNumericReshapeLogicalInit"
+            | "stdNumericReshapeLogicalStep"
+            | "stdNumericSumShapeInit"
+            | "stdNumericSumShapeStep"
+    ) && !language_at_least(&p.language, "1.9.57")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative shape kernels require language 1.9.57",
+        ));
+    }
+    if matches!(
+        n,
         "stdNumericGraphBfsInit"
             | "stdNumericGraphBfsStep"
             | "stdNumericGraphBfsDone"
@@ -495,6 +508,19 @@ fn array<'a>(v: &'a Value, rt: &'a Runtime) -> std::result::Result<&'a Array, Nu
         Value::NumericArray(a) => Ok(a),
         _ => Err(NumericError::Type),
     }
+}
+fn sum_shape_progress(
+    args: &[Value],
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::SumShapeProgress, NumericError> {
+    let p = rewind::numeric::SumShapeProgress {
+        sums: array(&args[1], rt)?.clone(),
+        corrections: array(&args[2], rt)?.clone(),
+        phase: u8::try_from(usize_arg(&args[3])?).map_err(|_| NumericError::Domain)?,
+        cursor: usize_arg(&args[4])?,
+    };
+    p.validate(array(&args[0], rt)?)?;
+    Ok(p)
 }
 fn graph_bfs_work(
     value: &Value,
@@ -1103,6 +1129,32 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             .saturating_add(args.get(3).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
             .saturating_mul(128)
             .saturating_add(1024)
+    } else if matches!(name, "ReshapeLogicalInit" | "SumShapeInit") {
+        4096
+    } else if name == "ReshapeLogicalStep" {
+        a(0).map_or(2048, |input| {
+            if input.contiguous() {
+                2048
+            } else {
+                input
+                    .len()
+                    .saturating_sub(args.get(2).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
+                    .min(rewind::numeric::SHAPE_CHUNK)
+                    .saturating_mul(128)
+                    .saturating_add(2048)
+            }
+        })
+    } else if name == "SumShapeStep" {
+        args.first()
+            .and_then(|v| array(v, rt).ok())
+            .and_then(|input| {
+                sum_shape_progress(args, rt)
+                    .ok()
+                    .map(|p| p.units_bound(input))
+            })
+            .unwrap_or(1)
+            .saturating_mul(128)
+            .saturating_add(2048)
     } else if name == "GraphBfsInit" {
         4096
     } else if name == "GraphBfsStep" {
@@ -1489,6 +1541,25 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
                     .min(rewind::numeric::MAX_GRAPH_ITEMS),
             )
             .saturating_add(4096)
+    } else if matches!(name, "ReshapeLogicalInit" | "SumShapeInit") {
+        32768
+    } else if name == "ReshapeLogicalStep" {
+        if a(0).is_some_and(Array::contiguous) {
+            8192
+        } else {
+            a(1).map_or(0, Array::update_estimate)
+                .saturating_mul(rewind::numeric::SHAPE_CHUNK.div_ceil(256) + 2)
+                .saturating_add(8192)
+        }
+    } else if name == "SumShapeStep" {
+        args.first()
+            .and_then(|v| array(v, rt).ok())
+            .and_then(|input| {
+                sum_shape_progress(args, rt)
+                    .ok()
+                    .and_then(|p| p.scratch_estimate(input).ok())
+            })
+            .unwrap_or(65536)
     } else if name == "GraphBfsInit" {
         32768
     } else if name == "GraphBfsStep" {
@@ -1899,6 +1970,42 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                 i(3)?,
                 i(4)?,
             ))?,
+            "ReshapeLogicalInit" => array_value(a(0)?.reshape_logical_init(ids(1)?))?,
+            "ReshapeLogicalStep" => {
+                let (output, cursor, done) = a(0)?.reshape_logical_step(a(1)?, i(2)?)?;
+                Value::Struct(
+                    "Tuple<FloatArray,Int,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(output)),
+                        ("_1".into(), Value::Int(cursor as i64)),
+                        ("_2".into(), Value::Bool(done)),
+                    ]),
+                )
+            }
+            "SumShapeInit" => {
+                let p = rewind::numeric::SumShapeProgress::new(a(0)?, ids(1)?)?;
+                Value::Struct(
+                    "Tuple<FloatArray,FloatArray>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(p.sums)),
+                        ("_1".into(), Value::NumericArray(p.corrections)),
+                    ]),
+                )
+            }
+            "SumShapeStep" => {
+                let p = sum_shape_progress(args, rt)?.step(a(0)?)?;
+                let done = p.done();
+                Value::Struct(
+                    "Tuple<FloatArray,FloatArray,Int,Int,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::NumericArray(p.sums)),
+                        ("_1".into(), Value::NumericArray(p.corrections)),
+                        ("_2".into(), Value::Int(p.phase as i64)),
+                        ("_3".into(), Value::Int(p.cursor as i64)),
+                        ("_4".into(), Value::Bool(done)),
+                    ]),
+                )
+            }
             "GraphBfsInit" => graph_bfs_work_value(rewind::numeric::GraphBfsWork::new(
                 i(0)?,
                 a(1)?,
@@ -2499,6 +2606,22 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
 
 fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
     Some(match n {
+        "stdNumericReshapeLogicalInit" => (
+            &["&FloatArray", "&List<Int>"],
+            "Result<FloatArray,StdError>",
+        ),
+        "stdNumericReshapeLogicalStep" => (
+            &["&FloatArray", "&FloatArray", "Int"],
+            "Result<Tuple<FloatArray,Int,Bool>,StdError>",
+        ),
+        "stdNumericSumShapeInit" => (
+            &["&FloatArray", "&List<Int>"],
+            "Result<Tuple<FloatArray,FloatArray>,StdError>",
+        ),
+        "stdNumericSumShapeStep" => (
+            &["&FloatArray", "&FloatArray", "&FloatArray", "Int", "Int"],
+            "Result<Tuple<FloatArray,FloatArray,Int,Int,Bool>,StdError>",
+        ),
         "stdNumericGraphBfsInit" => (
             &["Int", "&IntArray", "&IntArray", "Int"],
             "Result<GraphBfsWork,StdError>",
