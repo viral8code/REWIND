@@ -58,3 +58,9 @@ index cap. The earlier short source/debug/compact service tests remain. Full
 regression, standard-library contracts and both extracted official SDKs are
 required before publication. Remaining work and completion criteria are tracked
 centrally in [v2 status](v2-status.md).
+
+Windows native dialog automation explicitly enters the requested absolute path
+in the filename Edit control before pressing the real Open/Save Button. The
+shell's asynchronous initial selection and hidden-extension display do not
+determine the tested file. Production chooser behavior is unchanged by this
+fixture repair; actual returned path spelling is still recorded and replayed.

@@ -57,6 +57,16 @@ unsafe extern "system" {
     fn GetClassNameW(h: Handle, text: *mut u16, len: i32) -> i32;
     #[cfg(test)]
     fn GetDlgCtrlID(h: Handle) -> i32;
+    #[cfg(test)]
+    fn SendMessageTimeoutW(
+        h: Handle,
+        message: u32,
+        wparam: usize,
+        lparam: isize,
+        flags: u32,
+        timeout: u32,
+        result: *mut usize,
+    ) -> isize;
     fn PostMessageW(h: Handle, m: u32, w: usize, l: isize) -> i32;
     fn GetWindowThreadProcessId(h: Handle, p: *mut u32) -> u32;
 }
@@ -135,11 +145,15 @@ pub(crate) struct Session {
     cancel: Arc<Cancel>,
     worker: Option<std::thread::JoinHandle<()>>,
     pending: Option<Result<Option<String>, &'static str>>,
+    #[cfg(test)]
+    test_path: Vec<u16>,
 }
 impl Session {
     pub fn start(request: &Request) -> Result<Self, &'static str> {
         request.validate()?;
         let slot = Slot::acquire()?;
+        #[cfg(test)]
+        let test_path = wide(&request.initial);
         let request = request.clone();
         let cancel = Arc::new(Cancel {
             requested: AtomicBool::new(false),
@@ -238,6 +252,8 @@ impl Session {
             cancel,
             worker: Some(worker_handle),
             pending: None,
+            #[cfg(test)]
+            test_path,
         })
     }
     pub fn cancel(&mut self) {
@@ -264,27 +280,56 @@ impl Session {
             return false;
         }
         unsafe extern "system" fn find(window: Handle, data: isize) -> i32 {
-            let (id, found) = unsafe { &mut *(data as *mut (i32, Handle)) };
+            let (id, expected_class, found) = unsafe { &mut *(data as *mut (i32, &str, Handle)) };
             let mut class = [0u16; 16];
             let count = unsafe { GetClassNameW(window, class.as_mut_ptr(), class.len() as i32) }
                 .max(0) as usize;
             if unsafe { GetDlgCtrlID(window) } == *id
-                && String::from_utf16_lossy(&class[..count]) == "Button"
+                && String::from_utf16_lossy(&class[..count]) == *expected_class
             {
                 *found = window;
                 return 0;
             }
             1
         }
-        let mut target_button = (if accept { 1 } else { 2 }, 0);
+        let mut target_button = (if accept { 1 } else { 2 }, "Button", 0);
         unsafe {
             EnumChildWindows(
                 window,
                 find,
-                &mut target_button as *mut (i32, Handle) as isize,
+                &mut target_button as *mut (i32, &str, Handle) as isize,
             );
         }
-        let button = target_button.1;
+        let button = target_button.2;
+        if accept {
+            // Explorer may display a selected filename without its extension.
+            // Enter the intended absolute path through the real filename edit
+            // control instead of relying on asynchronous initial selection.
+            let mut filename = (1148, "Edit", 0);
+            unsafe {
+                EnumChildWindows(
+                    window,
+                    find,
+                    &mut filename as *mut (i32, &str, Handle) as isize,
+                );
+            }
+            let mut delivered = 0;
+            if filename.2 == 0
+                || unsafe {
+                    SendMessageTimeoutW(
+                        filename.2,
+                        0xc,
+                        0,
+                        self.test_path.as_ptr() as isize,
+                        3,
+                        2000,
+                        &mut delivered,
+                    )
+                } == 0
+            {
+                return false;
+            }
+        }
         if button == 0 || unsafe { IsWindowEnabled(button) } == 0 {
             return false;
         }

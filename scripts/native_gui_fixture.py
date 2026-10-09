@@ -15,7 +15,7 @@ def command_key(title, key, timeout=10):
     if not (len(base)==1 and 'A'<=base<='Z') and not (base.startswith('F') and base[1:].isdigit() and 1<=int(base[1:])<=24):raise ValueError('Invalid command key')
     click(title,timeout=timeout,_key=base,_modifiers=modifiers)
 
-def dialog_response(title, accept, timeout=10):
+def dialog_response(title, accept, timeout=10, path=None):
     if sys.platform=="win32":
         api=C.WinDLL("user32",use_last_error=True)
         api.FindWindowW.argtypes=[C.c_wchar_p,C.c_wchar_p];api.FindWindowW.restype=C.c_void_p
@@ -53,6 +53,20 @@ def dialog_response(title, accept, timeout=10):
                     attached=sender!=target and bool(api.AttachThreadInput(sender,target,1))
                     try:
                         api.SetActiveWindow(window)
+                        if accept and path is not None:
+                            edit=[]
+                            @callback_type
+                            def filename(control,_):
+                                name=C.create_unicode_buffer(32);api.GetClassNameW(control,name,len(name))
+                                if api.GetDlgCtrlID(control)==1148 and name.value=='Edit':edit.append(control);return 0
+                                return 1
+                            api.EnumChildWindows(window,filename,0)
+                            if not edit:raise RuntimeError('Native filename edit was not found')
+                            api.SendMessageTimeoutW.argtypes=[C.c_void_p,C.c_uint,C.c_size_t,C.c_ssize_t,C.c_uint,C.c_uint,C.POINTER(C.c_size_t)]
+                            api.SendMessageTimeoutW.restype=C.c_ssize_t
+                            text=C.create_unicode_buffer(str(path));result=C.c_size_t()
+                            if not api.SendMessageTimeoutW(edit[0],0xc,0,C.cast(text,C.c_void_p).value,3,2000,C.byref(result)):
+                                raise C.WinError(C.get_last_error())
                         if not api.PostMessageW(button,0xf5,0,0):raise C.WinError(C.get_last_error())
                     finally:
                         if attached:api.AttachThreadInput(sender,target,0)
