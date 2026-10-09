@@ -69,6 +69,28 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
+    if language_at_least(&p.language, "1.9.62") {
+        if p.structs.contains_key("TensorIdentityWork")
+            || p.enums.contains_key("TensorIdentityWork")
+            || p.aliases.contains_key("TensorIdentityWork")
+        {
+            return Err(Error::InvalidOperation(
+                "reserved tensor identity work type".into(),
+            ));
+        }
+        p.structs.insert(
+            "TensorIdentityWork".into(),
+            StructDef {
+                private_fields: BTreeSet::from(["$native".into()]),
+                bounds: BTreeMap::new(),
+                immutable: true,
+                type_params: vec![],
+                public: true,
+                origin: p.root_origin.clone(),
+                fields: vec![],
+            },
+        );
+    }
     if language_at_least(&p.language, "1.9.38") {
         if p.structs.contains_key("EigenWork")
             || p.enums.contains_key("EigenWork")
@@ -486,6 +508,21 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     {
         return Err(diagnostic(at, "optimizer kernels require language 1.9.16"));
     }
+    if matches!(
+        n,
+        "stdNumericFiniteStep"
+            | "stdNumericIdentityInit"
+            | "stdNumericIdentityStep"
+            | "stdNumericIdentityDone"
+            | "stdNumericIdentityKey"
+            | "stdNumericIdentityValue"
+    ) && !language_at_least(&p.language, "1.9.62")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative tensor identity requires language 1.9.62",
+        ));
+    }
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
@@ -737,6 +774,36 @@ fn eigen_work_value(w: rewind::numeric::EigenWork) -> Value {
             ("$end".into(), Value::Int(w.end as i64)),
             ("$out".into(), Value::Int(w.out as i64)),
             ("$phase".into(), Value::Int(w.phase as i64)),
+        ]),
+    )
+}
+fn identity_work(
+    value: &Value,
+    rt: &Runtime,
+) -> std::result::Result<rewind::numeric::TensorIdentityWork, NumericError> {
+    let Value::Struct(ty, fields) = target(value, rt) else {
+        return Err(NumericError::Type);
+    };
+    if ty != "TensorIdentityWork" {
+        return Err(NumericError::Type);
+    }
+    let input = array(fields.get("$array").ok_or(NumericError::Type)?, rt)?;
+    let Some(Value::Bytes(bytes)) = fields.get("$state") else {
+        return Err(NumericError::Type);
+    };
+    // SAFETY: the reserved native work type cannot be constructed or inspected
+    // by REWIND code. These fields are created solely by identity_work_value;
+    // checkpoint/replay preserve their associated immutable storage and bytes.
+    // No user byte/model decoder creates TensorIdentityWork values.
+    unsafe { rewind::numeric::TensorIdentityWork::restore_private_snapshot(input, bytes) }
+}
+fn identity_work_value(work: rewind::numeric::TensorIdentityWork) -> Value {
+    let (array, state) = work.snapshot();
+    Value::Struct(
+        "TensorIdentityWork".into(),
+        BTreeMap::from([
+            ("$array".into(), Value::NumericArray(array.clone())),
+            ("$state".into(), Value::Bytes(state.into())),
         ]),
     )
 }
@@ -1294,6 +1361,14 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             }
             _ => 1,
         }
+    } else if name == "FiniteStep" {
+        65536
+    } else if name.starts_with("Identity") {
+        if name == "IdentityStep" {
+            65536
+        } else {
+            2048
+        }
     } else if name == "TensorKey" {
         // Trace/debug formatting may warm the digest cache. Admission must not
         // depend on that cache, or debug and compact replay could diverge.
@@ -1793,6 +1868,10 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
         }
     } else if name == "ModelCheck" {
         8192
+    } else if name == "FiniteStep" {
+        1024
+    } else if name.starts_with("Identity") {
+        8192
     } else if matches!(name, "TensorKey" | "CheckFinite") {
         1024
     } else if name == "SumToShape" {
@@ -2138,6 +2217,35 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
             "CheckFinite" => {
                 a(0)?.check_finite()?;
                 Value::Null
+            }
+            "FiniteStep" => {
+                let end = a(0)?.check_finite_step(i(1)?)?;
+                Value::Struct(
+                    "Tuple<Int,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::Int(end as i64)),
+                        ("_1".into(), Value::Bool(end == a(0)?.len())),
+                    ]),
+                )
+            }
+            "IdentityInit" => identity_work_value(rewind::numeric::TensorIdentityWork::new(a(0)?)?),
+            "IdentityStep" => {
+                let mut work = identity_work(&args[0], rt)?;
+                work.step();
+                identity_work_value(work)
+            }
+            "IdentityDone" => Value::Bool(identity_work(&args[0], rt)?.done()),
+            "IdentityValue" => Value::NumericArray(identity_work(&args[0], rt)?.array().clone()),
+            "IdentityKey" => {
+                let (Value::Bytes(left), Value::Bytes(right)) = (&args[3], &args[4]) else {
+                    return Err(NumericError::Type);
+                };
+                Value::Bytes(
+                    identity_work(&args[0], rt)?
+                        .key(operation(&args[1])?, integer(&args[2])?, left, right)?
+                        .to_vec()
+                        .into(),
+                )
             }
             "TensorKey" => {
                 let (Value::Bytes(left), Value::Bytes(right)) = (&args[2], &args[3]) else {
@@ -2716,6 +2824,18 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
             "Result<FloatArray,StdError>",
         ),
         "stdNumericCheckFinite" => (&["&FloatArray"], "Result<Unit,StdError>"),
+        "stdNumericFiniteStep" => (&["&FloatArray", "Int"], "Result<Tuple<Int,Bool>,StdError>"),
+        "stdNumericIdentityInit" => (&["&FloatArray"], "Result<TensorIdentityWork,StdError>"),
+        "stdNumericIdentityStep" => (
+            &["&TensorIdentityWork"],
+            "Result<TensorIdentityWork,StdError>",
+        ),
+        "stdNumericIdentityDone" => (&["&TensorIdentityWork"], "Result<Bool,StdError>"),
+        "stdNumericIdentityValue" => (&["&TensorIdentityWork"], "Result<FloatArray,StdError>"),
+        "stdNumericIdentityKey" => (
+            &["&TensorIdentityWork", "String", "Int", "Bytes", "Bytes"],
+            "Result<Bytes,StdError>",
+        ),
         "stdNumericTensorKey" => (
             &["String", "Int", "Bytes", "Bytes", "&FloatArray"],
             "Result<Bytes,StdError>",

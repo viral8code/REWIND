@@ -2,7 +2,7 @@ use super::*;
 
 // Independent eager implementation of the published storage digest format.
 // It does not consult or populate any production digest cache.
-fn legacy_digest(node: &Node) -> [u8; 32] {
+pub(super) fn legacy_digest(node: &Node) -> [u8; 32] {
     let mut h = Sha256::new();
     match &node.kind {
         NodeKind::Leaf(bits) => {
@@ -138,4 +138,88 @@ fn simultaneous_immutable_readers_publish_one_matching_digest() {
         assert_eq!(thread.join().unwrap(), expected);
     }
     assert_eq!(a.buffer.root.hash.get(), Some(&expected));
+}
+
+#[test]
+fn cooperative_identity_is_bounded_and_independent_of_cache_warmth() {
+    for len in [0, 1, 255, 256, 257, 769, 4097, 65537] {
+        for materialized in [false, true] {
+            let array = if materialized {
+                Array::floats(
+                    vec![len],
+                    &(0..len).map(|i| i as f64 * 0.125 - 3.0).collect::<Vec<_>>(),
+                )
+                .unwrap()
+            } else {
+                Array::zeros(DType::Float64, vec![len]).unwrap()
+            };
+            let expected = legacy_digest(&array.buffer.root);
+            let mut cold = TensorIdentityWork::new(&array).unwrap();
+            assert_eq!(cold.key("parameter:x", 0, &[], &[]), Err(Error::Domain));
+            let mut costs = Vec::new();
+            while !cold.done() {
+                let used = cold.step();
+                assert!(used > 0 && used <= TensorIdentityWork::STEP_WORDS);
+                costs.push(used);
+            }
+            assert_eq!(array.buffer.root.hash.get(), Some(&expected));
+            assert_eq!(
+                cold.key("parameter:x", 0, &[], &[]).unwrap(),
+                array.tensor_key("parameter:x", 0, &[], &[]).unwrap()
+            );
+            let mut warm = TensorIdentityWork::new(&array).unwrap();
+            let mut warm_costs = Vec::new();
+            while !warm.done() {
+                warm_costs.push(warm.step());
+            }
+            assert_eq!(costs, warm_costs);
+            assert_eq!(cold.step(), 0);
+            assert_eq!(cold.key("x", -1, &[], &[]), Err(Error::Domain));
+        }
+    }
+}
+
+#[test]
+fn cooperative_identity_restores_shared_views_and_releases_last_reference() {
+    let ledger = Accounting::default();
+    let mut original = Array::floats(
+        vec![257, 257],
+        &(0..257 * 257).map(|i| (i % 17) as f64).collect::<Vec<_>>(),
+    )
+    .unwrap();
+    let view = original
+        .transpose(&[1, 0])
+        .unwrap()
+        .slice(0, 1, 2, 1)
+        .unwrap();
+    ledger.register(&view);
+    let retained = ledger.bytes();
+    let expected = view.tensor_key("view", 3, &[7; 32], &[9; 32]).unwrap();
+    let mut work = TensorIdentityWork::new(&view).unwrap();
+    work.step();
+    assert!(!work.done());
+    let mut restored = work.clone();
+    original.set_float(&[0, 0], -5.0).unwrap();
+    drop(original);
+    drop(view);
+    while !work.done() {
+        work.step();
+    }
+    while !restored.done() {
+        restored.step();
+    }
+    assert_eq!(work.key("view", 3, &[7; 32], &[9; 32]).unwrap(), expected);
+    assert_eq!(
+        restored.key("view", 3, &[7; 32], &[9; 32]).unwrap(),
+        expected
+    );
+    assert_eq!(ledger.bytes(), retained);
+    drop(work);
+    assert_eq!(ledger.bytes(), retained);
+    drop(restored);
+    assert_eq!(ledger.bytes(), 0);
+    assert!(matches!(
+        TensorIdentityWork::new(&Array::integers(vec![1], &[1]).unwrap()),
+        Err(Error::Type)
+    ));
 }

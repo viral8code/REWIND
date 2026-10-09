@@ -161,6 +161,8 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     run([sys.executable,root/'scripts/smoke-autodiff-sdk.py',exe,work/'autodiff-async'])
     run([sys.executable,root/'scripts/smoke-graph-gui-sdk.py',exe,work/'graph-gui'])
     run([sys.executable,root/'scripts/smoke-graph-native-gui-sdk.py',exe,work/'graph-native-gui'])
+    run([sys.executable,root/'scripts/smoke-forward-sdk.py',exe,work/'autodiff-forward'])
+    run([sys.executable,root/'scripts/smoke-forward-native-gui-sdk.py',exe,work/'forward-native-gui'])
     run([sys.executable,root/'scripts/smoke-backward-native-gui-sdk.py',exe,work/'backward-native-gui'])
     run([sys.executable,root/'scripts/smoke-numeric-pages-sdk.py',exe,work/'numeric-pages'])
     run([sys.executable,root/'scripts/smoke-gui-clipboard-sdk.py',exe,work/'gui-clipboard'])

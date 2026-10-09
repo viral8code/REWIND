@@ -1,0 +1,60 @@
+effects {tasks};
+import autodiff as ad;
+import numeric as numeric;
+import numericAsync as vector;
+import numericTransformAsync as unaryJobs;
+import numericShapeAsync as shapeJobs;
+import numericReduceAsync as reduceJobs;
+import numericIdentityAsync as identity;
+fn takeTask<T>(result:Result<Result<T,StdError>,TaskError>)->Result<T,StdError> effects {} {match move result{Ok(value)=>{return move value;},Err(_)=>{return Err(StdError("AutodiffTask",0));}}}
+fn scalar(value:Float)->Result<FloatArray,StdError> effects {} {let shape=List<Int>();let values=List<Float>();values.add(value);return numeric.fromFloat(&shape,&values);}
+async fn execute(work:ad.ForwardWork,dimensions:List<Int>)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {
+ let input=ad.forwardInputs(&work);var output=input.left;var needsIdentity=true;
+ if input.kind=="parameter" || input.kind=="constant"{takeTask(await spawn identity.checkFinite(input.left))?;}
+ else if input.kind=="binary:add" || input.kind=="binary:sub" || input.kind=="binary:mul"{let operation=stdTextSlice(input.kind,7,stdTextLength(input.kind))?;output=takeTask(await spawn vector.zipFloat(operation,input.left,input.right))?;}
+ else if input.kind=="unary:relu" || input.kind=="unary:sigmoid"{let operation=stdTextSlice(input.kind,6,stdTextLength(input.kind))?;output=takeTask(await spawn unaryJobs.activation(operation,input.left))?;}
+ else if input.kind=="unary:tanh" || input.kind=="unary:exp" || input.kind=="unary:log"{let operation=stdTextSlice(input.kind,6,stdTextLength(input.kind))?;output=takeTask(await spawn unaryJobs.mapFloat(operation,input.left))?;}
+ else if input.kind=="unary:square"{output=takeTask(await spawn vector.zipFloat("mul",input.left,input.left))?;}
+ else if input.kind=="matmul"{output=takeTask(await spawn vector.matmul(input.left,input.right))?;}
+ else if input.kind=="reshape"{match numeric.reshapeFloat(&input.left,&dimensions){Ok(view)=>{output=view;needsIdentity=false;},Err(_)=>{output=takeTask(await spawn shapeJobs.reshapeLogical(input.left,move dimensions))?;}}}
+ else if input.kind=="transpose"{let axes=List<Int>();axes.add(1);axes.add(0);output=numeric.transposeFloat(&input.left,&axes)?;needsIdentity=false;}
+ else if input.kind=="broadcast"{output=numeric.broadcastFloat(&input.left,&dimensions)?;needsIdentity=false;}
+ else if input.kind=="sum"{output=scalar(takeTask(await spawn reduceJobs.sum(input.left))?)?;}
+ else if input.kind=="mean"{output=scalar(takeTask(await spawn reduceJobs.mean(input.left))?)?;}
+ else{return Err(StdError("NumericDomain",0));}
+ // These views retain the parent's already-keyed storage. Rehashing every
+ // backing page would add work without preparing any new storage identity.
+ var ready=output;
+ if needsIdentity{let prepared=takeTask(await spawn identity.prepare(output))?;ready=stdNumericIdentityValue(&prepared)?;}
+ return ad.finishForward(move work,ready);
+}
+// @api parameter cost bounded finite validation and storage-identity preparation; owns tape, shares numeric pages and returns tape/node on success. Existing conservative append identity work admission remains.
+// @api parameter failure same name/finite/size contract as synchronous autodiff.parameter; typed task errors are AutodiffTask, no partial tape/node on cancellation, fatal limits apply. Kept checkpoints retain their own tape versions.
+pub async fn parameter(tape:ad.Tape,name:String,array:FloatArray)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"parameter",None,None,name,Some(array))?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}
+// @api constant cost bounded finite validation and storage identity preparation; shares input pages, consumes tape.
+// @api constant failure NumericNonFinite, AutodiffSize/Task; no partial tape on cancellation, fatal budgets apply.
+pub async fn constant(tape:ad.Tape,array:FloatArray)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"constant",None,None,"",Some(array))?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}
+// @api binary cost bounded zip and identity preparation; matching shapes, explicit broadcasting. Consumes tape and returns the same graph/storage identities as synchronous forward operations.
+// @api binary failure NumericDomain/Shape/NonFinite/Overflow, AutodiffNode/Size/Task; no partial output or tape on failure/cancel, fatal work/memory limits apply.
+pub async fn binary(tape:ad.Tape,operation:String,left:ad.Node,right:ad.Node)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"binary:"+operation,Some(left),Some(right),"",None)?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}
+// @api unary cost bounded chunks for relu/sigmoid/tanh/exp/log/square and output identity preparation; consumes tape.
+// @api unary failure NumericDomain/NonFinite/Overflow, AutodiffNode/Size/Task; no partial tape on failure/cancel.
+pub async fn unary(tape:ad.Tape,operation:String,input:ad.Node)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"unary:"+operation,Some(input),None,"",None)?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}
+// @api matmul cost O(m*n*k) scalar work in bounded chunks, shared inputs and COW output, then bounded identity preparation.
+// @api matmul failure NumericShape/Type/NonFinite/Overflow, AutodiffNode/Size/Task; fatal budgets apply, no partial tape.
+pub async fn matmul(tape:ad.Tape,left:ad.Node,right:ad.Node)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"matmul",Some(left),Some(right),"",None)?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}
+// @api reshape cost O(rank) shared view for contiguous input; otherwise bounded logical copy and new storage identity preparation.
+// @api reshape failure NumericShape/Type/Size, AutodiffNode/Size/Task; no partial tape on failure/cancel.
+pub async fn reshape(tape:ad.Tape,input:ad.Node,dimensions:List<Int>)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"reshape",Some(input),None,"",None)?;return takeTask(await spawn execute(move work,move dimensions));}
+// @api transpose cost O(rank) shared rank-two view, reuses parent storage identity; conservative append admission remains.
+// @api transpose failure NumericShape/Type, AutodiffNode/Size/Task; consumes tape, no partial result on cancellation.
+pub async fn transpose(tape:ad.Tape,input:ad.Node)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"transpose",Some(input),None,"",None)?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}
+// @api broadcast cost O(rank) shared view, reuses parent storage identity; conservative append admission remains.
+// @api broadcast failure NumericShape/Type, AutodiffNode/Size/Task; consumes tape, no partial result on cancellation.
+pub async fn broadcast(tape:ad.Tape,input:ad.Node,dimensions:List<Int>)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"broadcast",Some(input),None,"",None)?;return takeTask(await spawn execute(move work,move dimensions));}
+// @api sum cost bounded logical chunks preserving synchronous Neumaier order, scalar output identity preparation.
+// @api sum failure NumericNonFinite/Overflow, AutodiffNode/Size/Task; no partial tape on failure/cancel.
+pub async fn sum(tape:ad.Tape,input:ad.Node)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"sum",Some(input),None,"",None)?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}
+// @api mean cost bounded logical chunks preserving synchronous accumulation and final division, scalar output identity preparation.
+// @api mean failure NumericEmpty/NonFinite/Overflow, AutodiffNode/Size/Task; no partial tape on failure/cancel.
+pub async fn mean(tape:ad.Tape,input:ad.Node)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"mean",Some(input),None,"",None)?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.58",
+  "language": "1.9.62",
   "symbols": {
     "dependency:numeric.rw": {
       "fn:$import$numeric$activation": {
@@ -624,6 +624,43 @@
       ],
       "return": "Result<Gradients,StdError>"
     },
+    "fn:finishForward": {
+      "async": false,
+      "cost": "append's existing conservative full-storage identity admission; actual identity is cached when the async companion prepared output first. Bridge callers supply a fully computed validated output.",
+      "effects": [],
+      "failure": "AutodiffSize, NumericType/Domain; consumes work and returns tape/node only after successful append, never accepts a caller-supplied node key.",
+      "generics": [],
+      "parameters": [
+        "ForwardWork",
+        "FloatArray"
+      ],
+      "return": "Result<Tuple<Tape,Node>,StdError>"
+    },
+    "fn:forwardInputs": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&ForwardWork"
+      ],
+      "return": "ForwardInputs"
+    },
+    "fn:forwardWork": {
+      "async": false,
+      "cost": "bounded metadata validation and shared input descriptors, no numeric payload scan; consumes tape.",
+      "effects": [],
+      "failure": "AutodiffName/Node/Size, NumericDomain; parameter/constant, binary:add/sub/mul, unary:relu/sigmoid/tanh/exp/log/square, matmul, reshape/transpose/broadcast/sum/mean.",
+      "generics": [],
+      "parameters": [
+        "Tape",
+        "String",
+        "Option<Node>",
+        "Option<Node>",
+        "String",
+        "Option<FloatArray>"
+      ],
+      "return": "Result<ForwardWork,StdError>"
+    },
     "fn:gradient": {
       "async": false,
       "effects": [],
@@ -1007,6 +1044,31 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:ForwardInputs": {
+      "constructor": true,
+      "fields": [
+        [
+          "kind",
+          "String"
+        ],
+        [
+          "left",
+          "FloatArray"
+        ],
+        [
+          "right",
+          "FloatArray"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:ForwardWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
     },
     "type:Gradients": {
       "constructor": false,
@@ -1477,6 +1539,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

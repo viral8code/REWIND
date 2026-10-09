@@ -177,3 +177,46 @@ pub fn storeBackward(work:&mut BackwardWork,index:Int,incoming:FloatArray)->Resu
 pub fn finishBackward(work:BackwardWork)->Result<Gradients,StdError> effects {} {
  if !work.ready || work.position>=0{return Err(StdError("AutodiffState",0));}return Ok(Gradients(move work.values,move work.keys));
 }
+
+// Owned forward bridge for the cooperative companion. Uses only historical
+// pure primitives so importing synchronous autodiff keeps its selected-language
+// compatibility and does not acquire task effects.
+pub struct ForwardWork {private tape:Tape,private operation:Operation,private needed:Bool,private tag:String,private leftKey:Bytes,private rightKey:Bytes,private kind:String,private left:FloatArray,private right:FloatArray}
+pub record ForwardInputs {kind:String,left:FloatArray,right:FloatArray}
+// @api forwardWork cost bounded metadata validation and shared input descriptors, no numeric payload scan; consumes tape.
+// @api forwardWork failure AutodiffName/Node/Size, NumericDomain; parameter/constant, binary:add/sub/mul, unary:relu/sigmoid/tanh/exp/log/square, matmul, reshape/transpose/broadcast/sum/mean.
+pub fn forwardWork(tape:Tape,kind:String,left:Option<Node>,right:Option<Node>,name:String,array:Option<FloatArray>)->Result<ForwardWork,StdError> effects {} {
+ if tape.entries.len()>=100000{return Err(StdError("AutodiffSize",0));}
+ let dims=List<Int>();let blank=stdNumericZerosFloat(&dims)?;
+ var op=Operation::Leaf;var needed=false;var tag=kind;var leftKey=emptyKey();var rightKey=emptyKey();var a=blank;var b=blank;
+ if kind=="parameter" || kind=="constant" {
+  if left!=None || right!=None{return Err(StdError("NumericDomain",0));}
+  match array{Some(value)=>{a=value;b=value;},None=>{return Err(StdError("NumericDomain",0));}}
+  if kind=="parameter" {if name=="" || name.byteLen()>128 || stdTextFind(name,"\0")!=None{return Err(StdError("AutodiffName",0));}tag="parameter:"+name;needed=true;}
+ } else {
+  if array!=None{return Err(StdError("NumericDomain",0));}
+  var l=0;match left{Some(node)=>{let item=entry(&tape,node)?;l=node.index;a=item.value;b=item.value;leftKey=node.key;needed=item.needed;},None=>{return Err(StdError("AutodiffNode",0));}}
+  if kind=="binary:add" || kind=="binary:sub" || kind=="binary:mul" || kind=="matmul" {
+   var r=0;match right{Some(node)=>{let item=entry(&tape,node)?;r=node.index;b=item.value;rightKey=node.key;needed=needed || item.needed;},None=>{return Err(StdError("AutodiffNode",0));}}
+   if kind=="matmul"{op=Operation::Matmul(l,r);}else{op=Operation::Binary(stdTextSlice(kind,7,stdTextLength(kind))?,l,r);}
+  } else {
+   if right!=None{return Err(StdError("NumericDomain",0));}
+   if kind=="unary:relu" || kind=="unary:sigmoid" || kind=="unary:tanh" || kind=="unary:exp" || kind=="unary:log" || kind=="unary:square"{op=Operation::Unary(stdTextSlice(kind,6,stdTextLength(kind))?,l);}
+   else if kind=="reshape"{op=Operation::Reshape(l);}
+   else if kind=="transpose"{op=Operation::Transpose(l);tag="transpose2";}
+   else if kind=="broadcast"{op=Operation::Broadcast(l);}
+   else if kind=="sum"{op=Operation::Sum(l);}
+   else if kind=="mean"{op=Operation::Mean(l);}
+   else{return Err(StdError("NumericDomain",0));}
+  }
+ }
+ return Ok(ForwardWork(move tape,op,needed,tag,leftKey,rightKey,kind,a,b));
+}
+pub fn forwardInputs(work:&ForwardWork)->ForwardInputs effects {} {return ForwardInputs(work.kind,work.left,work.right);}
+// @api finishForward cost append's existing conservative full-storage identity admission; actual identity is cached when the async companion prepared output first. Bridge callers supply a fully computed validated output.
+// @api finishForward failure AutodiffSize, NumericType/Domain; consumes work and returns tape/node only after successful append, never accepts a caller-supplied node key.
+pub fn finishForward(work:ForwardWork,output:FloatArray)->Result<Tuple<Tape,Node>,StdError> effects {} {
+ let operation=work.operation;let needed=work.needed;let tag=work.tag;let left=work.leftKey;let right=work.rightKey;
+ let node=append(&mut work.tape,output,operation,needed,tag,left,right)?;
+ return Ok((move work.tape,node));
+}

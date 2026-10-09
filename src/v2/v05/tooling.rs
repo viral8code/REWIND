@@ -204,6 +204,7 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
                 | "1.9.59"
                 | "1.9.60"
                 | "1.9.61"
+                | "1.9.62"
                 | "2.0.0"
         ) {
             validate(&program, c)?;
@@ -373,6 +374,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                 | "1.9.59"
                 | "1.9.60"
                 | "1.9.61"
+                | "1.9.62"
                 | "2.0.0"
         )
     });
@@ -474,6 +476,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                 | "1.9.59"
                 | "1.9.60"
                 | "1.9.61"
+                | "1.9.62"
                 | "2.0.0"
         )
     });

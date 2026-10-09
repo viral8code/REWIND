@@ -1,0 +1,32 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+import std.numeric as n;
+import std.autodiff as ad;
+import std.autodiffForwardAsync as jobs;
+import std.task as task;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {Ok(result)=>{return move result;},Err(_)=>{panic("operation failed");}}
+}
+let args=Args.all();var title="REWIND forward";if args.len()>0{title=args.get(0);}
+let view=take(gui.window(title,320,160));
+take(gui.label(&mut view,"state","Click to cancel forward computation",10,10,300,36));
+take(windows.present("work",&view));publish;
+let one=List<Int>();one.add(1);let values=List<Float>();values.add(0.5);let scalar=take(n.fromFloat(&one,&values));let shape=List<Int>();shape.add(262144);let repeated=take(n.broadcastFloat(&scalar,&shape));let x=take(n.materializeFloat(&repeated));
+async fn model(array:FloatArray)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {
+ let parameter=take(await spawn jobs.parameter(ad.create(),"x",array))?;let tape=move parameter._0;let inputNode=parameter._1;
+ let activated=take(await spawn jobs.unary(move tape,"sigmoid",inputNode))?;let tape2=move activated._0;let a=activated._1;
+ let squared=take(await spawn jobs.unary(move tape2,"square",a))?;let tape3=move squared._0;let b=squared._1;
+ return take(await spawn jobs.mean(move tape3,b));
+}
+let work=spawn model(x);
+Out.println("ready");publish;
+var clicked=false;
+while !clicked {
+ task.yieldNow();
+ if work.isDone(){let result=take(take(await work));Out.println("completed");take(windows.close("work"));publish;break;}
+ match take(windows.pollAny()){
+  None=>{},Some(input)=>{if input.window=="work" && input.event.kind=="pointer"{clicked=true;}}
+ }
+}
+if clicked{work.cancel();match await work{Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("cancelled");take(windows.close("work"));publish;}

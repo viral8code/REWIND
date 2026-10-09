@@ -31,11 +31,13 @@ mod graph_chunks;
 mod shape_chunks;
 pub use graph_chunks::{GraphBfsWork, GRAPH_CHUNK};
 pub use shape_chunks::{SumShapeProgress, SHAPE_CHUNK};
+mod identity_chunks;
 #[cfg(test)]
 mod page_builder_tests;
 #[cfg(test)]
 mod reduction_tests;
 mod tensor;
+pub use identity_chunks::TensorIdentityWork;
 mod unary;
 pub use chunks::{
     MomentsProgress, NormProgress, Progress as KernelProgress, VectorOperation, COOPERATIVE_MACS,
