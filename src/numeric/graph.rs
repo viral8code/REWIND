@@ -2,7 +2,7 @@
 use super::{Array, DType, Error, Result};
 pub const MAX_GRAPH_ITEMS: usize = 1_048_576;
 
-fn vector(a: &Array) -> Result<usize> {
+pub(super) fn vector(a: &Array) -> Result<usize> {
     if a.dtype() != DType::Int64 {
         return Err(Error::Type);
     }
@@ -14,7 +14,7 @@ fn vector(a: &Array) -> Result<usize> {
     }
     Ok(a.len())
 }
-fn vertex(value: i64, vertices: usize) -> Result<usize> {
+pub(super) fn vertex(value: i64, vertices: usize) -> Result<usize> {
     usize::try_from(value)
         .ok()
         .filter(|&v| v < vertices)
