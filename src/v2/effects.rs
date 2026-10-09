@@ -61,6 +61,10 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
                         required.insert("network".into());
                         required.insert("tasks".into());
                     }
+                    if base == "stdExternalGuiDialog" {
+                        required.insert("gui".into());
+                        required.insert("tasks".into());
+                    }
                     if base.starts_with("stdExternalDb") {
                         required.insert("db".into());
                         required.insert("tasks".into());

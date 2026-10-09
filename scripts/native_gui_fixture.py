@@ -15,7 +15,22 @@ def command_key(title, key, timeout=10):
     if not (len(base)==1 and 'A'<=base<='Z') and not (base.startswith('F') and base[1:].isdigit() and 1<=int(base[1:])<=24):raise ValueError('Invalid command key')
     click(title,timeout=timeout,_key=base,_modifiers=modifiers)
 
-def click(title, px=20, py=20, timeout=10, _key=None, _modifiers=('Ctrl',)):
+def dialog_response(title, accept, timeout=10):
+    if sys.platform=="win32":
+        api=C.WinDLL("user32",use_last_error=True)
+        api.FindWindowW.argtypes=[C.c_wchar_p,C.c_wchar_p];api.FindWindowW.restype=C.c_void_p
+        api.PostMessageW.argtypes=[C.c_void_p,C.c_uint,C.c_size_t,C.c_ssize_t];api.PostMessageW.restype=C.c_int
+        deadline=time.monotonic()+timeout
+        while time.monotonic()<deadline:
+            window=api.FindWindowW(None,title)
+            if window:
+                if not api.PostMessageW(window,0x111,1 if accept else 2,0):raise C.WinError(C.get_last_error())
+                return
+            time.sleep(.01)
+        raise RuntimeError("Native dialog did not appear")
+    click(title,timeout=timeout,_key="Enter" if accept else "Escape",_modifiers=(),_focus=True,_physical=True)
+
+def click(title, px=20, py=20, timeout=10, _key=None, _modifiers=('Ctrl',),_focus=False,_physical=False):
     deadline = time.monotonic() + timeout
     if sys.platform == "win32":
         api = C.WinDLL("user32", use_last_error=True)
@@ -59,7 +74,8 @@ def click(title, px=20, py=20, timeout=10, _key=None, _modifiers=('Ctrl',)):
                         if not api.SetKeyboardState(pressed):
                             raise C.WinError(C.get_last_error())
                         result = C.c_size_t()
-                        virtual=ord(_key) if len(_key)==1 else 0x70+int(_key[1:])-1
+                        virtual={"Enter":0x0d,"Escape":0x1b}.get(_key)
+                        if virtual is None:virtual=ord(_key) if len(_key)==1 else 0x70+int(_key[1:])-1
                         if not api.SendMessageTimeoutW(window, 0x104 if 'Alt' in _modifiers else 0x100, virtual, 0, 3, 5000, C.byref(result)):
                             raise C.WinError(C.get_last_error())
                     finally:
@@ -80,6 +96,7 @@ def click(title, px=20, py=20, timeout=10, _key=None, _modifiers=('Ctrl',)):
         x.XFree.argtypes = [C.c_void_p]
         x.XCloseDisplay.argtypes = [C.c_void_p]
         x.XFlush.argtypes = [C.c_void_p]
+        x.XSetInputFocus.argtypes=[C.c_void_p,C.c_ulong,C.c_int,C.c_ulong]
         x.XKeysymToKeycode.argtypes = [C.c_void_p, C.c_ulong]
         x.XKeysymToKeycode.restype = C.c_ubyte
         class Button(C.Structure):
@@ -110,13 +127,21 @@ def click(title, px=20, py=20, timeout=10, _key=None, _modifiers=('Ctrl',)):
             while time.monotonic() < deadline:
                 window=find(root_window)
                 if window:
+                    if _focus:x.XSetInputFocus(display,window,2,0)
                     event=Event();event.button=Button(4,0,1,display,window,root_window,0,0,px,py,px,py,0,1,1)
                     if _key:
                         event.button.type = 2
                         event.button.state = sum(mask for name,mask in [('Ctrl',4),('Alt',8),('Shift',1)] if name in _modifiers)
-                        symbol=ord(_key.lower()) if len(_key)==1 else 0xffbe+int(_key[1:])-1
+                        symbol={"Enter":0xff0d,"Escape":0xff1b}.get(_key)
+                        if symbol is None:symbol=ord(_key.lower()) if len(_key)==1 else 0xffbe+int(_key[1:])-1
                         event.button.button = x.XKeysymToKeycode(display, symbol)
-                    assert x.XSendEvent(display,window,0,1 if _key else 1<<2,C.byref(event))
+                    if _physical:
+                        xt=C.CDLL(ctypes.util.find_library("Xtst"))
+                        xt.XTestFakeKeyEvent.argtypes=[C.c_void_p,C.c_uint,C.c_int,C.c_ulong];xt.XTestFakeKeyEvent.restype=C.c_int
+                        assert xt.XTestFakeKeyEvent(display,event.button.button,1,0)
+                        assert xt.XTestFakeKeyEvent(display,event.button.button,0,0)
+                    else:
+                        assert x.XSendEvent(display,window,0,1 if _key else 1<<2,C.byref(event))
                     x.XFlush(display)
                     return
                 time.sleep(.01)

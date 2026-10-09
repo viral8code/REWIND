@@ -62,11 +62,13 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xfonts-base
+          sudo apt-get install -y xvfb xfonts-base libgtk-3-0
           xvfb-run -a cargo test --locked --lib native_gui_surface -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1956 native_pointer_cancels -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1958 native_pointer_cancels -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1959 native_menu_commands -- --nocapture
+          GSETTINGS_BACKEND=memory xvfb-run -a cargo test --locked --lib native_file_dialog -- --nocapture
+          GSETTINGS_BACKEND=memory xvfb-run -a cargo test --locked --test language_v1960 native_dialog_responds -- --nocapture
       - run: cargo build --release --locked
       - name: Linux SDK, API and archive tests
         if: matrix.platform == 'linux'

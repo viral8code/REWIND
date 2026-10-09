@@ -18,6 +18,7 @@ enum TaskBody {
     HostOperation(usize),
     GuiInput(String),
     GuiLiveInput(String, usize),
+    GuiDialog(usize),
     Function(String, Vec<Value>),
     Send(u64, Value),
     Receive(u64),
@@ -116,7 +117,7 @@ impl Scheduler {
             .values()
             .filter_map(|t| {
                 if t.phase != TaskPhase::Done {
-                    if let TaskBody::HostOperation(id) = t.body {
+                    if let TaskBody::HostOperation(id) | TaskBody::GuiDialog(id) = t.body {
                         return (id != usize::MAX).then_some(id);
                     }
                 }
@@ -538,6 +539,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.57"
                 | "1.9.58"
                 | "1.9.59"
+                | "1.9.60"
                 | "2.0.0"
         );
         let mut needed = v05::needed_globals(&self.engine.program, name);
@@ -651,6 +653,58 @@ impl<R: BufRead> Vm<R> {
         args: &[Value],
         at: &Tok,
     ) -> Result<Option<Value>> {
+        if name == "stdExternalGuiDialog" {
+            let [Value::Bool(save), Value::Text(title), Value::Text(initial)] = args else {
+                return Err(self.error(at, "invalid file dialog arguments"));
+            };
+            if self.scheduler.active != 0 {
+                return Err(self.error(
+                    at,
+                    "GuiDialogMainTask: create the dialog task from the application task",
+                ));
+            }
+            let task = self.new_action(
+                TaskBody::GuiDialog(usize::MAX),
+                "Result<Option<String>,StdError>".into(),
+                Vec::new(),
+                at,
+            )?;
+            let invalid = if title.is_empty() || title.len() > 256 || title.contains('\0') {
+                Some("GuiDialogTitle")
+            } else if initial.len() > 4096 || initial.contains('\0') {
+                Some("GuiDialogPath")
+            } else {
+                None
+            };
+            if let Some(code) = invalid {
+                let value = Value::Result(Err(Box::new(Value::Struct(
+                    "StdError".into(),
+                    BTreeMap::from([
+                        ("code".into(), Value::Text(code.into())),
+                        ("offset".into(), Value::Int(0)),
+                    ]),
+                ))));
+                self.complete_task(handle_id(&task).unwrap(), Ok(value))?;
+                return Ok(Some(task));
+            }
+            let operation = self
+                .engine
+                .runtime
+                .start_gui_dialog(rewind::gui::dialog::Request {
+                    save: *save,
+                    title: title.to_string(),
+                    initial: initial.to_string(),
+                })?;
+            let state = self
+                .scheduler
+                .tasks
+                .get_mut(&handle_id(&task).unwrap())
+                .unwrap();
+            state.external_lease = self.engine.runtime.live_external_lease(operation);
+            state.body = TaskBody::GuiDialog(operation);
+            state.phase = TaskPhase::Ready;
+            return Ok(Some(task));
+        }
         if matches!(
             name,
             "stdGuiWindowNextAnyAsync" | "stdGuiWindowNextAnyLiveAsync"
@@ -1392,6 +1446,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) {
                         v05::task_copy(&mut self.engine.runtime, value)?
@@ -1530,6 +1585,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) =>
                 {
@@ -1637,6 +1693,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) =>
                 {
@@ -1771,6 +1828,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) =>
                 {
@@ -1885,6 +1943,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) =>
                 {
@@ -1996,6 +2055,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) =>
                 {
@@ -2133,6 +2193,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.57"
                 | "1.9.58"
                 | "1.9.59"
+                | "1.9.60"
                 | "2.0.0"
         ) {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
@@ -2257,6 +2318,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) =>
                 {
@@ -2358,6 +2420,7 @@ impl<R: BufRead> Vm<R> {
                                         | "1.9.57"
                                         | "1.9.58"
                                         | "1.9.59"
+                                        | "1.9.60"
                                         | "2.0.0"
                                 ) {
                                     v06::diagnostics::task_error(&self.record_error(
@@ -2473,6 +2536,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) {
                         v05::task_error(&error)
@@ -2598,6 +2662,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.57"
                 | "1.9.58"
                 | "1.9.59"
+                | "1.9.60"
                 | "2.0.0"
         ) && task.failure.is_none()
         {
@@ -2735,6 +2800,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.57"
                 | "1.9.58"
                 | "1.9.59"
+                | "1.9.60"
                 | "2.0.0"
         ) {
             self.scheduler
@@ -2873,6 +2939,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.57"
                         | "1.9.58"
                         | "1.9.59"
+                        | "1.9.60"
                         | "2.0.0"
                 ) && self.scheduler.tasks[id].cancel_requested
                     && matches!(
@@ -2886,10 +2953,14 @@ impl<R: BufRead> Vm<R> {
                             | TaskBody::HostOperation(..)
                             | TaskBody::GuiInput(..)
                             | TaskBody::GuiLiveInput(..)
+                            | TaskBody::GuiDialog(..)
                     )
                 {
                     if let TaskBody::HostOperation(operation) = body {
                         self.engine.runtime.cancel_http(*operation)?;
+                    }
+                    if let TaskBody::GuiDialog(operation) = body {
+                        self.engine.runtime.cancel_gui_dialog(*operation)?;
                     }
                     if let TaskBody::GuiLiveInput(_, operation) = body {
                         self.engine.runtime.cancel_live_gui_input(*operation)?;
@@ -2958,6 +3029,29 @@ impl<R: BufRead> Vm<R> {
                         };
                         outcome.map(Ok)
                     }
+                    TaskBody::GuiDialog(operation) => self
+                        .engine
+                        .runtime
+                        .poll_gui_dialog(*operation)?
+                        .map(|outcome| {
+                            let value = match outcome {
+                                Ok(serde_json::Value::Null) => {
+                                    Value::Result(Ok(Box::new(Value::Option(None))))
+                                }
+                                Ok(serde_json::Value::String(path)) => Value::Result(Ok(Box::new(
+                                    Value::Option(Some(Box::new(Value::Text(path.into())))),
+                                ))),
+                                Ok(_) => return Err("GuiDialogRecordedResult".into()),
+                                Err(code) => Value::Result(Err(Box::new(Value::Struct(
+                                    "StdError".into(),
+                                    BTreeMap::from([
+                                        ("code".into(), Value::Text(code.into())),
+                                        ("offset".into(), Value::Int(0)),
+                                    ]),
+                                )))),
+                            };
+                            Ok(value)
+                        }),
                     TaskBody::HostOperation(operation) => self
                         .engine
                         .runtime
@@ -3202,6 +3296,7 @@ impl<R: BufRead> Vm<R> {
                             | "1.9.57"
                             | "1.9.58"
                             | "1.9.59"
+                            | "1.9.60"
                             | "2.0.0"
                     ) {
                         if let TaskBody::Join(group) = body {
@@ -3306,7 +3401,8 @@ impl<R: BufRead> Vm<R> {
         while !self.scheduler.tasks.values().any(|t| {
             t.phase == TaskPhase::Ready && matches!(t.body, TaskBody::Main | TaskBody::Function(..))
         }) && self.scheduler.tasks.values().any(|t| {
-            (t.phase != TaskPhase::Done && matches!(t.body, TaskBody::HostOperation(_)))
+            (t.phase != TaskPhase::Done
+                && matches!(t.body, TaskBody::HostOperation(_) | TaskBody::GuiDialog(_)))
                 || (matches!(t.phase, TaskPhase::Ready | TaskPhase::WaitingChannel)
                     && matches!(t.body, TaskBody::GuiInput(..) | TaskBody::GuiLiveInput(..)))
         }) {
@@ -3518,6 +3614,7 @@ impl<R: BufRead> Vm<R> {
                         | "1.9.57"
                         | "1.9.58"
                         | "1.9.59"
+                        | "1.9.60"
                         | "2.0.0"
                 ) {
                     v05::task_copy(&mut self.engine.runtime, &value)?
@@ -3675,6 +3772,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.57"
                 | "1.9.58"
                 | "1.9.59"
+                | "1.9.60"
                 | "2.0.0"
         ) {
             return Ok(false);
@@ -3749,6 +3847,9 @@ impl<R: BufRead> Vm<R> {
         }
         if let TaskBody::HostOperation(operation) = task.body {
             self.engine.runtime.cancel_http(operation)?;
+        }
+        if let TaskBody::GuiDialog(operation) = task.body {
+            self.engine.runtime.cancel_gui_dialog(operation)?;
         }
         if let TaskBody::GuiLiveInput(_, operation) = task.body {
             self.engine.runtime.cancel_live_gui_input(operation)?;
@@ -3860,6 +3961,7 @@ impl<R: BufRead> Vm<R> {
                     | "1.9.57"
                     | "1.9.58"
                     | "1.9.59"
+                    | "1.9.60"
                     | "2.0.0"
             ) {
                 self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
@@ -3993,6 +4095,7 @@ impl<R: BufRead> Vm<R> {
                 | "1.9.57"
                 | "1.9.58"
                 | "1.9.59"
+                | "1.9.60"
                 | "2.0.0"
         ) {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);

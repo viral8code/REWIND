@@ -326,8 +326,32 @@ fn api_dependency_contracts_and_checked_conversion_reject_mismatches() {
         &root,
         &["--output", new.to_str().unwrap()],
     ));
+    // Adding exports preserves all existing dependency contracts.
+    success(
+        &command("api-diff")
+            .arg(&old)
+            .arg(&new)
+            .arg("--deny-breaking")
+            .output()
+            .unwrap(),
+    );
+    let extended = root.join("extended.json");
+    fs::copy(&new, &extended).unwrap();
+    // Changing an already exported function remains breaking.
+    signed_package(
+        &root,
+        "lib",
+        r#"pub fn answer()->Int effects {}{return 42;}pub fn another()->String effects {}{return "changed";}"#,
+        json!({}),
+    );
+    success(&cmd("update", &root, &[]));
+    success(&cmd(
+        "api-snapshot",
+        &root,
+        &["--output", new.to_str().unwrap()],
+    ));
     assert!(!command("api-diff")
-        .arg(&old)
+        .arg(&extended)
         .arg(&new)
         .arg("--deny-breaking")
         .output()

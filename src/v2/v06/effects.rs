@@ -58,6 +58,9 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
                         needs.insert("network".into());
                         needs.insert("tasks".into());
                     }
+                    if n == "stdExternalGuiDialog" {
+                        needs.extend(["gui".into(), "tasks".into()]);
+                    }
                     if n.starts_with("stdExternalDb") {
                         needs.insert("db".into());
                         needs.insert("tasks".into());
@@ -227,6 +230,9 @@ impl Scan<'_> {
                         {
                             self.needs.insert("network".into());
                             self.needs.insert("tasks".into());
+                        }
+                        if base == "stdExternalGuiDialog" {
+                            self.needs.extend(["gui".into(), "tasks".into()]);
                         }
                         if base.starts_with("stdExternalDb") {
                             self.needs.insert("db".into());

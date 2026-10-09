@@ -2,6 +2,32 @@ use super::*;
 use serde_json::{json, Value as J};
 const MAX_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_FILES: usize = 768;
+fn file_hash(path: &Path, expected: u64) -> Result<String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let file = fs::File::open(path)?;
+    let mut input = file.take(expected.saturating_add(1));
+    let mut digest = Sha256::new();
+    let mut total = 0u64;
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let count = input.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        total = total
+            .checked_add(count as u64)
+            .ok_or_else(|| invalid("byte budget exceeded"))?;
+        if total > expected {
+            return Err(invalid("file changed while hashing"));
+        }
+        digest.update(&buffer[..count]);
+    }
+    if total != expected {
+        return Err(invalid("file changed while hashing"));
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
 fn invalid(s: &str) -> Error {
     Error::InvalidOperation(format!("SDK: {s}"))
 }
@@ -107,6 +133,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("http", include_str!("../../../libraries/std/http.rw")),
         ("db", include_str!("../../../libraries/std/db.rw")),
         ("gui", include_str!("../../../libraries/std/gui.rw")),
+        (
+            "guiDialog",
+            include_str!("../../../libraries/std/guiDialog.rw"),
+        ),
         ("guiMenu", include_str!("../../../libraries/std/guiMenu.rw")),
         ("guiForm", include_str!("../../../libraries/std/guiForm.rw")),
         (
@@ -264,7 +294,7 @@ fn inventory(root: &Path) -> Result<J> {
             if *total > MAX_BYTES || out.len() >= MAX_FILES {
                 return Err(invalid("distribution budget exceeded"));
             }
-            out.insert(relative,json!({"sha256":packages::hash(fs::read(path)?),"bytes":meta.len(),"executable":executable(&meta)}));
+            out.insert(relative,json!({"sha256":file_hash(&path,meta.len())?,"bytes":meta.len(),"executable":executable(&meta)}));
         }
         Ok(())
     }
@@ -668,6 +698,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-dialog/main.rw",
+            include_str!("../../../examples/gui-dialog/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/backward-gui/main.rw",
             include_str!("../../../examples/backward-gui/main.rw"),
         )?;
@@ -685,6 +720,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-menu/README.md",
             include_str!("../../../examples/gui-menu/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-dialog/README.md",
+            include_str!("../../../examples/gui-dialog/README.md"),
         )?;
         write(
             &output,
@@ -812,6 +852,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.59.md",
                 include_str!("../../../docs/REWIND_v1.9.59.md"),
+            ),
+            (
+                "REWIND_v1.9.60.md",
+                include_str!("../../../docs/REWIND_v1.9.60.md"),
             ),
             (
                 "REWIND_v1.9.56.md",
@@ -1065,6 +1109,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-dialog/main.rw",
+            include_str!("../../../examples/gui-dialog/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/backward-gui/main.rw",
             include_str!("../../../examples/backward-gui/main.rw"),
         )?;
@@ -1082,6 +1131,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-menu/README.md",
             include_str!("../../../examples/gui-menu/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-dialog/README.md",
+            include_str!("../../../examples/gui-dialog/README.md"),
         )?;
         write(
             &output,
@@ -1211,6 +1265,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.59.md"),
             ),
             (
+                "REWIND_v1.9.60.md",
+                include_str!("../../../docs/REWIND_v1.9.60.md"),
+            ),
+            (
                 "REWIND_v1.9.56.md",
                 include_str!("../../../docs/REWIND_v1.9.56.md"),
             ),
@@ -1286,6 +1344,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-menu",
                 include_str!("../../../examples/gui-menu/README.md"),
+            ),
+            (
+                "gui-dialog",
+                include_str!("../../../examples/gui-dialog/README.md"),
             ),
             (
                 "backward-gui",
@@ -1366,6 +1428,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-menu",
                 include_str!("../../../examples/gui-menu/main.rw"),
+            ),
+            (
+                "gui-dialog",
+                include_str!("../../../examples/gui-dialog/main.rw"),
             ),
             (
                 "backward-gui",
