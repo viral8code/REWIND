@@ -1,0 +1,7 @@
+effects {gui,external,tasks};
+// @api openFile failure Requires explicit external region and gui/external/tasks permissions; application task only. One native dialog per process. GuiDialogBusy/Unavailable/Thread/Title/Path/PathLimit/PathEncoding are typed. Cancellation by the user returns None; task cancellation closes the native request. Linux uses system GTK 3; Windows uses Win32 common dialogs.
+// @api openFile cost Nonblocking Task over a bounded native request and response. Revert reuses the recorded operation; replay opens no OS dialog. Returned paths grant no file capability and the API never reads file content.
+pub fn openFile(title:String,initial:String)->Task<Result<Option<String>,StdError>> effects {gui,external,tasks} {return stdExternalGuiDialog(false,title,initial);}
+// @api saveFile failure Same boundary and lifetime as openFile. Selecting a destination does not create or truncate it. Native overwrite confirmation asks about the selected name; applications still perform and publish their own file operation.
+// @api saveFile cost At most 256 UTF-8 title bytes and 4096 path bytes; native UI state and physical worker lifetime are not checkpointed. external live retains only the task/checkpoint-owned result, without complete record/replay support.
+pub fn saveFile(title:String,initial:String)->Task<Result<Option<String>,StdError>> effects {gui,external,tasks} {return stdExternalGuiDialog(true,title,initial);}

@@ -23,7 +23,8 @@ pub(super) fn native_owned_result(name: &str) -> bool {
         || name.starts_with("stdJsonStream")
         || name.starts_with("stdUnicode")
         || name.starts_with("stdDateTime")
-        || name == "stdExternalInstant")
+        || name == "stdExternalInstant"
+        || name == "stdExternalGuiDialog")
         && names().contains(&name)
 }
 pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str> {
@@ -97,6 +98,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdUnicodeCase",
         "stdUnicodeVersions",
         "stdExternalInstant",
+        "stdExternalGuiDialog",
         "stdDateTimeInstant",
         "stdDateTimeDuration",
         "stdDateTimeParse",
@@ -429,6 +431,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.57"
             | "1.9.58"
             | "1.9.59"
+            | "1.9.60"
             | "2.0.0"
     ) {
         return Ok(());
@@ -806,6 +809,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.57"
             | "1.9.58"
             | "1.9.59"
+            | "1.9.60"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -923,6 +927,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.57"
                 | "1.9.58"
                 | "1.9.59"
+                | "1.9.60"
                 | "2.0.0"
         )
     {
@@ -966,6 +971,12 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Err(diagnostic(
             at,
             "PostgreSQL primitives require language 1.7.1",
+        ));
+    }
+    if n == "stdExternalGuiDialog" && !language_at_least(&p.language, "1.9.60") {
+        return Err(diagnostic(
+            at,
+            "native file dialogs require language 1.9.60",
         ));
     }
     if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
@@ -1041,6 +1052,10 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }
     let (params, ret): (&[&str], &str) = match n {
+        "stdExternalGuiDialog" => (
+            &["Bool", "String", "String"],
+            "Task<Result<Option<String>,StdError>>",
+        ),
         "stdExternalHttpServerBearerCredential" => (
             &["String", "Secret<String>"],
             "Result<Unit,HttpServerError>",

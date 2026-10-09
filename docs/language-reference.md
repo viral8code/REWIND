@@ -646,3 +646,5 @@ GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl
 `std.autodiffAsync.backward(move tape, loss)` は演算履歴を所有する協調型の逆伝播です。Node を保持して戻り値の Gradients を照会できます。準備・走査・重い微分カーネルの途中で他のタスクへ処理を渡します。同期型の `std.autodiff.backward(&tape, loss)` も利用できます。
 
 `std.guiMenu` のメニューは VM の状態として巻き戻せます。表示には `guiMenu.draw` と `guiWindows.present`、`publish` を使います。v1.9.59 からネイティブの Ctrl/Alt の英字ショートカットと F1〜F24 を受け取れます。`gui.overlay` は同じ寸法・文字編集モードの画面を合成し、下の画面のフォーカスとスクロールを保持します。
+
+`std.guiDialog` のファイル選択は `gui,external,tasks` 効果を持ちます。アプリケーションタスクの external 領域で Task を作成し、その領域の外で await します。選択結果は外部観測として記録され、revert と replay は OS のダイアログを開き直しません。選択したパスにアクセスする権限は別途必要です。

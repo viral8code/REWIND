@@ -418,6 +418,9 @@ impl crate::Runtime {
         }
     }
     pub fn cancel_http(&mut self, id: usize) -> crate::Result<()> {
+        if self.gui_dialogs.contains_key(&id) {
+            return self.cancel_gui_dialog(id);
+        }
         if self.external_operation_pending(id) {
             if self
                 .http_server_host

@@ -211,3 +211,5 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 `std.autodiffAsync` は所有する Tape の逆伝播を協調実行します。既存の Node / Gradients、各微分の演算順序を保ち、履歴準備も分割します。前向き演算の履歴作成は同期処理です。`examples/autodiff-async` に checkpoint・取消を含む例があります。
 
 `std.guiMenu` は無効化・チェック状態・キーボード移動・スクロールを持つ上限付きメニューです。`gui.bounds` / `graphemeMode` / `overlay` で既存の画面へ重ねます。ネイティブ入力・巻き戻し・再生の利用例は `examples/gui-menu` にあります。
+
+`std.guiDialog.openFile` / `saveFile` は、明示的な external 領域で作成するネイティブファイル選択 Task です。ユーザーによるキャンセル、VM の巻き戻しと OS の画面の寿命を分け、選択だけではファイルを作成・変更しません。Linux はシステムの GTK 3、Windows は標準ダイアログを使います。`examples/gui-dialog` に利用例があります。

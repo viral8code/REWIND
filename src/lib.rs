@@ -821,6 +821,7 @@ pub struct Runtime {
     directory_observations: BTreeMap<(u64, String), Option<BTreeSet<String>>>,
     input: Vec<String>,
     gui_host: Option<gui::Host>,
+    gui_dialogs: BTreeMap<usize, gui::dialog::Session>,
     gui_clipboard_enabled: bool,
     gui_command_keys_enabled: bool,
     gui_displayed: Option<Arc<gui::Frame>>,
@@ -1755,6 +1756,7 @@ impl Runtime {
             directory_observations: BTreeMap::new(),
             input: Vec::new(),
             gui_host: None,
+            gui_dialogs: BTreeMap::new(),
             gui_clipboard_enabled: false,
             gui_command_keys_enabled: false,
             gui_displayed: None,
@@ -2301,6 +2303,11 @@ impl Runtime {
         if let Some(frame) = &self.gui_displayed {
             compute_memory = compute_memory.saturating_add(frame.bytes().saturating_mul(2));
         }
+        compute_memory = compute_memory.saturating_add(
+            self.gui_dialogs
+                .len()
+                .saturating_mul(gui::dialog::RESERVATION),
+        );
         if self.gui_clipboard_enabled {
             compute_memory = compute_memory.saturating_add(
                 (self.gui_window_hosts.len() + usize::from(self.gui_host.is_some()))

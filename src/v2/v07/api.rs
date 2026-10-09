@@ -119,6 +119,7 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
             | "1.9.57"
             | "1.9.58"
             | "1.9.59"
+            | "1.9.60"
             | "2.0.0"
     ) {
         return Err(Error::InvalidOperation(
@@ -301,6 +302,7 @@ fn document(root: &Path) -> Result<Json> {
             | "1.9.57"
             | "1.9.58"
             | "1.9.59"
+            | "1.9.60"
             | "2.0.0"
     ) {
         let source = fs::read_to_string(&p.root_origin)?;
@@ -506,9 +508,18 @@ pub(in crate::v2) fn diff(before: &Path, after: &Path, deny: bool) -> Result<()>
             && b.get(n).is_some_and(|v| {
                 v["value_sha256"] == a[n]["value_sha256"] && v["type"] == a[n]["type"]
             });
-        let incompatible = !added && !equivalent_const;
+        let dependency_extended = n.starts_with("dependency:")
+            && a.get(n)
+                .and_then(Json::as_object)
+                .zip(b.get(n).and_then(Json::as_object))
+                .is_some_and(|(before, after)| {
+                    before
+                        .iter()
+                        .all(|(name, contract)| after.get(name) == Some(contract))
+                });
+        let incompatible = !added && !equivalent_const && !dependency_extended;
         breaking |= incompatible;
-        changes.push(json!({"symbol":n,"kind":if added{"added"}else if removed{"removed"}else if equivalent_const {"initializerChanged"}else{"contractChanged"},"breaking":incompatible,"before":a.get(n),"after":b.get(n)}));
+        changes.push(json!({"symbol":n,"kind":if added{"added"}else if removed{"removed"}else if equivalent_const {"initializerChanged"}else if dependency_extended{"dependencyExtended"}else{"contractChanged"},"breaking":incompatible,"before":a.get(n),"after":b.get(n)}));
     }
     println!(
         "{}",

@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 pub(crate) mod clipboard;
 mod command_keys;
+pub mod dialog;
 pub mod edit;
 mod live;
 mod runtime;
