@@ -703,6 +703,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-ime/main.rw",
+            include_str!("../../../examples/gui-ime/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/backward-gui/main.rw",
             include_str!("../../../examples/backward-gui/main.rw"),
         )?;
@@ -725,6 +730,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-dialog/README.md",
             include_str!("../../../examples/gui-dialog/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-ime/README.md",
+            include_str!("../../../examples/gui-ime/README.md"),
         )?;
         write(
             &output,
@@ -857,6 +867,12 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 "REWIND_v1.9.60.md",
                 include_str!("../../../docs/REWIND_v1.9.60.md"),
             ),
+            (
+                "REWIND_v1.9.61.md",
+                include_str!("../../../docs/REWIND_v1.9.61.md"),
+            ),
+            ("v2-status.md", include_str!("../../../docs/v2-status.md")),
+            ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
             (
                 "REWIND_v1.9.56.md",
                 include_str!("../../../docs/REWIND_v1.9.56.md"),
@@ -1114,6 +1130,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-ime/main.rw",
+            include_str!("../../../examples/gui-ime/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/backward-gui/main.rw",
             include_str!("../../../examples/backward-gui/main.rw"),
         )?;
@@ -1136,6 +1157,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-dialog/README.md",
             include_str!("../../../examples/gui-dialog/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-ime/README.md",
+            include_str!("../../../examples/gui-ime/README.md"),
         )?;
         write(
             &output,
@@ -1269,6 +1295,12 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.60.md"),
             ),
             (
+                "REWIND_v1.9.61.md",
+                include_str!("../../../docs/REWIND_v1.9.61.md"),
+            ),
+            ("v2-status.md", include_str!("../../../docs/v2-status.md")),
+            ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
+            (
                 "REWIND_v1.9.56.md",
                 include_str!("../../../docs/REWIND_v1.9.56.md"),
             ),
@@ -1348,6 +1380,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-dialog",
                 include_str!("../../../examples/gui-dialog/README.md"),
+            ),
+            (
+                "gui-ime",
+                include_str!("../../../examples/gui-ime/README.md"),
             ),
             (
                 "backward-gui",

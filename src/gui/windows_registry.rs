@@ -418,7 +418,7 @@ impl Runtime {
         if self.replaying || self.virtual_publish || self.gui_window_scripted.is_some() {
             return Ok(());
         }
-        if self.gui_clipboard_enabled {
+        if self.gui_clipboard_enabled || self.gui_ime_enabled {
             let new_hosts = self
                 .state
                 .gui_windows_pending
@@ -430,8 +430,7 @@ impl Runtime {
                 })
                 .count();
             self.check_native_allocation(
-                allocation
-                    .saturating_add(new_hosts.saturating_mul(super::clipboard::HOST_RESERVATION)),
+                allocation.saturating_add(new_hosts.saturating_mul(self.gui_host_reservation())),
             )?;
         }
         self.gui_window_hosts.retain(|id, _| {
@@ -451,6 +450,7 @@ impl Runtime {
                 let mut host = Host::prepare()
                     .map_err(|e| Error::InvalidOperation(format!("GuiUnavailable: {e}")))?;
                 host.configure_clipboard(self.gui_clipboard_enabled);
+                host.configure_ime(self.gui_ime_enabled);
                 host.configure_command_keys(self.gui_command_keys_enabled);
                 prepared.insert(id.clone(), host);
             }
@@ -753,6 +753,26 @@ mod tests {
         rt.gui_window_stage("extra", Some(frame("extra"))).unwrap();
         publish(&mut rt);
         assert_eq!(rt.gui_window_frames.len(), MAX_WINDOWS);
+    }
+    #[test]
+    fn ime_host_reservation_rejects_over_budget_before_contacting_a_native_service() {
+        let mut rt = runtime();
+        rt.enable_gui_ime();
+        assert_eq!(
+            rt.gui_host_reservation(),
+            super::super::clipboard::HOST_RESERVATION + super::super::composition::HOST_RESERVATION
+        );
+        rt.gui_window_stage("one", Some(frame("IME budget")))
+            .unwrap();
+        let mut budget = rt.budget;
+        budget.history_memory = 512 * 1024;
+        rt.set_budget(budget).unwrap();
+        assert!(matches!(
+            rt.gui_windows_prepare(),
+            Err(Error::HistoryBudgetExceeded)
+        ));
+        assert!(rt.gui_window_hosts.is_empty());
+        assert_eq!(rt.state.gui_windows_pending.len(), 1);
     }
     #[test]
     fn clipboard_host_is_admitted_before_native_window_preparation() {

@@ -82,6 +82,9 @@ unsafe extern "system" {
     fn UpdateWindow(hwnd: Handle) -> i32;
     fn PeekMessageW(message: *mut Message, hwnd: Handle, min: u32, max: u32, remove: u32) -> i32;
     fn GetKeyState(key: i32) -> i16;
+    fn GetDC(window: Handle) -> Handle;
+    fn IsWindowVisible(window: Handle) -> i32;
+    fn ReleaseDC(window: Handle, dc: Handle) -> i32;
     #[cfg(test)]
     fn GetKeyboardState(state: *mut u8) -> i32;
     #[cfg(test)]
@@ -128,6 +131,113 @@ unsafe extern "system" {
     fn GlobalLock(memory: Handle) -> *mut c_void;
     fn GlobalUnlock(memory: Handle) -> i32;
     fn GlobalSize(memory: Handle) -> usize;
+}
+#[repr(C)]
+struct CompositionForm {
+    style: u32,
+    position: Point,
+    area: Rect,
+}
+#[repr(C)]
+struct CandidateForm {
+    index: u32,
+    style: u32,
+    position: Point,
+    area: Rect,
+}
+#[link(name = "imm32")]
+unsafe extern "system" {
+    fn ImmGetContext(window: Handle) -> Handle;
+    fn ImmCreateContext() -> Handle;
+    fn ImmDestroyContext(context: Handle) -> i32;
+    fn ImmAssociateContext(window: Handle, context: Handle) -> Handle;
+    fn ImmReleaseContext(window: Handle, context: Handle) -> i32;
+    fn ImmGetCompositionStringW(context: Handle, index: u32, buffer: *mut c_void, len: u32) -> i32;
+    fn ImmSetCompositionWindow(context: Handle, form: *const CompositionForm) -> i32;
+    fn ImmSetCandidateWindow(context: Handle, form: *const CandidateForm) -> i32;
+    fn ImmNotifyIME(context: Handle, action: u32, index: u32, value: u32) -> i32;
+}
+struct ImeContext {
+    window: Handle,
+    context: Handle,
+}
+impl ImeContext {
+    fn get(window: Handle) -> Option<Self> {
+        let context = unsafe { ImmGetContext(window) };
+        (context != 0).then_some(Self { window, context })
+    }
+    fn text(&self, index: u32) -> Option<Vec<u16>> {
+        let bytes =
+            unsafe { ImmGetCompositionStringW(self.context, index, std::ptr::null_mut(), 0) };
+        if bytes < 0 || bytes as usize > composition::MAX_BYTES * 2 || bytes % 2 != 0 {
+            return None;
+        }
+        let mut units = vec![0u16; bytes as usize / 2];
+        let received = unsafe {
+            ImmGetCompositionStringW(self.context, index, units.as_mut_ptr().cast(), bytes as u32)
+        };
+        (received == bytes).then_some(units)
+    }
+}
+impl Drop for ImeContext {
+    fn drop(&mut self) {
+        unsafe {
+            ImmReleaseContext(self.window, self.context);
+        }
+    }
+}
+fn cancel_composition(window: Handle) {
+    if let Some(context) = ImeContext::get(window) {
+        unsafe {
+            ImmNotifyIME(context.context, 0x15, 4, 0);
+        }
+    }
+}
+fn position_composition(window: Handle, frame: &Frame) {
+    let Some(item) = clipboard::focused_input(frame) else {
+        return;
+    };
+    let Some(context) = ImeContext::get(window) else {
+        return;
+    };
+    unsafe {
+        let dc = GetDC(window);
+        if dc == 0 {
+            return;
+        }
+        let old = SelectObject(dc, GetStockObject(17));
+        let (x, y) = composition::anchor(item, |text| {
+            let text = wide(text);
+            let mut size = Point { x: 0, y: 0 };
+            GetTextExtentPoint32W(dc, text.as_ptr(), (text.len() - 1) as i32, &mut size);
+            size.x
+        });
+        SelectObject(dc, old);
+        ReleaseDC(window, dc);
+        let form = CompositionForm {
+            style: 2,
+            position: Point { x, y },
+            area: Rect {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
+        };
+        ImmSetCompositionWindow(context.context, &form);
+        let form = CandidateForm {
+            index: 0,
+            style: 0x40,
+            position: Point { x, y: y + 18 },
+            area: Rect {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
+        };
+        ImmSetCandidateWindow(context.context, &form);
+    }
 }
 struct ClipboardGuard;
 impl Drop for ClipboardGuard {
@@ -200,20 +310,35 @@ fn color(rgb: u32) -> u32 {
     ((rgb & 0xff) << 16) | (rgb & 0xff00) | (rgb >> 16)
 }
 struct State {
+    ime_enabled: bool,
+    composition: composition::Composition,
     clipboard_enabled: bool,
     command_keys_enabled: bool,
     suppress_syschar: Option<u16>,
     frame: Option<Arc<Frame>>,
     events: VecDeque<Event>,
+    queued_bytes: usize,
     closed: bool,
     overflow: bool,
     surrogate: Option<u16>,
 }
 impl State {
+    fn pop(&mut self) -> Option<Event> {
+        let event = self.events.pop_front()?;
+        self.queued_bytes = self
+            .queued_bytes
+            .saturating_sub(std::mem::size_of::<Event>() + event.key.len() + event.kind.len());
+        Some(event)
+    }
+
     fn push(&mut self, event: Event) {
-        if self.events.len() >= 4096 {
+        let bytes = std::mem::size_of::<Event>() + event.key.len() + event.kind.len();
+        if self.events.len() >= 4096
+            || (self.ime_enabled && self.queued_bytes.saturating_add(bytes) > 512 * 1024)
+        {
             self.overflow = true;
         } else {
+            self.queued_bytes += bytes;
             self.events.push_back(event);
         }
     }
@@ -229,11 +354,99 @@ unsafe extern "system" fn procedure(
     if ptr.is_null() {
         return unsafe { DefWindowProcW(hwnd, message, wparam, lparam) };
     }
+    if unsafe { (&*ptr).ime_enabled } {
+        match message {
+            0x07 => unsafe {
+                (&mut *ptr).composition.accepting = (&*ptr)
+                    .frame
+                    .as_deref()
+                    .and_then(clipboard::focused_input)
+                    .is_some();
+            },
+            0x286 => return 0,
+
+            0x281 => {
+                return unsafe {
+                    DefWindowProcW(hwnd, message, wparam, lparam & !(0x80000000u32 as isize))
+                }
+            }
+            0x10d => {
+                if !unsafe { (&*ptr).composition.accepting } {
+                    return 0;
+                }
+                unsafe {
+                    (&mut *ptr).composition.start();
+                    InvalidateRect(hwnd, std::ptr::null(), 0);
+                }
+                return 0;
+            }
+            0x10e => {
+                unsafe {
+                    (&mut *ptr).composition.clear();
+                    InvalidateRect(hwnd, std::ptr::null(), 0);
+                }
+                return 0;
+            }
+            0x10f => {
+                if !unsafe { (&*ptr).composition.accepting } {
+                    return 0;
+                }
+                let Some(context) = ImeContext::get(hwnd) else {
+                    return unsafe { DefWindowProcW(hwnd, message, wparam, lparam) };
+                };
+                if lparam & 0x800 != 0 {
+                    let committed = context
+                        .text(0x800)
+                        .and_then(|units| String::from_utf16(&units).ok());
+                    let state = unsafe { &mut *ptr };
+                    state.composition.clear();
+                    match committed {
+                        Some(text) if clipboard::valid_text(&text) => {
+                            if let Some(event) = clipboard::text_event(text) {
+                                state.push(event);
+                            }
+                        }
+                        _ => state.composition.invalid = true,
+                    }
+                }
+                if lparam & 8 != 0 {
+                    let text = context.text(8);
+                    let cursor = unsafe {
+                        ImmGetCompositionStringW(context.context, 0x80, std::ptr::null_mut(), 0)
+                    };
+                    let state = unsafe { &mut *ptr };
+                    if let Some(text) = text.filter(|_| cursor >= 0) {
+                        state.composition.set_utf16(&text, cursor as usize);
+                    } else {
+                        state.composition.invalid = true;
+                    }
+                }
+                unsafe {
+                    InvalidateRect(hwnd, std::ptr::null(), 0);
+                }
+                return 0;
+            }
+            0x08 => {
+                unsafe {
+                    (&mut *ptr).composition.accepting = false;
+                    (&mut *ptr).composition.clear();
+                }
+                cancel_composition(hwnd);
+            }
+            _ => {}
+        }
+    }
     match message {
         0x0f => {
             let frame = unsafe { (&*ptr).frame.clone() };
+            let preedit = unsafe {
+                (&*ptr)
+                    .composition
+                    .active
+                    .then(|| ((&*ptr).composition.text.clone(), (&*ptr).composition.cursor))
+            };
             unsafe {
-                draw(hwnd, frame.as_deref());
+                draw(hwnd, frame.as_deref(), preedit.as_ref());
             }
             0
         }
@@ -461,7 +674,7 @@ unsafe fn draw_edit(dc: Handle, item: &Item) {
         }
     }
 }
-unsafe fn draw(hwnd: Handle, frame: Option<&Frame>) {
+unsafe fn draw(hwnd: Handle, frame: Option<&Frame>, preedit: Option<&(String, usize)>) {
     unsafe {
         let mut paint: Paint = std::mem::zeroed();
         let dc = BeginPaint(hwnd, &mut paint);
@@ -530,10 +743,54 @@ unsafe fn draw(hwnd: Handle, frame: Option<&Frame>) {
             }
             SelectObject(dc, old);
         }
+        if let (Some(frame), Some((text, cursor))) = (frame, preedit) {
+            if let Some(item) = clipboard::focused_input(frame) {
+                let saved = SaveDC(dc);
+                SelectObject(dc, GetStockObject(17));
+                SetBkMode(dc, 1);
+                IntersectClipRect(
+                    dc,
+                    item.x,
+                    item.y,
+                    item.x + item.width,
+                    item.y + item.height,
+                );
+                let measure = |value: &str| {
+                    let units = wide(value);
+                    let mut size = Point { x: 0, y: 0 };
+                    GetTextExtentPoint32W(dc, units.as_ptr(), (units.len() - 1) as i32, &mut size);
+                    size.x
+                };
+                let (x, y) = composition::anchor(item, measure);
+                let width = measure(text);
+                fill(
+                    dc,
+                    &Rect {
+                        left: x,
+                        top: y,
+                        right: x + width.max(1),
+                        bottom: y + 18,
+                    },
+                    item.background,
+                    false,
+                );
+                SetTextColor(dc, color(item.foreground));
+                let units = wide(text);
+                TextOutW(dc, x, y, units.as_ptr(), (units.len() - 1) as i32);
+                MoveToEx(dc, x, y + 17, std::ptr::null_mut());
+                LineTo(dc, x + width, y + 17);
+                let prefix: String = text.chars().take(*cursor).collect();
+                let caret = x + measure(&prefix);
+                MoveToEx(dc, caret, y, std::ptr::null_mut());
+                LineTo(dc, caret, y + 16);
+                RestoreDC(dc, saved);
+            }
+        }
         EndPaint(hwnd, &paint);
     }
 }
 pub(super) struct Surface {
+    ime_context: Handle,
     window: Handle,
     state: Box<UnsafeCell<State>>,
     instance: Handle,
@@ -580,6 +837,9 @@ impl Surface {
             (*self.state.get()).command_keys_enabled = enabled;
         }
     }
+    pub fn configure_ime(&mut self, enabled: bool) {
+        self.state_mut().ime_enabled = enabled;
+    }
     pub fn configure_clipboard(&mut self, enabled: bool) {
         unsafe {
             (*self.state.get()).clipboard_enabled = enabled;
@@ -614,12 +874,16 @@ impl Surface {
             }
             Ok(Self {
                 window: 0,
+                ime_context: 0,
                 state: Box::new(UnsafeCell::new(State {
+                    ime_enabled: false,
+                    composition: composition::Composition::default(),
                     clipboard_enabled: false,
                     command_keys_enabled: false,
                     suppress_syschar: None,
                     frame: None,
                     events: VecDeque::new(),
+                    queued_bytes: 0,
                     closed: false,
                     overflow: false,
                     surrogate: None,
@@ -661,8 +925,41 @@ impl Surface {
                     return Err(io::Error::last_os_error());
                 }
                 SetWindowLongPtrW(self.window, -21, self.state.get() as isize);
+                if self.state().ime_enabled {
+                    self.ime_context = ImmCreateContext();
+                    if self.ime_context == 0 {
+                        return Err(invalid("GuiCompositionUnavailable"));
+                    }
+                    ImmAssociateContext(self.window, self.ime_context);
+                }
+            }
+            if self.state().ime_enabled && self.state().composition.active {
+                let previous = self
+                    .state()
+                    .frame
+                    .as_deref()
+                    .and_then(clipboard::focused_input);
+                let next = clipboard::focused_input(frame);
+                if !composition::same_input(previous, next) {
+                    let fresh = ImmCreateContext();
+                    if fresh == 0 {
+                        return Err(invalid("GuiCompositionUnavailable"));
+                    }
+                    self.state_mut().composition.accepting = false;
+                    self.state_mut().composition.clear();
+                    cancel_composition(self.window);
+                    ImmAssociateContext(self.window, fresh);
+                    if self.ime_context != 0 {
+                        ImmDestroyContext(self.ime_context);
+                    }
+                    self.ime_context = fresh;
+                }
             }
             self.state_mut().frame = Some(Arc::new(frame.clone()));
+            self.state_mut().composition.accepting = clipboard::focused_input(frame).is_some();
+            if self.state().ime_enabled {
+                position_composition(self.window, frame);
+            }
             self.state_mut().closed = false;
             let title = wide(&frame.title);
             if SetWindowTextW(self.window, title.as_ptr()) == 0 {
@@ -680,7 +977,9 @@ impl Surface {
             {
                 return Err(io::Error::last_os_error());
             }
-            ShowWindow(self.window, 5);
+            if IsWindowVisible(self.window) == 0 {
+                ShowWindow(self.window, 5);
+            }
             InvalidateRect(self.window, std::ptr::null(), 0);
             UpdateWindow(self.window);
             Ok(())
@@ -688,10 +987,13 @@ impl Surface {
     }
     pub fn event(&mut self) -> io::Result<Event> {
         loop {
+            if self.state().composition.invalid {
+                return Err(invalid("GuiCompositionInvalid"));
+            }
             if self.state().overflow {
                 return Err(invalid("GuiEventQueueLimit"));
             }
-            if let Some(event) = self.state_mut().events.pop_front() {
+            if let Some(event) = self.state_mut().pop() {
                 return Ok(event);
             }
             if self.window == 0 || self.state().closed {
@@ -712,10 +1014,13 @@ impl Surface {
         }
     }
     pub fn poll(&mut self) -> io::Result<Option<Event>> {
+        if self.state().composition.invalid {
+            return Err(invalid("GuiCompositionInvalid"));
+        }
         if self.state().overflow {
             return Err(invalid("GuiEventQueueLimit"));
         }
-        if let Some(event) = self.state_mut().events.pop_front() {
+        if let Some(event) = self.state_mut().pop() {
             return Ok(Some(event));
         }
         if self.window == 0 || self.state().closed {
@@ -723,7 +1028,8 @@ impl Surface {
         }
         unsafe {
             let mut message: Message = std::mem::zeroed();
-            for _ in 0..4096 {
+            let limit = if self.state().ime_enabled { 64 } else { 4096 };
+            for _ in 0..limit {
                 if PeekMessageW(&mut message, 0, 0, 0, 1) == 0 {
                     return Ok(None);
                 }
@@ -732,7 +1038,7 @@ impl Surface {
                 }
                 TranslateMessage(&message);
                 DispatchMessageW(&message);
-                if let Some(event) = self.state_mut().events.pop_front() {
+                if let Some(event) = self.state_mut().pop() {
                     return Ok(Some(event));
                 }
             }
@@ -746,8 +1052,17 @@ impl Surface {
             }
             self.window = 0;
         }
+        if self.ime_context != 0 {
+            unsafe {
+                ImmDestroyContext(self.ime_context);
+            }
+            self.ime_context = 0;
+        }
+        self.state_mut().composition.accepting = false;
+        self.state_mut().composition.clear();
         self.state_mut().frame = None;
         self.state_mut().events.clear();
+        self.state_mut().queued_bytes = 0;
     }
     #[cfg(test)]
     pub fn inject_key_and_close(&mut self) {
@@ -771,5 +1086,83 @@ impl Surface {
 impl Drop for Surface {
     fn drop(&mut self) {
         self.close();
+    }
+}
+
+#[cfg(test)]
+mod ime_tests {
+    use super::*;
+    #[test]
+    fn native_ime_context_lifetime_and_cancelled_feedback_follow_published_focus() {
+        let mut surface = Surface::new().unwrap();
+        surface.configure_ime(true);
+        let mut frame = Frame {
+            title: "REWIND IME context acceptance".into(),
+            width: 320,
+            height: 160,
+            background: 0xffffff,
+            items: vec![Item {
+                id: "input".into(),
+                kind: "textbox".into(),
+                x: 10,
+                y: 10,
+                width: 280,
+                height: 40,
+                text: String::new(),
+                foreground: 0,
+                background: 0xffffff,
+                enabled: true,
+                checked: false,
+                focused: true,
+                cursor: 0,
+                anchor: 0,
+                scroll: 0,
+            }],
+        };
+        surface.present(&frame).unwrap();
+        assert_ne!(surface.ime_context, 0);
+        {
+            let native = ImeContext::get(surface.window).unwrap();
+            assert_eq!(native.context, surface.ime_context);
+        }
+        // Supply preedit state separately: this verifies native context lifetime,
+        // not the presence of a Japanese conversion engine on the test desktop.
+        surface.state_mut().composition.start();
+        assert!(surface.state_mut().composition.replace(0, 0, "かな", 2));
+        let old = surface.ime_context;
+        frame.items[0].x = 20;
+        frame.items[0].foreground = 0x123456;
+        surface.present(&frame).unwrap();
+        assert_eq!(surface.ime_context, old);
+        assert_eq!(surface.state().composition.text, "かな");
+        frame.items[0].focused = false;
+        surface.present(&frame).unwrap();
+        assert_ne!(surface.ime_context, old);
+        assert!(!surface.state().composition.active);
+        assert!(!surface.state().composition.accepting);
+        assert!(surface.state().composition.text.is_empty());
+        // A queued old result notification must not read/commit the new context.
+        unsafe {
+            SendMessageW(surface.window, 0x10f, 0, 0x800);
+        }
+        assert!(!surface.state().events.iter().any(|e| e.kind == "text"));
+        surface.close();
+        assert_eq!(surface.ime_context, 0);
+    }
+    #[test]
+    fn native_ime_event_queue_has_a_byte_bound_and_releases_drained_entries() {
+        let mut surface = Surface::new().unwrap();
+        surface.configure_ime(true);
+        for _ in 0..4096 {
+            let mut event = Event::simple("text");
+            event.key = "x".repeat(4096);
+            surface.state_mut().push(event);
+        }
+        assert!(surface.state().overflow);
+        assert!(surface.state().queued_bytes <= 512 * 1024);
+        assert!(surface.state().events.len() < 4096);
+        while surface.state_mut().pop().is_some() {}
+        assert_eq!(surface.state().queued_bytes, 0);
+        surface.close();
     }
 }

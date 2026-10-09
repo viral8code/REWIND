@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 pub(crate) mod clipboard;
 mod command_keys;
+pub(crate) mod composition;
 pub mod dialog;
 pub mod edit;
 mod live;
@@ -143,6 +144,13 @@ pub(crate) struct Host {
     backend: windows::Surface,
 }
 impl Host {
+    pub fn configure_ime(&mut self, enabled: bool) {
+        #[cfg(any(target_os = "linux", windows))]
+        self.backend.configure_ime(enabled);
+        #[cfg(not(any(target_os = "linux", windows)))]
+        let _ = enabled;
+    }
+
     pub fn configure_command_keys(&mut self, enabled: bool) {
         #[cfg(any(target_os = "linux", windows))]
         self.backend.configure_command_keys(enabled);

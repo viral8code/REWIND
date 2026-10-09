@@ -822,6 +822,7 @@ pub struct Runtime {
     input: Vec<String>,
     gui_host: Option<gui::Host>,
     gui_dialogs: BTreeMap<usize, gui::dialog::Session>,
+    gui_ime_enabled: bool,
     gui_clipboard_enabled: bool,
     gui_command_keys_enabled: bool,
     gui_displayed: Option<Arc<gui::Frame>>,
@@ -1021,6 +1022,18 @@ impl Runtime {
     }
     pub fn enable_gui_command_keys(&mut self) {
         self.gui_command_keys_enabled = true;
+    }
+    pub(crate) fn gui_host_reservation(&self) -> usize {
+        if self.gui_ime_enabled {
+            gui::clipboard::HOST_RESERVATION + gui::composition::HOST_RESERVATION
+        } else if self.gui_clipboard_enabled {
+            gui::clipboard::HOST_RESERVATION
+        } else {
+            0
+        }
+    }
+    pub fn enable_gui_ime(&mut self) {
+        self.gui_ime_enabled = true;
     }
     pub fn enable_gui_clipboard(&mut self) {
         self.gui_clipboard_enabled = true;
@@ -1757,6 +1770,7 @@ impl Runtime {
             input: Vec::new(),
             gui_host: None,
             gui_dialogs: BTreeMap::new(),
+            gui_ime_enabled: false,
             gui_clipboard_enabled: false,
             gui_command_keys_enabled: false,
             gui_displayed: None,
@@ -2308,10 +2322,10 @@ impl Runtime {
                 .len()
                 .saturating_mul(gui::dialog::RESERVATION),
         );
-        if self.gui_clipboard_enabled {
+        if self.gui_clipboard_enabled || self.gui_ime_enabled {
             compute_memory = compute_memory.saturating_add(
                 (self.gui_window_hosts.len() + usize::from(self.gui_host.is_some()))
-                    .saturating_mul(gui::clipboard::HOST_RESERVATION),
+                    .saturating_mul(self.gui_host_reservation()),
             );
         }
         for (id, frame) in &self.gui_window_frames {

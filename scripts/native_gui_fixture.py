@@ -164,14 +164,19 @@ def click(title, px=20, py=20, timeout=10, _key=None, _modifiers=('Ctrl',),_focu
                     if _key:
                         event.button.type = 2
                         event.button.state = sum(mask for name,mask in [('Ctrl',4),('Alt',8),('Shift',1)] if name in _modifiers)
-                        symbol={"Enter":0xff0d,"Escape":0xff1b}.get(_key)
+                        symbol={"Enter":0xff0d,"Escape":0xff1b,"Space":0x20,"Tab":0xff09}.get(_key)
                         if symbol is None:symbol=ord(_key.lower()) if len(_key)==1 else 0xffbe+int(_key[1:])-1
                         event.button.button = x.XKeysymToKeycode(display, symbol)
                     if _physical:
                         xt=C.CDLL(ctypes.util.find_library("Xtst"))
                         xt.XTestFakeKeyEvent.argtypes=[C.c_void_p,C.c_uint,C.c_int,C.c_ulong];xt.XTestFakeKeyEvent.restype=C.c_int
-                        assert xt.XTestFakeKeyEvent(display,event.button.button,1,0)
-                        assert xt.XTestFakeKeyEvent(display,event.button.button,0,0)
+                        modifiers=[x.XKeysymToKeycode(display,symbol) for name,symbol in [('Ctrl',0xffe3),('Alt',0xffe9),('Shift',0xffe1)] if name in _modifiers]
+                        for keycode in modifiers:assert xt.XTestFakeKeyEvent(display,keycode,1,0)
+                        try:
+                            assert xt.XTestFakeKeyEvent(display,event.button.button,1,0)
+                            assert xt.XTestFakeKeyEvent(display,event.button.button,0,0)
+                        finally:
+                            for keycode in reversed(modifiers):assert xt.XTestFakeKeyEvent(display,keycode,0,0)
                     else:
                         assert x.XSendEvent(display,window,0,1 if _key else 1<<2,C.byref(event))
                     x.XFlush(display)

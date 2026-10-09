@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.30 / `language = "1.9.30"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.61 / `language = "1.9.61"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -213,3 +213,5 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 `std.guiMenu` は無効化・チェック状態・キーボード移動・スクロールを持つ上限付きメニューです。`gui.bounds` / `graphemeMode` / `overlay` で既存の画面へ重ねます。ネイティブ入力・巻き戻し・再生の利用例は `examples/gui-menu` にあります。
 
 `std.guiDialog.openFile` / `saveFile` は、明示的な external 領域で作成するネイティブファイル選択 Task です。ユーザーによるキャンセル、VM の巻き戻しと OS の画面の寿命を分け、選択だけではファイルを作成・変更しません。Linux はシステムの GTK 3、Windows は標準ダイアログを使います。`examples/gui-dialog` に利用例があります。
+
+選択言語1.9.61では、GUIの公開した入力欄でネイティブIMEの変換途中を表示します。確定した文字だけが入力記録に入り、変換中のOS状態はcheckpointに含まれません。[IMEサンプル](../examples/gui-ime/README.md)と[v1.9.61仕様](../docs/REWIND_v1.9.61.md)を参照してください。
