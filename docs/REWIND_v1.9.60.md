@@ -81,3 +81,7 @@ Windows supplies the initial parent directory separately from the Unicode
 filename. Native diagnostics exposed the chooser reusing its Documents directory
 instead of the requested fixture directory. Test drivers select the actual Button
 class, avoiding the shell FolderView control that also uses ID 1.
+
+The chooser returns the OS-normalized path, which may expand a Windows short
+folder alias. Acceptance checks the selected file's canonical parent and filename;
+replay preserves the exact returned spelling rather than echoing the initial hint.
