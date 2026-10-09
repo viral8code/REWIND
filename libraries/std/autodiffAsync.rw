@@ -1,4 +1,5 @@
 effects {tasks};
+import taskError as failures;
 import autodiff as ad;
 import numeric as numeric;
 import numericAsync as vector;
@@ -7,7 +8,7 @@ import numericShapeAsync as shape;
 import task as task;
 
 fn takeTask<T>(result:Result<Result<T,StdError>,TaskError>)->Result<T,StdError> effects {} {
- match move result{Ok(value)=>{return move value;},Err(_)=>{return Err(StdError("AutodiffTask",0));}}
+ match move result{Ok(value)=>{return move value;},Err(e)=>{return Err(failures.asStd(move e));}}
 }
 async fn accumulate(previous:Option<FloatArray>,incoming:FloatArray)->Result<FloatArray,StdError> effects {tasks} {
  match previous{None=>{return Ok(incoming);},Some(value)=>{return takeTask(await spawn vector.zipFloat("add",value,incoming));}}
@@ -17,7 +18,7 @@ fn count(array:&FloatArray)->Result<Float,StdError> effects {} {
  let dimensions=numeric.shapeFloat(array)?;var size=1;for i in 0..dimensions.len(){size*=dimensions.get(i);}match size.toFloatChecked(){Ok(n)=>{return Ok(n);},Err(_)=>{return Err(StdError("NumericSize",0));}}
 }
 // @api backward cost Owned tape with shared native pages; metadata in batches of 64 nodes, traversal yields between nodes, tensor derivatives use bounded cooperative kernels. No host worker or external observation.
-// @api backward failure Same node/loss/numeric validation as synchronous autodiff.backward; task errors are AutodiffTask, cancellation exposes no partial gradients. Fatal budgets apply. Consumes tape; checkpoint roots retain their own snapshots.
+// @api backward failure Same node/loss/numeric validation as synchronous autodiff.backward; child task errors preserve diagnostic/budget codes and failed diagnostic line, cancellation exposes no partial gradients. Fatal budgets apply. Consumes tape; checkpoint roots retain their own snapshots.
 pub async fn backward(tape:ad.Tape,loss:ad.Node)->Result<ad.Gradients,StdError> effects {tasks} {
  var work=ad.backwardWork(move tape,loss)?;
  while !ad.prepareBackward(&mut work)?{task.yieldNow();}

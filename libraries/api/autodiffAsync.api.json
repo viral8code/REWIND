@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.58",
+  "language": "1.9.65",
   "symbols": {
     "dependency:autodiff.rw": {
       "fn:$import$autodiff$backward": {
@@ -91,6 +91,39 @@
           "$import$autodiff$BackwardWork"
         ],
         "return": "Result<$import$autodiff$Gradients,StdError>"
+      },
+      "fn:$import$autodiff$finishForward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$autodiff$ForwardWork",
+          "FloatArray"
+        ],
+        "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
+      },
+      "fn:$import$autodiff$forwardInputs": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$ForwardWork"
+        ],
+        "return": "$import$autodiff$ForwardInputs"
+      },
+      "fn:$import$autodiff$forwardWork": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$autodiff$Tape",
+          "String",
+          "Option<$import$autodiff$Node>",
+          "Option<$import$autodiff$Node>",
+          "String",
+          "Option<FloatArray>"
+        ],
+        "return": "Result<$import$autodiff$ForwardWork,StdError>"
       },
       "fn:$import$autodiff$gradient": {
         "async": false,
@@ -259,6 +292,31 @@
         "immutable": true
       },
       "type:$import$autodiff$BackwardWork": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$autodiff$ForwardInputs": {
+        "bounds": {},
+        "fields": [
+          [
+            "kind",
+            "String"
+          ],
+          [
+            "left",
+            "FloatArray"
+          ],
+          [
+            "right",
+            "FloatArray"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$autodiff$ForwardWork": {
         "bounds": {},
         "fields": [],
         "generics": [],
@@ -1005,13 +1063,56 @@
         "return": "Unit"
       }
     },
+    "dependency:taskError.rw": {
+      "fn:$import$taskError$asStd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "TaskError"
+        ],
+        "return": "StdError"
+      },
+      "fn:$import$taskError$describe": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "TaskError"
+        ],
+        "return": "$import$taskError$Failure"
+      },
+      "type:$import$taskError$Failure": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "diagnostic",
+            "Option<Diagnostic>"
+          ],
+          [
+            "budget",
+            "Option<BudgetKind>"
+          ],
+          [
+            "waitGraph",
+            "Option<WaitGraph>"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      }
+    },
     "fn:backward": {
       "async": true,
       "cost": "Owned tape with shared native pages; metadata in batches of 64 nodes, traversal yields between nodes, tensor derivatives use bounded cooperative kernels. No host worker or external observation.",
       "effects": [
         "tasks"
       ],
-      "failure": "Same node/loss/numeric validation as synchronous autodiff.backward; task errors are AutodiffTask, cancellation exposes no partial gradients. Fatal budgets apply. Consumes tape; checkpoint roots retain their own snapshots.",
+      "failure": "Same node/loss/numeric validation as synchronous autodiff.backward; child task errors preserve diagnostic/budget codes and failed diagnostic line, cancellation exposes no partial gradients. Fatal budgets apply. Consumes tape; checkpoint roots retain their own snapshots.",
       "generics": [],
       "parameters": [
         "$import$autodiff$Tape",
@@ -1674,6 +1775,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

@@ -3,123 +3,27 @@
   "kind": "rewind-api",
   "language": "1.9.65",
   "symbols": {
-    "dependency:task.rw": {
-      "fn:$import$task$selectReady": {
-        "async": false,
-        "effects": [
-          "tasks"
-        ],
-        "generics": [
-          [
-            "A",
-            null
-          ],
-          [
-            "B",
-            null
-          ]
-        ],
-        "parameters": [
-          "Task<A>",
-          "Task<B>"
-        ],
-        "return": "Task<Int>"
-      },
-      "fn:$import$task$yieldNow": {
-        "async": false,
-        "effects": [
-          "tasks"
-        ],
-        "generics": [],
-        "parameters": [],
-        "return": "Unit"
-      }
-    },
-    "dependency:taskError.rw": {
-      "fn:$import$taskError$asStd": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "TaskError"
-        ],
-        "return": "StdError"
-      },
-      "fn:$import$taskError$describe": {
-        "async": false,
-        "effects": [],
-        "generics": [],
-        "parameters": [
-          "TaskError"
-        ],
-        "return": "$import$taskError$Failure"
-      },
-      "type:$import$taskError$Failure": {
-        "bounds": {},
-        "fields": [
-          [
-            "code",
-            "String"
-          ],
-          [
-            "diagnostic",
-            "Option<Diagnostic>"
-          ],
-          [
-            "budget",
-            "Option<BudgetKind>"
-          ],
-          [
-            "waitGraph",
-            "Option<WaitGraph>"
-          ]
-        ],
-        "generics": [],
-        "immutable": false
-      }
-    },
-    "fn:checkFinite": {
-      "async": true,
-      "cost": "at most 4096 logical cells per native call, no prefix scan or copied pages; yields between chunks.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericType/NonFinite; cancellation exposes no partial validation result, fatal work/memory limits apply.",
+    "fn:asStd": {
+      "async": false,
+      "cost": "O(1) projection; returns the original diagnostic code and line or a classified task/budget code.",
+      "effects": [],
+      "failure": "Does not retain the full diagnostic tree; use describe before projecting when messages, source, causes or typed budget details are required. No partial calculation result is returned.",
       "generics": [],
       "parameters": [
-        "FloatArray"
+        "TaskError"
       ],
-      "return": "Result<Unit,StdError>"
+      "return": "StdError"
     },
-    "fn:key": {
-      "async": true,
-      "cost": "O(backing storage cells + rank + tag bytes), bounded prepare chunks followed by O(rank + tag bytes) key finalization; identity matches synchronous stdNumericTensorKey, including entire backing storage of a view.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericDomain for tag >256 bytes, negative index or parent keys other than 0/32 bytes; child diagnostic/budget codes are preserved, cancellation and fatal limits apply.",
+    "fn:describe": {
+      "async": false,
+      "cost": "O(1) envelope creation; diagnostic causes and wait-graph storage remain shared with the original task error.",
+      "effects": [],
+      "failure": "Pure conversion, no external effects, retries or recovery of a cancelled task; preserves Failed diagnostics and typed budget/deadlock details.",
       "generics": [],
       "parameters": [
-        "FloatArray",
-        "String",
-        "Int",
-        "Bytes",
-        "Bytes"
+        "TaskError"
       ],
-      "return": "Result<Bytes,StdError>"
-    },
-    "fn:prepare": {
-      "async": true,
-      "cost": "bounded postorder chunks of at most 4096 scalar/node units with O(log(storage pages)) traversal state and shared input pages; cache-independent handoff points.",
-      "effects": [
-        "tasks"
-      ],
-      "failure": "NumericType; owned opaque work survives checkpoints, cancellation releases the unretained work. No external observations or host worker.",
-      "generics": [],
-      "parameters": [
-        "FloatArray"
-      ],
-      "return": "Result<TensorIdentityWork,StdError>"
+      "return": "Failure"
     },
     "type:BigInt": {
       "constructor": false,
@@ -312,6 +216,29 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:Failure": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "diagnostic",
+          "Option<Diagnostic>"
+        ],
+        [
+          "budget",
+          "Option<BudgetKind>"
+        ],
+        [
+          "waitGraph",
+          "Option<WaitGraph>"
+        ]
+      ],
+      "generics": [],
+      "kind": "struct"
     },
     "type:FftWork": {
       "constructor": false,

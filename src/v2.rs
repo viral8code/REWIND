@@ -115,6 +115,7 @@ fn program_v09(p: &Program) -> bool {
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     )
 }
@@ -218,6 +219,7 @@ fn program_v07(p: &Program) -> bool {
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     )
 }
@@ -3531,6 +3533,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         )
     });
@@ -3641,6 +3644,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             v05::validate(&program, config)?;
@@ -3750,6 +3754,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             v05::artifact(
@@ -3909,6 +3914,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         )
     });
@@ -4019,6 +4025,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             v05::validate(&program, config)?;
@@ -4385,6 +4392,7 @@ pub fn lock_project(root: &Path) -> Result<()> {
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) {
         return Err(Error::InvalidOperation(
@@ -4632,6 +4640,7 @@ fn check_program(program: &Program) -> Result<()> {
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) {
         let entries = program.impls.iter().collect::<Vec<_>>();
@@ -4899,6 +4908,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
@@ -5041,6 +5051,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             v06::cache::put(root, "checked", &key, &true);
@@ -5164,6 +5175,7 @@ impl Checker<'_> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) && def.origin != self.origin
             && def.private_fields.contains(field)
@@ -5268,6 +5280,7 @@ impl Checker<'_> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) && def.origin != self.origin
             && !def.private_fields.is_empty()
@@ -5383,6 +5396,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) && exposed.iter().any(|local| {
                         resolve_alias(self.program, local).split('<').next()
@@ -5650,6 +5664,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) {
                         return Err(diagnostic(at, "tuple pattern requires language 0.6"));
@@ -5946,6 +5961,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) {
                         v06::borrowed_type(&binding.0).into()
@@ -6063,6 +6079,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) {
                         let ty = v06::fn_type(
@@ -6194,6 +6211,7 @@ impl Checker<'_> {
                                 | "1.9.62"
                                 | "1.9.63"
                                 | "1.9.64"
+                                | "1.9.65"
                                 | "2.0.0"
                         ) {
                             v11::unknown_name(
@@ -6309,6 +6327,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
@@ -6443,6 +6462,7 @@ impl Checker<'_> {
                                     | "1.9.62"
                                     | "1.9.63"
                                     | "1.9.64"
+                                    | "1.9.65"
                                     | "2.0.0"
                             ) {
                                 "TaskError"
@@ -6552,6 +6572,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) && op != "move"
                     {
@@ -6669,6 +6690,7 @@ impl Checker<'_> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) && (self.expr(a)?.starts_with("Secret<")
                     || self.expr(b)?.starts_with("Secret<"))
@@ -6847,6 +6869,7 @@ impl Checker<'_> {
                                     | "1.9.62"
                                     | "1.9.63"
                                     | "1.9.64"
+                                    | "1.9.65"
                                     | "2.0.0"
                             ) {
                                 return Ok(v06::fn_type(
@@ -6990,6 +7013,7 @@ impl Checker<'_> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) && t.starts_with("Secret<")
                 {
@@ -7102,6 +7126,7 @@ impl Checker<'_> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
@@ -7216,6 +7241,7 @@ impl Checker<'_> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) && t.starts_with("Frozen<")
                 {
@@ -7367,6 +7393,7 @@ impl Checker<'_> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
@@ -7519,6 +7546,7 @@ impl Checker<'_> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
@@ -7656,6 +7684,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) {
                         return Err(diagnostic(&e.at, "tuple values require language 0.6"));
@@ -7768,6 +7797,7 @@ impl Checker<'_> {
                                 | "1.9.62"
                                 | "1.9.63"
                                 | "1.9.64"
+                                | "1.9.65"
                                 | "2.0.0"
                         ) {
                             if let Some(result) =
@@ -7876,6 +7906,7 @@ impl Checker<'_> {
                                 | "1.9.62"
                                 | "1.9.63"
                                 | "1.9.64"
+                                | "1.9.65"
                                 | "2.0.0"
                         ) {
                             if method == "iter" && types.is_empty() {
@@ -8015,6 +8046,7 @@ impl Checker<'_> {
                                     | "1.9.62"
                                     | "1.9.63"
                                     | "1.9.64"
+                                    | "1.9.65"
                                     | "2.0.0"
                             ) {
                                 if method == "timeout" && types == ["Int"] {
@@ -8133,6 +8165,7 @@ impl Checker<'_> {
                                     | "1.9.62"
                                     | "1.9.63"
                                     | "1.9.64"
+                                    | "1.9.65"
                                     | "2.0.0"
                             ) && types.is_empty()
                             {
@@ -8310,6 +8343,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     )
                 {
@@ -8436,6 +8470,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) && matches!(name.as_str(), "secret" | "reveal")
                     {
@@ -8552,6 +8587,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) && matches!(name.as_str(), "freeze" | "thaw")
                     {
@@ -8826,6 +8862,7 @@ impl Checker<'_> {
                                     | "1.9.62"
                                     | "1.9.63"
                                     | "1.9.64"
+                                    | "1.9.65"
                                     | "2.0.0"
                             ) && matches!(
                                 name.as_str(),
@@ -9043,6 +9080,7 @@ impl Checker<'_> {
                                         | "1.9.62"
                                         | "1.9.63"
                                         | "1.9.64"
+                                        | "1.9.65"
                                         | "2.0.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
@@ -9145,6 +9183,7 @@ impl Checker<'_> {
                                         | "1.9.62"
                                         | "1.9.63"
                                         | "1.9.64"
+                                        | "1.9.65"
                                         | "2.0.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
@@ -9328,6 +9367,7 @@ impl Checker<'_> {
                                     | "1.9.62"
                                     | "1.9.63"
                                     | "1.9.64"
+                                    | "1.9.65"
                                     | "2.0.0"
                             ) && base_type == "List"
                                 && method == "pop"
@@ -9490,6 +9530,7 @@ impl Checker<'_> {
                                             | "1.9.62"
                                             | "1.9.63"
                                             | "1.9.64"
+                                            | "1.9.65"
                                             | "2.0.0"
                                     ) =>
                                 {
@@ -9669,6 +9710,7 @@ impl Checker<'_> {
                                         | "1.9.62"
                                         | "1.9.63"
                                         | "1.9.64"
+                                        | "1.9.65"
                                         | "2.0.0"
                                 ) =>
                             {
@@ -9905,6 +9947,7 @@ impl Checker<'_> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
@@ -10115,6 +10158,7 @@ impl Checker<'_> {
                             | "1.9.62"
                             | "1.9.63"
                             | "1.9.64"
+                            | "1.9.65"
                             | "2.0.0"
                     ) && self.expr(base)?.starts_with("Tuple<")
                     {
@@ -10598,6 +10642,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             runtime.enable_incremental_publish();
@@ -11384,6 +11429,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) && !self
             .program
@@ -11493,6 +11539,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             if self.program.language == "0.9.9" {
@@ -11599,6 +11646,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             if let Some(value) = v091::call(&self.runtime, name, &args).map_err(Flow::Error)? {
@@ -11705,6 +11753,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.9.62"
                     | "1.9.63"
                     | "1.9.64"
+                    | "1.9.65"
                     | "2.0.0"
             )
         {
@@ -11822,6 +11871,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) && matches!(name, "secret" | "reveal")
         {
@@ -11927,6 +11977,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.9.62"
                     | "1.9.63"
                     | "1.9.64"
+                    | "1.9.65"
                     | "2.0.0"
             ) {
                 self.runtime.register_secret_value(&args[0]);
@@ -12043,6 +12094,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) && matches!(name, "freeze" | "thaw")
         {
@@ -12053,7 +12105,7 @@ impl<R: BufRead> Engine<R> {
                 if !self.runtime.live_native_ids(&args).is_empty() {
                     return Err(self.fail(at, "native resources cannot be frozen"));
                 }
-                let value = self.ordered_key(&args[0], at)?;
+                let value = self.collection_snapshot(&args[0], at)?;
                 return Ok(v05::frozen(value, &self.runtime));
             }
             // Frozen generic reads preserve scalar values without a wrapper.
@@ -12152,6 +12204,7 @@ impl<R: BufRead> Engine<R> {
                     | "1.9.62"
                     | "1.9.63"
                     | "1.9.64"
+                    | "1.9.65"
                     | "2.0.0"
             ) && matches!(
                 &args[0],
@@ -12378,6 +12431,183 @@ impl<R: BufRead> Engine<R> {
         Ok(value)
     }
     fn ordered_key(&self, value: &Value, at: &Tok) -> Exec<Value> {
+        self.snapshot_copy(value, at, 10_000, false)
+    }
+    // Validate and admit the complete snapshot before allocating its contents.
+    // Historical frames retain the Map-key limit; ordinary snapshots use VM budgets.
+    fn collection_snapshot(&mut self, value: &Value, at: &Tok) -> Exec<Value> {
+        if !matches!(self.program.language.as_str(), "1.9.65" | "2.0.0") {
+            return self.ordered_key(value, at);
+        }
+        fn plan<R: BufRead>(
+            engine: &Engine<R>,
+            value: &Value,
+            at: &Tok,
+            path: &mut BTreeSet<u64>,
+            depth: usize,
+            remaining: &mut usize,
+            bytes: &mut usize,
+            copy: bool,
+        ) -> Exec<()> {
+            if depth > 64 {
+                return Err(engine.fail(at, "snapshot nesting exceeds 64"));
+            }
+            if *remaining == 0 {
+                return Err(engine.fail(at, "NativeWorkBudgetExceeded: collection snapshot"));
+            }
+            *remaining -= 1;
+            let shared = matches!(
+                value,
+                Value::TypedList(_, _) | Value::Map(_) | Value::TypedMap(_, _, _)
+            ) && !Runtime::contains_heap_refs(value);
+            let owned = copy && !shared;
+            let slot = std::mem::size_of::<Value>();
+            if copy {
+                let allocation = match value {
+                    Value::HeapRef(_) | Value::CellRef(_) => 0,
+                    Value::TypedList(t, v) => t.len().saturating_add(if shared {
+                        128
+                    } else {
+                        v.len().saturating_mul(slot.saturating_mul(2))
+                    }),
+                    Value::Map(v) => {
+                        if shared {
+                            128
+                        } else {
+                            v.len().saturating_mul(slot.saturating_add(1024))
+                        }
+                    }
+                    Value::TypedMap(k, t, v) => {
+                        k.len().saturating_add(t.len()).saturating_add(if shared {
+                            128
+                        } else {
+                            v.len().saturating_mul(slot.saturating_add(1024))
+                        })
+                    }
+                    Value::List(v) => v.len().saturating_mul(slot),
+                    Value::OrderedMap(k, t, v) => k
+                        .len()
+                        .saturating_add(t.len())
+                        .saturating_add(v.len().saturating_mul(slot.saturating_mul(2))),
+                    Value::Struct(t, fields) => {
+                        t.len().saturating_add(fields.keys().fold(0usize, |n, k| {
+                            n.saturating_add(slot + 128).saturating_add(k.len())
+                        }))
+                    }
+                    Value::Enum(t, variant, fields) => t
+                        .len()
+                        .saturating_add(variant.len())
+                        .saturating_add(fields.iter().fold(0usize, |n, (k, _)| {
+                            n.saturating_add(slot + 32).saturating_add(k.len())
+                        })),
+                    Value::Option(_) | Value::Result(_) => slot,
+                    // These payloads are reference counted; cloning only retains them.
+                    Value::Text(_) | Value::Bytes(_) | Value::NumericArray(_) => 256,
+                    other => Runtime::allocation_bytes(other),
+                };
+                *bytes = bytes.saturating_add(allocation);
+            }
+            match value {
+                Value::HeapRef(id) | Value::CellRef(id) => {
+                    if !path.insert(*id) {
+                        return Err(engine.fail(at, "cyclic collection snapshot"));
+                    }
+                    let v = engine
+                        .runtime
+                        .heap_get(*id)
+                        .ok_or_else(|| engine.fail(at, "missing snapshot object"))?;
+                    plan(engine, v, at, path, depth + 1, remaining, bytes, copy)?;
+                    path.remove(id);
+                }
+                Value::Handle(_) | Value::Closure(_, _, _) | Value::Function(_, _) => {
+                    return Err(engine.fail(at, "snapshots cannot capture resources or functions"));
+                }
+                other => {
+                    let mut child =
+                        |v: &Value| plan(engine, v, at, path, depth + 1, remaining, bytes, owned);
+                    match other {
+                        Value::List(v) => {
+                            for v in v {
+                                child(v)?;
+                            }
+                        }
+                        Value::TypedList(_, v) => {
+                            for v in v.iter() {
+                                child(v)?;
+                            }
+                        }
+                        Value::Map(v) | Value::TypedMap(_, _, v) => {
+                            let mut key_bytes = 0usize;
+                            for (k, v) in v.iter() {
+                                child(v)?;
+                                if owned {
+                                    let bytes = match k {
+                                        MapKey::Text(v) => v.len(),
+                                        MapKey::Bytes(v) => v.len(),
+                                        MapKey::BigInt(v) => v.retained_bytes(),
+                                        MapKey::Decimal(v) => v.retained_bytes(),
+                                        MapKey::Regex(v) => v.retained_bytes(),
+                                        _ => 16,
+                                    };
+                                    key_bytes = key_bytes.saturating_add(bytes);
+                                }
+                            }
+                            *bytes = bytes.saturating_add(key_bytes);
+                        }
+                        Value::OrderedMap(_, _, v) => {
+                            for (k, v) in v {
+                                child(k)?;
+                                child(v)?;
+                            }
+                        }
+                        Value::Struct(_, v) => {
+                            for v in v.values() {
+                                child(v)?;
+                            }
+                        }
+                        Value::Enum(_, _, v) => {
+                            for (_, v) in v {
+                                child(v)?;
+                            }
+                        }
+                        Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                            child(v)?
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Ok(())
+        }
+        // Charge both validation and copying. The depth-limited path set fits in
+        // this scratch allowance, including its allocator metadata.
+        self.runtime
+            .check_native_allocation(16_384)
+            .map_err(Flow::Error)?;
+        let limit = self.runtime.native_work_remaining().unwrap_or(usize::MAX) / 2;
+        let mut remaining = limit;
+        let mut bytes = 16_384usize;
+        let planned = plan(
+            self,
+            value,
+            at,
+            &mut BTreeSet::new(),
+            0,
+            &mut remaining,
+            &mut bytes,
+            true,
+        );
+        let visited = limit - remaining;
+        self.runtime
+            .charge_native_work(visited.saturating_mul(2))
+            .map_err(Flow::Error)?;
+        planned?;
+        self.runtime
+            .check_native_allocation(bytes)
+            .map_err(Flow::Error)?;
+        self.snapshot_copy(value, at, visited, true)
+    }
+    fn snapshot_copy(&self, value: &Value, at: &Tok, mut limit: usize, share: bool) -> Exec<Value> {
         fn freeze<R: BufRead>(
             engine: &Engine<R>,
             value: &Value,
@@ -12385,12 +12615,22 @@ impl<R: BufRead> Engine<R> {
             path: &mut BTreeSet<u64>,
             depth: usize,
             remaining: &mut usize,
+            share: bool,
         ) -> Exec<Value> {
             if depth > 64 || *remaining == 0 {
                 return Err(engine.fail(at, "Map key snapshot budget exceeded"));
             }
             *remaining -= 1;
-            let mut child = |v: &Value| freeze(engine, v, at, path, depth + 1, remaining);
+            if share
+                && matches!(
+                    value,
+                    Value::TypedList(_, _) | Value::Map(_) | Value::TypedMap(_, _, _)
+                )
+                && !Runtime::contains_heap_refs(value)
+            {
+                return Ok(value.clone());
+            }
+            let mut child = |v: &Value| freeze(engine, v, at, path, depth + 1, remaining, share);
             Ok(match value {
                 Value::HeapRef(id) | Value::CellRef(id) => {
                     if !path.insert(*id) {
@@ -12400,7 +12640,7 @@ impl<R: BufRead> Engine<R> {
                         .runtime
                         .heap_get(*id)
                         .ok_or_else(|| engine.fail(at, "missing Map key object"))?;
-                    let frozen = freeze(engine, value, at, path, depth + 1, remaining)?;
+                    let frozen = freeze(engine, value, at, path, depth + 1, remaining, share)?;
                     path.remove(id);
                     frozen
                 }
@@ -12459,7 +12699,7 @@ impl<R: BufRead> Engine<R> {
                 other => other.clone(),
             })
         }
-        freeze(self, value, at, &mut BTreeSet::new(), 0, &mut 10_000)
+        freeze(self, value, at, &mut BTreeSet::new(), 0, &mut limit, share)
     }
     fn ordered_position(
         &mut self,
@@ -12584,6 +12824,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             self.runtime
@@ -12698,6 +12939,7 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             if let Some(inner) = v05::unsecret(&target) {
@@ -12819,13 +13061,19 @@ impl<R: BufRead> Engine<R> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) && args.is_empty()
         {
             if method == "iter" {
-                let value = self.ordered_key(&target, at)?;
+                let value = self.collection_snapshot(&target, at)?;
                 if let Some(iterator) =
-                    v05::new_iterator(&mut self.runtime, &value).map_err(Flow::Error)?
+                    if matches!(self.program.language.as_str(), "1.9.65" | "2.0.0") {
+                        v05::new_budgeted_iterator(&mut self.runtime, &value)
+                    } else {
+                        v05::new_iterator(&mut self.runtime, &value)
+                    }
+                    .map_err(Flow::Error)?
                 {
                     return Ok(iterator);
                 }
@@ -12934,6 +13182,7 @@ impl<R: BufRead> Engine<R> {
                                 | "1.9.62"
                                 | "1.9.63"
                                 | "1.9.64"
+                                | "1.9.65"
                                 | "2.0.0"
                         ) {
                             v06::immutable_tuple(value, &self.runtime)
@@ -13227,6 +13476,7 @@ impl<R: BufRead> Engine<R> {
                                         | "1.9.62"
                                         | "1.9.63"
                                         | "1.9.64"
+                                        | "1.9.65"
                                         | "2.0.0"
                                 ) =>
                             {
@@ -13495,6 +13745,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) =>
             {
@@ -13604,6 +13855,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) =>
             {
@@ -13706,6 +13958,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) =>
             {
@@ -13814,6 +14067,7 @@ impl<R: BufRead> Engine<R> {
                         | "1.9.62"
                         | "1.9.63"
                         | "1.9.64"
+                        | "1.9.65"
                         | "2.0.0"
                 ) =>
             {
@@ -14260,6 +14514,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) && matches!(bound, "Send" | "Share")
     {
@@ -14382,6 +14637,7 @@ fn impl_matches(
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) {
         return false;
@@ -14672,6 +14928,7 @@ fn trait_method_return(
                     | "1.9.62"
                     | "1.9.63"
                     | "1.9.64"
+                    | "1.9.65"
                     | "2.0.0"
             ) {
                 !compatible(t, ty)
@@ -15228,6 +15485,7 @@ pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         )
     }) {

@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""Require a real Japanese conversion service on an ephemeral Windows test VM."""
+import os
+import subprocess
+import sys
+
+if sys.platform != 'win32':raise SystemExit('Real Windows IME acceptance requires Windows')
+args=sys.argv[1:]
+if args and args[0]=='--':args=args[1:]
+if not args:raise SystemExit('usage: windows-ime-fixture.py -- COMMAND [ARG ...]')
+# This installer belongs to CI acceptance, never to the distributed VM or user startup.
+# Enable Japanese as a second profile; preserve the existing primary language.
+prepare=r"""
+$ErrorActionPreference='Stop'
+$capability=Get-WindowsCapability -Online -Name 'Language.Basic~~~ja-JP~0.0.1.0'
+if ($capability.State -ne 'Installed') {
+ $installed=Add-WindowsCapability -Online -Name 'Language.Basic~~~ja-JP~0.0.1.0'
+ if ($installed.RestartNeeded) { throw 'Japanese IME installation requires a reboot; this runner cannot complete real-engine acceptance' }
+}
+$profiles=Get-WinUserLanguageList
+if (-not ($profiles.LanguageTag -contains 'ja-JP')) {
+ $profiles.Add('ja-JP')
+ Set-WinUserLanguageList $profiles -Force
+}
+@{capability=(Get-WindowsCapability -Online -Name 'Language.Basic~~~ja-JP~0.0.1.0').State.ToString();language='ja-JP'} | ConvertTo-Json -Compress
+"""
+result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',prepare],capture_output=True,text=True,timeout=900)
+if result.returncode:raise RuntimeError('Real Windows IME preparation failed: '+result.stderr[-4000:])
+print(result.stdout.strip(),flush=True)
+env=dict(os.environ,REWIND_TEST_WINDOWS_IME_SERVICE='1')
+raise SystemExit(subprocess.call(args,env=env))

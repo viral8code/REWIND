@@ -251,8 +251,13 @@ impl crate::Runtime {
             .map_or(0, |host| host.clients.reserved_bytes())
     }
     pub fn collect_native_resources(&mut self, roots: &[crate::Value]) -> crate::Result<()> {
+        if !self.has_native_resources() {
+            return Ok(());
+        }
+        // All hosts share the same VM lease roots. Traverse them once even
+        // when GUI applications own a server, sockets and database handles.
+        let live = self.live_native_ids(roots);
         if let Some(host) = &self.http_server_host {
-            let live = self.live_native_ids(roots);
             let abandoned = host
                 .resource_ids()
                 .filter(|id| !live.contains(&(**id as u64)) && !host.owns_pending_server(**id))
@@ -264,7 +269,6 @@ impl crate::Runtime {
             }
         }
         if let Some(host) = &self.tcp_host {
-            let live = self.live_native_ids(roots);
             let abandoned = host
                 .resource_ids()
                 .filter(|id| !live.contains(&(**id as u64)) && !host.owns_pending_socket(**id))
@@ -276,7 +280,6 @@ impl crate::Runtime {
             }
         }
         if let Some(host) = &self.database_host {
-            let live = self.live_native_ids(roots);
             let abandoned = host
                 .resource_ids()
                 .filter(|id| !live.contains(&(**id as u64)))
@@ -294,7 +297,6 @@ impl crate::Runtime {
         {
             return Ok(());
         }
-        let live = self.live_native_ids(roots);
         let abandoned = self
             .network_host
             .as_ref()

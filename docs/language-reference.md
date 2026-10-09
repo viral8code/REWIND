@@ -206,6 +206,14 @@ assert_eq(copy.len(),2);
 
 借用中に元のownerを競合する形で変更・moveできません。借用引数を返り値等へ逃がすことにも制限があります。`freeze`は不変snapshot、`thaw`はそこから独立した可変値を作ります。リソース・関数値等は任意にfreezeできません。
 
+v1.9.65以降の`freeze`と`iter()`は、Mapキー用の1万ノード制限ではなく、
+native work・history memoryの予算を使います。検証とコピーの処理量を課金し、
+結果の確保前に一時領域も照合します。深さ64、循環、関数・資源の捕捉は制限されます。
+不変のList / Mapページは共有でき、元データの変更はCOWで分離します。
+Listのiteratorはスナップショットを保持し、元の変更に追従しません。
+Mapキー・文字列・Bytesの列挙は列挙値を作るため追加の処理量と領域を要します。
+以前のlanguageで作られたartifactと複合Mapキーの上限は変えません。
+
 ## OptionとResult
 
 `Option<T>`は`Some(value)`または`None`、`Result<T,E>`は`Ok(value)`または`Err(error)`です。通常の失敗はResultとして返し、matchで処理します。`?`はResultを返す関数内で同じ失敗型のErrを早期returnします。
@@ -663,3 +671,16 @@ List を所有する task として数値配列を作る。`await spawn` に渡�
 既存の同期 `std.numeric.fromFloat` / `fromInt` も引き続き利用できる。
 作業を保持する checkpoint のメモリと、task の命令予算・native work・
 history memory の上限はそれぞれ適用される。
+
+### 子taskの診断情報（1.9.65）
+
+`std.taskError.describe(TaskError)` は、診断と原因・型付きbudget・wait graphを
+所有する可変の `Failure` envelopeへ変換する。診断を持つ `Failed` は元のcodeを
+保ち、取消は `TaskCancelled`、timeoutは `TaskTimedOut`、native work超過は
+`NativeWorkBudgetExceeded` で区別する。`Failure.diagnostic` / `budget` /
+`waitGraph` は必要な種類だけ `Some` になる。新しい権限や自動retryは発生しない。
+
+`asStd` はcodeと失敗診断の行番号を `StdError` へ投影する。元の全文と原因ツリーは
+この投影に含まれないため、必要なら先に `describe` を使う。自動微分・数値identityの
+協調ラッパーは子taskのbudgetを汎用名で隠さず、このcodeを返す。関数の返却型は
+同じだが、旧 `AutodiffTask` / `NumericTask` だけを期待する処理は更新する。

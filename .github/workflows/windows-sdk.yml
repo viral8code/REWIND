@@ -7,7 +7,7 @@ permissions:
 jobs:
   sdk:
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -20,6 +20,9 @@ jobs:
       - name: Disposable PostgreSQL SCRAM and TLS server
         run: python scripts/postgres-fixture.py start --root "${{ runner.temp }}/rewind-pg-fixture" --github-env "${{ github.env }}"
       - run: cargo test --locked
+      - name: Real Windows Japanese IME conversion service
+        if: runner.os == 'Windows'
+        run: python scripts/windows-ime-fixture.py -- cargo test --locked --lib gui::windows::ime_tests::real_japanese_ime_service_preedit_convert_commit_focus_and_close -- --exact --nocapture --test-threads=1
       - run: cargo build --release --locked
       - run: target/release/rewind.exe test --root libraries/std
       - name: Verify extracted Windows SDK

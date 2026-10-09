@@ -1,0 +1,25 @@
+// Preserve task failure information before projecting into a simpler numeric error.
+pub struct Failure{code:String,diagnostic:Option<Diagnostic>,budget:Option<BudgetKind>,waitGraph:Option<WaitGraph>}
+// @api describe cost O(1) envelope creation; diagnostic causes and wait-graph storage remain shared with the original task error.
+// @api describe failure Pure conversion, no external effects, retries or recovery of a cancelled task; preserves Failed diagnostics and typed budget/deadlock details.
+pub fn describe(error:TaskError)->Failure effects {} {
+ match move error{
+  TaskError::Failed(d)=>{let code=d.code;return Failure(code,Some(move d),None,None);},
+  TaskError::Cancelled=>{return Failure("TaskCancelled",None,None,None);},
+  TaskError::TimedOut=>{return Failure("TaskTimedOut",None,None,None);},
+  TaskError::ChannelClosed=>{return Failure("ChannelClosed",None,None,None);},
+  TaskError::Deadlock(w)=>{return Failure("Deadlock",None,None,Some(move w));},
+  TaskError::BudgetExceeded(b)=>{
+   var code="TaskBudgetExceeded";
+   match b{BudgetKind::NativeWork=>{code="NativeWorkBudgetExceeded";},BudgetKind::ExecutionSteps=>{code="ExecutionBudgetExceeded";},BudgetKind::TaskSteps=>{code="TaskBudgetExceeded";},BudgetKind::HistoryMemory=>{code="HistoryMemoryBudgetExceeded";},BudgetKind::HistoryStorage=>{code="HistoryStorageBudgetExceeded";},_=>{}}
+   return Failure(code,None,Some(b),None);
+  }
+ }
+ panic("invalid task error");
+}
+// @api asStd cost O(1) projection; returns the original diagnostic code and line or a classified task/budget code.
+// @api asStd failure Does not retain the full diagnostic tree; use describe before projecting when messages, source, causes or typed budget details are required. No partial calculation result is returned.
+pub fn asStd(error:TaskError)->StdError effects {} {
+ let failure=describe(move error);var line=0;match failure.diagnostic{Some(d)=>{line=d.line;},None=>{}}
+ return StdError(failure.code,line);
+}

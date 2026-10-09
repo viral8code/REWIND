@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.62",
+  "language": "1.9.65",
   "symbols": {
     "dependency:autodiff.rw": {
       "fn:$import$autodiff$backward": {
@@ -1138,6 +1138,49 @@
         "return": "Unit"
       }
     },
+    "dependency:taskError.rw": {
+      "fn:$import$taskError$asStd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "TaskError"
+        ],
+        "return": "StdError"
+      },
+      "fn:$import$taskError$describe": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "TaskError"
+        ],
+        "return": "$import$taskError$Failure"
+      },
+      "type:$import$taskError$Failure": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "diagnostic",
+            "Option<Diagnostic>"
+          ],
+          [
+            "budget",
+            "Option<BudgetKind>"
+          ],
+          [
+            "waitGraph",
+            "Option<WaitGraph>"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      }
+    },
     "fn:binary": {
       "async": true,
       "cost": "bounded zip and identity preparation; matching shapes, explicit broadcasting. Consumes tape and returns the same graph/storage identities as synchronous forward operations.",
@@ -1218,7 +1261,7 @@
       "effects": [
         "tasks"
       ],
-      "failure": "same name/finite/size contract as synchronous autodiff.parameter; typed task errors are AutodiffTask, no partial tape/node on cancellation, fatal limits apply. Kept checkpoints retain their own tape versions.",
+      "failure": "same name/finite/size contract as synchronous autodiff.parameter; typed child task errors preserve diagnostic/budget codes and failed diagnostic line, no partial tape/node on cancellation, fatal limits apply. Kept checkpoints retain their own tape versions.",
       "generics": [],
       "parameters": [
         "$import$autodiff$Tape",

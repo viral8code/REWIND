@@ -1379,7 +1379,8 @@ impl Runtime {
     pub fn enable_cached_heap_traversal(&mut self) {
         self.cached_heap_traversal = true;
     }
-    pub(crate) fn contains_heap_refs(value: &Value) -> bool {
+    /// Whether a value contains VM heap edges; paged containers use cached metadata.
+    pub fn contains_heap_refs(value: &Value) -> bool {
         match value {
             Value::HeapRef(_) | Value::CellRef(_) => true,
             Value::TypedList(_, v) => v.has_heap_refs(),
