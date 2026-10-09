@@ -36,6 +36,14 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        (
+            "autodiffForwardAsync",
+            include_str!("../../../libraries/std/autodiffForwardAsync.rw"),
+        ),
+        (
+            "numericIdentityAsync",
+            include_str!("../../../libraries/std/numericIdentityAsync.rw"),
+        ),
         ("models", include_str!("../../../libraries/std/models.rw")),
         (
             "optimize",
@@ -708,6 +716,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/autodiff-forward/main.rw",
+            include_str!("../../../examples/autodiff-forward/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/forward-gui/main.rw",
+            include_str!("../../../examples/forward-gui/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/backward-gui/main.rw",
             include_str!("../../../examples/backward-gui/main.rw"),
         )?;
@@ -735,6 +753,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-ime/README.md",
             include_str!("../../../examples/gui-ime/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/autodiff-forward/README.md",
+            include_str!("../../../examples/autodiff-forward/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/forward-gui/README.md",
+            include_str!("../../../examples/forward-gui/README.md"),
         )?;
         write(
             &output,
@@ -870,6 +898,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.61.md",
                 include_str!("../../../docs/REWIND_v1.9.61.md"),
+            ),
+            (
+                "REWIND_v1.9.62.md",
+                include_str!("../../../docs/REWIND_v1.9.62.md"),
             ),
             ("v2-status.md", include_str!("../../../docs/v2-status.md")),
             ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
@@ -1135,6 +1167,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/autodiff-forward/main.rw",
+            include_str!("../../../examples/autodiff-forward/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/forward-gui/main.rw",
+            include_str!("../../../examples/forward-gui/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/backward-gui/main.rw",
             include_str!("../../../examples/backward-gui/main.rw"),
         )?;
@@ -1162,6 +1204,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-ime/README.md",
             include_str!("../../../examples/gui-ime/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/autodiff-forward/README.md",
+            include_str!("../../../examples/autodiff-forward/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/forward-gui/README.md",
+            include_str!("../../../examples/forward-gui/README.md"),
         )?;
         write(
             &output,
@@ -1298,6 +1350,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 "REWIND_v1.9.61.md",
                 include_str!("../../../docs/REWIND_v1.9.61.md"),
             ),
+            (
+                "REWIND_v1.9.62.md",
+                include_str!("../../../docs/REWIND_v1.9.62.md"),
+            ),
             ("v2-status.md", include_str!("../../../docs/v2-status.md")),
             ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
             (
@@ -1368,6 +1424,14 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "shape-async",
                 include_str!("../../../examples/shape-async/README.md"),
+            ),
+            (
+                "autodiff-forward",
+                include_str!("../../../examples/autodiff-forward/README.md"),
+            ),
+            (
+                "forward-gui",
+                include_str!("../../../examples/forward-gui/README.md"),
             ),
             (
                 "autodiff-async",
@@ -1456,6 +1520,14 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "shape-async",
                 include_str!("../../../examples/shape-async/main.rw"),
+            ),
+            (
+                "autodiff-forward",
+                include_str!("../../../examples/autodiff-forward/main.rw"),
+            ),
+            (
+                "forward-gui",
+                include_str!("../../../examples/forward-gui/main.rw"),
             ),
             (
                 "autodiff-async",

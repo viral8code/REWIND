@@ -1,6 +1,6 @@
 # REWIND libraries
 
-compiler 1.9.61 / `language = "1.9.61"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
+compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |
 |---|---|---|
@@ -208,10 +208,12 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 
 `std.numericShapeAsync` は選択言語 1.9.57 の協調的な論理形状変更と broadcast の軸の合計です。寸法 List を所有し、数値入力のページを共有します。[契約と制限](../docs/REWIND_v1.9.57.md)。
 
-`std.autodiffAsync` は所有する Tape の逆伝播を協調実行します。既存の Node / Gradients、各微分の演算順序を保ち、履歴準備も分割します。前向き演算の履歴作成は同期処理です。`examples/autodiff-async` に checkpoint・取消を含む例があります。
+`std.autodiffAsync` は所有する Tape の逆伝播を協調実行します。既存の Node / Gradients、各微分の演算順序を保ち、履歴準備も分割します。前向き演算には `std.autodiffForwardAsync` の所有型Task APIも利用できます。`examples/autodiff-async` に checkpoint・取消を含む例があります。
 
 `std.guiMenu` は無効化・チェック状態・キーボード移動・スクロールを持つ上限付きメニューです。`gui.bounds` / `graphemeMode` / `overlay` で既存の画面へ重ねます。ネイティブ入力・巻き戻し・再生の利用例は `examples/gui-menu` にあります。
 
 `std.guiDialog.openFile` / `saveFile` は、明示的な external 領域で作成するネイティブファイル選択 Task です。ユーザーによるキャンセル、VM の巻き戻しと OS の画面の寿命を分け、選択だけではファイルを作成・変更しません。Linux はシステムの GTK 3、Windows は標準ダイアログを使います。`examples/gui-dialog` に利用例があります。
 
 選択言語1.9.61では、GUIの公開した入力欄でネイティブIMEの変換途中を表示します。確定した文字だけが入力記録に入り、変換中のOS状態はcheckpointに含まれません。[IMEサンプル](../examples/gui-ime/README.md)と[v1.9.61仕様](../docs/REWIND_v1.9.61.md)を参照してください。
+
+`std.autodiffForwardAsync` はparameter・constant・既存の二項／単項演算・行列積・形状変換・集約を分割実行し、`Tuple<Tape,Node>`を返します。同期APIと同じ識別値・勾配を保ちます。`std.numericIdentityAsync` は有限値検証と保存領域のkey準備を分割します。[契約と追加費用](../docs/REWIND_v1.9.62.md)、[復元と取消](../examples/autodiff-forward/README.md)、[native入力](../examples/forward-gui/README.md)。

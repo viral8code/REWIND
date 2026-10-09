@@ -3,6 +3,344 @@
   "kind": "rewind-api",
   "language": "1.9.62",
   "symbols": {
+    "dependency:autodiff.rw": {
+      "fn:$import$autodiff$backward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$Tape",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$Gradients,StdError>"
+      },
+      "fn:$import$autodiff$backwardAccumulated": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$BackwardWork",
+          "Int"
+        ],
+        "return": "Result<Option<FloatArray>,StdError>"
+      },
+      "fn:$import$autodiff$backwardDone": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$BackwardWork"
+        ],
+        "return": "Bool"
+      },
+      "fn:$import$autodiff$backwardWork": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$autodiff$Tape",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$BackwardWork,StdError>"
+      },
+      "fn:$import$autodiff$binary": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "String",
+          "$import$autodiff$Node",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$broadcast": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "$import$autodiff$Node",
+          "&List<Int>"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$constant": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "FloatArray"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$create": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$autodiff$Tape"
+      },
+      "fn:$import$autodiff$finishBackward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$autodiff$BackwardWork"
+        ],
+        "return": "Result<$import$autodiff$Gradients,StdError>"
+      },
+      "fn:$import$autodiff$finishForward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$autodiff$ForwardWork",
+          "FloatArray"
+        ],
+        "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
+      },
+      "fn:$import$autodiff$forwardInputs": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$ForwardWork"
+        ],
+        "return": "$import$autodiff$ForwardInputs"
+      },
+      "fn:$import$autodiff$forwardWork": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$autodiff$Tape",
+          "String",
+          "Option<$import$autodiff$Node>",
+          "Option<$import$autodiff$Node>",
+          "String",
+          "Option<FloatArray>"
+        ],
+        "return": "Result<$import$autodiff$ForwardWork,StdError>"
+      },
+      "fn:$import$autodiff$gradient": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$Gradients",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<Option<FloatArray>,StdError>"
+      },
+      "fn:$import$autodiff$matmul": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "$import$autodiff$Node",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$mean": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$nextBackward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$BackwardWork"
+        ],
+        "return": "Result<$import$autodiff$BackwardStep,StdError>"
+      },
+      "fn:$import$autodiff$parameter": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "String",
+          "FloatArray"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$prepareBackward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$BackwardWork"
+        ],
+        "return": "Result<Bool,StdError>"
+      },
+      "fn:$import$autodiff$reshape": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "$import$autodiff$Node",
+          "&List<Int>"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$storeBackward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$BackwardWork",
+          "Int",
+          "FloatArray"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$autodiff$sum": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$transpose": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$unary": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$Tape",
+          "String",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$value": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$Tape",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "type:$import$autodiff$BackwardStep": {
+        "bounds": {},
+        "fields": [
+          [
+            "kind",
+            "String"
+          ],
+          [
+            "a",
+            "Int"
+          ],
+          [
+            "b",
+            "Int"
+          ],
+          [
+            "left",
+            "FloatArray"
+          ],
+          [
+            "right",
+            "FloatArray"
+          ],
+          [
+            "value",
+            "FloatArray"
+          ],
+          [
+            "needLeft",
+            "Bool"
+          ],
+          [
+            "needRight",
+            "Bool"
+          ],
+          [
+            "gradient",
+            "Option<FloatArray>"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$autodiff$BackwardWork": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$autodiff$ForwardInputs": {
+        "bounds": {},
+        "fields": [
+          [
+            "kind",
+            "String"
+          ],
+          [
+            "left",
+            "FloatArray"
+          ],
+          [
+            "right",
+            "FloatArray"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$autodiff$ForwardWork": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$autodiff$Gradients": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$autodiff$Node": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$autodiff$Tape": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      }
+    },
     "dependency:numeric.rw": {
       "fn:$import$numeric$activation": {
         "async": false,
@@ -528,318 +866,424 @@
         "immutable": false
       }
     },
-    "fn:backward": {
-      "async": false,
-      "cost": "sum of the forward/backward native kernel costs; O(nodes + retained intermediate gradients) storage. Synchronous, individual kernels are not preemptible.",
-      "effects": [],
-      "failure": "AutodiffNode/Loss, NumericShape/Domain/NonFinite/Overflow; requires a one-element loss, no mutation of tape; fatal work/memory budgets apply. Gradients retains intermediate native arrays until dropped.",
-      "generics": [],
-      "parameters": [
-        "&Tape",
-        "Node"
-      ],
-      "return": "Result<Gradients,StdError>"
+    "dependency:numericAsync.rw": {
+      "fn:$import$numericAsync$dot": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numericAsync$eigenSymmetric": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "Float",
+          "Int"
+        ],
+        "return": "Result<EigenResult,StdError>"
+      },
+      "fn:$import$numericAsync$leastSquares": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "FloatArray",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numericAsync$matmul": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numericAsync$norm2": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numericAsync$qr": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "Float"
+        ],
+        "return": "Result<QrArrayResult,StdError>"
+      },
+      "fn:$import$numericAsync$scale": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numericAsync$solve": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "FloatArray",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numericAsync$zipFloat": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "String",
+          "FloatArray",
+          "FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      }
     },
-    "fn:backwardAccumulated": {
-      "async": false,
-      "effects": [],
-      "failure": "AutodiffState/Node; constants return None and must not receive allocated gradients.",
-      "generics": [],
-      "parameters": [
-        "&BackwardWork",
-        "Int"
-      ],
-      "return": "Result<Option<FloatArray>,StdError>"
+    "dependency:numericIdentityAsync.rw": {
+      "fn:$import$numericIdentityAsync$checkFinite": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$numericIdentityAsync$key": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "String",
+          "Int",
+          "Bytes",
+          "Bytes"
+        ],
+        "return": "Result<Bytes,StdError>"
+      },
+      "fn:$import$numericIdentityAsync$prepare": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray"
+        ],
+        "return": "Result<TensorIdentityWork,StdError>"
+      }
     },
-    "fn:backwardDone": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&BackwardWork"
-      ],
-      "return": "Bool"
+    "dependency:numericReduceAsync.rw": {
+      "fn:$import$numericReduceAsync$mean": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numericReduceAsync$sum": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numericReduceAsync$variance": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "Int"
+        ],
+        "return": "Result<Float,StdError>"
+      }
     },
-    "fn:backwardWork": {
-      "async": false,
-      "cost": "O(rank) validation and empty metadata allocation; consumes tape, no full metadata freeze.",
-      "effects": [],
-      "failure": "AutodiffNode/Loss; requires a one-element loss. Existing Node storage keys are preserved.",
-      "generics": [],
-      "parameters": [
-        "Tape",
-        "Node"
-      ],
-      "return": "Result<BackwardWork,StdError>"
+    "dependency:numericShapeAsync.rw": {
+      "fn:$import$numericShapeAsync$reshapeLogical": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "List<Int>"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numericShapeAsync$sumToShape": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "FloatArray",
+          "List<Int>"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      }
+    },
+    "dependency:numericTransformAsync.rw": {
+      "fn:$import$numericTransformAsync$activation": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "String",
+          "FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numericTransformAsync$mapFloat": {
+        "async": true,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [
+          "String",
+          "FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      }
+    },
+    "dependency:task.rw": {
+      "fn:$import$task$selectReady": {
+        "async": false,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [
+          [
+            "A",
+            null
+          ],
+          [
+            "B",
+            null
+          ]
+        ],
+        "parameters": [
+          "Task<A>",
+          "Task<B>"
+        ],
+        "return": "Task<Int>"
+      },
+      "fn:$import$task$yieldNow": {
+        "async": false,
+        "effects": [
+          "tasks"
+        ],
+        "generics": [],
+        "parameters": [],
+        "return": "Unit"
+      }
     },
     "fn:binary": {
-      "async": false,
-      "effects": [],
-      "failure": "NumericDomain/Shape/NonFinite/Overflow, AutodiffNode/Size; add/sub/mul only, shapes must match, broadcasting is explicit.",
+      "async": true,
+      "cost": "bounded zip and identity preparation; matching shapes, explicit broadcasting. Consumes tape and returns the same graph/storage identities as synchronous forward operations.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericDomain/Shape/NonFinite/Overflow, AutodiffNode/Size/Task; no partial output or tape on failure/cancel, fatal work/memory limits apply.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
+        "$import$autodiff$Tape",
         "String",
-        "Node",
-        "Node"
+        "$import$autodiff$Node",
+        "$import$autodiff$Node"
       ],
-      "return": "Result<Node,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:broadcast": {
-      "async": false,
-      "effects": [],
+      "async": true,
+      "cost": "O(rank) shared view, reuses parent storage identity; conservative append admission remains.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type, AutodiffNode/Size/Task; consumes tape, no partial result on cancellation.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
-        "Node",
-        "&List<Int>"
+        "$import$autodiff$Tape",
+        "$import$autodiff$Node",
+        "List<Int>"
       ],
-      "return": "Result<Node,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:constant": {
-      "async": false,
-      "effects": [],
+      "async": true,
+      "cost": "bounded finite validation and storage identity preparation; shares input pages, consumes tape.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericNonFinite, AutodiffSize/Task; no partial tape on cancellation, fatal budgets apply.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
+        "$import$autodiff$Tape",
         "FloatArray"
       ],
-      "return": "Result<Node,StdError>"
-    },
-    "fn:create": {
-      "async": false,
-      "cost": "O(1); VM-owned tape, checkpoint/revert uses COW metadata and shared native pages.",
-      "effects": [],
-      "generics": [],
-      "parameters": [],
-      "return": "Tape"
-    },
-    "fn:finishBackward": {
-      "async": false,
-      "effects": [],
-      "failure": "AutodiffState until traversal completes; consumes work and releases tape metadata, returns existing Gradients.",
-      "generics": [],
-      "parameters": [
-        "BackwardWork"
-      ],
-      "return": "Result<Gradients,StdError>"
-    },
-    "fn:finishForward": {
-      "async": false,
-      "cost": "append's existing conservative full-storage identity admission; actual identity is cached when the async companion prepared output first. Bridge callers supply a fully computed validated output.",
-      "effects": [],
-      "failure": "AutodiffSize, NumericType/Domain; consumes work and returns tape/node only after successful append, never accepts a caller-supplied node key.",
-      "generics": [],
-      "parameters": [
-        "ForwardWork",
-        "FloatArray"
-      ],
-      "return": "Result<Tuple<Tape,Node>,StdError>"
-    },
-    "fn:forwardInputs": {
-      "async": false,
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&ForwardWork"
-      ],
-      "return": "ForwardInputs"
-    },
-    "fn:forwardWork": {
-      "async": false,
-      "cost": "bounded metadata validation and shared input descriptors, no numeric payload scan; consumes tape.",
-      "effects": [],
-      "failure": "AutodiffName/Node/Size, NumericDomain; parameter/constant, binary:add/sub/mul, unary:relu/sigmoid/tanh/exp/log/square, matmul, reshape/transpose/broadcast/sum/mean.",
-      "generics": [],
-      "parameters": [
-        "Tape",
-        "String",
-        "Option<Node>",
-        "Option<Node>",
-        "String",
-        "Option<FloatArray>"
-      ],
-      "return": "Result<ForwardWork,StdError>"
-    },
-    "fn:gradient": {
-      "async": false,
-      "effects": [],
-      "failure": "AutodiffNode; None means constant or unreachable from the selected loss, not an allocated zero array.",
-      "generics": [],
-      "parameters": [
-        "&Gradients",
-        "Node"
-      ],
-      "return": "Result<Option<FloatArray>,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:matmul": {
-      "async": false,
-      "effects": [],
+      "async": true,
+      "cost": "O(m*n*k) scalar work in bounded chunks, shared inputs and COW output, then bounded identity preparation.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type/NonFinite/Overflow, AutodiffNode/Size/Task; fatal budgets apply, no partial tape.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
-        "Node",
-        "Node"
+        "$import$autodiff$Tape",
+        "$import$autodiff$Node",
+        "$import$autodiff$Node"
       ],
-      "return": "Result<Node,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:mean": {
-      "async": false,
-      "effects": [],
+      "async": true,
+      "cost": "bounded logical chunks preserving synchronous accumulation and final division, scalar output identity preparation.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericEmpty/NonFinite/Overflow, AutodiffNode/Size/Task; no partial tape on failure/cancel.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
-        "Node"
+        "$import$autodiff$Tape",
+        "$import$autodiff$Node"
       ],
-      "return": "Result<Node,StdError>"
-    },
-    "fn:nextBackward": {
-      "async": false,
-      "effects": [],
-      "failure": "AutodiffState before preparation or after completion; returns immutable views, no tensor computation.",
-      "generics": [],
-      "parameters": [
-        "&mut BackwardWork"
-      ],
-      "return": "Result<BackwardStep,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:parameter": {
-      "async": false,
-      "cost": "O(elements) finite validation, no copy of numeric pages; name bounded to 128 UTF-8 bytes, at most 100000 operations per tape.",
-      "effects": [],
-      "failure": "AutodiffName/Size, NumericNonFinite; fatal work/memory budgets apply. Tape changes only on success.",
+      "async": true,
+      "cost": "bounded finite validation and storage-identity preparation; owns tape, shares numeric pages and returns tape/node on success. Existing conservative append identity work admission remains.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "same name/finite/size contract as synchronous autodiff.parameter; typed task errors are AutodiffTask, no partial tape/node on cancellation, fatal limits apply. Kept checkpoints retain their own tape versions.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
+        "$import$autodiff$Tape",
         "String",
         "FloatArray"
       ],
-      "return": "Result<Node,StdError>"
-    },
-    "fn:prepareBackward": {
-      "async": false,
-      "cost": "At most 64 metadata entries per call; scalar loss seed only after complete initialization.",
-      "effects": [],
-      "generics": [],
-      "parameters": [
-        "&mut BackwardWork"
-      ],
-      "return": "Result<Bool,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:reshape": {
-      "async": false,
-      "effects": [],
+      "async": true,
+      "cost": "O(rank) shared view for contiguous input; otherwise bounded logical copy and new storage identity preparation.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type/Size, AutodiffNode/Size/Task; no partial tape on failure/cancel.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
-        "Node",
-        "&List<Int>"
+        "$import$autodiff$Tape",
+        "$import$autodiff$Node",
+        "List<Int>"
       ],
-      "return": "Result<Node,StdError>"
-    },
-    "fn:storeBackward": {
-      "async": false,
-      "effects": [],
-      "failure": "AutodiffState/Node, NumericShape; accepts a fully computed gradient for a needed parent.",
-      "generics": [],
-      "parameters": [
-        "&mut BackwardWork",
-        "Int",
-        "FloatArray"
-      ],
-      "return": "Result<Unit,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:sum": {
-      "async": false,
-      "effects": [],
+      "async": true,
+      "cost": "bounded logical chunks preserving synchronous Neumaier order, scalar output identity preparation.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericNonFinite/Overflow, AutodiffNode/Size/Task; no partial tape on failure/cancel.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
-        "Node"
+        "$import$autodiff$Tape",
+        "$import$autodiff$Node"
       ],
-      "return": "Result<Node,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:transpose": {
-      "async": false,
-      "effects": [],
+      "async": true,
+      "cost": "O(rank) shared rank-two view, reuses parent storage identity; conservative append admission remains.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericShape/Type, AutodiffNode/Size/Task; consumes tape, no partial result on cancellation.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
-        "Node"
+        "$import$autodiff$Tape",
+        "$import$autodiff$Node"
       ],
-      "return": "Result<Node,StdError>"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "fn:unary": {
-      "async": false,
-      "effects": [],
-      "failure": "NumericDomain/NonFinite/Overflow, AutodiffNode/Size; relu/sigmoid/tanh/exp/log/square, relu derivative at zero is zero.",
+      "async": true,
+      "cost": "bounded chunks for relu/sigmoid/tanh/exp/log/square and output identity preparation; consumes tape.",
+      "effects": [
+        "tasks"
+      ],
+      "failure": "NumericDomain/NonFinite/Overflow, AutodiffNode/Size/Task; no partial tape on failure/cancel.",
       "generics": [],
       "parameters": [
-        "&mut Tape",
+        "$import$autodiff$Tape",
         "String",
-        "Node"
+        "$import$autodiff$Node"
       ],
-      "return": "Result<Node,StdError>"
-    },
-    "fn:value": {
-      "async": false,
-      "effects": [],
-      "failure": "AutodiffNode for a foreign or replaced node; structurally identical graphs are interchangeable.",
-      "generics": [],
-      "parameters": [
-        "&Tape",
-        "Node"
-      ],
-      "return": "Result<FloatArray,StdError>"
-    },
-    "type:BackwardStep": {
-      "constructor": true,
-      "fields": [
-        [
-          "kind",
-          "String"
-        ],
-        [
-          "a",
-          "Int"
-        ],
-        [
-          "b",
-          "Int"
-        ],
-        [
-          "left",
-          "FloatArray"
-        ],
-        [
-          "right",
-          "FloatArray"
-        ],
-        [
-          "value",
-          "FloatArray"
-        ],
-        [
-          "needLeft",
-          "Bool"
-        ],
-        [
-          "needRight",
-          "Bool"
-        ],
-        [
-          "gradient",
-          "Option<FloatArray>"
-        ]
-      ],
-      "generics": [],
-      "kind": "record"
-    },
-    "type:BackwardWork": {
-      "constructor": false,
-      "fields": [],
-      "generics": [],
-      "kind": "struct"
+      "return": "Result<Tuple<$import$autodiff$Tape,$import$autodiff$Node>,StdError>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -1044,37 +1488,6 @@
       "fields": [],
       "generics": [],
       "kind": "record"
-    },
-    "type:ForwardInputs": {
-      "constructor": true,
-      "fields": [
-        [
-          "kind",
-          "String"
-        ],
-        [
-          "left",
-          "FloatArray"
-        ],
-        [
-          "right",
-          "FloatArray"
-        ]
-      ],
-      "generics": [],
-      "kind": "record"
-    },
-    "type:ForwardWork": {
-      "constructor": false,
-      "fields": [],
-      "generics": [],
-      "kind": "struct"
-    },
-    "type:Gradients": {
-      "constructor": false,
-      "fields": [],
-      "generics": [],
-      "kind": "struct"
     },
     "type:GraphBfsWork": {
       "constructor": false,
@@ -1415,12 +1828,6 @@
       "generics": [],
       "kind": "record"
     },
-    "type:Node": {
-      "constructor": false,
-      "fields": [],
-      "generics": [],
-      "kind": "record"
-    },
     "type:QrArrayResult": {
       "constructor": true,
       "fields": [
@@ -1505,12 +1912,6 @@
       ],
       "generics": [],
       "kind": "record"
-    },
-    "type:Tape": {
-      "constructor": false,
-      "fields": [],
-      "generics": [],
-      "kind": "struct"
     },
     "type:TcpError": {
       "constructor": true,

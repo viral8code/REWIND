@@ -151,6 +151,8 @@ python3 scripts/smoke-shape-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/shape-
 python3 scripts/smoke-autodiff-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/autodiff-async"
 python3 scripts/smoke-graph-gui-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/graph-gui"
 python3 scripts/smoke-graph-native-gui-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/graph-native-gui"
+python3 scripts/smoke-forward-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/autodiff-forward"
+python3 scripts/smoke-forward-native-gui-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/forward-native-gui"
 python3 scripts/smoke-backward-native-gui-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/backward-native-gui"
 python3 scripts/smoke-numeric-pages-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric-pages"
 python3 scripts/smoke-gui-clipboard-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-clipboard"

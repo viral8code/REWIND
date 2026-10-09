@@ -1,0 +1,17 @@
+import std.numeric as n;import std.autodiff as ad;import std.autodiffForwardAsync as forward;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
+fn error<T>(result:Result<T,StdError>,code:String)->Unit effects {} {match move result{Err(e)=>{assert_eq(e.code,code);},Ok(_)=>{panic("accepted invalid forward");}}}
+let dims=List<Int>();dims.add(2);let array=take(n.zerosFloat(&dims));
+error(take(await spawn forward.parameter(ad.create(),"",array)),"AutodiffName");
+let other=ad.create();let foreign=take(ad.parameter(&mut other,"other",array));
+error(take(await spawn forward.unary(ad.create(),"relu",foreign)),"AutodiffNode");
+let tape=ad.create();let p=take(ad.parameter(&mut tape,"x",array));
+error(take(await spawn forward.unary(move tape,"unknown",p)),"NumericDomain");
+let tape2=ad.create();let p2=take(ad.parameter(&mut tape2,"x",array));let invalid=List<Int>();invalid.add(3);
+error(take(await spawn forward.reshape(move tape2,p2,move invalid)),"NumericShape");
+let tape3=ad.create();let p3=take(ad.parameter(&mut tape3,"x",array));error(take(await spawn forward.transpose(move tape3,p3)),"NumericShape");
+let zeroShape=List<Int>();zeroShape.add(0);let empty=take(n.zerosFloat(&zeroShape));let tape4=ad.create();let p4=take(ad.parameter(&mut tape4,"empty",empty));
+error(take(await spawn forward.mean(move tape4,p4)),"NumericEmpty");
+let c=take(take(await spawn forward.constant(ad.create(),array)));let ct=move c._0;let cn=c._1;
+let summed=take(take(await spawn forward.sum(move ct,cn)));let done=move summed._0;let loss=summed._1;let gradients=take(ad.backward(&done,loss));assert_eq(take(ad.gradient(&gradients,cn)),None);
+publish;

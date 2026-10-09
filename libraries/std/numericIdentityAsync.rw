@@ -1,0 +1,22 @@
+effects {tasks};
+import task as task;
+// @api checkFinite cost at most 4096 logical cells per native call, no prefix scan or copied pages; yields between chunks.
+// @api checkFinite failure NumericType/NonFinite; cancellation exposes no partial validation result, fatal work/memory limits apply.
+pub async fn checkFinite(array:FloatArray)->Result<Unit,StdError> effects {tasks} {
+ var cursor=0;
+ while true {let step=stdNumericFiniteStep(&array,cursor)?;cursor=step._0;if step._1{return Ok(());}task.yieldNow();}
+ return Err(StdError("NumericState",0));
+}
+// @api prepare cost bounded postorder chunks of at most 4096 scalar/node units with O(log(storage pages)) traversal state and shared input pages; cache-independent handoff points.
+// @api prepare failure NumericType; owned opaque work survives checkpoints, cancellation releases the unretained work. No external observations or host worker.
+pub async fn prepare(array:FloatArray)->Result<TensorIdentityWork,StdError> effects {tasks} {
+ var work=stdNumericIdentityInit(&array)?;
+ while !stdNumericIdentityDone(&work)? {work=stdNumericIdentityStep(&work)?;task.yieldNow();}
+ return Ok(work);
+}
+// @api key cost O(backing storage cells + rank + tag bytes), bounded prepare chunks followed by O(rank + tag bytes) key finalization; identity matches synchronous stdNumericTensorKey, including entire backing storage of a view.
+// @api key failure NumericDomain for tag >256 bytes, negative index or parent keys other than 0/32 bytes; typed task errors, cancellation and fatal limits apply.
+pub async fn key(array:FloatArray,tag:String,index:Int,left:Bytes,right:Bytes)->Result<Bytes,StdError> effects {tasks} {
+ match await spawn prepare(array){Ok(Ok(work))=>{return stdNumericIdentityKey(&work,tag,index,left,right);},Ok(Err(e))=>{return Err(e);},Err(_)=>{return Err(StdError("NumericTask",0));}}
+ return Err(StdError("NumericState",0));
+}

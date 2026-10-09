@@ -88,7 +88,7 @@ pub fn build(
         return Err(Error::InvalidPath(cached.display().to_string()));
     }
     let bytes =
-        serde_json::to_vec_pretty(&artifact).map_err(|e| Error::InvalidOperation(e.to_string()))?;
+        serde_json::to_vec(&artifact).map_err(|e| Error::InvalidOperation(e.to_string()))?;
     if !cached.exists() || fs::read(&cached)? != bytes {
         fs::write(cached, &bytes)?;
     }
@@ -124,7 +124,7 @@ fn run_with_policy(
     if fs::metadata(path)?.len() > 32 * 1024 * 1024 {
         return Err(invalid("file exceeds 32 MiB"));
     }
-    let artifact: serde_json::Value =
+    let mut artifact: serde_json::Value =
         serde_json::from_slice(&fs::read(path)?).map_err(|e| invalid(&e.to_string()))?;
     if artifact["format"] != 2 || artifact["compiler"] != env!("CARGO_PKG_VERSION") {
         return Err(invalid("unsupported format/compiler"));
@@ -135,8 +135,11 @@ fn run_with_policy(
     {
         return Err(invalid("payload hash mismatch"));
     }
+    // Integrity is checked before taking ownership of the typed IR. Avoid
+    // retaining a second complete JSON tree while deserializing large programs.
+    let mut payload = artifact["payload"].take();
     let mut program: Program =
-        serde_json::from_value(payload["program"].clone()).map_err(|e| invalid(&e.to_string()))?;
+        serde_json::from_value(payload["program"].take()).map_err(|e| invalid(&e.to_string()))?;
     if let Some(policy) = policy {
         if program.language != policy.language || payload["assets"] != policy.assets {
             return Err(invalid(
@@ -241,6 +244,7 @@ fn run_with_policy(
             | "1.9.59"
             | "1.9.60"
             | "1.9.61"
+            | "1.9.62"
             | "2.0.0"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
@@ -361,6 +365,7 @@ fn run_with_policy(
             | "1.9.59"
             | "1.9.60"
             | "1.9.61"
+            | "1.9.62"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
         != serde_json::to_value(standard.structs.get("StdError")).ok()
@@ -443,6 +448,15 @@ fn run_with_policy(
         })
     {
         return Err(invalid("invalid numeric primitive layout"));
+    }
+
+    if language_at_least(&program.language, "1.9.62")
+        && (serde_json::to_value(program.structs.get("TensorIdentityWork")).ok()
+            != serde_json::to_value(standard.structs.get("TensorIdentityWork")).ok()
+            || program.enums.contains_key("TensorIdentityWork")
+            || program.aliases.contains_key("TensorIdentityWork"))
+    {
+        return Err(invalid("invalid tensor identity work layout"));
     }
 
     if language_at_least(&program.language, "1.8.1")
@@ -549,6 +563,7 @@ fn run_with_policy(
             | "1.9.59"
             | "1.9.60"
             | "1.9.61"
+            | "1.9.62"
             | "2.0.0"
     ) {
         for n in ["Json", "JsonError"] {
@@ -663,6 +678,7 @@ fn run_with_policy(
             | "1.9.59"
             | "1.9.60"
             | "1.9.61"
+            | "1.9.62"
             | "2.0.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
@@ -793,6 +809,7 @@ fn run_with_policy(
             | "1.9.59"
             | "1.9.60"
             | "1.9.61"
+            | "1.9.62"
             | "2.0.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
@@ -895,6 +912,7 @@ fn run_with_policy(
             | "1.9.59"
             | "1.9.60"
             | "1.9.61"
+            | "1.9.62"
             | "2.0.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
@@ -1063,6 +1081,7 @@ fn run_with_policy(
             | "1.9.59"
             | "1.9.60"
             | "1.9.61"
+            | "1.9.62"
             | "2.0.0"
     ) {
         v06::infer(&mut program)?;

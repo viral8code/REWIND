@@ -30,10 +30,46 @@ impl Array {
         Ok(())
     }
 
+    /// Finite validation with no prefix scan or copied payload. Cursor is in
+    /// logical view order and each call inspects at most COOPERATIVE_MACS cells.
+    pub fn check_finite_step(&self, cursor: usize) -> Result<usize> {
+        if self.dtype != DType::Float64 {
+            return Err(Error::Type);
+        }
+        let end = cursor.saturating_add(COOPERATIVE_MACS).min(self.len());
+        for bit in self.window_bits(cursor, end)? {
+            if !f64::from_bits(bit).is_finite() {
+                return Err(Error::NonFinite);
+            }
+        }
+        Ok(end)
+    }
+
     /// Structural identity of an immutable view and its storage version, not a
     /// flattened logical-content digest. Cold identity hashes backing storage;
     /// cached identity costs O(rank). No payload copies are made.
     pub fn tensor_key(&self, tag: &str, index: i64, left: &[u8], right: &[u8]) -> Result<[u8; 32]> {
+        if self.dtype != DType::Float64 {
+            return Err(Error::Type);
+        }
+        if tag.len() > 256
+            || index < 0
+            || !matches!(left.len(), 0 | 32)
+            || !matches!(right.len(), 0 | 32)
+        {
+            return Err(Error::Domain);
+        }
+        self.tensor_key_with_digest(tag, index, left, right, self.buffer.root.digest())
+    }
+
+    pub(super) fn tensor_key_with_digest(
+        &self,
+        tag: &str,
+        index: i64,
+        left: &[u8],
+        right: &[u8],
+        digest: [u8; 32],
+    ) -> Result<[u8; 32]> {
         if self.dtype != DType::Float64 {
             return Err(Error::Type);
         }
@@ -62,7 +98,7 @@ impl Array {
         }
         h.update((self.offset as i64).to_le_bytes());
         h.update([self.writable as u8]);
-        h.update(self.buffer.root.digest());
+        h.update(digest);
         Ok(h.finalize().into())
     }
 

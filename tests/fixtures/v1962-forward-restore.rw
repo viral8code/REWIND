@@ -1,0 +1,9 @@
+import std.numeric as n;import std.autodiff as ad;import std.autodiffForwardAsync as forward;import std.task as task;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
+let dims=List<Int>();dims.add(65537);let array=take(n.zerosFloat(&dims));
+let expectedTape=ad.create();let expectedNode=take(ad.parameter(&mut expectedTape,"x",array));
+let work=spawn forward.parameter(ad.create(),"x",array);for i in 0..3{task.yieldNow();}assert(!work.isDone());commit running;
+let first=take(take(await work));assert_eq(first._1,expectedNode);assert_eq(take(ad.value(&first._0,first._1)),array);Out.println("finished");publish;
+revert running;assert(!work.isDone());let second=take(take(await work));assert_eq(second._1,expectedNode);assert_eq(take(ad.value(&second._0,second._1)),array);drop running;Out.println("restored");publish;
+for i in 0..8{let pending=spawn forward.parameter(ad.create(),"cancel",array);task.yieldNow();assert(!pending.isDone());pending.cancel();match await pending{Err(TaskError::Cancelled)=>{},_=>{panic("partial tape");}}}
+Out.println("cancelled");publish;

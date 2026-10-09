@@ -1,0 +1,105 @@
+import std.numeric as n;import std.autodiff as ad;import std.autodiffForwardAsync as forward;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
+let shape=List<Int>();shape.add(2);shape.add(2);let values=List<Float>();values.add(0.2);values.add(-0.4);values.add(0.7);values.add(1.2);let array=take(n.fromFloat(&shape,&values));
+let reference=ad.create();let x=take(ad.parameter(&mut reference,"x",array));let y=take(ad.unary(&mut reference,"sigmoid",x));let loss=take(ad.mean(&mut reference,y));
+let tape=ad.create();let initial=take(take(await spawn forward.parameter(move tape,"x",array)));let tape2=move initial._0;let p=initial._1;assert_eq(p,x);
+let activated=take(take(await spawn forward.unary(move tape2,"sigmoid",p)));let tape3=move activated._0;let a=activated._1;assert_eq(a,y);
+let averaged=take(take(await spawn forward.mean(move tape3,a)));let tape4=move averaged._0;let objective=averaged._1;assert_eq(objective,loss);
+assert_eq(take(ad.value(&tape4,objective)),take(ad.value(&reference,loss)));let expected=take(ad.backward(&reference,loss));let actual=take(ad.backward(&tape4,objective));assert_eq(take(ad.gradient(&actual,p)),take(ad.gradient(&expected,x)));
+
+async fn checkUnary(operation:String,array:FloatArray)->Unit effects {tasks} {
+ let expectedTape=ad.create();let x=take(ad.parameter(&mut expectedTape,"x",array));let y=take(ad.unary(&mut expectedTape,operation,x));let objective=take(ad.sum(&mut expectedTape,y));
+ let initial=take(take(await spawn forward.parameter(ad.create(),"x",array)));let tape=move initial._0;let p=initial._1;
+ let transformed=take(take(await spawn forward.unary(move tape,operation,p)));let tape2=move transformed._0;let actual=transformed._1;assert_eq(actual,y);
+ let summed=take(take(await spawn forward.sum(move tape2,actual)));let tape3=move summed._0;let loss=summed._1;assert_eq(loss,objective);
+ assert_eq(take(ad.value(&tape3,actual)),take(ad.value(&expectedTape,y)));
+ let gradients=take(ad.backward(&tape3,loss));let reference=take(ad.backward(&expectedTape,objective));assert_eq(take(ad.gradient(&gradients,p)),take(ad.gradient(&reference,x)));
+}
+let positiveValues=List<Float>();positiveValues.add(0.2);positiveValues.add(0.4);positiveValues.add(0.7);positiveValues.add(1.2);let positive=take(n.fromFloat(&shape,&positiveValues));
+await spawn checkUnary("relu",positive);
+await spawn checkUnary("sigmoid",positive);
+await spawn checkUnary("tanh",positive);
+await spawn checkUnary("exp",positive);
+await spawn checkUnary("log",positive);
+await spawn checkUnary("square",positive);
+
+
+async fn check_add(array:FloatArray)->Unit effects {tasks} {
+ let expectedTape=ad.create();let x=take(ad.parameter(&mut expectedTape,"x",array));let c=take(ad.constant(&mut expectedTape,array));let y=take(ad.binary(&mut expectedTape,"add",x,c));let objective=take(ad.sum(&mut expectedTape,y));
+ let initial=take(take(await spawn forward.parameter(ad.create(),"x",array)));let owned=move initial._0;let p=initial._1;
+ let added=take(take(await spawn forward.constant(move owned,array)));let stage=move added._0;let k=added._1;assert_eq(k,c);
+ let transformed=take(take(await spawn forward.binary(move stage,"add",p,k)));let next=move transformed._0;let actual=transformed._1;assert_eq(actual,y);
+ let summed=take(take(await spawn forward.sum(move next,actual)));let complete=move summed._0;let loss=summed._1;assert_eq(loss,objective);
+ assert_eq(take(ad.value(&complete,actual)),take(ad.value(&expectedTape,y)));
+ let gradients=take(ad.backward(&complete,loss));let expected=take(ad.backward(&expectedTape,objective));assert_eq(take(ad.gradient(&gradients,p)),take(ad.gradient(&expected,x)));
+}
+await spawn check_add(positive);
+
+async fn check_sub(array:FloatArray)->Unit effects {tasks} {
+ let expectedTape=ad.create();let x=take(ad.parameter(&mut expectedTape,"x",array));let c=take(ad.constant(&mut expectedTape,array));let y=take(ad.binary(&mut expectedTape,"sub",x,c));let objective=take(ad.sum(&mut expectedTape,y));
+ let initial=take(take(await spawn forward.parameter(ad.create(),"x",array)));let owned=move initial._0;let p=initial._1;
+ let added=take(take(await spawn forward.constant(move owned,array)));let stage=move added._0;let k=added._1;assert_eq(k,c);
+ let transformed=take(take(await spawn forward.binary(move stage,"sub",p,k)));let next=move transformed._0;let actual=transformed._1;assert_eq(actual,y);
+ let summed=take(take(await spawn forward.sum(move next,actual)));let complete=move summed._0;let loss=summed._1;assert_eq(loss,objective);
+ assert_eq(take(ad.value(&complete,actual)),take(ad.value(&expectedTape,y)));
+ let gradients=take(ad.backward(&complete,loss));let expected=take(ad.backward(&expectedTape,objective));assert_eq(take(ad.gradient(&gradients,p)),take(ad.gradient(&expected,x)));
+}
+await spawn check_sub(positive);
+
+async fn check_mul(array:FloatArray)->Unit effects {tasks} {
+ let expectedTape=ad.create();let x=take(ad.parameter(&mut expectedTape,"x",array));let c=take(ad.constant(&mut expectedTape,array));let y=take(ad.binary(&mut expectedTape,"mul",x,c));let objective=take(ad.sum(&mut expectedTape,y));
+ let initial=take(take(await spawn forward.parameter(ad.create(),"x",array)));let owned=move initial._0;let p=initial._1;
+ let added=take(take(await spawn forward.constant(move owned,array)));let stage=move added._0;let k=added._1;assert_eq(k,c);
+ let transformed=take(take(await spawn forward.binary(move stage,"mul",p,k)));let next=move transformed._0;let actual=transformed._1;assert_eq(actual,y);
+ let summed=take(take(await spawn forward.sum(move next,actual)));let complete=move summed._0;let loss=summed._1;assert_eq(loss,objective);
+ assert_eq(take(ad.value(&complete,actual)),take(ad.value(&expectedTape,y)));
+ let gradients=take(ad.backward(&complete,loss));let expected=take(ad.backward(&expectedTape,objective));assert_eq(take(ad.gradient(&gradients,p)),take(ad.gradient(&expected,x)));
+}
+await spawn check_mul(positive);
+
+async fn check_matmul(array:FloatArray)->Unit effects {tasks} {
+ let expectedTape=ad.create();let x=take(ad.parameter(&mut expectedTape,"x",array));let c=take(ad.constant(&mut expectedTape,array));let y=take(ad.matmul(&mut expectedTape,x,c));let objective=take(ad.sum(&mut expectedTape,y));
+ let initial=take(take(await spawn forward.parameter(ad.create(),"x",array)));let owned=move initial._0;let p=initial._1;
+ let added=take(take(await spawn forward.constant(move owned,array)));let stage=move added._0;let k=added._1;assert_eq(k,c);
+ let transformed=take(take(await spawn forward.matmul(move stage,p,k)));let next=move transformed._0;let actual=transformed._1;assert_eq(actual,y);
+ let summed=take(take(await spawn forward.sum(move next,actual)));let complete=move summed._0;let loss=summed._1;assert_eq(loss,objective);
+ assert_eq(take(ad.value(&complete,actual)),take(ad.value(&expectedTape,y)));
+ let gradients=take(ad.backward(&complete,loss));let expected=take(ad.backward(&expectedTape,objective));assert_eq(take(ad.gradient(&gradients,p)),take(ad.gradient(&expected,x)));
+}
+await spawn check_matmul(positive);
+
+
+async fn check_transpose(array:FloatArray)->Unit effects {tasks} {
+ let dims=List<Int>();dims.add(3);dims.add(2);dims.add(2);
+ let expectedTape=ad.create();let x=take(ad.parameter(&mut expectedTape,"x",array));let y=take(ad.transpose(&mut expectedTape,x));let objective=take(ad.sum(&mut expectedTape,y));
+ let initial=take(take(await spawn forward.parameter(ad.create(),"x",array)));let owned=move initial._0;let p=initial._1;
+ let transformed=take(take(await spawn forward.transpose(move owned,p)));let next=move transformed._0;let actual=transformed._1;assert_eq(actual,y);
+ let summed=take(take(await spawn forward.sum(move next,actual)));let complete=move summed._0;let loss=summed._1;assert_eq(loss,objective);
+ assert_eq(take(ad.value(&complete,actual)),take(ad.value(&expectedTape,y)));
+ let gradients=take(ad.backward(&complete,loss));let expected=take(ad.backward(&expectedTape,objective));assert_eq(take(ad.gradient(&gradients,p)),take(ad.gradient(&expected,x)));
+}
+await spawn check_transpose(positive);
+
+async fn check_reshape(array:FloatArray)->Unit effects {tasks} {
+ let dims=List<Int>();dims.add(4);
+ let expectedTape=ad.create();let x=take(ad.parameter(&mut expectedTape,"x",array));let y=take(ad.reshape(&mut expectedTape,x,&dims));let objective=take(ad.sum(&mut expectedTape,y));
+ let initial=take(take(await spawn forward.parameter(ad.create(),"x",array)));let owned=move initial._0;let p=initial._1;
+ let transformed=take(take(await spawn forward.reshape(move owned,p,move dims)));let next=move transformed._0;let actual=transformed._1;assert_eq(actual,y);
+ let summed=take(take(await spawn forward.sum(move next,actual)));let complete=move summed._0;let loss=summed._1;assert_eq(loss,objective);
+ assert_eq(take(ad.value(&complete,actual)),take(ad.value(&expectedTape,y)));
+ let gradients=take(ad.backward(&complete,loss));let expected=take(ad.backward(&expectedTape,objective));assert_eq(take(ad.gradient(&gradients,p)),take(ad.gradient(&expected,x)));
+}
+await spawn check_reshape(positive);
+
+async fn check_broadcast(array:FloatArray)->Unit effects {tasks} {
+ let dims=List<Int>();dims.add(3);dims.add(2);dims.add(2);
+ let expectedTape=ad.create();let x=take(ad.parameter(&mut expectedTape,"x",array));let y=take(ad.broadcast(&mut expectedTape,x,&dims));let objective=take(ad.sum(&mut expectedTape,y));
+ let initial=take(take(await spawn forward.parameter(ad.create(),"x",array)));let owned=move initial._0;let p=initial._1;
+ let transformed=take(take(await spawn forward.broadcast(move owned,p,move dims)));let next=move transformed._0;let actual=transformed._1;assert_eq(actual,y);
+ let summed=take(take(await spawn forward.sum(move next,actual)));let complete=move summed._0;let loss=summed._1;assert_eq(loss,objective);
+ assert_eq(take(ad.value(&complete,actual)),take(ad.value(&expectedTape,y)));
+ let gradients=take(ad.backward(&complete,loss));let expected=take(ad.backward(&expectedTape,objective));assert_eq(take(ad.gradient(&gradients,p)),take(ad.gradient(&expected,x)));
+}
+await spawn check_broadcast(positive);
+let axes=List<Int>();axes.add(1);axes.add(0);let transposed=take(n.transposeFloat(&positive,&axes));await spawn check_reshape(transposed);
+publish;
