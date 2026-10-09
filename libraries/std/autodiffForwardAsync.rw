@@ -1,4 +1,5 @@
 effects {tasks};
+import taskError as failures;
 import autodiff as ad;
 import numeric as numeric;
 import numericAsync as vector;
@@ -6,7 +7,7 @@ import numericTransformAsync as unaryJobs;
 import numericShapeAsync as shapeJobs;
 import numericReduceAsync as reduceJobs;
 import numericIdentityAsync as identity;
-fn takeTask<T>(result:Result<Result<T,StdError>,TaskError>)->Result<T,StdError> effects {} {match move result{Ok(value)=>{return move value;},Err(_)=>{return Err(StdError("AutodiffTask",0));}}}
+fn takeTask<T>(result:Result<Result<T,StdError>,TaskError>)->Result<T,StdError> effects {} {match move result{Ok(value)=>{return move value;},Err(e)=>{return Err(failures.asStd(move e));}}}
 fn scalar(value:Float)->Result<FloatArray,StdError> effects {} {let shape=List<Int>();let values=List<Float>();values.add(value);return numeric.fromFloat(&shape,&values);}
 async fn execute(work:ad.ForwardWork,dimensions:List<Int>)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {
  let input=ad.forwardInputs(&work);var output=input.left;var needsIdentity=true;
@@ -29,7 +30,7 @@ async fn execute(work:ad.ForwardWork,dimensions:List<Int>)->Result<Tuple<ad.Tape
  return ad.finishForward(move work,ready);
 }
 // @api parameter cost bounded finite validation and storage-identity preparation; owns tape, shares numeric pages and returns tape/node on success. Existing conservative append identity work admission remains.
-// @api parameter failure same name/finite/size contract as synchronous autodiff.parameter; typed task errors are AutodiffTask, no partial tape/node on cancellation, fatal limits apply. Kept checkpoints retain their own tape versions.
+// @api parameter failure same name/finite/size contract as synchronous autodiff.parameter; typed child task errors preserve diagnostic/budget codes and failed diagnostic line, no partial tape/node on cancellation, fatal limits apply. Kept checkpoints retain their own tape versions.
 pub async fn parameter(tape:ad.Tape,name:String,array:FloatArray)->Result<Tuple<ad.Tape,ad.Node>,StdError> effects {tasks} {let work=ad.forwardWork(move tape,"parameter",None,None,name,Some(array))?;let dims=List<Int>();return takeTask(await spawn execute(move work,move dims));}
 // @api constant cost bounded finite validation and storage identity preparation; shares input pages, consumes tape.
 // @api constant failure NumericNonFinite, AutodiffSize/Task; no partial tape on cancellation, fatal budgets apply.

@@ -1197,6 +1197,183 @@ mod ime_tests {
         assert_eq!(surface.ime_context, 0);
     }
     #[test]
+    fn real_japanese_ime_service_preedit_convert_commit_focus_and_close() {
+        if std::env::var("REWIND_TEST_WINDOWS_IME_SERVICE").as_deref() != Ok("1") {
+            return;
+        }
+        #[link(name = "user32")]
+        unsafe extern "system" {
+            fn LoadKeyboardLayoutW(name: *const u16, flags: u32) -> Handle;
+            fn ActivateKeyboardLayout(layout: Handle, flags: u32) -> Handle;
+            fn GetKeyboardLayout(thread: u32) -> Handle;
+            fn GetKeyboardLayoutList(count: i32, layouts: *mut Handle) -> i32;
+            fn SetFocus(window: Handle) -> Handle;
+            fn SetActiveWindow(window: Handle) -> Handle;
+        }
+        #[link(name = "imm32")]
+        unsafe extern "system" {
+            fn ImmIsIME(layout: Handle) -> i32;
+            fn ImmSetOpenStatus(context: Handle, open: i32) -> i32;
+            fn ImmSetCompositionStringW(
+                context: Handle,
+                index: u32,
+                composition: *const c_void,
+                composition_bytes: u32,
+                reading: *const c_void,
+                reading_bytes: u32,
+            ) -> i32;
+        }
+        struct Layout(Handle);
+        impl Drop for Layout {
+            fn drop(&mut self) {
+                unsafe {
+                    ActivateKeyboardLayout(self.0, 0);
+                }
+            }
+        }
+        let _restore = Layout(unsafe { GetKeyboardLayout(0) });
+        let mut layout = 0;
+        for name in ["E0010411", "00000411"] {
+            let name = wide(name);
+            let candidate = unsafe { LoadKeyboardLayoutW(name.as_ptr(), 1) };
+            if candidate != 0 && unsafe { ImmIsIME(candidate) } != 0 {
+                layout = candidate;
+                break;
+            }
+        }
+        if layout == 0 {
+            let count = unsafe { GetKeyboardLayoutList(0, std::ptr::null_mut()) };
+            assert!(
+                (0..=256).contains(&count),
+                "Native keyboard-layout count is bounded"
+            );
+            let mut layouts = vec![0; count as usize];
+            let read = unsafe { GetKeyboardLayoutList(count, layouts.as_mut_ptr()) };
+            for candidate in layouts.into_iter().take(read.max(0) as usize) {
+                if candidate as usize & 0xffff == 0x0411 && unsafe { ImmIsIME(candidate) } != 0 {
+                    layout = candidate;
+                    break;
+                }
+            }
+        }
+        assert_ne!(layout, 0, "A real Japanese IMM-compatible conversion service is required; keyboard layout alone is insufficient");
+        unsafe {
+            ActivateKeyboardLayout(layout, 0);
+        }
+        let mut surface = Surface::new().unwrap();
+        surface.configure_ime(true);
+        let mut frame = Frame {
+            title: "REWIND real Microsoft IME acceptance".into(),
+            width: 320,
+            height: 160,
+            background: 0xffffff,
+            items: vec![Item {
+                id: "input".into(),
+                kind: "textbox".into(),
+                x: 10,
+                y: 10,
+                width: 280,
+                height: 40,
+                text: String::new(),
+                foreground: 0,
+                background: 0xffffff,
+                enabled: true,
+                checked: false,
+                focused: true,
+                cursor: 0,
+                anchor: 0,
+                scroll: 0,
+            }],
+        };
+        surface.present(&frame).unwrap();
+        unsafe {
+            SetActiveWindow(surface.window);
+            SetFocus(surface.window);
+        }
+        fn pump(surface: &mut Surface, mut ready: impl FnMut(&Surface) -> bool) {
+            let end = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !ready(surface) && std::time::Instant::now() < end {
+                // Preserve committed text for inspection while servicing real native messages.
+                unsafe {
+                    let mut message: Message = std::mem::zeroed();
+                    while PeekMessageW(&mut message, 0, 0, 0, 1) != 0 {
+                        TranslateMessage(&message);
+                        DispatchMessageW(&message);
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            assert!(
+                ready(surface),
+                "Real IME notification did not reach the REWIND surface"
+            );
+        }
+        fn start(surface: &mut Surface) {
+            let context = ImeContext::get(surface.window).unwrap();
+            assert_ne!(unsafe { ImmSetOpenStatus(context.context, 1) }, 0);
+            let text: Vec<u16> = "にほん".encode_utf16().collect();
+            assert_ne!(
+                unsafe {
+                    ImmSetCompositionStringW(
+                        context.context,
+                        9,
+                        text.as_ptr().cast(),
+                        (text.len() * 2) as u32,
+                        std::ptr::null(),
+                        0,
+                    )
+                },
+                0
+            );
+            drop(context);
+            pump(surface, |s| {
+                s.state().composition.active && !s.state().composition.text.is_empty()
+            });
+        }
+        for _ in 0..8 {
+            start(&mut surface);
+            assert_eq!(surface.state().composition.text, "にほん");
+            assert!(!surface.state().events.iter().any(|e| e.kind == "text"));
+            {
+                let context = ImeContext::get(surface.window).unwrap();
+                assert_ne!(unsafe { ImmNotifyIME(context.context, 0x15, 2, 0) }, 0);
+            }
+            pump(&mut surface, |s| {
+                s.state().composition.text != "にほん" && !s.state().composition.text.is_empty()
+            });
+            let converted = surface.state().composition.text.clone();
+            {
+                let context = ImeContext::get(surface.window).unwrap();
+                assert_ne!(unsafe { ImmNotifyIME(context.context, 0x15, 1, 0) }, 0);
+            }
+            pump(&mut surface, |s| {
+                s.state().events.iter().any(|e| e.kind == "text")
+            });
+            let committed = surface
+                .state_mut()
+                .events
+                .iter()
+                .filter(|e| e.kind == "text")
+                .map(|e| e.key.as_str())
+                .collect::<String>();
+            assert_eq!(committed, converted);
+            while surface.state_mut().pop().is_some() {}
+        }
+        start(&mut surface);
+        let old = surface.ime_context;
+        frame.items[0].focused = false;
+        surface.present(&frame).unwrap();
+        assert_ne!(surface.ime_context, old);
+        assert!(!surface.state().composition.active);
+        assert!(!surface.state().events.iter().any(|e| e.kind == "text"));
+        frame.items[0].focused = true;
+        surface.present(&frame).unwrap();
+        start(&mut surface);
+        surface.close();
+        assert_eq!(surface.ime_context, 0);
+        assert!(!surface.state().composition.active);
+    }
+    #[test]
     fn native_ime_event_queue_has_a_byte_bound_and_releases_drained_entries() {
         let mut surface = Surface::new().unwrap();
         surface.configure_ime(true);

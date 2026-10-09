@@ -1,4 +1,5 @@
 effects {tasks};
+import taskError as failures;
 import task as task;
 // @api checkFinite cost at most 4096 logical cells per native call, no prefix scan or copied pages; yields between chunks.
 // @api checkFinite failure NumericType/NonFinite; cancellation exposes no partial validation result, fatal work/memory limits apply.
@@ -15,8 +16,8 @@ pub async fn prepare(array:FloatArray)->Result<TensorIdentityWork,StdError> effe
  return Ok(work);
 }
 // @api key cost O(backing storage cells + rank + tag bytes), bounded prepare chunks followed by O(rank + tag bytes) key finalization; identity matches synchronous stdNumericTensorKey, including entire backing storage of a view.
-// @api key failure NumericDomain for tag >256 bytes, negative index or parent keys other than 0/32 bytes; typed task errors, cancellation and fatal limits apply.
+// @api key failure NumericDomain for tag >256 bytes, negative index or parent keys other than 0/32 bytes; child diagnostic/budget codes are preserved, cancellation and fatal limits apply.
 pub async fn key(array:FloatArray,tag:String,index:Int,left:Bytes,right:Bytes)->Result<Bytes,StdError> effects {tasks} {
- match await spawn prepare(array){Ok(Ok(work))=>{return stdNumericIdentityKey(&work,tag,index,left,right);},Ok(Err(e))=>{return Err(e);},Err(_)=>{return Err(StdError("NumericTask",0));}}
+ match await spawn prepare(array){Ok(Ok(work))=>{return stdNumericIdentityKey(&work,tag,index,left,right);},Ok(Err(e))=>{return Err(e);},Err(e)=>{return Err(failures.asStd(move e));}}
  return Err(StdError("NumericState",0));
 }

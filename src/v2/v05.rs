@@ -138,6 +138,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) {
         return Ok(());
@@ -271,6 +272,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
@@ -439,6 +441,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) {
         program
@@ -763,6 +766,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) {
         return v06::validate(program, config);
@@ -841,6 +845,60 @@ pub(super) fn iterator_item(ty: &str) -> Option<String> {
             .map(|t| t.to_string());
     }
     None
+}
+// The collection snapshot has already validated/materialized heap edges. Retain
+// immutable list pages instead of rebuilding every element for a cursor.
+pub(super) fn new_budgeted_iterator(rt: &mut Runtime, value: &Value) -> Result<Option<Value>> {
+    if let Value::TypedList(item, values) = value {
+        rt.check_native_allocation(1024usize.saturating_add(item.len().saturating_mul(2)))?;
+        return Ok(Some(Value::HeapRef(rt.alloc(Value::Struct(
+            format!("Iterator<{item}>"),
+            BTreeMap::from([
+                (
+                    "$values".into(),
+                    Value::TypedList(item.clone(), values.clone()),
+                ),
+                ("$index".into(), Value::Int(0)),
+            ]),
+        ))?)));
+    }
+    // Non-list iterators materialize keys, characters, or byte values. Admit
+    // the temporary Vec and paged result before invoking the historical builder.
+    let count = match value {
+        Value::List(v) => v.len(),
+        Value::Map(v) | Value::TypedMap(_, _, v) => v.len(),
+        Value::OrderedMap(_, _, v) => v.len(),
+        Value::Text(v) => v.len(),
+        Value::Bytes(v) => v.len(),
+        Value::Struct(t, fields) if t.starts_with("Iterator<") => match fields.get("$values") {
+            Some(Value::TypedList(_, v)) => v.len(),
+            _ => return Err(Error::InvalidOperation("invalid iterator".into())),
+        },
+        _ => return Ok(None),
+    };
+    rt.charge_native_work(count.saturating_mul(2).saturating_add(1))?;
+    let payload = match value {
+        Value::Map(v) | Value::TypedMap(_, _, v) => v.keys().fold(0usize, |bytes, k| {
+            bytes.saturating_add(match k {
+                MapKey::Text(v) => v.len(),
+                MapKey::Bytes(v) => v.len(),
+                MapKey::BigInt(v) => v.retained_bytes(),
+                MapKey::Decimal(v) => v.retained_bytes(),
+                MapKey::Regex(v) => v.retained_bytes(),
+                _ => 16,
+            })
+        }),
+        Value::Text(v) => v.len().saturating_mul(4),
+        Value::Bytes(_) => 0,
+        _ => Runtime::allocation_bytes(value),
+    };
+    rt.charge_native_work(payload)?;
+    rt.check_native_allocation(
+        1024usize
+            .saturating_add(payload)
+            .saturating_add(count.saturating_mul(std::mem::size_of::<Value>().saturating_mul(3))),
+    )?;
+    new_iterator(rt, value)
 }
 pub(super) fn new_iterator(rt: &mut Runtime, value: &Value) -> Result<Option<Value>> {
     let ty = value_type(value, rt);
@@ -1222,6 +1280,7 @@ pub(super) fn transfer_type(
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         )
     {
@@ -1324,6 +1383,7 @@ pub(super) fn transfer_type(
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) {
         if let Some((base, inner)) = ty.split_once('<') {
@@ -1434,6 +1494,7 @@ pub(super) fn transfer_type(
                 | "1.9.62"
                 | "1.9.63"
                 | "1.9.64"
+                | "1.9.65"
                 | "2.0.0"
         ) {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
@@ -1549,6 +1610,7 @@ pub(super) fn transfer_type(
             | "1.9.62"
             | "1.9.63"
             | "1.9.64"
+            | "1.9.65"
             | "2.0.0"
     ) {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
@@ -1959,6 +2021,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     | "1.9.62"
                     | "1.9.63"
                     | "1.9.64"
+                    | "1.9.65"
                     | "2.0.0"
             ) {
                 let checker = Checker {

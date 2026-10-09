@@ -22,7 +22,7 @@ jobs:
           - os: windows-2022
             platform: windows
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.os == 'windows-2022' && 90 || 60 }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -58,6 +58,9 @@ jobs:
         if: matrix.platform == 'windows'
         run: python scripts/postgres-fixture.py start --root "${{ runner.temp }}/rewind-pg-fixture" --github-env "${{ github.env }}"
       - run: cargo test --locked
+      - name: Real Windows Japanese IME conversion service
+        if: runner.os == 'Windows'
+        run: python scripts/windows-ime-fixture.py -- cargo test --locked --lib gui::windows::ime_tests::real_japanese_ime_service_preedit_convert_commit_focus_and_close -- --exact --nocapture --test-threads=1
       - name: Native X11 window and pointer events
         if: matrix.platform == 'linux'
         run: |

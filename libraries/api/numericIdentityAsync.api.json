@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.62",
+  "language": "1.9.65",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
@@ -35,6 +35,49 @@
         "return": "Unit"
       }
     },
+    "dependency:taskError.rw": {
+      "fn:$import$taskError$asStd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "TaskError"
+        ],
+        "return": "StdError"
+      },
+      "fn:$import$taskError$describe": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "TaskError"
+        ],
+        "return": "$import$taskError$Failure"
+      },
+      "type:$import$taskError$Failure": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "diagnostic",
+            "Option<Diagnostic>"
+          ],
+          [
+            "budget",
+            "Option<BudgetKind>"
+          ],
+          [
+            "waitGraph",
+            "Option<WaitGraph>"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      }
+    },
     "fn:checkFinite": {
       "async": true,
       "cost": "at most 4096 logical cells per native call, no prefix scan or copied pages; yields between chunks.",
@@ -54,7 +97,7 @@
       "effects": [
         "tasks"
       ],
-      "failure": "NumericDomain for tag >256 bytes, negative index or parent keys other than 0/32 bytes; typed task errors, cancellation and fatal limits apply.",
+      "failure": "NumericDomain for tag >256 bytes, negative index or parent keys other than 0/32 bytes; child diagnostic/budget codes are preserved, cancellation and fatal limits apply.",
       "generics": [],
       "parameters": [
         "FloatArray",
