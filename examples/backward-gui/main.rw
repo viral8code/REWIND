@@ -1,0 +1,27 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+import std.numeric as n;
+import std.autodiff as ad;
+import std.autodiffAsync as jobs;
+import std.task as task;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {Ok(result)=>{return move result;},Err(_)=>{panic("operation failed");}}
+}
+let args=Args.all();var title="REWIND backward";if args.len()>0{title=args.get(0);}
+let view=take(gui.window(title,320,160));
+take(gui.label(&mut view,"state","Click to cancel gradient computation",10,10,300,36));
+take(windows.present("work",&view));publish;
+let one=List<Int>();one.add(1);let values=List<Float>();values.add(0.5);let scalar=take(n.fromFloat(&one,&values));let shape=List<Int>();shape.add(262144);let repeated=take(n.broadcastFloat(&scalar,&shape));let x=take(n.materializeFloat(&repeated));
+var tape=ad.create();let parameter=take(ad.parameter(&mut tape,"x",x));let activated=take(ad.unary(&mut tape,"sigmoid",parameter));let square=take(ad.unary(&mut tape,"square",activated));let loss=take(ad.mean(&mut tape,square));
+let work=spawn jobs.backward(move tape,loss);
+Out.println("ready");publish;
+var clicked=false;
+while !clicked {
+ task.yieldNow();
+ if work.isDone(){let result=take(take(await work));Out.println("completed");take(windows.close("work"));publish;break;}
+ match take(windows.pollAny()){
+  None=>{},Some(input)=>{if input.window=="work" && input.event.kind=="pointer"{clicked=true;}}
+ }
+}
+if clicked{work.cancel();match await work{Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("cancelled");take(windows.close("work"));publish;}

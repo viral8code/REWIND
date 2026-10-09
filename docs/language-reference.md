@@ -642,3 +642,5 @@ GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl
 選択言語 1.9.56 の `std.graphLargeAsync.bfs(vertices,froms,tos,source)` は、IntArray の辺の両端を受け取り、グラフ構築と幅優先探索を4096単位以下に分割してタスクを切り替えます。戻り値は最短距離の IntArray（未到達は -1）です。処理途中の状態も commit/revert と取消の対象です。[v1.9.56](REWIND_v1.9.56.md)。
 
 選択言語 1.9.57 の `std.numericShapeAsync.reshapeLogical` / `sumToShape` は、論理順の形状変更と broadcast の軸の合計を4096セル以下の処理に分割します。寸法の List はタスクが所有するため、構築関数の戻り値か `move shape` を渡します。既存のビット列・計算順序・失敗契約を保ちます。[v1.9.57](REWIND_v1.9.57.md)。
+
+`std.autodiffAsync.backward(move tape, loss)` は演算履歴を所有する協調型の逆伝播です。Node を保持して戻り値の Gradients を照会できます。準備・走査・重い微分カーネルの途中で他のタスクへ処理を渡します。同期型の `std.autodiff.backward(&tape, loss)` も利用できます。

@@ -129,3 +129,51 @@ pub fn gradient(gradients:&Gradients,node:Node)->Result<Option<FloatArray>,StdEr
  if node.index<0 || node.index>=gradients.keys.len() || gradients.keys.get(node.index)!=node.key{return Err(StdError("AutodiffNode",0));}
  return Ok(gradients.values.get(node.index));
 }
+
+// Pure bridge for the cooperative backward companion; ownership prevents a
+// hidden full-tape clone at task start. Numeric pages remain immutable/shared.
+pub struct BackwardWork {private tape:Tape,private values:List<Option<FloatArray>>,private keys:List<Bytes>,private loss:Int,private position:Int,private ready:Bool}
+pub record BackwardStep {kind:String,a:Int,b:Int,left:FloatArray,right:FloatArray,value:FloatArray,needLeft:Bool,needRight:Bool,gradient:Option<FloatArray>}
+// @api backwardWork cost O(rank) validation and empty metadata allocation; consumes tape, no full metadata freeze.
+// @api backwardWork failure AutodiffNode/Loss; requires a one-element loss. Existing Node storage keys are preserved.
+pub fn backwardWork(tape:Tape,loss:Node)->Result<BackwardWork,StdError> effects {} {
+ let last=entry(&tape,loss)?;if count(&last.value)?!=1.0{return Err(StdError("AutodiffLoss",0));}
+ let values=List<Option<FloatArray>>();let keys=List<Bytes>();return Ok(BackwardWork(move tape,move values,move keys,loss.index,loss.index,false));
+}
+// @api prepareBackward cost At most 64 metadata entries per call; scalar loss seed only after complete initialization.
+pub fn prepareBackward(work:&mut BackwardWork)->Result<Bool,StdError> effects {} {
+ if work.ready{return Ok(true);}var added=0;
+ while work.values.len()<work.tape.entries.len() && added<64{let i=work.values.len();work.values.add(None);work.keys.add(work.tape.entries.get(i).key);added+=1;}
+ if work.values.len()<work.tape.entries.len(){return Ok(false);}
+ let last=work.tape.entries.get(work.loss);if last.needed{let initial=stdNumericAffine(&last.value,0.0,1.0)?;work.values.set(work.loss,Some(initial));}
+ work.ready=true;return Ok(true);
+}
+pub fn backwardDone(work:&BackwardWork)->Bool effects {} {return work.ready && work.position<0;}
+// @api nextBackward failure AutodiffState before preparation or after completion; returns immutable views, no tensor computation.
+pub fn nextBackward(work:&mut BackwardWork)->Result<BackwardStep,StdError> effects {} {
+ if !work.ready || work.position<0{return Err(StdError("AutodiffState",0));}
+ let position=work.position;let item=work.tape.entries.get(position);let gradient=work.values.get(position);work.position-=1;
+ var kind="leaf";var a=position;var b=position;
+ match item.operation{
+  Operation::Leaf=>{},Operation::Binary(op,l,r)=>{kind="binary:"+op;a=l;b=r;},Operation::Unary(op,l)=>{kind="unary:"+op;a=l;},Operation::Matmul(l,r)=>{kind="matmul";a=l;b=r;},Operation::Reshape(l)=>{kind="reshape";a=l;},Operation::Transpose(l)=>{kind="transpose";a=l;},Operation::Broadcast(l)=>{kind="broadcast";a=l;},Operation::Sum(l)=>{kind="sum";a=l;},Operation::Mean(l)=>{kind="mean";a=l;}
+ }
+ let left=work.tape.entries.get(a);let right=work.tape.entries.get(b);
+ return Ok(BackwardStep(kind,a,b,left.value,right.value,item.value,left.needed,right.needed,gradient));
+}
+// @api backwardAccumulated failure AutodiffState/Node; constants return None and must not receive allocated gradients.
+pub fn backwardAccumulated(work:&BackwardWork,index:Int)->Result<Option<FloatArray>,StdError> effects {} {
+ if !work.ready{return Err(StdError("AutodiffState",0));}if index<0 || index>=work.values.len(){return Err(StdError("AutodiffNode",index));}
+ return Ok(work.values.get(index));
+}
+// @api storeBackward failure AutodiffState/Node, NumericShape; accepts a fully computed gradient for a needed parent.
+pub fn storeBackward(work:&mut BackwardWork,index:Int,incoming:FloatArray)->Result<Unit,StdError> effects {} {
+ if !work.ready{return Err(StdError("AutodiffState",0));}if index<0 || index>=work.values.len(){return Err(StdError("AutodiffNode",index));}
+ let parent=work.tape.entries.get(index);if !parent.needed{return Ok(());}
+ let expected=numeric.shapeFloat(&parent.value)?;let actual=numeric.shapeFloat(&incoming)?;
+ if expected.len()!=actual.len(){return Err(StdError("NumericShape",0));}for i in 0..expected.len(){if expected.get(i)!=actual.get(i){return Err(StdError("NumericShape",i));}}
+ work.values.set(index,Some(incoming));return Ok(());
+}
+// @api finishBackward failure AutodiffState until traversal completes; consumes work and releases tape metadata, returns existing Gradients.
+pub fn finishBackward(work:BackwardWork)->Result<Gradients,StdError> effects {} {
+ if !work.ready || work.position>=0{return Err(StdError("AutodiffState",0));}return Ok(Gradients(move work.values,move work.keys));
+}

@@ -1,0 +1,57 @@
+effects {tasks};
+import autodiff as ad;
+import numeric as numeric;
+import numericAsync as vector;
+import numericTransformAsync as unary;
+import numericShapeAsync as shape;
+import task as task;
+
+fn takeTask<T>(result:Result<Result<T,StdError>,TaskError>)->Result<T,StdError> effects {} {
+ match move result{Ok(value)=>{return move value;},Err(_)=>{return Err(StdError("AutodiffTask",0));}}
+}
+async fn accumulate(previous:Option<FloatArray>,incoming:FloatArray)->Result<FloatArray,StdError> effects {tasks} {
+ match previous{None=>{return Ok(incoming);},Some(value)=>{return takeTask(await spawn vector.zipFloat("add",value,incoming));}}
+ return Err(StdError("AutodiffState",0));
+}
+fn count(array:&FloatArray)->Result<Float,StdError> effects {} {
+ let dimensions=numeric.shapeFloat(array)?;var size=1;for i in 0..dimensions.len(){size*=dimensions.get(i);}match size.toFloatChecked(){Ok(n)=>{return Ok(n);},Err(_)=>{return Err(StdError("NumericSize",0));}}
+}
+// @api backward cost Owned tape with shared native pages; metadata in batches of 64 nodes, traversal yields between nodes, tensor derivatives use bounded cooperative kernels. No host worker or external observation.
+// @api backward failure Same node/loss/numeric validation as synchronous autodiff.backward; task errors are AutodiffTask, cancellation exposes no partial gradients. Fatal budgets apply. Consumes tape; checkpoint roots retain their own snapshots.
+pub async fn backward(tape:ad.Tape,loss:ad.Node)->Result<ad.Gradients,StdError> effects {tasks} {
+ var work=ad.backwardWork(move tape,loss)?;
+ while !ad.prepareBackward(&mut work)?{task.yieldNow();}
+ while !ad.backwardDone(&work){
+  let step=ad.nextBackward(&mut work)?;
+  match step.gradient{None=>{},Some(grad)=>{
+   if step.kind=="binary:add"{let combined1=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,grad))?;ad.storeBackward(&mut work,step.a,combined1)?;let combined2=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.b)?,grad))?;ad.storeBackward(&mut work,step.b,combined2)?;}
+   else if step.kind=="binary:sub"{let combined3=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,grad))?;ad.storeBackward(&mut work,step.a,combined3)?;let negative=takeTask(await spawn vector.scale(grad,-1.0))?;let combined4=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.b)?,negative))?;ad.storeBackward(&mut work,step.b,combined4)?;}
+   else if step.kind=="binary:mul"{
+    if step.needLeft{let ga=takeTask(await spawn vector.zipFloat("mul",grad,step.right))?;let combined5=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,ga))?;ad.storeBackward(&mut work,step.a,combined5)?;}
+    if step.needRight{let gb=takeTask(await spawn vector.zipFloat("mul",grad,step.left))?;let combined6=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.b)?,gb))?;ad.storeBackward(&mut work,step.b,combined6)?;}
+   }
+   else if step.kind=="matmul"{
+    let axes=List<Int>();axes.add(1);axes.add(0);
+    if step.needLeft{let rt=numeric.transposeFloat(&step.right,&axes)?;let ga=takeTask(await spawn vector.matmul(grad,rt))?;let combined7=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,ga))?;ad.storeBackward(&mut work,step.a,combined7)?;}
+    if step.needRight{let lt=numeric.transposeFloat(&step.left,&axes)?;let gb=takeTask(await spawn vector.matmul(lt,grad))?;let combined8=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.b)?,gb))?;ad.storeBackward(&mut work,step.b,combined8)?;}
+   }
+   else if step.kind=="reshape"{let dims=numeric.shapeFloat(&step.left)?;let incoming=takeTask(await spawn shape.reshapeLogical(grad,move dims))?;let combined9=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,incoming))?;ad.storeBackward(&mut work,step.a,combined9)?;}
+   else if step.kind=="transpose"{let axes=List<Int>();axes.add(1);axes.add(0);let incoming=numeric.transposeFloat(&grad,&axes)?;let combined10=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,incoming))?;ad.storeBackward(&mut work,step.a,combined10)?;}
+   else if step.kind=="broadcast"{let dims=numeric.shapeFloat(&step.left)?;let incoming=takeTask(await spawn shape.sumToShape(grad,move dims))?;let combined11=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,incoming))?;ad.storeBackward(&mut work,step.a,combined11)?;}
+   else if step.kind=="sum"{let dims=numeric.shapeFloat(&step.left)?;let incoming=numeric.broadcastFloat(&grad,&dims)?;let combined12=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,incoming))?;ad.storeBackward(&mut work,step.a,combined12)?;}
+   else if step.kind=="mean"{let dims=numeric.shapeFloat(&step.left)?;let scaled=takeTask(await spawn vector.scale(grad,1.0/count(&step.left)?))?;let incoming=numeric.broadcastFloat(&scaled,&dims)?;let combined13=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,incoming))?;ad.storeBackward(&mut work,step.a,combined13)?;}
+   else if step.kind!="leaf"{
+    var derivative=step.left;
+    if step.kind=="unary:relu"{derivative=takeTask(await spawn unary.activation("reluGrad",step.left))?;}
+    else if step.kind=="unary:sigmoid"{derivative=takeTask(await spawn unary.activation("sigmoidGrad",step.value))?;}
+    else if step.kind=="unary:tanh"{derivative=takeTask(await spawn unary.activation("tanhGrad",step.value))?;}
+    else if step.kind=="unary:exp"{derivative=step.value;}
+    else if step.kind=="unary:log"{derivative=takeTask(await spawn unary.activation("reciprocal",step.left))?;}
+    else{derivative=takeTask(await spawn vector.scale(step.left,2.0))?;}
+    let incoming=takeTask(await spawn vector.zipFloat("mul",grad,derivative))?;let combined14=takeTask(await spawn accumulate(ad.backwardAccumulated(&work,step.a)?,incoming))?;ad.storeBackward(&mut work,step.a,combined14)?;
+   }
+  }}
+  task.yieldNow();
+ }
+ return ad.finishBackward(move work);
+}
