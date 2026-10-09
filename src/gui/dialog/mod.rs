@@ -150,7 +150,23 @@ mod tests {
                 }
                 assert!(sent, "native response not delivered");
                 let expected = if accept {
-                    serde_json::Value::String(selected.to_string_lossy().into_owned())
+                    if let Some(Ok(serde_json::Value::String(native))) = &result {
+                        let path = std::path::Path::new(native);
+                        // The native chooser expands Windows short-directory
+                        // aliases. Verify the selected file identity, then
+                        // journal/replay its actual returned spelling.
+                        assert_eq!(
+                            std::fs::canonicalize(path.parent().unwrap())
+                                .unwrap()
+                                .join(path.file_name().unwrap()),
+                            std::fs::canonicalize(selected.parent().unwrap())
+                                .unwrap()
+                                .join(selected.file_name().unwrap())
+                        );
+                        serde_json::Value::String(native.clone())
+                    } else {
+                        serde_json::Value::String(selected.to_string_lossy().into_owned())
+                    }
                 } else {
                     serde_json::Value::Null
                 };
