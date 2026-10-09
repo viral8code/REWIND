@@ -1,5 +1,6 @@
 //! Native single-window surfaces. Scenes are data; only publish touches a surface.
 use serde::{Deserialize, Serialize};
+mod accessibility;
 pub(crate) mod clipboard;
 mod command_keys;
 pub(crate) mod composition;
@@ -13,8 +14,12 @@ use std::collections::BTreeSet;
 use std::io;
 pub use windows_registry::WindowEvent;
 pub(crate) use windows_registry::WindowInput;
+#[cfg(target_os = "linux")]
+mod linux_accessibility;
 #[cfg(windows)]
 mod windows;
+#[cfg(windows)]
+mod windows_accessibility;
 #[cfg(target_os = "linux")]
 mod x11;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -144,6 +149,12 @@ pub(crate) struct Host {
     backend: windows::Surface,
 }
 impl Host {
+    pub fn configure_accessibility(&mut self, enabled: bool) {
+        #[cfg(any(target_os = "linux", windows))]
+        self.backend.configure_accessibility(enabled);
+        #[cfg(not(any(target_os = "linux", windows)))]
+        let _ = enabled;
+    }
     pub fn configure_ime(&mut self, enabled: bool) {
         #[cfg(any(target_os = "linux", windows))]
         self.backend.configure_ime(enabled);

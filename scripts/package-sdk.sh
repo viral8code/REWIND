@@ -157,6 +157,7 @@ python3 scripts/smoke-backward-native-gui-sdk.py "$EXTRACTED/bin/rewind" "$RELEA
 python3 scripts/smoke-numeric-pages-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric-pages"
 python3 scripts/smoke-gui-clipboard-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-clipboard"
 python3 scripts/smoke-gui-menu-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-menu"
+/usr/bin/python3 scripts/smoke-gui-accessibility-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-accessibility"
 python3 scripts/smoke-gui-dialog-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-dialog"
 python3 scripts/smoke-gui-ime-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-ime"
 python3 scripts/smoke-secret-accounting-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/secret-accounting"

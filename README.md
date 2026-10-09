@@ -1,6 +1,6 @@
-# REWIND 1.9.62
+# REWIND 1.9.63
 
-REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.62では自動微分のforward計算と保存領域のidentity準備を分割実行し、計算中の取消・checkpoint復元を扱います。[変更点](docs/REWIND_v1.9.62.md)、[v2.0の残件](docs/v2-status.md)を参照してください。
+REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v1.9.63では公開されたnative GUIの役割・名前・状態をOSのアクセシビリティサービスへ提供します。[変更点](docs/REWIND_v1.9.63.md)を参照してください。
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 

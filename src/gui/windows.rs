@@ -120,6 +120,8 @@ unsafe extern "system" {
     fn SetTextColor(dc: Handle, color: u32) -> u32;
     fn SetBkMode(dc: Handle, mode: i32) -> i32;
     fn TextOutW(dc: Handle, x: i32, y: i32, text: *const u16, len: i32) -> i32;
+    #[cfg(test)]
+    fn GetPixel(dc: Handle, x: i32, y: i32) -> u32;
     fn SelectObject(dc: Handle, object: Handle) -> Handle;
     fn GetStockObject(id: i32) -> Handle;
 }
@@ -310,6 +312,8 @@ fn color(rgb: u32) -> u32 {
     ((rgb & 0xff) << 16) | (rgb & 0xff00) | (rgb >> 16)
 }
 struct State {
+    accessibility_enabled: bool,
+    accessibility: super::accessibility::Tree,
     ime_enabled: bool,
     composition: composition::Composition,
     clipboard_enabled: bool,
@@ -334,7 +338,8 @@ impl State {
     fn push(&mut self, event: Event) {
         let bytes = std::mem::size_of::<Event>() + event.key.len() + event.kind.len();
         if self.events.len() >= 4096
-            || (self.ime_enabled && self.queued_bytes.saturating_add(bytes) > 512 * 1024)
+            || ((self.ime_enabled || self.accessibility_enabled)
+                && self.queued_bytes.saturating_add(bytes) > 512 * 1024)
         {
             self.overflow = true;
         } else {
@@ -353,6 +358,14 @@ unsafe extern "system" fn procedure(
     let ptr = unsafe { GetWindowLongPtrW(hwnd, -21) } as *mut State;
     if ptr.is_null() {
         return unsafe { DefWindowProcW(hwnd, message, wparam, lparam) };
+    }
+    if message == 0x07 || message == 0x08 {
+        unsafe {
+            (*ptr).accessibility.focus(message == 0x07);
+            if message == 0x07 && (*ptr).accessibility_enabled {
+                super::windows_accessibility::announce_focus(hwnd, &(*ptr).accessibility);
+            }
+        }
     }
     if unsafe { (&*ptr).ime_enabled } {
         match message {
@@ -436,6 +449,11 @@ unsafe extern "system" fn procedure(
             _ => {}
         }
     }
+    if message == 0x3d && unsafe { (*ptr).accessibility_enabled } {
+        return super::windows_accessibility::get_object(hwnd, wparam, lparam, unsafe {
+            (*ptr).accessibility.clone()
+        });
+    }
     match message {
         0x0f => {
             let frame = unsafe { (&*ptr).frame.clone() };
@@ -470,6 +488,7 @@ unsafe extern "system" fn procedure(
         0x10 => {
             let state = unsafe { &mut *ptr };
             state.closed = true;
+            state.accessibility.close();
             state.push(Event::simple("close"));
             unsafe {
                 ShowWindow(hwnd, 0);
@@ -791,6 +810,7 @@ unsafe fn draw(hwnd: Handle, frame: Option<&Frame>, preedit: Option<&(String, us
 }
 pub(super) struct Surface {
     ime_context: Handle,
+    accessibility_apartment: Option<super::windows_accessibility::Apartment>,
     window: Handle,
     state: Box<UnsafeCell<State>>,
     instance: Handle,
@@ -875,7 +895,10 @@ impl Surface {
             Ok(Self {
                 window: 0,
                 ime_context: 0,
+                accessibility_apartment: None,
                 state: Box::new(UnsafeCell::new(State {
+                    accessibility_enabled: false,
+                    accessibility: super::accessibility::Tree::default(),
                     ime_enabled: false,
                     composition: composition::Composition::default(),
                     clipboard_enabled: false,
@@ -892,7 +915,13 @@ impl Surface {
             })
         }
     }
+    pub fn configure_accessibility(&mut self, enabled: bool) {
+        self.state_mut().accessibility_enabled = enabled;
+    }
     pub fn present(&mut self, frame: &Frame) -> io::Result<()> {
+        if self.state().accessibility_enabled && self.accessibility_apartment.is_none() {
+            self.accessibility_apartment = Some(super::windows_accessibility::Apartment::new()?);
+        }
         unsafe {
             let style = 0x00cf0000;
             let mut rect = Rect {
@@ -955,7 +984,12 @@ impl Surface {
                     self.ime_context = fresh;
                 }
             }
-            self.state_mut().frame = Some(Arc::new(frame.clone()));
+            let previous = self.state().frame.clone();
+            let published = Arc::new(frame.clone());
+            if self.state().accessibility_enabled {
+                self.state().accessibility.publish(published.clone());
+            }
+            self.state_mut().frame = Some(published);
             self.state_mut().composition.accepting = clipboard::focused_input(frame).is_some();
             if self.state().ime_enabled {
                 position_composition(self.window, frame);
@@ -982,6 +1016,10 @@ impl Surface {
             }
             InvalidateRect(self.window, std::ptr::null(), 0);
             UpdateWindow(self.window);
+            if self.state().accessibility_enabled {
+                super::windows_accessibility::changed(self.window, previous.as_deref(), frame);
+            }
+
             Ok(())
         }
     }
@@ -1028,7 +1066,11 @@ impl Surface {
         }
         unsafe {
             let mut message: Message = std::mem::zeroed();
-            let limit = if self.state().ime_enabled { 64 } else { 4096 };
+            let limit = if self.state().ime_enabled || self.state().accessibility_enabled {
+                64
+            } else {
+                4096
+            };
             for _ in 0..limit {
                 if PeekMessageW(&mut message, 0, 0, 0, 1) == 0 {
                     return Ok(None);
@@ -1046,6 +1088,7 @@ impl Surface {
         Ok(None)
     }
     pub fn close(&mut self) {
+        self.state().accessibility.close();
         if self.window != 0 {
             unsafe {
                 DestroyWindow(self.window);
@@ -1063,6 +1106,10 @@ impl Surface {
         self.state_mut().frame = None;
         self.state_mut().events.clear();
         self.state_mut().queued_bytes = 0;
+    }
+    #[cfg(test)]
+    pub fn native_window_handle(&self) -> isize {
+        self.window
     }
     #[cfg(test)]
     pub fn inject_key_and_close(&mut self) {
@@ -1164,5 +1211,63 @@ mod ime_tests {
         while surface.state_mut().pop().is_some() {}
         assert_eq!(surface.state().queued_bytes, 0);
         surface.close();
+    }
+}
+
+#[cfg(test)]
+mod font_tests {
+    use super::*;
+    #[test]
+    fn native_font_service_draws_distinct_latin_and_japanese_glyphs() {
+        let mut surface = Surface::new().unwrap();
+        let mut frame = Frame {
+            title: "REWIND native font acceptance".into(),
+            width: 240,
+            height: 160,
+            background: 0xffffff,
+            items: vec![Item {
+                id: "glyph".into(),
+                kind: "label".into(),
+                x: 10,
+                y: 10,
+                width: 100,
+                height: 30,
+                text: "I".into(),
+                foreground: 0,
+                background: 0xffffff,
+                enabled: true,
+                checked: false,
+                focused: false,
+                cursor: 0,
+                anchor: 0,
+                scroll: 0,
+            }],
+        };
+        let mut capture = |text: &str| {
+            frame.items[0].text = text.into();
+            surface.present(&frame).unwrap();
+            unsafe {
+                let dc = GetDC(surface.window);
+                assert_ne!(dc, 0);
+                let mut pixels = Vec::new();
+                for y in 10..40 {
+                    for x in 10..74 {
+                        pixels.push(GetPixel(dc, x, y));
+                    }
+                }
+                ReleaseDC(surface.window, dc);
+                pixels
+            }
+        };
+        assert_ne!(
+            capture("I"),
+            capture("W"),
+            "native capture must distinguish glyphs"
+        );
+        assert_ne!(
+            capture("界"),
+            capture("語"),
+            "Japanese text must not render as identical missing-glyph placeholders"
+        );
     }
 }

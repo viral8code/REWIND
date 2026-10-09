@@ -418,7 +418,7 @@ impl Runtime {
         if self.replaying || self.virtual_publish || self.gui_window_scripted.is_some() {
             return Ok(());
         }
-        if self.gui_clipboard_enabled || self.gui_ime_enabled {
+        if self.gui_clipboard_enabled || self.gui_ime_enabled || self.gui_accessibility_enabled {
             let new_hosts = self
                 .state
                 .gui_windows_pending
@@ -451,6 +451,7 @@ impl Runtime {
                     .map_err(|e| Error::InvalidOperation(format!("GuiUnavailable: {e}")))?;
                 host.configure_clipboard(self.gui_clipboard_enabled);
                 host.configure_ime(self.gui_ime_enabled);
+                host.configure_accessibility(self.gui_accessibility_enabled);
                 host.configure_command_keys(self.gui_command_keys_enabled);
                 prepared.insert(id.clone(), host);
             }
