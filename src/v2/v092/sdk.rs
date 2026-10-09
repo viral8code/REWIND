@@ -135,6 +135,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/graphLargeAsync.rw"),
         ),
         (
+            "numericShapeAsync",
+            include_str!("../../../libraries/std/numericShapeAsync.rw"),
+        ),
+        (
             "numericReduceAsync",
             include_str!("../../../libraries/std/numericReduceAsync.rw"),
         ),
@@ -635,6 +639,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/shape-async/main.rw",
+            include_str!("../../../examples/shape-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/shape-async/README.md",
+            include_str!("../../../examples/shape-async/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/graph-async/main.rw",
             include_str!("../../../examples/graph-async/main.rw"),
         )?;
@@ -742,6 +756,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.54.md",
                 include_str!("../../../docs/REWIND_v1.9.54.md"),
+            ),
+            (
+                "REWIND_v1.9.57.md",
+                include_str!("../../../docs/REWIND_v1.9.57.md"),
             ),
             (
                 "REWIND_v1.9.56.md",
@@ -980,6 +998,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/shape-async/main.rw",
+            include_str!("../../../examples/shape-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/shape-async/README.md",
+            include_str!("../../../examples/shape-async/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/graph-async/main.rw",
             include_str!("../../../examples/graph-async/main.rw"),
         )?;
@@ -1089,6 +1117,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.54.md"),
             ),
             (
+                "REWIND_v1.9.57.md",
+                include_str!("../../../docs/REWIND_v1.9.57.md"),
+            ),
+            (
                 "REWIND_v1.9.56.md",
                 include_str!("../../../docs/REWIND_v1.9.56.md"),
             ),
@@ -1154,6 +1186,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/unary-async/README.md"),
             ),
             (
+                "shape-async",
+                include_str!("../../../examples/shape-async/README.md"),
+            ),
+            (
                 "graph-async",
                 include_str!("../../../examples/graph-async/README.md"),
             ),
@@ -1216,6 +1252,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "unary-async",
                 include_str!("../../../examples/unary-async/main.rw"),
+            ),
+            (
+                "shape-async",
+                include_str!("../../../examples/shape-async/main.rw"),
             ),
             (
                 "graph-async",

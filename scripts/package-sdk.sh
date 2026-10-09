@@ -147,6 +147,7 @@ python3 scripts/smoke-nonlinear-training-sdk.py "$EXTRACTED/bin/rewind" "$RELEAS
 python3 scripts/smoke-unary-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/unary-async"
 python3 scripts/smoke-reductions-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/reductions-async"
 python3 scripts/smoke-graph-async-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/graph-async"
+python3 scripts/smoke-shape-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/shape-async"
 python3 scripts/smoke-graph-gui-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/graph-gui"
 python3 scripts/smoke-graph-native-gui-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/graph-native-gui"
 python3 scripts/smoke-numeric-pages-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric-pages"

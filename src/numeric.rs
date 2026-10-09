@@ -28,7 +28,9 @@ mod optimizer;
 mod stats;
 pub use graph::{graph_adjacency, graph_bfs, MAX_GRAPH_ITEMS};
 mod graph_chunks;
+mod shape_chunks;
 pub use graph_chunks::{GraphBfsWork, GRAPH_CHUNK};
+pub use shape_chunks::{SumShapeProgress, SHAPE_CHUNK};
 #[cfg(test)]
 mod page_builder_tests;
 #[cfg(test)]

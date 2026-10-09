@@ -61,6 +61,9 @@ impl GraphBfsWork {
             if vector(array)? != length {
                 return Err(Error::Shape);
             }
+            if array.buffer.len != length {
+                return Err(Error::Domain);
+            }
             if !array.contiguous() || !array.writable || array.offset != 0 {
                 return Err(Error::ReadOnly);
             }

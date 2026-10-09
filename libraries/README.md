@@ -205,3 +205,5 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 `std.numericReduceAsync` は選択言語 1.9.55 の協調的な合計・平均・分散です。既存の Neumaier / Welford 順序を保ち、4096要素以下の native step 間でタスクを切り替えます。[契約と制限](../docs/REWIND_v1.9.55.md)。
 
 `std.graphLargeAsync.bfs` は選択言語 1.9.56 の協調的なグラフ構築・幅優先探索です。IntArray の辺入力を共有し、検証・構築・探索・距離配列の仕上げを4096単位以下に分割します。最短距離（未到達は -1）、途中の巻き戻しと取消を扱います。[契約と制限](../docs/REWIND_v1.9.56.md)。
+
+`std.numericShapeAsync` は選択言語 1.9.57 の協調的な論理形状変更と broadcast の軸の合計です。寸法 List を所有し、数値入力のページを共有します。[契約と制限](../docs/REWIND_v1.9.57.md)。

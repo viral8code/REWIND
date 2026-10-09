@@ -161,3 +161,11 @@ fn input_validation_finishes_before_any_adjacency_write_and_rejects_bad_state() 
     bad.source = 2;
     assert!(matches!(bad.step(), Err(Error::Index)));
 }
+#[test]
+fn oversized_backing_prefix_cannot_bypass_graph_output_admission() {
+    let endpoints = Array::integers(vec![1], &[0]).unwrap();
+    let mut work = GraphBfsWork::new(2, &endpoints, &endpoints, 0).unwrap();
+    let backing = Array::zeros(DType::Int64, vec![MAX_GRAPH_ITEMS]).unwrap();
+    work.heads = backing.slice(0, 0, 2, 1).unwrap();
+    assert!(matches!(work.step(), Err(Error::Domain)));
+}

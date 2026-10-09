@@ -1,0 +1,16 @@
+effects {tasks};
+import task as task;
+// @api reshapeLogical cost O(rank) for an already-contiguous input; otherwise at most 4096 raw logical cells per step, shared inputs and bounded page writes, yields between steps.
+// @api reshapeLogical failure NumericShape/Type/Index/ReadOnly/Domain; preserves raw NaN payloads and signed zero without arithmetic finite checks, no partial output on failure/cancel. Fatal budgets apply.
+pub async fn reshapeLogical(array:FloatArray,shape:List<Int>)->Result<FloatArray,StdError> effects {tasks} {
+ var output=stdNumericReshapeLogicalInit(&array,&shape)?;var cursor=0;
+ while true{let step=stdNumericReshapeLogicalStep(&array,&output,cursor)?;output=step._0;cursor=step._1;if step._2{return Ok(output);}task.yieldNow();}
+ return Err(StdError("NumericState",0));
+}
+// @api sumToShape cost At most 4096 input/final-output cells per step, Neumaier order per output cell, two shared native page accumulators, fixed-size page-footprint admission and task handoff.
+// @api sumToShape failure NumericShape/Type/Index/ReadOnly/Domain/NonFinite/Overflow; same broadcast contraction and empty/scalar result as synchronous SumToShape, no partial result on failure/cancel. Fatal budgets apply.
+pub async fn sumToShape(array:FloatArray,shape:List<Int>)->Result<FloatArray,StdError> effects {tasks} {
+ let initial=stdNumericSumShapeInit(&array,&shape)?;var sums=initial._0;var corrections=initial._1;var phase=0;var cursor=0;
+ while true{let step=stdNumericSumShapeStep(&array,&sums,&corrections,phase,cursor)?;sums=step._0;corrections=step._1;phase=step._2;cursor=step._3;if step._4{return Ok(sums);}task.yieldNow();}
+ return Err(StdError("NumericState",0));
+}
