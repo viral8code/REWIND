@@ -228,6 +228,8 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdNumericVariance",
         "stdNumericDot",
         "stdNumericDotStep",
+        "stdNumericSumStep",
+        "stdNumericMomentsStep",
         "stdNumericVectorInit",
         "stdNumericUnaryInit",
         "stdNumericUnaryStep",
@@ -414,6 +416,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             | "1.9.52"
             | "1.9.53"
             | "1.9.54"
+            | "1.9.55"
             | "2.0.0"
     ) {
         return Ok(());
@@ -786,6 +789,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "1.9.52"
             | "1.9.53"
             | "1.9.54"
+            | "1.9.55"
             | "2.0.0"
     ) || !names().contains(&n)
     {
@@ -898,6 +902,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
                 | "1.9.52"
                 | "1.9.53"
                 | "1.9.54"
+                | "1.9.55"
                 | "2.0.0"
         )
     {

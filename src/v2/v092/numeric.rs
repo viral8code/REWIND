@@ -257,6 +257,14 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if !language_at_least(&p.language, "1.8.0") {
         return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
     }
+    if matches!(n, "stdNumericSumStep" | "stdNumericMomentsStep")
+        && !language_at_least(&p.language, "1.9.55")
+    {
+        return Err(diagnostic(
+            at,
+            "cooperative reductions require language 1.9.55",
+        ));
+    }
     if matches!(n, "stdNumericUnaryInit" | "stdNumericUnaryStep")
         && !language_at_least(&p.language, "1.9.53")
     {
@@ -1258,6 +1266,17 @@ pub(super) fn work(n: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
             .min(rewind::numeric::COOPERATIVE_MACS)
             .saturating_mul(32)
             .saturating_add(256)
+    } else if matches!(name, "SumStep" | "MomentsStep") {
+        let cursor_arg = if name == "MomentsStep" { 2 } else { 1 };
+        length(0)
+            .saturating_sub(
+                args.get(cursor_arg)
+                    .and_then(|v| usize_arg(v).ok())
+                    .unwrap_or(0),
+            )
+            .min(rewind::numeric::COOPERATIVE_MACS)
+            .saturating_mul(32)
+            .saturating_add(256)
     } else if name == "NormStep" {
         length(0)
             .saturating_sub(args.get(1).and_then(|v| usize_arg(v).ok()).unwrap_or(0))
@@ -1541,7 +1560,7 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
         a(3).map_or(0, Array::update_estimate)
             .saturating_mul(rewind::numeric::COOPERATIVE_MACS.div_ceil(256) + 1)
             .saturating_add(rewind::numeric::COOPERATIVE_MACS * 8 + 16384)
-    } else if name == "NormStep" {
+    } else if matches!(name, "NormStep" | "SumStep" | "MomentsStep") {
         1024
     } else if name == "SparseInit" {
         131072
@@ -1673,6 +1692,8 @@ fn scratch(name: &str, args: &[Value], rt: &Runtime) -> usize {
             .and_then(|s| indices(s, rt).ok())
             .and_then(|s| elements(&s).ok())
             .map_or(0, Array::storage_estimate)
+    } else if matches!(name, "SumStep" | "MomentsStep") {
+        1024
     } else if name == "DotStep" {
         256
     } else if name == "MatmulStep" {
@@ -2213,6 +2234,49 @@ pub(super) fn call(n: &str, args: &[Value], rt: &mut Runtime) -> Result<Option<V
                     ]),
                 )
             }
+            "SumStep" => {
+                let progress = a(0)?.sum_step(rewind::numeric::KernelProgress {
+                    cursor: i(1)?,
+                    sum: f(2)?,
+                    correction: f(3)?,
+                })?;
+                Value::Struct(
+                    "Tuple<Int,Float,Float,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::Int(progress.cursor as i64)),
+                        ("_1".into(), Value::Float(progress.sum.to_bits())),
+                        ("_2".into(), Value::Float(progress.correction.to_bits())),
+                        ("_3".into(), Value::Bool(progress.cursor == a(0)?.len())),
+                    ]),
+                )
+            }
+            "MomentsStep" => {
+                let ddof = i(1)?;
+                let progress = a(0)?.moments_step(
+                    ddof,
+                    rewind::numeric::MomentsProgress {
+                        cursor: i(2)?,
+                        mean: f(3)?,
+                        m2: f(4)?,
+                    },
+                )?;
+                let done = progress.cursor == a(0)?.len();
+                let variance = if done {
+                    progress.variance(a(0)?.len(), ddof)?
+                } else {
+                    0.0
+                };
+                Value::Struct(
+                    "Tuple<Int,Float,Float,Float,Bool>".into(),
+                    BTreeMap::from([
+                        ("_0".into(), Value::Int(progress.cursor as i64)),
+                        ("_1".into(), Value::Float(progress.mean.to_bits())),
+                        ("_2".into(), Value::Float(progress.m2.to_bits())),
+                        ("_3".into(), Value::Float(variance.to_bits())),
+                        ("_4".into(), Value::Bool(done)),
+                    ]),
+                )
+            }
             "DotStep" => {
                 let state = rewind::numeric::KernelProgress {
                     cursor: usize_arg(&args[2])?,
@@ -2532,6 +2596,14 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
         ),
         "stdNumericNormStep" => (
             &["&FloatArray", "Int", "Float", "Float"],
+            "Result<Tuple<Int,Float,Float,Float,Bool>,StdError>",
+        ),
+        "stdNumericSumStep" => (
+            &["&FloatArray", "Int", "Float", "Float"],
+            "Result<Tuple<Int,Float,Float,Bool>,StdError>",
+        ),
+        "stdNumericMomentsStep" => (
+            &["&FloatArray", "Int", "Int", "Float", "Float"],
             "Result<Tuple<Int,Float,Float,Float,Bool>,StdError>",
         ),
         "stdNumericDotStep" => (

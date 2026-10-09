@@ -1,0 +1,28 @@
+effects {tasks};
+import task as task;
+// @api sum cost At most 4096 logical values per native step, shared input pages and constant scalar state; yields between steps, same Neumaier order as numeric.sum.
+// @api sum failure NumericType/NonFinite/Overflow; empty input sums to 0, arbitrary rank/views, no partial result on typed failure or cancellation. Fatal memory/work budgets apply.
+pub async fn sum(array:FloatArray)->Result<Float,StdError> effects {tasks} {
+ var cursor=0;var total=0.0;var correction=0.0;
+ while true {
+  let step=stdNumericSumStep(&array,cursor,total,correction)?;
+  cursor=step._0;total=step._1;correction=step._2;
+  if step._3{return Ok(total+correction);}task.yieldNow();
+ }
+ return Err(StdError("NumericState",0));
+}
+fn moments(array:FloatArray,ddof:Int)->Result<Tuple<Float,Float>,StdError> effects {tasks} {
+ var cursor=0;var mean=0.0;var m2=0.0;
+ while true {
+  let step=stdNumericMomentsStep(&array,ddof,cursor,mean,m2)?;
+  cursor=step._0;mean=step._1;m2=step._2;
+  if step._4{return Ok((mean,step._3));}task.yieldNow();
+ }
+ return Err(StdError("NumericState",0));
+}
+// @api mean cost At most 4096 logical values per native step, Welford order as numeric.mean; shared strided/broadcast inputs, constant scalar state, task handoff.
+// @api mean failure NumericType/Empty/NonFinite/Overflow; same finite mean-and-variance checks as numeric.mean; no partial result on failure/cancel, fatal budgets apply.
+pub async fn mean(array:FloatArray)->Result<Float,StdError> effects {tasks} {let result=moments(array,0)?;return Ok(result._0);}
+// @api variance cost At most 4096 logical values per native step, same Welford order and count-ddof divisor as numeric.variance; shared input and constant scalar state.
+// @api variance failure NumericIndex for negative ddof, NumericEmpty for count <= ddof, NumericType/NonFinite/Overflow; no partial result on failure/cancel, fatal budgets apply.
+pub async fn variance(array:FloatArray,ddof:Int)->Result<Float,StdError> effects {tasks} {let result=moments(array,ddof)?;return Ok(result._1);}

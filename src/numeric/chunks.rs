@@ -69,6 +69,35 @@ impl Progress {
         self.cursor += 1;
     }
 }
+/// Welford state for bounded pure reductions; retained as ordinary scalar values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MomentsProgress {
+    pub cursor: usize,
+    pub mean: f64,
+    pub m2: f64,
+}
+impl MomentsProgress {
+    pub fn initial() -> Self {
+        Self {
+            cursor: 0,
+            mean: 0.0,
+            m2: 0.0,
+        }
+    }
+    pub fn variance(self, total: usize, ddof: usize) -> Result<f64> {
+        if total <= ddof {
+            return Err(Error::Empty);
+        }
+        if self.cursor != total {
+            return Err(Error::Index);
+        }
+        let variance = self.m2 / (total - ddof) as f64;
+        if !self.mean.is_finite() || !variance.is_finite() {
+            return Err(Error::Overflow);
+        }
+        Ok(variance)
+    }
+}
 impl Node {
     pub(super) fn write_range(node: &mut Arc<Self>, height: usize, index: usize, values: &[u64]) {
         if values.is_empty() {
@@ -255,6 +284,67 @@ impl Array {
                 end,
             }
         })
+    }
+    /// At most COOPERATIVE_MACS values, preserving synchronous Neumaier order.
+    pub fn sum_step(&self, mut state: Progress) -> Result<Progress> {
+        if self.dtype != DType::Float64 {
+            return Err(Error::Type);
+        }
+        state.validate(self.len())?;
+        let end = state
+            .cursor
+            .saturating_add(COOPERATIVE_MACS)
+            .min(self.len());
+        for bit in self.window_bits(state.cursor, end)? {
+            let value = f64::from_bits(bit);
+            if !value.is_finite() {
+                return Err(Error::NonFinite);
+            }
+            state.accumulate(value);
+            if !state.sum.is_finite() || !state.correction.is_finite() {
+                return Err(Error::Overflow);
+            }
+        }
+        if state.cursor == self.len() && !(state.sum + state.correction).is_finite() {
+            return Err(Error::Overflow);
+        }
+        Ok(state)
+    }
+    /// Bounded Welford accumulation in the same logical order as mean_variance.
+    pub fn moments_step(&self, ddof: usize, mut state: MomentsProgress) -> Result<MomentsProgress> {
+        if self.dtype != DType::Float64 {
+            return Err(Error::Type);
+        }
+        if self.len() <= ddof {
+            return Err(Error::Empty);
+        }
+        if state.cursor > self.len() {
+            return Err(Error::Index);
+        }
+        if !state.mean.is_finite() || !state.m2.is_finite() {
+            return Err(Error::NonFinite);
+        }
+        let end = state
+            .cursor
+            .saturating_add(COOPERATIVE_MACS)
+            .min(self.len());
+        for bit in self.window_bits(state.cursor, end)? {
+            let value = f64::from_bits(bit);
+            if !value.is_finite() {
+                return Err(Error::NonFinite);
+            }
+            let delta = value - state.mean;
+            state.mean += delta / (state.cursor + 1) as f64;
+            state.m2 += delta * (value - state.mean);
+            state.cursor += 1;
+            if !state.mean.is_finite() || !state.m2.is_finite() {
+                return Err(Error::Overflow);
+            }
+        }
+        if state.cursor == self.len() {
+            state.variance(self.len(), ddof)?;
+        }
+        Ok(state)
     }
     pub fn dot_step(&self, other: &Self, mut state: Progress) -> Result<Progress> {
         if self.dtype != DType::Float64 || other.dtype != self.dtype {
