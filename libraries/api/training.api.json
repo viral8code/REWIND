@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.50",
+  "language": "1.9.58",
   "symbols": {
     "dependency:autodiff.rw": {
       "fn:$import$autodiff$backward": {
@@ -13,6 +13,35 @@
           "$import$autodiff$Node"
         ],
         "return": "Result<$import$autodiff$Gradients,StdError>"
+      },
+      "fn:$import$autodiff$backwardAccumulated": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$BackwardWork",
+          "Int"
+        ],
+        "return": "Result<Option<FloatArray>,StdError>"
+      },
+      "fn:$import$autodiff$backwardDone": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$autodiff$BackwardWork"
+        ],
+        "return": "Bool"
+      },
+      "fn:$import$autodiff$backwardWork": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$autodiff$Tape",
+          "$import$autodiff$Node"
+        ],
+        "return": "Result<$import$autodiff$BackwardWork,StdError>"
       },
       "fn:$import$autodiff$binary": {
         "async": false,
@@ -54,6 +83,15 @@
         "parameters": [],
         "return": "$import$autodiff$Tape"
       },
+      "fn:$import$autodiff$finishBackward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$autodiff$BackwardWork"
+        ],
+        "return": "Result<$import$autodiff$Gradients,StdError>"
+      },
       "fn:$import$autodiff$gradient": {
         "async": false,
         "effects": [],
@@ -85,6 +123,15 @@
         ],
         "return": "Result<$import$autodiff$Node,StdError>"
       },
+      "fn:$import$autodiff$nextBackward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$BackwardWork"
+        ],
+        "return": "Result<$import$autodiff$BackwardStep,StdError>"
+      },
       "fn:$import$autodiff$parameter": {
         "async": false,
         "effects": [],
@@ -96,6 +143,15 @@
         ],
         "return": "Result<$import$autodiff$Node,StdError>"
       },
+      "fn:$import$autodiff$prepareBackward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$BackwardWork"
+        ],
+        "return": "Result<Bool,StdError>"
+      },
       "fn:$import$autodiff$reshape": {
         "async": false,
         "effects": [],
@@ -106,6 +162,17 @@
           "&List<Int>"
         ],
         "return": "Result<$import$autodiff$Node,StdError>"
+      },
+      "fn:$import$autodiff$storeBackward": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$autodiff$BackwardWork",
+          "Int",
+          "FloatArray"
+        ],
+        "return": "Result<Unit,StdError>"
       },
       "fn:$import$autodiff$sum": {
         "async": false,
@@ -147,6 +214,55 @@
           "$import$autodiff$Node"
         ],
         "return": "Result<FloatArray,StdError>"
+      },
+      "type:$import$autodiff$BackwardStep": {
+        "bounds": {},
+        "fields": [
+          [
+            "kind",
+            "String"
+          ],
+          [
+            "a",
+            "Int"
+          ],
+          [
+            "b",
+            "Int"
+          ],
+          [
+            "left",
+            "FloatArray"
+          ],
+          [
+            "right",
+            "FloatArray"
+          ],
+          [
+            "value",
+            "FloatArray"
+          ],
+          [
+            "needLeft",
+            "Bool"
+          ],
+          [
+            "needRight",
+            "Bool"
+          ],
+          [
+            "gradient",
+            "Option<FloatArray>"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$autodiff$BackwardWork": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
       },
       "type:$import$autodiff$Gradients": {
         "bounds": {},
@@ -943,6 +1059,12 @@
       "kind": "record"
     },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],

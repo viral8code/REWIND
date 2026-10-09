@@ -1,9 +1,9 @@
 {
-  "compiler": "1.9.57",
+  "compiler": "1.9.58",
   "dependencies": {},
   "effects": [
     "tasks"
   ],
   "format": 2,
-  "language": "1.9.57"
+  "language": "1.9.58"
 }

@@ -20,6 +20,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/autodiff.rw"),
         ),
         (
+            "autodiffAsync",
+            include_str!("../../../libraries/std/autodiffAsync.rw"),
+        ),
+        (
             "fftAsync",
             include_str!("../../../libraries/std/fftAsync.rw"),
         ),
@@ -644,8 +648,28 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/autodiff-async/main.rw",
+            include_str!("../../../examples/autodiff-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/backward-gui/main.rw",
+            include_str!("../../../examples/backward-gui/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/shape-async/README.md",
             include_str!("../../../examples/shape-async/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/autodiff-async/README.md",
+            include_str!("../../../examples/autodiff-async/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/backward-gui/README.md",
+            include_str!("../../../examples/backward-gui/README.md"),
         )?;
         write(
             &output,
@@ -760,6 +784,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.57.md",
                 include_str!("../../../docs/REWIND_v1.9.57.md"),
+            ),
+            (
+                "REWIND_v1.9.58.md",
+                include_str!("../../../docs/REWIND_v1.9.58.md"),
             ),
             (
                 "REWIND_v1.9.56.md",
@@ -1003,8 +1031,28 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/autodiff-async/main.rw",
+            include_str!("../../../examples/autodiff-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/backward-gui/main.rw",
+            include_str!("../../../examples/backward-gui/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/shape-async/README.md",
             include_str!("../../../examples/shape-async/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/autodiff-async/README.md",
+            include_str!("../../../examples/autodiff-async/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/backward-gui/README.md",
+            include_str!("../../../examples/backward-gui/README.md"),
         )?;
         write(
             &output,
@@ -1121,6 +1169,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.57.md"),
             ),
             (
+                "REWIND_v1.9.58.md",
+                include_str!("../../../docs/REWIND_v1.9.58.md"),
+            ),
+            (
                 "REWIND_v1.9.56.md",
                 include_str!("../../../docs/REWIND_v1.9.56.md"),
             ),
@@ -1190,6 +1242,14 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/shape-async/README.md"),
             ),
             (
+                "autodiff-async",
+                include_str!("../../../examples/autodiff-async/README.md"),
+            ),
+            (
+                "backward-gui",
+                include_str!("../../../examples/backward-gui/README.md"),
+            ),
+            (
                 "graph-async",
                 include_str!("../../../examples/graph-async/README.md"),
             ),
@@ -1256,6 +1316,14 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "shape-async",
                 include_str!("../../../examples/shape-async/main.rw"),
+            ),
+            (
+                "autodiff-async",
+                include_str!("../../../examples/autodiff-async/main.rw"),
+            ),
+            (
+                "backward-gui",
+                include_str!("../../../examples/backward-gui/main.rw"),
             ),
             (
                 "graph-async",

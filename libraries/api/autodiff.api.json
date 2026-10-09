@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.16",
+  "language": "1.9.58",
   "symbols": {
     "dependency:numeric.rw": {
       "fn:$import$numeric$activation": {
@@ -540,6 +540,38 @@
       ],
       "return": "Result<Gradients,StdError>"
     },
+    "fn:backwardAccumulated": {
+      "async": false,
+      "effects": [],
+      "failure": "AutodiffState/Node; constants return None and must not receive allocated gradients.",
+      "generics": [],
+      "parameters": [
+        "&BackwardWork",
+        "Int"
+      ],
+      "return": "Result<Option<FloatArray>,StdError>"
+    },
+    "fn:backwardDone": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&BackwardWork"
+      ],
+      "return": "Bool"
+    },
+    "fn:backwardWork": {
+      "async": false,
+      "cost": "O(rank) validation and empty metadata allocation; consumes tape, no full metadata freeze.",
+      "effects": [],
+      "failure": "AutodiffNode/Loss; requires a one-element loss. Existing Node storage keys are preserved.",
+      "generics": [],
+      "parameters": [
+        "Tape",
+        "Node"
+      ],
+      "return": "Result<BackwardWork,StdError>"
+    },
     "fn:binary": {
       "async": false,
       "effects": [],
@@ -582,6 +614,16 @@
       "parameters": [],
       "return": "Tape"
     },
+    "fn:finishBackward": {
+      "async": false,
+      "effects": [],
+      "failure": "AutodiffState until traversal completes; consumes work and releases tape metadata, returns existing Gradients.",
+      "generics": [],
+      "parameters": [
+        "BackwardWork"
+      ],
+      "return": "Result<Gradients,StdError>"
+    },
     "fn:gradient": {
       "async": false,
       "effects": [],
@@ -614,6 +656,16 @@
       ],
       "return": "Result<Node,StdError>"
     },
+    "fn:nextBackward": {
+      "async": false,
+      "effects": [],
+      "failure": "AutodiffState before preparation or after completion; returns immutable views, no tensor computation.",
+      "generics": [],
+      "parameters": [
+        "&mut BackwardWork"
+      ],
+      "return": "Result<BackwardStep,StdError>"
+    },
     "fn:parameter": {
       "async": false,
       "cost": "O(elements) finite validation, no copy of numeric pages; name bounded to 128 UTF-8 bytes, at most 100000 operations per tape.",
@@ -627,6 +679,16 @@
       ],
       "return": "Result<Node,StdError>"
     },
+    "fn:prepareBackward": {
+      "async": false,
+      "cost": "At most 64 metadata entries per call; scalar loss seed only after complete initialization.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut BackwardWork"
+      ],
+      "return": "Result<Bool,StdError>"
+    },
     "fn:reshape": {
       "async": false,
       "effects": [],
@@ -637,6 +699,18 @@
         "&List<Int>"
       ],
       "return": "Result<Node,StdError>"
+    },
+    "fn:storeBackward": {
+      "async": false,
+      "effects": [],
+      "failure": "AutodiffState/Node, NumericShape; accepts a fully computed gradient for a needed parent.",
+      "generics": [],
+      "parameters": [
+        "&mut BackwardWork",
+        "Int",
+        "FloatArray"
+      ],
+      "return": "Result<Unit,StdError>"
     },
     "fn:sum": {
       "async": false,
@@ -680,6 +754,55 @@
         "Node"
       ],
       "return": "Result<FloatArray,StdError>"
+    },
+    "type:BackwardStep": {
+      "constructor": true,
+      "fields": [
+        [
+          "kind",
+          "String"
+        ],
+        [
+          "a",
+          "Int"
+        ],
+        [
+          "b",
+          "Int"
+        ],
+        [
+          "left",
+          "FloatArray"
+        ],
+        [
+          "right",
+          "FloatArray"
+        ],
+        [
+          "value",
+          "FloatArray"
+        ],
+        [
+          "needLeft",
+          "Bool"
+        ],
+        [
+          "needRight",
+          "Bool"
+        ],
+        [
+          "gradient",
+          "Option<FloatArray>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:BackwardWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
     },
     "type:BigInt": {
       "constructor": false,
@@ -867,6 +990,18 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
       "constructor": false,
       "fields": [],
@@ -878,6 +1013,12 @@
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
     },
     "type:HistogramResult": {
       "constructor": true,
@@ -953,6 +1094,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -1137,9 +1347,38 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Node": {
       "constructor": false,
       "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
       "generics": [],
       "kind": "record"
     },
@@ -1166,7 +1405,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -1192,6 +1449,36 @@
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
     }
   }
 }
