@@ -154,6 +154,18 @@ mod tests {
                 } else {
                     serde_json::Value::Null
                 };
+                #[cfg(windows)]
+                let diagnostics = rt
+                    .gui_dialogs
+                    .get(&id)
+                    .map(|session| session.test_diagnostics());
+                #[cfg(windows)]
+                assert_eq!(
+                    result,
+                    Some(Ok(expected.clone())),
+                    "native chooser diagnostic: {diagnostics:?}"
+                );
+                #[cfg(not(windows))]
                 assert_eq!(result, Some(Ok(expected.clone())));
                 assert!(rt.gui_dialogs.is_empty());
                 rt.revert("before-dialog").unwrap();
