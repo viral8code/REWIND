@@ -1,0 +1,25 @@
+import std.numeric as numeric;
+import std.numericReduceAsync as jobs;
+import std.task as task;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {Ok(v)=>{return move v;},Err(_)=>{panic("numeric operation failed");}}
+}
+async fn marker()->Int effects {tasks} {return 7;}
+let one=List<Int>();one.add(1);
+let values=List<Float>();values.add(0.5);
+let scalar=take(numeric.fromFloat(&one,&values));
+let shape=List<Int>();shape.add(32769);
+let repeated=take(numeric.broadcastFloat(&scalar,&shape));
+let reversed=take(numeric.sliceFloat(&repeated,0,32768,32769,-1));
+let work=spawn jobs.sum(reversed);
+let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
+commit halfway;
+assert_eq(take(take(await work)),16384.5);Out.println(true);publish;
+revert halfway;
+assert_eq(take(take(await work)),take(numeric.sum(&reversed)));Out.println(true);
+drop halfway;publish;
+assert_eq(take(take(await spawn jobs.mean(reversed))),0.5);
+assert_eq(take(take(await spawn jobs.variance(reversed,1))),0.0);
+let cancelled=spawn jobs.variance(reversed,0);task.yieldNow();assert(!cancelled.isDone());
+cancelled.cancel();match await cancelled{Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
+Out.println("reductions done");publish;

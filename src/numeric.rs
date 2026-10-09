@@ -29,9 +29,13 @@ mod stats;
 pub use graph::{graph_adjacency, graph_bfs, MAX_GRAPH_ITEMS};
 #[cfg(test)]
 mod page_builder_tests;
+#[cfg(test)]
+mod reduction_tests;
 mod tensor;
 mod unary;
-pub use chunks::{NormProgress, Progress as KernelProgress, VectorOperation, COOPERATIVE_MACS};
+pub use chunks::{
+    MomentsProgress, NormProgress, Progress as KernelProgress, VectorOperation, COOPERATIVE_MACS,
+};
 pub use linalg::{Eigen, Qr};
 pub use model::{decode_model, encode_model, model_size, MAX_MODEL_BYTES, MAX_MODEL_PARAMETERS};
 pub use stats::Histogram;

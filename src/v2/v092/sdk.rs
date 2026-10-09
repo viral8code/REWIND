@@ -131,6 +131,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/numericTransformAsync.rw"),
         ),
         (
+            "numericReduceAsync",
+            include_str!("../../../libraries/std/numericReduceAsync.rw"),
+        ),
+        (
             "numericRange",
             include_str!("../../../libraries/std/numericRange.rw"),
         ),
@@ -627,6 +631,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/reductions-async/main.rw",
+            include_str!("../../../examples/reductions-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/reductions-async/README.md",
+            include_str!("../../../examples/reductions-async/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/numeric-pages/main.rw",
             include_str!("../../../examples/numeric-pages/main.rw"),
         )?;
@@ -704,6 +718,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.54.md",
                 include_str!("../../../docs/REWIND_v1.9.54.md"),
+            ),
+            (
+                "REWIND_v1.9.55.md",
+                include_str!("../../../docs/REWIND_v1.9.55.md"),
             ),
             (
                 "REWIND_v1.9.48.md",
@@ -934,6 +952,16 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/reductions-async/main.rw",
+            include_str!("../../../examples/reductions-async/main.rw"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/reductions-async/README.md",
+            include_str!("../../../examples/reductions-async/README.md"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/numeric-pages/main.rw",
             include_str!("../../../examples/numeric-pages/main.rw"),
         )?;
@@ -1013,6 +1041,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.54.md"),
             ),
             (
+                "REWIND_v1.9.55.md",
+                include_str!("../../../docs/REWIND_v1.9.55.md"),
+            ),
+            (
                 "REWIND_v1.9.48.md",
                 include_str!("../../../docs/REWIND_v1.9.48.md"),
             ),
@@ -1070,6 +1102,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../examples/unary-async/README.md"),
             ),
             (
+                "reductions-async",
+                include_str!("../../../examples/reductions-async/README.md"),
+            ),
+            (
                 "numeric-pages",
                 include_str!("../../../examples/numeric-pages/README.md"),
             ),
@@ -1120,6 +1156,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "unary-async",
                 include_str!("../../../examples/unary-async/main.rw"),
+            ),
+            (
+                "reductions-async",
+                include_str!("../../../examples/reductions-async/main.rw"),
             ),
             (
                 "numeric-pages",

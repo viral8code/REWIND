@@ -145,6 +145,7 @@ python3 scripts/smoke-numeric-index-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WOR
 python3 scripts/smoke-graph-large-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/graph-large"
 python3 scripts/smoke-nonlinear-training-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/nonlinear-training"
 python3 scripts/smoke-unary-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/unary-async"
+python3 scripts/smoke-reductions-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/reductions-async"
 python3 scripts/smoke-numeric-pages-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/numeric-pages"
 python3 scripts/smoke-gui-clipboard-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/gui-clipboard"
 python3 scripts/smoke-secret-accounting-sdk.py "$EXTRACTED/bin/rewind" "$RELEASE_WORK/secret-accounting"
