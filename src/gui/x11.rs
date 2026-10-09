@@ -1,6 +1,6 @@
 use super::*;
 use libc::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
-use std::sync::{Mutex, Once};
+use std::sync::{Arc, Mutex, Once};
 use std::{cell::UnsafeCell, ffi::CString};
 // Locale/font/input-method caches are shared by Xlib across displays.
 static SETUP: Mutex<()> = Mutex::new(());
@@ -344,6 +344,11 @@ fn Xutf8DrawString(*mut c_void,Window,*mut c_void,*mut c_void,c_int,c_int,*const
 fn XInternAtom(*mut c_void,*const c_char,c_int)->c_ulong;
 fn XSetWMProtocols(*mut c_void,Window,*mut c_ulong,c_int)->c_int;
 fn XPending(*mut c_void)->c_int;
+fn XConnectionNumber(*mut c_void)->c_int;
+fn XSync(*mut c_void,c_int)->c_int;
+fn XGetImage(*mut c_void,Window,c_int,c_int,c_uint,c_uint,c_ulong,c_int)->*mut c_void;
+fn XGetPixel(*mut c_void,c_int,c_int)->c_ulong;
+fn XDestroyImage(*mut c_void)->c_int;
 fn XNextEvent(*mut c_void,*mut XEvent)->c_int;
 fn XLookupKeysym(*mut Button,c_int)->c_ulong;
 fn XKeysymToKeycode(*mut c_void,c_ulong)->u8;
@@ -357,7 +362,11 @@ pub(super) struct Surface {
     gc: *mut c_void,
     font: *mut c_void,
     delete: c_ulong,
-    frame: Option<Frame>,
+    frame: Option<Arc<Frame>>,
+    accessibility_enabled: bool,
+    accessibility_attempted: bool,
+    accessibility_tree: accessibility::Tree,
+    accessibility_bridge: Option<linux_accessibility::Bridge>,
     im: *mut c_void,
     ic: *mut c_void,
     ime_enabled: bool,
@@ -370,6 +379,9 @@ pub(super) struct Surface {
     clipboard_pending: Option<(String, c_ulong, std::time::Instant, c_ulong)>,
 }
 impl Surface {
+    pub fn configure_accessibility(&mut self, enabled: bool) {
+        self.accessibility_enabled = enabled;
+    }
     #[cfg(test)]
     pub fn inject_clipboard_key(&mut self, key: u8) {
         unsafe {
@@ -467,6 +479,10 @@ impl Surface {
                 font,
                 delete,
                 frame: None,
+                accessibility_enabled: false,
+                accessibility_attempted: false,
+                accessibility_tree: accessibility::Tree::default(),
+                accessibility_bridge: None,
                 im,
                 ic: std::ptr::null_mut(),
                 clipboard_enabled: false,
@@ -726,7 +742,7 @@ impl Surface {
             (self.api.XDeleteProperty)(self.display, self.window, property);
             if self
                 .frame
-                .as_ref()
+                .as_deref()
                 .and_then(clipboard::focused_input)
                 .is_some_and(|item| item.id == focused)
             {
@@ -767,7 +783,7 @@ impl Surface {
                         | (1 << 2)
                         | (1 << 15)
                         | (1 << 17)
-                        | if self.ime_enabled {
+                        | if self.ime_enabled || self.accessibility_enabled {
                             (1 << 1) | (1 << 21)
                         } else {
                             0
@@ -798,7 +814,7 @@ impl Surface {
                 frame.height as u32,
             );
             if self.ime_enabled {
-                let before = self.frame.as_ref().and_then(clipboard::focused_input);
+                let before = self.frame.as_deref().and_then(clipboard::focused_input);
                 let after = clipboard::focused_input(frame);
                 if !composition::same_input(before, after) && (*self.composition.get()).active {
                     // Destroying the old IC prevents queued feedback for its old
@@ -813,7 +829,28 @@ impl Surface {
                     self.create_input_context();
                 }
             }
-            self.frame = Some(frame.clone());
+            let previous = self.frame.clone();
+            let published = Arc::new(frame.clone());
+            self.frame = Some(published.clone());
+            if self.accessibility_enabled {
+                self.accessibility_tree.publish(published);
+                if self
+                    .accessibility_bridge
+                    .as_ref()
+                    .is_some_and(|bridge| bridge.needs_rebind())
+                {
+                    self.accessibility_bridge = None;
+                    self.accessibility_bridge =
+                        linux_accessibility::Bridge::start(self.accessibility_tree.clone())?;
+                } else if let Some(bridge) = &mut self.accessibility_bridge {
+                    bridge.sync()?;
+                    bridge.changed(previous.as_deref(), frame);
+                } else if !self.accessibility_attempted {
+                    self.accessibility_attempted = true;
+                    self.accessibility_bridge =
+                        linux_accessibility::Bridge::start(self.accessibility_tree.clone())?;
+                }
+            }
             (*self.composition.get()).accepting = clipboard::focused_input(frame).is_some();
             if self.ime_callbacks {
                 if let Some(item) = clipboard::focused_input(frame) {
@@ -1004,7 +1041,7 @@ impl Surface {
             if !state.active || state.text.is_empty() {
                 return;
             }
-            let Some(item) = self.frame.as_ref().and_then(clipboard::focused_input) else {
+            let Some(item) = self.frame.as_deref().and_then(clipboard::focused_input) else {
                 return;
             };
             let measure = |value: &str| {
@@ -1079,16 +1116,28 @@ impl Surface {
         }
         let mut processed = 0;
         loop {
-            if self.ime_enabled && !blocking && processed >= 64 {
+            if (self.ime_enabled || self.accessibility_enabled) && !blocking && processed >= 64 {
                 return Ok(None);
             }
             processed += 1;
+            if let Some(bridge) = &mut self.accessibility_bridge {
+                if let Some(event) = bridge.pump() {
+                    return Ok(Some(event));
+                }
+                if blocking && unsafe { (self.api.XPending)(self.display) } == 0 {
+                    bridge.wait(unsafe { (self.api.XConnectionNumber)(self.display) })?;
+                    continue;
+                }
+            }
             unsafe {
                 if !blocking && (self.api.XPending)(self.display) == 0 {
                     return Ok(None);
                 }
                 let mut e = XEvent { pad: [0; 24] };
                 (self.api.XNextEvent)(self.display, &mut e);
+                if e.kind == 9 || e.kind == 10 {
+                    self.accessibility_tree.focus(e.kind == 9);
+                }
                 let filtered = !self.ic.is_null() && (self.api.XFilterEvent)(&mut e, 0) != 0;
                 self.refresh_composition()?;
                 if filtered {
@@ -1098,7 +1147,7 @@ impl Surface {
                     9 if self.ime_enabled => {
                         (*self.composition.get()).accepting = self
                             .frame
-                            .as_ref()
+                            .as_deref()
                             .and_then(clipboard::focused_input)
                             .is_some();
                         if !self.ic.is_null() {
@@ -1153,7 +1202,7 @@ impl Surface {
                         {
                             let focused = self
                                 .frame
-                                .as_ref()
+                                .as_deref()
                                 .and_then(clipboard::focused_input)
                                 .map(|item| item.id.clone());
                             if let Some(focused) = focused {
@@ -1200,7 +1249,7 @@ impl Surface {
                                         (self.api.XFlush)(self.display);
                                     }
                                 } else if let Some(text) =
-                                    self.frame.as_ref().and_then(clipboard::selected_text)
+                                    self.frame.as_deref().and_then(clipboard::selected_text)
                                 {
                                     self.clipboard_text = Some(text);
                                     (self.api.XSetSelectionOwner)(
@@ -1222,7 +1271,7 @@ impl Surface {
                             }
                             if self
                                 .frame
-                                .as_ref()
+                                .as_deref()
                                 .and_then(clipboard::focused_input)
                                 .is_some()
                                 || !self.command_keys_enabled
@@ -1331,6 +1380,9 @@ impl Surface {
         }
     }
     pub fn close(&mut self) {
+        self.accessibility_tree.close();
+        self.accessibility_bridge = None;
+        self.accessibility_attempted = false;
         unsafe {
             if !self.ic.is_null() {
                 (self.api.XDestroyIC)(self.ic);
@@ -1641,5 +1693,217 @@ mod ime_tests {
             },
         };
         assert_eq!(unsafe { preedit_text(&text) }, None);
+    }
+}
+
+#[cfg(test)]
+mod accessibility_tests {
+    use super::*;
+    // Both tests share a real desktop registry. Keep application churn out of
+    // the independent client's discovery/cache initialization phase.
+    static DESKTOP_REGISTRY: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    #[test]
+    fn real_atspi_multiple_windows_close_with_queued_registry_properties_and_rebind_bounded_paths()
+    {
+        if std::env::var("REWIND_TEST_A11Y_SERVICE").as_deref() != Ok("1") {
+            return;
+        }
+        let _desktop = DESKTOP_REGISTRY.lock().unwrap();
+        let mut frame = Frame {
+            title: "REWIND accessibility lifecycle".into(),
+            width: 320,
+            height: 160,
+            background: 0xffffff,
+            items: vec![],
+        };
+        for _ in 0..16 {
+            let mut first = Surface::new().unwrap();
+            first.configure_accessibility(true);
+            let mut second = Surface::new().unwrap();
+            second.configure_accessibility(true);
+            first.present(&frame).unwrap();
+            second.present(&frame).unwrap();
+            assert!(first.accessibility_bridge.is_some());
+            assert!(second.accessibility_bridge.is_some());
+            first.close();
+            second.close();
+        }
+        let mut surface = Surface::new().unwrap();
+        surface.configure_accessibility(true);
+        for epoch in 0..3 {
+            frame.items = (0..2048)
+                .map(|i| Item {
+                    id: format!("{epoch}-{i}"),
+                    kind: "button".into(),
+                    x: i % 100,
+                    y: i / 100,
+                    width: 1,
+                    height: 1,
+                    text: "Activate".into(),
+                    foreground: 0,
+                    background: 0xffffff,
+                    enabled: true,
+                    checked: false,
+                    focused: false,
+                    cursor: 0,
+                    anchor: 0,
+                    scroll: 0,
+                })
+                .collect();
+            surface.present(&frame).unwrap();
+            assert!(surface.accessibility_bridge.as_ref().unwrap().path_count() <= 4099);
+        }
+        surface.close();
+        assert!(surface.accessibility_tree.node(None).is_none());
+    }
+    #[test]
+    fn real_atspi_registry_client_reads_published_controls_and_dispatches_action() {
+        if std::env::var("REWIND_TEST_A11Y_SERVICE").as_deref() != Ok("1") {
+            return;
+        }
+        let _desktop = DESKTOP_REGISTRY.lock().unwrap();
+        let mut surface = Surface::new().unwrap();
+        surface.configure_accessibility(true);
+        let mut frame = Frame {
+            title: "REWIND accessibility acceptance".into(),
+            width: 320,
+            height: 160,
+            background: 0xffffff,
+            items: vec![Item {
+                id: "save".into(),
+                kind: "button".into(),
+                x: 10,
+                y: 10,
+                width: 100,
+                height: 30,
+                text: "保存".into(),
+                foreground: 0,
+                background: 0xffffff,
+                enabled: true,
+                checked: false,
+                focused: false,
+                cursor: 0,
+                anchor: 0,
+                scroll: 0,
+            }],
+        };
+        frame.items.push(Item {
+            id: "Email address".into(),
+            kind: "textbox".into(),
+            x: 10,
+            y: 60,
+            width: 180,
+            height: 24,
+            text: "界🙂abc".into(),
+            foreground: 0,
+            background: 0xffffff,
+            enabled: true,
+            checked: false,
+            focused: false,
+            cursor: 2,
+            anchor: 1,
+            scroll: 0,
+        });
+        surface.present(&frame).unwrap();
+        let bridge = surface
+            .accessibility_bridge
+            .as_ref()
+            .expect("actual AT-SPI session required");
+        let mut client = std::process::Command::new("/usr/bin/python3")
+            .arg("scripts/native-accessibility-client.py")
+            .arg(bridge.bus_name())
+            .spawn()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        let mut actions = 0;
+        loop {
+            if let Some(status) = client.try_wait().unwrap() {
+                assert!(status.success(), "actual accessibility client failed");
+                break;
+            }
+            if std::time::Instant::now() > deadline {
+                client.kill().unwrap();
+                client.wait().unwrap();
+                panic!("actual accessibility client timed out");
+            }
+            if let Some(event) = surface.poll().unwrap() {
+                if event.kind == "pointer" {
+                    actions += 1;
+                    assert_eq!((event.x, event.y), (60, 25));
+                    frame.items[0].enabled = false;
+                    frame.items[0].text = "Disabled".into();
+                    surface.present(&frame).unwrap();
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert_eq!(actions, 1);
+        surface.close();
+        assert!(surface.accessibility_bridge.is_none());
+        assert!(surface.accessibility_tree.node(None).is_none());
+    }
+}
+
+#[cfg(test)]
+mod font_tests {
+    use super::*;
+    #[test]
+    fn native_font_service_draws_distinct_latin_and_japanese_glyphs() {
+        if std::env::var_os("DISPLAY").is_none() {
+            return;
+        }
+        let mut surface = Surface::new().unwrap();
+        let mut frame = Frame {
+            title: "REWIND native font acceptance".into(),
+            width: 240,
+            height: 160,
+            background: 0xffffff,
+            items: vec![Item {
+                id: "glyph".into(),
+                kind: "label".into(),
+                x: 10,
+                y: 10,
+                width: 100,
+                height: 30,
+                text: "I".into(),
+                foreground: 0,
+                background: 0xffffff,
+                enabled: true,
+                checked: false,
+                focused: false,
+                cursor: 0,
+                anchor: 0,
+                scroll: 0,
+            }],
+        };
+        let mut capture = |text: &str| {
+            frame.items[0].text = text.into();
+            surface.present(&frame).unwrap();
+            surface.paint();
+            unsafe {
+                (surface.api.XSync)(surface.display, 0);
+                let image =
+                    (surface.api.XGetImage)(surface.display, surface.window, 10, 10, 64, 30, !0, 2);
+                assert!(!image.is_null());
+                let mut pixels = Vec::new();
+                for y in 0..30 {
+                    for x in 0..64 {
+                        pixels.push((surface.api.XGetPixel)(image, x, y));
+                    }
+                }
+                (surface.api.XDestroyImage)(image);
+                pixels
+            }
+        };
+        assert_ne!(
+            capture("I"),
+            capture("W"),
+            "native capture must distinguish glyphs"
+        );
+        assert_ne!(
+            capture("界"),
+            capture("語"),
+            "Japanese text must not render as identical missing-glyph placeholders"
+        );
     }
 }

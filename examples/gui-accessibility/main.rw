@@ -1,0 +1,13 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(result)=>{return move result;},Err(_)=>{panic("GUI operation failed");}}}
+fn save(view:&mut gui.View)->Unit effects {gui} {
+ while true {let input=take(windows.nextEventAny());match gui.dispatch(view,input.event){Some(gui.Action::Activate(id))=>{if id=="save"{return;}},Some(gui.Action::Close)=>{panic("window closed");},_=>{}}}
+}
+let args=Args.all();var title="REWIND accessibility";if args.len()>0{title=args.get(0);}
+let view=take(gui.window(title,320,180));take(gui.button(&mut view,"save","保存",10,10,100,30));take(gui.textBox(&mut view,"Email address","界🙂abc",10,60,200,30));
+take(windows.present("main",&view));Out.println("ready");publish;
+commit ready;
+save(&mut view);take(gui.setText(&mut view,"save","Saved"));take(windows.present("main",&view));Out.println("saved");publish;
+revert ready;windows.continueInput();take(windows.present("main",&view));Out.println("undo");publish;
+save(&mut view);Out.println("saved");drop ready;take(windows.close("main"));publish;

@@ -27,8 +27,15 @@ def main():
     if args and args[0]=='--':args=args[1:]
     if not args:raise SystemExit('usage: ime-fixture.py -- COMMAND [ARG ...]')
     if os.environ.get('REWIND_IME_PRIVATE_BUS')!='1':
-        environment=dict(os.environ,REWIND_IME_PRIVATE_BUS='1')
-        return subprocess.call(['dbus-run-session','--',sys.executable,str(Path(__file__).resolve()),'--',*args],env=environment)
+        with tempfile.TemporaryDirectory(prefix='rewind-ime-bus-') as temporary:
+            root=Path(temporary)
+            for name in ['runtime','cache']:(root/name).mkdir(mode=0o700)
+            environment=dict(os.environ,REWIND_IME_PRIVATE_BUS='1',XDG_RUNTIME_DIR=str(root/'runtime'),XDG_CACHE_HOME=str(root/'cache'))
+            # Services activated by this bus must discover their own AT-SPI bus,
+            # rather than the outer SDK session or its X11 root property. The
+            # child below starts and selects its dedicated Xvfb display.
+            for name in ['AT_SPI_BUS_ADDRESS','REWIND_GUI_PRIVATE_SESSION','DISPLAY']:environment.pop(name,None)
+            return subprocess.call(['dbus-run-session','--',sys.executable,str(Path(__file__).resolve()),'--',*args],env=environment)
     prefix=Path(os.environ.get('REWIND_TEST_IME_ROOT','/'))
     xserver=os.environ.get('REWIND_GUI_TEST_XVFB') or shutil.which('Xvfb')
     if not xserver:raise RuntimeError('IME fixture needs Xvfb')

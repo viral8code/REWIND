@@ -1,6 +1,7 @@
 use super::*;
 use serde_json::{json, Value as J};
-const MAX_BYTES: u64 = 256 * 1024 * 1024;
+// Debug-built compiler pairs can exceed 256 MiB. Files are still streamed under a fixed distribution bound.
+const MAX_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_FILES: usize = 768;
 fn file_hash(path: &Path, expected: u64) -> Result<String> {
     use sha2::{Digest, Sha256};
@@ -706,6 +707,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-accessibility/main.rw",
+            include_str!("../../../examples/gui-accessibility/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/gui-dialog/main.rw",
             include_str!("../../../examples/gui-dialog/main.rw"),
         )?;
@@ -743,6 +749,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-menu/README.md",
             include_str!("../../../examples/gui-menu/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-accessibility/README.md",
+            include_str!("../../../examples/gui-accessibility/README.md"),
         )?;
         write(
             &output,
@@ -902,6 +913,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.62.md",
                 include_str!("../../../docs/REWIND_v1.9.62.md"),
+            ),
+            (
+                "REWIND_v1.9.63.md",
+                include_str!("../../../docs/REWIND_v1.9.63.md"),
             ),
             ("v2-status.md", include_str!("../../../docs/v2-status.md")),
             ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
@@ -1157,6 +1172,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-accessibility/main.rw",
+            include_str!("../../../examples/gui-accessibility/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/gui-dialog/main.rw",
             include_str!("../../../examples/gui-dialog/main.rw"),
         )?;
@@ -1194,6 +1214,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/gui-menu/README.md",
             include_str!("../../../examples/gui-menu/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-accessibility/README.md",
+            include_str!("../../../examples/gui-accessibility/README.md"),
         )?;
         write(
             &output,
@@ -1354,6 +1379,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 "REWIND_v1.9.62.md",
                 include_str!("../../../docs/REWIND_v1.9.62.md"),
             ),
+            (
+                "REWIND_v1.9.63.md",
+                include_str!("../../../docs/REWIND_v1.9.63.md"),
+            ),
             ("v2-status.md", include_str!("../../../docs/v2-status.md")),
             ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
             (
@@ -1440,6 +1469,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-menu",
                 include_str!("../../../examples/gui-menu/README.md"),
+            ),
+            (
+                "gui-accessibility",
+                include_str!("../../../examples/gui-accessibility/README.md"),
             ),
             (
                 "gui-dialog",
@@ -1536,6 +1569,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "gui-menu",
                 include_str!("../../../examples/gui-menu/main.rw"),
+            ),
+            (
+                "gui-accessibility",
+                include_str!("../../../examples/gui-accessibility/main.rw"),
             ),
             (
                 "gui-dialog",
