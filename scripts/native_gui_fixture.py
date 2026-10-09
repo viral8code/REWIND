@@ -20,12 +20,20 @@ def dialog_response(title, accept, timeout=10):
         api=C.WinDLL("user32",use_last_error=True)
         api.FindWindowW.argtypes=[C.c_wchar_p,C.c_wchar_p];api.FindWindowW.restype=C.c_void_p
         api.PostMessageW.argtypes=[C.c_void_p,C.c_uint,C.c_size_t,C.c_ssize_t];api.PostMessageW.restype=C.c_int
+        api.GetDlgItem.argtypes=[C.c_void_p,C.c_int];api.GetDlgItem.restype=C.c_void_p
+        api.IsWindowEnabled.argtypes=[C.c_void_p];api.IsWindowEnabled.restype=C.c_int
+        api.IsWindowVisible.argtypes=[C.c_void_p];api.IsWindowVisible.restype=C.c_int
         deadline=time.monotonic()+timeout
+        ready_since=None
         while time.monotonic()<deadline:
             window=api.FindWindowW(None,title)
-            if window:
-                if not api.PostMessageW(window,0x111,1 if accept else 2,0):raise C.WinError(C.get_last_error())
-                return
+            button=api.GetDlgItem(window,1 if accept else 2) if window else None
+            if button and api.IsWindowEnabled(button) and api.IsWindowVisible(window):
+                if ready_since is None:ready_since=time.monotonic()
+                if time.monotonic()-ready_since>=.25:
+                    if not api.PostMessageW(button,0xf5,0,0):raise C.WinError(C.get_last_error())
+                    return
+            else:ready_since=None
             time.sleep(.01)
         raise RuntimeError("Native dialog did not appear")
     click(title,timeout=timeout,_key="Enter" if accept else "Escape",_modifiers=(),_focus=True,_physical=True)
