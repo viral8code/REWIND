@@ -40,6 +40,8 @@ unsafe extern "system" {
 #[link(name = "user32")]
 unsafe extern "system" {
     fn GetParent(h: Handle) -> Handle;
+    fn GetDlgItem(h: Handle, id: i32) -> Handle;
+    fn IsWindowEnabled(h: Handle) -> i32;
     fn PostMessageW(h: Handle, m: u32, w: usize, l: isize) -> i32;
     fn GetWindowThreadProcessId(h: Handle, p: *mut u32) -> u32;
 }
@@ -49,13 +51,15 @@ unsafe extern "system" {
 }
 struct Cancel {
     requested: AtomicBool,
+    ready: AtomicBool,
     window: AtomicIsize,
     thread: AtomicU32,
 }
 impl Cancel {
     fn post(&self) {
         let window = self.window.load(Ordering::Acquire);
-        if window != 0
+        if self.ready.load(Ordering::Acquire)
+            && window != 0
             && unsafe { GetWindowThreadProcessId(window, std::ptr::null_mut()) }
                 == self.thread.load(Ordering::Acquire)
         {
@@ -69,14 +73,41 @@ impl Cancel {
         self.post();
     }
 }
+#[repr(C)]
+struct NotifyHeader {
+    window: Handle,
+    id: usize,
+    code: u32,
+}
+#[repr(C)]
+struct FileNotify {
+    header: NotifyHeader,
+    request: *const OpenFileName,
+    file: *const u16,
+}
 unsafe extern "system" fn hook(window: Handle, message: u32, _: usize, lparam: isize) -> usize {
     if message == 0x110 {
         let request = unsafe { &*(lparam as *const OpenFileName) };
         let cancel = unsafe { &*(request.data as *const Cancel) };
-        let owner = unsafe { GetParent(window) };
-        cancel.window.store(owner, Ordering::Release);
-        if cancel.requested.load(Ordering::Acquire) {
-            cancel.post();
+        cancel
+            .window
+            .store(unsafe { GetParent(window) }, Ordering::Release);
+    } else if message == 0x4e && lparam != 0 {
+        let header = unsafe { &*(lparam as *const NotifyHeader) };
+        // Explorer-style common dialogs notify only after their controls and
+        // initial directory are initialized. Earlier close/accept messages can
+        // be lost while the modal chooser is still constructing its UI.
+        if header.code == (-601i32) as u32 {
+            let notification = unsafe { &*(lparam as *const FileNotify) };
+            if notification.request.is_null() {
+                return 0;
+            }
+            let request = unsafe { &*notification.request };
+            let cancel = unsafe { &*(request.data as *const Cancel) };
+            cancel.ready.store(true, Ordering::Release);
+            if cancel.requested.load(Ordering::Acquire) {
+                cancel.post();
+            }
         }
     }
     0
@@ -97,6 +128,7 @@ impl Session {
         let request = request.clone();
         let cancel = Arc::new(Cancel {
             requested: AtomicBool::new(false),
+            ready: AtomicBool::new(false),
             window: AtomicIsize::new(0),
             thread: AtomicU32::new(0),
         });
@@ -201,10 +233,12 @@ impl Session {
     #[cfg(test)]
     pub fn test_response(&mut self, accept: bool) -> bool {
         let window = self.cancel.window.load(Ordering::Acquire);
-        if window == 0 {
+        if window == 0 || !self.cancel.ready.load(Ordering::Acquire) {
             return false;
         }
-        unsafe { PostMessageW(window, 0x111, if accept { 1 } else { 2 }, 0) != 0 }
+        let button = unsafe { GetDlgItem(window, if accept { 1 } else { 2 }) };
+        button != 0
+            && unsafe { IsWindowEnabled(button) != 0 && PostMessageW(button, 0xf5, 0, 0) != 0 }
     }
 }
 impl Drop for Session {

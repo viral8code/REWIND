@@ -71,3 +71,8 @@ The historical signed-dependency regression checks a compatible added export
 and then rejects a changed return type on that already exported function. Its
 former expectation that every addition breaks consumers conflicted with the
 additive contract above; existing signature/effect/removal checks remain.
+
+The Windows native chooser waits for `CDN_INITDONE` before applying a pending
+cancellation or test response. Acceptance clicks the ready enabled native button
+rather than posting a bare command during initialization. This correction is
+included in the unpublished v1.9.60; actual Windows CI remains the release gate.
