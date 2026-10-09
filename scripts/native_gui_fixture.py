@@ -20,14 +20,26 @@ def dialog_response(title, accept, timeout=10):
         api=C.WinDLL("user32",use_last_error=True)
         api.FindWindowW.argtypes=[C.c_wchar_p,C.c_wchar_p];api.FindWindowW.restype=C.c_void_p
         api.PostMessageW.argtypes=[C.c_void_p,C.c_uint,C.c_size_t,C.c_ssize_t];api.PostMessageW.restype=C.c_int
-        api.GetDlgItem.argtypes=[C.c_void_p,C.c_int];api.GetDlgItem.restype=C.c_void_p
+        callback_type=C.WINFUNCTYPE(C.c_int,C.c_void_p,C.c_ssize_t)
+        api.EnumChildWindows.argtypes=[C.c_void_p,callback_type,C.c_ssize_t];api.EnumChildWindows.restype=C.c_int
+        api.GetDlgCtrlID.argtypes=[C.c_void_p];api.GetDlgCtrlID.restype=C.c_int
+        api.GetClassNameW.argtypes=[C.c_void_p,C.c_wchar_p,C.c_int];api.GetClassNameW.restype=C.c_int
+        def find_button(window):
+            found=[]
+            @callback_type
+            def child(control,_):
+                name=C.create_unicode_buffer(32);api.GetClassNameW(control,name,len(name))
+                if api.GetDlgCtrlID(control)==(1 if accept else 2) and name.value=='Button':found.append(control);return 0
+                return 1
+            if window:api.EnumChildWindows(window,child,0)
+            return found[0] if found else None
         api.IsWindowEnabled.argtypes=[C.c_void_p];api.IsWindowEnabled.restype=C.c_int
         api.IsWindowVisible.argtypes=[C.c_void_p];api.IsWindowVisible.restype=C.c_int
         deadline=time.monotonic()+timeout
         ready_since=None
         while time.monotonic()<deadline:
             window=api.FindWindowW(None,title)
-            button=api.GetDlgItem(window,1 if accept else 2) if window else None
+            button=find_button(window)
             if button and api.IsWindowEnabled(button) and api.IsWindowVisible(window):
                 if ready_since is None:ready_since=time.monotonic()
                 if time.monotonic()-ready_since>=.25:
