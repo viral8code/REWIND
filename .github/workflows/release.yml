@@ -67,13 +67,13 @@ jobs:
           xvfb-run -a cargo test --locked --test language_v1956 native_pointer_cancels -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1958 native_pointer_cancels -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1959 native_menu_commands -- --nocapture
-          GSETTINGS_BACKEND=memory xvfb-run -a cargo test --locked --lib native_file_dialog -- --nocapture
-          GSETTINGS_BACKEND=memory xvfb-run -a cargo test --locked --test language_v1960 native_dialog_responds -- --nocapture
+          GSETTINGS_BACKEND=memory dbus-run-session -- xvfb-run -a cargo test --locked --lib native_file_dialog -- --nocapture
+          GSETTINGS_BACKEND=memory dbus-run-session -- xvfb-run -a cargo test --locked --test language_v1960 native_dialog_responds -- --nocapture
           python3 scripts/ime-fixture.py -- cargo test --locked --lib native_ime_uses_real -- --nocapture
       - run: cargo build --release --locked
       - name: Linux SDK, API and archive tests
         if: matrix.platform == 'linux'
-        run: xvfb-run -a scripts/package-sdk.sh "$RUNNER_TEMP/release-assets"
+        run: dbus-run-session -- xvfb-run -a scripts/package-sdk.sh "$RUNNER_TEMP/release-assets"
       - name: Windows standard library contracts
         if: matrix.platform == 'windows'
         run: target/release/rewind.exe test --root libraries/std
