@@ -76,3 +76,8 @@ The Windows native chooser waits for `CDN_INITDONE` before applying a pending
 cancellation or test response. Acceptance clicks the ready enabled native button
 rather than posting a bare command during initialization. This correction is
 included in the unpublished v1.9.60; actual Windows CI remains the release gate.
+
+Windows supplies the initial parent directory separately from the Unicode
+filename. Native diagnostics exposed the chooser reusing its Documents directory
+instead of the requested fixture directory. Test drivers select the actual Button
+class, avoiding the shell FolderView control that also uses ID 1.

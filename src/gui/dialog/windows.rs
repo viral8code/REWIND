@@ -40,7 +40,6 @@ unsafe extern "system" {
 #[link(name = "user32")]
 unsafe extern "system" {
     fn GetParent(h: Handle) -> Handle;
-    fn GetDlgItem(h: Handle, id: i32) -> Handle;
     fn IsWindowEnabled(h: Handle) -> i32;
     #[cfg(test)]
     fn AttachThreadInput(a: u32, b: u32, attach: i32) -> i32;
@@ -163,7 +162,19 @@ impl Session {
                     return;
                 }
                 let title = wide(&request.title);
-                let initial = wide(&request.initial);
+                // The common chooser can otherwise reuse its shell directory
+                // even when lpstrFile contains a full initial path.
+                let path = std::path::Path::new(&request.initial);
+                let directory = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .map(|p| wide(&p.to_string_lossy()));
+                let initial = wide(
+                    &path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| request.initial.clone()),
+                );
                 let mut file = vec![0u16; 4097];
                 let count = initial.len().min(file.len());
                 file[..count].copy_from_slice(&initial[..count]);
@@ -179,7 +190,7 @@ impl Session {
                     max_file: file.len() as u32,
                     file_title: std::ptr::null_mut(),
                     max_file_title: 0,
-                    initial_dir: std::ptr::null(),
+                    initial_dir: directory.as_ref().map_or(std::ptr::null(), |d| d.as_ptr()),
                     title: title.as_ptr(),
                     flags: 0x80000 | 0x20 | 0x8 | 0x800 | if request.save { 2 } else { 0x1000 },
                     file_offset: 0,
@@ -252,7 +263,28 @@ impl Session {
         if window == 0 || !self.cancel.ready.load(Ordering::Acquire) {
             return false;
         }
-        let button = unsafe { GetDlgItem(window, if accept { 1 } else { 2 }) };
+        unsafe extern "system" fn find(window: Handle, data: isize) -> i32 {
+            let (id, found) = unsafe { &mut *(data as *mut (i32, Handle)) };
+            let mut class = [0u16; 16];
+            let count = unsafe { GetClassNameW(window, class.as_mut_ptr(), class.len() as i32) }
+                .max(0) as usize;
+            if unsafe { GetDlgCtrlID(window) } == *id
+                && String::from_utf16_lossy(&class[..count]) == "Button"
+            {
+                *found = window;
+                return 0;
+            }
+            1
+        }
+        let mut target_button = (if accept { 1 } else { 2 }, 0);
+        unsafe {
+            EnumChildWindows(
+                window,
+                find,
+                &mut target_button as *mut (i32, Handle) as isize,
+            );
+        }
+        let button = target_button.1;
         if button == 0 || unsafe { IsWindowEnabled(button) } == 0 {
             return false;
         }
