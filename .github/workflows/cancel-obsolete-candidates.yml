@@ -1,0 +1,30 @@
+name: Cancel obsolete candidates of the same version
+on:
+  push:
+    branches: [codex/develop]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  cancel:
+    if: startsWith(github.event.head_commit.message, 'Release v')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cancel superseded unpublished candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY_CANCEL'
+          import json, os, re, subprocess
+          version=re.search(r'^version = "([^\"]+)"',open('Cargo.toml').read(),re.M)[1]
+          expected='Release v'+version
+          head=json.loads(subprocess.check_output(['gh','api','repos/'+os.environ['GH_REPO']+'/git/ref/heads/codex/develop']))['object']['sha']
+          if head!=os.environ['GITHUB_SHA']:raise SystemExit(0)
+          runs=json.loads(subprocess.check_output(['gh','api','repos/'+os.environ['GH_REPO']+'/actions/runs?branch=codex%2Fdevelop&per_page=100']))['workflow_runs']
+          for run in runs:
+              if run['name']=='Cancel obsolete candidates of the same version' or run['head_sha']==os.environ['GITHUB_SHA'] or run['status']=='completed':continue
+              if (run.get('head_commit') or {}).get('message','').splitlines()[:1]!=[expected]:continue
+              subprocess.run(['gh','run','cancel',str(run['id'])],check=True)
+          PY_CANCEL
