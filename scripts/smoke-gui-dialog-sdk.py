@@ -66,7 +66,7 @@ for mode in ['debug','compact']:
    actual=delivered.get(timeout=15);assert actual=='progress',(actual,errors)
    # Loading an initial native directory is asynchronous; do not target an unready view.
    time.sleep(1)
-   dialog_response(title,accepted)
+   dialog_response(title,accepted,path=path)
    for value in expected[2:]:
     actual=delivered.get(timeout=20);assert actual==value,(actual,value,errors)
    assert p.wait(timeout=15)==0
