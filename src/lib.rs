@@ -822,6 +822,7 @@ pub struct Runtime {
     input: Vec<String>,
     gui_host: Option<gui::Host>,
     gui_clipboard_enabled: bool,
+    gui_command_keys_enabled: bool,
     gui_displayed: Option<Arc<gui::Frame>>,
     gui_observations: Vec<gui::Event>,
     gui_high_water: usize,
@@ -1016,6 +1017,9 @@ impl Runtime {
                 .expect("sensitive ledger")
                 .register_bytes(bytes);
         }
+    }
+    pub fn enable_gui_command_keys(&mut self) {
+        self.gui_command_keys_enabled = true;
     }
     pub fn enable_gui_clipboard(&mut self) {
         self.gui_clipboard_enabled = true;
@@ -1752,6 +1756,7 @@ impl Runtime {
             input: Vec::new(),
             gui_host: None,
             gui_clipboard_enabled: false,
+            gui_command_keys_enabled: false,
             gui_displayed: None,
             gui_observations: Vec::new(),
             gui_high_water: 0,

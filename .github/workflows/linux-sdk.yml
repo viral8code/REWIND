@@ -29,6 +29,7 @@ jobs:
           xvfb-run -a cargo test --locked --lib native_gui_surface -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1956 native_pointer_cancels -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1958 native_pointer_cancels -- --nocapture
+          xvfb-run -a cargo test --locked --test language_v1959 native_menu_commands -- --nocapture
       - run: cargo build --release --locked
       - name: Standard library contracts and SDK API compatibility
         shell: bash

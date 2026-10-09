@@ -644,3 +644,5 @@ GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl
 選択言語 1.9.57 の `std.numericShapeAsync.reshapeLogical` / `sumToShape` は、論理順の形状変更と broadcast の軸の合計を4096セル以下の処理に分割します。寸法の List はタスクが所有するため、構築関数の戻り値か `move shape` を渡します。既存のビット列・計算順序・失敗契約を保ちます。[v1.9.57](REWIND_v1.9.57.md)。
 
 `std.autodiffAsync.backward(move tape, loss)` は演算履歴を所有する協調型の逆伝播です。Node を保持して戻り値の Gradients を照会できます。準備・走査・重い微分カーネルの途中で他のタスクへ処理を渡します。同期型の `std.autodiff.backward(&tape, loss)` も利用できます。
+
+`std.guiMenu` のメニューは VM の状態として巻き戻せます。表示には `guiMenu.draw` と `guiWindows.present`、`publish` を使います。v1.9.59 からネイティブの Ctrl/Alt の英字ショートカットと F1〜F24 を受け取れます。`gui.overlay` は同じ寸法・文字編集モードの画面を合成し、下の画面のフォーカスとスクロールを保持します。

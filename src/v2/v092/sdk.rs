@@ -1,7 +1,7 @@
 use super::*;
 use serde_json::{json, Value as J};
 const MAX_BYTES: u64 = 256 * 1024 * 1024;
-const MAX_FILES: usize = 512;
+const MAX_FILES: usize = 768;
 fn invalid(s: &str) -> Error {
     Error::InvalidOperation(format!("SDK: {s}"))
 }
@@ -107,6 +107,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("http", include_str!("../../../libraries/std/http.rw")),
         ("db", include_str!("../../../libraries/std/db.rw")),
         ("gui", include_str!("../../../libraries/std/gui.rw")),
+        ("guiMenu", include_str!("../../../libraries/std/guiMenu.rw")),
         ("guiForm", include_str!("../../../libraries/std/guiForm.rw")),
         (
             "guiTable",
@@ -223,9 +224,18 @@ fn inventory(root: &Path) -> Result<J> {
         if depth > 64 || *visited > 1024 {
             return Err(invalid("directory budget exceeded"));
         }
-        let mut entries = fs::read_dir(dir)?
-            .map(|e| e.map(|e| e.path()))
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        // Bound the temporary listing before sorting or hashing an untrusted SDK.
+        let mut entries = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            if entries.len() >= MAX_FILES + 1024 {
+                return Err(invalid("directory entry budget exceeded"));
+            }
+            let path = entry?.path();
+            if path.as_os_str().len() > 4096 {
+                return Err(invalid("path budget exceeded"));
+            }
+            entries.push(path);
+        }
         entries.sort();
         for path in entries {
             let meta = fs::symlink_metadata(&path)?;
@@ -653,6 +663,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-menu/main.rw",
+            include_str!("../../../examples/gui-menu/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/backward-gui/main.rw",
             include_str!("../../../examples/backward-gui/main.rw"),
         )?;
@@ -665,6 +680,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/autodiff-async/README.md",
             include_str!("../../../examples/autodiff-async/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-menu/README.md",
+            include_str!("../../../examples/gui-menu/README.md"),
         )?;
         write(
             &output,
@@ -788,6 +808,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.58.md",
                 include_str!("../../../docs/REWIND_v1.9.58.md"),
+            ),
+            (
+                "REWIND_v1.9.59.md",
+                include_str!("../../../docs/REWIND_v1.9.59.md"),
             ),
             (
                 "REWIND_v1.9.56.md",
@@ -1036,6 +1060,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         )?;
         write(
             &output,
+            "share/rewind/examples/gui-menu/main.rw",
+            include_str!("../../../examples/gui-menu/main.rw"),
+        )?;
+        write(
+            &output,
             "share/rewind/examples/backward-gui/main.rw",
             include_str!("../../../examples/backward-gui/main.rw"),
         )?;
@@ -1048,6 +1077,11 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             &output,
             "share/rewind/examples/autodiff-async/README.md",
             include_str!("../../../examples/autodiff-async/README.md"),
+        )?;
+        write(
+            &output,
+            "share/rewind/examples/gui-menu/README.md",
+            include_str!("../../../examples/gui-menu/README.md"),
         )?;
         write(
             &output,
@@ -1173,6 +1207,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 include_str!("../../../docs/REWIND_v1.9.58.md"),
             ),
             (
+                "REWIND_v1.9.59.md",
+                include_str!("../../../docs/REWIND_v1.9.59.md"),
+            ),
+            (
                 "REWIND_v1.9.56.md",
                 include_str!("../../../docs/REWIND_v1.9.56.md"),
             ),
@@ -1244,6 +1282,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "autodiff-async",
                 include_str!("../../../examples/autodiff-async/README.md"),
+            ),
+            (
+                "gui-menu",
+                include_str!("../../../examples/gui-menu/README.md"),
             ),
             (
                 "backward-gui",
@@ -1320,6 +1362,10 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "autodiff-async",
                 include_str!("../../../examples/autodiff-async/main.rw"),
+            ),
+            (
+                "gui-menu",
+                include_str!("../../../examples/gui-menu/main.rw"),
             ),
             (
                 "backward-gui",

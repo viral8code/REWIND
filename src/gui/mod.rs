@@ -1,6 +1,7 @@
 //! Native single-window surfaces. Scenes are data; only publish touches a surface.
 use serde::{Deserialize, Serialize};
 pub(crate) mod clipboard;
+mod command_keys;
 pub mod edit;
 mod live;
 mod runtime;
@@ -141,6 +142,13 @@ pub(crate) struct Host {
     backend: windows::Surface,
 }
 impl Host {
+    pub fn configure_command_keys(&mut self, enabled: bool) {
+        #[cfg(any(target_os = "linux", windows))]
+        self.backend.configure_command_keys(enabled);
+        #[cfg(not(any(target_os = "linux", windows)))]
+        let _ = enabled;
+    }
+
     pub fn configure_clipboard(&mut self, enabled: bool) {
         #[cfg(any(target_os = "linux", windows))]
         self.backend.configure_clipboard(enabled);
@@ -262,6 +270,89 @@ mod tests {
                 }
             }
             panic!("pointer event missing");
+        }
+    }
+}
+
+#[cfg(test)]
+mod command_key_tests {
+    use super::*;
+    #[test]
+    fn native_gui_command_keys_preserve_legacy_input_and_dispatch_shortcuts() {
+        #[cfg(target_os = "linux")]
+        if std::env::var_os("DISPLAY").is_none() {
+            return;
+        }
+        #[cfg(any(target_os = "linux", windows))]
+        {
+            let mut host = Host::prepare().unwrap();
+            host.present(&Frame {
+                title: "REWIND native command keys".into(),
+                width: 240,
+                height: 160,
+                background: 0xffffff,
+                items: vec![],
+            })
+            .unwrap();
+            host.backend
+                .inject_command_key(Some('o'), None, true, false, false);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+            let mut legacy_observed = false;
+            while std::time::Instant::now() < deadline {
+                match host.poll().unwrap() {
+                    Some(event) => {
+                        assert_ne!(event.key, "Ctrl+O");
+                        if event.kind == "text" && event.key == "o" {
+                            legacy_observed = true;
+                            break;
+                        }
+                    }
+                    None => {
+                        #[cfg(windows)]
+                        break;
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    }
+                }
+            }
+            #[cfg(target_os = "linux")]
+            assert!(legacy_observed);
+            #[cfg(windows)]
+            let _ = legacy_observed;
+            host.close();
+            let mut host = Host::prepare().unwrap();
+            host.present(&Frame {
+                title: "REWIND native enabled command keys".into(),
+                width: 240,
+                height: 160,
+                background: 0xffffff,
+                items: vec![],
+            })
+            .unwrap();
+            host.configure_command_keys(true);
+            host.configure_clipboard(true);
+            for (letter, function, control, alt, shift, expected) in [
+                (Some('o'), None, true, false, false, "Ctrl+O"),
+                (Some('t'), None, true, false, true, "Ctrl+Shift+T"),
+                (Some('f'), None, false, true, false, "Alt+F"),
+                (None, Some(10), false, false, false, "F10"),
+                (Some('c'), None, true, false, false, "Ctrl+C"),
+            ] {
+                host.backend
+                    .inject_command_key(letter, function, control, alt, shift);
+                let mut found = false;
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+                while std::time::Instant::now() < deadline {
+                    if let Some(event) = host.poll().unwrap() {
+                        if event.kind == "key" && event.key == expected {
+                            found = true;
+                            break;
+                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                assert!(found, "native shortcut missing: {expected}");
+            }
+            host.close();
         }
     }
 }

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.12",
+  "language": "1.9.59",
   "symbols": {
     "alias:FormError": {
       "generics": [],
@@ -320,6 +320,15 @@
         ],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$bounds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$View"
+        ],
+        "return": "$import$gui$Rect"
+      },
       "fn:$import$gui$button": {
         "async": false,
         "effects": [],
@@ -429,6 +438,15 @@
         ],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$graphemeMode": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$View"
+        ],
+        "return": "Bool"
+      },
       "fn:$import$gui$label": {
         "async": false,
         "effects": [],
@@ -452,6 +470,16 @@
         "generics": [],
         "parameters": [],
         "return": "Result<$import$gui$Event,StdError>"
+      },
+      "fn:$import$gui$overlay": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$View",
+          "&$import$gui$View"
+        ],
+        "return": "Result<$import$gui$View,StdError>"
       },
       "fn:$import$gui$pollEvent": {
         "async": false,
@@ -1103,6 +1131,18 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Field": {
       "constructor": true,
       "fields": [
@@ -1145,6 +1185,12 @@
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
     },
     "type:HistogramResult": {
       "constructor": true,
@@ -1220,6 +1266,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -1434,6 +1549,35 @@
         "Timestamp": []
       }
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -1457,7 +1601,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -1473,6 +1635,36 @@
         [
           "offset",
           "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
         ]
       ],
       "generics": [],

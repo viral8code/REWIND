@@ -209,3 +209,5 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 `std.numericShapeAsync` は選択言語 1.9.57 の協調的な論理形状変更と broadcast の軸の合計です。寸法 List を所有し、数値入力のページを共有します。[契約と制限](../docs/REWIND_v1.9.57.md)。
 
 `std.autodiffAsync` は所有する Tape の逆伝播を協調実行します。既存の Node / Gradients、各微分の演算順序を保ち、履歴準備も分割します。前向き演算の履歴作成は同期処理です。`examples/autodiff-async` に checkpoint・取消を含む例があります。
+
+`std.guiMenu` は無効化・チェック状態・キーボード移動・スクロールを持つ上限付きメニューです。`gui.bounds` / `graphemeMode` / `overlay` で既存の画面へ重ねます。ネイティブ入力・巻き戻し・再生の利用例は `examples/gui-menu` にあります。

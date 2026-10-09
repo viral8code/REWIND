@@ -9,7 +9,13 @@ def ctrl_key(title, key, timeout=10):
         raise ValueError('Unsupported clipboard test key')
     click(title, timeout=timeout, _key=key)
 
-def click(title, px=20, py=20, timeout=10, _key=None):
+def command_key(title, key, timeout=10):
+    parts=key.split('+');base=parts[-1];modifiers=tuple(parts[:-1])
+    if any(m not in ('Ctrl','Alt','Shift') for m in modifiers) or len(set(modifiers))!=len(modifiers):raise ValueError('Invalid command modifiers')
+    if not (len(base)==1 and 'A'<=base<='Z') and not (base.startswith('F') and base[1:].isdigit() and 1<=int(base[1:])<=24):raise ValueError('Invalid command key')
+    click(title,timeout=timeout,_key=base,_modifiers=modifiers)
+
+def click(title, px=20, py=20, timeout=10, _key=None, _modifiers=('Ctrl',)):
     deadline = time.monotonic() + timeout
     if sys.platform == "win32":
         api = C.WinDLL("user32", use_last_error=True)
@@ -49,11 +55,12 @@ def click(title, px=20, py=20, timeout=10, _key=None):
                         if not api.GetKeyboardState(saved):
                             raise C.WinError(C.get_last_error())
                         pressed = (C.c_ubyte * 256)(*saved)
-                        pressed[0x11] = 0x80
+                        for code,name in [(0x11,'Ctrl'),(0x12,'Alt'),(0x10,'Shift')]:pressed[code]=0x80 if name in _modifiers else 0
                         if not api.SetKeyboardState(pressed):
                             raise C.WinError(C.get_last_error())
                         result = C.c_size_t()
-                        if not api.SendMessageTimeoutW(window, 0x100, ord(_key), 0, 3, 5000, C.byref(result)):
+                        virtual=ord(_key) if len(_key)==1 else 0x70+int(_key[1:])-1
+                        if not api.SendMessageTimeoutW(window, 0x104 if 'Alt' in _modifiers else 0x100, virtual, 0, 3, 5000, C.byref(result)):
                             raise C.WinError(C.get_last_error())
                     finally:
                         api.SetKeyboardState(saved)
@@ -106,8 +113,9 @@ def click(title, px=20, py=20, timeout=10, _key=None):
                     event=Event();event.button=Button(4,0,1,display,window,root_window,0,0,px,py,px,py,0,1,1)
                     if _key:
                         event.button.type = 2
-                        event.button.state = 4
-                        event.button.button = x.XKeysymToKeycode(display, ord(_key.lower()))
+                        event.button.state = sum(mask for name,mask in [('Ctrl',4),('Alt',8),('Shift',1)] if name in _modifiers)
+                        symbol=ord(_key.lower()) if len(_key)==1 else 0xffbe+int(_key[1:])-1
+                        event.button.button = x.XKeysymToKeycode(display, symbol)
                     assert x.XSendEvent(display,window,0,1 if _key else 1<<2,C.byref(event))
                     x.XFlush(display)
                     return
