@@ -1,0 +1,16 @@
+import std.gui as gui;
+import std.guiWindows as windows;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(result)=>{return move result;},Err(_)=>{panic("GUI operation failed");}}}
+fn textInput()->windows.WindowEvent effects {gui} {
+ while true {let input=take(windows.nextEventAny());if input.event.kind=="text"{return input;}if input.event.kind=="close"{panic("window closed");}}
+ panic("unreachable");
+}
+let args=Args.all();var title="REWIND IME";if args.len()>0{title=args.get(0);}
+let view=take(gui.window(title,320,160));take(gui.textBox(&mut view,"input","",10,10,280,40));take(gui.focus(&mut view,"input"));
+take(windows.present("main",&view));Out.println("ready");publish;
+commit editing;
+let first=textInput();assert_eq(first.window,"main");assert_eq(first.event.key,"か");gui.dispatch(&mut view,first.event);
+assert_eq(gui.text(&view,"input"),Ok("か"));take(windows.present("main",&view));Out.println("か");publish;
+revert editing;windows.continueInput();assert_eq(gui.text(&view,"input"),Ok(""));take(windows.present("main",&view));Out.println("undo");publish;
+let second=textInput();assert_eq(second.event.key,"き");gui.dispatch(&mut view,second.event);assert_eq(gui.text(&view,"input"),Ok("き"));
+take(windows.present("main",&view));Out.println("き");publish;drop editing;take(windows.close("main"));publish;

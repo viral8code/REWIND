@@ -166,6 +166,7 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     run([sys.executable,root/'scripts/smoke-gui-clipboard-sdk.py',exe,work/'gui-clipboard'])
     run([sys.executable,root/'scripts/smoke-gui-menu-sdk.py',exe,work/'gui-menu'])
     run([sys.executable,root/'scripts/smoke-gui-dialog-sdk.py',exe,work/'gui-dialog'])
+    run([sys.executable,root/'scripts/smoke-gui-ime-sdk.py',exe,work/'gui-ime'])
     run([sys.executable,root/'scripts/smoke-secret-accounting-sdk.py',exe,work/'secret-accounting'])
     run([sys.executable,root/'scripts/smoke-solve-sdk.py',exe,work/'solve-async'])
     run([sys.executable,root/'scripts/smoke-qr-sdk.py',exe,work/'qr-async'])
@@ -179,6 +180,7 @@ with tempfile.TemporaryDirectory(prefix='rewind-sdk-') as tmp:
     run([sys.executable,root/'scripts/smoke-gui-async-sdk.py',exe,work/'gui-async'])
     run([sys.executable,root/'scripts/smoke-gui-data-sdk.py',exe,work/'gui-data'])
     run([sys.executable,root/'scripts/smoke-service-data-sdk.py',exe,work/'service-data'])
+    run([sys.executable,root/'scripts/smoke-service-stress-sdk.py',exe,work/'service-stress'])
     run([sys.executable,root/'scripts/smoke-gui-async-sdk.py',exe,work/'gui-live','--live'])
     run([sys.executable,root/'scripts/smoke-postgres-sdk.py',exe,work/'postgres'])
     assert len(lines)==2 and lines[0]==lines[1] and int(lines[0])>0

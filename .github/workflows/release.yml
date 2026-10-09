@@ -62,13 +62,14 @@ jobs:
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xfonts-base libgtk-3-0 at-spi2-core dbus-x11
+          sudo apt-get install -y xvfb xfonts-base libgtk-3-0 at-spi2-core dbus-x11 libxtst6 ibus-anthy python3-gi libglib2.0-bin
           xvfb-run -a cargo test --locked --lib native_gui_surface -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1956 native_pointer_cancels -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1958 native_pointer_cancels -- --nocapture
           xvfb-run -a cargo test --locked --test language_v1959 native_menu_commands -- --nocapture
           GSETTINGS_BACKEND=memory xvfb-run -a cargo test --locked --lib native_file_dialog -- --nocapture
           GSETTINGS_BACKEND=memory xvfb-run -a cargo test --locked --test language_v1960 native_dialog_responds -- --nocapture
+          python3 scripts/ime-fixture.py -- cargo test --locked --lib native_ime_uses_real -- --nocapture
       - run: cargo build --release --locked
       - name: Linux SDK, API and archive tests
         if: matrix.platform == 'linux'

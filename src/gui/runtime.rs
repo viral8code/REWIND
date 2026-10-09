@@ -109,12 +109,13 @@ impl Runtime {
             && self.gui_scripted.is_none()
             && self.gui_host.is_none()
         {
-            if self.gui_clipboard_enabled {
-                self.check_native_allocation(super::clipboard::HOST_RESERVATION)?;
+            if self.gui_clipboard_enabled || self.gui_ime_enabled {
+                self.check_native_allocation(self.gui_host_reservation())?;
             }
             let mut host = Host::prepare()
                 .map_err(|e| Error::InvalidOperation(format!("GuiUnavailable: {e}")))?;
             host.configure_clipboard(self.gui_clipboard_enabled);
+            host.configure_ime(self.gui_ime_enabled);
             host.configure_command_keys(self.gui_command_keys_enabled);
             self.gui_host = Some(host);
         }
