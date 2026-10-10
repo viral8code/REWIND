@@ -23,11 +23,19 @@ if (-not ($profiles.LanguageTag -contains 'ja-JP')) {
  Set-WinUserLanguageList $profiles -Force
 }
 # A capability installed after login does not itself start the user's text service.
+# Refresh this disposable runner session after installing a new input service.
+# Starting ctfmon while its pre-install instance is running does not refresh it.
+$session=(Get-Process -Id $PID).SessionId
+Get-Process ctfmon -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $session } | Stop-Process -Force
 Start-Process "$env:WINDIR\System32\ctfmon.exe"
 $deadline=(Get-Date).AddSeconds(10)
-while (-not (Get-Process ctfmon -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
+while (-not (Get-Process ctfmon -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $session }) -and (Get-Date) -lt $deadline) {
  Start-Sleep -Milliseconds 100
 }
+$services=@(Get-Process ctfmon,imebroker,MicrosoftIME -ErrorAction SilentlyContinue | ForEach-Object { @{name=$_.ProcessName;session=$_.SessionId} })
+$dictionaryRoots=@("$env:WINDIR\IME\IMEJP", "$env:WINDIR\System32\IME\IMEJP", "$env:WINDIR\System32\InputMethod\JPN")
+$dictionaries=@($dictionaryRoots | Where-Object { Test-Path $_ } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -File -Filter '*.dic' -ErrorAction SilentlyContinue } | ForEach-Object { $_.Name })
+@{runner_session=$session;input_services=$services;japanese_dictionary_count=$dictionaries.Count;japanese_dictionary_names=@($dictionaries | Select-Object -First 40);system_locale=(Get-WinSystemLocale).Name} | ConvertTo-Json -Depth 4 -Compress
 $japanese=Get-WinUserLanguageList | Where-Object { $_.LanguageTag -like 'ja*' }
 @{input_tips=@($japanese.InputMethodTips);text_service_running=[bool](Get-Process ctfmon -ErrorAction SilentlyContinue);capability=(Get-WindowsCapability -Online -Name 'Language.Basic~~~ja-JP~0.0.1.0').State.ToString();language='ja-JP'} | ConvertTo-Json -Compress
 """
