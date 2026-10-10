@@ -83,6 +83,7 @@ unsafe extern "system" {
     fn PeekMessageW(message: *mut Message, hwnd: Handle, min: u32, max: u32, remove: u32) -> i32;
     fn GetKeyState(key: i32) -> i16;
     fn GetDC(window: Handle) -> Handle;
+    fn ClientToScreen(window: Handle, point: *mut Point) -> i32;
     fn IsWindowVisible(window: Handle) -> i32;
     fn ReleaseDC(window: Handle, dc: Handle) -> i32;
     #[cfg(test)]
@@ -146,6 +147,14 @@ struct CandidateForm {
     style: u32,
     position: Point,
     area: Rect,
+}
+#[repr(C)]
+struct ImeCharacterPosition {
+    size: u32,
+    character: u32,
+    position: Point,
+    line_height: u32,
+    document: Rect,
 }
 #[link(name = "imm32")]
 unsafe extern "system" {
@@ -350,6 +359,74 @@ impl State {
         }
     }
 }
+fn ime_character_position(
+    window: Handle,
+    frame: &Frame,
+    preedit: &str,
+    request: *mut ImeCharacterPosition,
+) -> isize {
+    if request.is_null() {
+        return 0;
+    }
+    let request = unsafe { &mut *request };
+    if request.size as usize != std::mem::size_of::<ImeCharacterPosition>() {
+        return 0;
+    }
+    let Some(item) = clipboard::focused_input(frame) else {
+        return 0;
+    };
+    let units: Vec<u16> = preedit.encode_utf16().collect();
+    if request.character as usize > units.len() {
+        return 0;
+    }
+    let Ok(prefix) = String::from_utf16(&units[..request.character as usize]) else {
+        return 0;
+    };
+    unsafe {
+        let dc = GetDC(window);
+        if dc == 0 {
+            return 0;
+        }
+        let old = SelectObject(dc, GetStockObject(17));
+        let measure = |text: &str| {
+            let text = wide(text);
+            let mut size = Point { x: 0, y: 0 };
+            GetTextExtentPoint32W(dc, text.as_ptr(), (text.len() - 1) as i32, &mut size);
+            size.x
+        };
+        let (x, y) = composition::anchor(item, &measure);
+        let prefix_width = measure(&prefix);
+        SelectObject(dc, old);
+        ReleaseDC(window, dc);
+        let mut position = Point {
+            x: x + prefix_width,
+            y,
+        };
+        let mut first = Point {
+            x: item.x,
+            y: item.y,
+        };
+        let mut last = Point {
+            x: item.x + item.width,
+            y: item.y + item.height,
+        };
+        if ClientToScreen(window, &mut position) == 0
+            || ClientToScreen(window, &mut first) == 0
+            || ClientToScreen(window, &mut last) == 0
+        {
+            return 0;
+        }
+        request.position = position;
+        request.line_height = 18;
+        request.document = Rect {
+            left: first.x,
+            top: first.y,
+            right: last.x,
+            bottom: last.y,
+        };
+    }
+    1
+}
 unsafe extern "system" fn procedure(
     hwnd: Handle,
     message: u32,
@@ -390,6 +467,18 @@ unsafe extern "system" fn procedure(
                     .and_then(clipboard::focused_input)
                     .is_some();
             },
+            0x288 if wparam == 6 => {
+                let frame = unsafe { (&*ptr).frame.clone() };
+                let preedit = unsafe { (&*ptr).composition.text.clone() };
+                return frame.as_deref().map_or(0, |frame| {
+                    ime_character_position(
+                        hwnd,
+                        frame,
+                        &preedit,
+                        lparam as *mut ImeCharacterPosition,
+                    )
+                });
+            }
             0x286 => return 0,
 
             0x281 => {
@@ -1341,6 +1430,7 @@ mod ime_tests {
             fn SetForegroundWindow(window: Handle) -> i32;
             fn GetForegroundWindow() -> Handle;
             fn SendInput(count: u32, inputs: *const Input, size: i32) -> u32;
+            fn MapVirtualKeyExW(key: u32, kind: u32, layout: Handle) -> u32;
         }
         #[link(name = "imm32")]
         unsafe extern "system" {
@@ -1404,6 +1494,15 @@ mod ime_tests {
                 Handle,
                 u32,
             ) -> i32,
+            deactivate_profile: unsafe extern "system" fn(
+                *mut Profiles,
+                u32,
+                u16,
+                *const Guid,
+                *const Guid,
+                Handle,
+                u32,
+            ) -> i32,
         }
         #[link(name = "ole32")]
         unsafe extern "system" {
@@ -1415,15 +1514,32 @@ mod ime_tests {
                 out: *mut *mut c_void,
             ) -> i32;
         }
-        struct ProfileGuard(*mut Profiles);
+        struct ProfileGuard {
+            object: *mut Profiles,
+            service: Guid,
+            profile: Guid,
+            active: bool,
+        }
         impl Drop for ProfileGuard {
             fn drop(&mut self) {
                 unsafe {
-                    ((*(*self.0).vtable).release)(self.0);
+                    if self.active {
+                        let status = ((*(*self.object).vtable).deactivate_profile)(
+                            self.object,
+                            1,
+                            0x0411,
+                            &self.service,
+                            &self.profile,
+                            0,
+                            0x10000004,
+                        );
+                        eprintln!("Real IME: process profile deactivation returned {status:#x}");
+                    }
+                    ((*(*self.object).vtable).release)(self.object);
                 }
             }
         }
-        fn activate_japanese_profile() {
+        fn activate_japanese_profile() -> ProfileGuard {
             let class = Guid {
                 a: 0x33c53a50,
                 b: 0xf456,
@@ -1457,13 +1573,24 @@ mod ime_tests {
                 status >= 0 && !out.is_null(),
                 "Real TSF profiles interface unavailable: {status:#x}"
             );
-            let profiles = ProfileGuard(out.cast());
+            let mut profiles = ProfileGuard {
+                object: out.cast(),
+                service,
+                profile,
+                active: false,
+            };
             eprintln!("Real IME: activating the installed Japanese profile for this process");
             // ITfInputProcessorProfileMgr is the modern process-scoped selector.
             // Avoid changing the session's input language through the legacy interface.
             let status = unsafe {
-                ((*(*profiles.0).vtable).activate_profile)(
-                    profiles.0, 1, 0x0411, &service, &profile, 0, 0x10000004,
+                ((*(*profiles.object).vtable).activate_profile)(
+                    profiles.object,
+                    1,
+                    0x0411,
+                    &profiles.service,
+                    &profiles.profile,
+                    0,
+                    0x10000004,
                 )
             };
             eprintln!("Real IME: native profile activation returned {status:#x}");
@@ -1471,6 +1598,8 @@ mod ime_tests {
                 status >= 0,
                 "Installed Microsoft Japanese text-service profile activation failed: {status:#x}"
             );
+            profiles.active = true;
+            profiles
         }
         fn key(key: u16) {
             let input = |flags| Input {
@@ -1478,7 +1607,8 @@ mod ime_tests {
                 body: InputBody {
                     keyboard: KeyboardInput {
                         key,
-                        scan: 0,
+                        scan: unsafe { MapVirtualKeyExW(u32::from(key), 0, GetKeyboardLayout(0)) }
+                            as u16,
                         flags,
                         time: 0,
                         extra: 0,
@@ -1560,7 +1690,7 @@ mod ime_tests {
             // Activate after the native window and its COM/TSF apartment exist.
             ActivateKeyboardLayout(layout, 0);
         }
-        activate_japanese_profile();
+        let _profile = activate_japanese_profile();
         unsafe {
             SetFocus(0);
             SetFocus(surface.window);
