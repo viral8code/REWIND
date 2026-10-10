@@ -944,6 +944,14 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
                 "REWIND_v1.9.65.md",
                 include_str!("../../../docs/REWIND_v1.9.65.md"),
             ),
+            (
+                "REWIND_v2.0.md",
+                include_str!("../../../docs/REWIND_v2.0.md"),
+            ),
+            (
+                "v2-acceptance.md",
+                include_str!("../../../docs/v2-acceptance.md"),
+            ),
             ("v2-status.md", include_str!("../../../docs/v2-status.md")),
             ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
             (
@@ -1426,6 +1434,14 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
             (
                 "REWIND_v1.9.65.md",
                 include_str!("../../../docs/REWIND_v1.9.65.md"),
+            ),
+            (
+                "REWIND_v2.0.md",
+                include_str!("../../../docs/REWIND_v2.0.md"),
+            ),
+            (
+                "v2-acceptance.md",
+                include_str!("../../../docs/v2-acceptance.md"),
             ),
             ("v2-status.md", include_str!("../../../docs/v2-status.md")),
             ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),

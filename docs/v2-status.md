@@ -1,6 +1,7 @@
-# v2.0 到達条件の残件
+# v2.0 公開の判定
 
-v1.9.64までのWindows / Linux公開版と、v1.9.65の検証中候補、v2.0候補を基準にした作業整理。これは v2.0 の完了宣言ではない。
+v1.9.64までの公開版と、v1.9.65 / v2.0の実装・候補検証を基準に、受入と配布の判定をまとめる。
+両OSの最終Release workflowが成功し、公開SDK・tag・mainが一致した時にv2.0の到達とする。
 公開の判定は、実装、実 adapter での検証、Linux / Windows の配布検証を区別する。
 到達条件の原文は [ロードマップ](ROADMAP_v2.md)、設計は [詳細設計](v2-design.md) にある。
 過去の各版にある「残る作業」の記述はその版の時点の情報であり、現在の不足一覧として再利用しない。
@@ -44,13 +45,13 @@ rootおよびOption / Result内のcollectionにVM headerを一つ確保し、共
 下位languageのartifactの挙動維持は重点テストを通過した。Linux候補の全回帰、
 標準ライブラリと展開後SDKも通過した。両OSの最終公開CIと公開判定が残っている。
 
-## 必須の残件と完了判定
+## 受入単位と公開の判定
 
-| 作業単位 | 現在の状態 | 残る完了判定 |
+| 受入単位 | 実装と候補の検証 | 最終候補と公開の確認 |
 | --- | --- | --- |
 | OS入力・accessibility | native IME、実Linux IBus / Anthy、AT-SPI、Windows COM client、両OS font captureは実装・検証済み。 | v1.9.65候補の実Microsoft IMEでpreedit / convert / commit / focus / closeは確認済み。v2.0の最終候補でも同じ実サービスの受入を維持する。mockやUnicode確定入力で代用しない。 |
 | 計算・統合反復負荷 | forward / backward / 入力準備の協調実行、値・勾配の一致、実GUIからの取消、両DBとの同時負荷・切断・早期終了・回収を検証済み。 | v2.0の最終候補と両OS SDKで同じ契約の回帰を通す。CPU / wall / RSS / live storageと協調実行の追加費用を照合する。 |
-| 型・コレクション・診断 | v1.9.65の大規模snapshotと元診断保持はローカル全回帰済み。v2.0のnative返却collectionの変更は重点試験済み。 | v1.9.65の両OS公開検証と、v2.0の全回帰・標準ライブラリ・source-freeの展開後SDKを通す。旧artifactを新languageへ読み替えない。 |
+| 型・コレクション・診断 | v1.9.65の大規模snapshotと元診断保持はローカル全回帰済み。v2.0のnative返却collectionの変更は重点試験済み。 | v1.9.65の両OS公開検証と、v2.0の最終CIで全回帰・標準ライブラリ・source-freeの展開後SDKを通す。旧artifactを新languageへ読み替えない。 |
 | 最終受入・配布 | 到達条件1〜7の実装と検証の対応を整理中。v1.9.64は193ライセンス見出しと両OS依存の照合、署名付き配布、main / tag一致を確認済み。 | v2.0候補の診断・reference・API / effect / ownership / cost・依存ライセンスを照合し、両OS全回帰、実DB / TLS / GUI、資源回収、署名 / checksum、公開Release / main / tagの一致を確認する。未検証の必須項目があれば公開しない。 |
 
 ## 統合検証で確認した制限

@@ -11548,7 +11548,11 @@ impl<R: BufRead> Engine<R> {
                 }
             }
             if let Some(v) = v092::call(name, &args, &mut self.runtime).map_err(Flow::Error)? {
-                return Ok(v);
+                return if language_at_least(&self.program.language, "2.0.0") {
+                    self.own_native_result(v)
+                } else {
+                    Ok(v)
+                };
             }
         }
         if matches!(
@@ -12429,6 +12433,30 @@ impl<R: BufRead> Engine<R> {
             return Err(self.fail(at, format!("{name} returns {actual}, expected {}", def.ret)));
         }
         Ok(value)
+    }
+    // Native collection factories return ordinary owned List/Map values.
+    // Keep one mutable VM header and retain immutable COW pages; no per-cell
+    // heap objects. Frozen and opaque structures retain their own representation.
+    fn own_native_result(&mut self, value: Value) -> Exec<Value> {
+        Ok(match value {
+            value @ (Value::List(_)
+            | Value::TypedList(_, _)
+            | Value::Map(_)
+            | Value::TypedMap(_, _, _)
+            | Value::OrderedMap(_, _, _)) => {
+                Value::HeapRef(self.runtime.alloc(value).map_err(Flow::Error)?)
+            }
+            Value::Result(Ok(value)) => {
+                Value::Result(Ok(Box::new(self.own_native_result(*value)?)))
+            }
+            Value::Result(Err(value)) => {
+                Value::Result(Err(Box::new(self.own_native_result(*value)?)))
+            }
+            Value::Option(Some(value)) => {
+                Value::Option(Some(Box::new(self.own_native_result(*value)?)))
+            }
+            other => other,
+        })
     }
     fn ordered_key(&self, value: &Value, at: &Tok) -> Exec<Value> {
         self.snapshot_copy(value, at, 10_000, false)
