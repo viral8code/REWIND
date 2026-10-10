@@ -148,11 +148,12 @@ for backend in backends:
                         click(title,300,80);expect('stopped early');client.join(timeout=25)
                         assert not client.is_alive()
                         outcome=results.get(timeout=1)
-                        # Winsock can report a locally aborted connection (10053)
-                        # when the server closes an admitted request without a reply.
-                        # Timeouts and HTTP responses must still fail this check.
-                        assert isinstance(outcome,(http.client.RemoteDisconnected,ConnectionResetError,ConnectionAbortedError)), {
-                            'expected':'connection closed without an HTTP response',
+                        # Releasing the admitted request closes its reply channel,
+                        # producing an empty 503. Closing the listener may win the
+                        # race and close the transport first instead. Neither may
+                        # deliver an application success response or time out.
+                        assert outcome==(503,b'') or isinstance(outcome,(http.client.RemoteDisconnected,ConnectionResetError,ConnectionAbortedError)), {
+                            'expected':'empty cancellation 503 or closed connection',
                             'type':type(outcome).__name__,
                             'errno':getattr(outcome,'errno',None),
                             'winerror':getattr(outcome,'winerror',None),
