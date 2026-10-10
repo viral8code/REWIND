@@ -6,7 +6,8 @@ permissions:
   contents: read
 jobs:
   sdk:
-    runs-on: ubuntu-latest
+    # Match the released Linux SDK baseline and its real IBus/Anthy fixture.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master

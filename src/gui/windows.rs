@@ -1209,19 +1209,64 @@ mod ime_tests {
             fn GetKeyboardLayoutList(count: i32, layouts: *mut Handle) -> i32;
             fn SetFocus(window: Handle) -> Handle;
             fn SetActiveWindow(window: Handle) -> Handle;
+            fn SetForegroundWindow(window: Handle) -> i32;
+            fn GetForegroundWindow() -> Handle;
+            fn SendInput(count: u32, inputs: *const Input, size: i32) -> u32;
         }
         #[link(name = "imm32")]
         unsafe extern "system" {
             fn ImmIsIME(layout: Handle) -> i32;
             fn ImmSetOpenStatus(context: Handle, open: i32) -> i32;
-            fn ImmSetCompositionStringW(
-                context: Handle,
-                index: u32,
-                composition: *const c_void,
-                composition_bytes: u32,
-                reading: *const c_void,
-                reading_bytes: u32,
-            ) -> i32;
+            fn ImmSetConversionStatus(context: Handle, conversion: u32, sentence: u32) -> i32;
+        }
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        struct KeyboardInput {
+            key: u16,
+            scan: u16,
+            flags: u32,
+            time: u32,
+            extra: usize,
+        }
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        struct MouseInput {
+            x: i32,
+            y: i32,
+            data: u32,
+            flags: u32,
+            time: u32,
+            extra: usize,
+        }
+        #[repr(C)]
+        union InputBody {
+            keyboard: KeyboardInput,
+            mouse: MouseInput,
+        }
+        #[repr(C)]
+        struct Input {
+            kind: u32,
+            body: InputBody,
+        }
+        fn key(key: u16) {
+            let input = |flags| Input {
+                kind: 1,
+                body: InputBody {
+                    keyboard: KeyboardInput {
+                        key,
+                        scan: 0,
+                        flags,
+                        time: 0,
+                        extra: 0,
+                    },
+                },
+            };
+            let events = [input(0), input(2)];
+            assert_eq!(
+                unsafe { SendInput(2, events.as_ptr(), std::mem::size_of::<Input>() as i32) },
+                2,
+                "Real keyboard injection must deliver both key-down and key-up"
+            );
         }
         struct Layout(Handle);
         impl Drop for Layout {
@@ -1289,8 +1334,14 @@ mod ime_tests {
         unsafe {
             SetActiveWindow(surface.window);
             SetFocus(surface.window);
+            SetForegroundWindow(surface.window);
         }
-        fn pump(surface: &mut Surface, mut ready: impl FnMut(&Surface) -> bool) {
+        assert_eq!(
+            unsafe { GetForegroundWindow() },
+            surface.window,
+            "Real IME input must target the REWIND foreground window"
+        );
+        fn pump(surface: &mut Surface, phase: &str, mut ready: impl FnMut(&Surface) -> bool) {
             let end = std::time::Instant::now() + std::time::Duration::from_secs(5);
             while !ready(surface) && std::time::Instant::now() < end {
                 // Preserve committed text for inspection while servicing real native messages.
@@ -1305,48 +1356,48 @@ mod ime_tests {
             }
             assert!(
                 ready(surface),
-                "Real IME notification did not reach the REWIND surface"
+                "Real IME {phase} notification did not reach the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={})",
+                surface.state().composition.accepting, surface.state().composition.active,
+                surface.state().composition.text, surface.state().composition.invalid
             );
         }
         fn start(surface: &mut Surface) {
             let context = ImeContext::get(surface.window).unwrap();
             assert_ne!(unsafe { ImmSetOpenStatus(context.context, 1) }, 0);
-            let text: Vec<u16> = "にほん".encode_utf16().collect();
+            // Use the real keyboard path; setting a composition buffer does not
+            // establish that the service delivers native notifications to this window.
             assert_ne!(
-                unsafe {
-                    ImmSetCompositionStringW(
-                        context.context,
-                        9,
-                        text.as_ptr().cast(),
-                        (text.len() * 2) as u32,
-                        std::ptr::null(),
-                        0,
-                    )
-                },
-                0
+                unsafe { ImmSetConversionStatus(context.context, 0x19, 0) },
+                0,
+                "Japanese native/full-width/roman conversion must be available"
             );
             drop(context);
-            pump(surface, |s| {
-                s.state().composition.active && !s.state().composition.text.is_empty()
+            for letter in b"NIHONN" {
+                key(u16::from(*letter));
+                // Service keyboard messages before injecting the next syllable.
+                unsafe {
+                    let mut message: Message = std::mem::zeroed();
+                    while PeekMessageW(&mut message, 0, 0, 0, 1) != 0 {
+                        TranslateMessage(&message);
+                        DispatchMessageW(&message);
+                    }
+                }
+            }
+            pump(surface, "preedit", |s| {
+                s.state().composition.active && s.state().composition.text == "にほん"
             });
         }
         for _ in 0..8 {
             start(&mut surface);
             assert_eq!(surface.state().composition.text, "にほん");
             assert!(!surface.state().events.iter().any(|e| e.kind == "text"));
-            {
-                let context = ImeContext::get(surface.window).unwrap();
-                assert_ne!(unsafe { ImmNotifyIME(context.context, 0x15, 2, 0) }, 0);
-            }
-            pump(&mut surface, |s| {
+            key(0x20); // Space asks the actual Japanese service to convert.
+            pump(&mut surface, "convert", |s| {
                 s.state().composition.text != "にほん" && !s.state().composition.text.is_empty()
             });
             let converted = surface.state().composition.text.clone();
-            {
-                let context = ImeContext::get(surface.window).unwrap();
-                assert_ne!(unsafe { ImmNotifyIME(context.context, 0x15, 1, 0) }, 0);
-            }
-            pump(&mut surface, |s| {
+            key(0x0d); // Enter commits the service's converted result.
+            pump(&mut surface, "commit", |s| {
                 s.state().events.iter().any(|e| e.kind == "text")
             });
             let committed = surface
