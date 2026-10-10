@@ -1431,12 +1431,19 @@ mod ime_tests {
             fn GetForegroundWindow() -> Handle;
             fn SendInput(count: u32, inputs: *const Input, size: i32) -> u32;
             fn MapVirtualKeyExW(key: u32, kind: u32, layout: Handle) -> u32;
+            fn GetWindowTextW(window: Handle, text: *mut u16, capacity: i32) -> i32;
         }
         #[link(name = "imm32")]
         unsafe extern "system" {
             fn ImmIsIME(layout: Handle) -> i32;
             fn ImmSetOpenStatus(context: Handle, open: i32) -> i32;
             fn ImmSetConversionStatus(context: Handle, conversion: u32, sentence: u32) -> i32;
+            fn ImmGetConversionStatus(
+                context: Handle,
+                conversion: *mut u32,
+                sentence: *mut u32,
+            ) -> i32;
+            fn ImmGetOpenStatus(context: Handle) -> i32;
         }
         #[repr(C)]
         #[derive(Clone, Copy)]
@@ -1531,7 +1538,7 @@ mod ime_tests {
                             &self.service,
                             &self.profile,
                             0,
-                            0x10000004,
+                            0x10000000,
                         );
                         eprintln!("Real IME: process profile deactivation returned {status:#x}");
                     }
@@ -1711,6 +1718,80 @@ mod ime_tests {
             surface.window,
             "Real IME input must target the REWIND foreground window"
         );
+        fn trace_context(window: Handle, label: &str) {
+            if let Some(context) = ImeContext::get(window) {
+                let (mut conversion, mut sentence) = (0, 0);
+                let status = unsafe {
+                    ImmGetConversionStatus(context.context, &mut conversion, &mut sentence)
+                };
+                eprintln!("Real IME: {label} open={} mode={conversion:#x} sentence={sentence:#x} status={status} preedit={:?}",
+                    unsafe { ImmGetOpenStatus(context.context) }, context.text(8));
+            }
+        }
+        fn native_edit_probe(surface: &mut Surface) {
+            // Diagnostic comparison only: success here cannot satisfy the REWIND gate.
+            // Use the same actual service and keyboard input with the system EDIT control.
+            let class = wide("EDIT");
+            let title = wide("");
+            let edit = unsafe {
+                CreateWindowExW(
+                    0,
+                    class.as_ptr(),
+                    title.as_ptr(),
+                    0x50000000 | 0x00800000 | 0x80,
+                    10,
+                    70,
+                    280,
+                    40,
+                    surface.window,
+                    0,
+                    surface.instance,
+                    std::ptr::null_mut(),
+                )
+            };
+            if edit == 0 {
+                eprintln!(
+                    "Real IME: native EDIT comparison creation failed: {}",
+                    io::Error::last_os_error()
+                );
+                return;
+            }
+            unsafe {
+                SetFocus(edit);
+            }
+            if let Some(context) = ImeContext::get(edit) {
+                unsafe {
+                    ImmSetOpenStatus(context.context, 1);
+                    ImmSetConversionStatus(context.context, 0x19, 0);
+                }
+            }
+            for letter in b"NIHONN" {
+                key(u16::from(*letter));
+                let end = std::time::Instant::now() + std::time::Duration::from_millis(50);
+                while std::time::Instant::now() < end {
+                    unsafe {
+                        let mut message: Message = std::mem::zeroed();
+                        while PeekMessageW(&mut message, 0, 0, 0, 1) != 0 {
+                            TranslateMessage(&message);
+                            DispatchMessageW(&message);
+                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                trace_context(edit, &format!("system EDIT after {}", char::from(*letter)));
+            }
+            let mut text = [0u16; 256];
+            let length = unsafe { GetWindowTextW(edit, text.as_mut_ptr(), text.len() as i32) };
+            eprintln!(
+                "Real IME: system EDIT committed text={:?}",
+                String::from_utf16_lossy(&text[..length.max(0) as usize])
+            );
+            cancel_composition(edit);
+            unsafe {
+                DestroyWindow(edit);
+                SetFocus(surface.window);
+            }
+        }
         fn pump(surface: &mut Surface, phase: &str, mut ready: impl FnMut(&Surface) -> bool) {
             let end = std::time::Instant::now() + std::time::Duration::from_secs(5);
             while !ready(surface) && std::time::Instant::now() < end {
@@ -1726,16 +1807,23 @@ mod ime_tests {
             }
             if !ready(surface) {
                 let native = ImeContext::get(surface.window).and_then(|c| c.text(8));
+                let accepting = surface.state().composition.accepting;
+                let active = surface.state().composition.active;
+                let preedit = surface.state().composition.text.clone();
+                let invalid = surface.state().composition.invalid;
+                let messages = surface.state().ime_messages.clone();
                 let events: Vec<_> = surface
                     .state()
                     .events
                     .iter()
-                    .map(|e| (&e.kind, &e.key))
+                    .map(|e| (e.kind.clone(), e.key.clone()))
                     .collect();
+                trace_context(surface.window, "REWIND failed phase");
+                if phase == "preedit" {
+                    native_edit_probe(surface);
+                }
                 panic!("Real IME {phase} notification did not reach the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={}, native={native:?}, events={events:?}, messages={:?})",
-                    surface.state().composition.accepting, surface.state().composition.active,
-                    surface.state().composition.text, surface.state().composition.invalid,
-                    surface.state().ime_messages);
+                    accepting, active, preedit, invalid, messages);
             }
         }
         fn start(surface: &mut Surface) {
