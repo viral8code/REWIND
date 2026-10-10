@@ -99,9 +99,11 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 
 ## 実現難度で絞らない自由構想集
 
-[docs/visionsの入口](visions/README.md)に、15分野・240項目を追加しました。言語、時間軸、GUI、データ、数理、AI、分散、hardware、検証、開発環境、高度algorithm、domain library、interaction、実験的計算、simulationを扱います。
+[docs/visionsの入口](visions/README.md)に、16分野・248項目を追加しました。言語、時間軸、GUI、データ、数理、AI、分散、hardware、検証、開発環境、高度algorithm、domain library、interaction、実験的計算、simulationを扱います。
 
-これらは**発想を保存する段階**です。既存58候補の採用判断・実装状態・版の到達条件は変更していません。既存機能の発展形も含むため、この240項目を「現行版にない機能」の一覧として転記しません。
+動的commit名から、文字列lookup、opaque handle、型付きsnapshot、複数版の値へ掘り下げた[具体案](v2-next-checkpoint-api.md)も追加しています。
+
+これらは**発想を保存する段階**です。既存58候補の採用判断・実装状態・版の到達条件は変更していません。既存機能の発展形も含むため、この248項目を「現行版にない機能」の一覧として転記しません。
 
 保存履歴はgit log -- docs/visionsで確認できます。分野ごとにcommit/pushしました。runtime/library変更、Release、版更新、main統合、公開CI/CDの起動操作は行っていません。
 
