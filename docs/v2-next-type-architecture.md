@@ -1,6 +1,6 @@
 # 追加構想：型の分割・生成・抽象化
 
-状態：採用判断前。現在の仕様ではありません。版番号は未割当です。[選定表](v2-next-selection.md)の既存34候補に加える8候補です。
+状態：採用判断前。現在の仕様ではありません。版番号は未割当です。[選定表](v2-next-selection.md)の先に整理した34候補に加える8候補です。
 
 目的は、大きな型や自動生成APIを保守しやすくすることです。C#のpartial等を参考にしますが、現行のstruct/record/enum/trait、module visibility、ownership/effectを出発点とします。class継承体系の導入とは別の判断です。
 

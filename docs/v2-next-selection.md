@@ -1,6 +1,6 @@
 # 追加構想の選定表
 
-状態：採用判断前。2026-10-10時点の候補一覧です。[全体計画](ROADMAP_v2-next.md)のv2.1/2.2詳細と性能計画が優先です。候補をすべて実装する約束や、特定版の公開条件にはしません。
+状態：採用判断前。2026-10-10時点の58候補の一覧です。[全体計画](ROADMAP_v2-next.md)のv2.1/2.2詳細と性能計画が優先です。候補をすべて実装する約束や、特定版の公開条件にはしません。
 
 ## まず取り組むまとまり
 
@@ -90,6 +90,57 @@ DATA-04とNUM-01を先に調べ、大きなtable frameworkやsolver追加が本�
 
 macOS/ARM、localization、accessibility拡張、library catalogは補助候補です。新OSや巨大project管理をここで必須条件に追加しません。
 
+## 型の分割・生成・抽象化：8候補
+
+詳細は[型の構想](v2-next-type-architecture.md)。
+
+| ID | 候補 | 優先 / 規模 | 採用前に示す根拠 |
+|---|---|---|---|
+| TYPE-01 | partial struct/record | B / L | module参加方式、field順、合成型検査 |
+| TYPE-02 | 生成コード向けhook | B / M | traitとの差、未実装時の評価/owner消費 |
+| TYPE-03 | derive/schema生成 | B / L | DATA-01、generated signatureと予算 |
+| TYPE-04 | property/検査付き更新 | C / M | accessorとの差、effect/評価回数 |
+| TYPE-05 | trait object/dynamic dispatch | C / L | object safety、owner/drop、記録identity |
+| TYPE-06 | extension/coherence | C / M | method解決の一意性とimport互換 |
+| TYPE-07 | const generic/固定長型 | C / L | 特殊化予算、dynamic shapeとの共存 |
+| TYPE-08 | record更新/分解支援 | B / M | 部分move、評価順、pattern解析 |
+
+partialはclass継承を要求する機能ではありません。まず既存impl/moduleで不足する分割例を作ります。生成mapperはpartialを導入しなくても成立する方式を比較します。
+
+## ヒープ外メモリ・native連携：8候補
+
+詳細は[メモリ構想](v2-next-memory.md)。以下のMEM IDはこの構想の作業IDです。性能文書のMEM-01/02は測定caseであり、参照時には文書名も添えます。
+
+| ID | 候補 | 優先 / 規模 | 採用前に示す根拠 |
+|---|---|---|---|
+| MEM-01 | Arena/MemorySegment | C / L | lease/世代/close、taskとrevertの分離 |
+| MEM-02 | layout/alignment/endian | B / M | ABI照合、範囲/overflow/未初期化 |
+| MEM-03 | externalからVMへのsnapshot | B / M | 観測、copy/freeze、writerとの隔離 |
+| MEM-04 | pinning/native loan | C / L | 非連続page、取消、mutable版の隔離 |
+| MEM-05 | mmap/file view | C / L | file変更/truncate/faultのOS安全性 |
+| MEM-06 | bounded scratch arena | A / M | 実測したallocation、一時領域の寿命 |
+| MEM-07 | 外部memory pressure会計 | A / M | 既存ledgerとの統合、解放待ちの計上 |
+| MEM-08 | layout/arena付きFFI | C / L | EXT-01、固定signature、lease/例外/ABI |
+
+MEM-06/07は既存基盤の調査を先に行います。MEM-01はJavaのFFMのような明示寿命の参考案です。保存場所だけでrevert可否を決めず、COWで保持するVM領域とphysical mutable領域を区別します。
+
+## 実行方式・計算モデル：8候補
+
+詳細は[実行方式の構想](v2-next-execution.md)。
+
+| ID | 候補 | 優先 / 規模 | 採用前に示す根拠 |
+|---|---|---|---|
+| EXEC-01 | SIMD/CPU特化kernel | B / M | scalar fallback、誤差、ISA非依存の費用 |
+| EXEC-02 | pure parallel/native worker | C / L | worker所有権、決定順、cancel/join |
+| EXEC-03 | 限定JIT/AOT | C / L | hot path、safe point、deopt/形式互換 |
+| EXEC-04 | incremental compile | B / L | 現行cacheとの差、依存/署名/partial |
+| EXEC-05 | generator/async iterator | B / L | suspend ownership、physical入力、cleanup |
+| EXEC-06 | bounded channel/actor | C / L | queueを含むrevert契約、owner transfer |
+| EXEC-07 | reactive derived model | B / M | dirty graph、revert無効化、cycle/寿命 |
+| EXEC-08 | portableな状態保存 | C / L | 明示schema、resource除外、再送なし |
+
+GPUとdistributed stateは補助構想です。この24項目や既定版の必須条件へ自動追加しません。
+
 ## 採用・保留の記録
 
 次のtemplateで候補ごとに判断を残します。
@@ -113,6 +164,6 @@ macOS/ARM、localization、accessibility拡張、library catalogは補助候補�
 
 ## 版番号の扱い
 
-v2.1/2.2は既存詳細計画、性能段階はv2.3候補のままです。この34候補に将来のminor番号を先に割り当てません。採用したまとまりの完成条件・source/API/形式互換を見て決めます。
+v2.1/2.2は既存詳細計画、性能段階はv2.3候補のままです。この58候補に将来のminor番号を先に割り当てません。採用したまとまりの完成条件・source/API/形式互換を見て決めます。
 
 小さな作業ごとのcommitと、利用者へ公開するversionは別です。完了していない大きな課題を隠すためにpatch番号を上げません。今回の変更は計画だけで、公開CI/CD、Release、main統合は行いません。
