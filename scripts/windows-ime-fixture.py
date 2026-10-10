@@ -28,7 +28,8 @@ $deadline=(Get-Date).AddSeconds(10)
 while (-not (Get-Process ctfmon -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
  Start-Sleep -Milliseconds 100
 }
-@{text_service_running=[bool](Get-Process ctfmon -ErrorAction SilentlyContinue);capability=(Get-WindowsCapability -Online -Name 'Language.Basic~~~ja-JP~0.0.1.0').State.ToString();language='ja-JP'} | ConvertTo-Json -Compress
+$japanese=Get-WinUserLanguageList | Where-Object LanguageTag -eq 'ja-JP'
+@{input_tips=@($japanese.InputMethodTips);text_service_running=[bool](Get-Process ctfmon -ErrorAction SilentlyContinue);capability=(Get-WindowsCapability -Online -Name 'Language.Basic~~~ja-JP~0.0.1.0').State.ToString();language='ja-JP'} | ConvertTo-Json -Compress
 """
 result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',prepare],capture_output=True,text=True,timeout=900)
 if result.returncode:raise RuntimeError('Real Windows IME preparation failed: '+result.stderr[-4000:])
