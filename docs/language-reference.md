@@ -684,3 +684,8 @@ history memory の上限はそれぞれ適用される。
 この投影に含まれないため、必要なら先に `describe` を使う。自動微分・数値identityの
 協調ラッパーは子taskのbudgetを汎用名で隠さず、このcodeを返す。関数の返却型は
 同じだが、旧 `AutodiffTask` / `NumericTask` だけを期待する処理は更新する。
+
+Windowsのnative IMEはシステム所有のIMM contextと自前contextの寿命を区別し、
+公開入力欄のcharacter-position要求へ応答する。実変換・確定の8回反復とfocus / closeは
+[v1.9.65](REWIND_v1.9.65.md)の受入を参照する。句変換モードをゼロへ固定することを
+正常な日本語入力の前提にしない。未確定のOS状態はVMのsnapshotには入らない。

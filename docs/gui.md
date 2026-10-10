@@ -105,3 +105,9 @@ Only valid, NUL-free text of at most 4096 UTF-8 bytes is accepted. X11 transfers
 are asynchronous with a two-second reply deadline; unsupported formats and
 failed transfers cause no edit. X11 copy ownership expires when the window
 closes. See [v1.9.52](REWIND_v1.9.52.md) and the shipped gui-clipboard example.
+
+Windowsの未確定入力はIMM対応のOSサービスを利用します。システムの入力contextを
+借用する場合と自前で作る場合の寿命を区別し、公開済み入力欄の文字位置問い合わせに
+回答します。確定文字だけがVMの記録へ入ります。実Microsoft日本語IMEの
+preedit / convert / commit、focus取消、終了の受入と検証範囲は
+[v1.9.65](REWIND_v1.9.65.md)を参照してください。SDK起動はOSの言語設定を変更しません。
