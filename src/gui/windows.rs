@@ -1260,6 +1260,105 @@ mod ime_tests {
             kind: u32,
             body: InputBody,
         }
+        // Selecting an HKL alone can leave a modern TSF service in the English
+        // profile. Activate the installed Microsoft Japanese text-service profile.
+        #[repr(C)]
+        struct Guid {
+            a: u32,
+            b: u16,
+            c: u16,
+            d: [u8; 8],
+        }
+        #[repr(C)]
+        struct Profiles {
+            vtable: *const ProfilesVTable,
+        }
+        #[repr(C)]
+        struct ProfilesVTable {
+            query_interface: usize,
+            add_ref: usize,
+            release: unsafe extern "system" fn(*mut Profiles) -> u32,
+            register: usize,
+            unregister: usize,
+            add_language_profile: usize,
+            remove_language_profile: usize,
+            enum_input_processor_info: usize,
+            get_default_language_profile: usize,
+            set_default_language_profile: usize,
+            activate_language_profile:
+                unsafe extern "system" fn(*mut Profiles, *const Guid, u16, *const Guid) -> i32,
+            get_active_language_profile: usize,
+            get_language_profile_description: usize,
+            get_current_language: usize,
+            change_current_language: unsafe extern "system" fn(*mut Profiles, u16) -> i32,
+        }
+        #[link(name = "ole32")]
+        unsafe extern "system" {
+            fn CoCreateInstance(
+                class: *const Guid,
+                outer: *mut c_void,
+                context: u32,
+                interface: *const Guid,
+                out: *mut *mut c_void,
+            ) -> i32;
+        }
+        struct ProfileGuard(*mut Profiles);
+        impl Drop for ProfileGuard {
+            fn drop(&mut self) {
+                unsafe {
+                    ((*(*self.0).vtable).release)(self.0);
+                }
+            }
+        }
+        fn activate_japanese_profile() {
+            let class = Guid {
+                a: 0x33c53a50,
+                b: 0xf456,
+                c: 0x4884,
+                d: [0xb0, 0x49, 0x85, 0xfd, 0x64, 0x3e, 0xcf, 0xed],
+            };
+            let interface = Guid {
+                a: 0x1f02b6c5,
+                b: 0x7842,
+                c: 0x4ee6,
+                d: [0x8a, 0x0b, 0x9a, 0x24, 0x18, 0x3a, 0x95, 0xca],
+            };
+            let service = Guid {
+                a: 0x03b5835f,
+                b: 0xf03c,
+                c: 0x411b,
+                d: [0x9c, 0xe2, 0xaa, 0x23, 0xe1, 0x17, 0x1e, 0x36],
+            };
+            let profile = Guid {
+                a: 0xa76c93d9,
+                b: 0x5523,
+                c: 0x4e90,
+                d: [0xaa, 0xfa, 0x4d, 0xb1, 0x12, 0xf9, 0xac, 0x76],
+            };
+            let mut out = std::ptr::null_mut();
+            let status =
+                unsafe { CoCreateInstance(&class, std::ptr::null_mut(), 1, &interface, &mut out) };
+            assert!(
+                status >= 0 && !out.is_null(),
+                "Real TSF profiles interface unavailable: {status:#x}"
+            );
+            let profiles = ProfileGuard(out.cast());
+            let status =
+                unsafe { ((*(*profiles.0).vtable).change_current_language)(profiles.0, 0x0411) };
+            assert!(
+                status >= 0,
+                "Real Japanese input language activation failed: {status:#x}"
+            );
+            let status = unsafe {
+                ((*(*profiles.0).vtable).activate_language_profile)(
+                    profiles.0, &service, 0x0411, &profile,
+                )
+            };
+            assert!(
+                status >= 0,
+                "Installed Microsoft Japanese text-service profile activation failed: {status:#x}"
+            );
+        }
         fn key(key: u16) {
             let input = |flags| Input {
                 kind: 1,
@@ -1347,6 +1446,7 @@ mod ime_tests {
             // Activate after the native window and its COM/TSF apartment exist.
             ActivateKeyboardLayout(layout, 0);
         }
+        activate_japanese_profile();
         assert_eq!(
             unsafe { GetForegroundWindow() },
             surface.window,
