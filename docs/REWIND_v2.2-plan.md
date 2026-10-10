@@ -87,7 +87,7 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 
 既存のtyped cell変換に、行から利用者のrecordを作る明示mapperを組み合わせます。自動ORMやreflectionを前提にしません。まず利用者の関数でmappingを書く例を作り、重複する列検証だけをlibraryへ抽出します。
 
-列名mappingでは重複名、欠落、NULL、型不一致、整数範囲、日時の単位・timezone、浮動小数点と正確なdecimalの違いを扱います。decimalを暗黙にFloatへ変換しません。対応型がなければ文字列等の正確な表現と明示変換を使い、必要な型追加は別案へ分けます。
+列名mappingでは重複名、欠落、NULL、型不一致、整数範囲、日時の単位・timezone、浮動小数点と正確なdecimalの違いを扱います。decimalには既存の`Decimal`と`std.dbDecimal`を再利用し、暗黙にFloatへ変換しません。SQLite BLOBとPostgreSQL NUMERICの既存表現を尊重し、新しい対応型が必要な場合だけ別案へ分けます。
 
 cursorを全件materializeする便利関数を既定にしません。1行ずつ、または明示上限付きbatchをmapperへ渡します。失敗にはrow位置・列名・期待型・error codeを持たせ、SQL parameterや実値を既定で載せません。
 
