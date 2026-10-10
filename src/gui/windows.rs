@@ -808,8 +808,91 @@ unsafe fn draw(hwnd: Handle, frame: Option<&Frame>, preedit: Option<&(String, us
         EndPaint(hwnd, &paint);
     }
 }
+// Own the native text-service client on the GUI thread. COM initialization alone
+// does not activate the thread manager; deactivate before releasing the apartment.
+#[repr(C)]
+struct InputGuid {
+    a: u32,
+    b: u16,
+    c: u16,
+    d: [u8; 8],
+}
+#[repr(C)]
+struct ThreadManager {
+    vtable: *const ThreadManagerVTable,
+}
+#[repr(C)]
+struct ThreadManagerVTable {
+    query_interface: usize,
+    add_ref: usize,
+    release: unsafe extern "system" fn(*mut ThreadManager) -> u32,
+    activate: unsafe extern "system" fn(*mut ThreadManager, *mut u32) -> i32,
+    deactivate: unsafe extern "system" fn(*mut ThreadManager) -> i32,
+}
+#[link(name = "ole32")]
+unsafe extern "system" {
+    fn CoCreateInstance(
+        class: *const InputGuid,
+        outer: *mut c_void,
+        context: u32,
+        interface: *const InputGuid,
+        out: *mut *mut c_void,
+    ) -> i32;
+}
+struct InputManager {
+    manager: *mut ThreadManager,
+    active: bool,
+}
+impl InputManager {
+    fn new() -> io::Result<Self> {
+        let class = InputGuid {
+            a: 0x529a9e6b,
+            b: 0x6587,
+            c: 0x4f23,
+            d: [0xab, 0x9e, 0x9c, 0x7d, 0x68, 0x3e, 0x3c, 0x50],
+        };
+        let interface = InputGuid {
+            a: 0xaa80e801,
+            b: 0x2021,
+            c: 0x11d2,
+            d: [0x93, 0xe0, 0x00, 0x60, 0xb0, 0x67, 0xb8, 0x6e],
+        };
+        let mut out = std::ptr::null_mut();
+        let status =
+            unsafe { CoCreateInstance(&class, std::ptr::null_mut(), 1, &interface, &mut out) };
+        if status < 0 || out.is_null() {
+            return Err(invalid(&format!(
+                "GuiCompositionUnavailable: text-service manager ({status:#x})"
+            )));
+        }
+        let mut guard = Self {
+            manager: out.cast(),
+            active: false,
+        };
+        let mut client = 0;
+        let status = unsafe { ((*(*guard.manager).vtable).activate)(guard.manager, &mut client) };
+        if status < 0 {
+            return Err(invalid(&format!(
+                "GuiCompositionUnavailable: text-service activation ({status:#x})"
+            )));
+        }
+        guard.active = true;
+        Ok(guard)
+    }
+}
+impl Drop for InputManager {
+    fn drop(&mut self) {
+        unsafe {
+            if self.active {
+                ((*(*self.manager).vtable).deactivate)(self.manager);
+            }
+            ((*(*self.manager).vtable).release)(self.manager);
+        }
+    }
+}
 pub(super) struct Surface {
     ime_context: Handle,
+    input_manager: Option<InputManager>,
     apartment: Option<super::windows_accessibility::Apartment>,
     window: Handle,
     state: Box<UnsafeCell<State>>,
@@ -895,6 +978,7 @@ impl Surface {
             Ok(Self {
                 window: 0,
                 ime_context: 0,
+                input_manager: None,
                 apartment: None,
                 state: Box::new(UnsafeCell::new(State {
                     accessibility_enabled: false,
@@ -933,6 +1017,9 @@ impl Surface {
                     }
                 },
             )?);
+        }
+        if self.state().ime_enabled && self.input_manager.is_none() {
+            self.input_manager = Some(InputManager::new()?);
         }
         unsafe {
             let style = 0x00cf0000;
@@ -1113,6 +1200,8 @@ impl Surface {
             }
             self.ime_context = 0;
         }
+        // No text-service client may outlive the native window/context.
+        self.input_manager.take();
         self.state_mut().composition.accepting = false;
         self.state_mut().composition.clear();
         self.state_mut().frame = None;
@@ -1383,7 +1472,7 @@ mod ime_tests {
                 }
             }
         }
-        let _restore = Layout(unsafe { GetKeyboardLayout(0) });
+        let original_layout = unsafe { GetKeyboardLayout(0) };
         let mut layout = 0;
         for name in ["E0010411", "00000411"] {
             let name = wide(name);
@@ -1410,6 +1499,7 @@ mod ime_tests {
         }
         assert_ne!(layout, 0, "A real Japanese IMM-compatible conversion service is required; keyboard layout alone is insufficient");
         let mut surface = Surface::new().unwrap();
+        let _restore = Layout(original_layout);
         surface.configure_ime(true);
         let mut frame = Frame {
             title: "REWIND real Microsoft IME acceptance".into(),
@@ -1443,6 +1533,21 @@ mod ime_tests {
             ActivateKeyboardLayout(layout, 0);
         }
         activate_japanese_profile();
+        unsafe {
+            SetFocus(0);
+            SetFocus(surface.window);
+        }
+        let settle = std::time::Instant::now() + std::time::Duration::from_millis(100);
+        while std::time::Instant::now() < settle {
+            unsafe {
+                let mut message: Message = std::mem::zeroed();
+                while PeekMessageW(&mut message, 0, 0, 0, 1) != 0 {
+                    TranslateMessage(&message);
+                    DispatchMessageW(&message);
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
         assert_eq!(
             unsafe { GetForegroundWindow() },
             surface.window,
