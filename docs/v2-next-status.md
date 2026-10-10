@@ -99,7 +99,7 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 
 ## 実現難度で絞らない自由構想集
 
-[docs/visionsの入口](visions/README.md)に、46分野・605項目を追加しました。言語、時間軸、GUI、データ、数理、AI、分散、hardware、検証、開発環境、高度algorithm、domain library、interaction、実験的計算、simulationを扱います。
+[docs/visionsの入口](visions/README.md)に、47分野・617項目を追加しました。言語、時間軸、GUI、データ、数理、AI、分散、hardware、検証、開発環境、高度algorithm、domain library、interaction、実験的計算、simulationを扱います。
 
 動的commit名から、文字列lookup、opaque handle、型付きsnapshot、複数版の値へ掘り下げた[具体案](v2-next-checkpoint-api.md)も追加しています。
 
@@ -107,7 +107,7 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 
 さらに[巻き戻しを使う契約](visions/17-state-contracts.md)として、attempt、Trial<T>、関数のrollback範囲、task群のsavepoint、仮想入力、restart、EntityRef、rollback eventの8構想を追加しました。
 
-これらは**発想を保存する段階**です。既存58候補の採用判断・実装状態・版の到達条件は変更していません。既存機能の発展形も含むため、この605項目を「現行版にない機能」の一覧として転記しません。
+これらは**発想を保存する段階**です。既存58候補の採用判断・実装状態・版の到達条件は変更していません。既存機能の発展形も含むため、この617項目を「現行版にない機能」の一覧として転記しません。
 
 自由構想の追加拡張では、257項目から**581項目へ324項目**を加えました。新しい27分野は、時間付き値、永続collection、探索、作用の値、所有権、式、型合成、stream、計算cache、module、backend、snapshot形式、protocol、双方向data、数値contract、確率model、effect handler、並行model、reactive graph、診断、object合成、暗号、DB、iterator、論理rule、自動微分、device計算です。
 
