@@ -59,6 +59,7 @@
 - [追加構想：SIMD・並列性・JIT・計算モデル](v2-next-execution.md)
 - [追加58候補の優先順位・依存・採用判断](v2-next-selection.md)
 - [構想の具体化：動的checkpoint・handle・型付きsnapshot](v2-next-checkpoint-api.md)
+- [構想の具体化：checkpoint外の変数領域](v2-next-retained-state.md)
 
 ## 構想を採用する順序
 
