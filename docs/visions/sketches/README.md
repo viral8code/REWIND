@@ -9,3 +9,6 @@
 
 - [曖昧な入力を探索するparser](03-parser-exploration.md)
 - [cellの結果を版として持つnotebook](04-versioned-notebook.md)
+
+- [外部操作を組み立てるworkbench](05-effect-workbench.md)
+- [taskの実行順を探索するlaboratory](06-scheduler-laboratory.md)
