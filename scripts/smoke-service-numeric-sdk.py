@@ -147,7 +147,17 @@ for backend in backends:
                     if scenario=='early-stop':
                         click(title,300,80);expect('stopped early');client.join(timeout=25)
                         assert not client.is_alive()
-                        assert isinstance(results.get(timeout=1),(http.client.RemoteDisconnected,ConnectionResetError))
+                        outcome=results.get(timeout=1)
+                        # Winsock can report a locally aborted connection (10053)
+                        # when the server closes an admitted request without a reply.
+                        # Timeouts and HTTP responses must still fail this check.
+                        assert isinstance(outcome,(http.client.RemoteDisconnected,ConnectionResetError,ConnectionAbortedError)), {
+                            'expected':'connection closed without an HTTP response',
+                            'type':type(outcome).__name__,
+                            'errno':getattr(outcome,'errno',None),
+                            'winerror':getattr(outcome,'winerror',None),
+                            'response':outcome if isinstance(outcome,tuple) else None,
+                        }
                         break
                     if stress or path=='/rollback':
                         started=time.monotonic()
