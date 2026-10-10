@@ -26,12 +26,6 @@ if (-not ($profiles.LanguageTag -contains 'ja-JP')) {
  Set-WinUserLanguageList $profiles -Force
 }
 # A capability installed after login does not itself start the user's text service.
-# This backend uses IMM. Select the real Microsoft compatibility engine in
-# the disposable Server runner; this is not an emulated message provider.
-$imePreferences='HKCU:\Software\Microsoft\InputMethod\Settings\JPN'
-New-Item -Path $imePreferences -Force | Out-Null
-New-ItemProperty -Path $imePreferences -Name EnableCompatibilityMode -PropertyType DWord -Value 1 -Force | Out-Null
-@{ime_compatibility_mode=(Get-ItemProperty -Path $imePreferences -Name EnableCompatibilityMode).EnableCompatibilityMode;uac_enable_lua=(Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA).EnableLUA} | ConvertTo-Json -Compress
 # The modern Microsoft input service needs the OS text-input broker, not just
 # ctfmon. Hosted images may leave optional desktop services stopped/disabled.
 $inputServices=@(Get-Service -Name TabletInputService,TextInputManagementService -ErrorAction SilentlyContinue)
@@ -76,6 +70,18 @@ def read_output():
 reader = threading.Thread(target=read_output, daemon=True)
 reader.start()
 def terminate_fixture(reason):
+    audit = r"""
+$children=@(Get-CimInstance Win32_Process -Filter "ParentProcessId = PARENT_ID")
+$modules=@($children | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } | ForEach-Object { $_.Modules } | Where-Object { $_.ModuleName -match 'ime|imjp|msctf' } | ForEach-Object { @{name=$_.ModuleName;version=$_.FileVersionInfo.FileVersion} })
+$services=@(Get-Process ctfmon,imebroker,MicrosoftIME,TextInputHost -ErrorAction SilentlyContinue | ForEach-Object { @{name=$_.ProcessName;session=$_.SessionId} })
+@{loaded_input_modules=$modules;input_processes=$services} | ConvertTo-Json -Depth 4 -Compress
+""".replace('PARENT_ID', str(process.pid))
+    try:
+        details = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', audit], capture_output=True, timeout=10)
+        sys.stdout.buffer.write(details.stdout)
+        sys.stdout.buffer.flush()
+    except subprocess.TimeoutExpired:
+        print('Input-component diagnostics exceeded their ten-second bound', flush=True)
     # cargo starts the test executable; terminate both, never other sessions.
     subprocess.run(['taskkill.exe', '/PID', str(process.pid), '/T', '/F'],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
