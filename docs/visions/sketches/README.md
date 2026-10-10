@@ -6,3 +6,6 @@
 
 - [複数案を比べて採用する設定editor](01-trial-editor.md)
 - [部分失敗を残さないstream import](02-atomic-import.md)
+
+- [曖昧な入力を探索するparser](03-parser-exploration.md)
+- [cellの結果を版として持つnotebook](04-versioned-notebook.md)

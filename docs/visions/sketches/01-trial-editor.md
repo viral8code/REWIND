@@ -38,12 +38,14 @@ fn propose(edit):
 fn adopt(candidateId):
     let candidate = candidates.get(candidateId);
     let checked = candidate.revalidateAgainst(&settings)?;
-    commit beforeAdoption;
+    let before = snapshot.capture(&settings);
     checked.apply(&mut settings)?;
-    return Ok(snapshot.capture(&settings));
+    let after = snapshot.capture(&settings);
+    candidates.history.add(before, after);
+    return Ok(after);
 ~~~
 
-このcodeはAPI形状の例であり、関数定義syntaxも含めて現行でcompileできるものではない。
+このcodeはAPI形状の例であり、関数定義syntaxも含めて現行でcompileできるものではない。Undoはdata snapshotからmodelを置き換える方式を想定し、終了済み関数のcheckpointへrevertする操作ではない。
 
 ## 状態の分担
 
