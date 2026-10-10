@@ -17,12 +17,12 @@ jobs:
       - name: Check committed standard-library version metadata
         run: python scripts/check-standard-library-lock.py
       - run: cargo fmt --check
-      - name: Disposable PostgreSQL SCRAM and TLS server
-        run: python scripts/postgres-fixture.py start --root "${{ runner.temp }}/rewind-pg-fixture" --github-env "${{ github.env }}"
-      - run: cargo test --locked
       - name: Real Windows Japanese IME conversion service
         if: runner.os == 'Windows'
         run: python scripts/windows-ime-fixture.py -- cargo test --locked --lib gui::windows::ime_tests::real_japanese_ime_service_preedit_convert_commit_focus_and_close -- --exact --nocapture --test-threads=1
+      - name: Disposable PostgreSQL SCRAM and TLS server
+        run: python scripts/postgres-fixture.py start --root "${{ runner.temp }}/rewind-pg-fixture" --github-env "${{ github.env }}"
+      - run: cargo test --locked
       - run: cargo build --release --locked
       - run: target/release/rewind.exe test --root libraries/std
       - name: Verify extracted Windows SDK
