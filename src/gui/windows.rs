@@ -1666,16 +1666,21 @@ mod ime_tests {
             }
         }
         assert_ne!(layout, 0, "A real Japanese IMM-compatible conversion service is required; keyboard layout alone is insufficient");
-        let _native_apartment = super::super::windows_accessibility::Apartment::new().unwrap();
+        let compare_initialization =
+            std::env::var("REWIND_TEST_WINDOWS_IME_COMPARE_INITIALIZATION").as_deref() == Ok("1");
+        let _native_apartment = compare_initialization
+            .then(|| super::super::windows_accessibility::Apartment::new().unwrap());
         let mut surface = Surface::new().unwrap();
         let _restore = Layout(original_layout);
         let mut profile = None;
-        native_edit_probe(0, surface.instance, "before REWIND ThreadMgr", || {
-            unsafe {
-                ActivateKeyboardLayout(layout, 0);
-            }
-            profile = Some(activate_japanese_profile());
-        });
+        if compare_initialization {
+            native_edit_probe(0, surface.instance, "before REWIND ThreadMgr", || {
+                unsafe {
+                    ActivateKeyboardLayout(layout, 0);
+                }
+                profile = Some(activate_japanese_profile());
+            });
+        }
         surface.configure_ime(true);
         let mut frame = Frame {
             title: "REWIND real Microsoft IME acceptance".into(),
@@ -1708,8 +1713,13 @@ mod ime_tests {
             // Activate after the native window and its COM/TSF apartment exist.
             ActivateKeyboardLayout(layout, 0);
         }
-        let mut _profile = profile.take().unwrap();
-        activate_existing_profile(&mut _profile);
+        let _profile = match profile.take() {
+            Some(mut profile) => {
+                activate_existing_profile(&mut profile);
+                profile
+            }
+            None => activate_japanese_profile(),
+        };
         unsafe {
             SetFocus(0);
             SetFocus(surface.window);
@@ -1844,7 +1854,10 @@ mod ime_tests {
                     .map(|e| (e.kind.clone(), e.key.clone()))
                     .collect();
                 trace_context(surface.window, "REWIND failed phase");
-                if phase == "preedit" {
+                if phase == "preedit"
+                    && std::env::var("REWIND_TEST_WINDOWS_IME_COMPARE_INITIALIZATION").as_deref()
+                        == Ok("1")
+                {
                     native_edit_probe(
                         surface.window,
                         surface.instance,
@@ -1852,7 +1865,7 @@ mod ime_tests {
                         || {},
                     );
                 }
-                panic!("Real IME {phase} notification did not reach the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={}, native={native:?}, events={events:?}, messages={:?})",
+                panic!("Required real IME {phase} state was not observed at the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={}, native={native:?}, events={events:?}, messages={:?})",
                     accepting, active, preedit, invalid, messages);
             }
         }

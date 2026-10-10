@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Require a real Japanese conversion service on an ephemeral Windows test VM."""
 import os
+import queue
 import subprocess
 import sys
+import threading
+import time
 
 if sys.platform != 'win32':raise SystemExit('Real Windows IME acceptance requires Windows')
 args=sys.argv[1:]
@@ -23,6 +26,12 @@ if (-not ($profiles.LanguageTag -contains 'ja-JP')) {
  Set-WinUserLanguageList $profiles -Force
 }
 # A capability installed after login does not itself start the user's text service.
+# This backend uses IMM. Select the real Microsoft compatibility engine in
+# the disposable Server runner; this is not an emulated message provider.
+$imePreferences='HKCU:\Software\Microsoft\InputMethod\Settings\JPN'
+New-Item -Path $imePreferences -Force | Out-Null
+New-ItemProperty -Path $imePreferences -Name EnableCompatibilityMode -PropertyType DWord -Value 1 -Force | Out-Null
+@{ime_compatibility_mode=(Get-ItemProperty -Path $imePreferences -Name EnableCompatibilityMode).EnableCompatibilityMode;uac_enable_lua=(Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA).EnableLUA} | ConvertTo-Json -Compress
 # The modern Microsoft input service needs the OS text-input broker, not just
 # ctfmon. Hosted images may leave optional desktop services stopped/disabled.
 $inputServices=@(Get-Service -Name TabletInputService,TextInputManagementService -ErrorAction SilentlyContinue)
@@ -53,8 +62,47 @@ print(result.stdout.strip(),flush=True)
 env=dict(os.environ,REWIND_TEST_WINDOWS_IME_SERVICE='1')
 # Bound real-service setup/activation as well as notification waits. The cargo
 # command includes compilation; actual input phases have their own five-second bound.
-try:
-    result = subprocess.run(args, env=env, timeout=300)
-except subprocess.TimeoutExpired as error:
-    raise RuntimeError('Real Windows IME command exceeded its 300-second acceptance bound') from error
-raise SystemExit(result.returncode)
+# Keep the complete gate on success. Once this exact fixture has already
+# panicked, stop its disposable process tree rather than waiting for the OS
+# profile's known slow failure teardown. A killed/timeout run always fails.
+process = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+lines = queue.Queue(maxsize=128)
+def read_output():
+    try:
+        for line in iter(process.stdout.readline, b''):
+            lines.put(line)
+    finally:
+        lines.put(None)
+reader = threading.Thread(target=read_output, daemon=True)
+reader.start()
+def terminate_fixture(reason):
+    # cargo starts the test executable; terminate both, never other sessions.
+    subprocess.run(['taskkill.exe', '/PID', str(process.pid), '/T', '/F'],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    if process.poll() is None:
+        process.kill()
+    process.wait(timeout=10)
+    raise RuntimeError(reason)
+deadline = time.monotonic() + 300
+failed = False
+while True:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        terminate_fixture('Real Windows IME test panicked; the failed fixture process tree was stopped' if failed else 'Real Windows IME command exceeded its 300-second acceptance bound')
+    try:
+        line = lines.get(timeout=min(remaining, 1))
+    except queue.Empty:
+        continue
+    if line is None:
+        break
+    sys.stdout.buffer.write(line)
+    sys.stdout.buffer.flush()
+    if b'panicked at' in line:
+        # The original failing assertion is already in the log. Never turn a
+        # failed notification/commit/focus/close assertion into qualification.
+        failed = True
+        # Drain the assertion text emitted immediately after the panic header.
+        deadline = min(deadline, time.monotonic()+1)
+if failed:
+    terminate_fixture('Real Windows IME test panicked; the failed fixture process tree was stopped')
+raise SystemExit(process.wait(timeout=max(1, deadline-time.monotonic())))
