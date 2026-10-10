@@ -1938,7 +1938,16 @@ mod ime_tests {
         frame.items[0].focused = true;
         surface.present(&frame).unwrap();
         start(&mut surface);
+        let closing = std::time::Instant::now();
         surface.close();
+        eprintln!(
+            "Real IME: native composition close completed in {:?}",
+            closing.elapsed()
+        );
+        assert!(
+            closing.elapsed() < std::time::Duration::from_secs(5),
+            "Native composition close must not wait for a prolonged service shutdown"
+        );
         assert_eq!(surface.ime_context, 0);
         assert!(!surface.state().composition.active);
     }

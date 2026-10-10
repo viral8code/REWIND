@@ -1,6 +1,6 @@
 # v2.0 到達条件の残件
 
-v1.9.63までのWindows / Linux公開版と、v1.9.64の数値入力・統合負荷の開発を基準にした作業整理。これは v2.0 の完了宣言ではない。
+v1.9.64までのWindows / Linux公開版と、v1.9.65の検証中候補、v2.0候補を基準にした作業整理。これは v2.0 の完了宣言ではない。
 公開の判定は、実装、実 adapter での検証、Linux / Windows の配布検証を区別する。
 到達条件の原文は [ロードマップ](ROADMAP_v2.md)、設計は [詳細設計](v2-design.md) にある。
 過去の各版にある「残る作業」の記述はその版の時点の情報であり、現在の不足一覧として再利用しない。
@@ -25,16 +25,33 @@ GC、共有 storage、履歴と native resource の会計にも実装と個別�
 
 1.9.63の公開版では、Linuxの実AT-SPI registry / system clientで名前・役割・状態・Unicode Text・既定操作・変更通知を確認した。source-freeのdebug / compact実行でnative操作によるVM復元とサービスなしreplayを確認し、実X11 captureでLatin / 日本語の異なる字形を確認した。Windowsの実COM clientとfont capture、両OSの展開後SDKと全回帰も通過した。Windowsの実日本語変換エンジンの確認や数値・通信との長時間負荷を、この結果だけで完了にはしない。
 
-1.9.64 の開発では、所有する List からの分割数値入力、途中復元と取消後の回収を Linux の直接ビルドで確認した。数値計算と GUI / HTTP / 両 DB の同時実行は各 2 サイクルで確認し、両 DB 各 16 サイクルでは計算完了と終了時の回収、確定結果の独立照合、サービスなし replay を確認した。長い compact replay は出力が一致する一方で再生の費用が大きく、性能監査に残す。Windows、展開後 SDK、より長い反復と切断・早期終了をこの結果だけで完了にはしない。
+1.9.64の公開版では、所有するListからの分割数値入力、途中復元・取消・回収と、
+数値・GUI・HTTP・両DBの同時実行を確認した。両OSの全回帰と展開後SDKでは、
+正常終了、切断、早期終了、source-freeのdebug / compact実行、サービスなしreplayを
+確認した。Linuxの両DB各16サイクルでは計算完了、確定結果の独立照合と回収も確認した。
+長いcompact replayには再生費用があり、応答性のための協調実行も追加費用を伴う。
+
+1.9.65候補には、子taskの診断・型付きbudget保持、大規模collectionのsnapshot / iteratorと
+COW、native資源の共通roots走査を含める。ローカルの全650回帰とdoc、標準ライブラリ、
+展開後SDKは通過した。公開候補CIのWindows実Microsoft日本語IMEでも、
+preedit / convert / commitの8回反復、focus取消、closeを確認した。
+句変換モードはサービスの既定を保持する。両OSの最終回帰・SDKと公開の判定は
+Release workflowで確認する。v2.0の公開完了を意味しない。
+
+v2.0候補ではnative factoryが返すList / Mapを通常の所有値として変更できるようにする。
+rootおよびOption / Result内のcollectionにVM headerを一つ確保し、共有ページを保つ。
+数値値・shape・Unicode分割結果の変更、元データとsnapshotの独立性、source-free replay、
+下位languageのartifactの挙動維持は重点テストを通過した。Linux候補の全回帰、
+標準ライブラリと展開後SDKも通過した。両OSの最終公開CIと公開判定が残っている。
 
 ## 必須の残件と完了判定
 
-| 作業単位 | 具体的な変更・検証 | 完了判定 |
+| 作業単位 | 現在の状態 | 残る完了判定 |
 | --- | --- | --- |
-| IME と accessibility | `src/gui/windows.rs` / `x11.rs` に native composition、caret / focus との連携を整える。OS の読み上げ向け役割・名前・状態の adapter を加える。未確定の native 入力状態を VM snapshot と分離する。 | 両 OS の実入力 service / accessibility client で composition、確定、キャンセル、focus 変更、window close を確認する。mock と Unicode 確定入力だけで完了にしない。recorded input の source-free replay は native service を必要としない。 |
-| 計算と応答性 | 自動微分の forward tape 構築、初期入力のコピー・key / digest 作成など、まだ長い同期処理が残る経路を profile する。必要な経路を分割し、同期 API の既存契約を保つ。 | 非ゼロの materialized model で forward / backward の正しさ、計算中の native GUI 入力、キャンセル、保持された checkpoint と最後の参照の解放を確認する。同じ入力の同期版と CPU / wall / RSS / live storage を比較し、追加費用を明記する。 |
-| 統合反復負荷 | GUI・HTTP server・両 DB の transaction / partial failure / shutdown を同じ VM で反復する。さらに通信・数値計算の同時負荷、切断・キャンセル・終了経路を組み合わせる。 | 確定済み DB を独立に照合し、revert / replay が書込みを再実行しない。thread / connection / queue / temporary storage の枠と終了時の解放を確認する。意図的に保持する観測・checkpoint と到達不能な一時値を区別して、反復数に対する増加を測る。 |
-| 最終受入・配布 | 到達条件1〜7を具体的な実装・試験・測定へ結び付ける。診断・reference・API / effect / ownership / cost・native dependency / license・SDK を照合する。 | release candidate の Linux / Windows で全回帰、実 DB / TLS / GUI、GC / memory / benchmark、展開後 source-free、署名 / checksum を確認する。必須項目の未実装・未検証があれば v2.0 を公開しない。 |
+| OS入力・accessibility | native IME、実Linux IBus / Anthy、AT-SPI、Windows COM client、両OS font captureは実装・検証済み。 | v1.9.65候補の実Microsoft IMEでpreedit / convert / commit / focus / closeは確認済み。v2.0の最終候補でも同じ実サービスの受入を維持する。mockやUnicode確定入力で代用しない。 |
+| 計算・統合反復負荷 | forward / backward / 入力準備の協調実行、値・勾配の一致、実GUIからの取消、両DBとの同時負荷・切断・早期終了・回収を検証済み。 | v2.0の最終候補と両OS SDKで同じ契約の回帰を通す。CPU / wall / RSS / live storageと協調実行の追加費用を照合する。 |
+| 型・コレクション・診断 | v1.9.65の大規模snapshotと元診断保持はローカル全回帰済み。v2.0のnative返却collectionの変更は重点試験済み。 | v1.9.65の両OS公開検証と、v2.0の全回帰・標準ライブラリ・source-freeの展開後SDKを通す。旧artifactを新languageへ読み替えない。 |
+| 最終受入・配布 | 到達条件1〜7の実装と検証の対応を整理中。v1.9.64は193ライセンス見出しと両OS依存の照合、署名付き配布、main / tag一致を確認済み。 | v2.0候補の診断・reference・API / effect / ownership / cost・依存ライセンスを照合し、両OS全回帰、実DB / TLS / GUI、資源回収、署名 / checksum、公開Release / main / tagの一致を確認する。未検証の必須項目があれば公開しない。 |
 
 ## 統合検証で確認した制限
 
@@ -55,6 +72,6 @@ GC、共有 storage、履歴と native resource の会計にも実装と個別�
 新しい不足を見つけた場合は、この一覧の該当行に具体例と完了判定を追加する。
 版番号やテスト数の増加を v2.0 の到達判定に使わない。
 
-数値の協調ライブラリで子taskの失敗を `AutodiffTask` へ変換する経路は、
-元の原因が隠れるため、最終診断の監査対象に残す。処理全体の失敗を成功や取消へ
-読み替えず、budgetと通常の数値エラーを利用者が区別できる形にする。
+数値の協調ライブラリの子task失敗は、v1.9.65候補で具体的なcodeと行へ投影する。
+元の診断全文・原因ツリー・型付きbudgetは`std.taskError.describe`で保持する。
+`StdError`投影はその全情報を保持しない。この違いをreferenceと回帰で確認する。

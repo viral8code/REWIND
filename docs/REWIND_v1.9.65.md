@@ -1,4 +1,4 @@
-# REWIND v1.9.65 — 診断と資源回収の最終整理（開発中）
+# REWIND v1.9.65 — 診断と資源回収の最終整理
 
 この版は子taskの原因が隠れる経路、native資源回収の重複走査、
 OS入力とv2到達条件の監査をまとめて扱う。公開は両OSの全回帰・展開後SDK・
@@ -49,16 +49,33 @@ Listのiteratorも検証済みのページを保持する。Mapのキーや文�
 
 未実装・未検証の必須項目がある間はv2.0の完了とは扱わない。
 
-## 開発中の確認
+## 検証記録
 
 実際にpanicさせたtaskのcode・message・source・行を取り出し、ソース削除後の
 debug / compact実行とreplayで維持することを確認した。非同期forwardでは
 1 millionのnative work上限で具体的なbudget code、3 millionでは正常終了を
 確認した。元のlease検査2件・HTTP寿命と取消の12件・標準ライブラリ契約も通過した。
-全回帰・展開後SDK・Windowsの実IME変換と性能評価の完了へこの結果を広げない。
+Linux候補の全650 integration回帰、unit / doc、標準ライブラリと展開後SDKも通過した。
+公開CIでは実Microsoft日本語IMEによる未確定文字列、変換、確定の8回反復、
+focus移動時の取消、window closeを確認した。句変換モードを試験側でゼロへ
+固定すると、Windows標準EDITでも一音ずつ確定してしまうため、サービスの
+既定モードを保持する。Unicode確定入力やmockで実変換の受入を代用していない。
+最終的な両OSの全回帰・展開後SDKと公開はRelease workflowの成功を条件とする。
+
+HTTP server / TCP / SQLite / HTTP downloadを同時保持する最適化したRuntime
+probeでは、所有者存続中4資源、解放後0、checkpoint復元後も0を確認した。
+同じ入力の逐次3回測定では、100回の回収区間が16,384 / 65,536 / 262,144要素で
+0.06614 / 0.31397 / 3.52269秒から0.01647 / 0.08090 / 0.89663秒へ短縮した。
+この区間の結果をアプリ全体やGC全体の速度へ広げない。協調実行の追加費用も維持する。
 
 Windowsの実変換受入は、日本語IMEをCI用VMへ準備し、nativeのcomposition設定・
 変換・確定・focus変更・window closeを8回の反復とともに検査する。設定文字列を
 書き換えるmockは使わず、変換結果が未変換文字列と異なることも検査する。
 CI以外のVM実行やSDK起動がOSの言語設定を変更するものではない。
 実サービスがない場合の型検査や通常のIMM context試験だけで完了にはしない。
+
+Windowsのnative windowはシステムが関連付けたIMM contextを借用し、必要時に
+自前のcontextを用意する。所有権を区別して借用contextを破棄しない。
+公開した入力欄のcharacter-position要求へ回答し、COM / text-service managerの
+活性化と終了を対応させる。入力欄が変わった時の未確定文字列の取消と、
+確定文字だけがVMへ入る契約は維持する。CIの言語サービス準備は使い捨てVMに限定する。
