@@ -30,6 +30,27 @@
 
 VM内部の値・計算・未公開作用には巻き戻しを活用できます。確定済みの外部作用は記録・照合・補償等の別手段で扱う前提を維持します。面白い構想を考えるために、この境界を曖昧にはしません。
 
+## 組合せるとどんな体験になるか
+
+単独の機能だけでなく、複数の構想をつなぐと新しい使い方が生まれます。
+
+| 体験の案 | 組合せる構想 |
+|---|---|
+| 原因を説明するUndo付きeditor | [時間軸](02-time-and-debugging.md)のVTIME-01/08と[GUI](03-gui-and-media.md)のVGUI-07/10 |
+| 数式からsimulationまで辿る文書 | [科学計算](05-science-and-mathematics.md)のVSCI-04/05と[notebook](10-development-and-ecosystem.md)のVDEV-01/02 |
+| データの由来を示す分析画面 | [データ](04-data-and-knowledge.md)のVDATA-01/05と[GUI](03-gui-and-media.md)のVGUI-11 |
+| 失敗から自動で作る小さなreproducer | [時間軸](02-time-and-debugging.md)のVTIME-12と[検証](09-verification-and-security.md)のVQUAL-02/04 |
+| 仮説を比較するmodel開発環境 | [AI](06-ai-and-models.md)のVAI-05/16と[時間軸](02-time-and-debugging.md)のVTIME-05/06 |
+| protocolの型・実行・記録を一緒に見る | [実験言語](14-experimental-computation.md)のVEXP-03と[通信](07-network-and-distribution.md)のVNET-16 |
+| 暦・金額・根拠を保つreport | [domain library](12-domain-libraries.md)のVDOMAIN-01/05/10/15と[データ](04-data-and-knowledge.md)のVDATA-06 |
+| simulationと実測を比べるdigital twin | [world](15-simulation-and-worlds.md)のVWORLD-14/15と[科学計算](05-science-and-mathematics.md)のVSCI-13 |
+| 利用者ごとに操作方法を変える同じ画面 | [interaction](13-text-and-interaction.md)のVHUMAN-06/13/16と[GUI](03-gui-and-media.md)のVGUI-16 |
+| 異なる実行方式でも検証できる計算library | [systems](08-systems-and-hardware.md)のVSYS-09/14と[検証](09-verification-and-security.md)のVQUAL-06 |
+| 型からAPI・文書・testを育てる開発環境 | [言語](01-language.md)のVLANG-06/15と[開発](10-development-and-ecosystem.md)のVDEV-04/06 |
+| 大きな入力をmemory階層に合わせてquery | [データ](04-data-and-knowledge.md)のVDATA-02と[systems](08-systems-and-hardware.md)のVSYS-11/13 |
+
+この表は独立した追加項目として数えず、240項目の組合せ例です。採用を検討するときに、短い利用シナリオを作る出発点にできます。
+
 ## 次に選ぶとき
 
 気になる項目を組み合わせて短い利用シナリオを作り、現行APIでできる部分と追加する差分を後から調べます。今の段階では、優先順位・版番号・期限・受入条件を全項目へ付けません。

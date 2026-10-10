@@ -97,6 +97,16 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 
 まず既存APIとの差を最小例で確認します。採用した項目だけ、対象版・依存・受入を決めて実装一覧へ追加します。追加構想の保存履歴はgit log -- docs/v2-next-*.mdで確認できます。今回はruntime/libraryを変更していません。
 
+## 実現難度で絞らない自由構想集
+
+[docs/visionsの入口](visions/README.md)に、15分野・240項目を追加しました。言語、時間軸、GUI、データ、数理、AI、分散、hardware、検証、開発環境、高度algorithm、domain library、interaction、実験的計算、simulationを扱います。
+
+これらは**発想を保存する段階**です。既存58候補の採用判断・実装状態・版の到達条件は変更していません。既存機能の発展形も含むため、この240項目を「現行版にない機能」の一覧として転記しません。
+
+保存履歴はgit log -- docs/visionsで確認できます。分野ごとにcommit/pushしました。runtime/library変更、Release、版更新、main統合、公開CI/CDの起動操作は行っていません。
+
+今後さらに思い付いた場合は、対応する分野へ新しいIDを付け、入口の件数を更新します。採用へ進める項目だけ、現行実装との照合と設計・受入を後で行います。
+
 ## 最初の実装再開：CLI-01
 
 1. working tree、branch、origin、最新指示を確認する。未commitのユーザー変更を上書きしない。
