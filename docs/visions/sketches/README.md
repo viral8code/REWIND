@@ -12,3 +12,6 @@
 
 - [外部操作を組み立てるworkbench](05-effect-workbench.md)
 - [taskの実行順を探索するlaboratory](06-scheduler-laboratory.md)
+
+- [複数の未来を比べるsimulation tree](07-simulation-tree.md)
+- [寿命を閉じ込めるnative計算capsule](08-native-computation-capsule.md)
