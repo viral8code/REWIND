@@ -82,6 +82,18 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 
 最適化目標の数値はbaseline取得後に決めます。「GCがある」という事実だけで漏れなしを宣言しません。checkpoint由来の意図した保持を欠陥扱いしません。
 
+## 追加構想の状態
+
+2026-10-10に34候補を追加しました。すべて**採用判断前**です。既定の実装一覧とは区別し、候補を全部実装する前提にしません。
+
+- [言語表現・型・変更履歴：9候補](v2-next-language.md)
+- [通信・サービス・外部資源：8候補](v2-next-services.md)
+- [表データ・数値処理・一般library：9候補](v2-next-data.md)
+- [配布・品質・継続運用：8候補](v2-next-ecosystem.md)
+- [選定表と採用判断template](v2-next-selection.md)
+
+まず既存APIとの差を最小例で確認します。採用した項目だけ、対象版・依存・受入を決めて実装一覧へ追加します。追加構想の保存履歴はgit log -- docs/v2-next-*.mdで確認できます。今回はruntime/libraryを変更していません。
+
 ## 最初の実装再開：CLI-01
 
 1. working tree、branch、origin、最新指示を確認する。未commitのユーザー変更を上書きしない。
