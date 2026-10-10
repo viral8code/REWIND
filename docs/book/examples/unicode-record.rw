@@ -1,0 +1,16 @@
+import std.unicode as unicode;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("unicode operation failed");}}}
+let source="é🇯🇵👩‍👩‍👧‍👦";
+Out.println(take(unicode.graphemeCount(&source)));
+Out.println(take(unicode.graphemeSlice(&source,1,2)));
+var text=take(unicode.normalize(&source,unicode.Form::NFC));
+commit composed;
+text=take(unicode.normalize(&text,unicode.Form::NFD));
+Out.println(take(unicode.isNormalized(&text,unicode.Form::NFC)));
+publish;
+revert composed;
+Out.println(take(unicode.isNormalized(&text,unicode.Form::NFC)));
+let compatibility="Ａ①ﬃ";Out.println(take(unicode.normalize(&compatibility,unicode.Form::NFKC)));
+let word="straße";Out.println(take(unicode.upper(&word)));
+let clusters=take(unicode.graphemes(&source));Out.println(clusters.len());
+publish;

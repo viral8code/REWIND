@@ -1,6 +1,8 @@
-# ネイティブ GUI（REWIND 1.4.0）
+# ネイティブ GUI（REWIND 2.0.0）
 
 `std.gui` は一つのネイティブウィンドウにラベル、ボタン、チェックボックス、色付き矩形を描画します。REWIND のイベントループでクリックとキー入力に応答できます。Windows x64 は Win32/GDI、Linux x86_64 は X11 を使います。ブラウザ、JVM、外部 GUI toolkit は不要です。
+
+現在の機能を順に読むには[HTMLの本のGUI章](book/index.html#ch18) / [PDF](book/REWIND-2.0.0-book.pdf)を利用できます。以下には各版で追加した機能の説明も含みます。
 
 ## 実行
 
@@ -62,7 +64,7 @@ rewind replay trace.json --root . --allow-effects gui
 
 GUI 操作は main task に限ります。`gui` effect が必要な処理を async 関数へ置くと検査で拒否されます。初回 publish 前の入力は `GuiNotPublished`、表示環境がない場合は publish が `GuiUnavailable` になります。公開中に OS の描画が失敗した場合、通常の publish と同じく部分適用として扱われる可能性があります。X11 server の切断のようなプロセス外の障害も巻き戻せません。
 
-1.3 は固定座標の単一 canvas です。resize イベントは通知しますが自動レイアウトは行わず、次の present は View の寸法を適用します。clipboard、メニュー、file dialog、アクセシビリティ連携、macOS/native Wayland は未対応です。
+1.3 は固定座標の単一 canvas です。resize イベントは通知しますが自動レイアウトは行わず、次の present は View の寸法を適用します。2.0.0ではclipboard、メニュー、file dialog、アクセシビリティの提供範囲を追加済みです。macOS/native Wayland は配布対象ではありません。各機能のOS条件と保証範囲はHTMLの本と後述の契約を参照してください。
 
 ## 1.4 の文字編集と配置
 
@@ -80,7 +82,7 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 
 `import std.guiWindows as windows;` を加え、`windows.present("counter",&view); publish;` で ID ごとに表示する。`windows.pollAny()` / `windows.nextEventAny()` は window と event を持つ WindowEvent を返す。イベントを対応する View の gui.dispatch へ渡す。`windows.close("counter"); publish;` はその画面だけを終了する。
 
-入力と画面は旧 gui の単一画面から独立する。名前付き画面の Undo は `revert saved; windows.continueInput();` として復元した View を再表示する。待機 API は VM task を進めないため、外部 I/O の完了確認との併用は pollAny と task.isDone() を使う。明示的な VM task handoff は後続版の API とする。
+入力と画面は旧 gui の単一画面から独立する。名前付き画面の Undo は `revert saved; windows.continueInput();` として復元した View を再表示する。待機 API は VM task を進めないため、外部 I/O の完了確認との併用は pollAny と task.isDone() を使う。現在は `std.task.yieldNow` と `windows.nextEventAnyAsync` を利用できます。
 
 最大16画面、合計16,777,216 client pixels（旧単一画面を含む）、各 scene 1 MiB。ID、入力 fixture、記録・予算・部分公開の詳細は [v1.9.9](REWIND_v1.9.9.md)、実行例は [gui-windows](../examples/gui-windows/README.md)。`--gui-window-events` を使う fixture と replay は native 画面を開かない。
 

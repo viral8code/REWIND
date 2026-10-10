@@ -1,0 +1,437 @@
+{
+  "compiler": "rewind 2.0.0",
+  "platform": "Linux x86_64",
+  "examples": [
+    {
+      "id": "hello",
+      "source_sha256": "7ff57cb63ca937d0170855ea42f793a26970a255abb900f1137be83c1f735691",
+      "passed": true,
+      "stdout": "Hello, REWIND!\n",
+      "source_free": true
+    },
+    {
+      "id": "unpublished",
+      "source_sha256": "66a93633cb33e1aa48a9824b441f8a2486f6da953d34235dcca4f58e5e90900d",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "variables",
+      "source_sha256": "53809aff6a9f820162ddd2656c4e1c4ad8a84bfbae979f8993039c983e00c741",
+      "passed": true,
+      "stdout": "15\n",
+      "source_free": true
+    },
+    {
+      "id": "literals",
+      "source_sha256": "71839be8716ba421b19d41b9209ce291acfd5b13dd9d84a25550773c19cdf507",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "arithmetic",
+      "source_sha256": "24989a4fd2b129a632a2ce03a91537093d7f1eeb3cab6a6b3aa4d5549f422149",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "even-odd",
+      "source_sha256": "85afb96dcce09188996c7b26413c032e9047862022b610749d951ae4773ccefc",
+      "passed": true,
+      "stdout": "Odd\n",
+      "source_free": true
+    },
+    {
+      "id": "plain-if",
+      "source_sha256": "48afd69c73c272d4f3cf31cdfb47b244e9a9c5856c66208cd822abf8f98776c9",
+      "passed": true,
+      "stdout": "Odd\n",
+      "source_free": true
+    },
+    {
+      "id": "loops",
+      "source_sha256": "d6c18cbe06c99d55c7cde4906b2af09d384dda984cf295acbcff5a823bf42f83",
+      "passed": true,
+      "stdout": "10\n",
+      "source_free": true
+    },
+    {
+      "id": "factorial",
+      "source_sha256": "5f47dbeb7fe6ae6889720518cd6b2e1e57947d1f95e1d7e7fdc1f0978a41d013",
+      "passed": true,
+      "stdout": "120\n",
+      "source_free": true
+    },
+    {
+      "id": "main-function",
+      "source_sha256": "9260b9eb97cabd1c5ea4988fc07b821d6d254546d5313385d805f568ff2db404",
+      "passed": true,
+      "stdout": "started\n",
+      "source_free": true
+    },
+    {
+      "id": "list",
+      "source_sha256": "c6804885fad4775f1fb2a6396fface63a273a70745f79a64aab95918b504076f",
+      "passed": true,
+      "stdout": "19\n",
+      "source_free": true
+    },
+    {
+      "id": "map",
+      "source_sha256": "68259a72d2a9826629a9248daf3ced1b61d26b6ce5937b9d82155fd96b774ddf",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "iterator",
+      "source_sha256": "e58fe1de299758e98de443e6d1286d9f7fda36b24e666b9ea5880a3fe0d34562",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "option",
+      "source_sha256": "48a3801d1294f0461b91fa51016fd4975d8cc134dec3e6c2068129a4d0a66a1c",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "result",
+      "source_sha256": "c83060c3fe5d4cce6a947938ce3310951ec6bcc0a5331fa15c2c79d4b84a83a5",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "data-types",
+      "source_sha256": "ad2ed870c4e70f4e03a57ed58ac26bffcf917eebf518e2c644f2c8c37958e588",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "traits",
+      "source_sha256": "d850ddcff92f4fa2969e25fcfac9cbd6745c01303682785e7e9b1b875d152392",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "capture-value",
+      "source_sha256": "ee531a5aabef33e044a56c519267c00053ae6b56edb10bc3499a1e6166328780",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "capture-move",
+      "source_sha256": "48336874bdedc7e47cd01974425483f80559ea3ded23688adf84d82097b46d92",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "capture-borrow",
+      "source_sha256": "3c25d1ec8fc536e8570fe37616b86a340b4effe923993414ef930866bf3e29f8",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "named-enum",
+      "source_sha256": "b470dd904627dd883e115e55f81bb8d275708a8199034670969f112d10210573",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "ownership",
+      "source_sha256": "669879e7996475ceabc2553e259792e663f7a2c27e7dc77efcd362ad162727b0",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "publish-revert",
+      "source_sha256": "1eb6a11f25ea14cef69a443b7e6ddd7c145a63a67b59ecc08f10b795d1e9b1fa",
+      "passed": true,
+      "stdout": "99\n10\n",
+      "source_free": true,
+      "compact_replay": true
+    },
+    {
+      "id": "pending-revert",
+      "source_sha256": "081980ec12ede83ca0cb34d733ff2edf1f7c16b829540813b0151e95857e1dd5",
+      "passed": true,
+      "stdout": "10\n",
+      "source_free": true,
+      "compact_replay": true
+    },
+    {
+      "id": "begin-reset",
+      "source_sha256": "e39390ad9bc54c057c05b425beff1e58ef8269d69fbf145ed48ffe0dcb960843",
+      "passed": true,
+      "stdout": "99\n10\n",
+      "source_free": true,
+      "compact_replay": true
+    },
+    {
+      "id": "branch",
+      "source_sha256": "f77c99690ed4df6ec4de613409350eace05c097687d59a9c371363e52a87ebd8",
+      "passed": true,
+      "stdout": "10\n",
+      "source_free": true
+    },
+    {
+      "id": "import",
+      "source_sha256": "b9727188d628721fe6dc9cf50a10571eb2280e749d1db70cdaa4fa6cd93242a2",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "arguments",
+      "source_sha256": "b8931b4058500fd9ec10cdaf1639bce1322f62f625978358e636a4bb409877e3",
+      "passed": true,
+      "stdout": "1\nsample\n",
+      "source_free": true
+    },
+    {
+      "id": "scanner",
+      "source_sha256": "9c418a82765b7d065c6ff67236a9e71168b127aaa9d9e3becaa389b3e549aeb8",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "files",
+      "source_sha256": "ceb2fcbaf8d959132eb72dee2985d5a8b071b5922305ee2969e6585377059924",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "text",
+      "source_sha256": "f3a40e861a87fe611d17462ef712ba8607bf5dcdaa1a568ff7946cfab42cba65",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "unicode",
+      "source_sha256": "1773cbea23f651b337f898de08cbd3211f9429373e3ee41ae226fd86029b9ac0",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "async",
+      "source_sha256": "fe1f64b715e46e81d8cbb557d6ae569bd8c517c162ee009bb8d135bd06f45cd8",
+      "passed": true,
+      "stdout": "42\n",
+      "source_free": true
+    },
+    {
+      "id": "defer",
+      "source_sha256": "4c07a53592f099d54731f865f7a78da5d83d20e8f1cd9334afeba9e02f4df163",
+      "passed": true,
+      "stdout": "work\ncleanup\n",
+      "source_free": true
+    },
+    {
+      "id": "gui-minimal",
+      "source_sha256": "cf767ee8654a1df06e6316e46931b537b040654b59118c541ba62be77d8956ef",
+      "passed": true,
+      "stdout": "",
+      "source_free": true,
+      "compact_replay": true
+    },
+    {
+      "id": "json",
+      "source_sha256": "9009ec23888fea38e78fac89b1657a5e09688e6d8a8f9e7e5fec2ab2f6d4eb7a",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "bigint",
+      "source_sha256": "48310da9a94e71b6e362ebe55ec67ac90b1b90754fd1c113ffe66bb078917c1e",
+      "passed": true,
+      "stdout": "1267650600228229401496703205376\n",
+      "source_free": true
+    },
+    {
+      "id": "decimal",
+      "source_sha256": "09b8d2a7c4ac8a3a2390367f857ae227e42d1fc068fcb08448eb546d5f1dcf00",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "numeric-owner",
+      "source_sha256": "275d5a1263f1dd9c533d8ce22b02570c7b11fbeb09f0dcf399583efd1f186e2e",
+      "passed": true,
+      "stdout": "",
+      "source_free": true,
+      "compact_replay": true
+    },
+    {
+      "id": "sort",
+      "source_sha256": "34a80eff6472e6ab8d2a1a49f9b580967da0cc854d945e345b199b4e3a621bde",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "graph",
+      "source_sha256": "2c9febd7765355a96373a89d8957f9a6ae24eae639a91f546aa5f9b3900a6486",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "builtin-conversion",
+      "source_sha256": "0f389c67f187e91d8c97d64f42a24280388c16f43f0227fe8febf853afd86aab",
+      "passed": true,
+      "stdout": "",
+      "source_free": true
+    },
+    {
+      "id": "gui-counter",
+      "source_sha256": "4cd0977305582b4aae5be80a1337b2e6cbdafc5907c76ccd126ad6594242974d",
+      "passed": true,
+      "stdout": "1\n",
+      "source_free": true,
+      "compact_replay": true
+    },
+    {
+      "id": "db-sqlite",
+      "source_sha256": "3a15d79536a21a2ed590b7884e5c15932a0a3fc30b15f733f6de05eb31a28c5a",
+      "passed": true,
+      "stdout": "1\nAlice\n42\n",
+      "source_free": true,
+      "compact_replay": true
+    },
+    {
+      "id": "http-client",
+      "source_sha256": "b10fa9f7bf2ef569080021e1997835552d2feb73e694a30c658dfc304fae4046",
+      "passed": true,
+      "stdout": "200\nbook test\n",
+      "source_free": true,
+      "replay_did_not_send_http": true,
+      "compact_replay": true
+    },
+    {
+      "id": "numeric-solve",
+      "source_sha256": "8f8cdd2323d920238a04038e943bf7a4b01645cb82bd9496f37e989620c1eb6e",
+      "passed": true,
+      "stdout": "1\n2\n99\n0\n",
+      "source_free": true
+    },
+    {
+      "id": "regex-search",
+      "source_sha256": "71f7b66d0faf3aa23d4d761fd4de41471b0739d5d6aec7a86c53894b5bac8e07",
+      "passed": true,
+      "stdout": "Alice-42\nAlice\nBob-7\nfalse\ntrue\n3\ntrue\n",
+      "source_free": true
+    },
+    {
+      "id": "datetime-dst",
+      "source_sha256": "e14dc46e1a7d5c80beb5a0cc98601a85f41f54cb0613c35473abe8c498e167f8",
+      "passed": true,
+      "stdout": "3600\n2024-11-03T06:30:00.123456789Z\n2024-11-03T05:30:00.123456789Z\n32400\nsame instant\n",
+      "source_free": true
+    },
+    {
+      "id": "flow-matching",
+      "source_sha256": "c985e4c43a3c0308808e7522e731419ca1be01ed5fd0572a867054947622ca87",
+      "passed": true,
+      "stdout": "5\n2\n",
+      "source_free": true
+    },
+    {
+      "id": "task-readiness",
+      "source_sha256": "0c2ead6e0c9f73aa263d239270375bda7d71d07933e5fbfa41fe071f0e650c0b",
+      "passed": true,
+      "stdout": "ready\n42\n",
+      "source_free": true
+    },
+    {
+      "id": "autodiff-forward",
+      "source_sha256": "c5ca8eaec8b51fa0c249d346cf6344fafd4cd0cb125624d3158287700bf92b31",
+      "passed": true,
+      "stdout": "finished\nrestored\ncancelled\n",
+      "source_free": true
+    },
+    {
+      "id": "numeric-index",
+      "source_sha256": "6281082d3f066b78424a02dccff35b532239c533152bb8f4e7b528681cfd4540",
+      "passed": true,
+      "stdout": "99\n2\n",
+      "source_free": true
+    },
+    {
+      "id": "decimal-record",
+      "source_sha256": "f96eebbff765d36c538367f6d2f4a0a54bf2ac1c962858983bbd3d2d564298e2",
+      "passed": true,
+      "stdout": "0.3\n0.1\n2\ntrue\n1\n\"0.1\"\n",
+      "source_free": true
+    },
+    {
+      "id": "unicode-record",
+      "source_sha256": "8be0d251aad9a0f0bae53350c5d93182756f0c81ed9190af54b96e4a57de7f50",
+      "passed": true,
+      "stdout": "3\n🇯🇵\nfalse\ntrue\nA1ffi\nSTRASSE\n3\n",
+      "source_free": true
+    },
+    {
+      "id": "csv-stream",
+      "source_sha256": "772da9171ce951031245a2ea2759e0a1fda02273fe1700b861cbfac59e6260f3",
+      "passed": true,
+      "stdout": "name\nnote\n日本語\na\"b\n日\nname\n",
+      "source_free": true
+    },
+    {
+      "id": "json-stream",
+      "source_sha256": "175a3f9d686b871924c80ff7796f877b00a8606071a65e4026a02d904a239e9f",
+      "passed": true,
+      "stdout": "1267650600228229401496703205376\n2\n3\n日本\n3\n0\n",
+      "source_free": true
+    },
+    {
+      "id": "sparse-fft",
+      "source_sha256": "140beda9e3a9f30ca32c725cea0f2f214781e7fe8cc4b8f96ba52c2ede5dd952",
+      "passed": true,
+      "stdout": "true\n2\ntrue\ntrue\n",
+      "source_free": true
+    },
+    {
+      "id": "autodiff-async",
+      "source_sha256": "62a41c26b8703e89e094f2e5ca4dfc846cf67f7af6b780e9dfac7d1b73cc7579",
+      "passed": true,
+      "stdout": "true\ntrue\nbackward done\n",
+      "source_free": true
+    },
+    {
+      "id": "reductions-async",
+      "source_sha256": "c246df1a52c79d6e15ce2080be0bc47c4798bde2a1247fc00592188ab9d7a01a",
+      "passed": true,
+      "stdout": "true\ntrue\nreductions done\n",
+      "source_free": true
+    },
+    {
+      "id": "graph-large",
+      "source_sha256": "4b5e99f7df2371e74b087d08134cd41771ceab6472cec3ff1cba3abdb41dfaf6",
+      "passed": true,
+      "stdout": "5\n-1\n",
+      "source_free": true
+    }
+  ],
+  "passed": 60,
+  "total": 60
+}

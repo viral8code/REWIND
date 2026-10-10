@@ -1,10 +1,14 @@
-# REWIND 1.9.64
+# REWIND 2.0.0
 
 REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v2.0.0ではGUI・通信・DB・数値処理とVMの巻き戻しを組み合わせます。[変更点と公開条件](docs/REWIND_v2.0.md)を参照してください。
 
 `rewind run main.rw` / `rewindc main.rw`、Checkpoint と増分 publish、署名付き Linux / Windows x64 SDK を提供します。1.5 では即時外部操作の明示領域と、巻き戻し後の結果再利用を追加しました。[使い方](docs/getting-started.md)、[言語リファレンス](docs/language-reference.md)、[GUI](docs/gui.md)、[1.5 の変更点](docs/REWIND_v1.5.md)、[ライブラリ](libraries/README.md)を参照してください。開発 branch は `codex/develop` です。各版の検証後、`main` に統合して Release を公開します。
 
 今後の設計は [v2.0 までの実装計画](docs/ROADMAP_v2.md) と [詳細設計案](docs/v2-design.md) を参照してください。到達条件と検証範囲は [受入照合](docs/v2-acceptance.md) を参照してください。
+
+## 入門書・詳細リファレンス
+
+[HTML版（オフライン・全文検索）](docs/book/index.html) / [PDF版](docs/book/REWIND-2.0.0-book.pdf)。v2.0.0を対象に、32章・60の検証済み実行例と、全86公開モジュール・625関数のAPIを掲載しています。HTMLは保存してブラウザーで開けます。[編集・再生成](docs/book/README.md)。
 
 ## SDKを試す
 
@@ -89,7 +93,7 @@ Expressions support arithmetic, comparison, short circuit `&&` and `||`, and `!`
 
 `commit NAME;` saves compute state, heap, virtual I/O, call frames, operand stack, and the next bytecode instruction. `revert NAME;` restores that state and continues after the current `revert` statement if its continuation frame still exists. `resume NAME;` restores the saved instruction and call frames, then executes from there. `branch NAME { ... }` records a candidate state and restores the entry state. Checkpoint names are unique across the runtime.
 
-File changes and `Out`/`Err` output remain virtual until `publish;`. Already published effects cannot be undone. `File.readText` and `File.readBytes` return `Result<...,FileError>`; errors expose `code`, `path`, `cause`, and `causes`. `File.writeText` and `File.writeBytes` keep changes virtual. File handles expose `read`, `write`, `seek`, `close`, and `position`. `In.readLine`, `Time.now`, `Env.get`, and `Directory.entries` replay observation journals; `Args.all` uses fixed startup arguments and `Locale.current` uses a fixed locale. `Random.next` uses checkpointed generator state. Pass script arguments after `--`; authorize environment names with `--allow-env NAME` or `--secret-env NAME`, and set locale with `--locale ja-JP`. Traces omit environment values. HTTP/HTTPS use recorded external operations. Database, child process, GPU, and device I/O are not yet available.
+File changes and `Out`/`Err` output remain virtual until `publish;`. Already published effects cannot be undone. `File.readText` and `File.readBytes` return `Result<...,FileError>`; errors expose `code`, `path`, `cause`, and `causes`. `File.writeText` and `File.writeBytes` keep changes virtual. File handles expose `read`, `write`, `seek`, `close`, and `position`. `In.readLine`, `Time.now`, `Env.get`, and `Directory.entries` replay observation journals; `Args.all` uses fixed startup arguments and `Locale.current` uses a fixed locale. `Random.next` uses checkpointed generator state. Pass script arguments after `--`; authorize environment names with `--allow-env NAME` or `--secret-env NAME`, and set locale with `--locale ja-JP`. Traces omit environment values. HTTP/HTTPS use recorded external operations. SQLite and PostgreSQL are available through std.db in explicit external regions. Child process, GPU, and device I/O are not provided.
 
 `runtime { executionSteps = 1000000; }` sets the instruction budget independently of `historyMemory`, `historyStorage`, and `spillThreshold`. The default execution budget is one million instructions.
 

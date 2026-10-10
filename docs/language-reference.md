@@ -1,6 +1,6 @@
-# REWIND 1.9.41 言語リファレンス
+# REWIND 2.0.0 言語リファレンス
 
-対象はcompiler/language 1.9.41です。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象はcompiler/language 2.0.0です。詳しい入門・仕様・全標準APIは[HTMLの本](book/index.html)と[PDF](book/REWIND-2.0.0-book.pdf)を参照してください。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
 
 - [実行とツール](#実行とツール)
 - [字句と基本型](#字句と基本型)
@@ -412,7 +412,7 @@ counts.set("apple",3);
 assert_eq(counts.get("apple"),Some(3));
 ```
 
-標準ライブラリは34 moduleです。[ライブラリ一覧](../libraries/README.md)とSDKのmodule別API文書を参照してください。主な分類は次の通りです。
+標準ライブラリは86公開moduleです。[ライブラリ一覧](../libraries/README.md)とSDKのmodule別API文書を参照してください。主な分類は次の通りです。
 
 | 分類 | module |
 |---|---|
@@ -475,7 +475,7 @@ sourceは1MiB/module、module数256などのcompiler上限があります。公�
 
 `external { ... }` は外部操作の結果を記録し、同じ checkpoint に戻った際は再利用します。`external fresh { ... }` は新しい操作です。結果は巻き戻さず、通常の変数と読取り位置だけを戻します。region の終了は publish ではありません。
 
-v1.6 では async task も active branch 外で外部領域を使用できます。領域内の checkpoint / publish、領域を抜ける制御フロー、await / task switching は拒否します。通信を領域内で送信し、領域を出てから await します。`std.external.millis` は `external,clock`、`std.http` の送信は `external,network,tasks` の明示許可が必要です。DB はまだ利用できません。例・容量・失敗は [1.5仕様](REWIND_v1.5.md) と [1.6仕様](REWIND_v1.6.md) を参照してください。
+v1.6 では async task も active branch 外で外部領域を使用できます。領域内の checkpoint / publish、領域を抜ける制御フロー、await / task switching は拒否します。通信を領域内で送信し、領域を出てから await します。`std.external.millis` は `external,clock`、`std.http` の送信は `external,network,tasks` の明示許可が必要です。SQLite / PostgreSQL は `std.db` で利用できます。DB 書込みは VM の revert で取り消しません。例・容量・失敗は [1.5仕様](REWIND_v1.5.md) と [1.6仕様](REWIND_v1.6.md) を参照してください。
 
 v1.6 の main task は子 Task が動作中でも publish できます。その時点の仮想出力・file・GUI の差分を確定し、未完了の通信を完了扱いにしません。`task.isDone()` は待機せず完了を確認します。`Task.timeout` は従来どおり論理 step の上限です。HTTP の実時間上限は request の deadlineMillis / timeoutMillis で指定します。
 
@@ -659,7 +659,7 @@ GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl
 
 選択言語1.9.61では、ネイティブIMEの未確定文字列を公開した入力欄のカーソル位置へ表示します。確定した文字だけがVMのtext入力となります。変換途中のOS状態は巻き戻しません。変換中に異なる入力状態をpublishすると旧コンテキストをキャンセルします。LinuxのXIMサービスとWindowsのIMMコンテキスト、容量・寿命・検証範囲は[v1.9.61](REWIND_v1.9.61.md)を参照してください。
 
-### 所有する List からの数値入力（1.9.64 以降、開発中）
+### 所有する List からの数値入力（1.9.64 以降、2.0.0で提供）
 
 `std.numericInputAsync.fromFloat(shape, values)` と `fromInt(shape, values)` は
 List を所有する task として数値配列を作る。`await spawn` に渡す入力は
