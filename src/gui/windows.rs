@@ -1278,19 +1278,15 @@ mod ime_tests {
             query_interface: usize,
             add_ref: usize,
             release: unsafe extern "system" fn(*mut Profiles) -> u32,
-            register: usize,
-            unregister: usize,
-            add_language_profile: usize,
-            remove_language_profile: usize,
-            enum_input_processor_info: usize,
-            get_default_language_profile: usize,
-            set_default_language_profile: usize,
-            activate_language_profile:
-                unsafe extern "system" fn(*mut Profiles, *const Guid, u16, *const Guid) -> i32,
-            get_active_language_profile: usize,
-            get_language_profile_description: usize,
-            get_current_language: usize,
-            change_current_language: unsafe extern "system" fn(*mut Profiles, u16) -> i32,
+            activate_profile: unsafe extern "system" fn(
+                *mut Profiles,
+                u32,
+                u16,
+                *const Guid,
+                *const Guid,
+                Handle,
+                u32,
+            ) -> i32,
         }
         #[link(name = "ole32")]
         unsafe extern "system" {
@@ -1318,10 +1314,10 @@ mod ime_tests {
                 d: [0xb0, 0x49, 0x85, 0xfd, 0x64, 0x3e, 0xcf, 0xed],
             };
             let interface = Guid {
-                a: 0x1f02b6c5,
-                b: 0x7842,
-                c: 0x4ee6,
-                d: [0x8a, 0x0b, 0x9a, 0x24, 0x18, 0x3a, 0x95, 0xca],
+                a: 0x71c6e74c,
+                b: 0x0f28,
+                c: 0x11d8,
+                d: [0xa8, 0x2a, 0x00, 0x06, 0x5b, 0x84, 0x43, 0x5c],
             };
             let service = Guid {
                 a: 0x03b5835f,
@@ -1336,24 +1332,24 @@ mod ime_tests {
                 d: [0xaa, 0xfa, 0x4d, 0xb1, 0x12, 0xf9, 0xac, 0x76],
             };
             let mut out = std::ptr::null_mut();
+            eprintln!("Real IME: creating the native input profile manager");
             let status =
                 unsafe { CoCreateInstance(&class, std::ptr::null_mut(), 1, &interface, &mut out) };
+            eprintln!("Real IME: native profile manager returned {status:#x}");
             assert!(
                 status >= 0 && !out.is_null(),
                 "Real TSF profiles interface unavailable: {status:#x}"
             );
             let profiles = ProfileGuard(out.cast());
-            let status =
-                unsafe { ((*(*profiles.0).vtable).change_current_language)(profiles.0, 0x0411) };
-            assert!(
-                status >= 0,
-                "Real Japanese input language activation failed: {status:#x}"
-            );
+            eprintln!("Real IME: activating the installed Japanese profile for this process");
+            // ITfInputProcessorProfileMgr is the modern process-scoped selector.
+            // Avoid changing the session's input language through the legacy interface.
             let status = unsafe {
-                ((*(*profiles.0).vtable).activate_language_profile)(
-                    profiles.0, &service, 0x0411, &profile,
+                ((*(*profiles.0).vtable).activate_profile)(
+                    profiles.0, 1, 0x0411, &service, &profile, 0, 0x10000004,
                 )
             };
+            eprintln!("Real IME: native profile activation returned {status:#x}");
             assert!(
                 status >= 0,
                 "Installed Microsoft Japanese text-service profile activation failed: {status:#x}"
