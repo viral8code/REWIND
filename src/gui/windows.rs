@@ -1795,7 +1795,11 @@ mod ime_tests {
             if let Some(context) = ImeContext::get(edit) {
                 unsafe {
                     ImmSetOpenStatus(context.context, 1);
-                    ImmSetConversionStatus(context.context, 0x19, 0);
+                    let (mut conversion, mut sentence) = (0, 0);
+                    if ImmGetConversionStatus(context.context, &mut conversion, &mut sentence) != 0
+                    {
+                        ImmSetConversionStatus(context.context, 0x19, sentence);
+                    }
                 }
             }
             for letter in b"NIHONN" {
@@ -1874,8 +1878,14 @@ mod ime_tests {
             assert_ne!(unsafe { ImmSetOpenStatus(context.context, 1) }, 0);
             // Use the real keyboard path; setting a composition buffer does not
             // establish that the service delivers native notifications to this window.
+            let (mut conversion, mut sentence) = (0, 0);
             assert_ne!(
-                unsafe { ImmSetConversionStatus(context.context, 0x19, 0) },
+                unsafe { ImmGetConversionStatus(context.context, &mut conversion, &mut sentence) },
+                0
+            );
+            eprintln!("Real IME: native default conversion={conversion:#x} sentence={sentence:#x}");
+            assert_ne!(
+                unsafe { ImmSetConversionStatus(context.context, 0x19, sentence) },
                 0,
                 "Japanese native/full-width/roman conversion must be available"
             );
