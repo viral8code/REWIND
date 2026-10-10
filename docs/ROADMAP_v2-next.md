@@ -51,6 +51,7 @@
 - [性能改善と測定計画](v2-next-performance.md)
 - [作業順序・状態・次回再開手順](v2-next-status.md)
 - [追加構想：言語表現・型・変更履歴](v2-next-language.md)
+- [追加構想：通信・サービス・外部資源](v2-next-services.md)
 
 ## 文書・実装・公開の扱い
 
