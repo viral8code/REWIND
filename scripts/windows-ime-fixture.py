@@ -35,4 +35,10 @@ result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command
 if result.returncode:raise RuntimeError('Real Windows IME preparation failed: '+result.stderr[-4000:])
 print(result.stdout.strip(),flush=True)
 env=dict(os.environ,REWIND_TEST_WINDOWS_IME_SERVICE='1')
-raise SystemExit(subprocess.call(args,env=env))
+# Bound real-service setup/activation as well as notification waits. The cargo
+# command includes compilation; actual input phases have their own five-second bound.
+try:
+    result = subprocess.run(args, env=env, timeout=300)
+except subprocess.TimeoutExpired as error:
+    raise RuntimeError('Real Windows IME command exceeded its 300-second acceptance bound') from error
+raise SystemExit(result.returncode)
