@@ -314,6 +314,8 @@ fn color(rgb: u32) -> u32 {
 struct State {
     accessibility_enabled: bool,
     accessibility: super::accessibility::Tree,
+    #[cfg(test)]
+    ime_messages: VecDeque<(u32, usize, isize)>,
     ime_enabled: bool,
     composition: composition::Composition,
     clipboard_enabled: bool,
@@ -366,6 +368,18 @@ unsafe extern "system" fn procedure(
                 super::windows_accessibility::announce_focus(hwnd, &(*ptr).accessibility);
             }
         }
+    }
+    #[cfg(test)]
+    if std::env::var("REWIND_TEST_WINDOWS_IME_SERVICE").as_deref() == Ok("1")
+        && (matches!(message, 0x07 | 0x08 | 0x51)
+            || (0x100..=0x10f).contains(&message)
+            || (0x281..=0x291).contains(&message))
+    {
+        let messages = unsafe { &mut (*ptr).ime_messages };
+        if messages.len() == 128 {
+            messages.pop_front();
+        }
+        messages.push_back((message, wparam, lparam));
     }
     if unsafe { (&*ptr).ime_enabled } {
         match message {
@@ -892,6 +906,7 @@ impl Drop for InputManager {
 }
 pub(super) struct Surface {
     ime_context: Handle,
+    ime_owned: bool,
     input_manager: Option<InputManager>,
     apartment: Option<super::windows_accessibility::Apartment>,
     window: Handle,
@@ -978,11 +993,14 @@ impl Surface {
             Ok(Self {
                 window: 0,
                 ime_context: 0,
+                ime_owned: false,
                 input_manager: None,
                 apartment: None,
                 state: Box::new(UnsafeCell::new(State {
                     accessibility_enabled: false,
                     accessibility: super::accessibility::Tree::default(),
+                    #[cfg(test)]
+                    ime_messages: VecDeque::new(),
                     ime_enabled: false,
                     composition: composition::Composition::default(),
                     clipboard_enabled: false,
@@ -1054,11 +1072,19 @@ impl Surface {
                 }
                 SetWindowLongPtrW(self.window, -21, self.state.get() as isize);
                 if self.state().ime_enabled {
-                    self.ime_context = ImmCreateContext();
-                    if self.ime_context == 0 {
-                        return Err(invalid("GuiCompositionUnavailable"));
+                    // The system context carries the native TSF/IMM association.
+                    // Do not replace it with an unregistered private context on open.
+                    self.ime_context = ImmGetContext(self.window);
+                    if self.ime_context != 0 {
+                        ImmReleaseContext(self.window, self.ime_context);
+                    } else {
+                        self.ime_context = ImmCreateContext();
+                        if self.ime_context == 0 {
+                            return Err(invalid("GuiCompositionUnavailable"));
+                        }
+                        self.ime_owned = true;
+                        ImmAssociateContext(self.window, self.ime_context);
                     }
-                    ImmAssociateContext(self.window, self.ime_context);
                 }
             }
             if self.state().ime_enabled && self.state().composition.active {
@@ -1077,10 +1103,11 @@ impl Surface {
                     self.state_mut().composition.clear();
                     cancel_composition(self.window);
                     ImmAssociateContext(self.window, fresh);
-                    if self.ime_context != 0 {
+                    if self.ime_context != 0 && self.ime_owned {
                         ImmDestroyContext(self.ime_context);
                     }
                     self.ime_context = fresh;
+                    self.ime_owned = true;
                 }
             }
             let previous = self.state().frame.clone();
@@ -1194,12 +1221,13 @@ impl Surface {
             }
             self.window = 0;
         }
-        if self.ime_context != 0 {
+        if self.ime_context != 0 && self.ime_owned {
             unsafe {
                 ImmDestroyContext(self.ime_context);
             }
-            self.ime_context = 0;
         }
+        self.ime_context = 0;
+        self.ime_owned = false;
         // No text-service client may outlive the native window/context.
         self.input_manager.take();
         self.state_mut().composition.accepting = false;
@@ -1574,9 +1602,10 @@ mod ime_tests {
                     .iter()
                     .map(|e| (&e.kind, &e.key))
                     .collect();
-                panic!("Real IME {phase} notification did not reach the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={}, native={native:?}, events={events:?})",
+                panic!("Real IME {phase} notification did not reach the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={}, native={native:?}, events={events:?}, messages={:?})",
                     surface.state().composition.accepting, surface.state().composition.active,
-                    surface.state().composition.text, surface.state().composition.invalid);
+                    surface.state().composition.text, surface.state().composition.invalid,
+                    surface.state().ime_messages);
             }
         }
         fn start(surface: &mut Surface) {
