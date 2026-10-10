@@ -1,0 +1,16 @@
+import std.numeric as num;
+import std.fft as fft;
+import std.sparse as sparse;
+import std.sparseAsync as cg;
+fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("unexpected error");}}}
+fn real(values:List<Float>)->FloatArray effects {} {let shape=List<Int>();shape.add(values.len());return take(num.fromFloat(&shape,&values));}
+fn ints(values:List<Int>)->IntArray effects {} {let shape=List<Int>();shape.add(values.len());return take(num.fromInt(&shape,&values));}
+fn f2(a:Float,b:Float)->FloatArray effects {} {let l=List<Float>();l.add(a);l.add(b);return real(move l);}
+let cooRows=List<Int>();cooRows.add(0);cooRows.add(0);cooRows.add(1);cooRows.add(1);
+let cc=List<Int>();cc.add(0);cc.add(1);cc.add(0);cc.add(1);
+let vv=List<Float>();vv.add(4.0);vv.add(1.0);vv.add(1.0);vv.add(3.0);
+let ro=ints(move cooRows);let co=ints(move cc);let va=real(move vv);let matrix=take(sparse.create(2,2,&ro,&co,&va));
+let rhs=f2(1.0,2.0);let future=cg.conjugateGradient(matrix,rhs,0.000000001,10);let solved=take(take(await future));
+Out.println(solved.converged);Out.println(solved.iterations);Out.println(solved.residual<0.000000001);
+let input=f2(1.0,2.0);let imaginary=f2(0.0,0.0);let spectrum=take(fft.transform(&input,&imaginary,false));let restored=take(fft.transform(&spectrum.real,&spectrum.imag,true));let values=take(num.valuesFloat(&restored.real));assert_eq(values.get(0),1.0);assert_eq(values.get(1),2.0);
+let other=f2(3.0,4.0);let convolution=take(fft.convolve(&input,&other));let cells=take(num.valuesFloat(&convolution));assert_eq(cells.len(),3);Out.println(take(stdNumericMath("abs",cells.get(1)-10.0))<0.000000001);publish;

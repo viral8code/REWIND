@@ -1,0 +1,18 @@
+import std.datetime as datetime;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("datetime operation failed");}}}
+let wall=datetime.Calendar(2024,11,3,1,30,0,123456789);
+var first=take(datetime.resolve(move wall,"America/New_York",datetime.Ambiguity::Earlier));
+let second=take(datetime.resolve(datetime.Calendar(2024,11,3,1,30,0,123456789),"America/New_York",datetime.Ambiguity::Later));
+let distance=take(datetime.difference(&second,&first));
+Out.println(take(datetime.durationSeconds(&distance)));
+commit original;
+first=take(datetime.add(&first,&distance));
+Out.println(take(datetime.format(&first)));
+publish;
+revert original;
+Out.println(take(datetime.format(&first)));
+let local=take(datetime.calendar(&first,"Asia/Tokyo"));
+Out.println(local.offsetSeconds);
+let index=Map<Instant,String>();index.set(first,"same instant");
+match index.get(take(datetime.parse("2024-11-03T05:30:00.123456789Z"))){Some(text)=>{Out.println(text);},None=>{panic("missing instant");}}
+publish;

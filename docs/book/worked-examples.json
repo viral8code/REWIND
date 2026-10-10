@@ -1,0 +1,110 @@
+[
+  {
+    "id": "gui-counter",
+    "title": "Undo付きカウンター",
+    "description": "Add、Undo、入力cursor、再表示の完全なevent loop。gui許可が必要です。",
+    "source": "examples/gui-counter.rw"
+  },
+  {
+    "id": "db-sqlite",
+    "title": "SQLiteを読み書きする",
+    "description": "独立したmemory DBへparameter付きINSERTを行い、cursorを読み、cleanup完了を待ちます。external,db,tasksを許可します。",
+    "source": "examples/db-sqlite.rw"
+  },
+  {
+    "id": "http-client",
+    "title": "HTTP client",
+    "description": "URLを--以降の引数に渡します。external,network,tasksを許可してください。通常の外部送信は取り消せません。",
+    "source": "examples/http-client.rw"
+  },
+  {
+    "id": "numeric-solve",
+    "title": "連立方程式とcheckpoint",
+    "description": "native行列と右辺を作りsolveします。更新は返却値を代入し、checkpointへ戻した値も確認します。",
+    "source": "examples/numeric-solve.rw"
+  },
+  {
+    "id": "regex-search",
+    "title": "Regexのcaptureと継続検索",
+    "description": "byte区間をtextへ変換し、captureと次のcursorを使います。Regexをcheckpointで戻します。",
+    "source": "examples/regex-search.rw"
+  },
+  {
+    "id": "datetime-dst",
+    "title": "DSTの二つの時点",
+    "description": "同じ現地時刻をEarlier/Laterで解決し、差分と明示timezone変換を確認します。",
+    "source": "examples/datetime-dst.rw"
+  },
+  {
+    "id": "flow-matching",
+    "title": "最大流と二部matching",
+    "description": "residual状態の変更をrevertしてから再計算します。matchingは別の問題として解きます。",
+    "source": "examples/flow-matching.rw"
+  },
+  {
+    "id": "task-readiness",
+    "title": "完了したTaskを選ぶ",
+    "description": "selectReadyは完了indexを返します。結果そのものは元Taskをawaitして取り出します。",
+    "source": "examples/task-readiness.rw"
+  },
+  {
+    "id": "autodiff-forward",
+    "title": "協調的なforward計算",
+    "description": "同期と協調版の演算結果、checkpointとTaskの結果を確認します。",
+    "source": "examples/autodiff-forward.rw"
+  },
+  {
+    "id": "numeric-index",
+    "title": "logical indexによる数値アクセス",
+    "description": "transposeなどのviewでもlogical順で読み、更新した新しい配列を利用します。",
+    "source": "examples/numeric-index.rw"
+  },
+  {
+    "id": "decimal-record",
+    "title": "Decimalの比較と保存表現",
+    "description": "exactな加算、HalfEven、scaleの異なる値の比較、JSON textへの変換を確認します。",
+    "source": "examples/decimal-record.rw"
+  },
+  {
+    "id": "unicode-record",
+    "title": "Unicodeの正規化と履歴",
+    "description": "grapheme、NFC/NFD、互換正規化、full casingとcheckpointを確認します。",
+    "source": "examples/unicode-record.rw"
+  },
+  {
+    "id": "csv-stream",
+    "title": "CSVをchunk単位で読む",
+    "description": "parserのcursorとchunkを保持し、引用符やUTF-8を含む入力を増分処理します。",
+    "source": "examples/csv-stream.rw"
+  },
+  {
+    "id": "json-stream",
+    "title": "JSONをeventとして読む",
+    "description": "構造と値のevent、number token、checkpointによるparser状態の復元を確認します。",
+    "source": "examples/json-stream.rw"
+  },
+  {
+    "id": "sparse-fft",
+    "title": "疎行列とFFT",
+    "description": "typed配列と疎行列表現を使う計算例です。shapeと戻り値を確認してください。",
+    "source": "examples/sparse-fft.rw"
+  },
+  {
+    "id": "autodiff-async",
+    "title": "協調型の逆伝播",
+    "description": "tapeをtaskへ所有させ、返却gradientをNodeで照会します。",
+    "source": "examples/autodiff-async.rw"
+  },
+  {
+    "id": "reductions-async",
+    "title": "協調型の統計集約",
+    "description": "同期と協調版のsum/mean/variance、taskの待機とcheckpointを確認します。",
+    "source": "examples/reductions-async.rw"
+  },
+  {
+    "id": "graph-large",
+    "title": "native配列のgraph",
+    "description": "辺をIntArrayへまとめ、大きいgraphのnative表現で探索します。",
+    "source": "examples/graph-large.rw"
+  }
+]

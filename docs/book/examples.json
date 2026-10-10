@@ -1,0 +1,202 @@
+{
+  "hello": {
+    "stdout": "Hello, REWIND!\n"
+  },
+  "unpublished": {
+    "stdout": ""
+  },
+  "variables": {
+    "stdout": "15\n"
+  },
+  "literals": {
+    "stdout": ""
+  },
+  "arithmetic": {
+    "stdout": ""
+  },
+  "even-odd": {
+    "stdout": "Odd\n"
+  },
+  "plain-if": {
+    "stdout": "Odd\n"
+  },
+  "loops": {
+    "stdout": "10\n"
+  },
+  "factorial": {
+    "stdout": "120\n"
+  },
+  "main-function": {
+    "stdout": "started\n"
+  },
+  "list": {
+    "stdout": "19\n"
+  },
+  "map": {
+    "stdout": ""
+  },
+  "iterator": {
+    "stdout": ""
+  },
+  "option": {
+    "stdout": ""
+  },
+  "result": {
+    "stdout": ""
+  },
+  "data-types": {
+    "stdout": ""
+  },
+  "traits": {
+    "stdout": ""
+  },
+  "ownership": {
+    "stdout": ""
+  },
+  "publish-revert": {
+    "stdout": "99\n10\n"
+  },
+  "pending-revert": {
+    "stdout": "10\n"
+  },
+  "begin-reset": {
+    "stdout": "99\n10\n"
+  },
+  "branch": {
+    "stdout": "10\n"
+  },
+  "import": {
+    "stdout": ""
+  },
+  "arguments": {
+    "stdout": "1\nsample\n",
+    "args": [
+      "sample"
+    ]
+  },
+  "scanner": {
+    "stdout": ""
+  },
+  "files": {
+    "stdout": "",
+    "effects": "fileRead,fileWrite",
+    "files": {
+      "state.txt": "saved"
+    }
+  },
+  "text": {
+    "stdout": ""
+  },
+  "unicode": {
+    "stdout": ""
+  },
+  "async": {
+    "stdout": "42\n"
+  },
+  "defer": {
+    "stdout": "work\ncleanup\n"
+  },
+  "gui-minimal": {
+    "stdout": "",
+    "effects": "gui",
+    "fixture": "examples/gui-minimal.events.json"
+  },
+  "json": {
+    "stdout": ""
+  },
+  "bigint": {
+    "stdout": "1267650600228229401496703205376\n"
+  },
+  "decimal": {
+    "stdout": ""
+  },
+  "numeric-owner": {
+    "stdout": ""
+  },
+  "sort": {
+    "stdout": ""
+  },
+  "graph": {
+    "stdout": ""
+  },
+  "builtin-conversion": {
+    "stdout": ""
+  },
+  "gui-counter": {
+    "stdout": "1\n",
+    "effects": "gui",
+    "fixture": "examples/gui-counter.events.json"
+  },
+  "db-sqlite": {
+    "stdout": "1\nAlice\n42\n",
+    "effects": "external,db,tasks"
+  },
+  "http-client": {
+    "stdout": "200\nbook test\n",
+    "effects": "external,network,tasks",
+    "http": true
+  },
+  "numeric-solve": {
+    "stdout": "1\n2\n99\n0\n"
+  },
+  "regex-search": {
+    "stdout": "Alice-42\nAlice\nBob-7\nfalse\ntrue\n3\ntrue\n"
+  },
+  "datetime-dst": {
+    "stdout": "3600\n2024-11-03T06:30:00.123456789Z\n2024-11-03T05:30:00.123456789Z\n32400\nsame instant\n"
+  },
+  "flow-matching": {
+    "stdout": "5\n2\n"
+  },
+  "task-readiness": {
+    "stdout": "ready\n42\n"
+  },
+  "autodiff-forward": {
+    "stdout": "finished\nrestored\ncancelled\n",
+    "steps": 10000000,
+    "native_work": 100000000
+  },
+  "numeric-index": {
+    "stdout": "99\n2\n"
+  },
+  "decimal-record": {
+    "stdout": "0.3\n0.1\n2\ntrue\n1\n\"0.1\"\n"
+  },
+  "unicode-record": {
+    "stdout": "3\n🇯🇵\nfalse\ntrue\nA1ffi\nSTRASSE\n3\n"
+  },
+  "csv-stream": {
+    "stdout": "name\nnote\n日本語\na\"b\n日\nname\n"
+  },
+  "json-stream": {
+    "stdout": "1267650600228229401496703205376\n2\n3\n日本\n3\n0\n"
+  },
+  "sparse-fft": {
+    "stdout": "true\n2\ntrue\ntrue\n"
+  },
+  "autodiff-async": {
+    "stdout": "true\ntrue\nbackward done\n",
+    "steps": 10000000,
+    "native_work": 100000000
+  },
+  "reductions-async": {
+    "stdout": "true\ntrue\nreductions done\n",
+    "steps": 10000000,
+    "native_work": 100000000
+  },
+  "graph-large": {
+    "stdout": "5\n-1\n"
+  },
+  "capture-value": {
+    "stdout": ""
+  },
+  "capture-move": {
+    "stdout": ""
+  },
+  "capture-borrow": {
+    "stdout": ""
+  },
+  "named-enum": {
+    "stdout": ""
+  }
+}

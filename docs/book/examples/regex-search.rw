@@ -1,0 +1,14 @@
+import std.regex as regex;
+fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("regex operation failed");}}}
+var pattern=take(regex.compile("(?P<name>[A-Za-z]+)-([0-9]+)"));
+let input="Alice-42 Bob-7";
+match take(regex.find(&pattern,&input)){None=>{panic("missing match");},Some(found)=>{
+ let span=regex.span(&found);Out.println(take(regex.text(&input,span)));
+ match take(regex.group(&found,1)){None=>{panic("missing name");},Some(name)=>{Out.println(take(regex.text(&input,name)));}}
+ match regex.next(&found){None=>{panic("missing cursor");},Some(cursor)=>{match take(regex.findFrom(&pattern,&input,cursor)){None=>{panic("missing next match");},Some(next)=>{Out.println(take(regex.text(&input,regex.span(&next))));}}}}
+}}
+commit original;
+pattern=take(regex.compile("never"));Out.println(take(regex.isMatch(&pattern,&input)));publish;
+revert original;Out.println(take(regex.isMatch(&pattern,&input)));
+let names=take(regex.groupNames(&pattern));Out.println(names.len());
+let copy=take(regex.compile("(?P<name>[A-Za-z]+)-([0-9]+)"));let index=Map<Regex,Int>();index.set(copy,1);match index.get(pattern){Some(value)=>{Out.println(value==1);},None=>{Out.println(false);}}publish;
