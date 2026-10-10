@@ -28,7 +28,7 @@ $deadline=(Get-Date).AddSeconds(10)
 while (-not (Get-Process ctfmon -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {
  Start-Sleep -Milliseconds 100
 }
-$japanese=Get-WinUserLanguageList | Where-Object LanguageTag -eq 'ja-JP'
+$japanese=Get-WinUserLanguageList | Where-Object { $_.LanguageTag -like 'ja*' }
 @{input_tips=@($japanese.InputMethodTips);text_service_running=[bool](Get-Process ctfmon -ErrorAction SilentlyContinue);capability=(Get-WindowsCapability -Online -Name 'Language.Basic~~~ja-JP~0.0.1.0').State.ToString();language='ja-JP'} | ConvertTo-Json -Compress
 """
 result=subprocess.run(['powershell.exe','-NoProfile','-NonInteractive','-Command',prepare],capture_output=True,text=True,timeout=900)
