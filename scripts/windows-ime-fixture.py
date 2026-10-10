@@ -23,6 +23,14 @@ if (-not ($profiles.LanguageTag -contains 'ja-JP')) {
  Set-WinUserLanguageList $profiles -Force
 }
 # A capability installed after login does not itself start the user's text service.
+# The modern Microsoft input service needs the OS text-input broker, not just
+# ctfmon. Hosted images may leave optional desktop services stopped/disabled.
+$inputServices=@(Get-Service -Name TabletInputService,TextInputManagementService -ErrorAction SilentlyContinue)
+foreach ($service in $inputServices) {
+ if ($service.StartType -eq 'Disabled') { Set-Service -Name $service.Name -StartupType Manual }
+ if ($service.Status -ne 'Running') { Start-Service -Name $service.Name }
+}
+@{text_input_services=@(Get-Service -Name TabletInputService,TextInputManagementService -ErrorAction SilentlyContinue | ForEach-Object { @{name=$_.Name;status=$_.Status.ToString();start_type=$_.StartType.ToString()} })} | ConvertTo-Json -Depth 4 -Compress
 # Refresh this disposable runner session after installing a new input service.
 # Starting ctfmon while its pre-install instance is running does not refresh it.
 $session=(Get-Process -Id $PID).SessionId
