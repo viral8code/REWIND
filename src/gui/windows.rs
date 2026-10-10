@@ -1546,6 +1546,28 @@ mod ime_tests {
                 }
             }
         }
+        fn activate_existing_profile(profiles: &mut ProfileGuard) {
+            eprintln!("Real IME: activating the installed Japanese profile for this process");
+            // ITfInputProcessorProfileMgr is the modern process-scoped selector.
+            // Avoid changing the session's input language through the legacy interface.
+            let status = unsafe {
+                ((*(*profiles.object).vtable).activate_profile)(
+                    profiles.object,
+                    1,
+                    0x0411,
+                    &profiles.service,
+                    &profiles.profile,
+                    0,
+                    0x10000004,
+                )
+            };
+            eprintln!("Real IME: native profile activation returned {status:#x}");
+            assert!(
+                status >= 0,
+                "Installed Microsoft Japanese text-service profile activation failed: {status:#x}"
+            );
+            profiles.active = true;
+        }
         fn activate_japanese_profile() -> ProfileGuard {
             let class = Guid {
                 a: 0x33c53a50,
@@ -1586,26 +1608,7 @@ mod ime_tests {
                 profile,
                 active: false,
             };
-            eprintln!("Real IME: activating the installed Japanese profile for this process");
-            // ITfInputProcessorProfileMgr is the modern process-scoped selector.
-            // Avoid changing the session's input language through the legacy interface.
-            let status = unsafe {
-                ((*(*profiles.object).vtable).activate_profile)(
-                    profiles.object,
-                    1,
-                    0x0411,
-                    &profiles.service,
-                    &profiles.profile,
-                    0,
-                    0x10000004,
-                )
-            };
-            eprintln!("Real IME: native profile activation returned {status:#x}");
-            assert!(
-                status >= 0,
-                "Installed Microsoft Japanese text-service profile activation failed: {status:#x}"
-            );
-            profiles.active = true;
+            activate_existing_profile(&mut profiles);
             profiles
         }
         fn key(key: u16) {
@@ -1663,8 +1666,16 @@ mod ime_tests {
             }
         }
         assert_ne!(layout, 0, "A real Japanese IMM-compatible conversion service is required; keyboard layout alone is insufficient");
+        let _native_apartment = super::super::windows_accessibility::Apartment::new().unwrap();
         let mut surface = Surface::new().unwrap();
         let _restore = Layout(original_layout);
+        let mut profile = None;
+        native_edit_probe(0, surface.instance, "before REWIND ThreadMgr", || {
+            unsafe {
+                ActivateKeyboardLayout(layout, 0);
+            }
+            profile = Some(activate_japanese_profile());
+        });
         surface.configure_ime(true);
         let mut frame = Frame {
             title: "REWIND real Microsoft IME acceptance".into(),
@@ -1697,7 +1708,8 @@ mod ime_tests {
             // Activate after the native window and its COM/TSF apartment exist.
             ActivateKeyboardLayout(layout, 0);
         }
-        let _profile = activate_japanese_profile();
+        let mut _profile = profile.take().unwrap();
+        activate_existing_profile(&mut _profile);
         unsafe {
             SetFocus(0);
             SetFocus(surface.window);
@@ -1728,7 +1740,12 @@ mod ime_tests {
                     unsafe { ImmGetOpenStatus(context.context) }, context.text(8));
             }
         }
-        fn native_edit_probe(surface: &mut Surface) {
+        fn native_edit_probe(
+            parent: Handle,
+            instance: Handle,
+            label: &str,
+            initialize: impl FnOnce(),
+        ) {
             // Diagnostic comparison only: success here cannot satisfy the REWIND gate.
             // Use the same actual service and keyboard input with the system EDIT control.
             let class = wide("EDIT");
@@ -1738,14 +1755,14 @@ mod ime_tests {
                     0,
                     class.as_ptr(),
                     title.as_ptr(),
-                    0x50000000 | 0x00800000 | 0x80,
+                    if parent == 0 { 0x10cf0080 } else { 0x50800080 },
                     10,
                     70,
-                    280,
-                    40,
-                    surface.window,
+                    320,
+                    if parent == 0 { 160 } else { 40 },
+                    parent,
                     0,
-                    surface.instance,
+                    instance,
                     std::ptr::null_mut(),
                 )
             };
@@ -1757,8 +1774,14 @@ mod ime_tests {
                 return;
             }
             unsafe {
+                if parent == 0 {
+                    SetActiveWindow(edit);
+                    SetForegroundWindow(edit);
+                }
                 SetFocus(edit);
             }
+            initialize();
+            eprintln!("Real IME: system EDIT comparison {label}");
             if let Some(context) = ImeContext::get(edit) {
                 unsafe {
                     ImmSetOpenStatus(context.context, 1);
@@ -1789,7 +1812,9 @@ mod ime_tests {
             cancel_composition(edit);
             unsafe {
                 DestroyWindow(edit);
-                SetFocus(surface.window);
+                if parent != 0 {
+                    SetFocus(parent);
+                }
             }
         }
         fn pump(surface: &mut Surface, phase: &str, mut ready: impl FnMut(&Surface) -> bool) {
@@ -1820,7 +1845,12 @@ mod ime_tests {
                     .collect();
                 trace_context(surface.window, "REWIND failed phase");
                 if phase == "preedit" {
-                    native_edit_probe(surface);
+                    native_edit_probe(
+                        surface.window,
+                        surface.instance,
+                        "after REWIND ThreadMgr",
+                        || {},
+                    );
                 }
                 panic!("Real IME {phase} notification did not reach the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={}, native={native:?}, events={events:?}, messages={:?})",
                     accepting, active, preedit, invalid, messages);
