@@ -810,7 +810,7 @@ unsafe fn draw(hwnd: Handle, frame: Option<&Frame>, preedit: Option<&(String, us
 }
 pub(super) struct Surface {
     ime_context: Handle,
-    accessibility_apartment: Option<super::windows_accessibility::Apartment>,
+    apartment: Option<super::windows_accessibility::Apartment>,
     window: Handle,
     state: Box<UnsafeCell<State>>,
     instance: Handle,
@@ -895,7 +895,7 @@ impl Surface {
             Ok(Self {
                 window: 0,
                 ime_context: 0,
-                accessibility_apartment: None,
+                apartment: None,
                 state: Box::new(UnsafeCell::new(State {
                     accessibility_enabled: false,
                     accessibility: super::accessibility::Tree::default(),
@@ -919,8 +919,20 @@ impl Surface {
         self.state_mut().accessibility_enabled = enabled;
     }
     pub fn present(&mut self, frame: &Frame) -> io::Result<()> {
-        if self.state().accessibility_enabled && self.accessibility_apartment.is_none() {
-            self.accessibility_apartment = Some(super::windows_accessibility::Apartment::new()?);
+        // Modern IMM-compatible input methods use the thread's COM/TSF apartment.
+        // Keep it alive through window/context destruction, alongside accessibility.
+        if (self.state().accessibility_enabled || self.state().ime_enabled)
+            && self.apartment.is_none()
+        {
+            self.apartment = Some(super::windows_accessibility::Apartment::new().map_err(
+                |error| {
+                    if self.state().ime_enabled && !self.state().accessibility_enabled {
+                        invalid("GuiCompositionUnavailable: COM apartment")
+                    } else {
+                        error
+                    }
+                },
+            )?);
         }
         unsafe {
             let style = 0x00cf0000;
@@ -1280,7 +1292,7 @@ mod ime_tests {
         let mut layout = 0;
         for name in ["E0010411", "00000411"] {
             let name = wide(name);
-            let candidate = unsafe { LoadKeyboardLayoutW(name.as_ptr(), 1) };
+            let candidate = unsafe { LoadKeyboardLayoutW(name.as_ptr(), 0) };
             if candidate != 0 && unsafe { ImmIsIME(candidate) } != 0 {
                 layout = candidate;
                 break;
@@ -1302,9 +1314,6 @@ mod ime_tests {
             }
         }
         assert_ne!(layout, 0, "A real Japanese IMM-compatible conversion service is required; keyboard layout alone is insufficient");
-        unsafe {
-            ActivateKeyboardLayout(layout, 0);
-        }
         let mut surface = Surface::new().unwrap();
         surface.configure_ime(true);
         let mut frame = Frame {
@@ -1335,6 +1344,8 @@ mod ime_tests {
             SetActiveWindow(surface.window);
             SetFocus(surface.window);
             SetForegroundWindow(surface.window);
+            // Activate after the native window and its COM/TSF apartment exist.
+            ActivateKeyboardLayout(layout, 0);
         }
         assert_eq!(
             unsafe { GetForegroundWindow() },
@@ -1354,12 +1365,18 @@ mod ime_tests {
                 }
                 std::thread::sleep(std::time::Duration::from_millis(1));
             }
-            assert!(
-                ready(surface),
-                "Real IME {phase} notification did not reach the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={})",
-                surface.state().composition.accepting, surface.state().composition.active,
-                surface.state().composition.text, surface.state().composition.invalid
-            );
+            if !ready(surface) {
+                let native = ImeContext::get(surface.window).and_then(|c| c.text(8));
+                let events: Vec<_> = surface
+                    .state()
+                    .events
+                    .iter()
+                    .map(|e| (&e.kind, &e.key))
+                    .collect();
+                panic!("Real IME {phase} notification did not reach the REWIND surface (accepting={}, active={}, preedit={:?}, invalid={}, native={native:?}, events={events:?})",
+                    surface.state().composition.accepting, surface.state().composition.active,
+                    surface.state().composition.text, surface.state().composition.invalid);
+            }
         }
         fn start(surface: &mut Surface) {
             let context = ImeContext::get(surface.window).unwrap();
