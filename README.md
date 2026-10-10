@@ -6,6 +6,10 @@ REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う
 
 今後の設計は [v2.0 までの実装計画](docs/ROADMAP_v2.md) と [詳細設計案](docs/v2-design.md) を参照してください。到達条件と検証範囲は [受入照合](docs/v2-acceptance.md) を参照してください。
 
+## 次版の開発計画
+
+[v2.1以降の計画](docs/ROADMAP_v2-next.md)。公開済みv2.0.0を基準に、開発支援・CLIの一貫性、GUI/DBの実用API、性能とメモリの調査を進めるための未実装計画です。
+
 ## 入門書・詳細リファレンス
 
 [HTML版（オフライン・全文検索）](docs/book/index.html) / [PDF版](docs/book/REWIND-2.0.0-book.pdf)。v2.0.0を対象に、32章・60の検証済み実行例と、全86公開モジュール・625関数のAPIを掲載しています。HTMLは保存してブラウザーで開けます。[編集・再生成](docs/book/README.md)。
