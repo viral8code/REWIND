@@ -18,3 +18,6 @@
 
 - [編集途中も失わない型付きform](09-typed-form.md)
 - [仮説と観測を並べる推論explorer](10-inference-explorer.md)
+
+- [domain言語を育てるworkspace](11-domain-language-workspace.md)
+- [実行中のmoduleを版として更新する](12-live-module-evolution.md)
