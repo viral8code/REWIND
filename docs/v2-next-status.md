@@ -109,6 +109,12 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 
 これらは**発想を保存する段階**です。既存58候補の採用判断・実装状態・版の到達条件は変更していません。既存機能の発展形も含むため、この581項目を「現行版にない機能」の一覧として転記しません。
 
+自由構想の追加拡張では、257項目から**581項目へ324項目**を加えました。新しい27分野は、時間付き値、永続collection、探索、作用の値、所有権、式、型合成、stream、計算cache、module、backend、snapshot形式、protocol、双方向data、数値contract、確率model、effect handler、並行model、reactive graph、診断、object合成、暗号、DB、iterator、論理rule、自動微分、device計算です。
+
+さらに[12の利用sketch](visions/sketches/README.md)を擬似コードで掘り下げました。設定editor、import、parser、notebook、外部操作、scheduler探索、simulation、native capsule、form、推論、domain言語、live module更新を扱います。すべて未実装APIを組み合わせた例で、現行版の実行例として扱いません。
+
+[12の設計論点](visions/sketches/design-questions.md)には、実行checkpoint/data snapshot、retained owner、begin、branch共有、参照、履歴削除、採用単位、physical操作、cleanup、code版、決定性、便利さと費用を残しました。未決の選択肢です。sketchと設計論点は581項目へ重ねて数えません。
+
 保存履歴はgit log -- docs/visionsで確認できます。分野ごとにcommit/pushしました。runtime/library変更、Release、版更新、main統合、公開CI/CDの起動操作は行っていません。
 
 今後さらに思い付いた場合は、対応する分野へ新しいIDを付け、入口の件数を更新します。採用へ進める項目だけ、現行実装との照合と設計・受入を後で行います。

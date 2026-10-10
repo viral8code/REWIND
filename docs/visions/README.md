@@ -53,6 +53,23 @@
 | [自動微分・感度・計算履歴](43-differentiable-computation.md) | 12 |
 | [GPU・device計算の値と実行plan](44-device-computation.md) | 12 |
 
+## 関心から辿る入口
+
+| 考えたいこと | 関連する分野 |
+|---|---|
+| 日常codeを短く、意図を保って書く | [式](23-expression-design.md)、[iterator](41-iteration-and-generators.md)、[深い更新](31-bidirectional-data.md) |
+| partial・生成・実装の差替えを組み合わせる | [module](27-modules-and-linking.md)、[object合成](38-object-composition.md)、[domain workspace](sketches/11-domain-language-workspace.md) |
+| 動的checkpoint名から永続dataを作る | [checkpoint API](16-programmable-checkpoints.md)、[永続collection](19-persistent-collections.md)、[保存形式](29-snapshot-formats.md) |
+| 失敗した候補を戻し、試行の知識を残す | [state契約](17-state-contracts.md)、[探索](20-branch-search.md)、[effect handler](34-effect-handlers.md) |
+| 古い版を並べて読み、採用時に照合する | [時間付き値](18-temporal-values.md)、[計算cache](26-versioned-computation-cache.md)、[async model](35-concurrent-models.md) |
+| 型付きformや変化する画面を作る | [GUI](03-gui-and-media.md)、[field path](31-bidirectional-data.md)、[reactive graph](36-reactive-models.md) |
+| DB・通信・暗号の操作境界を設計する | [作用の値](21-effect-values.md)、[protocol型](30-protocol-types.md)、[DB](40-database-contracts.md)、[暗号](39-cryptographic-data.md) |
+| memoryの寿命と保持理由を把握する | [所有権と領域](22-ownership-and-regions.md)、[診断](37-diagnostic-values.md)、[native capsule](sketches/08-native-computation-capsule.md) |
+| 精度・推論・gradientを説明できる計算にする | [数値contract](32-numeric-contracts.md)、[確率model](33-probabilistic-models.md)、[自動微分](43-differentiable-computation.md) |
+| 宣言した関係から解と根拠を得る | [高度algorithm](11-algorithms-and-structures.md)、[論理rule](42-logic-and-rules.md)、[探索](20-branch-search.md) |
+| backendやdeviceを選び、費用を測る | [実行backend](28-runtime-backends.md)、[device計算](44-device-computation.md)、[systems](08-systems-and-hardware.md) |
+| 実行中にcodeやschemaを更新する | [data](04-data-and-knowledge.md)、[module](27-modules-and-linking.md)、[live evolution](sketches/12-live-module-evolution.md) |
+
 ## 読み方
 
 各項目は「どう使えたら嬉しいか」を中心に記載します。仮の用語や操作は現行syntax/APIではありません。既存の58候補と重なる部分は、その先の使い方を考えるための材料です。
