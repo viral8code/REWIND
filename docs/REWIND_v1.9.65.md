@@ -62,6 +62,10 @@ focus移動時の取消、window closeを確認した。句変換モードを試
 既定モードを保持する。Unicode確定入力やmockで実変換の受入を代用していない。
 最終的な両OSの全回帰・展開後SDKと公開はRelease workflowの成功を条件とする。
 
+サービスの途中停止では、応答を返さずに接続が閉じられることを検査する。
+EOF、connection reset、Windowsのconnection abortを切断として扱い、
+HTTP応答やタイムアウトは成功として扱わない。失敗時は例外の型とOS error codeを記録する。
+
 HTTP server / TCP / SQLite / HTTP downloadを同時保持する最適化したRuntime
 probeでは、所有者存続中4資源、解放後0、checkpoint復元後も0を確認した。
 同じ入力の逐次3回測定では、100回の回収区間が16,384 / 65,536 / 262,144要素で
