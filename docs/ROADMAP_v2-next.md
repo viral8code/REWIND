@@ -57,6 +57,7 @@
 - [追加34候補の優先順位・依存・採用判断](v2-next-selection.md)
 
 - [追加構想：partial・生成・型の抽象化](v2-next-type-architecture.md)
+- [追加構想：ヒープ外メモリ・arena・native連携](v2-next-memory.md)
 
 ## 構想を採用する順序
 
