@@ -33,3 +33,7 @@ parentとstable keyを使い、値の意味に沿った差分を作る。利用�
 ## VCHECK-08：履歴のregistryと寿命
 
 名前の登録、復元能力、snapshotへの参照を分ける。labelをdropしても独立snapshotを保持する場合のmemoryを見られ、意図した寿命で履歴を解放したい。
+
+## VCHECK-09：checkpoint外の変数領域
+
+巻き戻されない変数を宣言し、履歴catalog、試行回数、探索統計等を保持する。通常modelをrevertしても管理用stateは残し、可変値の所有領域・GC・beginとの関係は明示したい。詳しくは[checkpoint外state案](../v2-next-retained-state.md)を参照。

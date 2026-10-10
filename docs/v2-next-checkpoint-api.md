@@ -32,7 +32,7 @@ Stringを受ける便利入口はlookupとhandle操作の組合せとして扱�
 
 通常のlibrary関数内でcheckpointを作ると、そのcalleeの継続を保存してしまう可能性があります。呼出側の状態を保存するintrinsic、専用式、data snapshot APIのどれが適切かを区別します。「関数に包めば同じ」と仮定しません。
 
-restoreすると、checkpoint後に作ったhandle変数や履歴List自体が消える場合があります。全VMのrestoreを版付きcollectionのgetとして使う設計にはしません。budget、観測、公開済み作用は従来どおり戻りません。
+restoreすると、checkpoint後に作ったhandle変数や履歴List自体が消える場合があります。[checkpoint外の変数領域](v2-next-retained-state.md)があれば管理用stateを残す候補になりますが、全VMのrestoreを版付きcollectionのgetとして使う設計にはしません。budget、観測、公開済み作用は従来どおり戻りません。
 
 ## CP-04：現在を変えないCheckpointView
 
