@@ -498,3 +498,63 @@ test fn changes_three_way_merge_detects_incompatible_edits()->Unit effects {} {
     match changes.merge(&base,&left,&right,same) {Ok(merged)=>{assert_eq(merged.get("a"),Some(3));},Err(_)=>{panic("same edit");}}
     assert_eq(base.get("a"),Some(1));assert_eq(left.get("b"),Some(2));
 }
+
+import historyGraph as historyGraph;
+import historyGraph.{create as createGraph,Annotation};
+
+test fn history_graph_separates_data_parents_heads_and_annotations()->Unit effects {} {
+    match createGraph<Int>(8) {
+        Ok(graph)=>{
+            let empty=List<String>();let base=10;
+            match historyGraph.add(&mut graph,"base",&empty,&base) {
+                Ok(original)=>{
+                    let parents=List<String>();parents.add("base");
+                    let left=20;let right=30;
+                    historyGraph.add(&mut graph,"left",&parents,&left);
+                    historyGraph.add(&mut graph,"right",&parents,&right);
+                    let both=List<String>();both.add("left");both.add("right");let merged=40;
+                    historyGraph.add(&mut graph,"merged",&both,&merged);
+                    assert_eq(historyGraph.length(&graph),4);
+                    assert_eq(historyGraph.isAncestor(&graph,"base","merged"),Ok(true));
+                    assert_eq(historyGraph.isAncestor(&graph,"left","right"),Ok(false));
+                    assert_eq(historyGraph.isAncestor(&graph,"left","left"),Ok(true));
+                    assert_eq(historyGraph.setHead(&mut graph,"main","base"),Ok(()));
+                    assert_eq(historyGraph.setHead(&mut graph,"main","left"),Ok(()));
+                    match historyGraph.head(&graph,"main") {
+                        Some(v)=>{assert_eq(historyGraph.fork(v),20);},
+                        None=>{panic("head");}
+                    }
+                    assert_eq(historyGraph.fork(original),10);
+                    assert_eq(historyGraph.annotate(&mut graph,"base",Annotation("initial","tester")),Ok(()));
+                    match historyGraph.annotation(&graph,"base") {Some(note)=>{assert_eq(note.description,"initial");},None=>{panic("annotation");}}
+                    assert_eq(historyGraph.fork(original),10);
+                    let found=historyGraph.matching(&graph,|v:Frozen<Int>|->Bool{return thaw(v)>=20;});
+                    assert_eq(found.len(),3);
+                    assert(historyGraph.dropHead(&mut graph,"main"));
+                    assert(!historyGraph.dropHead(&mut graph,"main"));
+                    assert_eq(historyGraph.length(&graph),4);
+                },
+                Err(_)=>{panic("base");}
+            }
+        },
+        Err(_)=>{panic("graph setup");}
+    }
+}
+
+test fn history_graph_rejects_invalid_edges_and_names_before_insertion()->Unit effects {} {
+    match createGraph<Int>(4) {
+        Ok(graph)=>{
+            let empty=List<String>();let value=1;
+            historyGraph.add(&mut graph,"base",&empty,&value);
+            let missing=List<String>();missing.add("missing");
+            match historyGraph.add(&mut graph,"bad",&missing,&value) {Err(e)=>{assert_eq(e.code,"UnknownParent");},Ok(_)=>{panic("dangling edge");}}
+            let duplicate=List<String>();duplicate.add("base");duplicate.add("base");
+            match historyGraph.add(&mut graph,"bad",&duplicate,&value) {Err(e)=>{assert_eq(e.code,"DuplicateParent");},Ok(_)=>{panic("duplicate edge");}}
+            match historyGraph.add(&mut graph,"base",&empty,&value) {Err(e)=>{assert_eq(e.code,"DuplicateVersion");},Ok(_)=>{panic("duplicate version");}}
+            match historyGraph.setHead(&mut graph,"main","missing") {Err(e)=>{assert_eq(e.code,"UnknownVersion");},Ok(_)=>{panic("dangling head");}}
+            assert_eq(historyGraph.length(&graph),1);
+            assert_eq(historyGraph.branches(&graph).len(),0);
+        },
+        Err(_)=>{panic("graph setup");}
+    }
+}

@@ -36,6 +36,24 @@ diffはkey列を走査し、Map lookupの費用を持つ。applyは新しいMap�
 
 library test sourceに、逆差分、未変更keyの保持、衝突時の入力不変、合成の相殺、重複key、独立変更のmerge、同一変更と衝突を追加した。実行は省略。
 
+## std.historyGraph：親関係・branch HEAD・annotation
+
+VHISTORY-01/02/03、08/10の一部を実装する。HistoryGraph<T:Send>はprivateなversion registry、branch HEAD、annotationを持つ。createでversion件数とbranch件数の各上限を1〜65,536に設定する。
+
+add/addSnapshotは1〜128 Unicode scalarの一意な名前で版を追加する。親は既存の異なる版を最大16件、指定順で保持する。既存版の親を書き換える入口がないので追加でcycleを作れない。名前はそのgraph内だけのkeyで、VM全体のlabelや実行checkpoint IDではない。
+
+Version<T>はprivateなsnapshotを自身で保持するimmutable record。get/headで取得した後にHEADを動かしたりbranch名を削除・再利用しても、取得済みVersionが別dataへ変わらない。name、parents、snapshotOf、read、forkで読む。別graphの同じStringを、同一版の証明として扱わない。
+
+setHeadは版の作成と独立。存在しない版を指すHEADを拒否する。dropHeadは名前だけを解除し、data版を削除しない。versions/branchesは独立したkey列を返す。
+
+annotateは説明4,096 scalarと著者128 scalar以内のmetadataをdataと別に置く。annotation取得後のrecordも独立値。完全なannotation変更streamや著者認証は今回の範囲に含めない。
+
+isAncestorは自分自身をancestorに含め、queueとvisited mapで探索する。各到達版は一度だけenqueueし、深い履歴を再帰関数で辿らない。matchingはpure predicateで各snapshotを調べ、名前順のVersion列を返す。
+
+Graphは通常のVM model。revertでregistry、HEAD、annotationも戻る。全rootを利用者の保持として所有し、勝手に古い版を削除しない。今回、個別版のprune、squash、protected root、pack、跨runtime identityは実装しない。容量に達したらtyped errorで止まり、callerが保持範囲や次のgraphを明示する。
+
+library test sourceに、分岐と複数親、ancestor、HEAD移動、独立Version、annotation、predicate query、欠落親・重複親・重複版・欠落HEADの拒否を用意した。実行は省略。
+
 ## 保存・検証方針
 
 codex/developだけへ小さくcommit/pushする。commitには[skip ci]を付ける。公開CI/CD、main統合、tag、Release、版更新を行わない。

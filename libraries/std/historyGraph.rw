@@ -1,0 +1,133 @@
+import snapshot as snapshot;
+
+pub record GraphError {code:String,name:String}
+pub record Annotation {description:String,author:String}
+pub record Version<T:Send> {
+    private name:String,
+    private parents:Frozen<List<String>>,
+    private saved:snapshot.Snapshot<T>
+}
+pub struct HistoryGraph<T:Send> {
+    private versions:Map<String,Version<T>>,
+    private heads:Map<String,String>,
+    private notes:Map<String,Annotation>,
+    private capacity:Int
+}
+
+pub fn create<T:Send>(capacity:Int)->Result<HistoryGraph<T>,GraphError> effects {} {
+    if capacity<1 || capacity>65536 {return Err(GraphError("InvalidCapacity",""));}
+    return Ok(HistoryGraph<T>(Map<String,Version<T>>(),Map<String,String>(),Map<String,Annotation>(),capacity));
+}
+pub fn length<T:Send>(graph:&HistoryGraph<T>)->Int effects {} {return graph.versions.len();}
+pub fn versions<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return graph.versions.keys();}
+pub fn branches<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return graph.heads.keys();}
+pub fn get<T:Send>(graph:&HistoryGraph<T>,name:String)->Option<Version<T>> effects {} {return graph.versions.get(name);}
+pub fn name<T:Send>(version:Version<T>)->String effects {} {return version.name;}
+pub fn parents<T:Send>(version:Version<T>)->Frozen<List<String>> effects {} {return version.parents;}
+pub fn snapshotOf<T:Send>(version:Version<T>)->snapshot.Snapshot<T> effects {} {return version.saved;}
+pub fn read<T:Send>(version:Version<T>)->Frozen<T> effects {} {return snapshot.read(version.saved);}
+pub fn fork<T:Send>(version:Version<T>)->T effects {} {return snapshot.fork(version.saved);}
+
+fn validName(name:String)->Bool effects {} {let size=stdTextLength(name);return size>0 && size<=128;}
+fn validate<T:Send>(graph:&HistoryGraph<T>,name:String,parents:&List<String>)->Result<Unit,GraphError> effects {} {
+    if !validName(name) {return Err(GraphError("InvalidName",name));}
+    match graph.versions.get(name) {Some(_)=>{return Err(GraphError("DuplicateVersion",name));},None=>{}}
+    if graph.versions.len()>=graph.capacity {return Err(GraphError("VersionCapacity",name));}
+    if parents.len()>16 {return Err(GraphError("TooManyParents",name));}
+    let seen=Map<String,Bool>();
+    for i in 0..parents.len() {
+        let parent=parents.get(i);
+        match seen.get(parent) {Some(_)=>{return Err(GraphError("DuplicateParent",parent));},None=>{}}
+        match graph.versions.get(parent) {Some(_)=>{},None=>{return Err(GraphError("UnknownParent",parent));}}
+        seen.set(parent,true);
+    }
+    return Ok(());
+}
+
+fn insert<T:Send>(graph:&mut HistoryGraph<T>,name:String,parents:&List<String>,saved:snapshot.Snapshot<T>)->Version<T> effects {} {
+    let version=Version<T>(name,freeze(parents),saved);
+    graph.versions.set(name,version);
+    return version;
+}
+
+// @api add Only existing distinct parents are accepted, so insertion cannot introduce cycles. Names are local to this graph.
+pub fn add<T:Send>(graph:&mut HistoryGraph<T>,name:String,parents:&List<String>,value:&T)->Result<Version<T>,GraphError> effects {} {
+    match validate(graph,name,parents) {
+        Err(error)=>{return Err(error);},
+        Ok(_)=>{let saved=snapshot.capture(value);return Ok(insert(graph,name,parents,saved));}
+    }
+}
+
+pub fn addSnapshot<T:Send>(graph:&mut HistoryGraph<T>,name:String,parents:&List<String>,saved:snapshot.Snapshot<T>)->Result<Version<T>,GraphError> effects {} {
+    match validate(graph,name,parents) {
+        Err(error)=>{return Err(error);},
+        Ok(_)=>{return Ok(insert(graph,name,parents,saved));}
+    }
+}
+
+// @api setHead Creating a version and moving a branch head are independent operations.
+pub fn setHead<T:Send>(graph:&mut HistoryGraph<T>,branch:String,version:String)->Result<Unit,GraphError> effects {} {
+    if !validName(branch) {return Err(GraphError("InvalidName",branch));}
+    match graph.versions.get(version) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",version));}}
+    match graph.heads.get(branch) {
+        Some(_)=>{},
+        None=>{if graph.heads.len()>=graph.capacity {return Err(GraphError("BranchCapacity",branch));}}
+    }
+    graph.heads.set(branch,version);
+    return Ok(());
+}
+
+pub fn head<T:Send>(graph:&HistoryGraph<T>,branch:String)->Option<Version<T>> effects {} {
+    match graph.heads.get(branch) {Some(version)=>{return graph.versions.get(version);},None=>{return None;}}
+}
+
+// @api dropHead Removes only the branch name. The graph and detached Version values retain their data roots.
+pub fn dropHead<T:Send>(graph:&mut HistoryGraph<T>,branch:String)->Bool effects {} {
+    match graph.heads.get(branch) {
+        Some(_)=>{graph.heads.remove(branch);return true;},
+        None=>{return false;}
+    }
+}
+
+// @api annotate Replaces metadata without recapturing data; description <=4096 and author <=128 Unicode scalars.
+pub fn annotate<T:Send>(graph:&mut HistoryGraph<T>,version:String,note:Annotation)->Result<Unit,GraphError> effects {} {
+    match graph.versions.get(version) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",version));}}
+    if stdTextLength(note.description)>4096 || stdTextLength(note.author)>128 {return Err(GraphError("InvalidAnnotation",version));}
+    graph.notes.set(version,note);
+    return Ok(());
+}
+pub fn annotation<T:Send>(graph:&HistoryGraph<T>,version:String)->Option<Annotation> effects {} {return graph.notes.get(version);}
+
+// @api isAncestor Reflexive ancestry; visits each reachable version at most once, without recursive VM calls.
+pub fn isAncestor<T:Send>(graph:&HistoryGraph<T>,ancestor:String,descendant:String)->Result<Bool,GraphError> effects {} {
+    match graph.versions.get(ancestor) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",ancestor));}}
+    match graph.versions.get(descendant) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",descendant));}}
+    let pending=List<String>();let seen=Map<String,Bool>();
+    pending.add(descendant);seen.set(descendant,true);var cursor=0;
+    while cursor<pending.len() {
+        let current=pending.get(cursor);cursor+=1;
+        if current==ancestor {return Ok(true);}
+        match graph.versions.get(current) {
+            Some(version)=>{
+                for i in 0..version.parents.len() {
+                    let parent=version.parents.get(i);
+                    match seen.get(parent) {Some(_)=>{},None=>{seen.set(parent,true);pending.add(parent);}}
+                }
+            },
+            None=>{panic("history graph invariant");}
+        }
+    }
+    return Ok(false);
+}
+
+// @api matching Evaluates a pure predicate on each saved root in version-name key order; returned Version values retain their snapshots.
+pub fn matching<T:Send>(graph:&HistoryGraph<T>,predicate:fn(Frozen<T>)->Bool effects {} captures {Send,Share})->List<Version<T>> effects {} {
+    let output=List<Version<T>>();let keys=graph.versions.keys();
+    for i in 0..keys.len() {
+        match graph.versions.get(keys.get(i)) {
+            Some(version)=>{if predicate(snapshot.read(version.saved)) {output.add(version);}},
+            None=>{}
+        }
+    }
+    return output;
+}
