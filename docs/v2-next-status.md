@@ -21,6 +21,16 @@ CP-05/06全体、動的な実行checkpoint操作、hyper領域、parent graph、
 
 作業環境のcontainer_creationが失敗し、compileと実行testは未実施。GitHub接続でsourceを調査し、codex/developへ実装と回帰testを保存する。検証できるまで状態を「実装中」とする。
 
+## 今回の保存履歴
+
+| commit | 内容 | 検証 |
+|---|---|---|
+| 33d3135 | Frozen内部のSend boundを型graphの位置ごとに判定 | 実行待ち |
+| 784cbc6 | 呼出側generic boundとFrozen recordの型引数判定 | 実行待ち |
+| b76ffaa | snapshot/history、SDK登録、library test、利用例 | 実行待ち |
+
+CLI/artifact/replayの回帰追加を含む最新commitはgit log -- tests/data_history.rsで確認する。保存commitは動作確認完了や版公開の証拠ではない。
+
 ## 読む順番
 
 1. [次版ロードマップ](ROADMAP_v2-next.md)：優先順位、外部境界、互換性。

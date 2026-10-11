@@ -87,7 +87,7 @@ rewind run examples/data-history.rw
 
 最後の10はregistryをclearした後に、取得済みsnapshotを読み出した値。例の実行結果はまだ未確認。
 
-## 確認するcase
+## 追加した回帰test
 
 - capture後の元List変更と、二つのforkの相互独立性。
 - mutableな入れ子struct/collectionの独立性。
@@ -98,6 +98,8 @@ rewind run examples/data-history.rw
 - captureした関数の終了後にもsnapshotを利用できる。
 - sourceとstandard-library cacheを削除したartifact実行、compact record/replay。
 - Frozen viewの変更、private field・constructorへのアクセス、FileHandle captureの拒否。
+
+libraries/std/tests.rwに3 test、tests/data_history.rsに4 test、tests/generic_frozen_bounds.rsに型判定の3 testを追加した。いずれも実行未確認。
 
 再開時の実行command：
 
