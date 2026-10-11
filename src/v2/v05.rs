@@ -1665,17 +1665,15 @@ fn transfer_type_with_bounds(
             .cloned()
             .zip(args.into_iter().map(str::to_string))
             .collect();
-        s.fields
-            .iter()
-            .all(|(_, t)| {
-                transfer_type_with_bounds(
-                    program,
-                    &substitute_type(t, &substitutions),
-                    shared,
-                    bounds,
-                    seen,
-                )
-            })
+        s.fields.iter().all(|(_, t)| {
+            transfer_type_with_bounds(
+                program,
+                &substitute_type(t, &substitutions),
+                shared,
+                bounds,
+                seen,
+            )
+        })
     } else if let Some(e) = program.enums.get(base) {
         let args = ty
             .split_once('<')

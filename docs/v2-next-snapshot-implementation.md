@@ -28,17 +28,17 @@ capture(&value)は呼出し時のdataを保存する。元のmutable valueを後
 
 | module | signature |
 |---|---|
-| snapshot | capture<T:Send>(value:&T)->Snapshot<T> |
-| snapshot | read<T:Send>(saved:Snapshot<T>)->Frozen<T> |
-| snapshot | fork<T:Send>(saved:Snapshot<T>)->T |
-| history | create<T:Send>(capacity:Int)->Result<History<T>,HistoryError> |
-| history | length<T:Send>(history:&History<T>)->Int |
-| history | contains<T:Send>(history:&History<T>,name:String)->Bool |
-| history | save<T:Send>(history:&mut History<T>,name:String,value:&T)->Result<Unit,HistoryError> |
-| history | get<T:Send>(history:&History<T>,name:String)->Option<Snapshot<T>> |
-| history | names<T:Send>(history:&History<T>)->List<String> |
-| history | remove<T:Send>(history:&mut History<T>,name:String)->Option<Snapshot<T>> |
-| history | clear<T:Send>(history:&mut History<T>)->Unit |
+| snapshot | `capture<T:Send>(value:&T)->Snapshot<T>` |
+| snapshot | `read<T:Send>(saved:Snapshot<T>)->Frozen<T>` |
+| snapshot | `fork<T:Send>(saved:Snapshot<T>)->T` |
+| history | `create<T:Send>(capacity:Int)->Result<History<T>,HistoryError>` |
+| history | `length<T:Send>(history:&History<T>)->Int` |
+| history | `contains<T:Send>(history:&History<T>,name:String)->Bool` |
+| history | `save<T:Send>(history:&mut History<T>,name:String,value:&T)->Result<Unit,HistoryError>` |
+| history | `get<T:Send>(history:&History<T>,name:String)->Option<Snapshot<T>>` |
+| history | `names<T:Send>(history:&History<T>)->List<String>` |
+| history | `remove<T:Send>(history:&mut History<T>,name:String)->Option<Snapshot<T>>` |
+| history | `clear<T:Send>(history:&mut History<T>)->Unit` |
 
 ## 名前付きregistry
 
@@ -116,6 +116,8 @@ python3 scripts/check-standard-library-lock.py
 ## 検証状態と次の作業
 
 2026-10-11の作業環境はcontainer_creationで失敗した。端末・filesystemの実行toolが提供されず、GitHub接続でsourceを確認して実装を保存した。上記commandの実行、API snapshot生成、性能・GC測定は未実施。確認完了まで検証済みに変更しない。
+
+保存後にGitHub上の差分とbranch refを照合した。codex/developには今回の変更があり、mainは5f5ab8fのまま。4件の実装commitを対象にActions一覧を確認し、起動されたworkflow runはなかった。これらはsource保存の確認であり、compileや動作確認ではない。
 
 最初に型検査・所有権検査を実行し、generic/borrowに起因する問題があれば修正する。その後、source-free/replayと標準library全体を確認する。read/forkの費用は現行基盤の測定結果に従って記録する。
 

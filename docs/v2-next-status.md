@@ -28,6 +28,7 @@ CP-05/06全体、動的な実行checkpoint操作、hyper領域、parent graph、
 | 33d3135 | Frozen内部のSend boundを型graphの位置ごとに判定 | 実行待ち |
 | 784cbc6 | 呼出側generic boundとFrozen recordの型引数判定 | 実行待ち |
 | b76ffaa | snapshot/history、SDK登録、library test、利用例 | 実行待ち |
+| 574eac5 | 寿命・revert・source-free artifact/replayの回帰test | 実行待ち |
 
 CLI/artifact/replayの回帰追加を含む最新commitはgit log -- tests/data_history.rsで確認する。保存commitは動作確認完了や版公開の証拠ではない。
 

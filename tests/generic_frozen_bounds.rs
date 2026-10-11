@@ -76,6 +76,7 @@ fn send_bound_does_not_allow_sharing_unfrozen_values() {
         "record Box<T:Send> {value:T} fn share<T:Share>(value:T)->T {return value;} fn bad<T:Send>(value:Box<T>)->Box<T> {return share(value);}",
         "fn share<T:Share>(value:T)->T {return value;} fn bad<T:Send>(value:List<T>)->List<T> {return share(value);}",
         "fn share<T:Share>(value:T)->T {return value;} fn bad<T>(value:Frozen<T>)->Frozen<T> {return share(value);}",
+        "record Box<T:Send> {value:T} let data=List<Int>();let bad=Box<List<Int>>(move data);",
     ] {
         let fixture = Fixture::new(source);
         let output = fixture.call("check");

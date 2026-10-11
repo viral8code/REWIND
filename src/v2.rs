@@ -8675,8 +8675,7 @@ impl Checker<'_> {
                                     bound,
                                     &substitutions[param],
                                     &self.bounds,
-                                )
-                                {
+                                ) {
                                     return Err(diagnostic(
                                         &e.at,
                                         format!(
