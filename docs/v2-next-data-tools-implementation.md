@@ -20,6 +20,22 @@ indexは最古の保持版を0とした位置で、evict後は変わる。永続
 
 libraries/std/tests.rwにring周回、容量1、undo/redo境界、Redo破棄、保持済みroot、clear、不正capacity/indexを用意した。実行は省略。
 
+## std.changes：型付きMap差分とmerge
+
+VPERSIST-08、VHISTORY-04/06のうち、String keyのMapに対象を限定した実装。Change<T:Share>はkey、変更前Option<T>、変更後Option<T>を持つ。ChangeSet<T>はprivateなFrozen<List<Change<T>>>を保持する。
+
+fromChangesは重複keyと65,536件超を拒否し、指定した等値関数でno-opを除く。diffは二つのMapのkey順を二方向に走査して追加・削除・更新を作る。editsとlengthで内容を読める。inverseはbefore/afterを交換する。
+
+applyは全変更のbeforeを照合してから新しいMapを返す。元Mapを変更せず、patchが触らないkeyを保持する。別branchへの適用もこの前提検査を通す。対象Map全体のidentity一致やdomain不変条件の検証を自動的に代行しない。
+
+compose(first,second)は同じkeyのfirst.afterとsecond.beforeを検査し、一つの差分へまとめる。相殺した変更は除く。merge(base,left,right)は三方向のMap比較で、独立したkey変更と、同じ最終値への変更を統合する。削除と更新等、異なる最終値はConflictとして返す。入力は変更しない。
+
+比較関数はpureなSend+Share callbackで、呼出側が等価関係を保証する。浮動小数点の近似一致等、推移律を満たさない規則を無条件に安全なmerge規則として扱わない。errorはcodeとkeyを持ち、旧新の値を含めない。
+
+diffはkey列を走査し、Map lookupの費用を持つ。applyは新しいMapを構築するため全入力keyをcopyする。root共有だけでO(1)適用できる機能として宣伝しない。65,536件の上限は差分件数で、値のbyte量や入力Map全体のmemory上限ではない。freeze、callback、既存VM予算の制約は残る。
+
+library test sourceに、逆差分、未変更keyの保持、衝突時の入力不変、合成の相殺、重複key、独立変更のmerge、同一変更と衝突を追加した。実行は省略。
+
 ## 保存・検証方針
 
 codex/developだけへ小さくcommit/pushする。commitには[skip ci]を付ける。公開CI/CD、main統合、tag、Release、版更新を行わない。

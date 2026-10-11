@@ -437,3 +437,64 @@ test fn timeline_capacity_one_and_redo_boundaries()->Unit effects {} {
         Err(_)=>{panic("timeline setup");}
     }
 }
+
+import changes as changes;
+import changes.{Change};
+
+test fn changes_apply_inverse_preserve_unrelated_keys_and_reject_conflict()->Unit effects {} {
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let before=Map<String,Int>();before.set("a",1);before.set("b",2);
+    let after=Map<String,Int>();after.set("a",3);after.set("c",4);
+    match changes.diff(&before,&after,same) {
+        Ok(patch)=>{
+            assert_eq(changes.length(patch),3);
+            before.set("unrelated",9);
+            match changes.apply(&before,patch,same) {
+                Ok(result)=>{
+                    assert_eq(result.get("a"),Some(3));assert_eq(result.get("b"),None);
+                    assert_eq(result.get("c"),Some(4));assert_eq(result.get("unrelated"),Some(9));
+                    match changes.apply(&result,changes.inverse(patch),same) {
+                        Ok(restored)=>{assert_eq(restored.get("a"),Some(1));assert_eq(restored.get("b"),Some(2));assert_eq(restored.get("c"),None);},
+                        Err(_)=>{panic("inverse failed");}
+                    }
+                },
+                Err(_)=>{panic("apply failed");}
+            }
+            before.set("b",8);
+            match changes.apply(&before,patch,same) {Err(e)=>{assert_eq(e.code,"Conflict");assert_eq(e.key,"b");},Ok(_)=>{panic("conflict accepted");}}
+            assert_eq(before.get("a"),Some(1));assert_eq(before.get("b"),Some(8));
+        },
+        Err(_)=>{panic("diff failed");}
+    }
+}
+
+test fn changes_compose_cancel_and_validate_duplicate_keys()->Unit effects {} {
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let first=List<Change<Int>>();first.add(Change<Int>("x",None,Some(1)));
+    let second=List<Change<Int>>();second.add(Change<Int>("x",Some(1),None));
+    match changes.fromChanges(&first,same) {
+        Ok(a)=>{match changes.fromChanges(&second,same) {
+            Ok(b)=>{match changes.compose(a,b,same) {Ok(p)=>{assert_eq(changes.length(p),0);},Err(_)=>{panic("compose failed");}}},
+            Err(_)=>{panic("second patch");}
+        }},
+        Err(_)=>{panic("first patch");}
+    }
+    first.add(Change<Int>("x",Some(1),Some(2)));
+    match changes.fromChanges(&first,same) {Err(e)=>{assert_eq(e.code,"DuplicateKey");},Ok(_)=>{panic("duplicate accepted");}}
+}
+
+test fn changes_three_way_merge_detects_incompatible_edits()->Unit effects {} {
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let base=Map<String,Int>();base.set("a",1);base.set("b",2);
+    let left=Map<String,Int>();left.set("a",3);left.set("b",2);
+    let right=Map<String,Int>();right.set("a",1);right.set("b",4);
+    match changes.merge(&base,&left,&right,same) {
+        Ok(merged)=>{assert_eq(merged.get("a"),Some(3));assert_eq(merged.get("b"),Some(4));},
+        Err(_)=>{panic("independent edits");}
+    }
+    right.set("a",5);
+    match changes.merge(&base,&left,&right,same) {Err(e)=>{assert_eq(e.code,"Conflict");assert_eq(e.key,"a");},Ok(_)=>{panic("conflict accepted");}}
+    right.set("a",3);
+    match changes.merge(&base,&left,&right,same) {Ok(merged)=>{assert_eq(merged.get("a"),Some(3));},Err(_)=>{panic("same edit");}}
+    assert_eq(base.get("a"),Some(1));assert_eq(left.get("b"),Some(2));
+}
