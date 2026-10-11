@@ -12110,7 +12110,7 @@ impl<R: BufRead> Engine<R> {
                     return Err(self.fail(at, "native resources cannot be frozen"));
                 }
                 let value = self.collection_snapshot(&args[0], at)?;
-                return Ok(v05::frozen(value, &self.runtime));
+                return Ok(v05::freeze_root(value, &self.runtime));
             }
             // Frozen generic reads preserve scalar values without a wrapper.
             // Their static type still requires thaw; scalars own no mutable state.

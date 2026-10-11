@@ -800,6 +800,11 @@ pub(super) fn frozen(value: Value, rt: &Runtime) -> Value {
     if unfrozen(&value).is_some() {
         return value;
     }
+    freeze_root(value, rt)
+}
+// Explicit freeze adds one layer, including when T is already Frozen<U>.
+// Frozen member views still use frozen(), whose type rule is idempotent.
+pub(super) fn freeze_root(value: Value, rt: &Runtime) -> Value {
     Value::Struct(
         format!("Frozen<{}>", value_type(&value, rt)),
         BTreeMap::from([("$value".into(), value)]),
@@ -958,8 +963,11 @@ pub(super) fn iterator_next(rt: &mut Runtime, value: &Value) -> Result<Option<Va
     )))
 }
 pub(super) fn thaw(rt: &mut Runtime, value: &Value) -> Result<Value> {
-    if let Some(v) = unfrozen(value) {
-        return thaw(rt, v);
+    // The builtin has already removed its outer Frozen layer. A nested Frozen
+    // belongs to T and must retain its immutable root rather than becoming a
+    // mutable heap value. Iterator materialization follows the same rule.
+    if unfrozen(value).is_some() {
+        return Ok(value.clone());
     }
     let result = match value {
         Value::TypedList(t, items) => Value::TypedList(

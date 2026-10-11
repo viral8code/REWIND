@@ -95,3 +95,37 @@ fn frozen_does_not_make_non_send_resources_shareable() {
     let output = fixture.call("check");
     assert!(!output.status.success(), "FileHandle became shareable");
 }
+
+#[test]
+fn thaw_removes_only_the_outer_layer_and_preserves_nested_frozen_values() {
+    let fixture = Fixture::new(
+        r#"
+record Box<T:Share> {value:T}
+let data=List<Int>();data.add(10);
+let first=freeze(data);
+let second=freeze(first);
+let stillFrozen=thaw(second);
+assert_eq(stillFrozen.get(0),10);
+let editable=thaw(stillFrozen);editable.set(0,7);
+assert_eq(first.get(0),10);
+let wrapped=Box<Frozen<List<Int>>>(first);
+let copy=thaw(freeze(wrapped));
+let member=copy.value;
+assert_eq(member.get(0),10);
+let independent=thaw(member);independent.set(0,9);
+assert_eq(first.get(0),10);
+let values=List<Frozen<List<Int>>>();values.add(first);
+let restored=thaw(freeze(values));
+let item=restored.get(0);
+assert_eq(thaw(item).get(0),10);
+for item in freeze(values) {assert_eq(item.get(0),10);}
+"#,
+    );
+    let output = fixture.call("run");
+    assert!(
+        output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

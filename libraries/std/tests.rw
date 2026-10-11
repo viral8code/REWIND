@@ -648,3 +648,24 @@ test fn ordered_map_snapshot_keeps_order_and_values_independent()->Unit effects 
         Err(_)=>{panic("ordered map setup");}
     }
 }
+
+test fn snapshots_and_changes_preserve_frozen_payload_types()->Unit effects {} {
+    let a=List<Int>();a.add(10);let b=List<Int>();b.add(20);
+    let first=freeze(a);let second=freeze(b);
+    let saved=snapshot.capture(&first);
+    let again=snapshot.fork(saved);
+    assert_eq(thaw(again).get(0),10);
+    let old=Map<String,Frozen<List<Int>>>();old.set("x",first);
+    let next=Map<String,Frozen<List<Int>>>();next.set("x",second);
+    let same=|left:Frozen<List<Int>>,right:Frozen<List<Int>>|->Bool{return left.get(0)==right.get(0);};
+    match changes.diff(&old,&next,same) {
+        Ok(patch)=>{
+            match changes.apply(&old,patch,same) {
+                Ok(result)=>{match result.get("x") {Some(value)=>{assert_eq(value.get(0),20);assert_eq(thaw(value).get(0),20);},None=>{panic("missing payload");}}},
+                Err(_)=>{panic("apply frozen payload");}
+            }
+        },
+        Err(_)=>{panic("diff frozen payload");}
+    }
+    assert_eq(first.get(0),10);
+}
