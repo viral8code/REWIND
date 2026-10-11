@@ -54,6 +54,18 @@ Graphは通常のVM model。revertでregistry、HEAD、annotationも戻る。全
 
 library test sourceに、分岐と複数親、ancestor、HEAD移動、独立Version、annotation、predicate query、欠落親・重複親・重複版・欠落HEADの拒否を用意した。実行は省略。
 
+## std.orderedMap：挿入順とlookupを一つのownerで保持
+
+VPERSIST-04のString key / Share valueの基本部分を実装する。OrderedMap<T:Share>のprivateなMapに値と前後のkeyを置く。createの容量は1〜65,536。put、get、contains、remove、keys、values、entries、length、clearを提供する。
+
+既存keyのputは値を更新して位置を保持する。削除後の再挿入は末尾へ追加する。容量上限でも既存keyの更新は成功する。欠落keyの削除はNoneで順序を変えない。列挙結果は独立したList。
+
+隣接関係は文字列keyで表し、mutableな相互参照や別ownerの順序Listを利用者へ渡さない。通常Mapのkey順とは区別する。put/removeは少数のnative Map lookup/updateで前後を繋ぎ替え、後続要素を全シフトしない。列挙はn件のMap lookupを伴うため、native linked-listのO(n)走査と同じ費用を約束しない。
+
+通常modelとしてfreeze/thaw、snapshot、commit/revertへ従う。高度なpersistent treeのsplit/concatや専用native iteratorは未実装。privateなlinksの更新中にfatal budget failureが起きた場合までtransactional recoveryを追加するものではない。
+
+library test sourceに、非key順の挿入、full時の更新と新規拒否、head/middle/tailの削除、再挿入、clear、snapshot後の順序・値の独立性を用意した。実行は省略。
+
 ## 保存・検証方針
 
 codex/developだけへ小さくcommit/pushする。commitには[skip ci]を付ける。公開CI/CD、main統合、tag、Release、版更新を行わない。

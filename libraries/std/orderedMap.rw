@@ -1,0 +1,100 @@
+record Entry<T:Share> {value:T,previous:Option<String>,next:Option<String>}
+pub enum OrderedMapError {InvalidCapacity,Capacity}
+pub struct OrderedMap<T:Share> {
+    private data:Map<String,Entry<T>>,
+    private first:Option<String>,
+    private last:Option<String>,
+    private capacity:Int
+}
+
+pub fn create<T:Share>(capacity:Int)->Result<OrderedMap<T>,OrderedMapError> effects {} {
+    if capacity<1 || capacity>65536 {return Err(OrderedMapError::InvalidCapacity);}
+    return Ok(OrderedMap<T>(Map<String,Entry<T>>(),None,None,capacity));
+}
+pub fn length<T:Share>(map:&OrderedMap<T>)->Int effects {} {return map.data.len();}
+pub fn get<T:Share>(map:&OrderedMap<T>,key:String)->Option<T> effects {} {
+    match map.data.get(key) {Some(entry)=>{return Some(entry.value);},None=>{return None;}}
+}
+pub fn contains<T:Share>(map:&OrderedMap<T>,key:String)->Bool effects {} {
+    match map.data.get(key) {Some(_)=>{return true;},None=>{return false;}}
+}
+fn entry<T:Share>(map:&OrderedMap<T>,key:String)->Entry<T> effects {} {
+    match map.data.get(key) {Some(value)=>{return value;},None=>{panic("ordered map invariant");}}
+}
+
+// @api put Existing keys retain their position; removing and reinserting a key appends it.
+pub fn put<T:Share>(map:&mut OrderedMap<T>,key:String,value:T)->Result<Option<T>,OrderedMapError> effects {} {
+    match map.data.get(key) {
+        Some(old)=>{
+            map.data.set(key,Entry<T>(value,old.previous,old.next));
+            return Ok(Some(old.value));
+        },
+        None=>{}
+    }
+    if map.data.len()>=map.capacity {return Err(OrderedMapError::Capacity);}
+    match map.last {
+        Some(tail)=>{
+            let old=entry(map,tail);
+            map.data.set(tail,Entry<T>(old.value,old.previous,Some(key)));
+        },
+        None=>{map.first=Some(key);}
+    }
+    map.data.set(key,Entry<T>(value,map.last,None));
+    map.last=Some(key);
+    return Ok(None);
+}
+
+// @api remove Unlinks by key without shifting later entries. Missing keys do not change the order.
+pub fn remove<T:Share>(map:&mut OrderedMap<T>,key:String)->Option<T> effects {} {
+    match map.data.get(key) {
+        None=>{return None;},
+        Some(old)=>{
+            match old.previous {
+                Some(previous)=>{
+                    let neighbor=entry(map,previous);
+                    map.data.set(previous,Entry<T>(neighbor.value,neighbor.previous,old.next));
+                },
+                None=>{map.first=old.next;}
+            }
+            match old.next {
+                Some(next)=>{
+                    let neighbor=entry(map,next);
+                    map.data.set(next,Entry<T>(neighbor.value,old.previous,neighbor.next));
+                },
+                None=>{map.last=old.previous;}
+            }
+            map.data.remove(key);
+            return Some(old.value);
+        }
+    }
+}
+pub fn keys<T:Share>(map:&OrderedMap<T>)->List<String> effects {} {
+    let output=List<String>();var cursor=map.first;
+    while true {
+        match cursor {
+            Some(key)=>{output.add(key);cursor=entry(map,key).next;},
+            None=>{return output;}
+        }
+    }
+}
+pub fn values<T:Share>(map:&OrderedMap<T>)->List<T> effects {} {
+    let output=List<T>();var cursor=map.first;
+    while true {
+        match cursor {
+            Some(key)=>{let value=entry(map,key);output.add(value.value);cursor=value.next;},
+            None=>{return output;}
+        }
+    }
+}
+pub fn entries<T:Share>(map:&OrderedMap<T>)->List<Tuple<String,T>> effects {} {
+    let output=List<Tuple<String,T>>();var cursor=map.first;
+    while true {
+        match cursor {
+            Some(key)=>{let value=entry(map,key);output.add((key,value.value));cursor=value.next;},
+            None=>{return output;}
+        }
+    }
+}
+pub fn clear<T:Share>(map:&mut OrderedMap<T>)->Unit effects {} {
+    map.data=Map<String,Entry<T>>();map.first=None;map.last=None;
+}

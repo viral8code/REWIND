@@ -601,3 +601,50 @@ test fn parser_repeat_is_bounded_and_rejects_empty_success()->Unit effects {} {
         Err(_)=>{panic("empty setup");}
     }
 }
+
+import orderedMap as orderedMap;
+import orderedMap.{create as createOrderedMap,OrderedMapError};
+
+test fn ordered_map_preserves_insertion_order_and_relinks_removals()->Unit effects {} {
+    match createOrderedMap<Int>(3) {
+        Ok(map)=>{
+            assert_eq(orderedMap.put(&mut map,"z",1),Ok(None));
+            assert_eq(orderedMap.put(&mut map,"a",2),Ok(None));
+            assert_eq(orderedMap.put(&mut map,"m",3),Ok(None));
+            assert_eq(orderedMap.put(&mut map,"a",20),Ok(Some(2)));
+            assert_eq(orderedMap.put(&mut map,"full",4),Err(OrderedMapError::Capacity));
+            let keys=orderedMap.keys(&map);
+            assert_eq(keys.get(0),"z");assert_eq(keys.get(1),"a");assert_eq(keys.get(2),"m");
+            assert_eq(orderedMap.remove(&mut map,"a"),Some(20));
+            assert_eq(orderedMap.put(&mut map,"a",22),Ok(None));
+            let changed=orderedMap.keys(&map);
+            assert_eq(changed.get(0),"z");assert_eq(changed.get(1),"m");assert_eq(changed.get(2),"a");
+            assert_eq(orderedMap.remove(&mut map,"z"),Some(1));
+            assert_eq(orderedMap.remove(&mut map,"a"),Some(22));
+            assert_eq(orderedMap.remove(&mut map,"m"),Some(3));
+            assert_eq(orderedMap.remove(&mut map,"missing"),None);
+            assert_eq(orderedMap.length(&map),0);
+            orderedMap.put(&mut map,"new",7);
+            assert_eq(orderedMap.keys(&map).get(0),"new");
+            orderedMap.clear(&mut map);
+            assert_eq(orderedMap.keys(&map).len(),0);
+        },
+        Err(_)=>{panic("ordered map setup");}
+    }
+}
+
+test fn ordered_map_snapshot_keeps_order_and_values_independent()->Unit effects {} {
+    match createOrderedMap<Int>(3) {
+        Ok(map)=>{
+            orderedMap.put(&mut map,"b",2);orderedMap.put(&mut map,"a",1);
+            let saved=snapshot.capture(&map);
+            orderedMap.remove(&mut map,"b");orderedMap.put(&mut map,"c",3);
+            let old=snapshot.fork(saved);
+            let keys=orderedMap.keys(&old);
+            assert_eq(keys.get(0),"b");assert_eq(keys.get(1),"a");
+            assert_eq(orderedMap.get(&old,"b"),Some(2));
+            assert_eq(orderedMap.get(&map,"b"),None);
+        },
+        Err(_)=>{panic("ordered map setup");}
+    }
+}
