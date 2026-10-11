@@ -8670,8 +8670,12 @@ impl Checker<'_> {
                         )?;
                         for (param, bound) in &f.type_params {
                             if let Some(bound) = bound {
-                                if !trait_satisfied(self.program, bound, &substitutions[param])
-                                    && !bound_provided(&self.bounds, &substitutions[param], bound)
+                                if !trait_satisfied_in_context(
+                                    self.program,
+                                    bound,
+                                    &substitutions[param],
+                                    &self.bounds,
+                                )
                                 {
                                     return Err(diagnostic(
                                         &e.at,
@@ -8915,14 +8919,11 @@ impl Checker<'_> {
                                     infer_arguments(&f.params, &params, &types, &e.at)?;
                                 for (param, bound) in &f.type_params {
                                     if let Some(bound) = bound {
-                                        if !trait_satisfied(
+                                        if !trait_satisfied_in_context(
                                             self.program,
                                             bound,
                                             &substitutions[param],
-                                        ) && !bound_provided(
                                             &self.bounds,
-                                            &substitutions[param],
-                                            bound,
                                         ) {
                                             return Err(diagnostic(
                                                 &e.at,
@@ -14426,6 +14427,20 @@ fn bound_provided(bounds: &BTreeMap<String, String>, ty: &str, required: &str) -
                 .split('+')
                 .any(|b| b == r || (r == "Send" && b == "Share"))
         })
+    })
+}
+fn trait_satisfied_in_context(
+    program: &Program,
+    bound: &str,
+    ty: &str,
+    bounds: &BTreeMap<String, String>,
+) -> bool {
+    bound.split('+').all(|required| {
+        trait_satisfied(program, required, ty)
+            || bound_provided(bounds, ty, required)
+            || (language_at_least(&program.language, "2.0.0")
+                && matches!(required, "Send" | "Share")
+                && v05::transfer_bounded(program, ty, required == "Share", bounds))
     })
 }
 fn builtin_key_type(program: &Program, ty: &str) -> bool {

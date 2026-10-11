@@ -101,7 +101,7 @@ pub(in crate::v2) fn record_arguments(
         )
     }) {
         if let Some(ty) = sub.get(param) {
-            if !trait_satisfied(p, bound, ty) && !bound_provided(bounds, ty, bound) {
+            if !trait_satisfied_in_context(p, bound, ty, bounds) {
                 return Err(diagnostic(at, format!("{ty} does not implement {bound}")));
             }
         }
@@ -112,7 +112,15 @@ pub(in crate::v2) fn record_arguments(
                 .get(param)
                 .is_some_and(|ty| v05::transfer_bounded(p, ty, true, bounds))
             {
-                return Err(diagnostic(at, "record type arguments must be Share"));
+                // A non-Share argument may occur only inside Share fields such
+                // as Frozen<T>. Keep the earlier rule for older language modes.
+                let shared_fields = language_at_least(&p.language, "2.0.0")
+                    && s.fields.iter().all(|(_, field)| {
+                        v05::transfer_bounded(p, &substitute_type(field, sub), true, bounds)
+                    });
+                if !shared_fields {
+                    return Err(diagnostic(at, "record type arguments must be Share"));
+                }
             }
         }
     }

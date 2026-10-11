@@ -8,6 +8,10 @@
 
 型parameterのboundを型graphの各位置で評価する。Frozen<T>の内部ではSend、通常のimmutable record fieldでは呼出側が要求したSend/Shareを維持する。可変ListやMap自体をShareに変更しない。borrow、function captures、resource、循環型に対する既存判定を維持する。
 
+## 呼出しとrecordの型引数
+
+関数呼出し、module alias経由の呼出し、record/struct constructorのSend/Share制約にも、呼出側のgeneric boundを渡す。2.0.0のlanguage modeでは、recordの具体化後の全fieldがShareなら、Frozen<T>内部にある非Shareの型引数も受理する。従来受理したrecordを追加で拒否せず、古いlanguage modeの型引数制限を維持する。
+
 ## 回帰case
 
 - T:SendのFrozen<T>をgeneric関数内で二度共有する。
