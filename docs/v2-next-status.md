@@ -1,6 +1,6 @@
 # v2.1以降：作業状態と再開手順
 
-更新日：2026-10-10。今回の成果は**計画の文書化**です。v2.1以降のruntime/library実装、測定、版更新、Release公開はまだ行っていません。
+更新日：2026-10-11。構想から実装へ移行。最初にSnapshot<T>の前提となるgeneric Send/Share判定を修正しています。**実装中・実行検証待ち**です。
 
 ## この作業で守る指示
 
@@ -9,9 +9,15 @@
 - workflow dispatch、release tag、Release開始message、Release作成をしない。
 - 小さなreview可能なまとまりごとにcommit/pushして、未保存の大きな差分を残さない。
 - 公開済みv2.0.0の仕様を出発点とし、既存機能を未実装として列挙しない。
-- 今の依頼は計画追加。以下の実装手順は、実装を依頼されたときの再開先。
+- 2026-10-11に構想の実装を依頼された。CP-05/06の一部から着手し、compiler/libraryの変更を小さく保存する。
 
 過去の「公開後mainへ統合」という一般方針は、今回の「codex/developだけ」という指示で上書きされています。将来の実装時も、当時の最新指示を確認してから公開を扱います。
+
+## 現在の実装単位
+
+[generic Frozenの共有判定](v2-next-frozen-bounds-implementation.md)を先に修正する。その上にstd.snapshotとstd.historyを追加する。CP-05/06全体、動的な実行checkpoint操作、hyper領域、parent graph、mergeは完了扱いにしない。
+
+作業環境のcontainer_creationが失敗し、compileと実行testは未実施。GitHub接続でsourceを調査し、codex/developへ実装と回帰testを保存する。検証できるまで状態を「実装中」とする。
 
 ## 読む順番
 
@@ -95,7 +101,7 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 - [実行方式・計算モデル：8候補](v2-next-execution.md)
 - [選定表と採用判断template](v2-next-selection.md)
 
-まず既存APIとの差を最小例で確認します。採用した項目だけ、対象版・依存・受入を決めて実装一覧へ追加します。追加構想の保存履歴はgit log -- docs/v2-next-*.mdで確認できます。今回はruntime/libraryを変更していません。
+まず既存APIとの差を最小例で確認します。採用した項目だけ、対象版・依存・受入を決めて実装一覧へ追加します。追加構想の保存履歴はgit log -- docs/v2-next-*.mdで確認できます。以上は構想保存時点の記録です。現在の実装状態は冒頭を参照してください。
 
 ## 実現難度で絞らない自由構想集
 
@@ -115,11 +121,11 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 
 [12の設計論点](visions/sketches/design-questions.md)には、実行checkpoint/data snapshot、retained owner、begin、branch共有、参照、履歴削除、採用単位、physical操作、cleanup、code版、決定性、便利さと費用を残しました。未決の選択肢です。sketchと設計論点は581項目へ重ねて数えません。
 
-保存履歴はgit log -- docs/visionsで確認できます。分野ごとにcommit/pushしました。runtime/library変更、Release、版更新、main統合、公開CI/CDの起動操作は行っていません。
+保存履歴はgit log -- docs/visionsで確認できます。分野ごとにcommit/pushしました。構想保存の段階ではruntime/library変更、Release、版更新、main統合、公開CI/CDの起動操作は行っていません。現在の実装状態は冒頭に記載します。
 
 今後さらに思い付いた場合は、対応する分野へ新しいIDを付け、入口の件数を更新します。採用へ進める項目だけ、現行実装との照合と設計・受入を後で行います。
 
-## 最初の実装再開：CLI-01
+## CLI-01の実装に進む際の手順
 
 1. working tree、branch、origin、最新指示を確認する。未commitのユーザー変更を上書きしない。
 2. `src/main.rs`でroot省略と明示rootのcontext選択を追う。`RunOptions.standalone`とmanifest検証、source/artifact入口を確認する。

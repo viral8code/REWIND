@@ -1167,6 +1167,25 @@ pub(super) fn transfer_type(
     shared: bool,
     seen: &mut BTreeSet<String>,
 ) -> bool {
+    transfer_type_with_bounds(program, ty, shared, &BTreeMap::new(), seen)
+}
+
+fn transfer_type_with_bounds(
+    program: &Program,
+    ty: &str,
+    shared: bool,
+    bounds: &BTreeMap<String, String>,
+    seen: &mut BTreeSet<String>,
+) -> bool {
+    // Frozen<T> needs T:Send even when the enclosing value is checked for Share.
+    // Resolve bounds where each parameter is visited, not at the outer query.
+    if bounds.get(ty).is_some_and(|bound| {
+        bound
+            .split('+')
+            .any(|bound| bound == "Share" || (!shared && bound == "Send"))
+    }) {
+        return true;
+    }
     if ty.starts_with('&') {
         return false;
     }
@@ -1390,7 +1409,7 @@ pub(super) fn transfer_type(
             if matches!(base, "Option" | "Result") {
                 return split_type_args(outer_type_end(inner))
                     .iter()
-                    .all(|t| transfer_type(program, t, shared, seen));
+                    .all(|t| transfer_type_with_bounds(program, t, shared, bounds, seen));
             }
         }
     }
@@ -1506,10 +1525,10 @@ pub(super) fn transfer_type(
         return false;
     }
     if let Some(t) = ty.strip_prefix("Frozen<").and_then(|s| s.strip_suffix('>')) {
-        return transfer_type(program, t, false, seen);
+        return transfer_type_with_bounds(program, t, false, bounds, seen);
     }
     if let Some(t) = ty.strip_prefix("Secret<").and_then(|s| s.strip_suffix('>')) {
-        return transfer_type(program, t, shared, seen);
+        return transfer_type_with_bounds(program, t, shared, bounds, seen);
     }
     if matches!(
         program.language.as_str(),
@@ -1616,7 +1635,7 @@ pub(super) fn transfer_type(
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
                 .iter()
-                .all(|t| transfer_type(program, t, shared, seen));
+                .all(|t| transfer_type_with_bounds(program, t, shared, bounds, seen));
         }
     }
     if shared
@@ -1648,7 +1667,15 @@ pub(super) fn transfer_type(
             .collect();
         s.fields
             .iter()
-            .all(|(_, t)| transfer_type(program, &substitute_type(t, &substitutions), shared, seen))
+            .all(|(_, t)| {
+                transfer_type_with_bounds(
+                    program,
+                    &substitute_type(t, &substitutions),
+                    shared,
+                    bounds,
+                    seen,
+                )
+            })
     } else if let Some(e) = program.enums.get(base) {
         let args = ty
             .split_once('<')
@@ -1663,12 +1690,20 @@ pub(super) fn transfer_type(
         e.variants
             .values()
             .flatten()
-            .all(|(_, t)| transfer_type(program, &substitute_type(t, &substitutions), shared, seen))
+            .all(|(_, t)| {
+                transfer_type_with_bounds(
+                    program,
+                    &substitute_type(t, &substitutions),
+                    shared,
+                    bounds,
+                    seen,
+                )
+            })
     } else if matches!(base, "List" | "Map" | "Option" | "Result") {
         ty.split_once('<').is_some_and(|(_, args)| {
             split_type_args(outer_type_end(args))
                 .iter()
-                .all(|t| transfer_type(program, t, false, seen))
+                .all(|t| transfer_type_with_bounds(program, t, false, bounds, seen))
         })
     } else {
         false
@@ -1682,20 +1717,7 @@ pub(super) fn transfer_bounded(
     shared: bool,
     bounds: &BTreeMap<String, String>,
 ) -> bool {
-    let substitutions = bounds
-        .iter()
-        .filter(|(_, b)| {
-            b.split('+')
-                .any(|b| b == "Share" || (!shared && b == "Send"))
-        })
-        .map(|(n, _)| (n.clone(), "Int".into()))
-        .collect();
-    transfer_type(
-        program,
-        &substitute_type(ty, &substitutions),
-        shared,
-        &mut BTreeSet::new(),
-    )
+    transfer_type_with_bounds(program, ty, shared, bounds, &mut BTreeSet::new())
 }
 
 pub(super) fn expressions(body: &[Stmt], visit: &mut impl FnMut(&Expr)) {
