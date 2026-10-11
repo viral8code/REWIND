@@ -558,3 +558,46 @@ test fn history_graph_rejects_invalid_edges_and_names_before_insertion()->Unit e
         Err(_)=>{panic("graph setup");}
     }
 }
+
+import parser as parser;
+import parser.{pure as parserPure};
+
+test fn parser_choice_tracks_farthest_failure_and_merged_expectations()->Unit effects {} {
+    let first=parser.literal(Bytes("ab"),"ab");
+    let second=parser.literal(Bytes("ac"),"ac");
+    match parser.complete(parser.orElse(first,second),Bytes("ac")) {Ok(value)=>{assert_eq(value,Bytes("ac"));},Err(_)=>{panic("choice");}}
+    match parser.complete(parser.orElse(first,second),Bytes("ax")) {
+        Err(problem)=>{
+            assert_eq(problem.offset,1);assert_eq(problem.expected.len(),2);
+            assert_eq(problem.expected.get(0),"ab");assert_eq(problem.expected.get(1),"ac");
+        },
+        Ok(_)=>{panic("bad prefix accepted");}
+    }
+    match parser.complete(first,Bytes("abx")) {Err(problem)=>{assert_eq(problem.code,"TrailingInput");assert_eq(problem.offset,2);},Ok(_)=>{panic("trailing input");}}
+    let utf=parser.literal(Bytes("日本"),"Japanese word");
+    match parser.parse(utf,Bytes("日本!")) {Ok(result)=>{assert_eq(parser.position(result.next),6);assert_eq(parser.remaining(result.next),1);},Err(_)=>{panic("byte offsets");}}
+}
+
+test fn parser_cut_prevents_fallback_and_optional_preserves_cursor()->Unit effects {} {
+    let committed=parser.cut(parser.literal(Bytes("ab"),"ab"));
+    let fallback=parser.literal(Bytes("ac"),"ac");
+    match parser.complete(parser.orElse(committed,fallback),Bytes("ac")) {Err(problem)=>{assert(problem.committed);},Ok(_)=>{panic("cut ignored");}}
+    let sequence=parser.pair(parser.optional(parser.literal(Bytes("x"),"x")),parser.literal(Bytes("a"),"a"));
+    match parser.complete(sequence,Bytes("a")) {Ok(value)=>{assert_eq(value.0,None);assert_eq(value.1,Bytes("a"));},Err(_)=>{panic("optional");}}
+}
+
+test fn parser_repeat_is_bounded_and_rejects_empty_success()->Unit effects {} {
+    let digit=parser.satisfy("digit",|byte:Int|->Bool{return byte>=48 && byte<=57;});
+    match parser.repeat(digit,1,3) {
+        Ok(digits)=>{
+            match parser.complete(digits,Bytes("123")) {Ok(values)=>{assert_eq(values.len(),3);assert_eq(values.get(0),49);},Err(_)=>{panic("digits");}}
+            match parser.complete(digits,Bytes("")) {Err(_)=>{},Ok(_)=>{panic("minimum");}}
+            match parser.complete(digits,Bytes("1234")) {Err(problem)=>{assert_eq(problem.code,"TrailingInput");},Ok(_)=>{panic("maximum");}}
+        },
+        Err(_)=>{panic("repeat setup");}
+    }
+    match parser.repeat(parserPure<Int>(1),0,4) {
+        Ok(empty)=>{match parser.complete(empty,Bytes("")) {Err(problem)=>{assert_eq(problem.code,"NonProgress");},Ok(_)=>{panic("empty repeat");}}},
+        Err(_)=>{panic("empty setup");}
+    }
+}

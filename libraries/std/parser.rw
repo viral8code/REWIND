@@ -1,0 +1,170 @@
+// Bounded byte parsers. Cursor state is data; grammar choice never restores VM execution.
+pub record Cursor {private input:Bytes,private offset:Int}
+pub record Parsed<T:Share> {value:T,next:Cursor}
+pub record ParseError {code:String,offset:Int,expected:Frozen<List<String>>,committed:Bool}
+pub record Parser<T:Share> {
+    private action:fn(Cursor)->Result<Parsed<T>,ParseError> effects {} captures {Send,Share}
+}
+
+pub fn position(cursor:Cursor)->Int effects {} {return cursor.offset;}
+pub fn remaining(cursor:Cursor)->Int effects {} {return stdBytesLength(cursor.input)-cursor.offset;}
+
+fn error(code:String,offset:Int,description:String,committed:Bool)->ParseError effects {} {
+    let expected=List<String>();expected.add(description);
+    return ParseError(code,offset,freeze(expected),committed);
+}
+fn octet(input:Bytes,offset:Int)->Int effects {} {
+    match stdBytesGet(input,offset) {Ok(value)=>{return value;},Err(_)=>{panic("parser byte invariant");}}
+}
+fn best(left:ParseError,right:ParseError)->ParseError effects {} {
+    if left.offset>right.offset {return left;}
+    if right.offset>left.offset {return right;}
+    let expected=List<String>();let seen=Map<String,Bool>();
+    for i in 0..left.expected.len() {
+        let label=left.expected.get(i);
+        match seen.get(label) {Some(_)=>{},None=>{if expected.len()<32 {expected.add(label);seen.set(label,true);}}}
+    }
+    for i in 0..right.expected.len() {
+        let label=right.expected.get(i);
+        match seen.get(label) {Some(_)=>{},None=>{if expected.len()<32 {expected.add(label);seen.set(label,true);}}}
+    }
+    return ParseError("Mismatch",left.offset,freeze(expected),false);
+}
+
+// @api parse Input is limited to 1 MiB; positions are byte offsets. Returns the remaining cursor on success.
+pub fn parse<T:Share>(parser:Parser<T>,input:Bytes)->Result<Parsed<T>,ParseError> effects {} {
+    if stdBytesLength(input)>1048576 {return Err(error("InputLimit",0,"input <= 1 MiB",true));}
+    let action=parser.action;return action(Cursor(input,0));
+}
+pub fn complete<T:Share>(parser:Parser<T>,input:Bytes)->Result<T,ParseError> effects {} {
+    match parse(parser,input) {
+        Err(problem)=>{return Err(problem);},
+        Ok(result)=>{
+            if remaining(result.next)!=0 {return Err(error("TrailingInput",position(result.next),"end of input",false));}
+            return Ok(result.value);
+        }
+    }
+}
+
+pub fn pure<T:Share>(value:T)->Parser<T> effects {} {
+    return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{return Ok(Parsed<T>(value,cursor));});
+}
+pub fn fail<T:Share>(description:String)->Parser<T> effects {} {
+    return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{return Err(error("Mismatch",cursor.offset,description,false));});
+}
+
+// @api literal Matches bytes exactly and reports the first differing byte; descriptions are caller-supplied labels.
+pub fn literal(value:Bytes,description:String)->Parser<Bytes> effects {} {
+    return Parser<Bytes>(|cursor:Cursor|->Result<Parsed<Bytes>,ParseError>{
+        var i=0;let size=stdBytesLength(value);let end=stdBytesLength(cursor.input);
+        while i<size {
+            let offset=cursor.offset+i;
+            if offset>=end {return Err(error("Mismatch",offset,description,false));}
+            if octet(cursor.input,offset)!=octet(value,i) {return Err(error("Mismatch",offset,description,false));}
+            i+=1;
+        }
+        return Ok(Parsed<Bytes>(value,Cursor(cursor.input,cursor.offset+size)));
+    });
+}
+pub fn satisfy(description:String,predicate:fn(Int)->Bool effects {} captures {Send,Share})->Parser<Int> effects {} {
+    return Parser<Int>(|cursor:Cursor|->Result<Parsed<Int>,ParseError>{
+        if cursor.offset>=stdBytesLength(cursor.input) {return Err(error("Mismatch",cursor.offset,description,false));}
+        let value=octet(cursor.input,cursor.offset);
+        if !predicate(value) {return Err(error("Mismatch",cursor.offset,description,false));}
+        return Ok(Parsed<Int>(value,Cursor(cursor.input,cursor.offset+1)));
+    });
+}
+pub fn end()->Parser<Unit> effects {} {
+    return Parser<Unit>(|cursor:Cursor|->Result<Parsed<Unit>,ParseError>{
+        if remaining(cursor)!=0 {return Err(error("Mismatch",cursor.offset,"end of input",false));}
+        return Ok(Parsed<Unit>((),cursor));
+    });
+}
+
+pub fn map<T:Share,U:Share>(parser:Parser<T>,transform:fn(T)->U effects {} captures {Send,Share})->Parser<U> effects {} {
+    let action=parser.action;
+    return Parser<U>(|cursor:Cursor|->Result<Parsed<U>,ParseError>{
+        match action(cursor) {
+            Ok(result)=>{return Ok(Parsed<U>(transform(result.value),result.next));},
+            Err(problem)=>{return Err(problem);}
+        }
+    });
+}
+
+pub fn pair<T:Share,U:Share>(first:Parser<T>,second:Parser<U>)->Parser<Tuple<T,U>> effects {} {
+    let left=first.action;let right=second.action;
+    return Parser<Tuple<T,U>>(|cursor:Cursor|->Result<Parsed<Tuple<T,U>>,ParseError>{
+        match left(cursor) {
+            Err(problem)=>{return Err(problem);},
+            Ok(a)=>{
+                match right(a.next) {
+                    Err(problem)=>{return Err(problem);},
+                    Ok(b)=>{return Ok(Parsed<Tuple<T,U>>((a.value,b.value),b.next));}
+                }
+            }
+        }
+    });
+}
+
+// @api orElse Retries second from the original cursor, unless first failed with cut. Equal farthest offsets merge at most 32 unique expectations.
+pub fn orElse<T:Share>(first:Parser<T>,second:Parser<T>)->Parser<T> effects {} {
+    let left=first.action;let right=second.action;
+    return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
+        match left(cursor) {
+            Ok(result)=>{return Ok(result);},
+            Err(a)=>{
+                if a.committed {return Err(a);}
+                match right(cursor) {
+                    Ok(result)=>{return Ok(result);},
+                    Err(b)=>{if b.committed {return Err(b);}return Err(best(a,b));}
+                }
+            }
+        }
+    });
+}
+
+// @api cut Commits grammar failure only; does not create a VM checkpoint or publish output.
+pub fn cut<T:Share>(parser:Parser<T>)->Parser<T> effects {} {
+    let action=parser.action;
+    return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
+        match action(cursor) {
+            Ok(result)=>{return Ok(result);},
+            Err(problem)=>{return Err(ParseError(problem.code,problem.offset,problem.expected,true));}
+        }
+    });
+}
+
+pub fn optional<T:Share>(parser:Parser<T>)->Parser<Option<T>> effects {} {
+    let action=parser.action;
+    return Parser<Option<T>>(|cursor:Cursor|->Result<Parsed<Option<T>>,ParseError>{
+        match action(cursor) {
+            Ok(result)=>{return Ok(Parsed<Option<T>>(Some(result.value),result.next));},
+            Err(problem)=>{
+                if problem.committed {return Err(problem);}
+                return Ok(Parsed<Option<T>>(None,cursor));
+            }
+        }
+    });
+}
+
+// @api repeat Requires 0 <= minimum <= maximum <= 65536. Stops at maximum without a probe; zero-progress success is an error.
+pub fn repeat<T:Share>(parser:Parser<T>,minimum:Int,maximum:Int)->Result<Parser<Frozen<List<T>>>,ParseError> effects {} {
+    if minimum<0 || maximum<minimum || maximum>65536 {return Err(error("InvalidBounds",0,"0 <= min <= max <= 65536",true));}
+    let action=parser.action;
+    return Ok(Parser<Frozen<List<T>>>(|cursor:Cursor|->Result<Parsed<Frozen<List<T>>>,ParseError>{
+        let values=List<T>();var next=cursor;
+        while values.len()<maximum {
+            match action(next) {
+                Ok(result)=>{
+                    if result.next.offset<=next.offset {return Err(error("NonProgress",next.offset,"consuming parser",true));}
+                    values.add(result.value);next=result.next;
+                },
+                Err(problem)=>{
+                    if problem.committed || values.len()<minimum {return Err(problem);}
+                    return Ok(Parsed<Frozen<List<T>>>(freeze(values),next));
+                }
+            }
+        }
+        return Ok(Parsed<Frozen<List<T>>>(freeze(values),next));
+    }));
+}
