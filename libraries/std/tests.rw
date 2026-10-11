@@ -307,3 +307,81 @@ test fn heterogeneous_task_readiness() {
  let left=readyNumber();let right=readyText();assert_eq(await task.selectReady(left,right),Ok(1));
  assert_eq(await right,Ok("ready"));assert_eq(await left,Ok(42));
 }
+
+import snapshot as snapshot;
+import history as history;
+import history.{create as createHistory,HistoryError};
+
+test fn data_snapshot_isolates_capture_and_forks()->Unit effects {} {
+    let values=List<Int>();values.add(10);
+    let first=snapshot.capture(&values);
+    values.set(0,99);
+    let second=snapshot.capture(&values);
+    let old=snapshot.read(first);let latest=snapshot.read(second);
+    assert_eq(old.get(0),10);assert_eq(latest.get(0),99);
+    let left=snapshot.fork(first);let right=snapshot.fork(first);
+    left.set(0,7);right.add(20);
+    assert_eq(left.len(),1);assert_eq(right.get(0),10);
+    assert_eq(right.len(),2);assert_eq(old.len(),1);assert_eq(values.get(0),99);
+    let scalar=42;assert_eq(snapshot.fork(snapshot.capture(&scalar)),42);
+}
+
+test fn named_data_history_preserves_removed_and_reused_roots()->Unit effects {} {
+    match createHistory<List<Int>>(2) {
+        Ok(versions)=>{
+            let values=List<Int>();values.add(10);
+            assert_eq(history.save(&mut versions,"initial",&values),Ok(()));
+            values.set(0,99);
+            assert_eq(history.save(&mut versions,"latest",&values),Ok(()));
+            assert_eq(history.length(&versions),2);
+            match history.get(&versions,"initial") {
+                Some(saved)=>{
+                    assert_eq(history.save(&mut versions,"initial",&values),Err(HistoryError::DuplicateName));
+                    assert_eq(history.save(&mut versions,"overflow",&values),Err(HistoryError::Capacity));
+                    match history.remove(&mut versions,"initial") {
+                        Some(removed)=>{assert_eq(snapshot.read(removed).get(0),10);},
+                        None=>{panic("missing registered version");}
+                    }
+                    assert_eq(history.length(&versions),1);
+                    assert_eq(history.save(&mut versions,"initial",&values),Ok(()));
+                    assert_eq(snapshot.read(saved).get(0),10);
+                    match history.get(&versions,"initial") {
+                        Some(reused)=>{assert_eq(snapshot.read(reused).get(0),99);},
+                        None=>{panic("missing replacement");}
+                    }
+                    history.clear(&mut versions);
+                    assert_eq(history.length(&versions),0);
+                    let fork=snapshot.fork(saved);fork.set(0,5);
+                    assert_eq(snapshot.read(saved).get(0),10);
+                },
+                None=>{panic("missing initial version");}
+            }
+            assert(!history.contains(&versions,"initial"));
+            match history.get(&versions,"missing") {None=>{},Some(_)=>{panic("unexpected version");}}
+            match history.remove(&mut versions,"missing") {None=>{},Some(_)=>{panic("unexpected removed version");}}
+        },
+        Err(_)=>{panic("history setup");}
+    }
+}
+
+test fn data_history_validates_before_mutating_and_lists_names()->Unit effects {} {
+    match createHistory<Int>(0) {Err(e)=>{assert_eq(e,HistoryError::InvalidCapacity);},Ok(_)=>{panic("capacity accepted");}}
+    match createHistory<Int>(65537) {Err(e)=>{assert_eq(e,HistoryError::InvalidCapacity);},Ok(_)=>{panic("capacity accepted");}}
+    match createHistory<Int>(3) {
+        Ok(versions)=>{
+            let value=1;
+            assert_eq(history.save(&mut versions,"",&value),Err(HistoryError::InvalidName));
+            var name="";for i in 0..128 {name=name+"界";}
+            assert_eq(history.save(&mut versions,name+"界",&value),Err(HistoryError::InvalidName));
+            assert_eq(history.length(&versions),0);
+            assert_eq(history.save(&mut versions,name,&value),Ok(()));
+            assert_eq(history.save(&mut versions,"z",&value),Ok(()));
+            assert_eq(history.save(&mut versions,"a",&value),Ok(()));
+            let listed=history.names(&versions);
+            assert_eq(listed.len(),3);assert_eq(listed.get(0),"a");assert_eq(listed.get(1),"z");assert_eq(listed.get(2),name);
+            listed.add("detached");
+            assert_eq(history.length(&versions),3);
+        },
+        Err(_)=>{panic("history setup");}
+    }
+}

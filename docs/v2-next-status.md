@@ -1,6 +1,6 @@
 # v2.1以降：作業状態と再開手順
 
-更新日：2026-10-11。構想から実装へ移行。最初にSnapshot<T>の前提となるgeneric Send/Share判定を修正しています。**実装中・実行検証待ち**です。
+更新日：2026-10-11。構想から実装へ移行しました。最初の単位はSnapshot<T>と名前付きHistory<T>です。**実装中・実行検証待ち**であり、版更新・Release公開は行っていません。
 
 ## この作業で守る指示
 
@@ -15,7 +15,9 @@
 
 ## 現在の実装単位
 
-[generic Frozenの共有判定](v2-next-frozen-bounds-implementation.md)を先に修正する。その上にstd.snapshotとstd.historyを追加する。CP-05/06全体、動的な実行checkpoint操作、hyper領域、parent graph、mergeは完了扱いにしない。
+[データsnapshotと名前付き履歴](v2-next-snapshot-implementation.md)を追加する。std.snapshot、std.history、埋込みmodule登録、library/CLIの回帰test、利用例を含む。[generic Frozenの共有判定](v2-next-frozen-bounds-implementation.md)も修正する。
+
+CP-05/06全体、動的な実行checkpoint操作、hyper領域、parent graph、mergeは完了扱いにしない。既存のCLI-01以降の計画も維持する。
 
 作業環境のcontainer_creationが失敗し、compileと実行testは未実施。GitHub接続でsourceを調査し、codex/developへ実装と回帰testを保存する。検証できるまで状態を「実装中」とする。
 

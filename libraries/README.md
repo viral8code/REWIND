@@ -1,5 +1,18 @@
 # REWIND libraries
 
+## codex/developで追加中のmodule
+
+[データsnapshotと名前付き履歴](../docs/v2-next-snapshot-implementation.md)を追加中です。実装・test sourceを保存しましたが、環境起動失敗によりcompileと実行検証は未実施です。公開版の利用可能APIとしては扱いません。
+
+| module | 公開API | 契約 |
+|---|---|---|
+| snapshot | Snapshot<T>, capture, read, fork | 選択したdataのFrozen root、独立したfork、全VMや実行位置は保存しない |
+| history | History<T>, HistoryError, create, save, get, remove, clear, names, contains, length | boundedな名前付きregistry、削除・名前再利用から取得済みsnapshotを分離、通常modelとしてrevert対象 |
+
+[実行例](../examples/data-history.rw)と[型判定の変更](../docs/v2-next-frozen-bounds-implementation.md)を参照してください。
+
+## 既存ライブラリと配布の記録
+
 compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
 | module | 公開 API | 契約 |

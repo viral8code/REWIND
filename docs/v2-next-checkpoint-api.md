@@ -1,6 +1,8 @@
 # 構想の具体化：動的checkpoint・handle・型付きsnapshot
 
-状態：採用判断前。未実装のAPI案です。ユーザー提案の「commit名を文字列でreflection的に指定する」から、libraryが複数版を扱える方向へ掘り下げます。版番号は未割当です。
+状態：CP-05/06の一部を実装中・実行検証待ち。その他は採用判断前のAPI案です。ユーザー提案の「commit名を文字列でreflection的に指定する」から、libraryが複数版を扱える方向へ掘り下げます。版番号は未割当です。
+
+2026-10-11：既存Frozen<T>を使うstd.snapshotと、名前付きregistryのstd.historyを最初の単位に選びました。[実装範囲と検証状態](v2-next-snapshot-implementation.md)を参照してください。以下の擬似APIすべてが実装されたという意味ではありません。
 
 ## 現行仕様と差分
 
@@ -104,4 +106,4 @@ checkpointをserializeする場合は、opaque handle、call stack、physical re
 
 最初はCP-05/06を現行freeze/共有storageでどこまで書けるか確認します。その後、CP-01/02の動的label管理、CP-04のtyped key、CP-03のcontinuation扱いを分けて設計します。
 
-文字列lookupだけの小さな入口と、同時に読めるsnapshotは別の能力です。前者は履歴を選びやすくし、後者は版付きデータ構造を通常のlibraryとして組み立てやすくします。今は構想の保存だけで、compiler/runtimeは変更しません。
+文字列lookupだけの小さな入口と、同時に読めるsnapshotは別の能力です。前者は履歴を選びやすくし、後者は版付きデータ構造を通常のlibraryとして組み立てやすくします。最初の実装はdata snapshot libraryに絞り、実行checkpointの契約は変更しません。
