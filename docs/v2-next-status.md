@@ -13,6 +13,10 @@
 
 過去の「公開後mainへ統合」という一般方針は、今回の「codex/developだけ」という指示で上書きされています。将来の実装時も、当時の最新指示を確認してから公開を扱います。
 
+## 継続作業の方針
+
+ユーザーから実行検証を省略して草案の実装を進める指示を受けた。環境復旧を実装の開始条件にしない。[履歴・変更操作library](v2-next-data-tools-implementation.md)へ進め、source実装と検証済みを区別して記録する。
+
 ## 現在の実装単位
 
 [データsnapshotと名前付き履歴](v2-next-snapshot-implementation.md)を追加する。std.snapshot、std.history、埋込みmodule登録、library/CLIの回帰test、利用例を含む。[generic Frozenの共有判定](v2-next-frozen-bounds-implementation.md)も修正する。

@@ -385,3 +385,55 @@ test fn data_history_validates_before_mutating_and_lists_names()->Unit effects {
         Err(_)=>{panic("history setup");}
     }
 }
+
+import timeline as timeline;
+import timeline.{create as createTimeline,TimelineError};
+
+test fn timeline_wraps_truncates_and_keeps_detached_snapshots()->Unit effects {} {
+    let value=10;
+    match createTimeline(&value,3) {
+        Ok(line)=>{
+            let original=timeline.current(&line);
+            for n in 11..15 {timeline.push(&mut line,&n);}
+            assert_eq(timeline.length(&line),3);
+            assert_eq(timeline.position(&line),2);
+            match timeline.get(&line,0) {Some(v)=>{assert_eq(snapshot.fork(v),12);},None=>{panic("missing oldest");}}
+            match timeline.undo(&mut line) {Some(v)=>{assert_eq(snapshot.fork(v),13);},None=>{panic("undo");}}
+            let replacement=99;timeline.push(&mut line,&replacement);
+            assert(!timeline.canRedo(&line));
+            assert_eq(snapshot.fork(timeline.current(&line)),99);
+            assert_eq(snapshot.fork(original),10);
+            match timeline.seek(&mut line,-1) {Err(e)=>{assert_eq(e,TimelineError::Index);},Ok(_)=>{panic("negative index");}}
+            assert_eq(timeline.position(&line),2);
+            timeline.clear(&mut line);
+            assert_eq(timeline.length(&line),1);
+            assert(!timeline.canUndo(&line));
+            assert_eq(snapshot.fork(timeline.current(&line)),99);
+        },
+        Err(_)=>{panic("timeline setup");}
+    }
+}
+
+test fn timeline_capacity_one_and_redo_boundaries()->Unit effects {} {
+    let value=1;
+    match createTimeline(&value,0) {Err(e)=>{assert_eq(e,TimelineError::InvalidCapacity);},Ok(_)=>{panic("capacity");}}
+    match createTimeline(&value,65537) {Err(e)=>{assert_eq(e,TimelineError::InvalidCapacity);},Ok(_)=>{panic("capacity");}}
+    match createTimeline(&value,1) {
+        Ok(line)=>{
+            let two=2;timeline.push(&mut line,&two);
+            assert_eq(timeline.length(&line),1);
+            assert_eq(snapshot.fork(timeline.current(&line)),2);
+            match timeline.undo(&mut line) {None=>{},Some(_)=>{panic("undo past start");}}
+            match timeline.redo(&mut line) {None=>{},Some(_)=>{panic("redo past end");}}
+        },
+        Err(_)=>{panic("timeline setup");}
+    }
+    match createTimeline(&value,2) {
+        Ok(line)=>{
+            let two=2;timeline.push(&mut line,&two);
+            timeline.undo(&mut line);
+            match timeline.redo(&mut line) {Some(v)=>{assert_eq(snapshot.fork(v),2);},None=>{panic("redo");}}
+        },
+        Err(_)=>{panic("timeline setup");}
+    }
+}

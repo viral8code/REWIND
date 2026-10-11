@@ -37,6 +37,7 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        ("timeline", include_str!("../../../libraries/std/timeline.rw")),
         ("snapshot", include_str!("../../../libraries/std/snapshot.rw")),
         ("history", include_str!("../../../libraries/std/history.rw")),
         (

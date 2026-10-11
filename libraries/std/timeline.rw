@@ -1,0 +1,87 @@
+import snapshot as snapshot;
+
+pub enum TimelineError {InvalidCapacity,Index}
+
+// A bounded data history. Moving the cursor does not restore execution or model bindings.
+pub struct Timeline<T:Send> {
+    private entries:Map<Int,snapshot.Snapshot<T>>,
+    private capacity:Int,
+    private start:Int,
+    private count:Int,
+    private cursor:Int
+}
+
+// @api create Capacity includes the current version; accepts 1..65536.
+pub fn create<T:Send>(initial:&T,capacity:Int)->Result<Timeline<T>,TimelineError> effects {} {
+    if capacity<1 || capacity>65536 {return Err(TimelineError::InvalidCapacity);}
+    let entries=Map<Int,snapshot.Snapshot<T>>();
+    entries.set(0,snapshot.capture(initial));
+    return Ok(Timeline<T>(move entries,capacity,0,1,0));
+}
+
+fn at<T:Send>(timeline:&Timeline<T>,index:Int)->snapshot.Snapshot<T> effects {} {
+    match timeline.entries.get((timeline.start+index)%timeline.capacity) {
+        Some(saved)=>{return saved;},
+        None=>{panic("timeline invariant");}
+    }
+}
+
+pub fn length<T:Send>(timeline:&Timeline<T>)->Int effects {} {return timeline.count;}
+pub fn position<T:Send>(timeline:&Timeline<T>)->Int effects {} {return timeline.cursor;}
+pub fn canUndo<T:Send>(timeline:&Timeline<T>)->Bool effects {} {return timeline.cursor>0;}
+pub fn canRedo<T:Send>(timeline:&Timeline<T>)->Bool effects {} {return timeline.cursor+1<timeline.count;}
+pub fn current<T:Send>(timeline:&Timeline<T>)->snapshot.Snapshot<T> effects {} {return at(timeline,timeline.cursor);}
+
+pub fn get<T:Send>(timeline:&Timeline<T>,index:Int)->Option<snapshot.Snapshot<T>> effects {} {
+    if index<0 || index>=timeline.count {return None;}
+    return Some(at(timeline,index));
+}
+
+// @api seek Indices are relative to the oldest retained version and can change after eviction.
+pub fn seek<T:Send>(timeline:&mut Timeline<T>,index:Int)->Result<snapshot.Snapshot<T>,TimelineError> effects {} {
+    if index<0 || index>=timeline.count {return Err(TimelineError::Index);}
+    timeline.cursor=index;
+    return Ok(at(timeline,index));
+}
+
+pub fn undo<T:Send>(timeline:&mut Timeline<T>)->Option<snapshot.Snapshot<T>> effects {} {
+    if timeline.cursor==0 {return None;}
+    timeline.cursor-=1;
+    return Some(at(timeline,timeline.cursor));
+}
+
+pub fn redo<T:Send>(timeline:&mut Timeline<T>)->Option<snapshot.Snapshot<T>> effects {} {
+    if timeline.cursor+1>=timeline.count {return None;}
+    timeline.cursor+=1;
+    return Some(at(timeline,timeline.cursor));
+}
+
+// @api pushSnapshot Discards redo entries, then evicts the oldest entry when full. Retained snapshot values stay valid.
+pub fn pushSnapshot<T:Send>(timeline:&mut Timeline<T>,saved:snapshot.Snapshot<T>)->Unit effects {} {
+    while timeline.count>timeline.cursor+1 {
+        timeline.entries.remove((timeline.start+timeline.count-1)%timeline.capacity);
+        timeline.count-=1;
+    }
+    if timeline.count==timeline.capacity {
+        timeline.entries.remove(timeline.start);
+        timeline.start=(timeline.start+1)%timeline.capacity;
+        timeline.count-=1;
+    }
+    timeline.entries.set((timeline.start+timeline.count)%timeline.capacity,saved);
+    timeline.count+=1;
+    timeline.cursor=timeline.count-1;
+}
+
+// @api push Captures before changing the registry; allocation/budget failures retain the VM's existing fatal semantics.
+pub fn push<T:Send>(timeline:&mut Timeline<T>,value:&T)->Unit effects {} {
+    let saved=snapshot.capture(value);
+    pushSnapshot(timeline,saved);
+}
+
+// @api clear Retains the current snapshot as the sole entry; other holders keep their roots.
+pub fn clear<T:Send>(timeline:&mut Timeline<T>)->Unit effects {} {
+    let saved=current(timeline);
+    let entries=Map<Int,snapshot.Snapshot<T>>();entries.set(0,saved);
+    timeline.entries=move entries;
+    timeline.start=0;timeline.count=1;timeline.cursor=0;
+}
