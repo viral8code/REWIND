@@ -1122,3 +1122,56 @@ test fn text_edits_reject_foreign_or_split_scalar_ranges_and_preserve_noops()->U
     assert_eq(textIndex.text(textEdit.result(removed)),"");
     assert_eq(textIndex.text(textEdit.result(textEdit.inverse(removed))),"日本");
 }
+
+test fn text_edit_chains_preserve_order_inverse_and_failure_step()->Unit effects {} {
+    let original=transformTake(textIndex.create("ab"));
+    let boundary=transformTake(textIndex.scalarAt(original,1));
+    let first=transformTake(textEdit.replace(boundary,boundary,"XY"));
+    let middle=textEdit.result(first);
+    let second=transformTake(textEdit.replace(transformTake(textIndex.scalarAt(middle,1)),transformTake(textIndex.scalarAt(middle,3)),"Z"));
+    let edits=List<textEdit.Edit>();edits.add(first);edits.add(second);
+    let chain=transformTake(textEdit.chain(original,&edits));
+    assert_eq(textEdit.chainLength(chain),2);assert_eq(textIndex.text(textEdit.chainResult(chain)),"aZb");
+    let after=transformTake(textEdit.mapChainScalar(chain,boundary,Policy::After));
+    assert_eq(textIndex.scalarValue(after),2);
+    let before=transformTake(textEdit.mapChainScalar(chain,boundary,Policy::Before));
+    assert_eq(textIndex.scalarValue(before),1);
+    match textEdit.mapChainScalar(chain,boundary,Policy::Exact) {Err(e)=>{assert_eq(e.code,"AmbiguousInsertion");assert_eq(e.step,0);},Ok(_)=>{panic("chain ambiguity");}}
+    let terminal=transformTake(textIndex.scalarAt(original,2));
+    let mapped=transformTake(textEdit.mapChainScalar(chain,terminal,Policy::Exact));
+    assert_eq(textIndex.scalarValue(mapped),3);
+    let inverse=textEdit.inverseChain(chain);
+    assert_eq(textIndex.text(textEdit.chainResult(inverse)),"ab");
+    assert_eq(textIndex.scalarValue(transformTake(textEdit.mapChainScalar(inverse,mapped,Policy::Exact))),2);
+    edits.add(first);
+    assert_eq(textEdit.chainLength(chain),2);
+    match textEdit.chain(original,&edits) {Err(e)=>{assert_eq(e.code,"TextMismatch");assert_eq(e.step,2);},Ok(_)=>{panic("disconnected edit");}}
+}
+
+test fn text_edit_chains_check_final_boundaries_and_empty_identity()->Unit effects {} {
+    let original=transformTake(textIndex.create("ab"));
+    let boundary=transformTake(textIndex.scalarAt(original,1));
+    let first=transformTake(textEdit.replace(boundary,boundary,"́"));
+    let middle=textEdit.result(first);
+    let second=transformTake(textEdit.replace(transformTake(textIndex.scalarAt(middle,1)),transformTake(textIndex.scalarAt(middle,2)),""));
+    let edits=List<textEdit.Edit>();edits.add(first);edits.add(second);
+    let chain=transformTake(textEdit.chain(original,&edits));
+    let old=transformTake(textIndex.graphemeAt(original,1));
+    assert_eq(textIndex.graphemeValue(transformTake(textEdit.mapChainGrapheme(chain,old,Policy::Before))),1);
+    let only=List<textEdit.Edit>();only.add(first);let incomplete=transformTake(textEdit.chain(original,&only));
+    match textEdit.mapChainGrapheme(incomplete,old,Policy::Before) {Err(e)=>{assert_eq(e.code,"GraphemeBoundary");assert_eq(e.step,1);},Ok(_)=>{panic("final boundary");}}
+    let empty=List<textEdit.Edit>();let identity=transformTake(textEdit.chain(original,&empty));
+    assert_eq(textEdit.chainLength(identity),0);
+    assert_eq(textIndex.scalarValue(transformTake(textEdit.mapChainScalar(identity,boundary,Policy::Exact))),1);
+    let foreign=transformTake(textIndex.create("cd"));
+    match textEdit.mapChainByte(identity,transformTake(textIndex.byteAt(foreign,1)),Policy::Exact) {Err(e)=>{assert_eq(e.code,"TextMismatch");assert_eq(e.step,-1);},Ok(_)=>{panic("foreign chain position");}}
+}
+
+test fn text_edit_chains_enforce_capacity_without_truncating()->Unit effects {} {
+    let source=transformTake(textIndex.create(""));
+    let position=transformTake(textIndex.scalarAt(source,0));
+    let noChange=transformTake(textEdit.replace(position,position,""));
+    let edits=List<textEdit.Edit>();for i in 0..1025 {edits.add(noChange);}
+    match textEdit.chain(source,&edits) {Err(e)=>{assert_eq(e.code,"EditLimit");assert_eq(e.step,-1);},Ok(_)=>{panic("chain capacity");}}
+    assert_eq(edits.len(),1025);assert_eq(textIndex.text(source),"");
+}

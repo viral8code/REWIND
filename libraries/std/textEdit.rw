@@ -101,3 +101,70 @@ pub fn mapGrapheme(edit:Edit,position:textIndex.GraphemeIndex,policy:Policy)->Re
         Ok(updated)=>{match textIndex.byteToGrapheme(updated) {Ok(value)=>{return Ok(value);},Err(e)=>{return Err(EditError(e.code,e.offset));}}}
     }
 }
+
+pub record ChainError {code:String,offset:Int,step:Int}
+pub record Chain {
+    private before:textIndex.Source,
+    private after:textIndex.Source,
+    private edits:Frozen<List<Edit>>
+}
+
+// @api chain Checks that at most 1024 edits connect by exact text content. Keeps the entire sequence and its source versions.
+pub fn chain(source:textIndex.Source,edits:&List<Edit>)->Result<Chain,ChainError> effects {} {
+    if edits.len()>1024 {return Err(ChainError("EditLimit",edits.len(),-1));}
+    var current=source;
+    for i in 0..edits.len() {
+        let edit=edits.get(i);
+        if textIndex.text(current)!=textIndex.text(edit.before) {return Err(ChainError("TextMismatch",edit.start,i));}
+        current=edit.after;
+    }
+    return Ok(Chain(source,current,freeze(edits)));
+}
+pub fn chainSource(mapping:Chain)->textIndex.Source effects {} {return mapping.before;}
+pub fn chainResult(mapping:Chain)->textIndex.Source effects {} {return mapping.after;}
+pub fn chainLength(mapping:Chain)->Int effects {} {return mapping.edits.len();}
+pub fn inverseChain(mapping:Chain)->Chain effects {} {
+    let reversed=List<Edit>();var index=mapping.edits.len()-1;
+    while index>=0 {reversed.add(inverse(thaw(mapping.edits.get(index))));index-=1;}
+    return Chain(mapping.after,mapping.before,freeze(reversed));
+}
+
+// @api mapChainByte Verifies the initial source once, then maps offsets through the already-validated sequence. Failure identifies the first failing step.
+pub fn mapChainByte(mapping:Chain,position:textIndex.ByteOffset,policy:Policy)->Result<textIndex.ByteOffset,ChainError> effects {} {
+    var offset=textIndex.byteValue(position);
+    if textIndex.text(textIndex.byteSource(position))!=textIndex.text(mapping.before) {return Err(ChainError("TextMismatch",offset,-1));}
+    for i in 0..mapping.edits.len() {
+        let edit=thaw(mapping.edits.get(i));
+        match mappedOffset(edit,offset,policy) {
+            Ok(updated)=>{offset=updated;},
+            Err(e)=>{return Err(ChainError(e.code,e.offset,i));}
+        }
+    }
+    match textIndex.byteAt(mapping.after,offset) {
+        Ok(value)=>{return Ok(value);},
+        Err(e)=>{return Err(ChainError(e.code,e.offset,mapping.edits.len()));}
+    }
+}
+pub fn mapChainScalar(mapping:Chain,position:textIndex.ScalarIndex,policy:Policy)->Result<textIndex.ScalarIndex,ChainError> effects {} {
+    match mapChainByte(mapping,textIndex.scalarToByte(position),policy) {
+        Err(e)=>{return Err(e);},
+        Ok(updated)=>{
+            match textIndex.byteToScalar(updated) {
+                Ok(value)=>{return Ok(value);},
+                Err(e)=>{return Err(ChainError(e.code,e.offset,mapping.edits.len()));}
+            }
+        }
+    }
+}
+// @api mapChainGrapheme Checks the final grapheme boundary; intermediate versions may temporarily lose that boundary.
+pub fn mapChainGrapheme(mapping:Chain,position:textIndex.GraphemeIndex,policy:Policy)->Result<textIndex.GraphemeIndex,ChainError> effects {} {
+    match mapChainByte(mapping,textIndex.graphemeToByte(position),policy) {
+        Err(e)=>{return Err(e);},
+        Ok(updated)=>{
+            match textIndex.byteToGrapheme(updated) {
+                Ok(value)=>{return Ok(value);},
+                Err(e)=>{return Err(ChainError(e.code,e.offset,mapping.edits.len()));}
+            }
+        }
+    }
+}

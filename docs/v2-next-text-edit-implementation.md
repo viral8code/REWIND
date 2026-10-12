@@ -26,6 +26,16 @@ mapScalarとmapGraphemeは新しい版で境界を再検査する。たとえば
 
 inverseは前後のSourceと範囲を交換したEditを返す。旧原文へ戻れる一方、削除された内部位置の多対一mappingが自動的に可逆になるわけではない。実fileの変更を巻き戻す機能ではない。
 
+## 複数編集の合成
+
+chain(source,edits)は最大1,024個のEditを、前のresultと次のsourceの内容が完全に一致する順序として検査する。空列はsourceを保持するidentity。入力Listを後で変更してもChainの内容は変わらない。chainSource、chainResult、chainLengthで参照する。
+
+mapChainByte / Scalar / Graphemeは最初の原文を一度照合してから、検査済みの編集列へbyte位置を順に通す。各段階で全文照合を繰り返さない。Policyは列全体で共通。途中のDeletedやAmbiguousInsertionは最初の失敗をChainError(code,offset,step)で返す。stepは0始まり、列の入口の失敗は-1、最後の単位変換での境界失敗は編集件数を示す。
+
+scalar/grapheme境界の検査は最終版で行う。中間版でgrapheme境界が一時的に消え、後続編集で復活する場合も、byte位置を追跡できれば変換できる。最終内容が元と同じでも、途中で失われた位置や曖昧な挿入をExactが自動的に無かったことにはしない。
+
+inverseChainは逆順のinverse Editを持ち、前後のSourceを交換する。削除位置に一対一の逆写像が得られるという意味ではない。Chainは全中間版の原文と境界表を保持するので、1,024件上限はbyte量やmemory予算の代わりではない。
+
 ## 費用と限界
 
 一回の編集は必要なsubstringと新しいStringを作り、新版の境界表を構築する。全文長に比例するcopy/scanがあり、rope・piece table・増分grapheme解析は今回含めない。多数の一文字編集が一定時間になると宣伝しない。
@@ -39,3 +49,5 @@ inverseは前後のSourceと範囲を交換したEditを返す。旧原文へ戻
 libraries/std/tests.rwへ3件追加した。日本語→emoji置換、削除位置のpolicy、終端とscalar位置の移動、逆編集、挿入の曖昧さ、結合文字によるgrapheme境界消失、無変更、原文違い、逆範囲、UTF-8内部の拒否、全削除を扱う。実行は省略。
 
 利用例は[text-edit-mapping.rw](../examples/text-edit-mapping.rw)。module registryへ登録したが、SDK/API生成・公開は行っていない。
+
+編集列には追加で3 test sourceを用意した。順序、逆変換、途中の失敗番号、入力Listとの独立性、最終grapheme境界、空列、異なる原文、1,024件上限を扱う。実行は省略。
