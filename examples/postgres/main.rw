@@ -24,8 +24,9 @@ match opening {
                 var reading:Option<Task<Result<DbBatch,DbError>>>=None;
                 external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
                 match reading {None=>{panic("missing read task");},Some(task)=>{
-                    let batch=take(take(await task));let row=batch.rows.get(0);
-                    Out.println(take(db.boolean(row,0)));Out.println(take(db.integer(row,1)));Out.println(take(db.text(row,2)));
+                    let batch=take(take(await task));let row=batch.rows.get(0);let columnMap=take(db.indexColumns(batch.columns));
+                    let readyIndex=take(db.columnNumber(&columnMap,"ready"));let scoreIndex=take(db.columnNumber(&columnMap,"score"));let nameIndex=take(db.columnNumber(&columnMap,"name"));
+                    Out.println(take(db.boolean(row,readyIndex)));Out.println(take(db.integer(row,scoreIndex)));Out.println(take(db.text(row,nameIndex)));
                 }}
             }
         }

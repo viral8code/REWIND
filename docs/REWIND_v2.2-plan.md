@@ -87,7 +87,7 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 
 **部分実装（2026-10-12）：** `std.db.indexColumns`は最大256個のcursor column名を一度検査し、重複を拒否してimmutable `ColumnMap`を返す。`columnNumber`は同じ結果を使って名前からindexを引く。呼出側は既存の`db.text` / `integer` / `floating` / `boolean`等を明示してrecordを構築する。自動ORMやreflectionは追加しない。
 
-**未完了：** SQLite/PostgreSQL両方のmapping例・境界条件の実行確認、行単位mapping失敗時のcursor/cleanup検証。現環境ではcompile/runtime検証を省略している。
+**未完了：** SQLite/PostgreSQL mapping exampleの実行確認、NULL・duplicate・missing・型境界、行mapping失敗時のcursor/cleanup検証。現環境ではcompile/runtime検証を省略している。
 
 既存のtyped cell変換に、行から利用者のrecordを作る明示mapperを組み合わせます。自動ORMやreflectionを前提にしません。まず利用者の関数でmappingを書く例を作り、重複する列検証だけをlibraryへ抽出します。
 
