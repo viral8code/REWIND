@@ -272,3 +272,11 @@ v2.2のDB-01に`std.db.ColumnMap`、`indexColumns`、`columnNumber`を追加し�
 API manifest、library一覧、DATA-04の実装状況、利用例を更新しました：[json-stream](../examples/json-stream/README.md)、[BigInt例](../examples/json-stream/bigint.rw)。実装commitは[1f2052d](https://github.com/viral8code/REWIND/commit/1f2052d9cab174166f225ddd2bc984304306e253)と[e1b0fbf](https://github.com/viral8code/REWIND/commit/e1b0fbf17f9d6c3c556f8bb6df9139e0d41f709d)です。
 
 DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP sourceとの共通batch APIが残っています。source・例のcompile/runtime/API再生成・Windows確認は未実施です。commitはcodex/developのみへ`[skip ci]`付きで保存し、公開CI/CD、main統合、releaseは行っていません。
+
+## DB-01のbounded row mapper
+
+2026-10-12に`std.db.mapBatch`を追加しました。最大64行の既存`DbBatch`を借用し、pureな明示mapperで型付きrecordへ変換します。最初のmapping失敗はbatch内の0起点row indexとmapper errorを返します。失敗しても入力batch/cursorは変更しません。
+
+[SQLite](../examples/database/README.md)と[PostgreSQL](../examples/postgres/README.md)の例はcursorの列metadataから`ColumnMap`を作り、`mapBatch`へmapperを渡します。DBの読込みは引き続き明示的な`db.next`で行います。API manifestへdevelop上のColumnMap APIと新しいgeneric batch APIを反映しました。
+
+実装は[ d8315c8 ](https://github.com/viral8code/REWIND/commit/d8315c8e70f2e15d3e45327cef4b163f1887b1c5)です。compile/runtime/API再生成とSQLite/PostgreSQL実接続の受入は未実施です。
