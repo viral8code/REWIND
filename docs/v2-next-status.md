@@ -280,3 +280,9 @@ DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP s
 [SQLite](../examples/database/README.md)と[PostgreSQL](../examples/postgres/README.md)の例はcursorの列metadataから`ColumnMap`を作り、`mapBatch`へmapperを渡します。DBの読込みは引き続き明示的な`db.next`で行います。API manifestへdevelop上のColumnMap APIと新しいgeneric batch APIを反映しました。
 
 実装は[d8315c8](https://github.com/viral8code/REWIND/commit/d8315c8e70f2e15d3e45327cef4b163f1887b1c5)です。compile/runtime/API再生成とSQLite/PostgreSQL実接続の受入は未実施です。
+
+## GUI-01のflat weighted split
+
+2026-10-12に`std.gui.splitRow` / `splitColumn`を追加しました。最大256 child、各weight 1..1,000,000、gap 0..4096 pixel、4096 pixel以内のRectを検査してからpureに分割します。整数の余りpixelは左から、または上から配り、入力viewやfocus stateには触れません。
+
+[利用例](../examples/gui-layout.rw)では100 pixelをweight 1:2、gap 2で分割します。nested layout tree、padding、min/max/fixed dimension、resize時のfocus維持は未実装です。実装commitは[ab191aa](https://github.com/viral8code/REWIND/commit/ab191aae2cf46511b8432ec106bcc33f690f7ae4)と[a9fbbf0](https://github.com/viral8code/REWIND/commit/a9fbbf0af6011750b9d0256d4d29090c794ca1d8)です。compile/runtime/API再生成とLinux/Windows native GUI確認は未実施です。
