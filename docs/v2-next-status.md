@@ -257,3 +257,10 @@ nested node tableを合成するときに、object field名からchild node inde
 変更は[db5b39d](https://github.com/viral8code/REWIND/commit/db5b39d8f50de71b690c3666988e3f7f99a1c20a)。[csv-stream example](../examples/csv-stream/README.md)を型変換・失敗後の再試行を見せる内容に更新した。新たなtest sourceは追加していない。環境起動失敗によりcompile/runtime確認は未実施。
 
 DATA-04全体は未完了。実装したのは既存CSV queueを使う1-row consumerであり、JSON record adapter、DB/HTTP cursor共通化、batch collection APIは残る。queue管理・chunk再送・cancelは既存reader契約を使い、std.schemaは入力streamや外部資源を所有しない。
+
+
+## 2026-10-12のDB column mapping helper
+
+v2.2のDB-01に`std.db.ColumnMap`、`indexColumns`、`columnNumber`を追加した。cursor metadataの列名を最大256件まで一度検査し、重複名を拒否してimmutable Mapへ保持する。同じbatch内の各rowでname lookupを繰り返せる。record生成とInt/Text等の選択は既存typed accessorを使って呼出側に残した。
+
+[SQLite example](../examples/database/README.md)を更新した。既存の1件ずつ読むcursorを維持し、全rowを収集しない。新しいtest sourceは追加していない。実行環境のcontainer起動失敗によりcompile/runtime確認は未実施。SQLite/PostgreSQLの両方での実行受入、NULL/duplicate/missing、cleanup確認はDB-01の残り。

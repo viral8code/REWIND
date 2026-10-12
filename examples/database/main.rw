@@ -22,7 +22,7 @@ match opening {
                 let cursor=take(take(await task));
                 var reading:Option<Task<Result<DbBatch,DbError>>>=None;
                 external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
-                match reading {None=>{panic("missing read");},Some(task)=>{let batch=take(take(await task));Out.println(take(db.text(batch.rows.get(0),0)));Out.println(take(db.integer(batch.rows.get(0),1)));}}
+                match reading {None=>{panic("missing read");},Some(task)=>{let batch=take(take(await task));let columnMap=take(db.indexColumns(batch.columns));let nameIndex=take(db.columnNumber(&columnMap,"name"));let scoreIndex=take(db.columnNumber(&columnMap,"score"));Out.println(take(db.text(batch.rows.get(0),nameIndex)));Out.println(take(db.integer(batch.rows.get(0),scoreIndex)));}}
             }
         }
     }

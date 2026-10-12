@@ -1,6 +1,6 @@
 # REWIND v2.2実装計画：画面構成・可視化・DB helper
 
-状態：未実装の設計案。基準は公開済みv2.0.0です。APIの綴りは実装開始前に既存SDKと照合して決定します。[全体計画](ROADMAP_v2-next.md)の第2段階です。
+状態：設計案。DB-01に列名index helperのsourceを一部追加しました。v2.2の到達条件と残りの受入は未完了です。基準は公開済みv2.0.0です。[全体計画](ROADMAP_v2-next.md)の第2段階です。
 
 ## 到達条件
 
@@ -84,6 +84,10 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 - 必要なprimitiveの費用・backend互換を確認できなければ、VIS-01は保留理由を記録しGUI/DBの公開を妨げない。
 
 ## DB-01：record mapping
+
+**部分実装（2026-10-12）：** `std.db.indexColumns`は最大256個のcursor column名を一度検査し、重複を拒否してimmutable `ColumnMap`を返す。`columnNumber`は同じ結果を使って名前からindexを引く。呼出側は既存の`db.text` / `integer` / `floating` / `boolean`等を明示してrecordを構築する。自動ORMやreflectionは追加しない。
+
+**未完了：** SQLite/PostgreSQL両方のmapping例・境界条件の実行確認、行単位mapping失敗時のcursor/cleanup検証。現環境ではcompile/runtime検証を省略している。
 
 既存のtyped cell変換に、行から利用者のrecordを作る明示mapperを組み合わせます。自動ORMやreflectionを前提にしません。まず利用者の関数でmappingを書く例を作り、重複する列検証だけをlibraryへ抽出します。
 

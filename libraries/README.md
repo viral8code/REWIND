@@ -19,6 +19,7 @@
 | textEdit | replace, mapByte/Scalar/Grapheme, inverse, chain, mapChainByte/Scalar/Grapheme, inverseChain | 原文保持、編集位置の明示policy、boundedな編集列と失敗step |
 | schema | Unknown, Segment, Schema, Field, ValidationError, Decoder, any/boolean/number/integer/text, nullable/array/field/object, validate, csvRow, mapped, decode | 入れ子JSON、defaultと明示NULL、field名付きCSV row（最大65,536列 / 1 Mi scalar）、明示sentinel（128 scalar以下） |
 | csvStream | Reader, TypedRowError, reader, feed, next, nextTyped, finish, cancel, position | bounded queueのheader付きrow変換、Validation error時は行を保持、成功時だけadvance |
+| db column mapping | ColumnMap, indexColumns, columnNumber | 最大256件、重複column名を一度検査し、immutable indexを再利用。recordと型変換は呼出側が明示 |
 | memo | key, create, get, peek, put, resolve, invalidate, clear | 版付きkey、LRU、件数/重み上限、pureな結果とErrの保持 |
 | lazy | create, isForced, peek, force, fork, clear | 明示的な遅延計算、成功snapshot、回復可能なErr、可変ownerの独立fork |
 
