@@ -2,9 +2,10 @@ import gui as gui;
 import sort as sort;
 pub type TableError = StdError;
 pub struct CellEdit {rowId:String,column:Int,value:String}
+pub struct CellDraft {rowId:String,column:Int,original:String,value:String}
 pub enum RowMapError<E:Share> {UnknownRow(String),Conversion(String,E)}
 struct SortKey {value:String,row:Int,descending:Bool}
-pub struct Table {private headers:Frozen<List<String>>,private columnWeights:List<Int>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private visible:Int,private first:Int,private selected:Int}
+pub struct Table {private headers:Frozen<List<String>>,private columnWeights:List<Int>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private editing:Bool,private editRowId:String,private editColumn:Int,private editOriginal:String,private editValue:String,private visible:Int,private first:Int,private selected:Int}
 pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close}
 fn valid(text:String)->Bool effects {} {return text.byteLen()<=4096 && stdTextFind(text,"\0")==None;}
 fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int,customIds:Bool)->Result<Table,TableError> effects {} {
@@ -15,7 +16,7 @@ fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells
  if customIds{for i in 0..rowIds.len(){let id=rowIds.get(i);if id=="" || id.byteLen()>64 || !valid(id){return Err(StdError("GuiTableRowId",i));}if rowIndices.get(id)!=None{return Err(StdError("GuiTableDuplicateRowId",i));}rowIndices.set(id,i);bytes+=id.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}}
  for i in 0..cells.len(){let text=cells.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}
  let columnWeights=List<Int>();for i in 0..columns{columnWeights.add(1);}let rowOrder=List<Int>();let displayOrder=List<Int>();let rowPositions=List<Int>();for i in 0..rowCount{rowOrder.add(i);displayOrder.add(i);rowPositions.add(i);}
- return Ok(Table(headers,move columnWeights,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,move rowOrder,move displayOrder,move rowPositions,0,"",visibleRows,0,-1));
+ return Ok(Table(headers,move columnWeights,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,move rowOrder,move displayOrder,move rowPositions,0,"",false,"",-1,"","",visibleRows,0,-1));
 }
 // @api create cost O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.
 pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
@@ -123,15 +124,55 @@ fn stageEdit(table:&mut Table,row:Int,id:String,column:Int,value:String)->Result
   }
  }
 }
+fn clearDraft(table:&mut Table)->Unit effects {} {
+ table.editing=false;table.editRowId="";table.editColumn=-1;table.editOriginal="";table.editValue="";
+}
+// @api beginEdit starts one row/column draft using the current effective cell value and stable row ID.
+pub fn beginEdit(table:&mut Table,row:Int,column:Int)->Result<Unit,TableError> effects {} {
+ if table.editing{return Err(StdError("GuiTableEditActive",0));}
+ if row<0 || row>=visibleRows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}
+ let id=rowId(table,row)?;let base=baseRow(table,row);let original=cellForBase(table,base,column);
+ table.editing=true;table.editRowId=id;table.editColumn=column;table.editOriginal=original;table.editValue=original;return Ok(());
+}
+// @api draft returns the active uncommitted cell edit; it is not visible through cell/render/changes.
+pub fn draft(table:&Table)->Option<CellDraft> effects {} {
+ if !table.editing{return None;}return Some(CellDraft(table.editRowId,table.editColumn,table.editOriginal,table.editValue));
+}
+// @api setDraft accepts at most 4096 valid UTF-8 bytes; failures preserve the existing draft.
+pub fn setDraft(table:&mut Table,value:String)->Result<Unit,TableError> effects {} {
+ if !table.editing{return Err(StdError("GuiTableNoActiveEdit",0));}
+ if !valid(value){return Err(StdError("GuiInvalidText",0));}
+ table.editValue=value;return Ok(());
+}
+// @api commitEdit stages the draft; capacity failures keep it active for correction or cancellation.
+pub fn commitEdit(table:&mut Table)->Result<Unit,TableError> effects {} {
+ if !table.editing{return Err(StdError("GuiTableNoActiveEdit",0));}
+ let id=table.editRowId;let column=table.editColumn;let value=table.editValue;
+ match baseIndex(table,id){
+  None=>{return Err(StdError("GuiTableUnknownRow",0));},
+  Some(row)=>{
+   match stageEdit(table,row,id,column,value){
+    Err(error)=>{return Err(error);},
+    Ok(_)=>{clearDraft(table);return Ok(());}
+   }
+  }
+ }
+}
+// @api cancelEdit discards only the active draft and returns false when nothing was active.
+pub fn cancelEdit(table:&mut Table)->Bool effects {} {
+ if !table.editing{return false;}clearDraft(table);return true;
+}
 // @api editCell cost O(1), except bounded edit removal or active-filter refresh over at most 8192 rows; max 4096 staged cells and 4 MiB of value bytes.
-// @api editCell failure Range/Text/EditLimit/EditCapacity.
+// @api editCell failure Range/Text/EditLimit/EditCapacity/EditActive.
 pub fn editCell(table:&mut Table,row:Int,column:Int,value:String)->Result<Unit,TableError> effects {} {
+ if table.editing{return Err(StdError("GuiTableEditActive",0));}
  if row<0 || row>=visibleRows(table){return Err(StdError("GuiTableRange",row));}
  let id=rowId(table,row)?;return stageEdit(table,baseRow(table,row),id,column,value);
 }
 // @api editCellId resolves stable row IDs in O(1), including filtered-out rows; an active filter refresh scans at most 8192 rows.
-// @api editCellId failure UnknownRow/Range/Text/EditLimit/EditCapacity.
+// @api editCellId failure UnknownRow/Range/Text/EditLimit/EditCapacity/EditActive.
 pub fn editCellId(table:&mut Table,id:String,column:Int,value:String)->Result<Unit,TableError> effects {} {
+ if table.editing{return Err(StdError("GuiTableEditActive",0));}
  if id.byteLen()>64{return Err(StdError("GuiTableUnknownRow",0));}
  match baseIndex(table,id){Some(row)=>{return stageEdit(table,row,id,column,value);},None=>{return Err(StdError("GuiTableUnknownRow",0));}}
 }

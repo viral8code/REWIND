@@ -520,6 +520,29 @@
         "return": "List<T>"
       }
     },
+    "fn:beginEdit": {
+      "async": false,
+      "cost": "O(1) plus bounded overlay lookup; starts one draft identified by the selected row's stable ID.",
+      "effects": [],
+      "failure": "Range for an invalid visible row/column; EditActive if another draft is open.",
+      "generics": [],
+      "parameters": [
+        "&mut Table",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:cancelEdit": {
+      "async": false,
+      "cost": "O(1); clears only the draft and returns whether one was active.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Table"
+      ],
+      "return": "Bool"
+    },
     "fn:cell": {
       "async": false,
       "cost": "O(1) overlay lookup plus frozen base access; staged values are visible to render.",
@@ -572,6 +595,17 @@
       ],
       "return": "Int"
     },
+    "fn:commitEdit": {
+      "async": false,
+      "cost": "O(1), except bounded staged-edit reindexing or active-filter refresh.",
+      "effects": [],
+      "failure": "NoActiveEdit, UnknownRow, EditLimit, or EditCapacity; failed staging keeps the draft active.",
+      "generics": [],
+      "parameters": [
+        "&mut Table"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:create": {
       "async": false,
       "cost": "O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.",
@@ -612,11 +646,21 @@
       ],
       "return": "Result<Option<Action>,StdError>"
     },
+    "fn:draft": {
+      "async": false,
+      "cost": "O(1); returns the active draft snapshot or None.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Option<CellDraft>"
+    },
     "fn:editCell": {
       "async": false,
       "cost": "O(1), except bounded edit removal or active-filter refresh over at most 8192 rows.",
       "effects": [],
-      "failure": "Range/Text/EditLimit/EditCapacity.",
+      "failure": "Range/Text/EditLimit/EditCapacity/EditActive.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -630,7 +674,7 @@
       "async": false,
       "cost": "O(1), except bounded edit removal or active-filter refresh over at most 8192 rows; accepts known rows even when filtered out.",
       "effects": [],
-      "failure": "UnknownRow/Range/Text/EditLimit/EditCapacity.",
+      "failure": "UnknownRow/Range/Text/EditLimit/EditCapacity/EditActive.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -786,6 +830,18 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:setDraft": {
+      "async": false,
+      "cost": "O(value bytes), at most 4096 UTF-8 bytes.",
+      "effects": [],
+      "failure": "NoActiveEdit or InvalidText; failure preserves the existing draft.",
+      "generics": [],
+      "parameters": [
+        "&mut Table",
+        "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:sortByText": {
       "async": false,
       "cost": "O(n log n) comparisons plus O(n) filter indexes; stable ties retain current full sort order.",
@@ -863,6 +919,29 @@
     "type:BigInt": {
       "constructor": false,
       "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CellDraft": {
+      "constructor": true,
+      "fields": [
+        [
+          "rowId",
+          "String"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "original",
+          "String"
+        ],
+        [
+          "value",
+          "String"
+        ]
+      ],
       "generics": [],
       "kind": "record"
     },

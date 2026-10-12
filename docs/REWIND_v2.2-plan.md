@@ -67,14 +67,15 @@ componentはID、VM内のstate、配置入力、eventからstate/actionを返す
 
 **部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。`sortByText`はstaged valueで安定sortし、ID・selection・差分overlayを維持します。`filterByText`は一列のcase-sensitive部分文字列filterを行い、query一致列の編集またはclearEdits後に表示対象を再計算します。filter中もeditCellIdはstable IDで非表示rowを編集できます。sort/filterは各々8192 source rowsまでです。native text inputとの接続、typed table adapter、削除・取消を含む完全な編集event lifecycleは未実装です。[編集例](../examples/gui-table-edits.rw)、[sort例](../examples/gui-table-sort.rw)、[filter例](../examples/gui-table-filter.rw)。
 
-`guiTable`のviewportと表示行制限は維持します。列幅は実装済みで、正のrelative weightを指定し、render時にinner width全体へ割り当てます。`guiTable.toValue`はstable row IDで1行をfrozen column snapshotへ変換し、純粋mapperでtyped recordを構築します。staged edit値とfilterで非表示の行も扱い、変換失敗にはrow IDを含めます。残るGUI-03はGUI text inputからの編集event連携と、削除・取消・検証失敗を含む編集lifecycleです。formのtyped record adapter、tableのstable row ID・差分overlay・stable text sort・bounded text filterは実装済みです。表示位置をrowのidentityとして扱わず、選択・編集中cell・DB保存対象をrow IDで対応させます。
+`guiTable`のviewportと表示行制限は維持します。列幅は実装済みで、正のrelative weightを指定し、render時にinner width全体へ割り当てます。`guiTable.toValue`はstable row IDで1行をfrozen column snapshotへ変換し、純粋mapperでtyped recordを構築します。staged edit値とfilterで非表示の行も扱い、変換失敗にはrow IDを含めます。編集draftの開始・更新・確定・取消をmodel側へ追加しました。残るGUI-03はGUI text inputからのevent連携、application固有validationとの接続、削除時の編集取消を含む完全なnative editing lifecycleです。formのtyped record adapter、tableのstable row ID・差分overlay・stable text sort・bounded text filterは実装済みです。表示位置をrowのidentityとして扱わず、選択・編集中cell・DB保存対象をrow IDで対応させます。
 
 sortByTextは全source row、filterByTextはfilter列を全走査します。filterは呼出し時にだけ適用し、frameごとには再実行しません。active filter columnの編集とclearEdits後はmembershipを再計算します。描画はviewport内だけです。大規模DBの全件取得をlibrary側で自動実行しません。
 
 **受入条件**
 
 - sort後もrow IDで同じselection/edit targetを追える。filterで非表示になったselectionは解除され、row IDから非表示状態を識別できる。
-- 編集開始、確定、取消、検証失敗、IME確定前のキー入力を区別できる。
+- model draftの開始・更新・確定・取消をstable row IDで区別し、staging失敗時はdraftを保持する。
+- 編集開始、確定、取消、検証失敗、IME確定前のキー入力をnative eventから区別できる。
 - viewport外のrowを毎回Viewへ展開しない。
 - 指定列weightの合計割り当てがinner widthと一致し、隣接列にgapやoverlapがない。
 - typed row mapperがcolumn orderとstaged valueを受け、失敗時にはstable row IDを返してtableを変更しない。
