@@ -1,0 +1,47 @@
+import snapshot as snapshot;
+
+// The deferred computation is explicit and pure. Successful mutable owners are retained through an independent data snapshot.
+pub struct Lazy<T:Send,E:Share> {
+    private compute:fn()->Result<T,E> effects {} captures {Send,Share},
+    private cached:Option<Result<snapshot.Snapshot<T>,E>>
+}
+
+pub fn create<T:Send,E:Share>(compute:fn()->Result<T,E> effects {} captures {Send,Share})->Lazy<T,E> effects {} {
+    return Lazy<T,E>(compute,None);
+}
+pub fn isForced<T:Send,E:Share>(value:&Lazy<T,E>)->Bool effects {} {
+    match value.cached {Some(_)=>{return true;},None=>{return false;}}
+}
+fn read<T:Send,E:Share>(cached:Result<snapshot.Snapshot<T>,E>)->Result<Frozen<T>,E> effects {} {
+    match cached {Ok(saved)=>{return Ok(snapshot.read(saved));},Err(error)=>{return Err(error);}}
+}
+// @api peek Observes whether a result exists without invoking the computation. Both cached success and recoverable failure are visible.
+pub fn peek<T:Send,E:Share>(value:&Lazy<T,E>)->Option<Result<Frozen<T>,E>> effects {} {
+    match value.cached {Some(cached)=>{return Some(read(cached));},None=>{return None;}}
+}
+// @api force Computes once, captures a successful Send value, and caches recoverable Err values. Panic and fatal budgets are not caught.
+pub fn force<T:Send,E:Share>(value:&mut Lazy<T,E>)->Result<Frozen<T>,E> effects {} {
+    match value.cached {
+        Some(cached)=>{return read(cached);},
+        None=>{
+            let compute=value.compute;let outcome=compute();
+            match move outcome {
+                Ok(result)=>{
+                    let saved=snapshot.capture(&result);
+                    let cached:Result<snapshot.Snapshot<T>,E>=Ok(saved);
+                    value.cached=Some(cached);
+                    return Ok(snapshot.read(saved));
+                },
+                Err(error)=>{let cached:Result<snapshot.Snapshot<T>,E>=Err(error);value.cached=Some(cached);return Err(error);}
+            }
+        }
+    }
+}
+// @api fork Forces if necessary and returns an independent owner; changing it does not alter subsequent reads or forks.
+pub fn fork<T:Send,E:Share>(value:&mut Lazy<T,E>)->Result<T,E> effects {} {
+    match force(value) {Ok(saved)=>{return Ok(thaw(saved));},Err(error)=>{return Err(error);}}
+}
+// @api clear Drops this owner's cached result. The original immutable captures remain; previously returned roots stay valid.
+pub fn clear<T:Send,E:Share>(value:&mut Lazy<T,E>)->Bool effects {} {
+    match value.cached {None=>{return false;},Some(_)=>{value.cached=None;return true;}}
+}

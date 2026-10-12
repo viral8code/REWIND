@@ -6,7 +6,7 @@
 
 ## Keyの意味
 
-key(domain,revision,input)は用途の名前、code/libraryの版、入力identityを明示してKeyを作る。domainは1〜128 scalar、revisionは1〜256、inputは0〜4,096。inputはcontent hash、data version、必要なfieldの正規表現等、callerが同値とみなす範囲を選ぶ。
+key(domain,revision,input)は用途の名前、code/libraryの版、入力identityを明示してKeyを作る。domainは1〜128 scalar、revisionは1〜256、inputは0〜4,096。inputはcontent hash、data version、必要なfieldを明示形式で表した文字列等、callerが同値とみなす範囲を選ぶ。
 
 三つのStringはJSONの配列としてencodeし、区切り文字を含むkeyの衝突を避ける。同じ入力でもrevisionが違えば別entry。inputの生成費用や、同じkeyが同じ純粋な計算結果を意味することはcallerの契約。捕捉値を変更したのにkeyを変えない誤りを自動検出しない。
 

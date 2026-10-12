@@ -1,0 +1,18 @@
+import std.lazy as lazy;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(result)=>{return move result;},Err(_)=>{panic("lazy example");}}
+}
+fn build()->Result<List<Int>,String> effects {} {
+    let values=List<Int>();values.add(10);return Ok(move values);
+}
+
+// Expected output (not executed): false, 10, 99, 10.
+let deferred=lazy.create(build);
+Out.println(lazy.isForced(&deferred));
+let saved=take(lazy.force(&mut deferred));
+let work=take(lazy.fork(&mut deferred));work.set(0,99);
+Out.println(saved.get(0));Out.println(work.get(0));
+lazy.clear(&mut deferred);
+Out.println(saved.get(0));
+publish;

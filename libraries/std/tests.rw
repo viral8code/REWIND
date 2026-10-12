@@ -1359,3 +1359,52 @@ test fn memo_invalidation_and_snapshots_preserve_returned_roots()->Unit effects 
     memo.clear(&mut cache);assert_eq(memo.length(&cache),0);assert_eq(memo.weight(&cache),0);
     assert_eq(saved.get(0),10);
 }
+
+import lazy as lazy;
+
+fn lazyBuildList()->Result<List<Int>,String> effects {} {
+    let result=List<Int>();result.add(10);return Ok(move result);
+}
+fn lazyReject()->Result<Int,String> effects {} {return Err("domain rejection");}
+fn lazyUnexpectedBuild()->Result<Int,String> effects {} {panic("peek forced computation");}
+
+test fn lazy_values_keep_forks_independent_and_roots_alive_after_clear()->Unit effects {} {
+    let value=lazy.create(lazyBuildList);
+    assert(!lazy.isForced(&value));
+    match lazy.peek(&value) {None=>{},Some(_)=>{panic("eager computation");}}
+    let saved=transformTake(lazy.force(&mut value));assert(lazy.isForced(&value));
+    assert_eq(saved.get(0),10);
+    let first=transformTake(lazy.fork(&mut value));let second=transformTake(lazy.fork(&mut value));
+    first.set(0,99);second.add(20);
+    assert_eq(saved.get(0),10);assert_eq(second.get(0),10);assert_eq(first.len(),1);
+    let again=transformTake(lazy.force(&mut value));assert_eq(again.len(),1);assert_eq(again.get(0),10);
+    assert(lazy.clear(&mut value));assert(!lazy.clear(&mut value));assert(!lazy.isForced(&value));
+    assert_eq(saved.get(0),10);assert_eq(transformTake(lazy.fork(&mut value)).get(0),10);
+}
+
+test fn lazy_peek_does_not_evaluate_and_recoverable_failure_is_cached()->Unit effects {} {
+    let pending=lazy.create(lazyUnexpectedBuild);
+    assert(!lazy.isForced(&pending));
+    match lazy.peek(&pending) {None=>{},Some(_)=>{panic("unexpected result");}}
+    assert(!lazy.clear(&mut pending));
+    let rejected=lazy.create(lazyReject);
+    assert_eq(lazy.force(&mut rejected),Err("domain rejection"));
+    assert(lazy.isForced(&rejected));
+    assert_eq(lazy.peek(&rejected),Some(Err("domain rejection")));
+    assert_eq(lazy.fork(&mut rejected),Err("domain rejection"));
+    assert(lazy.clear(&mut rejected));assert(!lazy.isForced(&rejected));
+}
+
+fn lazyBuildFrozen()->Result<Frozen<List<Int>>,String> effects {} {
+    let items=List<Int>();items.add(7);return Ok(freeze(items));
+}
+test fn lazy_nested_frozen_results_preserve_their_declared_layer()->Unit effects {} {
+    let value=lazy.create(lazyBuildFrozen);
+    let saved=transformTake(lazy.force(&mut value));
+    let inner=thaw(saved);assert_eq(inner.get(0),7);
+    let forked=transformTake(lazy.fork(&mut value));
+    assert_eq(forked.get(0),7);
+    let working=thaw(forked);working.set(0,99);
+    assert_eq(inner.get(0),7);
+    assert_eq(transformTake(lazy.fork(&mut value)).get(0),7);
+}
