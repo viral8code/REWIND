@@ -311,6 +311,21 @@
       ],
       "return": "Result<Layout,StdError>"
     },
+    "fn:padded": {
+      "async": false,
+      "cost": "O(nodes), copies at most 1023 child nodes and adds one wrapper; applyLayout applies four insets in O(1).",
+      "effects": [],
+      "failure": "GuiLayoutDimension for a negative or over-4096 inset; GuiLayoutLimit when the resulting tree exceeds 1024 nodes; GuiLayoutDepthLimit when depth would exceed 32; GuiLayoutInsufficientSpace if fewer than one pixel remains on either axis.",
+      "generics": [],
+      "parameters": [
+        "Layout",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Layout,StdError>"
+    },
     "fn:pollEvent": {
       "async": false,
       "effects": [

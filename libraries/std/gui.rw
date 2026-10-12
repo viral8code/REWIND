@@ -165,7 +165,8 @@ enum LayoutNode {
  Widget(String),
  Row(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int),
  Column(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int),
- Overlay(Frozen<List<Int>>)
+ Overlay(Frozen<List<Int>>),
+ Padding(Int,Int,Int,Int,Int)
 }
 pub struct Layout {private nodes:Frozen<List<LayoutNode>>,private root:Int,private depth:Int}
 pub struct WeightedLayout {private layout:Layout,private weight:Int,private minimum:Int,private maximum:Int}
@@ -207,6 +208,9 @@ fn appendLayout(nodes:&mut List<LayoutNode>,layout:Layout)->Int effects {} {
     let shifted=List<Int>();
     for j in 0..children.len(){shifted.add(children.get(j)+offset);}
     nodes.add(LayoutNode::Overlay(freeze(shifted)));
+   },
+   LayoutNode::Padding(child,left,top,right,bottom)=>{
+    nodes.add(LayoutNode::Padding(child+offset,left,top,right,bottom));
    }
   }
  }
@@ -260,6 +264,15 @@ pub fn overlayLayout(children:&List<Layout>)->Result<Layout,GuiError> effects {}
  let root=nodes.len();nodes.add(LayoutNode::Overlay(freeze(childNodes)));
  return Ok(Layout(freeze(nodes),root,depth));
 }
+// @api padded wraps one layout in bounded insets; the child receives the remaining inner rectangle.
+pub fn padded(layout:Layout,left:Int,top:Int,right:Int,bottom:Int)->Result<Layout,GuiError> effects {} {
+ if left<0 || top<0 || right<0 || bottom<0 || left>4096 || top>4096 || right>4096 || bottom>4096{return Err(StdError("GuiLayoutDimension",0));}
+ if layout.nodes.len()<1 || layout.nodes.len()>=1024 || layout.depth<1 || layout.depth>32{return Err(StdError("GuiLayoutLimit",0));}
+ if layout.depth>=32{return Err(StdError("GuiLayoutDepthLimit",layout.depth+1));}
+ let depth=layout.depth+1;let nodes=List<LayoutNode>();let child=appendLayout(&mut nodes,layout);let root=nodes.len();
+ nodes.add(LayoutNode::Padding(child,left,top,right,bottom));
+ return Ok(Layout(freeze(nodes),root,depth));
+}
 fn validLayoutBounds(bounds:Rect)->Bool effects {} {
  if bounds.x<0 || bounds.x>4096 || bounds.y<0 || bounds.y>4096{return false;}
  if bounds.width<0 || bounds.width>4096 || bounds.height<0 || bounds.height>4096{return false;}
@@ -293,6 +306,12 @@ pub fn applyLayout(view:&mut View,layout:&Layout,bounds:Rect)->Result<Unit,GuiEr
    LayoutNode::Overlay(children)=>{
     if children.len()<2 || children.len()>256{return Err(StdError("GuiLayoutChildren",children.len()));}
     for i in 0..children.len(){pending.add(LayoutWork(children.get(i),work.bounds));}
+   },
+   LayoutNode::Padding(child,left,top,right,bottom)=>{
+    if child<0 || child>=layout.nodes.len() || left<0 || top<0 || right<0 || bottom<0 || left>4096 || top>4096 || right>4096 || bottom>4096{return Err(StdError("GuiLayoutDimension",0));}
+    if left+right>=work.bounds.width || top+bottom>=work.bounds.height{return Err(StdError("GuiLayoutInsufficientSpace",0));}
+    let inner=Rect(work.bounds.x+left,work.bounds.y+top,work.bounds.width-left-right,work.bounds.height-top-bottom);
+    pending.add(LayoutWork(child,inner));
    }
   }
  }
