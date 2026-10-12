@@ -279,4 +279,4 @@ DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP s
 
 [SQLite](../examples/database/README.md)と[PostgreSQL](../examples/postgres/README.md)の例はcursorの列metadataから`ColumnMap`を作り、`mapBatch`へmapperを渡します。DBの読込みは引き続き明示的な`db.next`で行います。API manifestへdevelop上のColumnMap APIと新しいgeneric batch APIを反映しました。
 
-実装は[ d8315c8 ](https://github.com/viral8code/REWIND/commit/d8315c8e70f2e15d3e45327cef4b163f1887b1c5)です。compile/runtime/API再生成とSQLite/PostgreSQL実接続の受入は未実施です。
+実装は[d8315c8](https://github.com/viral8code/REWIND/commit/d8315c8e70f2e15d3e45327cef4b163f1887b1c5)です。compile/runtime/API再生成とSQLite/PostgreSQL実接続の受入は未実施です。
