@@ -139,3 +139,61 @@ pub fn merge<T:Share>(base:&Map<String,T>,left:&Map<String,T>,right:&Map<String,
         }
     }
 }
+
+pub record RebaseError {code:String,key:String,step:Int}
+pub record RebaseConflict {key:String,step:Int}
+pub record RebaseStep<T:Share> {index:Int,patch:ChangeSet<T>,value:Frozen<Map<String,T>>}
+pub record RebasePreview<T:Share> {
+    steps:Frozen<List<RebaseStep<T>>>,
+    value:Frozen<Map<String,T>>,
+    conflict:Option<RebaseConflict>
+}
+
+// @api previewRebase Validates the original chain, then replays at most 1024 patches / 65536 edits onto a new base. Stops before the first conflicting step.
+pub fn previewRebase<T:Share>(base:&Map<String,T>,onto:&Map<String,T>,patches:&List<ChangeSet<T>>,same:fn(T,T)->Bool effects {} captures {Send,Share})->Result<RebasePreview<T>,RebaseError> effects {} {
+    if patches.len()>1024 {return Err(RebaseError("StepLimit","",-1));}
+    var count=0;
+    for i in 0..patches.len() {
+        count+=length(patches.get(i));
+        if count>65536 {return Err(RebaseError("EditLimit","",i));}
+    }
+    // Track only touched original keys; no full map copy is needed for each validation step.
+    let overlay=Map<String,Option<T>>();
+    for i in 0..patches.len() {
+        let patch=patches.get(i);
+        for j in 0..patch.edits.len() {
+            let change=thaw(patch.edits.get(j));
+            var actual=base.get(change.key);
+            match overlay.get(change.key) {Some(value)=>{actual=value;},None=>{}}
+            if !equal(actual,change.before,same) {return Err(RebaseError("OriginalConflict",change.key,i));}
+            overlay.set(change.key,change.after);
+        }
+    }
+    let working=Map<String,T>();let keys=onto.keys();
+    for i in 0..keys.len() {
+        let key=keys.get(i);
+        match onto.get(key) {Some(value)=>{working.set(key,value);},None=>{}}
+    }
+    let steps=List<RebaseStep<T>>();var value=freeze(working);
+    for i in 0..patches.len() {
+        let patch=patches.get(i);let accepted=List<Change<T>>();
+        // Preflight the whole step so a conflict cannot expose a partially applied patch.
+        for j in 0..patch.edits.len() {
+            let change=thaw(patch.edits.get(j));let actual=working.get(change.key);
+            if equal(actual,change.before,same) {
+                if !equal(actual,change.after,same) {accepted.add(Change<T>(change.key,actual,change.after));}
+            }
+            else if !equal(actual,change.after,same) {
+                return Ok(RebasePreview<T>(freeze(steps),value,Some(RebaseConflict(change.key,i))));
+            }
+        }
+        let rebased=ChangeSet<T>(freeze(accepted));
+        for j in 0..accepted.len() {
+            let change=accepted.get(j);
+            match change.after {Some(next)=>{working.set(change.key,next);},None=>{working.remove(change.key);}}
+        }
+        value=freeze(working);
+        steps.add(RebaseStep<T>(i,rebased,value));
+    }
+    return Ok(RebasePreview<T>(freeze(steps),value,None));
+}

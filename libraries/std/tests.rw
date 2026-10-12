@@ -721,3 +721,62 @@ test fn history_graph_prune_recomputes_roots_and_validates_before_change()->Unit
     assert_eq(historyGraph.fork(original),10);
     match historyGraph.get(&graph,"version") {Some(v)=>{assert_eq(historyGraph.fork(v),99);},None=>{panic("reused local key");}}
 }
+
+test fn changes_rebase_retains_step_roots_and_accepts_already_applied_values()->Unit effects {} {
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let base=Map<String,Int>();base.set("score",10);
+    let middle=Map<String,Int>();middle.set("score",20);
+    let last=Map<String,Int>();last.set("score",30);
+    let patches=List<changes.ChangeSet<Int>>();
+    patches.add(transformTake(changes.diff(&base,&middle,same)));
+    patches.add(transformTake(changes.diff(&middle,&last,same)));
+    let onto=Map<String,Int>();onto.set("score",20);onto.set("unrelated",7);
+    let preview=transformTake(changes.previewRebase(&base,&onto,&patches,same));
+    assert_eq(preview.conflict,None);assert_eq(preview.steps.len(),2);
+    let first=thaw(preview.steps.get(0));let second=thaw(preview.steps.get(1));
+    assert_eq(changes.length(first.patch),0);assert_eq(changes.length(second.patch),1);
+    assert_eq(first.value.get("score"),Some(20));
+    assert_eq(second.value.get("score"),Some(30));
+    assert_eq(preview.value.get("unrelated"),Some(7));
+    assert_eq(onto.get("score"),Some(20));assert_eq(base.get("score"),Some(10));
+    let replayed=transformTake(changes.apply(&onto,second.patch,same));
+    assert_eq(replayed.get("score"),Some(30));assert_eq(replayed.get("unrelated"),Some(7));
+}
+
+test fn changes_rebase_stops_before_conflicting_step_without_partial_edits()->Unit effects {} {
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let base=Map<String,Int>();base.set("a",1);base.set("b",1);
+    let one=Map<String,Int>();one.set("a",2);one.set("b",1);
+    let two=Map<String,Int>();two.set("a",3);two.set("b",2);
+    let patches=List<changes.ChangeSet<Int>>();
+    patches.add(transformTake(changes.diff(&base,&one,same)));
+    patches.add(transformTake(changes.diff(&one,&two,same)));
+    let onto=Map<String,Int>();onto.set("a",1);onto.set("b",9);
+    let preview=transformTake(changes.previewRebase(&base,&onto,&patches,same));
+    assert_eq(preview.steps.len(),1);
+    match preview.conflict {Some(c)=>{assert_eq(c.step,1);assert_eq(c.key,"b");},None=>{panic("missing conflict");}}
+    assert_eq(preview.value.get("a"),Some(2));assert_eq(preview.value.get("b"),Some(9));
+    assert_eq(onto.get("a"),Some(1));assert_eq(base.get("b"),Some(1));
+    let invalid=List<Change<Int>>();invalid.add(Change<Int>("a",Some(99),Some(4)));
+    patches.add(transformTake(changes.fromChanges(&invalid,same)));
+    match changes.previewRebase(&base,&onto,&patches,same) {
+        Err(e)=>{assert_eq(e.code,"OriginalConflict");assert_eq(e.step,2);assert_eq(e.key,"a");},
+        Ok(_)=>{panic("invalid original chain hidden by target conflict");}
+    }
+}
+
+test fn changes_rebase_handles_deletions_and_empty_sequences()->Unit effects {} {
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let base=Map<String,Int>();base.set("x",1);
+    let absent=Map<String,Int>();let after=Map<String,Int>();after.set("x",2);
+    let patches=List<changes.ChangeSet<Int>>();
+    patches.add(transformTake(changes.diff(&base,&absent,same)));
+    patches.add(transformTake(changes.diff(&absent,&after,same)));
+    let preview=transformTake(changes.previewRebase(&base,&absent,&patches,same));
+    assert_eq(preview.conflict,None);assert_eq(preview.value.get("x"),Some(2));
+    assert_eq(changes.length(thaw(preview.steps.get(0)).patch),0);
+    let empty=List<changes.ChangeSet<Int>>();
+    let identity=transformTake(changes.previewRebase(&base,&after,&empty,same));
+    assert_eq(identity.steps.len(),0);assert_eq(identity.conflict,None);
+    after.set("x",3);assert_eq(identity.value.get("x"),Some(2));
+}

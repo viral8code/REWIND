@@ -36,6 +36,20 @@ diffはkey列を走査し、Map lookupの費用を持つ。applyは新しいMap�
 
 library test sourceに、逆差分、未変更keyの保持、衝突時の入力不変、合成の相殺、重複key、独立変更のmerge、同一変更と衝突を追加した。実行は省略。
 
+### 変更列のrebase preview（2026-10-12）
+
+VHISTORY-05のString Map限定部分としてpreviewRebase(base,onto,patches,same)を追加した。最大1,024 step、累積65,536 edit。純粋な値の操作だけを移し、外部operationやreceipt、VM checkpointへ作用しない。
+
+先に全patchが元のbaseから順につながることを検査する。最初に前提が違うstepをRebaseError("OriginalConflict",key,step)で返す。変更済みkeyだけをoverlayに持ち、検証のたびに全Mapを再構築しない。新しい土台で先に衝突する場合でも、元の列の不整合を隠さない。
+
+新しい土台では、値がbeforeと等しければ変更を採用する。既にafterと等しければ適用済みとして、そのkeyを再適用patchから除く。それ以外は衝突とし、当該stepのどの変更も反映しない。成功prefixのsteps、最後のvalue、最初のconflict（keyと0始まりstep）をRebasePreviewで返す。後続stepは未評価。conflictがNoneなら全stepが完了している。
+
+各RebaseStepはindex、再適用用のpatch、直後のFrozen Mapを保持する。全変更が適用済みのstepも空patchと結果を一件返す。元patch、元base、ontoは変更しない。全step後に採用するか、保存するか、domain不変条件を再検査するかは呼出側が明示する。汎用的なdomain merge lawを導いたことにはしない。
+
+新しい土台のMapは最初に一回copyし、以降は同じ作業Mapへ変更を加えて各結果をfreezeする。毎step全keyをlibraryのloopでcopyする方式を避ける。freeze・COW・Map・payloadの費用とVM budgetは別に残る。結果は途中の全snapshotを保持するため、step上限はmemory量の上限ではない。必要な値だけを取り出しpreviewのownerを解放すれば、未保持の途中rootは通常の回収対象になる。
+
+library test sourceを3件追加した。適用済みkey、段階ごとの値保持、未変更key、途中衝突のstep atomicity、元列の不整合、削除→再追加、空列を扱う。実行は省略。
+
 ## std.historyGraph：親関係・branch HEAD・annotation
 
 VHISTORY-01/02/03、08/10の一部を実装する。HistoryGraph<T:Send>はprivateなversion registry、branch HEAD、annotationを持つ。createでversion件数とbranch件数の各上限を1〜65,536に設定する。
