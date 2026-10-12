@@ -6,6 +6,7 @@ let input=take(stdEncode("{\"items\":[1267650600228229401496703205376,2,3],\"nam
 var offset=0;
 while offset<stdBytesLength(input){take(json.feed(&mut reader,take(stdBytesSlice(input,offset,offset+1)),false));offset+=1;}
 take(json.finish(&mut reader));
+match take(json.peek(&reader)){None=>{panic("expected opening event");},Some(event)=>{match event{JsonStreamEvent::ObjectStart(_)=>{},_=>{panic("expected opening event");}}}}
 commit events;
 var reading=true;var count=0;
 while reading{match take(json.next(&mut reader)){None=>{reading=false;},Some(event)=>{

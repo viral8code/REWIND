@@ -3,6 +3,8 @@ pub struct Reader {private state:JsonStreamState}
 pub fn reader()->Result<Reader,StdError> effects {} {match stdJsonStreamNew(){Err(error)=>{return Err(error);},Ok(state)=>{return Ok(Reader(state));}}}
 // A failed feed leaves the Reader unchanged. Drain queued events and retry the same chunk after JsonQueueLimit.
 pub fn feed(reader:&mut Reader,chunk:Bytes,finish:Bool)->Result<Unit,StdError> effects {} {match stdJsonStreamFeed(&reader.state,chunk,finish){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(());}}}
+// peek observes the next queued event without advancing the reader.
+pub fn peek(reader:&Reader)->Result<Option<Event>,StdError> effects {} {return stdJsonStreamPeek(&reader.state);}
 pub fn next(reader:&mut Reader)->Result<Option<Event>,StdError> effects {} {
  match stdJsonStreamPeek(&reader.state){Err(error)=>{return Err(error);},Ok(value)=>{
  match move value{None=>{return Ok(None);},Some(event)=>{match stdJsonStreamAdvance(&reader.state){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(Some(move event));}}}}

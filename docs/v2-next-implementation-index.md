@@ -18,6 +18,7 @@
 | std.textEdit | 原文を保つ置換、旧新位置mapping、編集列合成、挿入affinity、逆編集 | VTEXT-01/06の基本部分 | [text-edit-mapping](../examples/text-edit-mapping.rw)、[編集列](../examples/text-edit-chain.rw) |
 | std.db ColumnMap | indexColumns, columnNumber | 列名の重複検査を一度行い、cursor結果ごとのimmutable name-to-index mapを再利用 | DB-01の明示mapping用helper | [SQLite](../examples/database/README.md)、[PostgreSQL](../examples/postgres/README.md) |
 | std.csvStream | nextTyped | 既存CSV readerとobject schemaを1 row単位で接続、Validation failure時は未消費 | DATA-04のCSV row consumer | [csv-stream](../examples/csv-stream/README.md) |
+| std.jsonStream | peek | bounded event queueの先頭を検査しても消費しない。消費は既存nextに限定 | DATA-04のJSON event adapterへ向けたreader基盤。record materializationは未実装 | [json-stream](../examples/json-stream/README.md) |
 | std.schema | 入れ子JSON検証、default/NULL/unknown policy、型付きmapper、header付きCSV row | DATA-01のJSON/CSV row部分 | [typed-schema](../examples/typed-schema.rw)、[typed-csv-row](../examples/typed-csv-row.rw) |
 | std.memo | 版付きkey、LRU、件数/weight制限、pure Errのcache、選択失効 | VCACHE-02/03/04/06/12の基本部分 | [versioned-cache](../examples/versioned-cache.rw) |
 | std.lazy | 明示force、成功snapshotとErrの保持、独立fork、clear | VCACHE-07/06の基本部分 | [lazy-snapshot](../examples/lazy-snapshot.rw) |

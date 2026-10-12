@@ -45,6 +45,15 @@
       ],
       "return": "Result<Option<JsonStreamEvent>,StdError>"
     },
+    "fn:peek": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Reader"
+      ],
+      "return": "Result<Option<JsonStreamEvent>,StdError>"
+    },
     "fn:position": {
       "async": false,
       "effects": [],
