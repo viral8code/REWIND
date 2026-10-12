@@ -316,7 +316,7 @@ overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置
 
 std.guiTableへeditCell、editCellId、hasEdits、changes、clearEditsを追加した。変更はstable row IDとcolumn indexで記録し、cellと既存renderはoverlayを表示する。基礎のFrozen cell matrixを複製せず、元値に戻したcellは差分から除く。最大4096 cell・値合計4 MiB・各value 4096 bytesで制限する。削除時はboundedな差分一覧を再indexする。
 
-これはVM上のモデル編集で、stable text sortは後続の独立した実装分に追加した。filter、native text input/IME eventとの接続、table-row typed adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
+これはVM上のモデル編集で、stable text sortとbounded text filterは後続の独立した実装分に追加した。native text input/IME eventとの接続、table-row typed adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
 
 
 ## 2026-10-12のGUI-03 typed form adapter
@@ -333,3 +333,13 @@ gui-form-typed.rwに明示record mappingの例を追加した。API manifestとG
 表示順→base rowとbase row→表示位置のindexをTableに保持する。Frozenなcell matrixは並べ替え・複製せず、row ID、選択、staged editは同じbase rowに紐付く。rowIndex/selection/Action::SelectedのIntは現在の表示位置となる。実装とAPI、[利用例](../examples/gui-table-sort.rw)、GUI-03計画を更新した。commitは[a89ad45](https://github.com/viral8code/REWIND/commit/a89ad45b404a3158c8d6497d0582a671f37ad258)。
 
 compile、実行、API再生成、native GUI確認はしていない。commitのActions実行は0件、mainは変更なし。commit/pushは`codex/develop`だけで`[skip ci]`付き。
+
+## 2026-10-12のGUI-03 table text filter
+
+`std.guiTable.filterByText(table, column, query)`は列の文字列を対象にcase-sensitive部分文字列filterを適用し、`clearFilter`で解除する。`rows()`は元データ件数、`visibleRows()`はfilter後の件数を返す。全体のsort順`rowOrder`と表示対象`displayOrder`を分けて保持するため、filter解除後もsort順が維持される。row IDとstaged editは元のbase rowに結び付く。
+
+選択された行がfilterで隠れたら選択を解除し、隠れたIDの`rowIndex`はNoneを返す。`editCellId`は隠れた行にも適用でき、filter対象列の値を編集したときと`clearEdits`時に表示集合を再計算する。viewportと描画は可視行だけを走査する。非空filter queryは最大256 UTF-8 bytes、対象テーブルは最大8192行に制限する。
+
+[利用例](../examples/gui-table-filter.rw)を追加し、GUI reference、API manifest、v2.2計画、実装indexを更新した。source/API/docs/example変更はcommit `a591995538e7323fa9ebcfa79ef78e83946cd398`。
+
+コンパイル、実行、API再生成、native GUIは環境起動失敗のため未確認。commitのActions実行は0件、mainは`5f5ab8f37c4d21f8746b2d1db077946809e3be42`のまま。codex/developだけへ`[skip ci]`付きで保存し、Releaseと版更新は行っていない。
