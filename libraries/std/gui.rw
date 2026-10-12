@@ -4,6 +4,19 @@ pub record Event {kind:String,x:Int,y:Int,key:String,width:Int,height:Int}
 pub enum Action {Activate(String),Changed(String,Bool),Key(String,String),Resize(Int,Int),Close}
 record Widget {id:String,kind:String,x:Int,y:Int,width:Int,height:Int,caption:String,foreground:Int,background:Int,enabled:Bool,checked:Bool,cursor:Int,anchor:Int}
 pub struct View {private title:String,private width:Int,private height:Int,private background:Int,private widgets:List<Widget>,private indices:Map<String,Int>,private focus:Int,private scroll:Map<String,Int>,private grapheme:Bool}
+pub struct ComponentScope {private name:String}
+// @api componentScope cost O(name bytes); names are case-sensitive UTF-8, 1..24 bytes, and contain no NUL.
+pub fn componentScope(name:String)->Result<ComponentScope,GuiError> effects {} {
+ if name=="" || name.byteLen()>24 || stdTextFind(name,"\\0")!=None{return Err(StdError("GuiComponentScope",0));}
+ return Ok(ComponentScope(name));
+}
+// @api componentPrefix cost O(name bytes); stable length-prefixed prefix, at most 27 bytes and valid as guiForm render prefix.
+pub fn componentPrefix(scope:&ComponentScope)->String effects {} {return scope.name.byteLen().format()+":"+scope.name;}
+// @api componentId cost O(scope bytes + local bytes); local id is 1..64 UTF-8 bytes; distinct scope/local pairs encode uniquely.
+pub fn componentId(scope:&ComponentScope,local:String)->Result<String,GuiError> effects {} {
+ if local=="" || local.byteLen()>64 || stdTextFind(local,"\\0")!=None{return Err(StdError("GuiComponentId",0));}
+ return Ok(componentPrefix(scope)+":"+local);
+}
 // @api window failure InvalidSize/InvalidTitle; 64..4096 client pixels per axis.
 pub fn window(title:String,width:Int,height:Int)->Result<View,GuiError> effects {} {
  if width<64 || width>4096 || height<64 || height>4096{return Err(StdError("GuiInvalidSize",0));}

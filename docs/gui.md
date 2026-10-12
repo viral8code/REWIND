@@ -90,6 +90,12 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 
 通信や計算 task を持つ GUI loop では、pollAny で入力を確認し、task.isDone() で完了を確認して `std.task.yieldNow()` で VM 処理を渡す。tasks effect が必要。nextEventAny の待機中に VM task が進む変更ではない。dot / matmul の協調 API は [v1.9.10](REWIND_v1.9.10.md)。
 
+## 再利用部品のID scope
+
+`gui.componentScope(name)`は1〜24 UTF-8 byteの名前から`ComponentScope`を作る。`gui.componentId(&scope, local)`はlocal IDを1〜64 byteに制限し、scope名のbyte長を含むprefixで子widget IDを一意に符号化する。同じscope/localの組は同じIDになり、異なる組は衝突しない。`gui.componentPrefix(&scope)`は`guiForm.render` / `dispatch`に渡せる最大27 byteのprefixを返す。
+
+scopeはID名前空間だけを持ち、modelやnative handleは保持しない。componentの状態は呼出側が通常のVM値として管理し、入力eventを一度dispatchして返ったIDを対応するmodelへ振り分ける。画面内でscope名を重複させると同一部品のIDになるため、各instanceには別名を付ける。利用例は[gui-component-scope](../examples/gui-component-scope.rw)。
+
 ## フォームと表
 
 1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。

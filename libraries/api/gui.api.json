@@ -146,6 +146,39 @@
       ],
       "return": "Result<Layout,StdError>"
     },
+    "fn:componentId": {
+      "async": false,
+      "cost": "O(scope bytes + local bytes); distinct scope/local pairs encode uniquely.",
+      "effects": [],
+      "failure": "GuiComponentId.",
+      "generics": [],
+      "parameters": [
+        "&ComponentScope",
+        "String"
+      ],
+      "return": "Result<String,StdError>"
+    },
+    "fn:componentPrefix": {
+      "async": false,
+      "cost": "O(name bytes); stable length-prefixed prefix, at most 27 bytes and valid as guiForm render prefix.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&ComponentScope"
+      ],
+      "return": "String"
+    },
+    "fn:componentScope": {
+      "async": false,
+      "cost": "O(name bytes); case-sensitive UTF-8 name is 1..24 bytes and contains no NUL.",
+      "effects": [],
+      "failure": "GuiComponentScope.",
+      "generics": [],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<ComponentScope,StdError>"
+    },
     "fn:continueInput": {
       "async": false,
       "effects": [
@@ -589,6 +622,12 @@
       }
     },
     "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:ComponentScope": {
       "constructor": false,
       "fields": [],
       "generics": [],
