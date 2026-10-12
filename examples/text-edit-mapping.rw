@@ -1,0 +1,18 @@
+import std.textIndex as textIndex;
+import std.textEdit as textEdit;
+import std.textEdit.{Policy};
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(result)=>{return move result;},Err(_)=>{panic("text edit example");}}
+}
+
+// Expected output (not executed): A😀Z, 2, A日本Z on separate lines.
+let original=take(textIndex.create("A日本Z"));
+let start=take(textIndex.scalarAt(original,1));
+let end=take(textIndex.scalarAt(original,3));
+let edit=take(textEdit.replace(start,end,"😀"));
+Out.println(textIndex.text(textEdit.result(edit)));
+let mapped=take(textEdit.mapScalar(edit,end,Policy::Exact));
+Out.println(textIndex.scalarValue(mapped));
+Out.println(textIndex.text(textEdit.result(textEdit.inverse(edit))));
+publish;

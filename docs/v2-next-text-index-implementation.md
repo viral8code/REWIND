@@ -2,7 +2,7 @@
 
 更新日：2026-10-12。対象：codex/develop。**source実装済み・実行検証省略**。
 
-[VTEXT-01](visions/45-text-codecs.md)のうち、UTF-8 byte、Unicode scalar、extended graphemeの位置をstd.textIndexへ実装した。DisplayColumn、正規化・編集の位置mappingは含めない。既存std.text/std.bytes/std.unicodeのInt index APIは変更しない。
+[VTEXT-01](visions/45-text-codecs.md)のうち、UTF-8 byte、Unicode scalar、extended graphemeの位置をstd.textIndexへ実装した。DisplayColumnと正規化mappingは含めない。編集を跨ぐ位置mappingは[std.textEdit](v2-next-text-edit-implementation.md)へ追加した。既存std.text/std.bytes/std.unicodeのInt index APIは変更しない。
 
 ## 値と入口
 

@@ -1064,3 +1064,61 @@ test fn persistent_sets_validate_ranges_and_batch_failure_preserves_input()->Uni
     assert_eq(persistentSet.same(combined,2,3),Ok(true));
     match persistentSet.unite(base,-1,0) {Err(e)=>{assert_eq(e.index,-1);},Ok(_)=>{panic("negative element");}}
 }
+
+import textEdit as textEdit;
+import textEdit.{Policy};
+
+test fn text_edits_map_unicode_positions_and_preserve_original_versions()->Unit effects {} {
+    let source=transformTake(textIndex.create("A日本Z"));
+    let start=transformTake(textIndex.scalarAt(source,1));
+    let end=transformTake(textIndex.scalarAt(source,3));
+    let edit=transformTake(textEdit.replace(start,end,"😀"));
+    assert_eq(textIndex.text(textEdit.result(edit)),"A😀Z");
+    assert_eq(textIndex.text(source),"A日本Z");
+    assert_eq(textEdit.start(edit),1);assert_eq(textEdit.end(edit),7);assert_eq(textEdit.insertedBytes(edit),4);
+    let middle=transformTake(textIndex.byteAt(source,4));
+    match textEdit.mapByte(edit,middle,Policy::Exact) {Err(e)=>{assert_eq(e.code,"Deleted");},Ok(_)=>{panic("deleted position");}}
+    assert_eq(textIndex.byteValue(transformTake(textEdit.mapByte(edit,middle,Policy::Before))),1);
+    assert_eq(textIndex.byteValue(transformTake(textEdit.mapByte(edit,middle,Policy::After))),5);
+    let shifted=transformTake(textEdit.mapScalar(edit,end,Policy::Exact));
+    assert_eq(textIndex.scalarValue(shifted),2);assert_eq(textIndex.text(textIndex.scalarSource(shifted)),"A😀Z");
+    let terminal=transformTake(textIndex.byteAt(source,8));
+    assert_eq(textIndex.byteValue(transformTake(textEdit.mapByte(edit,terminal,Policy::Exact))),6);
+    let undo=textEdit.inverse(edit);
+    assert_eq(textIndex.text(textEdit.result(undo)),"A日本Z");
+    assert_eq(textIndex.scalarValue(transformTake(textEdit.mapScalar(undo,shifted,Policy::Exact))),3);
+}
+
+test fn text_edits_require_affinity_at_insertions_and_recheck_graphemes()->Unit effects {} {
+    let source=transformTake(textIndex.create("ab"));
+    let boundary=transformTake(textIndex.scalarAt(source,1));
+    let edit=transformTake(textEdit.replace(boundary,boundary,"XYZ"));
+    let byte=textIndex.scalarToByte(boundary);
+    match textEdit.mapByte(edit,byte,Policy::Exact) {Err(e)=>{assert_eq(e.code,"AmbiguousInsertion");},Ok(_)=>{panic("insertion affinity");}}
+    assert_eq(textIndex.byteValue(transformTake(textEdit.mapByte(edit,byte,Policy::Before))),1);
+    assert_eq(textIndex.byteValue(transformTake(textEdit.mapByte(edit,byte,Policy::After))),4);
+    let combining=transformTake(textEdit.replace(boundary,boundary,"́"));
+    assert_eq(textIndex.text(textEdit.result(combining)),"áb");
+    let grapheme=transformTake(textIndex.graphemeAt(source,1));
+    match textEdit.mapGrapheme(combining,grapheme,Policy::Before) {Err(e)=>{assert_eq(e.code,"GraphemeBoundary");},Ok(_)=>{panic("disappearing boundary");}}
+    assert_eq(textIndex.graphemeValue(transformTake(textEdit.mapGrapheme(combining,grapheme,Policy::After))),1);
+}
+
+test fn text_edits_reject_foreign_or_split_scalar_ranges_and_preserve_noops()->Unit effects {} {
+    let source=transformTake(textIndex.create("日本"));
+    let start=transformTake(textIndex.scalarAt(source,0));let end=transformTake(textIndex.scalarAt(source,2));
+    let noop=transformTake(textEdit.replace(start,end,"日本"));
+    assert(textEdit.isIdentity(noop));
+    let middle=transformTake(textIndex.byteAt(source,3));
+    assert_eq(textIndex.byteValue(transformTake(textEdit.mapByte(noop,middle,Policy::Exact))),3);
+    let foreign=transformTake(textIndex.create("日曜"));
+    let alien=transformTake(textIndex.byteAt(foreign,3));
+    match textEdit.mapByte(noop,alien,Policy::Exact) {Err(e)=>{assert_eq(e.code,"TextMismatch");},Ok(_)=>{panic("foreign source");}}
+    match textEdit.replace(start,transformTake(textIndex.scalarAt(foreign,2)),"x") {Err(e)=>{assert_eq(e.code,"TextMismatch");},Ok(_)=>{panic("mixed range");}}
+    match textEdit.replace(end,start,"x") {Err(e)=>{assert_eq(e.code,"Range");},Ok(_)=>{panic("reversed edit");}}
+    let inside=transformTake(textIndex.byteAt(source,1));
+    match textEdit.replaceBytes(inside,middle,"x") {Err(e)=>{assert_eq(e.code,"ScalarBoundary");},Ok(_)=>{panic("split scalar");}}
+    let removed=transformTake(textEdit.replace(start,end,""));
+    assert_eq(textIndex.text(textEdit.result(removed)),"");
+    assert_eq(textIndex.text(textEdit.result(textEdit.inverse(removed))),"日本");
+}

@@ -1,0 +1,103 @@
+import textIndex as textIndex;
+
+pub record EditError {code:String,offset:Int}
+pub enum Policy {Exact,Before,After}
+pub record Edit {
+    private before:textIndex.Source,
+    private after:textIndex.Source,
+    private start:Int,
+    private end:Int,
+    private added:Int,
+    private unchanged:Bool
+}
+
+fn range(source:textIndex.Source,start:Int,end:Int)->Result<String,EditError> effects {} {
+    match stdBytesSlice(textIndex.bytes(source),start,end) {
+        Err(e)=>{return Err(EditError(e.code,e.offset));},
+        Ok(bytes)=>{match stdDecode(bytes) {Ok(value)=>{return Ok(value);},Err(e)=>{return Err(EditError(e.code,start+e.offset));}}}
+    }
+}
+
+// @api replace Replaces a scalar-aligned range, preserving all other text verbatim. Same-content replacement retains the existing Source.
+pub fn replace(start:textIndex.ScalarIndex,end:textIndex.ScalarIndex,replacement:String)->Result<Edit,EditError> effects {} {
+    let source=textIndex.scalarSource(start);
+    let first=textIndex.byteValue(textIndex.scalarToByte(start));
+    let last=textIndex.byteValue(textIndex.scalarToByte(end));
+    if textIndex.text(source)!=textIndex.text(textIndex.scalarSource(end)) {return Err(EditError("TextMismatch",last));}
+    if last<first {return Err(EditError("Range",last));}
+    let count=textIndex.scalarLength(source)-(textIndex.scalarValue(end)-textIndex.scalarValue(start))+stdTextLength(replacement);
+    if count>65535 {return Err(EditError("ScalarLimit",first));}
+    let removed=range(source,first,last)?;
+    if removed==replacement {return Ok(Edit(source,source,first,last,last-first,true));}
+    let prefix=range(source,0,first)?;let suffix=range(source,last,textIndex.byteLength(source))?;
+    match textIndex.create(prefix+replacement+suffix) {
+        Err(e)=>{return Err(EditError(e.code,e.offset));},
+        Ok(updated)=>{
+            let added=textIndex.byteLength(updated)-textIndex.byteLength(source)+last-first;
+            return Ok(Edit(source,updated,first,last,added,false));
+        }
+    }
+}
+pub fn replaceBytes(start:textIndex.ByteOffset,end:textIndex.ByteOffset,replacement:String)->Result<Edit,EditError> effects {} {
+    match textIndex.byteToScalar(start) {
+        Err(e)=>{return Err(EditError(e.code,e.offset));},
+        Ok(first)=>{
+            match textIndex.byteToScalar(end) {
+                Err(e)=>{return Err(EditError(e.code,e.offset));},
+                Ok(last)=>{return replace(first,last,replacement);}
+            }
+        }
+    }
+}
+pub fn replaceGraphemes(start:textIndex.GraphemeIndex,end:textIndex.GraphemeIndex,replacement:String)->Result<Edit,EditError> effects {} {
+    return replaceBytes(textIndex.graphemeToByte(start),textIndex.graphemeToByte(end),replacement);
+}
+pub fn source(edit:Edit)->textIndex.Source effects {} {return edit.before;}
+pub fn result(edit:Edit)->textIndex.Source effects {} {return edit.after;}
+pub fn start(edit:Edit)->Int effects {} {return edit.start;}
+pub fn end(edit:Edit)->Int effects {} {return edit.end;}
+pub fn insertedBytes(edit:Edit)->Int effects {} {return edit.added;}
+pub fn isIdentity(edit:Edit)->Bool effects {} {return edit.unchanged;}
+
+// @api inverse Restores the previous text version; does not make a deleted interior position bijectively recoverable.
+pub fn inverse(edit:Edit)->Edit effects {} {
+    return Edit(edit.after,edit.before,edit.start,edit.start+edit.added,edit.end-edit.start,edit.unchanged);
+}
+
+fn mappedOffset(edit:Edit,offset:Int,policy:Policy)->Result<Int,EditError> effects {} {
+    if edit.unchanged || offset<edit.start {return Ok(offset);}
+    if offset>edit.end {return Ok(offset+edit.added-(edit.end-edit.start));}
+    if edit.start!=edit.end {
+        if offset==edit.start {return Ok(edit.start);}
+        if offset==edit.end {return Ok(edit.start+edit.added);}
+    }
+    match policy {
+        Policy::Exact=>{
+            if edit.start==edit.end {return Err(EditError("AmbiguousInsertion",offset));}
+            return Err(EditError("Deleted",offset));
+        },
+        Policy::Before=>{return Ok(edit.start);},
+        Policy::After=>{return Ok(edit.start+edit.added);}
+    }
+}
+
+// @api mapByte Maps positions outside edits exactly. Interior/insertion positions require explicit affinity or return a typed error.
+pub fn mapByte(edit:Edit,position:textIndex.ByteOffset,policy:Policy)->Result<textIndex.ByteOffset,EditError> effects {} {
+    let offset=textIndex.byteValue(position);
+    if textIndex.text(textIndex.byteSource(position))!=textIndex.text(edit.before) {return Err(EditError("TextMismatch",offset));}
+    let updated=mappedOffset(edit,offset,policy)?;
+    match textIndex.byteAt(edit.after,updated) {Ok(value)=>{return Ok(value);},Err(e)=>{return Err(EditError(e.code,e.offset));}}
+}
+pub fn mapScalar(edit:Edit,position:textIndex.ScalarIndex,policy:Policy)->Result<textIndex.ScalarIndex,EditError> effects {} {
+    match mapByte(edit,textIndex.scalarToByte(position),policy) {
+        Err(e)=>{return Err(e);},
+        Ok(updated)=>{match textIndex.byteToScalar(updated) {Ok(value)=>{return Ok(value);},Err(e)=>{return Err(EditError(e.code,e.offset));}}}
+    }
+}
+// @api mapGrapheme Rechecks segmentation after editing; a former boundary can disappear when combining characters or CRLF join.
+pub fn mapGrapheme(edit:Edit,position:textIndex.GraphemeIndex,policy:Policy)->Result<textIndex.GraphemeIndex,EditError> effects {} {
+    match mapByte(edit,textIndex.graphemeToByte(position),policy) {
+        Err(e)=>{return Err(e);},
+        Ok(updated)=>{match textIndex.byteToGrapheme(updated) {Ok(value)=>{return Ok(value);},Err(e)=>{return Err(EditError(e.code,e.offset));}}}
+    }
+}

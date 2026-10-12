@@ -1,6 +1,6 @@
 # text・bytes・encodingの境界
 
-2026-10-12：VTEXT-01のByteOffset / ScalarIndex / GraphemeIndexをstd.textIndexへ実装した。原文保持と境界変換を含み、DisplayColumnやedit mappingは含まない。source保存済み・実行検証省略。[契約](../v2-next-text-index-implementation.md)。
+2026-10-12：VTEXT-01のByteOffset / ScalarIndex / GraphemeIndexをstd.textIndexへ実装した。原文保持と境界変換を含む。std.textEditにはVTEXT-01のedit mappingとVTEXT-06の原文を保つ部分置換を追加した。DisplayColumn、rope、改行統一previewは含まない。source保存済み・実行検証省略。[契約](../v2-next-text-index-implementation.md)。
 
 既存文字列処理やcodecの発展案。byte列、Unicode text、表示上の文字を区別し、変換と位置対応をlibrary全体で共有したい。
 
