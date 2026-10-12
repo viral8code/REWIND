@@ -1,7 +1,13 @@
 import std.csvStream as csv;
+import std.csvStream.{TypedRowError};
+import std.schema as schema;
+import std.schema.{Unknown};
+import std.json as json;
+
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("CSV operation failed");}}}
+
 let reader=take(csv.reader());
-let input=take(stdEncode("name,note\r\n日本語,\"a\"\"b\n日\"\r\n"));
+let input=take(stdEncode("name,active,note\r\n日本語,true,\"a\"\"b\n日\"\r\n"));
 var offset=0;
 while offset<stdBytesLength(input){
  let chunk=take(stdBytesSlice(input,offset,offset+1));
@@ -9,8 +15,34 @@ while offset<stdBytesLength(input){
 }
 take(csv.finish(&mut reader));
 commit rows;
-match take(csv.next(&mut reader)){None=>{panic("header missing");},Some(row)=>{Out.println(row.get(0));Out.println(row.get(1));}}
-match take(csv.next(&mut reader)){None=>{panic("data missing");},Some(row)=>{Out.println(row.get(0));Out.println(row.get(1));}}
+let headers=match take(csv.next(&mut reader)){
+ None=>{panic("header missing");},
+ Some(value)=>{value}
+};
+Out.println(headers.get(0));Out.println(headers.get(1));Out.println(headers.get(2));
+
+let wrongFields=List<schema.Field>();
+wrongFields.add(take(schema.field("name",take(schema.text(1,32)),true,None)));
+wrongFields.add(take(schema.field("active",take(schema.integer(0,1)),true,None)));
+wrongFields.add(take(schema.field("note",take(schema.text(0,64)),true,None)));
+let wrongSchema=take(schema.object(&wrongFields,Unknown::Reject));
+match csv.nextTyped(&mut reader,&headers,wrongSchema,None){
+ Err(TypedRowError::Validation(_))=>{Out.println("Validation");},
+ _=>{panic("typed failure expected");}
+}
+
+let fields=List<schema.Field>();
+fields.add(take(schema.field("name",take(schema.text(1,32)),true,None)));
+fields.add(take(schema.field("active",schema.boolean(),true,None)));
+fields.add(take(schema.field("note",take(schema.text(0,64)),true,None)));
+let rule=take(schema.object(&fields,Unknown::Reject));
+match take(csv.nextTyped(&mut reader,&headers,rule,None)){
+ None=>{panic("data row missing");},
+ Some(value)=>{Out.println(take(json.stringify(value)));}
+}
 publish;
 revert rows;
-match take(csv.next(&mut reader)){None=>{panic("restored row missing");},Some(row)=>{Out.println(row.get(0));}}publish;
+match take(csv.next(&mut reader)){None=>{panic("restored header missing");},Some(_)=>{}}
+let restoredRow=take(csv.next(&mut reader));
+match restoredRow{None=>{panic("restored row missing");},Some(row)=>{Out.println(row.get(0));}}
+publish;

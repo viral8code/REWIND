@@ -36,6 +36,14 @@ TextとAnyは常にCSV cellをそのまま文字列として扱います。Boole
 
 利用例は[typed-csv-row.rw](../examples/typed-csv-row.rw)。sourceを保存済み。実行検証は省略。
 
+## CSV stream readerとの接続
+
+`std.csvStream.nextTyped(&mut reader,&headers,schema,nullToken)`は次のqueued rowを`schema.csvRow`へ渡します。EOFならNone、成功したJSONならreaderを一度だけadvanceしてSome(normalized)を返します。`TypedRowError::Stream`はreader側、`TypedRowError::Validation`はCSV row/schema側の失敗です。
+
+Validation failureではreaderをadvanceしないので、schema/headerを直して同じrowを再試行できます。rowを捨てる場合は通常の`next`でraw rowを消費します。queue上限に達したfeed chunkのretry、chunk size、EOF、cancelは引き続きcallerが制御します。nextTypedはbatchを蓄積せず、1 callに1 rowだけ返します。
+
+[CSV stream example](../examples/csv-stream/README.md)は型の異なるschemaで失敗を確認した後、同じrowを正しいschemaで変換します。execution verificationは省略。
+
 ## 型付き変換
 
 mapped(schema,convert)はDecoder<T,E>を作り、decodeは検証・正規化の成功後にだけpureな明示mapperを呼ぶ。失敗はDecodeError<E>のValidation / Conversion段階で区別し、validationかconversionの対応する原因を保持する。

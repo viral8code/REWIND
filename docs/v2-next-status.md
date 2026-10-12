@@ -248,3 +248,12 @@ std.schemaへ`csvRow`を追加した。object schemaをheader名で参照し、�
 nested node tableを合成するときに、object field名からchild node indexへのMapも一緒にrelocateする。CSV headerの検索でschema field一覧を毎回scanしない。追加したsourceは[b415648](https://github.com/viral8code/REWIND/commit/b415648e893361523e0edf15d28c48922ddd0f76)。利用例は[typed-csv-row.rw](../examples/typed-csv-row.rw)。
 
 今の範囲はJSON/CSV rowまで。DB/form向け共通adapter、Decimal/date ruleは残る。sourceは保存済みだが、compiler/実行/API生成/性能計測はしていない。test sourceは今回追加しておらず、公開CI/CD、main統合、Release、版更新もしていない。
+
+
+## 2026-10-12のCSV stream連携
+
+既存std.csvStreamに`nextTyped`を追加し、既に保存した`schema.csvRow`へ一行ずつ接続した。readerのpeek後にschema変換し、成功した場合だけadvanceする。Validation failureなら同じ行を残し、schemaを直して再試行するかraw `next`で明示的に捨てられる。stream failureとschema failureは`TypedRowError::Stream/Validation`で区別する。
+
+変更は[db5b39d](https://github.com/viral8code/REWIND/commit/db5b39d8f50de71b690c3666988e3f7f99a1c20a)。[csv-stream example](../examples/csv-stream/README.md)を型変換・失敗後の再試行を見せる内容に更新した。新たなtest sourceは追加していない。環境起動失敗によりcompile/runtime確認は未実施。
+
+DATA-04全体は未完了。実装したのは既存CSV queueを使う1-row consumerであり、JSON record adapter、DB/HTTP cursor共通化、batch collection APIは残る。queue管理・chunk再送・cancelは既存reader契約を使い、std.schemaは入力streamや外部資源を所有しない。

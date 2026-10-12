@@ -32,6 +32,10 @@ DATA-02の後続候補です。group keyの型、NULL同士の対応、行順序
 
 ## DATA-04：streamから表へのpipeline
 
+**実装source：** 既存`std.csvStream`へ`nextTyped`を加え、header付きCSV rowをDATA-01のobject schemaへ渡す。Validation failure時にqueued rowを保持し、成功時だけadvanceする。全件bufferingを避け、既存queueをcallerがdrainする。
+
+**残り：** JSON stream eventからrecordを作るadapter、DB cursor/HTTP sourceとの共通batch APIは未着手。各sourceのcancel/EOF/retry契約を維持する。
+
 CSV/JSON stream、DB cursor、HTTP downloadを、bounded batchでschema検証・変換へ接続する案です。物理入力の取得とpureな変換を分けます。
 
 sourceは必ずEOF/failed/cancelledを区別し、backpressure、batch件数/byte上限、途中のerrorを規定します。入力再取得が必要な操作と、VM内snapshotだけでrevertできる操作を明示します。全件collectは利用者が容量を指定した場合だけ候補にします。
