@@ -310,3 +310,10 @@ DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP s
 `applyLayout`はboundedなwork queueでnodeを走査し、全leaf ID・重複・Rect・View boundsを確認してからgeometryを更新します。失敗時にViewは変更せず、widgetのcaption・selection・focus indexは維持します。[利用例](../examples/gui-layout.rw)。実装は[1118325](https://github.com/viral8code/REWIND/commit/1118325534ca61a338bee1a72249e1f0fe0b0eed)です。
 
 overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置は未実装です。compile/runtime/API再生成、Linux/Windows native GUI確認は未実施です。
+
+
+## 2026-10-12のGUI-03 table staged-edit overlay
+
+std.guiTableへeditCell、editCellId、hasEdits、changes、clearEditsを追加した。変更はstable row IDとcolumn indexで記録し、cellと既存renderはoverlayを表示する。基礎のFrozen cell matrixを複製せず、元値に戻したcellは差分から除く。最大4096 cell・値合計4 MiB・各value 4096 bytesで制限する。削除時はboundedな差分一覧を再indexする。
+
+これはVM上のモデル編集で、native text inputやIME eventとの接続、sort/filter、typed record adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。

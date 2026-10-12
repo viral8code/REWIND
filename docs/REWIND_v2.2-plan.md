@@ -63,7 +63,9 @@ componentはID、VM内のstate、配置入力、eventからstate/actionを返す
 
 **部分実装（2026-10-12）：** `guiTable.createWithIds`へcaller-suppliedなunique row IDを追加し、rowId/index lookup、IDによるselection、rendered row actionからdata rowへのID解決を実装しました。従来の`create`は互換用に`row:<index>`を合成しますが、これは再構築・並べ替えを越えるidentityではありません。sort/filter、editable cell、stable selectionを保つ並べ替え操作は未実装です。
 
-`guiTable`のviewportと表示行制限は維持します。編集可能なcell、列幅指定、並べ替え・filter、安定したrow IDを追加候補にします。表示位置をrowのidentityとして扱うAPIを増やさず、選択・編集中cell・DB保存対象をrow IDで対応させます。
+**部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。clearEditsで全差分を破棄できます。GUI text inputとの接続、sort/filter、typed adapter、削除・取消を含む編集event lifecycleは未実装です。[例](../examples/gui-table-edits.rw)。
+
+`guiTable`のviewportと表示行制限は維持します。GUI text inputからの編集event連携、列幅指定、並べ替え・filter、typed record adapterを追加候補にします。stable row IDと差分overlayの基本部は実装済みです。表示位置をrowのidentityとして扱うAPIを増やさず、選択・編集中cell・DB保存対象をrow IDで対応させます。
 
 全行のsort/filterと描画の費用を区別します。sort/filterが全件走査であることを記載し、各frameで再実行しないよう入力変更時だけ更新します。大規模DBの全件取得をlibrary側で自動実行しません。
 

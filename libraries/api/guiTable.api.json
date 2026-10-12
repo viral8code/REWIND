@@ -505,7 +505,9 @@
     },
     "fn:cell": {
       "async": false,
+      "cost": "O(1) overlay lookup plus frozen base access; staged values are visible to render.",
       "effects": [],
+      "failure": "Range.",
       "generics": [],
       "parameters": [
         "&Table",
@@ -513,6 +515,25 @@
         "Int"
       ],
       "return": "Result<String,StdError>"
+    },
+    "fn:changes": {
+      "async": false,
+      "cost": "O(edits), at most 4096 entries; returns a frozen snapshot in first-edit order.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Frozen<List<CellEdit>>"
+    },
+    "fn:clearEdits": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Table"
+      ],
+      "return": "Unit"
     },
     "fn:columns": {
       "async": false,
@@ -562,6 +583,43 @@
         "String"
       ],
       "return": "Result<Option<Action>,StdError>"
+    },
+    "fn:editCell": {
+      "async": false,
+      "cost": "O(1) except restoring a base value rebuilds at most 4096 edits.",
+      "effects": [],
+      "failure": "Range/Text/EditLimit/EditCapacity.",
+      "generics": [],
+      "parameters": [
+        "&mut Table",
+        "Int",
+        "Int",
+        "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:editCellId": {
+      "async": false,
+      "cost": "O(1) with caller row IDs; a restoration rebuilds at most 4096 edits. Legacy row IDs parse in O(id bytes).",
+      "effects": [],
+      "failure": "UnknownRow/Range/Text/EditLimit/EditCapacity.",
+      "generics": [],
+      "parameters": [
+        "&mut Table",
+        "String",
+        "Int",
+        "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:hasEdits": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Bool"
     },
     "fn:position": {
       "async": false,
@@ -704,6 +762,25 @@
     "type:BigInt": {
       "constructor": false,
       "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CellEdit": {
+      "constructor": true,
+      "fields": [
+        [
+          "rowId",
+          "String"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "value",
+          "String"
+        ]
+      ],
       "generics": [],
       "kind": "record"
     },

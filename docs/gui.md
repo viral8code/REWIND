@@ -102,9 +102,9 @@ scopeはID名前空間だけを持ち、modelやnative handleは保持しない�
 
 ## フォームと表
 
-1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。
+1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。GUI table編集例は [gui-table-edits.rw](../examples/gui-table-edits.rw) を参照する。
 
-`std.guiTable.createWithIds` accepts unique caller-owned row IDs (1..64 UTF-8 bytes). `rowId`, `rowIndex`, `selectId`, and `selectionId` map between those IDs and the current data positions; rendered row buttons carry the row ID, so dispatch resolves identity through the table index. The legacy `create` overload synthesizes `row:<index>` IDs for compatibility; those are positional and do not survive external reordering. Sorting, filtering, and editable cells remain separate work.
+`std.guiTable.createWithIds` accepts unique caller-owned row IDs (1..64 UTF-8 bytes). `rowId`, `rowIndex`, `selectId`, and `selectionId` map between those IDs and the current data positions; rendered row buttons carry the row ID, so dispatch resolves identity through the table index. The legacy `create` overload synthesizes `row:<index>` IDs for compatibility; those are positional and do not survive external reordering. `editCell` and `editCellId` stage cell changes in a bounded overlay keyed by row ID and column. `cell` and rendering read staged values first; `changes` returns a frozen snapshot in first-edit order, while `clearEdits` discards the overlay. The model retains frozen base cells and caps edits at 4096 cells, 4 MiB of staged value text, and 4096 bytes per cell. This is a model-side editing primitive; text input/event wiring, sorting, and filtering remain separate work.
 
 ## Native clipboard (selected language 1.9.52)
 

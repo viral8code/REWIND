@@ -1,6 +1,7 @@
 import gui as gui;
 pub type TableError = StdError;
-pub struct Table {private headers:Frozen<List<String>>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private visible:Int,private first:Int,private selected:Int}
+pub struct CellEdit {rowId:String,column:Int,value:String}
+pub struct Table {private headers:Frozen<List<String>>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private visible:Int,private first:Int,private selected:Int}
 pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close}
 fn valid(text:String)->Bool effects {} {return text.byteLen()<=4096 && stdTextFind(text,"\0")==None;}
 fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int,customIds:Bool)->Result<Table,TableError> effects {} {
@@ -10,7 +11,7 @@ fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells
  for i in 0..columns{let text=headers.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();}
  if customIds{for i in 0..rowIds.len(){let id=rowIds.get(i);if id=="" || id.byteLen()>64 || !valid(id){return Err(StdError("GuiTableRowId",i));}if rowIndices.get(id)!=None{return Err(StdError("GuiTableDuplicateRowId",i));}rowIndices.set(id,i);bytes+=id.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}}
  for i in 0..cells.len(){let text=cells.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}
- return Ok(Table(headers,rowIds,move rowIndices,customIds,cells,visibleRows,0,-1));
+ return Ok(Table(headers,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,visibleRows,0,-1));
 }
 // @api create cost O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.
 pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
@@ -42,7 +43,59 @@ pub fn selectionId(table:&Table)->Option<String> effects {} {
 pub fn selectId(table:&mut Table,id:String)->Result<Unit,TableError> effects {} {
  match rowIndex(table,id){Some(row)=>{return select(table,row);},None=>{return Err(StdError("GuiTableUnknownRow",0));}}
 }
-pub fn cell(table:&Table,row:Int,column:Int)->Result<String,TableError> effects {} {if row<0 || row>=rows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}return Ok(table.cells.get(row*columns(table)+column));}
+// @api cell cost O(1) overlay lookup plus frozen base access; staged values are visible to render.
+pub fn cell(table:&Table,row:Int,column:Int)->Result<String,TableError> effects {} {
+ if row<0 || row>=rows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}
+ let id=rowId(table,row)?;let key=editKey(id,column);
+ match table.editIndex.get(key){Some(index)=>{return Ok(table.editedCells.get(index).value);},None=>{return Ok(table.cells.get(row*columns(table)+column));}}
+}
+fn editKey(id:String,column:Int)->String effects {} {return id.byteLen().format()+":"+id+":"+column.format();}
+fn removeEdit(table:&mut Table,index:Int)->Unit effects {} {
+ let values=List<CellEdit>();let indices=Map<String,Int>();var bytes=0;var i=0;
+ while i<table.editedCells.len(){if i!=index{let edit=table.editedCells.get(i);indices.set(editKey(edit.rowId,edit.column),values.len());values.add(edit);bytes+=edit.value.byteLen();}i+=1;}
+ table.editedCells=move values;table.editIndex=move indices;table.editBytes=bytes;
+}
+fn stageEdit(table:&mut Table,row:Int,id:String,column:Int,value:String)->Result<Unit,TableError> effects {} {
+ if column<0 || column>=columns(table){return Err(StdError("GuiTableRange",column));}
+ if !valid(value){return Err(StdError("GuiInvalidText",0));}
+ let original=table.cells.get(row*columns(table)+column);let key=editKey(id,column);
+ match table.editIndex.get(key){
+  Some(index)=>{
+   if value==original{removeEdit(table,index);return Ok(());}
+   let previous=table.editedCells.get(index);let nextBytes=table.editBytes-previous.value.byteLen()+value.byteLen();
+   if nextBytes>4194304{return Err(StdError("GuiTableEditCapacity",nextBytes));}
+   table.editedCells.set(index,CellEdit(id,column,value));table.editBytes=nextBytes;return Ok(());
+  },
+  None=>{
+   if value==original{return Ok(());}
+   if table.editedCells.len()>=4096{return Err(StdError("GuiTableEditLimit",table.editedCells.len()));}
+   let nextBytes=table.editBytes+value.byteLen();if nextBytes>4194304{return Err(StdError("GuiTableEditCapacity",nextBytes));}
+   let index=table.editedCells.len();table.editedCells.add(CellEdit(id,column,value));table.editIndex.set(key,index);table.editBytes=nextBytes;return Ok(());
+  }
+ }
+}
+// @api editCell cost O(1) except bounded edit removal; max 4096 staged cells and 4 MiB of value bytes.
+// @api editCell failure Range/Text/EditLimit/EditCapacity.
+pub fn editCell(table:&mut Table,row:Int,column:Int,value:String)->Result<Unit,TableError> effects {} {
+ if row<0 || row>=rows(table){return Err(StdError("GuiTableRange",row));}
+ let id=rowId(table,row)?;return stageEdit(table,row,id,column,value);
+}
+// @api editCellId resolves stable row IDs in O(1); removing a restored cell rebuilds at most 4096 entries.
+// @api editCellId failure UnknownRow/Range/Text/EditLimit/EditCapacity.
+pub fn editCellId(table:&mut Table,id:String,column:Int,value:String)->Result<Unit,TableError> effects {} {
+ if id.byteLen()>64{return Err(StdError("GuiTableUnknownRow",0));}
+ match rowIndex(table,id){Some(row)=>{return stageEdit(table,row,id,column,value);},None=>{return Err(StdError("GuiTableUnknownRow",0));}}
+}
+pub fn hasEdits(table:&Table)->Bool effects {} {return table.editedCells.len()>0;}
+// @api changes cost O(edits), at most 4096 entries; preserves first-edit order in a frozen snapshot.
+pub fn changes(table:&Table)->Frozen<List<CellEdit>> effects {} {
+ let snapshot=List<CellEdit>();var i=0;
+ while i<table.editedCells.len(){snapshot.add(table.editedCells.get(i));i+=1;}
+ return freeze(snapshot);
+}
+pub fn clearEdits(table:&mut Table)->Unit effects {} {
+ table.editedCells=List<CellEdit>();table.editIndex=Map<String,Int>();table.editBytes=0;
+}
 fn maximum(table:&Table)->Int effects {} {let value=rows(table)-table.visible;if value<0{return 0;}return value;}
 // @api scroll cost O(1); clamps arbitrary signed deltas before adding them.
 pub fn scroll(table:&mut Table,delta:Int)->Unit effects {} {
