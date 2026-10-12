@@ -83,6 +83,12 @@ VCACHE-07/06の遅延値をstd.lazyへ実装した。peekは計算せず、force
 
 保存先はcodex/developのみで、すべて[skip ci]付き。確認時点のmainは5f5ab8f37c4d21f8746b2d1db077946809e3be42のまま。Actions最新実行も2026-10-10の既存commitから増えていない。
 
+## 2026-10-12のGUI-01レイアウト追加分
+
+`std.gui`へnested row/column layout tree、weighted main-axis min/max/fixed sizing、atomicな`applyLayout`を追加した。flatな`splitRow`/`splitColumn`はweightとgapのみに対応し、個別min/maxは持たない。上限は1024 node、深さ32、containerあたり256 child、4096 pixel。領域が制約を満たせない場合はView更新前にerrorを返す。focus/edit stateはwidget ID単位で維持する。
+
+GUI-01は部分実装で、padding、cross-axis constraints、自然寸法測定、resize時自動再配置を残す。API manifestと計画の記述をsourceに合わせた。環境起動失敗のためcompile、実行、API生成、native Windows/Linux動作は確認していない。source変更はcodex/developのみへ`[skip ci]`付きで保存し、mainと公開CI/CDへ触れない。
+
 ## 最初の実装単位
 
 [データsnapshotと名前付き履歴](v2-next-snapshot-implementation.md)を追加する。std.snapshot、std.history、埋込みmodule登録、library/CLIの回帰test、利用例を含む。[generic Frozenの共有判定](v2-next-frozen-bounds-implementation.md)も修正する。
@@ -144,11 +150,11 @@ CLI/artifact/replayの回帰追加を含む最新commitはgit log -- tests/data_
 
 ## v2.2作業一覧
 
-すべて未着手です。IDのGUI-01はv2.2詳細内の作業名であり、性能文書のGUI-01 caseとは区別して参照します。
+GUI-01は部分実装、他は未着手です。IDのGUI-01はv2.2詳細内の作業名であり、性能文書のGUI-01 caseとは区別して参照します。
 
 | ID | 実装差分 | 依存・確認 | 完了または保留の判断 |
 |---|---|---|---|
-| GUI-01 | 入れ子layout | arrange、edit、composition | overflow/resize/focus/上限 |
+| GUI-01 | 入れ子row/column、main-axis min/max、atomic applyLayout | arrange、edit、composition | source保存済み。padding/cross-axis/自動resizeと実行確認は残る |
 | GUI-02 | 再利用component | layout ID、effect/ownership | 2 instance、pure render、入力保持 |
 | GUI-03 | field間検証・table編集 | 既存form/table、GUI-01 | row ID、sort/filter、IME、viewport |
 | VIS-01 | 限定plot | renderer primitive、numeric view | 費用/互換確認。未成立なら保留可能 |

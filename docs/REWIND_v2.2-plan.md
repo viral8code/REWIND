@@ -18,11 +18,11 @@
 
 ## GUI-01：構成可能なlayout
 
-既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** `gui.splitRow` / `splitColumn`が最大256個の1..1,000,000のweight、各childのmain-axis min/max (0..4096 pixel)、gap 0..4096 pixelを使って、4096 pixel以内の領域を子Rectへ分割します。min==maxは固定寸法です。`gui.row` / `column`はこれらを最大32階層のlayout treeとして合成し、`applyLayout`でatomicに適用します。`arrangeRow` / `arrangeColumn`は全ID、重複、View内bounds、非ゼロ寸法を事前確認してからgeometryだけを更新し、失敗時にViewを変更しません。剰余pixelはrowなら左から、columnなら上から配り、既存widget IDに結び付いたfocus/edit stateを維持します。[例](../examples/gui-layout.rw)。
+既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** flatな`gui.splitRow` / `splitColumn`は最大256個のweightとgapを受け取り、4096 pixel以内の領域を子Rectへ分割します。このflat APIには個別寸法制約はありません。layout treeでは`gui.sized(child,weight,min,max)`が子のmain-axis寸法を0..4096 pixelで制約し、`min == max`は固定寸法です。`gui.weighted`の既定範囲は0..4096です。`gui.row` / `column`は最大32階層のtreeとして合成し、`applyLayout`でatomicに適用します。`arrangeRow` / `arrangeColumn`は全ID、重複、View内bounds、非ゼロ寸法を事前確認してからgeometryだけを更新し、失敗時にViewを変更しません。剰余pixelはrowなら左から、columnなら上から配り、既存widget IDに結び付いたfocus/edit stateを維持します。[例](../examples/gui-layout.rw)。
 
-nested row/column layout treeとatomicなView適用をsourceへ追加しました。node tableは最大1024 node・深さ32、1 containerは最大256 childです。gridはnested row/columnで構成できます。overlay layout node、padding、cross-axis constraints、resize時の自動再配置は未実装です。
+nested row/column layout treeとatomicなView適用をsourceへ追加しました。node tableは最大1024 node・深さ32、1 containerは最大256 childです。main-axisのweight/min/maxはlayout treeで使えます。gridはnested row/columnで構成できます。overlay layout node、padding、cross-axis constraints、自然寸法測定、resize時の自動再配置は未実装です。
 
-初期仕様は整数pixelのpadding、gap、最小/最大寸法、固定寸法、余りを配分するweightに絞ります。文字の自然寸法やDPI依存測定を純粋計算の内部で問い合わせません。必要な測定値は既存の観測境界を通して入力します。領域不足時の縮小順序、余りpixelの配分順序、clipの扱いを決め、backendによる差を減らします。
+実装済みの純粋計算は整数pixelのgap、main-axis min/max/fixed寸法、余りを配分するweightに絞ります。paddingとcross-axis constraintsは未実装です。文字の自然寸法やDPI依存測定を純粋計算の内部で問い合わせません。必要な測定値は既存の観測境界を通して入力します。領域不足時はminimum合計とgapを満たせなければ失敗し、余りpixelはrowなら左から、columnなら上から配ります。clipの扱いとresize時の再配置は未決です。
 
 配置木には安定したIDを与えます。重複ID、不正寸法、座標overflow、深さ・子数・総要素数の上限を検証してからViewを更新します。検証失敗時に部分的な配置を公開しません。再配置でfocus、selection、scroll、IME compositionをどう扱うかを既存edit stateと照合します。
 

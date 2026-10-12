@@ -11,7 +11,7 @@
       "async": false,
       "cost": "O(layout nodes + leaf widgets); validates before mutation.",
       "effects": [],
-      "failure": "GuiLayoutLimit/Bounds/Children/Gap/Weight/InsufficientSpace/UnknownId/DuplicateId; failure leaves the view unchanged.",
+      "failure": "GuiLayoutLimit/Bounds/Children/Gap/Weight/Dimension/InsufficientSpace/UnknownId/DuplicateId; failure leaves the view unchanged.",
       "generics": [],
       "parameters": [
         "&mut View",
@@ -138,7 +138,7 @@
       "async": false,
       "cost": "O(total child nodes); at most 256 children, 1024 nodes and depth 32.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Weight/Limit/DepthLimit.",
+      "failure": "GuiLayoutChildren/Gap/Weight/Dimension/Limit/DepthLimit.",
       "generics": [],
       "parameters": [
         "&List<WeightedLayout>",
@@ -330,7 +330,7 @@
       "async": false,
       "cost": "O(total child nodes); at most 256 children, 1024 nodes and depth 32.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Weight/Limit/DepthLimit.",
+      "failure": "GuiLayoutChildren/Gap/Weight/Dimension/Limit/DepthLimit.",
       "generics": [],
       "parameters": [
         "&List<WeightedLayout>",
