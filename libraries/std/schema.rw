@@ -230,6 +230,10 @@ fn csvCell(schema:Schema,nodeIndex:Int,value:String,path:Frozen<List<Segment>>,n
 pub fn csvRow(schema:Schema,headers:&List<String>,row:&List<String>,nullToken:Option<String>)->Result<Json,ValidationError> effects {} {
     if headers.len()>65536 {return Err(csvProblem("ColumnLimit",freeze(List<Segment>()),"<=65536 columns","HeaderLimit"));}
     if headers.len()!=row.len() {return Err(csvProblem("RowWidth",freeze(List<Segment>()),"row matching header width","Mismatch"));}
+    match nullToken {
+        Some(token)=>{if stdTextLength(token)>128 {return Err(csvProblem("NullTokenLimit",freeze(List<Segment>()),"token <=128 scalars","Text"));}},
+        None=>{}
+    }
     let (known,policy)=match thaw(schema.nodes.get(schema.root)) {
         Node::Object(_,known,policy)=>{(known,policy)},
         _=>{return Err(csvProblem("RootSchema",freeze(List<Segment>()),"object schema","Other"));}

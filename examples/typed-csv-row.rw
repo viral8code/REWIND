@@ -1,0 +1,22 @@
+import std.schema as schema;
+import std.schema.{Unknown};
+import std.json as json;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(result)=>{return move result;},Err(_)=>{panic("csv schema example");}}
+}
+
+let fields=List<schema.Field>();
+fields.add(take(schema.field("sku",take(schema.text(1,32)),true,None)));
+fields.add(take(schema.field("in_stock",schema.boolean(),true,None)));
+fields.add(take(schema.field("price",schema.number(),true,None)));
+fields.add(take(schema.field("memo",take(schema.nullable(take(schema.text(0,64)))),false,None)));
+let rule=take(schema.object(&fields,Unknown::Reject));
+
+// These two lists are the header and one row returned by std.csvStream.
+let headers=List<String>();headers.add("sku");headers.add("in_stock");headers.add("price");headers.add("memo");
+let row=List<String>();row.add("A-17");row.add("true");row.add("12.5");row.add("NULL");
+let value=take(schema.csvRow(rule,&headers,&row,Some("NULL")));
+Out.println(take(json.stringify(value)));
+// Expected value: {"in_stock":true,"memo":null,"price":12.5,"sku":"A-17"} (object key order is not significant).
+publish;

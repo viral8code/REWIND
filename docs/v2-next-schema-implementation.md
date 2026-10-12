@@ -2,7 +2,7 @@
 
 更新日：2026-10-12。対象：codex/develop。**source実装済み・実行検証省略**。
 
-[DATA-01](v2-next-data.md)のJSON検証と明示mapperをstd.schemaへ実装した。既存std.configの入力優先順位とflatな設定検証は維持する。CSV/DB/form向け共通adapter、Decimal・日時向けrule、reflection/deriveは後続の範囲。
+[DATA-01](v2-next-data.md)のJSON検証、明示mapper、header付きCSV row adapterをstd.schemaへ実装した。既存std.configの入力優先順位とflatな設定検証は維持する。DB/form向けadapter、Decimal・日時向けrule、reflection/deriveは後続の範囲。
 
 ## Schemaの構築
 
@@ -21,6 +21,20 @@ validateはdefault挿入とunknown policyを反映したJsonを返す。入力�
 objectではunknown policyを先に検査し、宣言済みfieldは宣言順、配列はindex順で進む。Unknown::Rejectのerrorは対象objectのpathを返す。全errorの収集や大量の連鎖診断は行わない。
 
 一回のvalidateは最大65,536 validation visit。nullable等のrule通過も数えるため、単一arrayの件数上限とは別の制約となる。anyやKeepでそのまま通した未知subtreeの全内容を検証したことにはならない。VMのwork/allocation上限は別に適用する。
+
+## CSV row adapter
+
+`csvRow(schema,&headers,&row,nullToken)`はrootがobjectのschemaに、1行分のヘッダーと値を対応付けます。CSV streamそのものや複数行を保持せず、既存の`std.csvStream.next`が返す`List<String>`を1行ずつ渡せます。
+
+headerは一意で各128 scalar以下、rowはheaderと同じ列数です。列は最大65,536、row全体は最大1,048,576 scalarです。schema field名はMap indexで引くため、headerごとに全schema fieldを走査しません。既定値と必須field、Unknown::Reject/Keep/Dropは通常の`validate`と同じ規則です。
+
+TextとAnyは常にCSV cellをそのまま文字列として扱います。Boolean / Integer / Number / Array / Object fieldはcell全体をJSON値としてparseし、既存schemaで型と範囲を検査します。配列や入れ子objectは1つのCSV cellにJSON表記で格納します。型を推測したり、Textを数値へ暗黙変換したりしません。
+
+`nullToken`はnullable nodeにだけ適用する完全一致文字列です。`None`は暗黙のNULL tokenなし、`Some("NULL")`ならそのcellだけNULLになります。空文字は既定では空のTextです。NULL tokenが空文字ならnullable列で空cellをNULLとして扱います。sentinelの長さは128 scalar以下です。必須fieldの列自体がheaderにない場合はMissingField、headerはあるがrow cellが足りない場合はRowWidthです。
+
+重複header・過長header・row上限・cell JSON parse失敗は、入力文字列を含まないValidationErrorで返します。未知field名を含む診断は行いません。CSV parserのchunk上限・queue・EOF・cancelは既存readerが管理し、このAPIは受け取ったrowの変換だけを担当します。
+
+利用例は[typed-csv-row.rw](../examples/typed-csv-row.rw)。sourceを保存済み。実行検証は省略。
 
 ## 型付き変換
 

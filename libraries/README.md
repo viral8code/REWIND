@@ -17,7 +17,7 @@
 | lens | create, get, set, modify, compose, optional, plan, apply, inverse, checkLaws | Share値のtyped path、検査付き更新、欠損保持、有限例の法則確認 |
 | persistentSet | create, root, same, size, components, unite, uniteMany | 複数の不変版、union-by-size、既存native配列の共有page |
 | textEdit | replace, mapByte/Scalar/Grapheme, inverse, chain, mapChainByte/Scalar/Grapheme, inverseChain | 原文保持、編集位置の明示policy、boundedな編集列と失敗step |
-| schema | integer, text, nullable, array, field, object, validate, mapped, decode | 入れ子JSON、missing/NULL/defaultの区別、unknown policy、実値を含めない検証error |
+| schema | Unknown, Segment, Schema, Field, ValidationError, Decoder, any/boolean/number/integer/text, nullable/array/field/object, validate, csvRow, mapped, decode | 入れ子JSON、defaultと明示NULL、field名付きCSV row（最大65,536列 / 1 Mi scalar）、明示sentinel（128 scalar以下） |
 | memo | key, create, get, peek, put, resolve, invalidate, clear | 版付きkey、LRU、件数/重み上限、pureな結果とErrの保持 |
 | lazy | create, isForced, peek, force, fork, clear | 明示的な遅延計算、成功snapshot、回復可能なErr、可変ownerの独立fork |
 

@@ -239,3 +239,12 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 ~~~
 
 計画を変更するときは、到達条件・依存・受入・この状態表を揃えます。runtime未実装のAPIを現行入門書やSDK referenceに掲載しません。
+
+
+## 2026-10-12のCSV schema接続
+
+std.schemaへ`csvRow`を追加した。object schemaをheader名で参照し、既存`std.csvStream`が返す各rowを同じrequired/default/unknown policyで検証できる。Text/Anyはraw textのまま、typed cellは全体をJSON値としてparseする。nullable cellのNULL sentinelは呼出し側が正確な文字列で指定する。row幅・重複header・scalar長・構造visitを制限する。
+
+nested node tableを合成するときに、object field名からchild node indexへのMapも一緒にrelocateする。CSV headerの検索でschema field一覧を毎回scanしない。追加したsourceは[b415648](https://github.com/viral8code/REWIND/commit/b415648e893361523e0edf15d28c48922ddd0f76)。利用例は[typed-csv-row.rw](../examples/typed-csv-row.rw)。
+
+今の範囲はJSON/CSV rowまで。DB/form向け共通adapter、Decimal/date ruleは残る。sourceは保存済みだが、compiler/実行/API生成/性能計測はしていない。test sourceは今回追加しておらず、公開CI/CD、main統合、Release、版更新もしていない。

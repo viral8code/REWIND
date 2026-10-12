@@ -16,13 +16,13 @@
 | std.lens | typed getter/setter、欠損path、合成、検査付き変更、有限の法則確認 | VOPTIC-01/02/04/06/10の基本部分 | [typed-lens](../examples/typed-lens.rw) |
 | std.persistentSet | 任意版からのunion、複数版query、native page共有 | VPERSIST-06 | [persistent-union-find](../examples/persistent-union-find.rw) |
 | std.textEdit | 原文を保つ置換、旧新位置mapping、編集列合成、挿入affinity、逆編集 | VTEXT-01/06の基本部分 | [text-edit-mapping](../examples/text-edit-mapping.rw)、[編集列](../examples/text-edit-chain.rw) |
-| std.schema | 入れ子JSON検証、default/NULL/unknown policy、型付きmapper | DATA-01のJSON部分 | [typed-schema](../examples/typed-schema.rw) |
+| std.schema | 入れ子JSON検証、default/NULL/unknown policy、型付きmapper、header付きCSV row | DATA-01のJSON/CSV row部分 | [typed-schema](../examples/typed-schema.rw)、[typed-csv-row](../examples/typed-csv-row.rw) |
 | std.memo | 版付きkey、LRU、件数/weight制限、pure Errのcache、選択失効 | VCACHE-02/03/04/06/12の基本部分 | [versioned-cache](../examples/versioned-cache.rw) |
 | std.lazy | 明示force、成功snapshotとErrの保持、独立fork、clear | VCACHE-07/06の基本部分 | [lazy-snapshot](../examples/lazy-snapshot.rw) |
 | generic Frozenの型判定 | T:SendからFrozen<T>のShareを導出し、呼出し・recordへ伝播 | 上記libraryの前提修正 | [記録](v2-next-frozen-bounds-implementation.md) |
 | 入れ子Frozenのruntime修正 | 明示freezeの一段追加と、thaw時の内側Frozen保持 | snapshot/ChangeSetの合成を支える修正 | [記録](v2-next-nested-frozen-implementation.md) |
 
-snapshot/historyの後に追加した12 moduleは合計191のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
+snapshot/historyの後に追加した12 moduleは合計192のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
 
 ## 読む資料
 
