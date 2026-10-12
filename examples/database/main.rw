@@ -1,4 +1,13 @@
 import std.db as db;
+
+record Score {name:String,score:Int}
+fn mapScore(row:Frozen<DbRow>,columns:&db.ColumnMap)->Result<Score,DbError> effects {} {
+    let nameIndex=db.columnNumber(columns,"name")?;
+    let scoreIndex=db.columnNumber(columns,"score")?;
+    let name=db.text(row,nameIndex)?;
+    let score=db.integer(row,scoreIndex)?;
+    return Ok(Score(name,score));
+}
 fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
 }
@@ -22,7 +31,7 @@ match opening {
                 let cursor=take(take(await task));
                 var reading:Option<Task<Result<DbBatch,DbError>>>=None;
                 external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
-                match reading {None=>{panic("missing read");},Some(task)=>{let batch=take(take(await task));let columnMap=take(db.indexColumns(batch.columns));let nameIndex=take(db.columnNumber(&columnMap,"name"));let scoreIndex=take(db.columnNumber(&columnMap,"score"));Out.println(take(db.text(batch.rows.get(0),nameIndex)));Out.println(take(db.integer(batch.rows.get(0),scoreIndex)));}}
+                match reading {None=>{panic("missing read");},Some(task)=>{let batch=take(take(await task));let columnMap=take(db.indexColumns(batch.columns));let score=take(mapScore(batch.rows.get(0),&columnMap));Out.println(score.name);Out.println(score.score);}}
             }
         }
     }

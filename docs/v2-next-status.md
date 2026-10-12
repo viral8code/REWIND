@@ -263,4 +263,4 @@ DATA-04全体は未完了。実装したのは既存CSV queueを使う1-row cons
 
 v2.2のDB-01に`std.db.ColumnMap`、`indexColumns`、`columnNumber`を追加した。cursor metadataの列名を最大256件まで一度検査し、重複名を拒否してimmutable Mapへ保持する。同じbatch内の各rowでname lookupを繰り返せる。record生成とInt/Text等の選択は既存typed accessorを使って呼出側に残した。
 
-[SQLite](../examples/database/README.md)と[PostgreSQL](../examples/postgres/README.md)の両exampleで、backendを越えて同じColumnMap APIを使いtyped accessorを選ぶ形にした。既存の1件ずつ読むcursorを維持し、全rowを収集しない。新しいtest sourceは追加していない。実行環境のcontainer起動失敗によりcompile/runtime確認は未実施。SQLite/PostgreSQLの両方での実行受入、NULL/duplicate/missing、cleanup確認はDB-01の残り。
+[SQLite](../examples/database/README.md)と[PostgreSQL](../examples/postgres/README.md)の両exampleで、backendを越えて同じColumnMap APIから列位置を引き、typed accessorを使うuser mapperがScore / StatusRowを構築する。既存の1件ずつ読むcursorを維持し、全rowを収集しない。新しいtest sourceは追加していない。実行環境のcontainer起動失敗によりcompile/runtime確認は未実施。SQLite/PostgreSQLの両方での実行受入、NULL/duplicate/missing、cleanup確認はDB-01の残り。
