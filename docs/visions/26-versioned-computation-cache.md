@@ -1,5 +1,7 @@
 # 版を跨ぐ計算cacheと再計算
 
+2026-10-12：VCACHE-02/03/04/06/12の明示keyによる基本部分をstd.memoへ実装した。LRU、件数/weight上限、pureなResultの保持、失効を含む。依存の自動追跡・offline・hyper領域は含めない。source保存済み・実行検証省略。[契約](../v2-next-memo-implementation.md)。
+
 reactive modelや永続subtreeのcacheより踏み込んで、どの計算を何に基づいて再利用できるかを利用者が扱う自由構想です。
 
 ## VCACHE-01：読んだ値を記録するpure call

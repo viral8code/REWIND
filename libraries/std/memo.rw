@@ -1,0 +1,103 @@
+import orderedMap as orderedMap;
+import orderedMap.{create as createOrderedMap};
+
+pub enum CacheError {Capacity,WeightBudget,Weight,InvalidDomain,InvalidRevision,InputLimit,KeyEncoding}
+pub record Key {private domain:String,private revision:String,private input:String,private encoded:String}
+record Entry<T:Share> {key:Key,value:T,weight:Int}
+pub struct Cache<T:Share> {
+    private items:orderedMap.OrderedMap<Entry<T>>,
+    private capacity:Int,
+    private weightLimit:Int,
+    private totalWeight:Int
+}
+pub record Resolved<T:Share> {value:T,hit:Bool}
+
+// @api key Separates domain, code revision and caller-chosen input identity. JSON tuple encoding avoids delimiter collisions.
+pub fn key(domain:String,revision:String,input:String)->Result<Key,CacheError> effects {} {
+    let domainSize=stdTextLength(domain);let revisionSize=stdTextLength(revision);
+    if domainSize<1 || domainSize>128 {return Err(CacheError::InvalidDomain);}
+    if revisionSize<1 || revisionSize>256 {return Err(CacheError::InvalidRevision);}
+    if stdTextLength(input)>4096 {return Err(CacheError::InputLimit);}
+    let parts=List<Json>();parts.add(Json::Text(domain));parts.add(Json::Text(revision));parts.add(Json::Text(input));
+    match jsonStringify(Json::Array(freeze(parts))) {
+        Ok(encoded)=>{return Ok(Key(domain,revision,input,encoded));},
+        Err(_)=>{return Err(CacheError::KeyEncoding);}
+    }
+}
+pub fn domain(key:Key)->String effects {} {return key.domain;}
+pub fn revision(key:Key)->String effects {} {return key.revision;}
+pub fn input(key:Key)->String effects {} {return key.input;}
+
+// @api create Bounds entry count to 1..65536 and total caller-assigned positive weight. Weight is not a measurement of physical bytes.
+pub fn create<T:Share>(capacity:Int,weightLimit:Int)->Result<Cache<T>,CacheError> effects {} {
+    if capacity<1 || capacity>65536 {return Err(CacheError::Capacity);}
+    if weightLimit<1 {return Err(CacheError::WeightBudget);}
+    match createOrderedMap<Entry<T>>(capacity) {
+        Err(_)=>{return Err(CacheError::Capacity);},
+        Ok(items)=>{return Ok(Cache<T>(move items,capacity,weightLimit,0));}
+    }
+}
+pub fn length<T:Share>(cache:&Cache<T>)->Int effects {} {return orderedMap.length(&cache.items);}
+pub fn weight<T:Share>(cache:&Cache<T>)->Int effects {} {return cache.totalWeight;}
+// @api keys Returns keys from least to most recently used, without exposing cached payloads.
+pub fn keys<T:Share>(cache:&Cache<T>)->List<Key> effects {} {
+    let encoded=orderedMap.keys(&cache.items);let output=List<Key>();
+    for i in 0..encoded.len() {
+        match orderedMap.get(&cache.items,encoded.get(i)) {Some(entry)=>{output.add(entry.key);},None=>{panic("memo invariant");}}
+    }
+    return output;
+}
+pub fn peek<T:Share>(cache:&Cache<T>,key:Key)->Option<T> effects {} {
+    match orderedMap.get(&cache.items,key.encoded) {Some(entry)=>{return Some(entry.value);},None=>{return None;}}
+}
+// @api get A hit moves the entry to most-recent position; peek leaves recency unchanged.
+pub fn get<T:Share>(cache:&mut Cache<T>,key:Key)->Option<T> effects {} {
+    match orderedMap.get(&cache.items,key.encoded) {
+        Some(entry)=>{orderedMap.touch(&mut cache.items,key.encoded);return Some(entry.value);},
+        None=>{return None;}
+    }
+}
+pub fn remove<T:Share>(cache:&mut Cache<T>,key:Key)->Option<T> effects {} {
+    match orderedMap.remove(&mut cache.items,key.encoded) {
+        Some(entry)=>{cache.totalWeight-=entry.weight;return Some(entry.value);},
+        None=>{return None;}
+    }
+}
+// @api put Validates weight before mutation, replaces an existing key, then evicts least-recent entries until both bounds permit insertion.
+pub fn put<T:Share>(cache:&mut Cache<T>,key:Key,value:T,weight:Int)->Result<List<Key>,CacheError> effects {} {
+    if weight<1 || weight>cache.weightLimit {return Err(CacheError::Weight);}
+    match orderedMap.remove(&mut cache.items,key.encoded) {Some(old)=>{cache.totalWeight-=old.weight;},None=>{}}
+    let evicted=List<Key>();
+    // Subtract first so admission cannot overflow even when weightLimit is Int::MAX.
+    while orderedMap.length(&cache.items)>=cache.capacity || cache.totalWeight>cache.weightLimit-weight {
+        match orderedMap.popFirst(&mut cache.items) {
+            Some(pair)=>{cache.totalWeight-=pair.1.weight;evicted.add(pair.1.key);},
+            None=>{panic("memo capacity invariant");}
+        }
+    }
+    match orderedMap.put(&mut cache.items,key.encoded,Entry<T>(key,value,weight)) {
+        Ok(_)=>{cache.totalWeight+=weight;return Ok(move evicted);},
+        Err(_)=>{panic("memo capacity invariant");}
+    }
+}
+// @api resolve Computes only on a miss. Pure Result values may be cached as T; callback panic or fatal budget failure is not cached.
+pub fn resolve<T:Share>(cache:&mut Cache<T>,key:Key,weight:Int,compute:fn()->T effects {} captures {Send,Share})->Result<Resolved<T>,CacheError> effects {} {
+    if weight<1 || weight>cache.weightLimit {return Err(CacheError::Weight);}
+    match get(cache,key) {
+        Some(value)=>{return Ok(Resolved<T>(value,true));},
+        None=>{
+            let value=compute();put(cache,key,value,weight)?;
+            return Ok(Resolved<T>(value,false));
+        }
+    }
+}
+// @api invalidate Selects matching keys with a pure predicate before removing entries. Existing returned values retain their own lifetime.
+pub fn invalidate<T:Share>(cache:&mut Cache<T>,predicate:fn(Key)->Bool effects {} captures {Send,Share})->List<Key> effects {} {
+    let candidates=keys(cache);let selected=List<Key>();
+    for i in 0..candidates.len() {let key=candidates.get(i);if predicate(key) {selected.add(key);}}
+    for i in 0..selected.len() {remove(cache,selected.get(i));}
+    return selected;
+}
+pub fn clear<T:Share>(cache:&mut Cache<T>)->Unit effects {} {
+    orderedMap.clear(&mut cache.items);cache.totalWeight=0;
+}
