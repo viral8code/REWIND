@@ -16,10 +16,11 @@
 | std.lens | typed getter/setter、欠損path、合成、検査付き変更、有限の法則確認 | VOPTIC-01/02/04/06/10の基本部分 | [typed-lens](../examples/typed-lens.rw) |
 | std.persistentSet | 任意版からのunion、複数版query、native page共有 | VPERSIST-06 | [persistent-union-find](../examples/persistent-union-find.rw) |
 | std.textEdit | 原文を保つ置換、旧新位置mapping、編集列合成、挿入affinity、逆編集 | VTEXT-01/06の基本部分 | [text-edit-mapping](../examples/text-edit-mapping.rw)、[編集列](../examples/text-edit-chain.rw) |
+| std.schema | 入れ子JSON検証、default/NULL/unknown policy、型付きmapper | DATA-01のJSON部分 | [typed-schema](../examples/typed-schema.rw) |
 | generic Frozenの型判定 | T:SendからFrozen<T>のShareを導出し、呼出し・recordへ伝播 | 上記libraryの前提修正 | [記録](v2-next-frozen-bounds-implementation.md) |
 | 入れ子Frozenのruntime修正 | 明示freezeの一段追加と、thaw時の内側Frozen保持 | snapshot/ChangeSetの合成を支える修正 | [記録](v2-next-nested-frozen-implementation.md) |
 
-追加した9 moduleは合計153のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
+追加した10 moduleは合計165のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
 
 ## 読む資料
 
@@ -29,6 +30,7 @@
 - [text位置型の契約・費用](v2-next-text-index-implementation.md)
 - [文字編集・位置mappingの契約](v2-next-text-edit-implementation.md)
 - [lensの契約・費用](v2-next-lens-implementation.md)
+- [schemaと型付きdecoderの契約](v2-next-schema-implementation.md)
 - [永続union-findの契約・費用](v2-next-persistent-set-implementation.md)
 - [状態と保存履歴](v2-next-status.md)
 
@@ -36,7 +38,7 @@
 
 ## 確認sourceと未確認範囲
 
-継続分ではlibraries/std/tests.rwへ39 test、tests/generic_frozen_bounds.rsへ1 testを追加した。compile、runtime、source-free artifact、record/replay、Windows、format、API生成、性能・GC測定は今回実行していない。source読解とGitHub上の差分・ref確認を、これらの実行検証の代わりとして数えない。
+継続分ではlibraries/std/tests.rwへ44 test、tests/generic_frozen_bounds.rsへ1 testを追加した。compile、runtime、source-free artifact、record/replay、Windows、format、API生成、性能・GC測定は今回実行していない。source読解とGitHub上の差分・ref確認を、これらの実行検証の代わりとして数えない。
 
 runtimeのFrozen修正は既存artifact/traceへ影響し得るため、次回検証する場合は通常のgeneric/ownership確認だけでなく、入れ子値とrecord/replayも確認する。
 
@@ -52,6 +54,6 @@ VTEXT-03のchunk間UTF-8 decoderの基本部分は、既存std.streamのutf8/dec
 - parserの左再帰、stream追加待ち、lossless/incremental tree、parse forest、error recovery。
 - partial型のfile合成、native arena/ヒープ外memory、trait object、const generic等の独立したcompiler/runtime変更。
 
-これらは別の到達条件を持つ。9 moduleを追加したことを629構想の一括採用・完了と扱わない。次に進む単位は、公開APIの新設だけでなく、現在のsourceと既存contractへの必要な差分を確認して選ぶ。
+これらは別の到達条件を持つ。10 moduleを追加したことを629構想の一括採用・完了と扱わない。次に進む単位は、公開APIの新設だけでなく、現在のsourceと既存contractへの必要な差分を確認して選ぶ。
 
 保存先はcodex/developだけ。各commitに[skip ci]を付け、公開CI/CD、main統合、tag、Release、版更新は行わない。

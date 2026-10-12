@@ -1175,3 +1175,101 @@ test fn text_edit_chains_enforce_capacity_without_truncating()->Unit effects {} 
     match textEdit.chain(source,&edits) {Err(e)=>{assert_eq(e.code,"EditLimit");assert_eq(e.step,-1);},Ok(_)=>{panic("chain capacity");}}
     assert_eq(edits.len(),1025);assert_eq(textIndex.text(source),"");
 }
+
+import schema as schema;
+import schema.{Unknown as SchemaUnknown,Segment as SchemaSegment};
+
+fn schemaProfile()->schema.Schema effects {} {
+    let fields=List<schema.Field>();
+    fields.add(transformTake(schema.field("name",transformTake(schema.text(1,32)),true,None)));
+    fields.add(transformTake(schema.field("age",transformTake(schema.integer(0,150)),false,Some(Json::Int(18)))));
+    fields.add(transformTake(schema.field("nickname",transformTake(schema.nullable(transformTake(schema.text(0,32)))),false,None)));
+    return transformTake(schema.object(&fields,SchemaUnknown::Reject));
+}
+
+test fn schemas_distinguish_missing_defaults_and_explicit_null()->Unit effects {} {
+    let rule=schemaProfile();
+    let input=transformTake(json.parse("{\"name\":\"sample\"}"));
+    let normalized=transformTake(schema.validate(rule,input));
+    assert_eq(json.get(normalized,"age"),Some(Json::Int(18)));
+    assert_eq(json.get(normalized,"nickname"),None);
+    assert_eq(json.get(input,"age"),None);
+    let nullable=transformTake(json.parse("{\"name\":\"sample\",\"nickname\":null}"));
+    assert_eq(json.get(transformTake(schema.validate(rule,nullable)),"nickname"),Some(Json::Null));
+    let explicitNull=transformTake(json.parse("{\"name\":\"sample\",\"age\":null}"));
+    match schema.validate(rule,explicitNull) {
+        Err(e)=>{assert_eq(e.code,"Type");assert_eq(e.actual,"Null");assert_eq(thaw(e.path.get(0)),SchemaSegment::Field("age"));},
+        Ok(_)=>{panic("default replaced explicit null");}
+    }
+    let missing=transformTake(json.parse("{}"));
+    match schema.validate(rule,missing) {Err(e)=>{assert_eq(e.code,"MissingField");assert_eq(e.actual,"Missing");},Ok(_)=>{panic("required field");}}
+    let saved=snapshot.capture(&rule);
+    assert_eq(json.get(transformTake(schema.validate(snapshot.fork(saved),input)),"age"),Some(Json::Int(18)));
+}
+
+test fn schemas_report_nested_paths_without_input_values()->Unit effects {} {
+    let row=List<schema.Field>();
+    row.add(transformTake(schema.field("quantity",transformTake(schema.integer(1,9)),true,None)));
+    let item=transformTake(schema.object(&row,SchemaUnknown::Reject));
+    let fields=List<schema.Field>();fields.add(transformTake(schema.field("items",transformTake(schema.array(item,1,4)),true,None)));
+    let rule=transformTake(schema.object(&fields,SchemaUnknown::Reject));
+    let input=transformTake(json.parse("{\"items\":[{\"quantity\":3},{\"quantity\":0}]}"));
+    match schema.validate(rule,input) {
+        Err(e)=>{
+            assert_eq(e.code,"IntegerRange");assert_eq(e.expected,"Int in declared range");assert_eq(e.actual,"Int");
+            assert_eq(e.path.len(),3);
+            assert_eq(thaw(e.path.get(0)),SchemaSegment::Field("items"));
+            assert_eq(thaw(e.path.get(1)),SchemaSegment::Index(1));
+            assert_eq(thaw(e.path.get(2)),SchemaSegment::Field("quantity"));
+        },
+        Ok(_)=>{panic("nested range");}
+    }
+    let secret=transformTake(json.parse("{\"unknown-private-name\":\"private-value\"}"));
+    match schema.validate(rule,secret) {
+        Err(e)=>{assert_eq(e.code,"UnknownField");assert_eq(e.path.len(),0);assert_eq(e.expected,"declared fields");assert_eq(e.actual,"Object");},
+        Ok(_)=>{panic("unknown field");}
+    }
+}
+
+test fn schemas_apply_explicit_unknown_policies_and_validate_declarations()->Unit effects {} {
+    let fields=List<schema.Field>();
+    let known=transformTake(schema.field("known",schema.boolean(),false,None));fields.add(known);
+    let keep=transformTake(schema.object(&fields,SchemaUnknown::Keep));
+    let drop=transformTake(schema.object(&fields,SchemaUnknown::Drop));
+    let input=transformTake(json.parse("{\"known\":true,\"extra\":7}"));
+    assert_eq(json.get(transformTake(schema.validate(keep,input)),"extra"),Some(Json::Int(7)));
+    assert_eq(json.get(transformTake(schema.validate(drop,input)),"extra"),None);
+    fields.add(known);
+    match schema.object(&fields,SchemaUnknown::Keep) {Err(e)=>{assert_eq(e.code,"DuplicateField");},Ok(_)=>{panic("duplicate declaration");}}
+    let integer=transformTake(schema.integer(0,9));
+    match schema.field("bad",integer,false,Some(Json::Text("private-default"))) {Err(e)=>{assert_eq(e.code,"InvalidDefault");assert_eq(e.field,"bad");},Ok(_)=>{panic("invalid default");}}
+    match schema.field("bad",integer,true,Some(Json::Int(1))) {Err(e)=>{assert_eq(e.code,"RequiredDefault");},Ok(_)=>{panic("required default");}}
+    match schema.text(2,1) {Err(e)=>{assert_eq(e.code,"Range");},Ok(_)=>{panic("invalid text range");}}
+    assert_eq(schema.validate(schema.number(),Json::Int(9007199254740993)),Ok(Json::Int(9007199254740993)));
+}
+
+record SchemaAccount {name:String,age:Int}
+test fn schema_decoders_separate_validation_from_conversion()->Unit effects {} {
+    let decoder=schema.mapped(schemaProfile(),|value:Json|->Result<SchemaAccount,String>{
+        var name="";var age=0;
+        match json.get(value,"name") {Some(v)=>{match json.text(v) {Some(v)=>{name=v;},None=>{return Err("name");}}},None=>{return Err("name");}}
+        match json.get(value,"age") {Some(v)=>{match json.integer(v) {Some(v)=>{age=v;},None=>{return Err("age");}}},None=>{return Err("age");}}
+        return Ok(SchemaAccount(name,age));
+    });
+    let value=transformTake(schema.decode(decoder,transformTake(json.parse("{\"name\":\"sample\"}"))));
+    assert_eq(value.name,"sample");assert_eq(value.age,18);
+    let reject=schema.mapped(schema.boolean(),|value:Json|->Result<Int,String>{return Err("mapper failure");});
+    match schema.decode(reject,Json::Int(1)) {Err(e)=>{assert_eq(e.stage,"Validation");assert_eq(e.conversion,None);},Ok(_)=>{panic("validation stage");}}
+    match schema.decode(reject,Json::Bool(true)) {Err(e)=>{assert_eq(e.stage,"Conversion");assert_eq(e.conversion,Some("mapper failure"));},Ok(_)=>{panic("conversion stage");}}
+}
+
+test fn schemas_enforce_depth_and_node_limits_before_composition()->Unit effects {} {
+    var deep=schema.any();
+    for i in 0..31 {deep=transformTake(schema.nullable(deep));}
+    assert_eq(schema.validate(deep,Json::Null),Ok(Json::Null));
+    match schema.nullable(deep) {Err(e)=>{assert_eq(e.code,"DepthLimit");},Ok(_)=>{panic("depth limit");}}
+    var item=schema.any();for i in 0..7 {item=transformTake(schema.nullable(item));}
+    let fields=List<schema.Field>();
+    for i in 0..128 {fields.add(transformTake(schema.field("f"+transformTake(number.formatInt(i,10)),item,false,None)));}
+    match schema.object(&fields,SchemaUnknown::Reject) {Err(e)=>{assert_eq(e.code,"NodeLimit");},Ok(_)=>{panic("schema node limit");}}
+}
