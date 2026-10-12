@@ -1,0 +1,69 @@
+import numericIndex as numericIndex;
+import numericRange as numericRange;
+
+pub record SetError {code:String,index:Int}
+pub record PersistentSet {
+    private parents:IntArray,
+    private sizes:IntArray,
+    private count:Int,
+    private components:Int
+}
+pub record Union {state:PersistentSet,merged:Bool,root:Int}
+
+fn at(array:&IntArray,index:Int)->Result<Int,SetError> effects {} {
+    match numericIndex.getInt(array,index) {Ok(value)=>{return Ok(value);},Err(e)=>{return Err(SetError(e.code,e.offset));}}
+}
+fn updated(array:&IntArray,index:Int,value:Int)->Result<IntArray,SetError> effects {} {
+    match numericIndex.withInt(array,index,value) {Ok(next)=>{return Ok(next);},Err(e)=>{return Err(SetError(e.code,e.offset));}}
+}
+
+// @api create Builds native parent/size pages for 0..1048576 elements, without one VM object per element.
+pub fn create(count:Int)->Result<PersistentSet,SetError> effects {} {
+    if count<0 || count>1048576 {return Err(SetError("Capacity",count));}
+    match numericRange.integers(0,1,count) {
+        Err(e)=>{return Err(SetError(e.code,e.offset));},
+        Ok(parents)=>{
+            match numericRange.integers(1,0,count) {
+                Err(e)=>{return Err(SetError(e.code,e.offset));},
+                Ok(sizes)=>{return Ok(PersistentSet(parents,sizes,count,count));}
+            }
+        }
+    }
+}
+pub fn length(set:PersistentSet)->Int effects {} {return set.count;}
+pub fn components(set:PersistentSet)->Int effects {} {return set.components;}
+
+// @api root Read-only union-by-size traversal; does not perform path compression or change a saved version.
+pub fn root(set:PersistentSet,index:Int)->Result<Int,SetError> effects {} {
+    if index<0 || index>=set.count {return Err(SetError("Range",index));}
+    var current=index;
+    while true {
+        let parent=at(&set.parents,current)?;
+        if parent==current {return Ok(current);}
+        current=parent;
+    }
+}
+pub fn same(set:PersistentSet,a:Int,b:Int)->Result<Bool,SetError> effects {} {return Ok(root(set,a)?==root(set,b)?);}
+pub fn size(set:PersistentSet,index:Int)->Result<Int,SetError> effects {} {return at(&set.sizes,root(set,index)?);}
+
+// @api unite Returns a new immutable version. Copies only native pages/tree paths for one parent and one size; equal-size ties choose the smaller representative.
+pub fn unite(set:PersistentSet,a:Int,b:Int)->Result<Union,SetError> effects {} {
+    var left=root(set,a)?;var right=root(set,b)?;
+    if left==right {return Ok(Union(set,false,left));}
+    let leftSize=at(&set.sizes,left)?;let rightSize=at(&set.sizes,right)?;
+    if leftSize<rightSize || (leftSize==rightSize && left>right) {let saved=left;left=right;right=saved;}
+    let parents=updated(&set.parents,right,left)?;
+    let sizes=updated(&set.sizes,left,leftSize+rightSize)?;
+    return Ok(Union(PersistentSet(parents,sizes,set.count,set.components-1),true,left));
+}
+
+// @api uniteMany Applies at most 65536 pairs to a local version; errors leave the input version unchanged.
+pub fn uniteMany(set:PersistentSet,pairs:&List<Tuple<Int,Int>>)->Result<PersistentSet,SetError> effects {} {
+    if pairs.len()>65536 {return Err(SetError("BatchLimit",pairs.len()));}
+    var current=set;
+    for i in 0..pairs.len() {
+        let pair=pairs.get(i);let joined=unite(current,pair.0,pair.1)?;
+        current=joined.state;
+    }
+    return Ok(current);
+}

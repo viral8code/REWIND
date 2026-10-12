@@ -1,6 +1,6 @@
 # 永続collectionをlibraryとして組み立てる
 
-2026-10-11の実装状況：VPERSIST-04のString key挿入順Map、VPERSIST-08のString Map差分をstd.orderedMap / std.changesへ具体化しました。 sourceを保存済みで、実行検証は省略しています。[実装一覧](../v2-next-implementation-index.md)。以下の構想全体が完了した意味ではありません。
+2026-10-12の実装状況：VPERSIST-04のString key挿入順Map、VPERSIST-06のnative共有pageによる永続union-find、VPERSIST-08のString Map差分をstd.orderedMap / std.persistentSet / std.changesへ具体化しました。 sourceを保存済みで、実行検証は省略しています。[実装一覧](../v2-next-implementation-index.md)。以下の構想全体が完了した意味ではありません。
 
 現行の共有page、COW、freezeと、動的snapshotの構想を土台にします。保存済み版と、現在編集中のownerを操作として区別する発展案です。
 
