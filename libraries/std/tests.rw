@@ -897,3 +897,47 @@ test fn parser_operator_chains_reject_nonprogress_and_propagate_cut()->Unit effe
     match parser.complete(chain,Bytes("")) {Err(e)=>{assert(e.committed);},Ok(_)=>{panic("operator cut");}}
     match parser.chainRight(pure,empty,65536) {Err(e)=>{assert_eq(e.code,"InvalidBounds");},Ok(_)=>{panic("operator limit");}}
 }
+
+test fn history_graph_merge_bases_keep_all_nearest_common_ancestors()->Unit effects {} {
+    let graph=transformTake(createGraph<Int>(8));let empty=List<String>();let value=1;
+    transformTake(historyGraph.add(&mut graph,"root",&empty,&value));
+    let root=List<String>();root.add("root");
+    transformTake(historyGraph.add(&mut graph,"left",&root,&value));
+    transformTake(historyGraph.add(&mut graph,"right",&root,&value));
+    let parents=List<String>();parents.add("left");parents.add("right");
+    transformTake(historyGraph.add(&mut graph,"first",&parents,&value));
+    let reversed=List<String>();reversed.add("right");reversed.add("left");
+    transformTake(historyGraph.add(&mut graph,"second",&reversed,&value));
+    let bases=transformTake(historyGraph.mergeBases(&graph,"first","second"));
+    assert_eq(bases.len(),2);assert_eq(bases.get(0),"left");assert_eq(bases.get(1),"right");
+    let fork=transformTake(historyGraph.mergeBases(&graph,"left","right"));
+    assert_eq(fork.len(),1);assert_eq(fork.get(0),"root");
+    let inclusive=transformTake(historyGraph.mergeBases(&graph,"left","first"));
+    assert_eq(inclusive.len(),1);assert_eq(inclusive.get(0),"left");
+    let identical=transformTake(historyGraph.mergeBases(&graph,"first","first"));
+    assert_eq(identical.len(),1);assert_eq(identical.get(0),"first");
+    transformTake(historyGraph.add(&mut graph,"separate",&empty,&value));
+    assert_eq(transformTake(historyGraph.mergeBases(&graph,"first","separate")).len(),0);
+}
+
+test fn history_graph_path_is_shortest_and_uses_declared_parent_order()->Unit effects {} {
+    let graph=transformTake(createGraph<Int>(8));let empty=List<String>();let value=1;
+    transformTake(historyGraph.add(&mut graph,"root",&empty,&value));
+    let root=List<String>();root.add("root");
+    transformTake(historyGraph.add(&mut graph,"left",&root,&value));
+    transformTake(historyGraph.add(&mut graph,"right",&root,&value));
+    let parents=List<String>();parents.add("right");parents.add("left");
+    transformTake(historyGraph.add(&mut graph,"merge",&parents,&value));
+    match transformTake(historyGraph.path(&graph,"root","merge")) {
+        Some(path)=>{assert_eq(path.len(),3);assert_eq(path.get(0),"root");assert_eq(path.get(1),"right");assert_eq(path.get(2),"merge");},
+        None=>{panic("missing path");}
+    }
+    parents.add("root");transformTake(historyGraph.add(&mut graph,"shortcut",&parents,&value));
+    match transformTake(historyGraph.path(&graph,"root","shortcut")) {
+        Some(path)=>{assert_eq(path.len(),2);assert_eq(path.get(1),"shortcut");},None=>{panic("missing shortcut");}
+    }
+    match transformTake(historyGraph.path(&graph,"left","right")) {None=>{},Some(_)=>{panic("unrelated siblings");}}
+    match transformTake(historyGraph.path(&graph,"root","root")) {Some(path)=>{assert_eq(path.len(),1);},None=>{panic("reflexive path");}}
+    match historyGraph.path(&graph,"missing","root") {Err(e)=>{assert_eq(e.code,"UnknownVersion");},Ok(_)=>{panic("missing endpoint");}}
+    assert_eq(historyGraph.length(&graph),5);
+}

@@ -238,3 +238,70 @@ pub fn prune<T:Send>(graph:&mut HistoryGraph<T>,keep:&List<String>)->Result<List
         }
     }
 }
+
+// @api mergeBases Returns every nearest common ancestor, in name order. Criss-cross histories may have multiple bases; unrelated histories return an empty list.
+pub fn mergeBases<T:Send>(graph:&HistoryGraph<T>,left:String,right:String)->Result<List<String>,GraphError> effects {} {
+    let leftRoot=List<String>();leftRoot.add(left);let rightRoot=List<String>();rightRoot.add(right);
+    match reachable(graph,&leftRoot) {
+        Err(error)=>{return Err(error);},
+        Ok(a)=>{
+            match reachable(graph,&rightRoot) {
+                Err(error)=>{return Err(error);},
+                Ok(b)=>{
+                    let common=Map<String,Bool>();let keys=a.keys();
+                    for i in 0..keys.len() {
+                        let key=keys.get(i);
+                        match b.get(key) {Some(_)=>{common.set(key,true);},None=>{}}
+                    }
+                    // Common ancestry is parent-closed. A non-nearest common ancestor is a parent of another common ancestor.
+                    let older=Map<String,Bool>();let candidates=common.keys();
+                    for i in 0..candidates.len() {
+                        match graph.versions.get(candidates.get(i)) {
+                            Some(version)=>{
+                                for j in 0..version.parents.len() {older.set(version.parents.get(j),true);}
+                            },
+                            None=>{panic("history graph invariant");}
+                        }
+                    }
+                    let output=List<String>();
+                    for i in 0..candidates.len() {
+                        let key=candidates.get(i);
+                        match older.get(key) {Some(_)=>{},None=>{output.add(key);}}
+                    }
+                    return Ok(move output);
+                }
+            }
+        }
+    }
+}
+
+// @api path Returns one shortest ancestry path, inclusive and ordered ancestor to descendant. Equal-length ties follow stored parent order.
+pub fn path<T:Send>(graph:&HistoryGraph<T>,ancestor:String,descendant:String)->Result<Option<List<String>>,GraphError> effects {} {
+    match graph.versions.get(ancestor) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",ancestor));}}
+    match graph.versions.get(descendant) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",descendant));}}
+    let pending=List<String>();let seen=Map<String,Bool>();let next=Map<String,String>();
+    pending.add(descendant);seen.set(descendant,true);var cursor=0;
+    while cursor<pending.len() {
+        let current=pending.get(cursor);cursor+=1;
+        if current==ancestor {
+            let output=List<String>();var node=current;output.add(node);
+            while node!=descendant {
+                match next.get(node) {Some(child)=>{node=child;output.add(node);},None=>{panic("history path invariant");}}
+            }
+            return Ok(Some(move output));
+        }
+        match graph.versions.get(current) {
+            Some(version)=>{
+                for i in 0..version.parents.len() {
+                    let parent=version.parents.get(i);
+                    match seen.get(parent) {
+                        Some(_)=>{},
+                        None=>{seen.set(parent,true);next.set(parent,current);pending.add(parent);}
+                    }
+                }
+            },
+            None=>{panic("history graph invariant");}
+        }
+    }
+    return Ok(None);
+}

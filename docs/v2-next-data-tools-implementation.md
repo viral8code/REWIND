@@ -84,6 +84,18 @@ pruneは保持用の新しいregistryとannotation mapを組み立ててから�
 
 library test sourceに、HEADとpinからの祖先保持、annotation除去、preview後のHEAD追加、欠落root時の入力不変、明示keep、名前再利用と取得済みrootの独立性を2件追加した。実行は省略。
 
+### 共通祖先と経路（2026-10-12）
+
+VHISTORY-07/10のgraph queryとしてmergeBasesとpathを追加した。mergeBases(left,right)は共通祖先のうち、別の共通祖先の祖先ではない版をすべて名前順に返す。criss-crossの履歴では複数件になり得る。無関係な履歴は空List。片方がもう片方の祖先ならその版自身、同じ版同士なら一件になる。単一候補を恣意的に選んでdata mergeを実行しない。
+
+両側の祖先集合の共通部分は親をすべて含むため、その共通部分の各版の直接の親を除くことで最も近い候補を求める。候補ごとに全祖先を再探索する方式を避ける。到達version/edgeに比例した走査とMap操作を行う。
+
+path(ancestor,descendant)は最短の親edge経路をOk(Some(List<String>))で返す。順序はancestor→descendant、両端を含む。到達できない場合はOk(None)、存在しない端点はUnknownVersion。後ろからBFSし、同じ長さの経路は保存された親の順序で選ぶ。再帰せず、各到達版を一度だけqueueへ置く。
+
+返す名前列はdata rootを保持しない。取得後にpruneや名前の再利用があった場合、現在のgraphへ無条件に解決して同じ版と判断しない。必要な版はpinまたはVersion/Snapshotの取得で保持する。field単位の差分queryや任意の全経路列挙は含まない。
+
+library test sourceを2件追加した。複数merge base、祖先自身・同じ版・独立履歴、最短経路、親順によるtie、欠落端点、到達不能を扱う。実行は省略。
+
 ## std.orderedMap：挿入順とlookupを一つのownerで保持
 
 VPERSIST-04のString key / Share valueの基本部分を実装する。OrderedMap<T:Share>のprivateなMapに値と前後のkeyを置く。createの容量は1〜65,536。put、get、contains、remove、keys、values、entries、length、clearを提供する。
