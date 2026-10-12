@@ -410,3 +410,12 @@ compile、実行、API再生成、native GUI確認はしていない。commitの
 Added an acceptance source test for exact scale, malformed text, non-Text numeric values, and CSV mapping, plus [an example](../examples/typed-schema-decimal.rw). Updated the schema implementation contract, DATA-01 plan, implementation index, and library list. Implementation commit: [086fc04](https://github.com/viral8code/REWIND/commit/086fc04c676bd57b83be05b8313db7d01a8657b6).
 
 The container failed to start, so compiler, runtime, test, and API generation checks are unavailable. Static checks covered node match exhaustiveness by source inspection, delimiter balance, and preservation of API input text. No `schema.api.json` existed on this branch; public API inventory is in `libraries/README.md`. Changes are pushed only to `codex/develop` with `[skip ci]`; no public CI/CD, main merge, Release, or version update was run.
+
+
+## DATA-01 RFC3339 instant schema
+
+`std.schema.timestamp()` validates JSON Text and CSV raw cell text with `std.datetime.parse`. It requires an explicit RFC3339 offset and inherits the existing parser's calendar/range, nanosecond precision, and leap-second rules. Validation preserves the supplied string; callers explicitly convert it with `std.datetime.fromJson`. Errors do not include the input value. Local calendar and timezone ambiguity rules remain separate.
+
+Added [a timestamp schema example](../examples/typed-schema-timestamp.rw) and acceptance source coverage for fractional precision, offset, invalid date, and CSV mapping. Updated the schema reference, DATA-01 plan, implementation index, and library list. Implementation commit: [8305b7d](https://github.com/viral8code/REWIND/commit/8305b7d74f845588d64ee1e44cace6eb1b382522).
+
+Compiler/runtime/API generation remain unverified because the execution environment failed to start. Status recorded on codex/develop with `[skip ci]`; no public CI/CD, main merge, Release, or version update was run.
