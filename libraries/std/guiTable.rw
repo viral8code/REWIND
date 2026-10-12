@@ -3,7 +3,7 @@ import sort as sort;
 pub type TableError = StdError;
 pub struct CellEdit {rowId:String,column:Int,value:String}
 struct SortKey {value:String,row:Int,descending:Bool}
-pub struct Table {private headers:Frozen<List<String>>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private visible:Int,private first:Int,private selected:Int}
+pub struct Table {private headers:Frozen<List<String>>,private columnWeights:List<Int>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private visible:Int,private first:Int,private selected:Int}
 pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close}
 fn valid(text:String)->Bool effects {} {return text.byteLen()<=4096 && stdTextFind(text,"\0")==None;}
 fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int,customIds:Bool)->Result<Table,TableError> effects {} {
@@ -13,8 +13,8 @@ fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells
  for i in 0..columns{let text=headers.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();}
  if customIds{for i in 0..rowIds.len(){let id=rowIds.get(i);if id=="" || id.byteLen()>64 || !valid(id){return Err(StdError("GuiTableRowId",i));}if rowIndices.get(id)!=None{return Err(StdError("GuiTableDuplicateRowId",i));}rowIndices.set(id,i);bytes+=id.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}}
  for i in 0..cells.len(){let text=cells.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}
- let rowOrder=List<Int>();let displayOrder=List<Int>();let rowPositions=List<Int>();for i in 0..rowCount{rowOrder.add(i);displayOrder.add(i);rowPositions.add(i);}
- return Ok(Table(headers,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,move rowOrder,move displayOrder,move rowPositions,0,"",visibleRows,0,-1));
+ let columnWeights=List<Int>();for i in 0..columns{columnWeights.add(1);}let rowOrder=List<Int>();let displayOrder=List<Int>();let rowPositions=List<Int>();for i in 0..rowCount{rowOrder.add(i);displayOrder.add(i);rowPositions.add(i);}
+ return Ok(Table(headers,move columnWeights,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,move rowOrder,move displayOrder,move rowPositions,0,"",visibleRows,0,-1));
 }
 // @api create cost O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.
 pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
@@ -30,6 +30,12 @@ pub fn rows(table:&Table)->Int effects {} {return table.cells.len()/table.header
 // @api visibleRows returns the number of rows in the current filtered view in O(1).
 pub fn visibleRows(table:&Table)->Int effects {} {return table.displayOrder.len();}
 pub fn columns(table:&Table)->Int effects {} {return table.headers.len();}
+// @api setColumnWeights accepts one positive relative weight per column; maximum 65535. A failed call leaves the previous configuration unchanged.
+pub fn setColumnWeights(table:&mut Table,weights:&List<Int>)->Result<Unit,TableError> effects {} {
+ if weights.len()!=columns(table){return Err(StdError("GuiTableColumnCount",weights.len()));}
+ let next=List<Int>();for i in 0..weights.len(){let weight=weights.get(i);if weight<1 || weight>65535{return Err(StdError("GuiTableColumnWeight",i));}next.add(weight);}
+ table.columnWeights=move next;return Ok(());
+}
 fn baseRow(table:&Table,row:Int)->Int effects {} {return table.displayOrder.get(row);}
 fn displayRow(table:&Table,row:Int)->Int effects {} {return table.rowPositions.get(row);}
 fn baseIndex(table:&Table,id:String)->Option<Int> effects {} {
@@ -166,17 +172,19 @@ pub fn select(table:&mut Table,row:Int)->Result<Unit,TableError> effects {} {
  if row<0 || row>=visibleRows(table){return Err(StdError("GuiTableRange",row));}table.selected=baseRow(table,row);
  if row<table.first{table.first=row;}if row>=table.first+table.visible{table.first=row-table.visible+1;}return Ok(());
 }
-// @api render cost O(visible rows * columns); new view keeps failures away from the caller's published scene.
-// @api render failure Bounds/Id; equal-width columns, row height 16..128, caller publishes the returned view.
+// @api render cost O(columns + visible rows * columns); relative column weights consume the full inner width, with at least one pixel per column. New view keeps failures away from the caller's published scene.
+// @api render failure Bounds/Id; weighted column widths have a 1-pixel minimum, row height 16..128, caller publishes the returned view.
 pub fn render(table:&Table,title:String,width:Int,height:Int,rowHeight:Int,prefix:String)->Result<gui.View,TableError> effects {} {
  if width<128 || width>4096 || height<96 || height>4096 || rowHeight<16 || rowHeight>128 || 16+(table.visible+1)*rowHeight>height{return Err(StdError("GuiInvalidBounds",0));}
  if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiInvalidId",0));}
- let view=gui.window(title,width,height)?;let columns=columns(table);let cellWidth=(width-32)/columns;
- for c in 0..columns{let id=prefix+":head:"+c.format();gui.label(&mut view,id,table.headers.get(c),16+c*cellWidth,16,cellWidth,rowHeight)?;gui.style(&mut view,id,0x111827,0xe5e7eb)?;}
+ let view=gui.window(title,width,height)?;let columns=columns(table);let available=width-32;var totalWeight=0;for c in 0..columns{totalWeight+=table.columnWeights.get(c);}let widths=List<Int>();var used=0;
+ for c in 0..columns{let cellWidth=1+((available-columns)*table.columnWeights.get(c)/totalWeight);widths.add(cellWidth);used+=cellWidth;}
+ var remainder=available-used;var c=0;while c<columns && remainder>0{widths.set(c,widths.get(c)+1);remainder-=1;c+=1;}
+ var x=16;for c in 0..columns{let cellWidth=widths.get(c);let id=prefix+":head:"+c.format();gui.label(&mut view,id,table.headers.get(c),x,16,cellWidth,rowHeight)?;gui.style(&mut view,id,0x111827,0xe5e7eb)?;x+=cellWidth;}
  var shown=table.visible;if shown>visibleRows(table)-table.first{shown=visibleRows(table)-table.first;}
  for r in 0..shown {let row=table.first+r;let base=baseRow(table,row);let y=16+(r+1)*rowHeight;let id=prefix+":row:"+rowId(table,row)?;var color=0xffffff;if base==table.selected{color=0xdbeafe;}
   gui.button(&mut view,id,"",16,y,width-32,rowHeight)?;gui.style(&mut view,id,0x111827,color)?;
-  for c in 0..columns {let cellId=prefix+":cell:"+r.format()+":"+c.format();gui.label(&mut view,cellId,cell(table,row,c)?,16+c*cellWidth,y,cellWidth,rowHeight)?;if color!=0xffffff{gui.style(&mut view,cellId,0x111827,color)?;}}
+  var cellX=16;for c in 0..columns {let cellWidth=widths.get(c);let cellId=prefix+":cell:"+r.format()+":"+c.format();gui.label(&mut view,cellId,cell(table,row,c)?,cellX,y,cellWidth,rowHeight)?;if color!=0xffffff{gui.style(&mut view,cellId,0x111827,color)?;}cellX+=cellWidth;}
  }
  return Ok(move view);
 }

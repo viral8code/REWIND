@@ -774,6 +774,18 @@
       ],
       "return": "Option<String>"
     },
+    "fn:setColumnWeights": {
+      "async": false,
+      "cost": "O(columns), at most 16 entries; next render allocates the full inner width using relative weights.",
+      "effects": [],
+      "failure": "ColumnCount if the number of weights differs from the column count; ColumnWeight if a value is outside 1..65535. Failure leaves the previous weights unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut Table",
+        "&List<Int>"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:sortByText": {
       "async": false,
       "cost": "O(n log n) comparisons plus O(n) filter indexes; stable ties retain current full sort order.",
