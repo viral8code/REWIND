@@ -800,6 +800,19 @@
       ],
       "return": "Result<Form,StdError>"
     },
+    "fn:createWithRules": {
+      "async": false,
+      "cost": "O(fields + rules + schema bytes); at most 128 typed relations, validates referenced field kinds.",
+      "effects": [],
+      "failure": "GuiFormRuleLimit/RuleSchema/RuleKind/UnknownId/Schema/Id/Text.",
+      "generics": [],
+      "parameters": [
+        "&List<Field>",
+        "&List<Relation>",
+        "Int"
+      ],
+      "return": "Result<Form,StdError>"
+    },
     "fn:dispatch": {
       "async": false,
       "effects": [],
@@ -882,7 +895,7 @@
     "fn:toJson": {
       "async": false,
       "effects": [],
-      "failure": "Required/Integer/Real/Range/Timestamp; readonly, returns typed values or the first error with field index.",
+      "failure": "Required/Integer/Real/Range/Timestamp/Relation; readonly, returns typed values or the first error with field index.",
       "generics": [],
       "parameters": [
         "&Form"
@@ -891,7 +904,7 @@
     },
     "fn:validate": {
       "async": false,
-      "cost": "O(all fields + value bytes); stores every error, never discards the edited text.",
+      "cost": "O(fields + relations + value bytes); stores field and relation errors without changing edited text.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -1612,6 +1625,42 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:Relation": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Equal": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "String"
+          ]
+        ],
+        "IntLessEqual": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "String"
+          ]
+        ],
+        "RequiredWhenChecked": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "String"
+          ]
+        ]
+      }
     },
     "type:SolveWork": {
       "constructor": false,

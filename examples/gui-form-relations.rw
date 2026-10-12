@@ -1,0 +1,27 @@
+import std.guiForm as form;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("form operation failed");}
+    }
+}
+
+let fields=List<form.Field>();
+fields.add(form.Field("notify","Send notifications",form.Kind::Check,false,5,"false"));
+fields.add(form.Field("email","Email address",form.Kind::Text,false,128,""));
+fields.add(form.Field("minimum","Minimum",form.Kind::Integer(0,1000),false,16,"2"));
+fields.add(form.Field("maximum","Maximum",form.Kind::Integer(0,1000),false,16,"8"));
+
+let rules=List<form.Relation>();
+rules.add(form.Relation::RequiredWhenChecked("email","notify"));
+rules.add(form.Relation::IntLessEqual("minimum","maximum"));
+let model=take(form.createWithRules(&fields,&rules,4));
+
+take(form.setValue(&mut model,"notify","true"));
+take(form.setValue(&mut model,"minimum","9"));
+take(form.setValue(&mut model,"maximum","4"));
+if !form.validate(&mut model) {
+    match form.error(&model,"email") {Some(code)=>{Out.println("email: "+code);},None=>{}}
+    match form.error(&model,"minimum") {Some(code)=>{Out.println("minimum: "+code);},None=>{}}
+}

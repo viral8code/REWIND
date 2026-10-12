@@ -96,6 +96,10 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 
 scopeはID名前空間だけを持ち、modelやnative handleは保持しない。componentの状態は呼出側が通常のVM値として管理し、入力eventを一度dispatchして返ったIDを対応するmodelへ振り分ける。画面内でscope名を重複させると同一部品のIDになるため、各instanceには別名を付ける。利用例は[gui-component-scope](../examples/gui-component-scope.rw)。
 
+フォームと表
+
+`std.guiForm.createWithRules`は最大128個の宣言的なrelationを検査する。`Equal(a,b)`は同じscalar kindのtyped valueの一致、`IntLessEqual(a,b)`は整数field間の大小、`RequiredWhenChecked(target,checkbox)`はcheckboxがtrueのときtargetを必須にする。参照fieldとkindは作成時に検証する。relation validationはpureで、invalid textは上書きせず、`validate`と`toJson`の両方がrelation errorを返す。editで関係fieldのerrorを無効化して次のvalidateまで古い診断を残さない。例は[gui-form-relations](../examples/gui-form-relations.rw)。
+
 ## フォームと表
 
 1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。

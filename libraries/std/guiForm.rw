@@ -2,9 +2,10 @@ import gui as gui;
 import datetime as datetime;
 pub type FormError = StdError;
 pub enum Kind {Text,Multiline,Integer(Int,Int),Real(Float,Float),Check,Timestamp}
+pub enum Relation {Equal(String,String),IntLessEqual(String,String),RequiredWhenChecked(String,String)}
 pub record Field {id:String,caption:String,kind:Kind,required:Bool,maxBytes:Int,initial:String}
 record Entry {field:Field,value:String,cursor:Int,anchor:Int,scroll:Int}
-pub struct Form {private entries:List<Entry>,private indices:Map<String,Int>,private errors:Map<String,String>,private visible:Int,private first:Int,private active:Int}
+pub struct Form {private entries:List<Entry>,private indices:Map<String,Int>,private errors:Map<String,String>,private rules:List<Relation>,private visible:Int,private first:Int,private active:Int}
 pub enum Action {Edited(String),Submitted(Json),Invalid,Scrolled(Int),Resize(Int,Int),Close}
 fn textValid(value:String)->Bool effects {} {return value.byteLen()<=4096 && stdTextFind(value,"\0")==None;}
 fn inputValid(field:Field,value:String)->Bool effects {} {
@@ -21,15 +22,39 @@ pub fn create(fields:&List<Field>,visibleRows:Int)->Result<Form,FormError> effec
   if !textValid(field.caption) || field.maxBytes<1 || field.maxBytes>4096 || !inputValid(field,field.initial){return Err(StdError("GuiInvalidText",i));}
   match field.kind{Kind::Check=>{if field.maxBytes<5{return Err(StdError("GuiFormSchema",i));}},Kind::Integer(low,high)=>{if low>high{return Err(StdError("GuiFormSchema",i));}},Kind::Real(low,high)=>{if !low.isFinite() || !high.isFinite() || low>high{return Err(StdError("GuiFormSchema",i));}},_=>{}}
   indices.set(field.id,i);entries.add(Entry(field,field.initial,field.initial.charLen(),field.initial.charLen(),0));
- }return Ok(Form(move entries,move indices,move errors,visibleRows,0,-1));
+ }return Ok(Form(move entries,move indices,move errors,List<Relation>(),visibleRows,0,-1));
+}
+fn relationEqualCompatible(left:Kind,right:Kind)->Bool effects {} {
+ match (left,right){
+  (Kind::Text,Kind::Text)=>{return true;},(Kind::Text,Kind::Multiline)=>{return true;},(Kind::Multiline,Kind::Text)=>{return true;},(Kind::Multiline,Kind::Multiline)=>{return true;},
+  (Kind::Integer(_, _),Kind::Integer(_, _))=>{return true;},(Kind::Real(_, _),Kind::Real(_, _))=>{return true;},(Kind::Check,Kind::Check)=>{return true;},_=>{return false;}
+ }
+}
+// @api createWithRules cost O(fields + rules + schema bytes); at most 128 typed relations, validates referenced field kinds.
+pub fn createWithRules(fields:&List<Field>,rules:&List<Relation>,visibleRows:Int)->Result<Form,FormError> effects {} {
+ if rules.len()>128{return Err(StdError("GuiFormRuleLimit",0));}
+ let mut form=create(fields,visibleRows)?;let copied=List<Relation>();
+ for i in 0..rules.len(){match rules.get(i){
+  Relation::Equal(left,right)=>{if left==right{return Err(StdError("GuiFormRuleSchema",i));}let li=index(&form,left)?;let ri=index(&form,right)?;if !relationEqualCompatible(form.entries.get(li).field.kind,form.entries.get(ri).field.kind){return Err(StdError("GuiFormRuleKind",i));}copied.add(Relation::Equal(left,right));},
+  Relation::IntLessEqual(left,right)=>{if left==right{return Err(StdError("GuiFormRuleSchema",i));}let li=index(&form,left)?;let ri=index(&form,right)?;var leftInt=false;var rightInt=false;match form.entries.get(li).field.kind{Kind::Integer(_,_)=>{leftInt=true;},_=>{}}match form.entries.get(ri).field.kind{Kind::Integer(_,_)=>{rightInt=true;},_=>{}}if !leftInt || !rightInt{return Err(StdError("GuiFormRuleKind",i));}copied.add(Relation::IntLessEqual(left,right));},
+  Relation::RequiredWhenChecked(target,checkbox)=>{if target==checkbox{return Err(StdError("GuiFormRuleSchema",i));}let ti=index(&form,target)?;let ci=index(&form,checkbox)?;var isCheck=false;match form.entries.get(ci).field.kind{Kind::Check=>{isCheck=true;},_=>{}}if !isCheck{return Err(StdError("GuiFormRuleKind",i));}let _=ti;copied.add(Relation::RequiredWhenChecked(target,checkbox));}
+ }}
+ form.rules=move copied;return Ok(move form);
 }
 fn index(form:&Form,id:String)->Result<Int,FormError> effects {} {match form.indices.get(id){Some(i)=>{return Ok(i);},None=>{return Err(StdError("GuiUnknownId",0));}}}
 pub fn value(form:&Form,id:String)->Result<String,FormError> effects {} {return Ok(form.entries.get(index(form,id)?).value);}
 pub fn error(form:&Form,id:String)->Result<Option<String>,FormError> effects {} {index(form,id)?;return Ok(form.errors.get(id));}
+fn clearRelatedErrors(form:&mut Form,id:String)->Unit effects {} {
+ for i in 0..form.rules.len(){match form.rules.get(i){
+  Relation::Equal(left,right)=>{if id==left || id==right{form.errors.remove(right);}},
+  Relation::IntLessEqual(left,right)=>{if id==left || id==right{form.errors.remove(left);}},
+  Relation::RequiredWhenChecked(target,checkbox)=>{if id==target || id==checkbox{form.errors.remove(target);}}
+ }}
+}
 // @api setValue failure UnknownId/Text; validates input bounds before mutation, not its final typed value.
 pub fn setValue(form:&mut Form,id:String,value:String)->Result<Unit,FormError> effects {} {
  let i=index(form,id)?;let e=form.entries.get(i);if !inputValid(e.field,value){return Err(StdError("GuiInvalidText",i));}
- form.entries.set(i,Entry(e.field,value,value.charLen(),value.charLen(),0));form.errors.remove(id);return Ok(());
+ form.entries.set(i,Entry(e.field,value,value.charLen(),value.charLen(),0));form.errors.remove(id);clearRelatedErrors(form,id);return Ok(());
 }
 fn typed(e:Entry,position:Int)->Result<Json,FormError> effects {} {
  match e.field.kind{
@@ -47,12 +72,30 @@ fn typed(e:Entry,position:Int)->Result<Json,FormError> effects {} {
  }
 }
 // @api validate cost O(all fields + value bytes); stores every error, never discards the edited text.
-pub fn validate(form:&mut Form)->Bool effects {} {
- let errors=Map<String,String>();for i in 0..form.entries.len(){let e=form.entries.get(i);match typed(e,i){Err(problem)=>{errors.set(e.field.id,problem.code);},Ok(_)=>{}}}
- let valid=errors.len()==0;form.errors=move errors;return valid;
+fn fieldValid(valid:&Map<String,Bool>,id:String)->Bool effects {} {match valid.get(id){Some(value)=>{return value;},None=>{return false;}}}
+fn sameTyped(left:Json,right:Json)->Bool effects {} {
+ match (left,right){
+  (Json::Null,Json::Null)=>{return true;},(Json::Bool(a),Json::Bool(b))=>{return a==b;},(Json::Int(a),Json::Int(b))=>{return a==b;},(Json::Float(a),Json::Float(b))=>{return a==b;},(Json::Text(a),Json::Text(b))=>{return a==b;},_=>{return false;}
+ }
 }
-// @api toJson failure Required/Integer/Real/Range/Timestamp; readonly, returns typed values or the first error with field index.
+fn validationErrors(form:&Form)->Map<String,String> effects {} {
+ let errors=Map<String,String>();let valid=Map<String,Bool>();
+ for i in 0..form.entries.len(){let e=form.entries.get(i);match typed(e,i){Err(problem)=>{errors.set(e.field.id,problem.code);valid.set(e.field.id,false);},Ok(_)=>{valid.set(e.field.id,true);}}}
+ for i in 0..form.rules.len(){match form.rules.get(i){
+  Relation::Equal(left,right)=>{if fieldValid(&valid,left) && fieldValid(&valid,right){match (form.indices.get(left),form.indices.get(right)){(Some(li),Some(ri))=>{match (typed(form.entries.get(li),li),typed(form.entries.get(ri),ri)){(Ok(a),Ok(b))=>{if !sameTyped(a,b){errors.set(right,"GuiFormRelation");}},_=>{}}},_=>{}}}},
+  Relation::IntLessEqual(left,right)=>{if fieldValid(&valid,left) && fieldValid(&valid,right){match (form.indices.get(left),form.indices.get(right)){(Some(li),Some(ri))=>{match (typed(form.entries.get(li),li),typed(form.entries.get(ri),ri)){(Ok(Json::Int(a)),Ok(Json::Int(b)))=>{if a>b{errors.set(left,"GuiFormRelation");}},_=>{}}},_=>{}}}},
+  Relation::RequiredWhenChecked(target,checkbox)=>{if fieldValid(&valid,checkbox) && fieldValid(&valid,target){match (form.indices.get(target),form.indices.get(checkbox)){(Some(ti),Some(ci))=>{match typed(form.entries.get(ci),ci){Ok(Json::Bool(true))=>{var missing=false;match typed(form.entries.get(ti),ti){Ok(Json::Null)=>{missing=true;},Ok(Json::Text(value))=>{if value==""{missing=true;}},Ok(Json::Bool(value))=>{if !value{missing=true;}},_=>{}}if missing{errors.set(target,"GuiFormRelation");}},_=>{}}},_=>{}}}}
+ }}
+ return errors;
+}
+// @api validate cost O(fields + relations + value bytes); stores field and relation errors without changing edited text.
+pub fn validate(form:&mut Form)->Bool effects {} {
+ let errors=validationErrors(form);let valid=errors.len()==0;form.errors=move errors;return valid;
+}
+// @api toJson failure Required/Integer/Real/Range/Timestamp/Relation; readonly, returns typed values or the first error with field index.
 pub fn toJson(form:&Form)->Result<Json,FormError> effects {} {
+ let errors=validationErrors(form);
+ for i in 0..form.entries.len(){let e=form.entries.get(i);match errors.get(e.field.id){Some(code)=>{return Err(StdError(code,i));},None=>{}}}
  let object=Map<String,Json>();for i in 0..form.entries.len(){let e=form.entries.get(i);object.set(e.field.id,typed(e,i)?);}return Ok(Json::Object(freeze(object)));
 }
 pub fn reset(form:&mut Form)->Unit effects {} {
@@ -95,9 +138,9 @@ pub fn dispatch(form:&mut Form,panel:&mut gui.View,event:gui.Event,prefix:String
   Some(gui.Action::Activate(id))=>{if id==prefix+":reset"{reset(form);return Ok(Some(Action::Edited("")));}if id==prefix+":submit"{if !validate(form){return Ok(Some(Action::Invalid));}return Ok(Some(Action::Submitted(toJson(form)?)));}},
   Some(gui.Action::Key(id,key))=>{let i=activeField(form,id,prefix);if i>=0{let previous=form.entries.get(i);if key=="GuiInvalidText" || key=="GuiInvalidSelection" || key=="GuiSingleLine"{return Err(StdError(key,i));}let text=gui.text(panel,id)?;let selection=gui.selection(panel,id)?;var scrolled=0;match previous.field.kind{Kind::Multiline=>{scrolled=gui.scrollPosition(panel,id)?;},_=>{}}
    if !inputValid(previous.field,text){gui.setText(panel,id,previous.value)?;gui.setSelection(panel,id,previous.cursor,previous.anchor)?;match previous.field.kind{Kind::Multiline=>{gui.setScrollPosition(panel,id,previous.scroll)?;},_=>{}}return Err(StdError("GuiInvalidText",i));}
-   form.entries.set(i,Entry(previous.field,text,selection._0,selection._1,scrolled));if text!=previous.value{form.errors.remove(previous.field.id);return Ok(Some(Action::Edited(previous.field.id)));}
+   form.entries.set(i,Entry(previous.field,text,selection._0,selection._1,scrolled));if text!=previous.value{form.errors.remove(previous.field.id);clearRelatedErrors(form,previous.field.id);return Ok(Some(Action::Edited(previous.field.id)));}
   }},
-  Some(gui.Action::Changed(id,checked))=>{let i=activeField(form,id,prefix);if i>=0{let e=form.entries.get(i);var text="false";if checked{text="true";}form.entries.set(i,Entry(e.field,text,0,0,0));form.errors.remove(e.field.id);return Ok(Some(Action::Edited(e.field.id)));}},
+  Some(gui.Action::Changed(id,checked))=>{let i=activeField(form,id,prefix);if i>=0{let e=form.entries.get(i);var text="false";if checked{text="true";}form.entries.set(i,Entry(e.field,text,0,0,0));form.errors.remove(e.field.id);clearRelatedErrors(form,e.field.id);return Ok(Some(Action::Edited(e.field.id)));}},
   Some(gui.Action::Resize(w,h))=>{return Ok(Some(Action::Resize(w,h)));},Some(gui.Action::Close)=>{return Ok(Some(Action::Close));},_=>{}
  }return Ok(None);
 }
