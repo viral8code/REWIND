@@ -58,6 +58,28 @@ pub fn column(columns:Frozen<List<String>>,name:String)->Result<Int,DbError> eff
     while index<columns.len(){if columns.get(index)==name{if found>=0{return Err(conversionError("DbDuplicateColumn"));}found=index;}index+=1;}
     if found<0{return Err(conversionError("DbColumnMissing"));}return Ok(found);
 }
+// @api indexColumns cost O(column count * ordered-map insertion); returns an immutable name index.
+pub struct ColumnMap {private indexes:Frozen<Map<String,Int>>}
+pub fn indexColumns(columns:Frozen<List<String>>)->Result<ColumnMap,DbError> effects {} {
+    if columns.len()>256{return Err(conversionError("DbColumnLimit"));}
+    let indexes=Map<String,Int>();var index=0;
+    while index<columns.len(){
+        let name=columns.get(index);
+        match indexes.get(name){
+            Some(_)=>{return Err(conversionError("DbDuplicateColumn"));},
+            None=>{indexes.set(name,index);}
+        }
+        index+=1;
+    }
+    return Ok(ColumnMap(freeze(indexes)));
+}
+// @api columnNumber cost O(log column count); missing names return DbColumnMissing.
+pub fn columnNumber(columns:&ColumnMap,name:String)->Result<Int,DbError> effects {} {
+    match columns.indexes.get(name){
+        Some(index)=>{return Ok(index);},
+        None=>{return Err(conversionError("DbColumnMissing"));}
+    }
+}
 // @api cellByName cost O(column names + value bytes); use a cursor's immutable column metadata.
 pub fn cellByName(row:Frozen<DbRow>,columns:Frozen<List<String>>,name:String)->Result<DbValue,DbError> effects {} {
     match column(columns,name){Ok(index)=>{return cell(row,index);},Err(error)=>{return Err(error);}}
