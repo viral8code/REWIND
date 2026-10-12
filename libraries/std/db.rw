@@ -81,6 +81,21 @@ pub fn columnNumber(columns:&ColumnMap,name:String)->Result<Int,DbError> effects
     }
 }
 // @api cellByName cost O(column names + value bytes); use a cursor's immutable column metadata.
+pub record MappedBatch<T:Share>{rows:Frozen<List<T>>,done:Bool}
+pub enum RowMapError<E:Share>{TooManyRows(Int),Row(Int,E)}
+// @api mapBatch is pure, maps at most 64 rows, and does not read or advance the cursor. The borrowed DbBatch remains available after failure.
+pub fn mapBatch<T:Share,E:Share>(batch:&DbBatch,columns:&ColumnMap,mapper:fn(Frozen<DbRow>,&ColumnMap)->Result<T,E> effects {} captures {Send,Share})->Result<MappedBatch<T>,RowMapError<E>> effects {} {
+    if batch.rows.len()>64{return Err(RowMapError::TooManyRows(batch.rows.len()));}
+    let mapped=List<T>();var index=0;
+    while index<batch.rows.len(){
+        match mapper(batch.rows.get(index),columns){
+            Err(error)=>{return Err(RowMapError::Row(index,error));},
+            Ok(value)=>{mapped.add(value);}
+        }
+        index+=1;
+    }
+    return Ok(MappedBatch(freeze(mapped),batch.done));
+}
 pub fn cellByName(row:Frozen<DbRow>,columns:Frozen<List<String>>,name:String)->Result<DbValue,DbError> effects {} {
     match column(columns,name){Ok(index)=>{return cell(row,index);},Err(error)=>{return Err(error);}}
 }

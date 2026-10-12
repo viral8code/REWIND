@@ -34,7 +34,7 @@ DATA-02の後続候補です。group keyの型、NULL同士の対応、行順序
 
 **実装source：** 既存`std.csvStream`へ`nextTyped`を加え、header付きCSV rowをDATA-01のobject schemaへ渡す。Validation failure時にqueued rowを保持し、成功時だけadvanceする。全件bufferingを避け、既存queueをcallerがdrainする。
 
-**追加した基盤：** `std.jsonStream.peek`は次のqueued eventを非消費で返す。`nextBigInt`はJSON number tokenを正確な10進BigIntへ変換してから消費し、event種別違いまたは変換失敗ではqueueを保持する。構文eventからschema/recordを組み立てるadapter、DB cursor/HTTP sourceとの共通batch APIは未着手。各sourceのcancel/EOF/retry契約を維持する。
+**追加した基盤：** `std.jsonStream.peek`は次のqueued eventを非消費で返す。`nextBigInt`はJSON number tokenを正確な10進BigIntへ変換してから消費し、event種別違いまたは変換失敗ではqueueを保持する。DB側には既存の最大64行`DbBatch`へpure mapperを適用する`db.mapBatch`を追加した。構文eventからschema/recordを組み立てるadapter、DB cursor/HTTP sourceとの共通batch APIは未着手。各sourceのcancel/EOF/retry契約を維持する。
 
 CSV/JSON stream、DB cursor、HTTP downloadを、bounded batchでschema検証・変換へ接続する案です。物理入力の取得とpureな変換を分けます。
 

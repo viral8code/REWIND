@@ -20,7 +20,7 @@
 | schema | Unknown, Segment, Schema, Field, ValidationError, Decoder, any/boolean/number/integer/text, nullable/array/field/object, validate, csvRow, mapped, decode | 入れ子JSON、defaultと明示NULL、field名付きCSV row（最大65,536列 / 1 Mi scalar）、明示sentinel（128 scalar以下） |
 | csvStream | Reader, TypedRowError, reader, feed, next, nextTyped, finish, cancel, position | bounded queueのheader付きrow変換、Validation error時は行を保持、成功時だけadvance |
 | jsonStream | Event, IntegerEventError, reader, feed, peek, next, nextBigInt, finish, cancel, position | bounded JSON event queue。peekは非消費、nextBigIntはparse成功時だけ整数tokenをconsume |
-| db column mapping | ColumnMap, indexColumns, columnNumber | 最大256件、重複column名を一度検査し、immutable indexを再利用。DbColumnLimit / DbDuplicateColumn / DbColumnMissing。recordと型変換は呼出側が明示 |
+| db row mapping | ColumnMap, MappedBatch<T>, RowMapError<E>, indexColumns, columnNumber, mapBatch | 最大256列名を一度検査。pureなmapBatchは最大64行を明示mapperへ渡し、最初のrow errorを返す。DbBatchとcursorを変更しない |
 | memo | key, create, get, peek, put, resolve, invalidate, clear | 版付きkey、LRU、件数/重み上限、pureな結果とErrの保持 |
 | lazy | create, isForced, peek, force, fork, clear | 明示的な遅延計算、成功snapshot、回復可能なErr、可変ownerの独立fork |
 

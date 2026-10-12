@@ -16,7 +16,7 @@
 | std.lens | typed getter/setter、欠損path、合成、検査付き変更、有限の法則確認 | VOPTIC-01/02/04/06/10の基本部分 | [typed-lens](../examples/typed-lens.rw) |
 | std.persistentSet | 任意版からのunion、複数版query、native page共有 | VPERSIST-06 | [persistent-union-find](../examples/persistent-union-find.rw) |
 | std.textEdit | 原文を保つ置換、旧新位置mapping、編集列合成、挿入affinity、逆編集 | VTEXT-01/06の基本部分 | [text-edit-mapping](../examples/text-edit-mapping.rw)、[編集列](../examples/text-edit-chain.rw) |
-| std.db ColumnMap | indexColumns, columnNumber | 列名の重複検査を一度行い、cursor結果ごとのimmutable name-to-index mapを再利用 | DB-01の明示mapping用helper | [SQLite](../examples/database/README.md)、[PostgreSQL](../examples/postgres/README.md) |
+| std.db row mapping | ColumnMap, MappedBatch<T>, RowMapError<E>, indexColumns, columnNumber, mapBatch | 列名index再利用と、最大64行のpureなrecord mapping。最初のerrorをbatch内index付きで返し、DbBatch/cursorを変更しない | DB-01の明示mapping用helper | [SQLite](../examples/database/README.md)、[PostgreSQL](../examples/postgres/README.md) |
 | std.csvStream | nextTyped | 既存CSV readerとobject schemaを1 row単位で接続、Validation failure時は未消費 | DATA-04のCSV row consumer | [csv-stream](../examples/csv-stream/README.md) |
 | std.jsonStream | peek, nextBigInt | 非消費event検査、JSON整数tokenをBigIntへ変換してから消費 | DATA-04のtyped stream前段。record materializationは未実装 | [json-stream](../examples/json-stream/README.md)、[BigInt](../examples/json-stream/bigint.rw) |
 | std.schema | 入れ子JSON検証、default/NULL/unknown policy、型付きmapper、header付きCSV row | DATA-01のJSON/CSV row部分 | [typed-schema](../examples/typed-schema.rw)、[typed-csv-row](../examples/typed-csv-row.rw) |

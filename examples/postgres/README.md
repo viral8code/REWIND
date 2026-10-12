@@ -10,6 +10,6 @@ rewind compile main.rw --allow-effects external,db,tasks,env,fileRead,output
 rewind run main.rwc --allow-effects external,db,tasks,env,fileRead,output --secret-env REWIND_PG_DSN
 ```
 
-出力は `true`、`42`、`Alice`。この例は接続・parameter binding・逐次row読取り・scope cleanup を行う。cursorの列名は`db.indexColumns`で一度検査し、`mapStatus`が`StatusRow` recordへ型付きaccessorを使って明示的に変換する。
+出力は `true`、`42`、`Alice`。この例は接続・parameter binding・逐次row読取り・scope cleanup を行う。cursorの列名は`db.indexColumns`で一度検査し、`mapStatus`が`StatusRow` recordへ型付きaccessorを使って明示的に変換する。取得済みの最大64行は`db.mapBatch`でまとめてmappingし、DB cursorのread自体は引き続き明示的な`db.next`が行う。
 
 `--record trace.json` で記録できる。再生には同じ環境名を `--secret-env REWIND_PG_DSN` で外部から再供給する。秘密を欠落させた replay は保証しない。接続先が停止していても、CA file と source が無くても、compiled artifact と記録済みの観測から再生できる。DB には接続しない。

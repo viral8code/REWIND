@@ -119,6 +119,18 @@
       ],
       "return": "Result<Int,DbError>"
     },
+    "fn:columnNumber": {
+      "async": false,
+      "cost": "O(log column count).",
+      "effects": [],
+      "failure": "DbError: DbColumnMissing.",
+      "generics": [],
+      "parameters": [
+        "&ColumnMap",
+        "String"
+      ],
+      "return": "Result<Int,DbError>"
+    },
     "fn:commitTransaction": {
       "async": false,
       "cost": "O(DB commit); missing acknowledgement leaves outcome Unknown.",
@@ -214,6 +226,17 @@
       ],
       "return": "Result<Float,DbError>"
     },
+    "fn:indexColumns": {
+      "async": false,
+      "cost": "O(column count × ordered-map insertion); rejects duplicate names and returns an immutable index.",
+      "effects": [],
+      "failure": "DbError: DbColumnLimit or DbDuplicateColumn.",
+      "generics": [],
+      "parameters": [
+        "Frozen<List<String>>"
+      ],
+      "return": "Result<ColumnMap,DbError>"
+    },
     "fn:integer": {
       "async": false,
       "cost": "O(1); requires an Int cell, NULL and other types return DbType.",
@@ -224,6 +247,28 @@
         "Int"
       ],
       "return": "Result<Int,DbError>"
+    },
+    "fn:mapBatch": {
+      "async": false,
+      "cost": "O(batch rows × mapper); accepts at most 64 rows and performs no DB I/O.",
+      "effects": [],
+      "failure": "RowMapError::TooManyRows or RowMapError::Row(batch index, mapper error); the input batch remains available.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&DbBatch",
+        "&ColumnMap",
+        "fn(Frozen<DbRow>,&ColumnMap)->Result<T,E>!{}~{Send+Share}"
+      ],
+      "return": "Result<MappedBatch<T>,RowMapError<E>>"
     },
     "fn:next": {
       "async": false,
@@ -382,6 +427,12 @@
         "Int"
       ],
       "return": "Task<Result<Unit,DbError>>"
+    },
+    "type:ColumnMap": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
     },
     "type:DbBatch": {
       "constructor": true,
@@ -656,6 +707,53 @@
       ],
       "generics": [],
       "kind": "record"
+    },
+    "type:MappedBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<T>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "kind": "record"
+    },
+    "type:RowMapError": {
+      "generics": [
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "kind": "enum",
+      "variants": {
+        "Row": [
+          [
+            "0",
+            "Int"
+          ],
+          [
+            "1",
+            "E"
+          ]
+        ],
+        "TooManyRows": [
+          [
+            "0",
+            "Int"
+          ]
+        ]
+      }
     },
     "type:StdError": {
       "constructor": true,
