@@ -550,6 +550,17 @@
       "parameters": [
         "&mut Table"
       ],
+      "return": "Unit",
+      "cost": "O(edits), plus O(rows) to refresh an active filter."
+    },
+    "fn:clearFilter": {
+      "async": false,
+      "cost": "O(rows) to rebuild current display indexes.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Table"
+      ],
       "return": "Unit"
     },
     "fn:columns": {
@@ -603,7 +614,7 @@
     },
     "fn:editCell": {
       "async": false,
-      "cost": "O(1) except restoring a base value rebuilds at most 4096 edits.",
+      "cost": "O(1), except bounded edit removal or active-filter refresh over at most 8192 rows.",
       "effects": [],
       "failure": "Range/Text/EditLimit/EditCapacity.",
       "generics": [],
@@ -617,13 +628,26 @@
     },
     "fn:editCellId": {
       "async": false,
-      "cost": "O(1) with caller row IDs; a restoration rebuilds at most 4096 edits. Legacy row IDs parse in O(id bytes).",
+      "cost": "O(1), except bounded edit removal or active-filter refresh over at most 8192 rows; accepts known rows even when filtered out.",
       "effects": [],
       "failure": "UnknownRow/Range/Text/EditLimit/EditCapacity.",
       "generics": [],
       "parameters": [
         "&mut Table",
         "String",
+        "Int",
+        "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:filterByText": {
+      "async": false,
+      "cost": "O(rows + scanned cell bytes), case-sensitive substring scan; non-empty query allows at most 8192 source rows.",
+      "effects": [],
+      "failure": "Range for invalid column; FilterRows above 8192 rows; FilterQuery above 256 UTF-8 bytes or invalid text. Failure leaves view state unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut Table",
         "Int",
         "String"
       ],
@@ -677,7 +701,7 @@
     },
     "fn:rowIndex": {
       "async": false,
-      "cost": "O(1) with caller IDs, O(id bytes) for legacy positional IDs; returns current display position.",
+      "cost": "O(1) with caller IDs, O(id bytes) for legacy positional IDs; None for unknown or filtered rows.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -693,7 +717,8 @@
       "parameters": [
         "&Table"
       ],
-      "return": "Int"
+      "return": "Int",
+      "cost": "O(1); total source row count, unaffected by filtering."
     },
     "fn:scroll": {
       "async": false,
@@ -721,7 +746,7 @@
       "async": false,
       "cost": "O(1) with caller IDs, O(id bytes) for legacy positional IDs.",
       "effects": [],
-      "failure": "UnknownRow/Range.",
+      "failure": "UnknownRow for unknown ID; FilteredRow for a known row outside the active view.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -751,9 +776,9 @@
     },
     "fn:sortByText": {
       "async": false,
-      "cost": "O(n log n) comparisons and O(n) temporary keys/order indexes; stable ties retain current display order.",
+      "cost": "O(n log n) comparisons plus O(n) filter indexes; stable ties retain current full sort order.",
       "effects": [],
-      "failure": "Range for an invalid column; SortRows above 8192 rows; SortKey above 256 UTF-8 bytes. Failure leaves table state unchanged.",
+      "failure": "Range for invalid column; SortRows above 8192 source rows; SortKey above 256 UTF-8 bytes. Failure leaves full order, filter, selection, viewport, and staged edits unchanged.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -761,6 +786,16 @@
         "Bool"
       ],
       "return": "Result<Unit,StdError>"
+    },
+    "fn:visibleRows": {
+      "async": false,
+      "cost": "O(1); count of rows in the active filtered view.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Int"
     },
     "type:Action": {
       "generics": [],

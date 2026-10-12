@@ -3,7 +3,7 @@ import sort as sort;
 pub type TableError = StdError;
 pub struct CellEdit {rowId:String,column:Int,value:String}
 struct SortKey {value:String,row:Int,descending:Bool}
-pub struct Table {private headers:Frozen<List<String>>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private rowPositions:List<Int>,private visible:Int,private first:Int,private selected:Int}
+pub struct Table {private headers:Frozen<List<String>>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private visible:Int,private first:Int,private selected:Int}
 pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close}
 fn valid(text:String)->Bool effects {} {return text.byteLen()<=4096 && stdTextFind(text,"\0")==None;}
 fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int,customIds:Bool)->Result<Table,TableError> effects {} {
@@ -13,8 +13,8 @@ fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells
  for i in 0..columns{let text=headers.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();}
  if customIds{for i in 0..rowIds.len(){let id=rowIds.get(i);if id=="" || id.byteLen()>64 || !valid(id){return Err(StdError("GuiTableRowId",i));}if rowIndices.get(id)!=None{return Err(StdError("GuiTableDuplicateRowId",i));}rowIndices.set(id,i);bytes+=id.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}}
  for i in 0..cells.len(){let text=cells.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}
- let rowOrder=List<Int>();let rowPositions=List<Int>();for i in 0..rowCount{rowOrder.add(i);rowPositions.add(i);}
- return Ok(Table(headers,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,move rowOrder,move rowPositions,visibleRows,0,-1));
+ let rowOrder=List<Int>();let displayOrder=List<Int>();let rowPositions=List<Int>();for i in 0..rowCount{rowOrder.add(i);displayOrder.add(i);rowPositions.add(i);}
+ return Ok(Table(headers,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,move rowOrder,move displayOrder,move rowPositions,0,"",visibleRows,0,-1));
 }
 // @api create cost O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.
 pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
@@ -25,35 +25,57 @@ pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRow
 pub fn createWithIds(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
  return createInternal(headers,rowIds,cells,visibleRows,true);
 }
+// @api rows returns total source rows, independent of the active filter.
 pub fn rows(table:&Table)->Int effects {} {return table.cells.len()/table.headers.len();}
+// @api visibleRows returns the number of rows in the current filtered view in O(1).
+pub fn visibleRows(table:&Table)->Int effects {} {return table.displayOrder.len();}
 pub fn columns(table:&Table)->Int effects {} {return table.headers.len();}
-fn baseRow(table:&Table,row:Int)->Int effects {} {return table.rowOrder.get(row);}
+fn baseRow(table:&Table,row:Int)->Int effects {} {return table.displayOrder.get(row);}
 fn displayRow(table:&Table,row:Int)->Int effects {} {return table.rowPositions.get(row);}
+fn baseIndex(table:&Table,id:String)->Option<Int> effects {} {
+ if table.customIds{match table.rowIndices.get(id){Some(row)=>{return Some(row);},None=>{return None;}}}
+ let prefix="row:";if stdTextFind(id,prefix)!=Some(0){return None;}
+ match stdTextSlice(id,prefix.charLen(),id.charLen()){Err(_)=>{return None;},Ok(raw)=>{match stdParseInt(raw,10){Err(_)=>{return None;},Ok(row)=>{if row<0 || row>=rows(table) || row.format()!=raw{return None;}return Some(row);}}}}
+}
+fn rowIdForBase(table:&Table,row:Int)->String effects {} {if table.customIds{return table.rowIds.get(row);}return "row:"+row.format();}
+fn cellForBase(table:&Table,row:Int,column:Int)->String effects {} {
+ let id=rowIdForBase(table,row);match table.editIndex.get(editKey(id,column)){Some(index)=>{return table.editedCells.get(index).value;},None=>{return table.cells.get(row*columns(table)+column);}}
+}
+fn filterOrder(table:&Table,order:&List<Int>,column:Int,query:String)->List<Int> effects {} {
+ let display=List<Int>();var i=0;while i<order.len(){let row=order.get(i);if query=="" || stdTextFind(cellForBase(table,row,column),query)!=None{display.add(row);}i+=1;}return display;
+}
+fn positionsFor(table:&Table,display:&List<Int>)->List<Int> effects {} {
+ let positions=List<Int>();for i in 0..rows(table){positions.add(-1);}var i=0;while i<display.len(){positions.set(display.get(i),i);i+=1;}return positions;
+}
+fn normalizeView(table:&mut Table)->Unit effects {} {
+ if table.selected>=0{let position=displayRow(table,table.selected);if position<0{table.selected=-1;}else{if position<table.first{table.first=position;}if position>=table.first+table.visible{table.first=position-table.visible+1;}}}
+ let limit=visibleRows(table)-table.visible;if limit<0{limit=0;}if table.first>limit{table.first=limit;}if table.first<0{table.first=0;}
+}
+fn refreshFilter(table:&mut Table)->Unit effects {} {
+ let display=filterOrder(table,&table.rowOrder,table.filterColumn,table.filterQuery);let positions=positionsFor(table,&display);
+ table.displayOrder=move display;table.rowPositions=move positions;normalizeView(table);
+}
 pub fn position(table:&Table)->Int effects {} {return table.first;}
 // @api selection returns the selected row's current display position; use selectionId for stable identity.
-pub fn selection(table:&Table)->Option<Int> effects {} {if table.selected<0{return None;}return Some(displayRow(table,table.selected));}
+pub fn selection(table:&Table)->Option<Int> effects {} {if table.selected<0{return None;}let row=displayRow(table,table.selected);if row<0{return None;}return Some(row);}
 pub fn rowId(table:&Table,row:Int)->Result<String,TableError> effects {} {
- if row<0 || row>=rows(table){return Err(StdError("GuiTableRange",row));}
- let base=baseRow(table,row);if table.customIds{return Ok(table.rowIds.get(base));}
- return Ok("row:"+base.format());
+ if row<0 || row>=visibleRows(table){return Err(StdError("GuiTableRange",row));}
+ return Ok(rowIdForBase(table,baseRow(table,row)));
 }
-// @api rowIndex returns the current display position; cost O(1) with caller IDs, O(id bytes) for legacy positional IDs.
+// @api rowIndex returns the current display position; None means unknown or filtered out. Cost O(1) with caller IDs, O(id bytes) for legacy positional IDs.
 pub fn rowIndex(table:&Table,id:String)->Option<Int> effects {} {
- if table.customIds{match table.rowIndices.get(id){Some(row)=>{return Some(displayRow(table,row));},None=>{return None;}}}
- let prefix="row:";if stdTextFind(id,prefix)!=Some(0){return None;}
- match stdTextSlice(id,prefix.charLen(),id.charLen()){Err(_)=>{return None;},Ok(raw)=>{match stdParseInt(raw,10){Err(_)=>{return None;},Ok(row)=>{if row<0 || row>=rows(table) || row.format()!=raw{return None;}return Some(displayRow(table,row));}}}}
+ match baseIndex(table,id){Some(base)=>{let position=displayRow(table,base);if position<0{return None;}return Some(position);},None=>{return None;}}
 }
 pub fn selectionId(table:&Table)->Option<String> effects {} {
- if table.selected<0{return None;}match rowId(table,displayRow(table,table.selected)){Ok(id)=>{return Some(id);},Err(_)=>{return None;}}
+ if table.selected<0{return None;}let position=displayRow(table,table.selected);if position<0{return None;}match rowId(table,position){Ok(id)=>{return Some(id);},Err(_)=>{return None;}}
 }
 pub fn selectId(table:&mut Table,id:String)->Result<Unit,TableError> effects {} {
- match rowIndex(table,id){Some(row)=>{return select(table,row);},None=>{return Err(StdError("GuiTableUnknownRow",0));}}
+ match baseIndex(table,id){Some(base)=>{let row=displayRow(table,base);if row<0{return Err(StdError("GuiTableFilteredRow",base));}return select(table,row);},None=>{return Err(StdError("GuiTableUnknownRow",0));}}
 }
 // @api cell cost O(1) overlay lookup plus frozen base access; staged values are visible to render.
 pub fn cell(table:&Table,row:Int,column:Int)->Result<String,TableError> effects {} {
- if row<0 || row>=rows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}
- let base=baseRow(table,row);let id=rowId(table,row)?;let key=editKey(id,column);
- match table.editIndex.get(key){Some(index)=>{return Ok(table.editedCells.get(index).value);},None=>{return Ok(table.cells.get(base*columns(table)+column));}}
+ if row<0 || row>=visibleRows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}
+ return Ok(cellForBase(table,baseRow(table,row),column));
 }
 fn editKey(id:String,column:Int)->String effects {} {return id.byteLen().format()+":"+id+":"+column.format();}
 fn removeEdit(table:&mut Table,index:Int)->Unit effects {} {
@@ -67,49 +89,46 @@ fn stageEdit(table:&mut Table,row:Int,id:String,column:Int,value:String)->Result
  let original=table.cells.get(row*columns(table)+column);let key=editKey(id,column);
  match table.editIndex.get(key){
   Some(index)=>{
-   if value==original{removeEdit(table,index);return Ok(());}
+   if value==original{removeEdit(table,index);if table.filterQuery!="" && column==table.filterColumn{refreshFilter(table);}return Ok(());}
    let previous=table.editedCells.get(index);let nextBytes=table.editBytes-previous.value.byteLen()+value.byteLen();
    if nextBytes>4194304{return Err(StdError("GuiTableEditCapacity",nextBytes));}
-   table.editedCells.set(index,CellEdit(id,column,value));table.editBytes=nextBytes;return Ok(());
+   table.editedCells.set(index,CellEdit(id,column,value));table.editBytes=nextBytes;if table.filterQuery!="" && column==table.filterColumn{refreshFilter(table);}return Ok(());
   },
   None=>{
    if value==original{return Ok(());}
    if table.editedCells.len()>=4096{return Err(StdError("GuiTableEditLimit",table.editedCells.len()));}
    let nextBytes=table.editBytes+value.byteLen();if nextBytes>4194304{return Err(StdError("GuiTableEditCapacity",nextBytes));}
-   let index=table.editedCells.len();table.editedCells.add(CellEdit(id,column,value));table.editIndex.set(key,index);table.editBytes=nextBytes;return Ok(());
+   let index=table.editedCells.len();table.editedCells.add(CellEdit(id,column,value));table.editIndex.set(key,index);table.editBytes=nextBytes;if table.filterQuery!="" && column==table.filterColumn{refreshFilter(table);}return Ok(());
   }
  }
 }
-// @api editCell cost O(1) except bounded edit removal; max 4096 staged cells and 4 MiB of value bytes.
+// @api editCell cost O(1), except bounded edit removal or active-filter refresh over at most 8192 rows; max 4096 staged cells and 4 MiB of value bytes.
 // @api editCell failure Range/Text/EditLimit/EditCapacity.
 pub fn editCell(table:&mut Table,row:Int,column:Int,value:String)->Result<Unit,TableError> effects {} {
- if row<0 || row>=rows(table){return Err(StdError("GuiTableRange",row));}
+ if row<0 || row>=visibleRows(table){return Err(StdError("GuiTableRange",row));}
  let id=rowId(table,row)?;return stageEdit(table,baseRow(table,row),id,column,value);
 }
-// @api editCellId resolves stable row IDs in O(1); removing a restored cell rebuilds at most 4096 entries.
+// @api editCellId resolves stable row IDs in O(1), including filtered-out rows; an active filter refresh scans at most 8192 rows.
 // @api editCellId failure UnknownRow/Range/Text/EditLimit/EditCapacity.
 pub fn editCellId(table:&mut Table,id:String,column:Int,value:String)->Result<Unit,TableError> effects {} {
  if id.byteLen()>64{return Err(StdError("GuiTableUnknownRow",0));}
- match rowIndex(table,id){Some(row)=>{return stageEdit(table,baseRow(table,row),id,column,value);},None=>{return Err(StdError("GuiTableUnknownRow",0));}}
+ match baseIndex(table,id){Some(row)=>{return stageEdit(table,row,id,column,value);},None=>{return Err(StdError("GuiTableUnknownRow",0));}}
 }
 fn compareSortKeys(a:SortKey,b:SortKey)->Int effects {} {
  if a.value<b.value{if a.descending{return 1;}return -1;}
  if a.value>b.value{if a.descending{return -1;}return 1;}
  return 0;
 }
-// @api sortByText descending=false is ascending, true is descending. Stable ties retain current display order; cost O(n log n) comparisons and O(n) temporary keys/order indexes. Limits: 8192 rows and 256 UTF-8 bytes per key.
-// @api sortByText failure Range/SortRows/SortKey; any failure leaves row order, selection, viewport, and staged edits unchanged.
+// @api sortByText descending=false is ascending, true is descending. Stable ties retain current full sort order; cost O(n log n) comparisons plus bounded indexes. Limits: 8192 source rows and 256 UTF-8 bytes per key.
+// @api sortByText failure Range/SortRows/SortKey; any failure leaves order, filter, selection, viewport, and staged edits unchanged.
 pub fn sortByText(table:&mut Table,column:Int,descending:Bool)->Result<Unit,TableError> effects {} {
  if column<0 || column>=columns(table){return Err(StdError("GuiTableRange",column));}
  let count=rows(table);if count>8192{return Err(StdError("GuiTableSortRows",count));}
  let keys=List<SortKey>();var i=0;
- while i<count{let value=cell(table,i,column)?;if value.byteLen()>256{return Err(StdError("GuiTableSortKey",i));}keys.add(SortKey(value,baseRow(table,i),descending));i+=1;}
- let sorted=sort.stable(&keys,compareSortKeys);let order=List<Int>();let positions=List<Int>();
- for i in 0..count{positions.add(0);}
- i=0;while i<sorted.len(){let base=sorted.get(i).row;order.add(base);positions.set(base,i);i+=1;}
- table.rowOrder=move order;table.rowPositions=move positions;
- if table.selected>=0{let selected=displayRow(table,table.selected);if selected<table.first{table.first=selected;}if selected>=table.first+table.visible{table.first=selected-table.visible+1;}}
- else{let limit=maximum(table);if table.first>limit{table.first=limit;}}
+ while i<count{let base=table.rowOrder.get(i);let value=cellForBase(table,base,column);if value.byteLen()>256{return Err(StdError("GuiTableSortKey",i));}keys.add(SortKey(value,base,descending));i+=1;}
+ let sorted=sort.stable(&keys,compareSortKeys);let order=List<Int>();i=0;while i<sorted.len(){order.add(sorted.get(i).row);i+=1;}
+ let display=filterOrder(table,&order,table.filterColumn,table.filterQuery);let positions=positionsFor(table,&display);
+ table.rowOrder=move order;table.displayOrder=move display;table.rowPositions=move positions;normalizeView(table);
  return Ok(());
 }
 pub fn hasEdits(table:&Table)->Bool effects {} {return table.editedCells.len()>0;}
@@ -119,17 +138,32 @@ pub fn changes(table:&Table)->Frozen<List<CellEdit>> effects {} {
  while i<table.editedCells.len(){snapshot.add(table.editedCells.get(i));i+=1;}
  return freeze(snapshot);
 }
+// @api clearEdits cost O(edits), plus O(rows) to refresh an active filter.
 pub fn clearEdits(table:&mut Table)->Unit effects {} {
- table.editedCells=List<CellEdit>();table.editIndex=Map<String,Int>();table.editBytes=0;
+ table.editedCells=List<CellEdit>();table.editIndex=Map<String,Int>();table.editBytes=0;if table.filterQuery!=""{refreshFilter(table);}
 }
-fn maximum(table:&Table)->Int effects {} {let value=rows(table)-table.visible;if value<0{return 0;}return value;}
+// @api filterByText cost O(rows + scanned cell bytes); case-sensitive substring match in the current full sort order. Empty query clears filtering. Non-empty query is limited to 8192 source rows and 256 UTF-8 bytes.
+// @api filterByText failure Range/FilterRows/FilterQuery; failures leave view and selection unchanged.
+pub fn filterByText(table:&mut Table,column:Int,query:String)->Result<Unit,TableError> effects {} {
+ if column<0 || column>=columns(table){return Err(StdError("GuiTableRange",column));}
+ if query.byteLen()>256 || !valid(query){return Err(StdError("GuiTableFilterQuery",query.byteLen()));}
+ if query!="" && rows(table)>8192{return Err(StdError("GuiTableFilterRows",rows(table)));}
+ let display=filterOrder(table,&table.rowOrder,column,query);let positions=positionsFor(table,&display);
+ table.filterColumn=column;table.filterQuery=query;table.displayOrder=move display;table.rowPositions=move positions;normalizeView(table);return Ok(());
+}
+// @api clearFilter restores every source row in the current full sort order; O(rows) index rebuild.
+pub fn clearFilter(table:&mut Table)->Unit effects {} {
+ let display=filterOrder(table,&table.rowOrder,table.filterColumn,"");let positions=positionsFor(table,&display);
+ table.filterQuery="";table.displayOrder=move display;table.rowPositions=move positions;normalizeView(table);
+}
+fn maximum(table:&Table)->Int effects {} {let value=visibleRows(table)-table.visible;if value<0{return 0;}return value;}
 // @api scroll cost O(1); clamps arbitrary signed deltas before adding them.
 pub fn scroll(table:&mut Table,delta:Int)->Unit effects {} {
  let limit=maximum(table);if delta>0{if delta>limit-table.first{table.first=limit;}else{table.first+=delta;}}
  else{if delta< -table.first{table.first=0;}else{table.first+=delta;}}
 }
 pub fn select(table:&mut Table,row:Int)->Result<Unit,TableError> effects {} {
- if row<0 || row>=rows(table){return Err(StdError("GuiTableRange",row));}table.selected=baseRow(table,row);
+ if row<0 || row>=visibleRows(table){return Err(StdError("GuiTableRange",row));}table.selected=baseRow(table,row);
  if row<table.first{table.first=row;}if row>=table.first+table.visible{table.first=row-table.visible+1;}return Ok(());
 }
 // @api render cost O(visible rows * columns); new view keeps failures away from the caller's published scene.
@@ -139,7 +173,7 @@ pub fn render(table:&Table,title:String,width:Int,height:Int,rowHeight:Int,prefi
  if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiInvalidId",0));}
  let view=gui.window(title,width,height)?;let columns=columns(table);let cellWidth=(width-32)/columns;
  for c in 0..columns{let id=prefix+":head:"+c.format();gui.label(&mut view,id,table.headers.get(c),16+c*cellWidth,16,cellWidth,rowHeight)?;gui.style(&mut view,id,0x111827,0xe5e7eb)?;}
- var shown=table.visible;if shown>rows(table)-table.first{shown=rows(table)-table.first;}
+ var shown=table.visible;if shown>visibleRows(table)-table.first{shown=visibleRows(table)-table.first;}
  for r in 0..shown {let row=table.first+r;let base=baseRow(table,row);let y=16+(r+1)*rowHeight;let id=prefix+":row:"+rowId(table,row)?;var color=0xffffff;if base==table.selected{color=0xdbeafe;}
   gui.button(&mut view,id,"",16,y,width-32,rowHeight)?;gui.style(&mut view,id,0x111827,color)?;
   for c in 0..columns {let cellId=prefix+":cell:"+r.format()+":"+c.format();gui.label(&mut view,cellId,cell(table,row,c)?,16+c*cellWidth,y,cellWidth,rowHeight)?;if color!=0xffffff{gui.style(&mut view,cellId,0x111827,color)?;}}
@@ -150,11 +184,11 @@ pub fn render(table:&Table,title:String,width:Int,height:Int,rowHeight:Int,prefi
 pub fn dispatch(table:&mut Table,view:&mut gui.View,event:gui.Event,prefix:String)->Result<Option<Action>,TableError> effects {} {
  if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiInvalidId",0));}
  if event.kind=="wheel"{scroll(table,event.y);return Ok(Some(Action::Scrolled(table.first)));}
- if event.kind=="key" && rows(table)>0 {var next=table.first;if table.selected>=0{next=displayRow(table,table.selected);}
+ if event.kind=="key" && visibleRows(table)>0 {var next=table.first;if table.selected>=0{next=displayRow(table,table.selected);}
   if event.key=="Up"{if next>0{next-=1;}select(table,next)?;return Ok(Some(Action::Selected(next)));}
-  if event.key=="Down"{if next<rows(table)-1{next+=1;}select(table,next)?;return Ok(Some(Action::Selected(next)));}
+  if event.key=="Down"{if next<visibleRows(table)-1{next+=1;}select(table,next)?;return Ok(Some(Action::Selected(next)));}
   if event.key=="Home"{select(table,0)?;return Ok(Some(Action::Selected(0)));}
-  if event.key=="End"{select(table,rows(table)-1)?;return Ok(Some(Action::Selected(rows(table)-1)));}
+  if event.key=="End"{select(table,visibleRows(table)-1)?;return Ok(Some(Action::Selected(visibleRows(table)-1)));}
  }
  match gui.dispatch(view,event){Some(gui.Action::Activate(id))=>{let beginning=prefix+":row:";if stdTextFind(id,beginning)==Some(0){match stdTextSlice(id,beginning.charLen(),id.charLen()){Err(_)=>{return Err(StdError("GuiInvalidId",0));},Ok(text)=>{match rowIndex(table,text){None=>{return Err(StdError("GuiInvalidId",0));},Some(row)=>{select(table,row)?;return Ok(Some(Action::Selected(row)));}}}}}},Some(gui.Action::Resize(w,h))=>{return Ok(Some(Action::Resize(w,h)));},Some(gui.Action::Close)=>{return Ok(Some(Action::Close));},_=>{}}
  return Ok(None);

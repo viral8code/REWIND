@@ -63,17 +63,17 @@ componentはID、VM内のstate、配置入力、eventからstate/actionを返す
 
 **部分実装（2026-10-12）：** `guiForm.toValue`は`toJson`の全field・relation検証に成功した後にだけ、利用者が渡したpure callbackを一度呼びます。typed JSONからapplication recordを作るmapping errorとform validation errorを`SubmitError`の別variantで返します。libraryはreflectionや暗黙変換を行いません。[例](../examples/gui-form-typed.rw)。
 
-**部分実装（2026-10-12）：** `guiTable.createWithIds`へcaller-suppliedなunique row IDを追加し、rowId/index lookup、IDによるselection、rendered row actionからdata rowへのID解決を実装しました。従来の`create`は互換用に`row:<index>`を合成し、row IDはTable modelの寿命中に並べ替え後も同じbase rowを指します。
+**部分実装（2026-10-12）：** `guiTable.createWithIds`はcaller-suppliedなunique row IDを保持し、row action・選択・編集をbase rowへ結びます。sort後も同じTable model内でidentityを保ちます。filter後は`rowIndex`が表示位置を返し、非表示rowには`None`を返します。従来の`create`が作る`row:<index>`はmodel内のbase position IDであり、Tableを再構築した後のidentityではありません。
 
-**部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。clearEditsで全差分を破棄できます。`sortByText`はstaged valueを含む列を最大8192行・key 256 UTF-8 bytesまで安定sortし、ID・selection・差分overlayを維持します。filter、GUI text inputとの接続、typed table adapter、削除・取消を含む編集event lifecycleは未実装です。[例](../examples/gui-table-edits.rw)、[sort例](../examples/gui-table-sort.rw)。
+**部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。`sortByText`はstaged valueで安定sortし、ID・selection・差分overlayを維持します。`filterByText`は一列のcase-sensitive部分文字列filterを行い、query一致列の編集またはclearEdits後に表示対象を再計算します。filter中もeditCellIdはstable IDで非表示rowを編集できます。sort/filterは各々8192 source rowsまでです。native text inputとの接続、typed table adapter、削除・取消を含む完全な編集event lifecycleは未実装です。[編集例](../examples/gui-table-edits.rw)、[sort例](../examples/gui-table-sort.rw)、[filter例](../examples/gui-table-filter.rw)。
 
-`guiTable`のviewportと表示行制限は維持します。GUI text inputからの編集event連携、filter、列幅指定を追加候補にします。formのtyped record adapter、tableのstable row ID・差分overlay・stable text sortは実装済みです。表示位置をrowのidentityとして扱わず、選択・編集中cell・DB保存対象をrow IDで対応させます。
+`guiTable`のviewportと表示行制限は維持します。GUI text inputからの編集event連携、列幅指定を追加候補にします。formのtyped record adapter、tableのstable row ID・差分overlay・stable text sort・bounded text filterは実装済みです。表示位置をrowのidentityとして扱わず、選択・編集中cell・DB保存対象をrow IDで対応させます。
 
-全行のsort/filterと描画の費用を区別します。sort/filterが全件走査であることを記載し、各frameで再実行しないよう入力変更時だけ更新します。大規模DBの全件取得をlibrary側で自動実行しません。
+sortByTextは全source row、filterByTextはfilter列を全走査します。filterは呼出し時にだけ適用し、frameごとには再実行しません。active filter columnの編集とclearEdits後はmembershipを再計算します。描画はviewport内だけです。大規模DBの全件取得をlibrary側で自動実行しません。
 
 **受入条件**
 
-- sort/filter後も同じrowの選択・編集対象を追える。削除済みrowの操作を検出する。
+- sort後もrow IDで同じselection/edit targetを追える。filterで非表示になったselectionは解除され、row IDから非表示状態を識別できる。
 - 編集開始、確定、取消、検証失敗、IME確定前のキー入力を区別できる。
 - viewport外のrowを毎回Viewへ展開しない。
 - 整数overflow、空値、必須、field間矛盾、無効timestampを診断できる。
