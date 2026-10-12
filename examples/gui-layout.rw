@@ -13,8 +13,8 @@ take(gui.label(&mut view,"left","Left",0,0,10,10));
 take(gui.label(&mut view,"right","Right",0,0,10,10));
 
 let bodyChildren=List<gui.WeightedLayout>();
-bodyChildren.add(take(gui.weighted(take(gui.leaf("left")),1)));
-bodyChildren.add(take(gui.weighted(take(gui.leaf("right")),2)));
+bodyChildren.add(take(gui.sized(take(gui.leaf("left")),3,80,150)));
+bodyChildren.add(take(gui.sized(take(gui.leaf("right")),1,60,240)));
 let body=take(gui.row(&bodyChildren,4));
 
 let pageChildren=List<gui.WeightedLayout>();

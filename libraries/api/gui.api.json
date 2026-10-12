@@ -427,6 +427,20 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:sized": {
+      "async": false,
+      "cost": "O(1); constrains the child's main-axis pixels, minimum == maximum is fixed.",
+      "effects": [],
+      "failure": "GuiLayoutWeight/Dimension/Limit.",
+      "generics": [],
+      "parameters": [
+        "Layout",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<WeightedLayout,StdError>"
+    },
     "fn:splitColumn": {
       "async": false,
       "cost": "O(children), at most 256; integer remainder pixels are assigned left-to-right or top-to-bottom.",
@@ -509,9 +523,9 @@
     },
     "fn:weighted": {
       "async": false,
-      "cost": "O(1).",
+      "cost": "O(1); default main-axis range is 0..4096 pixels.",
       "effects": [],
-      "failure": "GuiLayoutWeight/Limit.",
+      "failure": "GuiLayoutWeight/Dimension/Limit.",
       "generics": [],
       "parameters": [
         "Layout",
