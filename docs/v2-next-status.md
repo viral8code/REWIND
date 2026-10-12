@@ -401,3 +401,12 @@ compile、実行、API再生成、native GUI確認はしていない。commitの
 [利用例](../examples/json-stream/decimal.rw)を追加し、jsonStream API manifest、DATA-04計画、実装index、library一覧を更新しました。実装commitは[a92bbf8](https://github.com/viral8code/REWIND/commit/a92bbf8528fcd7810418fd1ec5633ae847821362)。
 
 環境の起動失敗によりコンパイル・実行・API再生成は未実施です。source brace/parenthesis balance、公開function/API symbol名の一致、API JSON parse、parse-before-advanceの静的確認のみを行いました。codex/developだけへ`[skip ci]`付きでcommit/pushし、公開CI/CD、main統合、Release、版更新は行っていません。
+
+
+## DATA-01 exact Decimal schema
+
+`std.schema.decimal()` validates exact Decimal text through the existing `std.decimal.parse`. JSON input uses `Json::Text` so an earlier Float conversion cannot discard precision; CSV uses the raw cell text. Successful validation retains the supplied representation, including scale. Invalid input returns a value-free `ValidationError`; DB/form and date-time rules remain open.
+
+Added an acceptance source test for exact scale, malformed text, non-Text numeric values, and CSV mapping, plus [an example](../examples/typed-schema-decimal.rw). Updated the schema implementation contract, DATA-01 plan, implementation index, and library list. Implementation commit: [086fc04](https://github.com/viral8code/REWIND/commit/086fc04c676bd57b83be05b8313db7d01a8657b6).
+
+The container failed to start, so compiler, runtime, test, and API generation checks are unavailable. Static checks covered node match exhaustiveness by source inspection, delimiter balance, and preservation of API input text. No `schema.api.json` existed on this branch; public API inventory is in `libraries/README.md`. Changes are pushed only to `codex/develop` with `[skip ci]`; no public CI/CD, main merge, Release, or version update was run.
