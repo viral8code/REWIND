@@ -172,7 +172,7 @@ GUI-01〜03は基礎の一部を実装、他は未着手です。IDのGUI-01はv
 |---|---|---|---|
 | GUI-01 | 入れ子row/column、main-axis min/max、atomic applyLayout | arrange、edit、composition | source保存済み。padding/cross-axis/自動resizeと実行確認は残る |
 | GUI-02 | scoped child ID基盤 | layout ID、effect/ownership | source foundation saved; model/render/reducer and IME-preserving reuse remain |
-| GUI-03 | form relations、caller row IDs | 既存form/table、GUI-01 | relation rules and ID-based selection saved; sorting/filtering/editing remain |
+| GUI-03 | form relations, typed mapper, caller row IDs, bounded cell-edit overlay | 既存form/table、GUI-01 | form/row-ID/model-edit foundations saved; native input/edit lifecycle and sort/filter remain |
 | VIS-01 | 限定plot | renderer primitive、numeric view | 費用/互換確認。未成立なら保留可能 |
 | DB-01 | 明示record mapping | typed cell/cursor | NULL/列名/精度/bounded batch |
 | DB-02 | transaction helper | external/await/affineの最小例 | 終了状態、cancel、unknown、cleanup |
@@ -316,7 +316,7 @@ overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置
 
 std.guiTableへeditCell、editCellId、hasEdits、changes、clearEditsを追加した。変更はstable row IDとcolumn indexで記録し、cellと既存renderはoverlayを表示する。基礎のFrozen cell matrixを複製せず、元値に戻したcellは差分から除く。最大4096 cell・値合計4 MiB・各value 4096 bytesで制限する。削除時はboundedな差分一覧を再indexする。
 
-これはVM上のモデル編集で、native text inputやIME eventとの接続、sort/filter、typed record adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
+これはVM上のモデル編集で、native text inputやIME eventとの接続、sort/filter、table-row typed adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
 
 
 ## 2026-10-12のGUI-03 typed form adapter
