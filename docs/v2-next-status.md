@@ -316,7 +316,7 @@ overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置
 
 std.guiTableへeditCell、editCellId、hasEdits、changes、clearEditsを追加した。変更はstable row IDとcolumn indexで記録し、cellと既存renderはoverlayを表示する。基礎のFrozen cell matrixを複製せず、元値に戻したcellは差分から除く。最大4096 cell・値合計4 MiB・各value 4096 bytesで制限する。削除時はboundedな差分一覧を再indexする。
 
-これはVM上のモデル編集で、stable text sort、bounded text filter、weighted column widths、stable IDを使うtyped row mappingは後続の独立した実装分に追加した。native text input/IME eventとの接続と、削除・取消・検証失敗を含むcompleteな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
+これはVM上のモデル編集で、stable text sort、bounded text filter、weighted column widths、stable IDを使うtyped row mapping、model-side draft lifecycleを後続の独立した実装分に追加した。native text input/IME eventとの接続、application固有validation、draftとGUI editorの完全な統合は残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
 
 
 ## 2026-10-12のGUI-03 typed form adapter
@@ -359,3 +359,11 @@ compile、実行、API再生成、native GUI確認はしていない。commitの
 [利用例](../examples/gui-table-typed.rw)、GUI reference、API manifest、v2.2計画、実装indexを更新した。実装commitは`599df4ef895c11ea4af95e172c1f7b36901a9d44`。
 
 コンパイル・REWINDテスト・API再生成・native GUI確認は環境起動失敗のため未実施。source brace balanceと公開function/API symbol数、function名は一致することを確認した。これをcompiler/runtime検証として扱わない。codex/developだけへ`[skip ci]`付きで保存し、公開CI/CD、main統合、Release、版更新は行っていない。
+
+## 2026-10-12のGUI-03 table edit draft lifecycle
+
+`std.guiTable.beginEdit`は可視cellの現在値をoriginal/valueとして1つのdraftに保存する。`draft`と`setDraft`で値を確認・更新し、`commitEdit`の成功後に初めてstaged overlay、`cell`、`changes`、`toValue`へ反映する。`cancelEdit`はdraftだけを破棄する。確定時のedit limit/capacity failureは値を失わずdraftを開いたままにする。直接編集APIはdraftが開いている間`EditActive`で拒否する。draftはstable row IDと列番号に結び付くのでsort/filter後も対象行を失わない。
+
+[利用例](../examples/gui-table-edit-lifecycle.rw)を追加し、GUI reference、v2.2計画、API manifest、実装indexを更新した。実装commitは`356baffbd4666590f542d859264cf4f654df763a`。
+
+コンパイル・REWINDテスト・API再生成・GUI event/IME/native確認は環境起動失敗のため未実施。source brace balanceと公開function/API symbol名・数が一致することを確認しただけで、compiler/runtime検証ではない。codex/developだけへ`[skip ci]`付きで保存し、公開CI/CD、main統合、Release、版更新は行っていない。
