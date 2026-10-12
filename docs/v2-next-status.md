@@ -316,7 +316,7 @@ overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置
 
 std.guiTableへeditCell、editCellId、hasEdits、changes、clearEditsを追加した。変更はstable row IDとcolumn indexで記録し、cellと既存renderはoverlayを表示する。基礎のFrozen cell matrixを複製せず、元値に戻したcellは差分から除く。最大4096 cell・値合計4 MiB・各value 4096 bytesで制限する。削除時はboundedな差分一覧を再indexする。
 
-これはVM上のモデル編集で、stable text sortとbounded text filterは後続の独立した実装分に追加した。native text input/IME eventとの接続、table-row typed adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
+これはVM上のモデル編集で、stable text sort、bounded text filter、weighted column widthsは後続の独立した実装分に追加した。native text input/IME eventとの接続、table-row typed adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
 
 
 ## 2026-10-12のGUI-03 typed form adapter
@@ -343,3 +343,11 @@ compile、実行、API再生成、native GUI確認はしていない。commitの
 [利用例](../examples/gui-table-filter.rw)を追加し、GUI reference、API manifest、v2.2計画、実装indexを更新した。source/API/docs/example変更はcommit `a591995538e7323fa9ebcfa79ef78e83946cd398`。
 
 コンパイル、実行、API再生成、native GUIは環境起動失敗のため未確認。commitのActions実行は0件、mainは`5f5ab8f37c4d21f8746b2d1db077946809e3be42`のまま。codex/developだけへ`[skip ci]`付きで保存し、Releaseと版更新は行っていない。
+
+## 2026-10-12のGUI-03 table column weights
+
+`std.guiTable.setColumnWeights`は1..16列それぞれに1..65535の正整数weightを設定する。既定値は全列1。描画時に32pxの左右insetを除いたinner widthを按分し、各列に最低1pxを割り当てて、余りを先頭列から配るため列間に空白や重なりが出ない。変更は次回renderから反映し、行・sort・filter・selection・編集差分には影響しない。weight件数違いと不正値はTableを更新する前に失敗する。
+
+[利用例](../examples/gui-table-column-weights.rw)を追加し、GUI reference、v2.2計画の受入条件、実装index、API manifestを更新した。source/API/docs/exampleの実装commitは`41eb7ec18093776b826b552a68cf8e9f944a378e`。
+
+コンパイル、REWINDのテスト、API再生成、native GUI確認は環境起動失敗のため未実施。source brace balanceと公開function/API symbol数は一致し、幅配分式を外部の静的計算で境界・ランダム入力確認した。これはcompiler/runtime検証の代わりではない。codex/developだけへ`[skip ci]`付きで保存し、公開CI/CD、main統合、Release、版更新は行っていない。
