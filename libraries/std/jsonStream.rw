@@ -1,10 +1,51 @@
+import std.bigint as bigint;
 pub type Event=JsonStreamEvent;
 pub struct Reader {private state:JsonStreamState}
+pub enum IntegerEventError {Stream(StdError),ExpectedNumber(Int),InvalidInteger(StdError)}
 pub fn reader()->Result<Reader,StdError> effects {} {match stdJsonStreamNew(){Err(error)=>{return Err(error);},Ok(state)=>{return Ok(Reader(state));}}}
 // A failed feed leaves the Reader unchanged. Drain queued events and retry the same chunk after JsonQueueLimit.
 pub fn feed(reader:&mut Reader,chunk:Bytes,finish:Bool)->Result<Unit,StdError> effects {} {match stdJsonStreamFeed(&reader.state,chunk,finish){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(());}}}
 // peek observes the next queued event without advancing the reader.
 pub fn peek(reader:&Reader)->Result<Option<Event>,StdError> effects {} {return stdJsonStreamPeek(&reader.state);}
+fn eventPosition(event:Event)->Int effects {} {
+ match event {
+  JsonStreamEvent::ObjectStart(position)=>{return position;},
+  JsonStreamEvent::ObjectEnd(position)=>{return position;},
+  JsonStreamEvent::ArrayStart(position)=>{return position;},
+  JsonStreamEvent::ArrayEnd(position)=>{return position;},
+  JsonStreamEvent::Key(_,position)=>{return position;},
+  JsonStreamEvent::Text(_,position)=>{return position;},
+  JsonStreamEvent::Number(_,position)=>{return position;},
+  JsonStreamEvent::Bool(_,position)=>{return position;},
+  JsonStreamEvent::Null(position)=>{return position;}
+ }
+}
+// @api nextBigInt parses an exact base-10 integer token before advancing; a non-number or failed conversion remains queued.
+pub fn nextBigInt(reader:&mut Reader)->Result<Option<BigInt>,IntegerEventError> effects {} {
+ match stdJsonStreamPeek(&reader.state) {
+  Err(error)=>{return Err(IntegerEventError::Stream(error));},
+  Ok(value)=>{
+   match move value {
+    None=>{return Ok(None);},
+    Some(event)=>{
+     match event {
+      JsonStreamEvent::Number(raw,_)=>{
+       let number=match bigint.parse(raw,10) {
+        Err(error)=>{return Err(IntegerEventError::InvalidInteger(error));},
+        Ok(value)=>{value}
+       };
+       match stdJsonStreamAdvance(&reader.state) {
+        Err(error)=>{return Err(IntegerEventError::Stream(error));},
+        Ok(state)=>{reader.state=state;return Ok(Some(number));}
+       }
+      },
+      _=>{return Err(IntegerEventError::ExpectedNumber(eventPosition(event)));}
+     }
+    }
+   }
+  }
+ }
+}
 pub fn next(reader:&mut Reader)->Result<Option<Event>,StdError> effects {} {
  match stdJsonStreamPeek(&reader.state){Err(error)=>{return Err(error);},Ok(value)=>{
  match move value{None=>{return Ok(None);},Some(event)=>{match stdJsonStreamAdvance(&reader.state){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(Some(move event));}}}}

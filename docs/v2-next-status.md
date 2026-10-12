@@ -267,7 +267,7 @@ v2.2のDB-01に`std.db.ColumnMap`、`indexColumns`、`columnNumber`を追加し�
 
 ## JSON event streamの再開分
 
-2026-10-12に`std.jsonStream.peek(&Reader)`を追加しました。先頭のqueued eventを検査してもreaderをadvanceせず、既存の`next(&mut Reader)`だけがeventを消費します。利用例はpeek後も同じObjectStartを読めることを示します。API manifest、library一覧、DATA-04の実装状況も更新しました。
+2026-10-12に`std.jsonStream.peek(&Reader)`と`nextBigInt(&mut Reader)`を追加しました。先頭のqueued eventを検査してもreaderをadvanceせず、整数tokenは正確な10進BigIntへのparse成功後にだけ消費します。型違い・変換失敗ではeventをqueueに保ち、再解釈できます。API manifest、library一覧、DATA-04の実装状況、2つの利用例も更新しました.
 
 これはJSON streamからschema/recordを組み立てるadapterそのものではありません。DATA-04にはrecord materializationとDB cursor/HTTP sourceとの共通batch APIが残っています。
 

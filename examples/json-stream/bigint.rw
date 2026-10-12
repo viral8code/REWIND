@@ -1,0 +1,25 @@
+import std.jsonStream as json;
+import std.bigint as bigint;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("JSON integer stream operation failed");}
+    }
+}
+
+let reader=take(json.reader());
+let input=take(stdEncode("1267650600228229401496703205376"));
+take(json.feed(&mut reader,input,true));
+match take(json.peek(&reader)) {
+    Some(JsonStreamEvent::Number(_, _))=>{},
+    _=>{panic("expected JSON number");}
+}
+match take(json.nextBigInt(&mut reader)) {
+    Some(value)=>{Out.println(take(bigint.format(&value,10)));},
+    None=>{panic("expected integer token");}
+}
+match take(json.next(&mut reader)) {
+    None=>{},
+    Some(_)=>{panic("integer event should be consumed once");}
+}

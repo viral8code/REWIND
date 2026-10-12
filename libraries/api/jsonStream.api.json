@@ -45,6 +45,17 @@
       ],
       "return": "Result<Option<JsonStreamEvent>,StdError>"
     },
+    "fn:nextBigInt": {
+      "async": false,
+      "cost": "parses an exact base-10 integer token before advancing; failures leave the event queued.",
+      "effects": [],
+      "failure": "IntegerEventError; memory/work budget failures remain fatal.",
+      "generics": [],
+      "parameters": [
+        "&mut Reader"
+      ],
+      "return": "Result<Option<BigInt>,IntegerEventError>"
+    },
     "fn:peek": {
       "async": false,
       "effects": [],
@@ -371,6 +382,30 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:IntegerEventError": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ExpectedNumber": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "InvalidInteger": [
+          [
+            "0",
+            "StdError"
+          ]
+        ],
+        "Stream": [
+          [
+            "0",
+            "StdError"
+          ]
+        ]
+      }
     },
     "type:Json": {
       "generics": [],
