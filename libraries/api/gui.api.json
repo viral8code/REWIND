@@ -138,7 +138,7 @@
       "async": false,
       "cost": "O(total child nodes); at most 256 children, 1024 nodes and depth 32.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Weight/Dimension/Limit/DepthLimit.",
+      "failure": "GuiLayoutChildren/Gap/Weight/Dimension/Limit/DepthLimit/InsufficientSpace; failure leaves the view unchanged.",
       "generics": [],
       "parameters": [
         "&List<WeightedLayout>",
@@ -188,6 +188,19 @@
       "generics": [],
       "parameters": [],
       "return": "Unit"
+    },
+    "fn:crossSized": {
+      "async": false,
+      "cost": "O(1); sets the cross-axis minimum and maximum for one weighted child.",
+      "effects": [],
+      "failure": "GuiLayoutDimension; applyLayout may return GuiLayoutInsufficientSpace if the parent cross axis is below the minimum. Content aligns to the leading edge and excess space remains trailing.",
+      "generics": [],
+      "parameters": [
+        "WeightedLayout",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<WeightedLayout,StdError>"
     },
     "fn:dispatch": {
       "async": false,
@@ -389,7 +402,7 @@
       "async": false,
       "cost": "O(total child nodes); at most 256 children, 1024 nodes and depth 32.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Weight/Dimension/Limit/DepthLimit.",
+      "failure": "GuiLayoutChildren/Gap/Weight/Dimension/Limit/DepthLimit/InsufficientSpace; failure leaves the view unchanged.",
       "generics": [],
       "parameters": [
         "&List<WeightedLayout>",

@@ -18,11 +18,11 @@
 
 ## GUI-01：構成可能なlayout
 
-既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** flatな`gui.splitRow` / `splitColumn`は最大256個のweightとgapを受け取り、4096 pixel以内の領域を子Rectへ分割します。このflat APIには個別寸法制約はありません。layout treeでは`gui.sized(child,weight,min,max)`が子のmain-axis寸法を0..4096 pixelで制約し、`min == max`は固定寸法です。`gui.weighted`の既定範囲は0..4096です。`gui.row` / `column`は最大32階層のtreeとして合成し、`applyLayout`でatomicに適用します。`arrangeRow` / `arrangeColumn`は全ID、重複、View内bounds、非ゼロ寸法を事前確認してからgeometryだけを更新し、失敗時にViewを変更しません。剰余pixelはrowなら左から、columnなら上から配り、既存widget IDに結び付いたfocus/edit stateを維持します。[例](../examples/gui-layout.rw)。
+既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** flatな`gui.splitRow` / `splitColumn`は最大256個のweightとgapを受け取り、4096 pixel以内の領域を子Rectへ分割します。このflat APIには個別寸法制約はありません。layout treeでは`gui.sized(child,weight,min,max)`が子のmain-axis寸法を0..4096 pixelで制約し、`min == max`は固定寸法です。`gui.crossSized(child,min,max)`はrowの高さ・columnの幅を制約します。`gui.weighted`の既定範囲は0..4096です。`gui.row` / `column`は最大32階層のtreeとして合成し、`applyLayout`でatomicに適用します。`arrangeRow` / `arrangeColumn`は全ID、重複、View内bounds、非ゼロ寸法を事前確認してからgeometryだけを更新し、失敗時にViewを変更しません。剰余pixelはrowなら左から、columnなら上から配り、既存widget IDに結び付いたfocus/edit stateを維持します。[例](../examples/gui-layout.rw)。
 
-nested row/column layout treeとatomicなView適用をsourceへ追加しました。node tableは最大1024 node・深さ32、1 containerは最大256 childです。main-axisのweight/min/maxはlayout treeで使えます。gridはnested row/columnで構成できます。`overlayLayout`は2..256のchild treeを同じRectに配置し、`padded(layout,left,top,right,bottom)`は四辺のinteger insetでinner boundsを作ります。node数、depth、残りのinner寸法は構築時・適用時に検証し、不足時にViewを部分更新しません。cross-axis constraints、自然寸法測定、resize時の自動再配置は未実装です。
+nested row/column layout treeとatomicなView適用をsourceへ追加しました。node tableは最大1024 node・深さ32、1 containerは最大256 childです。main-axisのweight/min/maxはlayout treeで使えます。gridはnested row/columnで構成できます。`overlayLayout`は2..256のchild treeを同じRectに配置し、`padded(layout,left,top,right,bottom)`は四辺のinteger insetでinner boundsを作ります。node数、depth、残りのinner寸法は構築時・適用時に検証し、不足時にViewを部分更新しません。自然寸法測定、resize時の自動再配置は未実装です。
 
-実装済みの純粋計算は整数pixelのgap、main-axis min/max/fixed寸法、余りを配分するweight、overlay childへの同一bounds割当て、padding insetに絞ります。cross-axis constraintsは未実装です。文字の自然寸法やDPI依存測定を純粋計算の内部で問い合わせません。必要な測定値は既存の観測境界を通して入力します。領域不足時はminimum合計とgapを満たせなければ失敗し、余りpixelはrowなら左から、columnなら上から配ります。clipの扱いとresize時の再配置は未決です。
+実装済みの純粋計算は整数pixelのgap、main-axis min/max/fixed寸法、cross-axis min/max制約、余りを配分するweight、overlay childへの同一bounds割当て、padding insetに絞ります。cross-axisの最大値を超えた余白はrowなら下側、columnなら右側へ残し、子は上端または左端に揃えます。文字の自然寸法やDPI依存測定を純粋計算の内部で問い合わせません。必要な測定値は既存の観測境界を通して入力します。領域不足時はminimum合計とgapを満たせなければ失敗し、余りpixelはrowなら左から、columnなら上から配ります。clipの扱いとresize時の再配置は未決です。
 
 配置木には安定したIDを与えます。重複ID、不正寸法、座標overflow、深さ・子数・総要素数の上限を検証してからViewを更新します。検証失敗時に部分的な配置を公開しません。再配置でfocus、selection、scroll、IME compositionをどう扱うかを既存edit stateと照合します。
 
@@ -39,6 +39,7 @@ nested row/column layout treeとatomicなView適用をsourceへ追加しまし�
 - 同じ木と入力領域から同じ結果を得る。revertでlayout modelを戻せる。
 - overlayの各layerが同じrectを受け取り、重複IDや不足boundsでViewを部分更新しない。
 - padding適用後のinner boundsが全childで1px以上となり、不足時はViewを部分更新しない。
+- cross-axis minimum未満は失敗し、maximum超過はleading edgeへ揃えて縮め、Viewを部分更新しない。
 - 部分更新と全更新で同じ配置になり、focusと入力中の文字を不要に失わない。
 - layout失敗でnative windowの直前の公開状態を壊さない。
 

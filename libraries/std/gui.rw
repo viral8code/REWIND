@@ -163,13 +163,13 @@ pub fn setScrollPosition(view:&mut View,id:String,line:Int)->Result<Unit,GuiErro
 // Pure weighted partitioning for one flat row or column; remainder pixels go left-to-right.
 enum LayoutNode {
  Widget(String),
- Row(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int),
- Column(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int),
+ Row(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int),
+ Column(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int),
  Overlay(Frozen<List<Int>>),
  Padding(Int,Int,Int,Int,Int)
 }
 pub struct Layout {private nodes:Frozen<List<LayoutNode>>,private root:Int,private depth:Int}
-pub struct WeightedLayout {private layout:Layout,private weight:Int,private minimum:Int,private maximum:Int}
+pub struct WeightedLayout {private layout:Layout,private weight:Int,private minimum:Int,private maximum:Int,private crossMinimum:Int,private crossMaximum:Int}
 record LayoutWork {node:Int,bounds:Rect}
 record LayoutPlacement {id:String,bounds:Rect}
 
@@ -183,26 +183,31 @@ pub fn sized(layout:Layout,weight:Int,minimum:Int,maximum:Int)->Result<WeightedL
  if weight<1 || weight>1000000{return Err(StdError("GuiLayoutWeight",0));}
  if minimum<0 || maximum<minimum || maximum>4096{return Err(StdError("GuiLayoutDimension",0));}
  if layout.nodes.len()<1 || layout.nodes.len()>1024 || layout.depth<1 || layout.depth>32{return Err(StdError("GuiLayoutLimit",0));}
- return Ok(WeightedLayout(layout,weight,minimum,maximum));
+ return Ok(WeightedLayout(layout,weight,minimum,maximum,0,4096));
 }
 // @api weighted uses the default main-axis range 0..4096.
 pub fn weighted(layout:Layout,weight:Int)->Result<WeightedLayout,GuiError> effects {} {
  return sized(layout,weight,0,4096);
+}
+// @api crossSized bounds the cross axis: height in a row and width in a column; content stays at the leading edge.
+pub fn crossSized(child:WeightedLayout,minimum:Int,maximum:Int)->Result<WeightedLayout,GuiError> effects {} {
+ if minimum<0 || maximum<minimum || maximum>4096{return Err(StdError("GuiLayoutDimension",0));}
+ return Ok(WeightedLayout(child.layout,child.weight,child.minimum,child.maximum,minimum,maximum));
 }
 fn appendLayout(nodes:&mut List<LayoutNode>,layout:Layout)->Int effects {} {
  let offset=nodes.len();
  for i in 0..layout.nodes.len(){
   match thaw(layout.nodes.get(i)){
    LayoutNode::Widget(id)=>{nodes.add(LayoutNode::Widget(id));},
-   LayoutNode::Row(children,weights,minimums,maximums,gap)=>{
+   LayoutNode::Row(children,weights,minimums,maximums,crossMinimums,crossMaximums,gap)=>{
     let shifted=List<Int>();
     for j in 0..children.len(){shifted.add(children.get(j)+offset);}
-    nodes.add(LayoutNode::Row(freeze(shifted),weights,minimums,maximums,gap));
+    nodes.add(LayoutNode::Row(freeze(shifted),weights,minimums,maximums,crossMinimums,crossMaximums,gap));
    },
-   LayoutNode::Column(children,weights,minimums,maximums,gap)=>{
+   LayoutNode::Column(children,weights,minimums,maximums,crossMinimums,crossMaximums,gap)=>{
     let shifted=List<Int>();
     for j in 0..children.len(){shifted.add(children.get(j)+offset);}
-    nodes.add(LayoutNode::Column(freeze(shifted),weights,minimums,maximums,gap));
+    nodes.add(LayoutNode::Column(freeze(shifted),weights,minimums,maximums,crossMinimums,crossMaximums,gap));
    },
    LayoutNode::Overlay(children)=>{
     let shifted=List<Int>();
@@ -223,7 +228,7 @@ fn composeLayout(children:&List<WeightedLayout>,gap:Int,horizontal:Bool)->Result
  for i in 0..children.len(){
   let child=children.get(i);
   if child.weight<1 || child.weight>1000000{return Err(StdError("GuiLayoutWeight",0));}
-  if child.minimum<0 || child.maximum<child.minimum || child.maximum>4096{return Err(StdError("GuiLayoutDimension",0));}
+  if child.minimum<0 || child.maximum<child.minimum || child.maximum>4096 || child.crossMinimum<0 || child.crossMaximum<child.crossMinimum || child.crossMaximum>4096{return Err(StdError("GuiLayoutDimension",0));}
   if child.layout.nodes.len()<1 || child.layout.nodes.len()>1024{return Err(StdError("GuiLayoutLimit",0));}
   count+=child.layout.nodes.len();
   if count>1024{return Err(StdError("GuiLayoutLimit",0));}
@@ -231,15 +236,15 @@ fn composeLayout(children:&List<WeightedLayout>,gap:Int,horizontal:Bool)->Result
  }
  let depth=deepest+1;
  if depth>32{return Err(StdError("GuiLayoutDepthLimit",0));}
- let nodes=List<LayoutNode>();let childNodes=List<Int>();let childWeights=List<Int>();let minimums=List<Int>();let maximums=List<Int>();
+ let nodes=List<LayoutNode>();let childNodes=List<Int>();let childWeights=List<Int>();let minimums=List<Int>();let maximums=List<Int>();let crossMinimums=List<Int>();let crossMaximums=List<Int>();
  for i in 0..children.len(){
   let child=children.get(i);
   childNodes.add(appendLayout(&mut nodes,child.layout));
-  childWeights.add(child.weight);minimums.add(child.minimum);maximums.add(child.maximum);
+  childWeights.add(child.weight);minimums.add(child.minimum);maximums.add(child.maximum);crossMinimums.add(child.crossMinimum);crossMaximums.add(child.crossMaximum);
  }
  let root=nodes.len();
- if horizontal{nodes.add(LayoutNode::Row(freeze(childNodes),freeze(childWeights),freeze(minimums),freeze(maximums),gap));}
- else{nodes.add(LayoutNode::Column(freeze(childNodes),freeze(childWeights),freeze(minimums),freeze(maximums),gap));}
+ if horizontal{nodes.add(LayoutNode::Row(freeze(childNodes),freeze(childWeights),freeze(minimums),freeze(maximums),freeze(crossMinimums),freeze(crossMaximums),gap));}
+ else{nodes.add(LayoutNode::Column(freeze(childNodes),freeze(childWeights),freeze(minimums),freeze(maximums),freeze(crossMinimums),freeze(crossMaximums),gap));}
  return Ok(Layout(freeze(nodes),root,depth));
 }
 pub fn row(children:&List<WeightedLayout>,gap:Int)->Result<Layout,GuiError> effects {} {
@@ -291,16 +296,18 @@ pub fn applyLayout(view:&mut View,layout:&Layout,bounds:Rect)->Result<Unit,GuiEr
   if work.node<0 || work.node>=layout.nodes.len(){return Err(StdError("GuiLayoutLimit",0));}
   match thaw(layout.nodes.get(work.node)){
    LayoutNode::Widget(id)=>{placements.add(LayoutPlacement(id,work.bounds));},
-   LayoutNode::Row(children,weights,minimums,maximums,gap)=>{
+   LayoutNode::Row(children,weights,minimums,maximums,crossMinimums,crossMaximums,gap)=>{
     if children.len()<1 || children.len()>256 || children.len()!=weights.len() || children.len()!=minimums.len() || children.len()!=maximums.len(){return Err(StdError("GuiLayoutChildren",0));}
     let rowWeights=thaw(weights);let rowMinimums=thaw(minimums);let rowMaximums=thaw(maximums);
-    let rectangles=splitConstrained(work.bounds,&rowWeights,&rowMinimums,&rowMaximums,gap,true)?;
+    let rowCrossMinimums=thaw(crossMinimums);let rowCrossMaximums=thaw(crossMaximums);
+    let rectangles=splitConstrained(work.bounds,&rowWeights,&rowMinimums,&rowMaximums,&rowCrossMinimums,&rowCrossMaximums,gap,true)?;
     for i in 0..children.len(){pending.add(LayoutWork(children.get(i),rectangles.get(i)));}
    },
-   LayoutNode::Column(children,weights,minimums,maximums,gap)=>{
+   LayoutNode::Column(children,weights,minimums,maximums,crossMinimums,crossMaximums,gap)=>{
     if children.len()<1 || children.len()>256 || children.len()!=weights.len() || children.len()!=minimums.len() || children.len()!=maximums.len(){return Err(StdError("GuiLayoutChildren",0));}
     let columnWeights=thaw(weights);let columnMinimums=thaw(minimums);let columnMaximums=thaw(maximums);
-    let rectangles=splitConstrained(work.bounds,&columnWeights,&columnMinimums,&columnMaximums,gap,false)?;
+    let columnCrossMinimums=thaw(crossMinimums);let columnCrossMaximums=thaw(crossMaximums);
+    let rectangles=splitConstrained(work.bounds,&columnWeights,&columnMinimums,&columnMaximums,&columnCrossMinimums,&columnCrossMaximums,gap,false)?;
     for i in 0..children.len(){pending.add(LayoutWork(children.get(i),rectangles.get(i)));}
    },
    LayoutNode::Overlay(children)=>{
@@ -332,9 +339,9 @@ pub fn applyLayout(view:&mut View,layout:&Layout,bounds:Rect)->Result<Unit,GuiEr
  }
  return Ok(());
 }
-fn splitConstrained(bounds:Rect,weights:&List<Int>,minimums:&List<Int>,maximums:&List<Int>,gap:Int,horizontal:Bool)->Result<List<Rect>,GuiError> effects {} {
+fn splitConstrained(bounds:Rect,weights:&List<Int>,minimums:&List<Int>,maximums:&List<Int>,crossMinimums:&List<Int>,crossMaximums:&List<Int>,gap:Int,horizontal:Bool)->Result<List<Rect>,GuiError> effects {} {
  let count=weights.len();
- if count<1 || count>256 || minimums.len()!=count || maximums.len()!=count{return Err(StdError("GuiLayoutChildren",0));}
+ if count<1 || count>256 || minimums.len()!=count || maximums.len()!=count || crossMinimums.len()!=count || crossMaximums.len()!=count{return Err(StdError("GuiLayoutChildren",0));}
  if gap<0 || gap>4096{return Err(StdError("GuiLayoutGap",0));}
  if !validLayoutBounds(bounds){return Err(StdError("GuiLayoutBounds",0));}
  var availableAxis=bounds.width;if !horizontal{availableAxis=bounds.height;}
@@ -345,7 +352,8 @@ fn splitConstrained(bounds:Rect,weights:&List<Int>,minimums:&List<Int>,maximums:
  for i in 0..count {
   let weight=weights.get(i);let minimum=minimums.get(i);let maximum=maximums.get(i);
   if weight<1 || weight>1000000{return Err(StdError("GuiLayoutWeight",0));}
-  if minimum<0 || maximum<minimum || maximum>4096{return Err(StdError("GuiLayoutDimension",0));}
+  let crossMinimum=crossMinimums.get(i);let crossMaximum=crossMaximums.get(i);
+  if minimum<0 || maximum<minimum || maximum>4096 || crossMinimum<0 || crossMaximum<crossMinimum || crossMaximum>4096{return Err(StdError("GuiLayoutDimension",0));}
   sizes.add(minimum);minimumTotal+=minimum;maximumTotal+=maximum;
  }
  if minimumTotal>available || maximumTotal<available{return Err(StdError("GuiLayoutInsufficientSpace",0));}
@@ -377,17 +385,20 @@ fn splitConstrained(bounds:Rect,weights:&List<Int>,minimums:&List<Int>,maximums:
  }
  let output=List<Rect>();var position=0;
  for i in 0..count {
-  let size=sizes.get(i);
-  if horizontal{output.add(Rect(bounds.x+position,bounds.y,size,bounds.height));}
-  else{output.add(Rect(bounds.x,bounds.y+position,bounds.width,size));}
+  let size=sizes.get(i);let minimumCross=crossMinimums.get(i);let maximumCross=crossMaximums.get(i);
+  var crossSize=bounds.height;if !horizontal{crossSize=bounds.width;}
+  if crossSize<minimumCross{return Err(StdError("GuiLayoutInsufficientSpace",0));}
+  if crossSize>maximumCross{crossSize=maximumCross;}
+  if horizontal{output.add(Rect(bounds.x+position,bounds.y,size,crossSize));}
+  else{output.add(Rect(bounds.x,bounds.y+position,crossSize,size));}
   position+=size;if i+1<count{position+=gap;}
  }
  return Ok(output);
 }
 fn splitWeighted(bounds:Rect,weights:&List<Int>,gap:Int,horizontal:Bool)->Result<List<Rect>,GuiError> effects {} {
- let minimums=List<Int>();let maximums=List<Int>();
- for i in 0..weights.len(){minimums.add(0);maximums.add(4096);}
- return splitConstrained(bounds,weights,&minimums,&maximums,gap,horizontal);
+ let minimums=List<Int>();let maximums=List<Int>();let crossMinimums=List<Int>();let crossMaximums=List<Int>();
+ for i in 0..weights.len(){minimums.add(0);maximums.add(4096);crossMinimums.add(0);crossMaximums.add(4096);}
+ return splitConstrained(bounds,weights,&minimums,&maximums,&crossMinimums,&crossMaximums,gap,horizontal);
 }
 fn arrangeWeighted(view:&mut View,ids:&List<String>,bounds:Rect,weights:&List<Int>,gap:Int,horizontal:Bool)->Result<Unit,GuiError> effects {} {
  if ids.len()<1 || ids.len()>256 || ids.len()!=weights.len(){return Err(StdError("GuiLayoutChildren",0));}
