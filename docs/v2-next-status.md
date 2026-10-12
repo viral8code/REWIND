@@ -283,6 +283,6 @@ DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP s
 
 ## GUI-01のflat weighted split
 
-2026-10-12に`std.gui.splitRow` / `splitColumn`を追加しました。最大256 child、各weight 1..1,000,000、gap 0..4096 pixel、4096 pixel以内のRectを検査してからpureに分割します。整数の余りpixelは左から、または上から配り、入力viewやfocus stateには触れません。
+2026-10-12に`std.gui.splitRow` / `splitColumn`と`arrangeRow` / `arrangeColumn`を追加しました。最大256 child、各weight 1..1,000,000、gap 0..4096 pixel、4096 pixel以内のRectを検査します。splitの余りpixelは左から、または上から配ります。arrangeは全ID・重複・View内boundsを先に検査してからgeometryを更新し、失敗ならViewを変更しません。
 
-[利用例](../examples/gui-layout.rw)では100 pixelをweight 1:2、gap 2で分割します。nested layout tree、padding、min/max/fixed dimension、resize時のfocus維持は未実装です。実装commitは[ab191aa](https://github.com/viral8code/REWIND/commit/ab191aae2cf46511b8432ec106bcc33f690f7ae4)と[a9fbbf0](https://github.com/viral8code/REWIND/commit/a9fbbf0af6011750b9d0256d4d29090c794ca1d8)です。compile/runtime/API再生成とLinux/Windows native GUI確認は未実施です。
+[利用例](../examples/gui-layout.rw)では2つのwidgetをweight 1:2、gap 2で配置します。nested layout tree、padding、min/max/fixed dimension、resize対応は未実装です。実装commitは[ab191aa](https://github.com/viral8code/REWIND/commit/ab191aae2cf46511b8432ec106bcc33f690f7ae4)、[a9fbbf0](https://github.com/viral8code/REWIND/commit/a9fbbf0af6011750b9d0256d4d29090c794ca1d8)、[d9ad051](https://github.com/viral8code/REWIND/commit/d9ad051ad931ff18eb38822687d6aafa179fe122)です。compile/runtime/API再生成とLinux/Windows native GUI確認は未実施です。
