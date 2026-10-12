@@ -1,20 +1,47 @@
 import gui as gui;
 pub type TableError = StdError;
-pub struct Table {private headers:Frozen<List<String>>,private cells:Frozen<List<String>>,private visible:Int,private first:Int,private selected:Int}
+pub struct Table {private headers:Frozen<List<String>>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private visible:Int,private first:Int,private selected:Int}
 pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close}
 fn valid(text:String)->Bool effects {} {return text.byteLen()<=4096 && stdTextFind(text,"\0")==None;}
-// @api create cost O(cells); frozen row-major data is shared, not materialized in the scene.
-// @api create failure Shape/Capacity/Text; 1..16 columns, at most 65536 rows and 1048576 cells, 16MiB text.
-pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
+fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int,customIds:Bool)->Result<Table,TableError> effects {} {
  let columns=headers.len();if columns<1 || columns>16 || cells.len()>1048576 || cells.len()%columns!=0 || cells.len()/columns>65536 || visibleRows<1 || visibleRows>64{return Err(StdError("GuiTableShape",0));}
- var bytes=0;for i in 0..columns{let text=headers.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();}
+ let rowCount=cells.len()/columns;if customIds && rowIds.len()!=rowCount{return Err(StdError("GuiTableShape",0));}
+ let rowIndices=Map<String,Int>();var bytes=0;
+ for i in 0..columns{let text=headers.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();}
+ if customIds{for i in 0..rowIds.len(){let id=rowIds.get(i);if id=="" || id.byteLen()>64 || !valid(id){return Err(StdError("GuiTableRowId",i));}if rowIndices.get(id)!=None{return Err(StdError("GuiTableDuplicateRowId",i));}rowIndices.set(id,i);bytes+=id.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}}
  for i in 0..cells.len(){let text=cells.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}
- return Ok(Table(headers,cells,visibleRows,0,-1));
+ return Ok(Table(headers,rowIds,move rowIndices,customIds,cells,visibleRows,0,-1));
+}
+// @api create cost O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.
+pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
+ return createInternal(headers,freeze(List<String>()),cells,visibleRows,false);
+}
+// @api createWithIds cost O(rows + cells + row ID bytes); validates unique bounded IDs and keeps frozen cell data shared.
+// @api createWithIds failure Shape/Capacity/Text/RowId/DuplicateRowId; IDs are 1..64 UTF-8 bytes, at most 65536 rows and 1048576 cells.
+pub fn createWithIds(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
+ return createInternal(headers,rowIds,cells,visibleRows,true);
 }
 pub fn rows(table:&Table)->Int effects {} {return table.cells.len()/table.headers.len();}
 pub fn columns(table:&Table)->Int effects {} {return table.headers.len();}
 pub fn position(table:&Table)->Int effects {} {return table.first;}
 pub fn selection(table:&Table)->Option<Int> effects {} {if table.selected<0{return None;}return Some(table.selected);}
+pub fn rowId(table:&Table,row:Int)->Result<String,TableError> effects {} {
+ if row<0 || row>=rows(table){return Err(StdError("GuiTableRange",row));}
+ if table.customIds{return Ok(table.rowIds.get(row));}
+ return Ok("row:"+row.format());
+}
+// @api rowIndex cost O(1) with caller IDs, O(id bytes) for legacy positional IDs.
+pub fn rowIndex(table:&Table,id:String)->Option<Int> effects {} {
+ if table.customIds{match table.rowIndices.get(id){Some(row)=>{return Some(row);},None=>{return None;}}}
+ let prefix="row:";if stdTextFind(id,prefix)!=Some(0){return None;}
+ match stdTextSlice(id,prefix.charLen(),id.charLen()){Err(_)=>{return None;},Ok(raw)=>{match stdParseInt(raw,10){Err(_)=>{return None;},Ok(row)=>{if row<0 || row>=rows(table) || row.format()!=raw{return None;}return Some(row);}}}}
+}
+pub fn selectionId(table:&Table)->Option<String> effects {} {
+ if table.selected<0{return None;}match rowId(table,table.selected){Ok(id)=>{return Some(id);},Err(_)=>{return None;}}
+}
+pub fn selectId(table:&mut Table,id:String)->Result<Unit,TableError> effects {} {
+ match rowIndex(table,id){Some(row)=>{return select(table,row);},None=>{return Err(StdError("GuiTableUnknownRow",0));}}
+}
 pub fn cell(table:&Table,row:Int,column:Int)->Result<String,TableError> effects {} {if row<0 || row>=rows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}return Ok(table.cells.get(row*columns(table)+column));}
 fn maximum(table:&Table)->Int effects {} {let value=rows(table)-table.visible;if value<0{return 0;}return value;}
 // @api scroll cost O(1); clamps arbitrary signed deltas before adding them.
@@ -34,7 +61,7 @@ pub fn render(table:&Table,title:String,width:Int,height:Int,rowHeight:Int,prefi
  let view=gui.window(title,width,height)?;let columns=columns(table);let cellWidth=(width-32)/columns;
  for c in 0..columns{let id=prefix+":head:"+c.format();gui.label(&mut view,id,table.headers.get(c),16+c*cellWidth,16,cellWidth,rowHeight)?;gui.style(&mut view,id,0x111827,0xe5e7eb)?;}
  var shown=table.visible;if shown>rows(table)-table.first{shown=rows(table)-table.first;}
- for r in 0..shown {let row=table.first+r;let y=16+(r+1)*rowHeight;let id=prefix+":row:"+row.format();var color=0xffffff;if row==table.selected{color=0xdbeafe;}
+ for r in 0..shown {let row=table.first+r;let y=16+(r+1)*rowHeight;let id=prefix+":row:"+rowId(table,row)?;var color=0xffffff;if row==table.selected{color=0xdbeafe;}
   gui.button(&mut view,id,"",16,y,width-32,rowHeight)?;gui.style(&mut view,id,0x111827,color)?;
   for c in 0..columns {let cellId=prefix+":cell:"+r.format()+":"+c.format();gui.label(&mut view,cellId,cell(table,row,c)?,16+c*cellWidth,y,cellWidth,rowHeight)?;if color!=0xffffff{gui.style(&mut view,cellId,0x111827,color)?;}}
  }
@@ -50,6 +77,6 @@ pub fn dispatch(table:&mut Table,view:&mut gui.View,event:gui.Event,prefix:Strin
   if event.key=="Home"{select(table,0)?;return Ok(Some(Action::Selected(0)));}
   if event.key=="End"{select(table,rows(table)-1)?;return Ok(Some(Action::Selected(rows(table)-1)));}
  }
- match gui.dispatch(view,event){Some(gui.Action::Activate(id))=>{let beginning=prefix+":row:";if stdTextFind(id,beginning)==Some(0){let raw=stdTextSlice(id,beginning.charLen(),id.charLen());match raw{Err(error)=>{return Err(StdError("GuiInvalidId",0));},Ok(text)=>{match stdParseInt(text,10){Err(error)=>{return Err(StdError("GuiInvalidId",0));},Ok(row)=>{select(table,row)?;return Ok(Some(Action::Selected(row)));}}}}}},Some(gui.Action::Resize(w,h))=>{return Ok(Some(Action::Resize(w,h)));},Some(gui.Action::Close)=>{return Ok(Some(Action::Close));},_=>{}}
+ match gui.dispatch(view,event){Some(gui.Action::Activate(id))=>{let beginning=prefix+":row:";if stdTextFind(id,beginning)==Some(0){match stdTextSlice(id,beginning.charLen(),id.charLen()){Err(_)=>{return Err(StdError("GuiInvalidId",0));},Ok(text)=>{match rowIndex(table,text){None=>{return Err(StdError("GuiInvalidId",0));},Some(row)=>{select(table,row)?;return Ok(Some(Action::Selected(row)));}}}}}},Some(gui.Action::Resize(w,h))=>{return Ok(Some(Action::Resize(w,h)));},Some(gui.Action::Close)=>{return Ok(Some(Action::Close));},_=>{}}
  return Ok(None);
 }

@@ -83,6 +83,10 @@ VCACHE-07/06の遅延値をstd.lazyへ実装した。peekは計算せず、force
 
 保存先はcodex/developのみで、すべて[skip ci]付き。確認時点のmainは5f5ab8f37c4d21f8746b2d1db077946809e3be42のまま。Actions最新実行も2026-10-10の既存commitから増えていない。
 
+## 2026-10-12のGUI-03テーブルrow ID追加分
+
+`std.guiTable.createWithIds`は1..64 byteのunique caller IDsを受け取り、row ID/index lookup、IDによる選択、描画button eventのrow ID解決を提供する。既存`create`の`row:<index>`は互換用で、並べ替えを越えるidentityとは扱わない。sort/filter/editable cellは未実装。実行・compile・API生成・native確認は省略した。
+
 ## 2026-10-12のGUI-03フォームrelation追加分
 
 `std.guiForm.Relation`と`createWithRules`を追加した。最大128 rulesを作成時にfield ID・kind検証し、typed equality、整数大小、checkbox依存必須を`validate`とreadonlyな`toJson`へ適用する。入力中の文字は失敗時にも保持し、依存fieldが編集されたら該当relation errorを無効化する。
@@ -168,7 +172,7 @@ GUI-01〜03は基礎の一部を実装、他は未着手です。IDのGUI-01はv
 |---|---|---|---|
 | GUI-01 | 入れ子row/column、main-axis min/max、atomic applyLayout | arrange、edit、composition | source保存済み。padding/cross-axis/自動resizeと実行確認は残る |
 | GUI-02 | scoped child ID基盤 | layout ID、effect/ownership | source foundation saved; model/render/reducer and IME-preserving reuse remain |
-| GUI-03 | declarative form relations | 既存form/table、GUI-01 | Equal/IntLessEqual/RequiredWhenChecked source saved; typed-record adapter and table editing remain |
+| GUI-03 | form relations、caller row IDs | 既存form/table、GUI-01 | relation rules and ID-based selection saved; sorting/filtering/editing remain |
 | VIS-01 | 限定plot | renderer primitive、numeric view | 費用/互換確認。未成立なら保留可能 |
 | DB-01 | 明示record mapping | typed cell/cursor | NULL/列名/精度/bounded batch |
 | DB-02 | transaction helper | external/await/affineの最小例 | 終了状態、cancel、unknown、cleanup |

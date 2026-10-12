@@ -61,6 +61,8 @@ componentはID、VM内のstate、配置入力、eventからstate/actionを返す
 
 **部分実装（2026-10-12）：** `guiForm.createWithRules`へ最大128個の宣言的なrelationを追加しました。`Equal`は互換scalar fieldのtyped value、`IntLessEqual`はInt field、`RequiredWhenChecked`はcheckbox依存必須を検証します。rule参照とkindをschema構築時に検査し、`validate`と`toJson`で適用します。custom callback、型付きrecord adapter、table編集・sort/filterは未実装です。入力textはrelation failureでも保持されます。[例](../examples/gui-form-relations.rw)。
 
+**部分実装（2026-10-12）：** `guiTable.createWithIds`へcaller-suppliedなunique row IDを追加し、rowId/index lookup、IDによるselection、rendered row actionからdata rowへのID解決を実装しました。従来の`create`は互換用に`row:<index>`を合成しますが、これは再構築・並べ替えを越えるidentityではありません。sort/filter、editable cell、stable selectionを保つ並べ替え操作は未実装です。
+
 `guiTable`のviewportと表示行制限は維持します。編集可能なcell、列幅指定、並べ替え・filter、安定したrow IDを追加候補にします。表示位置をrowのidentityとして扱うAPIを増やさず、選択・編集中cell・DB保存対象をrow IDで対応させます。
 
 全行のsort/filterと描画の費用を区別します。sort/filterが全件走査であることを記載し、各frameで再実行しないよう入力変更時だけ更新します。大規模DBの全件取得をlibrary側で自動実行しません。

@@ -104,6 +104,8 @@ scopeはID名前空間だけを持ち、modelやnative handleは保持しない�
 
 1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。
 
+`std.guiTable.createWithIds` accepts unique caller-owned row IDs (1..64 UTF-8 bytes). `rowId`, `rowIndex`, `selectId`, and `selectionId` map between those IDs and the current data positions; rendered row buttons carry the row ID, so dispatch resolves identity through the table index. The legacy `create` overload synthesizes `row:<index>` IDs for compatibility; those are positional and do not survive external reordering. Sorting, filtering, and editable cells remain separate work.
+
 ## Native clipboard (selected language 1.9.52)
 
 Enabled, focused textboxes and textareas support Ctrl+C / Ctrl+V / Ctrl+X.

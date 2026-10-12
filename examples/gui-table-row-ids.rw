@@ -1,0 +1,23 @@
+import std.guiTable as table;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("table operation failed");}
+    }
+}
+
+let headers=List<String>();
+headers.add("Order");
+headers.add("Status");
+let rowIds=List<String>();
+rowIds.add("order-2026-0042");
+rowIds.add("order-2026-0043");
+let cells=List<String>();
+cells.add("0042");cells.add("Open");
+cells.add("0043");cells.add("Paid");
+
+let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
+take(table.selectId(&mut model,"order-2026-0043"));
+Out.println(take(table.rowId(&model,take(table.selection(&model).unwrap()))));
+Out.println(take(table.cell(&model,take(table.rowIndex(&model,"order-2026-0043").unwrap()),1)));
