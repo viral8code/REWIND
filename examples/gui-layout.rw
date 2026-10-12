@@ -1,0 +1,19 @@
+import std.gui as gui;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("layout calculation failed");}
+    }
+}
+
+let weights=List<Int>();
+weights.add(1);
+weights.add(2);
+let cells=take(gui.splitRow(Rect(0,0,100,30),&weights,2));
+let first=cells.get(0);
+let second=cells.get(1);
+Out.println(first.x);
+Out.println(first.width);
+Out.println(second.x);
+Out.println(second.width);

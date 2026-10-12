@@ -1,6 +1,6 @@
 # REWIND v2.2実装計画：画面構成・可視化・DB helper
 
-状態：設計案。DB-01に列名indexとbounded record mapperのsource・利用例を一部追加しました。v2.2の到達条件と残りの受入は未完了です。基準は公開済みv2.0.0です。[全体計画](ROADMAP_v2-next.md)の第2段階です。
+状態：設計案。GUI-01にflatなweighted row/column split、DB-01に列名indexとbounded record mapperのsource・利用例を一部追加しました。到達条件と受入は未完了です。v2.2の到達条件と残りの受入は未完了です。基準は公開済みv2.0.0です。[全体計画](ROADMAP_v2-next.md)の第2段階です。
 
 ## 到達条件
 
@@ -18,7 +18,9 @@
 
 ## GUI-01：構成可能なlayout
 
-既存`gui.arrange`は一定列数のgridです。次はrow、column、grid、overlayを入れ子にして、親の領域から子の`Rect`を計算するpureなlayout modelを検討します。
+既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** `gui.splitRow` / `splitColumn`が最大256個の正のweightから、gapを除いた整数pixel領域をflatな子Rectへ分割します。剰余pixelはrowなら左から、columnなら上から配り、入力は変更しません。[例](../examples/gui-layout.rw)。
+
+次はrow、column、grid、overlayを入れ子にして、親の領域から子の`Rect`を計算するpureなlayout modelを検討します。現実装にpadding、fixed/min/max寸法、nested node・stable ID、Viewへのatomic適用、resize/focus維持はありません。
 
 初期仕様は整数pixelのpadding、gap、最小/最大寸法、固定寸法、余りを配分するweightに絞ります。文字の自然寸法やDPI依存測定を純粋計算の内部で問い合わせません。必要な測定値は既存の観測境界を通して入力します。領域不足時の縮小順序、余りpixelの配分順序、clipの扱いを決め、backendによる差を減らします。
 

@@ -349,6 +349,32 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:splitColumn": {
+      "async": false,
+      "cost": "O(children), at most 256; integer remainder pixels are assigned left-to-right or top-to-bottom.",
+      "effects": [],
+      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; input geometry and weights remain unchanged.",
+      "generics": [],
+      "parameters": [
+        "Rect",
+        "&List<Int>",
+        "Int"
+      ],
+      "return": "Result<List<Rect>,StdError>"
+    },
+    "fn:splitRow": {
+      "async": false,
+      "cost": "O(children), at most 256; integer remainder pixels are assigned left-to-right or top-to-bottom.",
+      "effects": [],
+      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; input geometry and weights remain unchanged.",
+      "generics": [],
+      "parameters": [
+        "Rect",
+        "&List<Int>",
+        "Int"
+      ],
+      "return": "Result<List<Rect>,StdError>"
+    },
     "fn:style": {
       "async": false,
       "effects": [],

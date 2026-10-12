@@ -147,6 +147,48 @@ pub fn setScrollPosition(view:&mut View,id:String,line:Int)->Result<Unit,GuiErro
 }
 
 // @api bounds cost O(1); client area geometry for composing bounded overlays.
+// Pure weighted partitioning for one flat row or column; remainder pixels go left-to-right.
+fn splitWeighted(bounds:Rect,weights:&List<Int>,gap:Int,horizontal:Bool)->Result<List<Rect>,GuiError> effects {} {
+ let count=weights.len();
+ if count<1 || count>256{return Err(StdError("GuiLayoutChildren",0));}
+ if gap<0 || gap>4096{return Err(StdError("GuiLayoutGap",0));}
+ if bounds.x<0 || bounds.x>4096 || bounds.y<0 || bounds.y>4096{return Err(StdError("GuiLayoutBounds",0));}
+ if bounds.width<0 || bounds.width>4096 || bounds.height<0 || bounds.height>4096{return Err(StdError("GuiLayoutBounds",0));}
+ if bounds.width>4096-bounds.x || bounds.height>4096-bounds.y{return Err(StdError("GuiLayoutBounds",0));}
+ var totalWeight=0;
+ for i in 0..count {
+  let weight=weights.get(i);
+  if weight<1 || weight>1000000{return Err(StdError("GuiLayoutWeight",0));}
+  totalWeight+=weight;
+ }
+ let availableAxis=if horizontal {bounds.width} else {bounds.height};
+ let gapTotal=(count-1)*gap;
+ if gapTotal>availableAxis{return Err(StdError("GuiLayoutInsufficientSpace",0));}
+ let available=availableAxis-gapTotal;
+ var assigned=0;
+ for i in 0..count {assigned+=(available*weights.get(i))/totalWeight;}
+ let remainder=available-assigned;
+ let output=List<Rect>();var position=0;
+ for i in 0..count {
+  var size=(available*weights.get(i))/totalWeight;
+  if i<remainder{size+=1;}
+  if horizontal{output.add(Rect(bounds.x+position,bounds.y,size,bounds.height));}
+  else{output.add(Rect(bounds.x,bounds.y+position,bounds.width,size));}
+  position+=size;
+  if i+1<count{position+=gap;}
+ }
+ return Ok(output);
+}
+// @api splitRow cost O(children), max 256; distributes integer remainder pixels from left to right.
+// @api splitRow failure GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; no input is changed.
+pub fn splitRow(bounds:Rect,weights:&List<Int>,gap:Int)->Result<List<Rect>,GuiError> effects {} {
+ return splitWeighted(bounds,weights,gap,true);
+}
+// @api splitColumn cost O(children), max 256; distributes integer remainder pixels from top to bottom.
+// @api splitColumn failure GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; no input is changed.
+pub fn splitColumn(bounds:Rect,weights:&List<Int>,gap:Int)->Result<List<Rect>,GuiError> effects {} {
+ return splitWeighted(bounds,weights,gap,false);
+}
 pub fn bounds(view:&View)->Rect effects {} {return Rect(0,0,view.width,view.height);}
 pub fn graphemeMode(view:&View)->Bool effects {} {return view.grapheme;}
 // @api overlay cost O(combined widget count); at most 2048 controls. Copies bounded VM metadata; captions remain shared.
