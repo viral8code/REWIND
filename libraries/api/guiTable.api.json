@@ -503,6 +503,23 @@
         "immutable": false
       }
     },
+    "dependency:sort.rw": {
+      "fn:$import$sort$stable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "List<T>"
+      }
+    },
     "fn:cell": {
       "async": false,
       "cost": "O(1) overlay lookup plus frozen base access; staged values are visible to render.",
@@ -660,7 +677,7 @@
     },
     "fn:rowIndex": {
       "async": false,
-      "cost": "O(1) with caller IDs, O(id bytes) for legacy positional IDs.",
+      "cost": "O(1) with caller IDs, O(id bytes) for legacy positional IDs; returns current display position.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -697,7 +714,8 @@
         "&mut Table",
         "Int"
       ],
-      "return": "Result<Unit,StdError>"
+      "return": "Result<Unit,StdError>",
+      "cost": "O(1); row is a current display position."
     },
     "fn:selectId": {
       "async": false,
@@ -718,7 +736,8 @@
       "parameters": [
         "&Table"
       ],
-      "return": "Option<Int>"
+      "return": "Option<Int>",
+      "cost": "O(1); returns current display position. Use selectionId for stable row identity."
     },
     "fn:selectionId": {
       "async": false,
@@ -729,6 +748,19 @@
         "&Table"
       ],
       "return": "Option<String>"
+    },
+    "fn:sortByText": {
+      "async": false,
+      "cost": "O(n log n) comparisons and O(n) temporary keys/order indexes; stable ties retain current display order.",
+      "effects": [],
+      "failure": "Range for an invalid column; SortRows above 8192 rows; SortKey above 256 UTF-8 bytes. Failure leaves table state unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut Table",
+        "Int",
+        "Bool"
+      ],
+      "return": "Result<Unit,StdError>"
     },
     "type:Action": {
       "generics": [],

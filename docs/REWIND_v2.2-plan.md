@@ -63,11 +63,11 @@ componentはID、VM内のstate、配置入力、eventからstate/actionを返す
 
 **部分実装（2026-10-12）：** `guiForm.toValue`は`toJson`の全field・relation検証に成功した後にだけ、利用者が渡したpure callbackを一度呼びます。typed JSONからapplication recordを作るmapping errorとform validation errorを`SubmitError`の別variantで返します。libraryはreflectionや暗黙変換を行いません。[例](../examples/gui-form-typed.rw)。
 
-**部分実装（2026-10-12）：** `guiTable.createWithIds`へcaller-suppliedなunique row IDを追加し、rowId/index lookup、IDによるselection、rendered row actionからdata rowへのID解決を実装しました。従来の`create`は互換用に`row:<index>`を合成しますが、これは再構築・並べ替えを越えるidentityではありません。sort/filter、text input・validationを含む編集lifecycle、stable selectionを保つ並べ替え操作は未実装です。
+**部分実装（2026-10-12）：** `guiTable.createWithIds`へcaller-suppliedなunique row IDを追加し、rowId/index lookup、IDによるselection、rendered row actionからdata rowへのID解決を実装しました。従来の`create`は互換用に`row:<index>`を合成し、row IDはTable modelの寿命中に並べ替え後も同じbase rowを指します。
 
-**部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。clearEditsで全差分を破棄できます。GUI text inputとの接続、sort/filter、typed adapter、削除・取消を含む編集event lifecycleは未実装です。[例](../examples/gui-table-edits.rw)。
+**部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。clearEditsで全差分を破棄できます。`sortByText`はstaged valueを含む列を最大8192行・key 256 UTF-8 bytesまで安定sortし、ID・selection・差分overlayを維持します。filter、GUI text inputとの接続、typed table adapter、削除・取消を含む編集event lifecycleは未実装です。[例](../examples/gui-table-edits.rw)、[sort例](../examples/gui-table-sort.rw)。
 
-`guiTable`のviewportと表示行制限は維持します。GUI text inputからの編集event連携、列幅指定、並べ替え・filterを追加候補にします。formのtyped record adapter、tableのstable row IDと差分overlayの基本部は実装済みです。表示位置をrowのidentityとして扱うAPIを増やさず、選択・編集中cell・DB保存対象をrow IDで対応させます。
+`guiTable`のviewportと表示行制限は維持します。GUI text inputからの編集event連携、filter、列幅指定を追加候補にします。formのtyped record adapter、tableのstable row ID・差分overlay・stable text sortは実装済みです。表示位置をrowのidentityとして扱わず、選択・編集中cell・DB保存対象をrow IDで対応させます。
 
 全行のsort/filterと描画の費用を区別します。sort/filterが全件走査であることを記載し、各frameで再実行しないよう入力変更時だけ更新します。大規模DBの全件取得をlibrary側で自動実行しません。
 
