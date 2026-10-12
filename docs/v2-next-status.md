@@ -392,3 +392,12 @@ compile、実行、API再生成、native GUI確認はしていない。commitの
 [利用例](../examples/gui-layout-cross-axis.rw)、GUI reference、API manifest、v2.2計画、実装indexを更新しました。実装commitは[d72a178](https://github.com/viral8code/REWIND/commit/d72a178fdf0c6ced88c0792d6725d233886f04ff)。
 
 環境の起動失敗によりコンパイル・実行・API再生成・native GUI確認は未実施です。source brace balance、公開function/API symbol名と数、API JSON parse、layout node patternの静的確認のみを行いました。codex/developだけへ`[skip ci]`付きでcommit/pushし、公開CI/CD、main統合、Release、版更新は行っていません。
+
+
+## DATA-04のJSON Decimal event
+
+`std.jsonStream.nextDecimal`は先頭のJSON number eventを既存`std.decimal.parse`でexact Decimalへ変換し、成功後にだけreaderをadvanceします。event種別違い・parse失敗は`DecimalEventError`として返し、eventをqueueに残すため、Floatを経由せず再試行できます。BigInt用`nextBigInt`と同じconsume契約です。
+
+[利用例](../examples/json-stream/decimal.rw)を追加し、jsonStream API manifest、DATA-04計画、実装index、library一覧を更新しました。実装commitは[a92bbf8](https://github.com/viral8code/REWIND/commit/a92bbf8528fcd7810418fd1ec5633ae847821362)。
+
+環境の起動失敗によりコンパイル・実行・API再生成は未実施です。source brace/parenthesis balance、公開function/API symbol名の一致、API JSON parse、parse-before-advanceの静的確認のみを行いました。codex/developだけへ`[skip ci]`付きでcommit/pushし、公開CI/CD、main統合、Release、版更新は行っていません。
