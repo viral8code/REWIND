@@ -1299,6 +1299,28 @@ test fn schema_timestamp_requires_valid_rfc3339_instant_and_maps_csv_text()->Uni
     }
 }
 
+test fn gui_form_runs_shared_schema_before_typed_mapping()->Unit effects {} {
+    let fields=List<guiForm.Field>();
+    fields.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"17"));
+    let model=transformTake(guiForm.create(&fields,1));
+    let schemaFields=List<schema.Field>();
+    schemaFields.add(transformTake(schema.field("age",transformTake(schema.integer(18,100)),true,None)));
+    let rule=transformTake(schema.object(&schemaFields,SchemaUnknown::Reject));
+    match guiForm.toSchemaValue(&model,rule,|value:Json|->Result<Int,String>{
+        match jsonGet(value,"age"){Some(Json::Int(age))=>{return Ok(age);},_=>{return Err("age");}}
+    }) {
+        Err(guiForm.SchemaSubmitError::Schema(error))=>{assert_eq(error.code,"IntegerRange");assert_eq(error.actual,"Int");},
+        Err(_)=>{panic("expected shared schema rejection");},
+        Ok(_)=>{panic("mapper ran before schema validation");}
+    }
+    assert_eq(guiForm.value(&model,"age"),Ok("17"));
+    assert_eq(guiForm.setValue(&mut model,"age","21"),Ok(()));
+    let age=transformTake(guiForm.toSchemaValue(&model,rule,|value:Json|->Result<Int,String>{
+        match jsonGet(value,"age"){Some(Json::Int(age))=>{return Ok(age);},_=>{return Err("age");}}
+    }));
+    assert_eq(age,21);
+}
+
 record SchemaAccount {name:String,age:Int}
 test fn schema_decoders_separate_validation_from_conversion()->Unit effects {} {
     let decoder=schema.mapped(schemaProfile(),|value:Json|->Result<SchemaAccount,String>{

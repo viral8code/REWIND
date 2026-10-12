@@ -1,7 +1,9 @@
 import gui as gui;
 import datetime as datetime;
+import schema as schema;
 pub type FormError = StdError;
 pub enum SubmitError<E:Share> {Form(FormError),Conversion(E)}
+pub enum SchemaSubmitError<E:Share> {Form(FormError),Schema(schema.ValidationError),Conversion(E)}
 pub enum Kind {Text,Multiline,Integer(Int,Int),Real(Float,Float),Check,Timestamp}
 pub enum Relation {Equal(String,String),IntLessEqual(String,String),RequiredWhenChecked(String,String)}
 pub record Field {id:String,caption:String,kind:Kind,required:Bool,maxBytes:Int,initial:String}
@@ -110,6 +112,22 @@ pub fn toValue<T:Share,E:Share>(form:&Form,convert:fn(Json)->Result<T,E> effects
     Err(error)=>{return Err(SubmitError::Conversion(error));}
    }
   }
+ }
+}
+// @api toSchemaValue validates form fields, then a shared schema, then calls one pure typed mapper. It never mutates the form.
+// @api toSchemaValue failure SchemaSubmitError::Form(StdError), ::Schema(ValidationError), or ::Conversion(E); mapper runs only after both validations succeed.
+pub fn toSchemaValue<T:Share,E:Share>(form:&Form,rule:schema.Schema,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Result<T,SchemaSubmitError<E>> effects {} {
+ let value=match toJson(form){
+  Err(error)=>{return Err(SchemaSubmitError::Form(error));},
+  Ok(value)=>{value}
+ };
+ let normalized=match schema.validate(rule,value){
+  Err(error)=>{return Err(SchemaSubmitError::Schema(error));},
+  Ok(value)=>{value}
+ };
+ match convert(normalized){
+  Ok(result)=>{return Ok(result);},
+  Err(error)=>{return Err(SchemaSubmitError::Conversion(error));}
  }
 }
 pub fn reset(form:&mut Form)->Unit effects {} {

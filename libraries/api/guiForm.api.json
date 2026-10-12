@@ -902,6 +902,28 @@
       ],
       "return": "Result<Json,StdError>"
     },
+    "fn:toSchemaValue": {
+      "async": false,
+      "cost": "O(form fields + relations + schema visits + value bytes + mapper); callback runs once after both validations succeed.",
+      "effects": [],
+      "failure": "SchemaSubmitError::Form(StdError), Schema(ValidationError), or Conversion(E); form state is unchanged.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Form",
+        "$import$schema$Schema",
+        "fn(Json)->Result<T,E>!{}~{Send+Share}"
+      ],
+      "return": "Result<T,SchemaSubmitError<E>>"
+    },
     "fn:toValue": {
       "async": false,
       "cost": "O(form fields + relations + value bytes + mapper); callback runs once after validation succeeds.",
@@ -1679,6 +1701,35 @@
           [
             "1",
             "String"
+          ]
+        ]
+      }
+    },
+    "type:SchemaSubmitError": {
+      "generics": [
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "kind": "enum",
+      "variants": {
+        "Conversion": [
+          [
+            "0",
+            "E"
+          ]
+        ],
+        "Form": [
+          [
+            "0",
+            "StdError"
+          ]
+        ],
+        "Schema": [
+          [
+            "0",
+            "$import$schema$ValidationError"
           ]
         ]
       }

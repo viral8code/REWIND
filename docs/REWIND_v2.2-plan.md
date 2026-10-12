@@ -66,11 +66,13 @@ componentはID、VM内のstate、配置入力、eventからstate/actionを返す
 
 **部分実装（2026-10-12）：** `guiForm.toValue`は`toJson`の全field・relation検証に成功した後にだけ、利用者が渡したpure callbackを一度呼びます。typed JSONからapplication recordを作るmapping errorとform validation errorを`SubmitError`の別variantで返します。libraryはreflectionや暗黙変換を行いません。[例](../examples/gui-form-typed.rw)。
 
+**部分実装（2026-10-12）：** `guiForm.toSchemaValue`はtoJson、利用者が渡す`std.schema`、pureなtyped mapperの順に検証し、Form / Schema / Conversion errorを区別します。全検証が成功するまでmapperを呼ばず、form modelを変更しません。[例](../examples/gui-form-schema-validation.rw)。
+
 **部分実装（2026-10-12）：** `guiTable.createWithIds`はcaller-suppliedなunique row IDを保持し、row action・選択・編集をbase rowへ結びます。sort後も同じTable model内でidentityを保ちます。filter後は`rowIndex`が表示位置を返し、非表示rowには`None`を返します。従来の`create`が作る`row:<index>`はmodel内のbase position IDであり、Tableを再構築した後のidentityではありません。
 
 **部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。`sortByText`はstaged valueで安定sortし、ID・selection・差分overlayを維持します。`filterByText`は一列のcase-sensitive部分文字列filterを行い、query一致列の編集またはclearEdits後に表示対象を再計算します。filter中もeditCellIdはstable IDで非表示rowを編集できます。sort/filterは各々8192 source rowsまでです。native text inputとの接続、typed table adapter、削除・取消を含む完全な編集event lifecycleは未実装です。[編集例](../examples/gui-table-edits.rw)、[sort例](../examples/gui-table-sort.rw)、[filter例](../examples/gui-table-filter.rw)。
 
-`guiTable`のviewportと表示行制限は維持します。列幅は実装済みで、正のrelative weightを指定し、render時にinner width全体へ割り当てます。`guiTable.toValue`はstable row IDで1行をfrozen column snapshotへ変換し、純粋mapperでtyped recordを構築します。staged edit値とfilterで非表示の行も扱い、変換失敗にはrow IDを含めます。編集draftの開始・更新・確定・取消をmodel側へ追加しました。残るGUI-03はGUI text inputからのevent連携、application固有validationとの接続、削除時の編集取消を含む完全なnative editing lifecycleです。formのtyped record adapter、tableのstable row ID・差分overlay・stable text sort・bounded text filterは実装済みです。表示位置をrowのidentityとして扱わず、選択・編集中cell・DB保存対象をrow IDで対応させます。
+`guiTable`のviewportと表示行制限は維持します。列幅は実装済みで、正のrelative weightを指定し、render時にinner width全体へ割り当てます。`guiTable.toValue`はstable row IDで1行をfrozen column snapshotへ変換し、純粋mapperでtyped recordを構築します。staged edit値とfilterで非表示の行も扱い、変換失敗にはrow IDを含めます。編集draftの開始・更新・確定・取消をmodel側へ追加しました。残るGUI-03はGUI text inputからのevent連携、`std.schema`を使うapplication validationとの接続、削除時の編集取消を含む完全なnative editing lifecycleです。formのtyped record adapter、tableのstable row ID・差分overlay・stable text sort・bounded text filterは実装済みです。表示位置をrowのidentityとして扱わず、選択・編集中cell・DB保存対象をrow IDで対応させます。
 
 sortByTextは全source row、filterByTextはfilter列を全走査します。filterは呼出し時にだけ適用し、frameごとには再実行しません。active filter columnの編集とclearEdits後はmembershipを再計算します。描画はviewport内だけです。大規模DBの全件取得をlibrary側で自動実行しません。
 

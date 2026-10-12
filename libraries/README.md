@@ -203,7 +203,7 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 
 ## フォーム・表（1.9.12）
 
-`std.guiForm` は schema / 編集 / 型付き Json 検証、`std.guiTable` は frozen 行優先データの表示範囲描画を提供する。`std.gui` は focus / focused / setChecked / remove / style / textarea scroll の編集を追加した。`Layout` / `WeightedLayout` と `leaf` / `weighted` / `sized` / `row` / `column` で最大32階層のlayout treeを構成できる。`sized`はmain axisの最小・最大寸法を指定し、同じ値で固定できる。`applyLayout` は最大1024 nodeを走査し、全leaf IDとboundsを検証してから一括更新する。`splitRow` / `splitColumn` も維持し、`arrangeRow` / `arrangeColumn` はflatな配置に使える。いずれも logical View の変更は pure で、外部 surface への反映には present と publish を使う。[容量・失敗・費用契約](../docs/REWIND_v1.9.12.md)、[実行例](../examples/gui-controls/README.md)を参照する。
+`std.guiForm` は form内検証・共通schema検証・型付きrecord mapping、`std.guiTable` は frozen 行優先データの表示範囲描画を提供する。`std.gui` は focus / focused / setChecked / remove / style / textarea scroll の編集を追加した。`Layout` / `WeightedLayout` と `leaf` / `weighted` / `sized` / `row` / `column` で最大32階層のlayout treeを構成できる。`sized`はmain axisの最小・最大寸法を指定し、同じ値で固定できる。`applyLayout` は最大1024 nodeを走査し、全leaf IDとboundsを検証してから一括更新する。`splitRow` / `splitColumn` も維持し、`arrangeRow` / `arrangeColumn` はflatな配置に使える。いずれも logical View の変更は pure で、外部 surface への反映には present と publish を使う。[容量・失敗・費用契約](../docs/REWIND_v1.9.12.md)、[実行例](../examples/gui-controls/README.md)を参照する。
 
 1.9.13 は `gui.scene` の一時 Map / Json 構築を直接の serializer へ置き換える。public API と JSON の値を維持し、事前の byte 上限 / native memory admission を行う。[費用・互換性・測定](../docs/REWIND_v1.9.13.md)を参照する。
 
