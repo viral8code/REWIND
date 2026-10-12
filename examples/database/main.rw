@@ -1,11 +1,17 @@
 import std.db as db;
+import std.schema as schema;
+import std.json as json;
 
 record Score {name:String,score:Int}
-fn mapScore(row:Frozen<DbRow>,columns:&db.ColumnMap)->Result<Score,DbError> effects {} {
-    let nameIndex=db.columnNumber(columns,"name")?;
-    let scoreIndex=db.columnNumber(columns,"score")?;
-    let name=db.text(row,nameIndex)?;
-    let score=db.integer(row,scoreIndex)?;
+fn scoreSchema()->Result<schema.Schema,schema.SchemaError> effects {} {
+    let fields=List<schema.Field>();
+    fields.add(schema.field("name",schema.text(1,80)?,true,None)?);
+    fields.add(schema.field("score",schema.integer(0,1000000)?,true,None)?);
+    return schema.object(&fields,schema.Unknown::Reject);
+}
+fn scoreFromJson(value:Json)->Result<Score,String> effects {} {
+    let name=match json.get(value,"name"){Some(Json::Text(text))=>text,_=>{return Err("Name");}};
+    let score=match json.get(value,"score"){Some(Json::Int(number))=>number,_=>{return Err("Score");}};
     return Ok(Score(name,score));
 }
 fn take<T,E>(value:Result<T,E>)->T effects {} {
@@ -31,7 +37,12 @@ match opening {
                 let cursor=take(take(await task));
                 var reading:Option<Task<Result<DbBatch,DbError>>>=None;
                 external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
-                match reading {None=>{panic("missing read");},Some(task)=>{let batch=take(take(await task));let columnMap=take(db.indexColumns(cursor.columns));let mapped=take(db.mapBatch(&batch,&columnMap,mapScore));let score=mapped.rows.get(0);Out.println(score.name);Out.println(score.score);}}
+                match reading {None=>{panic("missing read");},Some(task)=>{
+                    let batch=take(take(await task));
+                    let data=take(db.validateRow(take(scoreSchema()),cursor.columns,batch.rows.get(0)));
+                    let score=take(scoreFromJson(data));
+                    Out.println(score.name);Out.println(score.score);
+                }}
             }
         }
     }

@@ -4,8 +4,10 @@
 rewind run main.rw --allow-effects external,db,tasks
 ```
 
-独立した memory DB に table を作り、値を束縛して INSERT し、cursor で取得する。`cursor.columns`を`db.indexColumns`で一度検査し、明示mapper `mapScore`を`db.mapBatch`へ渡して、取得済みの最大64行を型付き`Score`へ変換する。失敗は0起点のbatch内row indexとmapper errorを返し、cursorを進めず元のDbBatchも保持する。出力は `1`、`Alice`、`42`。scope の外で cleanup を await してから終了する。
+独立したmemory DBにtableを作り、値を束縛してINSERTし、cursorから最大64行のbounded batchを取得する。db.validateRowはcolumn名とDbValueをJSON objectに対応づけ、同じstd.schemaで必須field・範囲・unknown fieldを検証してからJsonを返す。scoreFromJsonは検証済みJSONから明示的にapplication recordを作る。出力は1、Alice、42。
 
-`:memory:` を root 内の file 名に変更すると、実 file に保存する。再実行時も DB file は残るため、この例の CREATE TABLE は既存 table に対して失敗する。VM の revert / publish は DB の保存を取り消さない。
+DbValue::NullはJSON nullへ写すため、nullable schema fieldでだけ受け入れられる。列名の重複と行shape不一致はmapping errorになる。BytesとPrivate cellは暗黙にTextへ変換せず拒否する。DecimalのSQLite BLOBにはdbDecimal.cellを使い、必要なmapperでDecimal textをJSON Textへ明示的に渡す。PostgreSQL NUMERICがTextで返る場合はexact Decimal schema ruleを直接検証できる。failure diagnosticにはcell valueを含めない。
 
-API と制約は [DB 仕様](../../docs/REWIND_v1.7.md) を参照する。
+:memory:をroot内のfile名に変更すると、実fileに保存する。再実行時もDB fileは残るため、この例のCREATE TABLEは既存tableに対して失敗する。VMのrevert/publishはDBの保存を取り消さない。
+
+APIと制約は[DB仕様](../../docs/REWIND_v1.7.md)を参照する。

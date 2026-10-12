@@ -71,3 +71,7 @@ Schemaはdataのみでsnapshotできる。Decoderはfunctionを含むため、�
 schema合成ではchild node表をcopyし、上限を事前に検査する。同じchildを自動的に共有・hash-consする実装ではない。objectの既知名はMapでlookupし、入力keyごとに全schema fieldを走査する方式を避ける。正規化するobject/arrayは新しいcontainerを構築する。
 
 compile・実行・API生成・性能/GC測定は省略。libraries/std/tests.rwへ5件の受入用sourceを追加した。missing/NULL/default、入れ子path、unknown policy、値を含めない診断、mapperの失敗段階、depth/node上限とsnapshotを扱う。利用例は[typed-schema.rw](../examples/typed-schema.rw)。expected出力は未実行の期待値。公開CI/CD、main統合、Release、版更新は行わない。
+
+## DB row adapter
+
+`std.db.validateRow` consumes one frozen row and its ordered column names, checks the 256-column and row-width bounds, rejects duplicate names, constructs a JSON object, then calls the shared schema validator. It maps Null, Bool, Int, Float, and Text without parsing number-looking text. Schema defaults and unknown-field policy therefore match JSON/CSV handling. It rejects Bytes and Private cells without exposing their payloads. Applications that store Decimal as SQLite BLOB must call `std.dbDecimal.cell` and map the resulting exact Decimal explicitly. This source is not a batch-level schema mapper or an ORM.

@@ -1,3 +1,4 @@
+import schema as schema;
 effects {external,db,tasks};
 // @api credentials cost O(connection-string and certificate bytes); immutable alias outside VM checkpoints.
 // @api credentials failure DbError; remote connections require verified TLS; certificate is DER, empty Bytes uses OS roots.
@@ -95,6 +96,43 @@ pub fn mapBatch<T:Share,E:Share>(batch:&DbBatch,columns:&ColumnMap,mapper:fn(Fro
     }
     return Ok(MappedBatch(freeze(mapped),batch.done));
 }
+
+pub enum SchemaRowError {Db(DbError),Validation(schema.ValidationError)}
+fn schemaCell(value:DbValue)->Result<Json,DbError> effects {} {
+    match move value {
+        DbValue::Null=>{return Ok(Json::Null);},
+        DbValue::Bool(value)=>{return Ok(Json::Bool(value));},
+        DbValue::Int(value)=>{return Ok(Json::Int(value));},
+        DbValue::Float(value)=>{return Ok(Json::Float(value));},
+        DbValue::Text(value)=>{return Ok(Json::Text(value));},
+        DbValue::Bytes(_)=>{return Err(conversionError("DbSchemaBytesUnsupported"));},
+        DbValue::Private(_)=>{return Err(conversionError("DbSchemaPrivateUnsupported"));}
+    }
+}
+// @api validateRow cost O(columns + cells + schema visits); at most 256 columns; no cell value is copied into errors.
+pub fn validateRow(rule:schema.Schema,columns:Frozen<List<String>>,row:Frozen<DbRow>)->Result<Json,SchemaRowError> effects {} {
+    if columns.len()>256{return Err(SchemaRowError::Db(conversionError("DbColumnLimit")));}
+    if row.values.len()!=columns.len(){return Err(SchemaRowError::Db(conversionError("DbRowShape")));}
+    let seen=Map<String,Bool>();
+    let values=Map<String,Json>();
+    var index=0;
+    while index<columns.len(){
+        let name=columns.get(index);
+        if seen.get(name)!=None{return Err(SchemaRowError::Db(conversionError("DbDuplicateColumn")));}
+        seen.set(name,true);
+        let cell=match schemaCell(thaw(row.values.get(index))){
+            Err(error)=>{return Err(SchemaRowError::Db(error));},
+            Ok(value)=>value
+        };
+        values.set(name,cell);
+        index+=1;
+    }
+    match schema.validate(rule,Json::Object(freeze(values))){
+        Err(error)=>{return Err(SchemaRowError::Validation(error));},
+        Ok(value)=>{return Ok(value);}
+    }
+}
+
 // @api cellByName cost O(column names + value bytes); use a cursor's immutable column metadata.
 pub fn cellByName(row:Frozen<DbRow>,columns:Frozen<List<String>>,name:String)->Result<DbValue,DbError> effects {} {
     match column(columns,name){Ok(index)=>{return cell(row,index);},Err(error)=>{return Err(error);}}

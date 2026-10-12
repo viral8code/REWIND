@@ -73,7 +73,7 @@ GitHubの差分とrefで保存を確認した。mainは同じ5f5ab8f37c4d21f8746
 
 ## 2026-10-12のschema・cache追加分
 
-DATA-01のJSON部分をstd.schemaへ追加した。入れ子object/array、型と範囲、default、明示NULL、unknown policy、typed pathを扱う。Schemaはdataとして保持でき、Decoderは明示mapperと失敗段階を持つ。CSV/DB/formへの共通adapterやderiveは未実装の範囲として残す。
+DATA-01のJSON部分をstd.schemaへ追加した。入れ子object/array、型と範囲、default、明示NULL、unknown policy、typed pathを扱う。Schemaはdataとして保持でき、Decoderは明示mapperと失敗段階を持つ。header付きCSVとDBのbounded single-row adapterを実装。form adapter・derive・共通batch pipelineは未実装。
 
 VCACHE-02/03/04/06/12の基本部分をstd.memoへ実装した。domain/code revision/inputを分けたkeyで複数版を保持し、entry数とcaller指定weightでLRU evictionする。weightを実測memoryと呼ばない。orderedMapへfirst/last/popFirst/popLast/touchを追加し、単一evictionで全keyを列挙する処理を避けた。
 
@@ -97,20 +97,13 @@ custom validator、呼出側recordへのtyped adapter、editable table、安定r
 
 `std.gui.ComponentScope`を追加した。scope nameは1..24 UTF-8 bytes、local IDは1..64 bytesでNULを拒否し、`componentId`はbyte長を含む安定prefixで組を一意に符号化する。`componentPrefix`は最大27 bytesで、`std.guiForm.render` / `dispatch`へ渡せる。scope自体はmodel、callback、native handleを所有しない。呼出側がVM stateとaction routingを担当する。
 
-`componentLocalId`を追加し、dispatchから返るfull widget IDをowner scopeで検査してcomponent-local action名へ戻せるようにした。対応する例・API manifest・test sourceを更新。共有component state/render/reducer、form/table wrapper、IME compositionを保つ再描画は未実装。compile、実行、API生成、native backendは未確認。
+共有componentのrender/reducer、form/table wrapper、IME compositionを保つ再描画は未実装。例とAPI manifestを追加した。compile、実行、API生成、native backendは未確認。
 
 ## 2026-10-12のGUI-01レイアウト追加分
 
 `std.gui`へnested row/column/overlay layout tree、weighted main-axis min/max/fixed sizing、atomicな`applyLayout`を追加した。flatな`splitRow`/`splitColumn`はweightとgapのみに対応し、個別min/maxは持たない。上限は1024 node、深さ32、containerあたり256 child、4096 pixel。領域が制約を満たせない場合はView更新前にerrorを返す。focus/edit stateはwidget ID単位で維持する。
 
 GUI-01は部分実装で、overlay layout nodeは後続commitで実装した。padding、cross-axis constraints、自然寸法測定、resize時自動再配置を残す。API manifestと計画の記述をsourceに合わせた。環境起動失敗のためcompile、実行、API生成、native Windows/Linux動作は確認していない。source変更はcodex/developのみへ`[skip ci]`付きで保存し、mainと公開CI/CDへ触れない。
-
-
-## 2026-10-12のGUI-02 action routing追加分
-
-`std.gui.componentLocalId(scope, widgetId)`を追加した。GUI dispatchで受け取ったfull widget IDが指定scopeのprefixを持ち、componentIdのlocal ID規則を満たす場合だけlocal IDを返す。別scope、空ID、不正な長さのID、偽装されたprefixはNoneとなる。componentがActionの副作用を隠さず、application側がstate updateやpublishを決める契約は維持する。二つのcomponent scopeから各自のincrement actionを処理する例を更新し、test sourceを追加した。
-
-共有state/model、render/reducer、form/table component wrapper、IME composition保持を伴う再描画は残る。環境が起動しないためcompile・実行・API generator・native GUI確認は行っていない。API manifest・計画・実装indexはsourceと同期した。
 
 ## 最初の実装単位
 
@@ -178,10 +171,10 @@ GUI-01〜03は基礎の一部を実装、他は未着手です。IDのGUI-01はv
 | ID | 実装差分 | 依存・確認 | 完了または保留の判断 |
 |---|---|---|---|
 | GUI-01 | 入れ子row/column、main-axis min/max、atomic applyLayout | arrange、edit、composition | source保存済み。padding/cross-axis/自動resizeと実行確認は残る |
-| GUI-02 | scoped child ID・action routing | layout ID、effect/ownership | componentLocalId source saved; reusable state/model/render/reducer and IME-preserving reuse remain |
+| GUI-02 | scoped child ID基盤 | layout ID、effect/ownership | source foundation saved; model/render/reducer and IME-preserving reuse remain |
 | GUI-03 | form relations, typed mapper, caller row IDs, bounded cell-edit overlay | 既存form/table、GUI-01 | form/row-ID/model-edit foundations saved; native input/edit lifecycle and sort/filter remain |
 | VIS-01 | 限定plot | renderer primitive、numeric view | 費用/互換確認。未成立なら保留可能 |
-| DB-01 | 明示record mapping | typed cell/cursor | NULL/列名/精度/bounded batch |
+| DB-01 | 明示record mapping | typed cell/cursor/schema | single-row schema adapter source saved; backend NULL/duplicate/missing/precision and cursor cleanup execution acceptance remains |
 | DB-02 | transaction helper | external/await/affineの最小例 | 終了状態、cancel、unknown、cleanup |
 | DB-03 | 限定migration | DB-02、backend lock/DDL | 同時適用、checksum、途中失敗 |
 | APP-01 | 入力・一覧・保存の例 | 必要なGUI/DB単位 | 外部境界、失敗表示、shutdown |
@@ -309,6 +302,13 @@ DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP s
 [SQLite](../examples/database/README.md)と[PostgreSQL](../examples/postgres/README.md)の例はcursorの列metadataから`ColumnMap`を作り、`mapBatch`へmapperを渡します。DBの読込みは引き続き明示的な`db.next`で行います。API manifestへdevelop上のColumnMap APIと新しいgeneric batch APIを反映しました。
 
 実装は[d8315c8](https://github.com/viral8code/REWIND/commit/d8315c8e70f2e15d3e45327cef4b163f1887b1c5)です。compile/runtime/API再生成とSQLite/PostgreSQL実接続の受入は未実施です。
+
+
+## DATA-01 / DB-01：DB rowとshared schemaの接続
+
+`std.db.validateRow`は最大256列の一行をJSON objectへ明示変換し、呼出側の`std.schema.Schema`で必須field、型、範囲、default、unknown fieldを検証する。DbValue Null/Bool/Int/Float/Textを対応するJSON値へ写し、列名重複・行幅不一致・schema errorを別variantで返す。BytesとPrivateは暗黙のUTF-8/Text変換をせず拒否し、エラーにcell実値を含めない。SQLiteのDecimal BLOBは`dbDecimal.cell`を使った明示変換が必要。最大64行のmapBatch/cursor読取り契約は変更しない。
+
+SQLite統合例をschema検証から明示record作成する形へ更新し、純粋なDbRow入力のtest sourceを追加した。compile/runtime、API generator、SQLite/PostgreSQL接続、NULL/cleanupの実行検証は未実施。例のexpected outputも未実行。
 
 ## GUI-01のflat weighted split
 

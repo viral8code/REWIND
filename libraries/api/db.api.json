@@ -413,6 +413,19 @@
       ],
       "return": "Result<String,DbError>"
     },
+    "fn:validateRow": {
+      "async": false,
+      "cost": "O(columns + cells + schema visits); at most 256 columns; no cell value is copied into errors.",
+      "effects": [],
+      "failure": "SchemaRowError::Db for duplicate columns, row shape or unsupported Bytes/Private cells; SchemaRowError::Validation for schema failure.",
+      "generics": [],
+      "parameters": [
+        "$import$schema$Schema",
+        "Frozen<List<String>>",
+        "Frozen<DbRow>"
+      ],
+      "return": "Result<Json,SchemaRowError>"
+    },
     "fn:waitForCleanup": {
       "async": false,
       "cost": "O(closed resources); waits without blocking the VM on native cleanup.",
@@ -751,6 +764,24 @@
           [
             "0",
             "Int"
+          ]
+        ]
+      }
+    },
+    "type:SchemaRowError": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Db": [
+          [
+            "0",
+            "DbError"
+          ]
+        ],
+        "Validation": [
+          [
+            "0",
+            "$import$schema$ValidationError"
           ]
         ]
       }

@@ -47,7 +47,7 @@ nested row/column layout treeとatomicなView適用をsourceへ追加しまし�
 
 まず入力欄とlabel、検証message、button、一覧領域を組み合わせる例から、componentの契約を抽出します。新しいUI専用構文や実行時reflectionは導入条件にしません。
 
-**部分実装（2026-10-12）：** `std.gui`に`ComponentScope`、`componentId`、`componentPrefix`を追加しました。UTF-8 byte長を含むprefixでscope/local IDのpairを一意に符号化し、同じ画面で同じ部品形状を複数回組み立てるID衝突を避けます。`componentLocalId`は`Action`から得たwidget IDをscopeで検査し、validなlocal action名を返します。scopeは通常のVM値で、状態やnative resourceを保持しません。[例](../examples/gui-component-scope.rw)。stateful component model/render/reducerは未実装です。
+**部分実装（2026-10-12）：** `std.gui`に`ComponentScope`、`componentId`、`componentPrefix`を追加しました。UTF-8 byte長を含むprefixでscope/local IDのpairを一意に符号化し、同じ画面で同じ部品形状を複数回組み立てるID衝突を避けます。scopeは通常のVM値で、状態やnative resourceを保持しません。[例](../examples/gui-component-scope.rw)。これはID基盤であり、共通render/reducerやform/table componentの完了を意味しません。
 
 componentはID、VM内のstate、配置入力、eventからstate/actionを返す処理、Viewへ反映する処理を分けます。component IDと子IDの衝突規則を固定します。actionは呼出側が処理し、renderがSQLやpublishを隠れて実行しない設計にします。native resourceやaffine値をcomponentの共有可能なstateに閉じ込めません。
 
@@ -105,7 +105,7 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 
 ## DB-01：record mapping
 
-**部分実装（2026-10-12）：** `std.db.indexColumns`は最大256個のcursor column名を一度検査し、重複を拒否してimmutable `ColumnMap`を返す。`columnNumber`は同じ結果を使って名前からindexを引く。新しいpureな`mapBatch`は既存の`DbBatch`を借用し、最大64行を利用者mapperでrecordへ変換する。最初の失敗をbatch内row index付きで返し、入力batchとcursorを変更しない。SQLiteの`mapScore`とPostgreSQLの`mapStatus`がtyped accessorを明示し、共通helperへ渡す。自動ORMやreflectionは追加しない。
+**部分実装（2026-10-12）：** `std.db.indexColumns`は最大256個のcursor column名を一度検査し、重複を拒否してimmutable `ColumnMap`を返す。`columnNumber`は同じ結果を使って名前からindexを引く。新しいpureな`mapBatch`は既存の`DbBatch`を借用し、最大64行を利用者mapperでrecordへ変換する。最初の失敗をbatch内row index付きで返し、入力batchとcursorを変更しない。SQLiteの`mapScore`とPostgreSQLの`mapStatus`がtyped accessorを明示し、共通helperへ渡す。自動ORMやreflectionは追加しない。\n\n**部分実装（2026-10-12）：** `std.db.validateRow`は最大256列の一行からJSON objectを作り、呼出側の`std.schema.Schema`で検証します。Null/Bool/Int/Float/Textだけを対応JSON値へ写し、Bytes/Private cellは拒否します。duplicate column、row shape、schema failureを区別し、cell値をerrorへ含めません。SQLite exampleをshared schema検証から明示recordへ変換する形へ更新しました。これは一行adapterであり、bounded DbBatch全体へのschema mapper、SQLite Decimal BLOB adapter、実DB受入は未実装です。
 
 **未完了：** SQLite/PostgreSQL mapping exampleのcompile/runtime確認、NULL・duplicate・missing・型境界、mapping failure後のbatch再利用とcursor/cleanup検証。現環境ではcompile/runtime検証を省略している。
 

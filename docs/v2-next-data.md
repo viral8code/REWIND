@@ -1,6 +1,6 @@
 # 次版構想：表データ・数値処理・一般ライブラリ
 
-状態：採用候補を実装へ移行中。2026-10-12にDATA-01のJSON schema・明示mapper・header付きCSV row adapterのsourceを追加しました。実行検証は省略。DB/form adapterは別の到達条件を持ちます。[実装契約](v2-next-schema-implementation.md)。版番号は未割当です。[全体計画](ROADMAP_v2-next.md)と[性能計画](v2-next-performance.md)を参照してください。
+状態：採用候補を実装へ移行中。2026-10-12にDATA-01のJSON schema・明示mapper・header付きCSV row adapterのsourceを追加しました。実行検証は省略。form adapterとDB batch adapterは別の到達条件を持ちます。[実装契約](v2-next-schema-implementation.md)。版番号は未割当です。[全体計画](ROADMAP_v2-next.md)と[性能計画](v2-next-performance.md)を参照してください。
 
 JSON/CSVと増分parser、BigInt/Decimal、IANA timezone、Unicode/regex、dense/sparse配列、線形代数、統計・分布、FFT、自動微分、optimizer、model保存、graph/flow/matching等は既存です。以下は新機能の数を増やすためではなく、既存機能間の変換と反復記述を減らす候補です。
 
@@ -10,7 +10,7 @@ JSON/CSV/DB/formに散在するfield検証を共通schemaへ寄せる案です�
 
 必須/任意/NULL/default、整数範囲、正確なDecimal、日時単位、unknown field、重複名、nested pathを規定します。unknown fieldを黙って削除するかどうかは明示policyにします。schema versionとデータversionを分けます。
 
-**実装source：** JSON objectとheader付きCSV rowを同じSchemaで検証できる。CSVのtyped cellは全体をJSON値として読む。Textは暗黙変換せず、Decimalはraw cell/JSON Textを既存Decimal parserで、Timestampはraw cell/JSON TextをRFC3339 parserで検証する。NULL sentinelは呼出し側が明示する。**部分実装：** exact Decimal textとRFC3339 instant textのschema rule。**未実装：** DB/form mapping、local date/timezone rule、adapter間の列型変換。
+**実装source：** JSON object、header付きCSV row、`db.validateRow`による最大256列のDB single rowを同じSchemaで検証できる。DBのBytes/Private cellは暗黙にtext化せず拒否し、SQLite Decimal BLOBは呼出側が`dbDecimal`で明示変換する。CSVのtyped cellはJSON値として読む。Decimalはraw textを既存Decimal parserで、Timestampはraw textをRFC3339 parserで検証する。NULL sentinelは呼出し側が明示する。**未実装：** form adapter、DB batch向け統合mapper、local date/timezone rule、adapter間の列型変換。
 
 **受入：** 同じrecordへのJSON/CSV/DB mappingを例示する。NULLと空文字を混同しない。巨大なerror一覧はboundedにする。Secret fieldの実値を診断へ出さない。
 
