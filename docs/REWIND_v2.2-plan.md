@@ -61,7 +61,7 @@ componentはID、VM内のstate、配置入力、eventからstate/actionを返す
 
 **部分実装（2026-10-12）：** `guiForm.createWithRules`へ最大128個の宣言的なrelationを追加しました。`Equal`は互換scalar fieldのtyped value、`IntLessEqual`はInt field、`RequiredWhenChecked`はcheckbox依存必須を検証します。rule参照とkindをschema構築時に検査し、`validate`と`toJson`で適用します。custom callback、型付きrecord adapter、table編集・sort/filterは未実装です。入力textはrelation failureでも保持されます。[例](../examples/gui-form-relations.rw)。
 
-**部分実装（2026-10-12）：** `guiTable.createWithIds`へcaller-suppliedなunique row IDを追加し、rowId/index lookup、IDによるselection、rendered row actionからdata rowへのID解決を実装しました。従来の`create`は互換用に`row:<index>`を合成しますが、これは再構築・並べ替えを越えるidentityではありません。sort/filter、editable cell、stable selectionを保つ並べ替え操作は未実装です。
+**部分実装（2026-10-12）：** `guiTable.createWithIds`へcaller-suppliedなunique row IDを追加し、rowId/index lookup、IDによるselection、rendered row actionからdata rowへのID解決を実装しました。従来の`create`は互換用に`row:<index>`を合成しますが、これは再構築・並べ替えを越えるidentityではありません。sort/filter、text input・validationを含む編集lifecycle、stable selectionを保つ並べ替え操作は未実装です。
 
 **部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。clearEditsで全差分を破棄できます。GUI text inputとの接続、sort/filter、typed adapter、削除・取消を含む編集event lifecycleは未実装です。[例](../examples/gui-table-edits.rw)。
 

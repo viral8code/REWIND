@@ -20,7 +20,7 @@
 | std.gui layout | Layout, WeightedLayout, leaf, weighted, sized, row, column, applyLayout, splitRow, splitColumn, arrangeRow, arrangeColumn | 最大32階層・1024 node・256 childのnested row/column tree、main-axis min/max/fixed size、atomic widget update | GUI-01のlayout tree基盤。overlay node・padding・cross-axis constraints・自然寸法測定・resize policyは未実装 | [gui-layout](../examples/gui-layout.rw) |
 | std.gui component IDs | ComponentScope, componentScope, componentPrefix, componentId | byte長prefixによるscope/local IDの一意符号化。form prefixにも利用可能 | GUI-02のID namespace基盤。component model/render/action helperは未実装 | [gui-component-scope](../examples/gui-component-scope.rw) |
 | std.guiForm relations | Relation, createWithRules | 最大128宣言rule。typed scalar equality、integer less-or-equal、checkbox依存必須。validate/toJsonで適用しedit textを保持 | GUI-03のpure cross-field validation foundation。typed record adapter/table editingは未実装 | [gui-form-relations](../examples/gui-form-relations.rw) |
-| std.guiTable row IDs | createWithIds, rowId, rowIndex, selectId, selectionId | caller-supplied unique 1..64 byte IDsでrow actionとdata positionを結ぶ。既存createはpositional ID | GUI-03のrow identity foundation。sort/filter/editは未実装 | [gui-table-row-ids](../examples/gui-table-row-ids.rw) |
+| std.guiTable row IDs | createWithIds, rowId, rowIndex, selectId, selectionId | caller-supplied unique 1..64 byte IDsでrow actionとdata positionを結ぶ。既存createはpositional ID | GUI-03のrow identity foundation。差分編集は次行。sort/filterとtext input接続は未実装 | [gui-table-row-ids](../examples/gui-table-row-ids.rw) |
 | std.guiTable edit overlay | CellEdit, editCell, editCellId, hasEdits, changes, clearEdits | row ID + column indexでstaged差分を保持し、cell/renderは差分優先。Frozen base cellsを複製せず、4096 dirty cells / 4 MiB value bytesでbounded。元値への復元は差分を削除 | GUI-03のmodel-side cell editing foundation。text input/event binding、sort/filter、typed adapter、lifecycleは未実装 | [gui-table-edits](../examples/gui-table-edits.rw) |
 | std.csvStream | nextTyped | 既存CSV readerとobject schemaを1 row単位で接続、Validation failure時は未消費 | DATA-04のCSV row consumer | [csv-stream](../examples/csv-stream/README.md) |
 | std.jsonStream | peek, nextBigInt | 非消費event検査、JSON整数tokenをBigIntへ変換してから消費 | DATA-04のtyped stream前段。record materializationは未実装 | [json-stream](../examples/json-stream/README.md)、[BigInt](../examples/json-stream/bigint.rw) |
@@ -30,7 +30,7 @@
 | generic Frozenの型判定 | T:SendからFrozen<T>のShareを導出し、呼出し・recordへ伝播 | 上記libraryの前提修正 | [記録](v2-next-frozen-bounds-implementation.md) |
 | 入れ子Frozenのruntime修正 | 明示freezeの一段追加と、thaw時の内側Frozen保持 | snapshot/ChangeSetの合成を支える修正 | [記録](v2-next-nested-frozen-implementation.md) |
 
-snapshot/historyの後に追加した12 moduleは合計192のpublic functionを持つ。既存std.csvStreamへのnextTyped追加はこの数に含めない。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
+snapshot/historyの後に追加した12 moduleは合計197のpublic functionを持つ。既存std.csvStreamへのnextTyped追加はこの数に含めない。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
 
 ## 読む資料
 

@@ -85,7 +85,7 @@ VCACHE-07/06の遅延値をstd.lazyへ実装した。peekは計算せず、force
 
 ## 2026-10-12のGUI-03テーブルrow ID追加分
 
-`std.guiTable.createWithIds`は1..64 byteのunique caller IDsを受け取り、row ID/index lookup、IDによる選択、描画button eventのrow ID解決を提供する。既存`create`の`row:<index>`は互換用で、並べ替えを越えるidentityとは扱わない。sort/filter/editable cellは未実装。実行・compile・API生成・native確認は省略した。
+`std.guiTable.createWithIds`は1..64 byteのunique caller IDsを受け取り、row ID/index lookup、IDによる選択、描画button eventのrow ID解決を提供する。既存`create`の`row:<index>`は互換用で、並べ替えを越えるidentityとは扱わない。このrow ID追加段階ではsort/filterと差分編集modelは未実装だった（差分overlayは後述節で追加）。実行・compile・API生成・native確認は省略した。
 
 ## 2026-10-12のGUI-03フォームrelation追加分
 
