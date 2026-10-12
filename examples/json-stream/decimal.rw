@@ -1,0 +1,18 @@
+import std.jsonStream as json;
+import std.decimal as decimal;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("JSON decimal stream operation failed");}
+    }
+}
+
+let reader=take(json.reader());
+let bytes=take(stdEncode("12345678901234567890.123456789"));
+take(json.feed(&mut reader,bytes,false));
+take(json.finish(&mut reader));
+match take(json.nextDecimal(&mut reader)) {
+    None=>{panic("expected a decimal token");},
+    Some(value)=>{Out.println(take(decimal.format(&value)));}
+}

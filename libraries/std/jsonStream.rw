@@ -1,7 +1,9 @@
 import std.bigint as bigint;
+import std.decimal as decimal;
 pub type Event=JsonStreamEvent;
 pub struct Reader {private state:JsonStreamState}
 pub enum IntegerEventError {Stream(StdError),ExpectedNumber(Int),InvalidInteger(StdError)}
+pub enum DecimalEventError {Stream(StdError),ExpectedNumber(Int),InvalidDecimal(StdError)}
 pub fn reader()->Result<Reader,StdError> effects {} {match stdJsonStreamNew(){Err(error)=>{return Err(error);},Ok(state)=>{return Ok(Reader(state));}}}
 // A failed feed leaves the Reader unchanged. Drain queued events and retry the same chunk after JsonQueueLimit.
 pub fn feed(reader:&mut Reader,chunk:Bytes,finish:Bool)->Result<Unit,StdError> effects {} {match stdJsonStreamFeed(&reader.state,chunk,finish){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(());}}}
@@ -40,6 +42,32 @@ pub fn nextBigInt(reader:&mut Reader)->Result<Option<BigInt>,IntegerEventError> 
        }
       },
       _=>{return Err(IntegerEventError::ExpectedNumber(eventPosition(event)));}
+     }
+    }
+   }
+  }
+ }
+}
+// @api nextDecimal parses a JSON number token as exact base-10 Decimal before advancing; a wrong event kind or parse failure remains queued.
+pub fn nextDecimal(reader:&mut Reader)->Result<Option<Decimal>,DecimalEventError> effects {} {
+ match stdJsonStreamPeek(&reader.state) {
+  Err(error)=>{return Err(DecimalEventError::Stream(error));},
+  Ok(value)=>{
+   match move value {
+    None=>{return Ok(None);},
+    Some(event)=>{
+     match event {
+      JsonStreamEvent::Number(raw,_)=>{
+       let number=match decimal.parse(raw) {
+        Err(error)=>{return Err(DecimalEventError::InvalidDecimal(error));},
+        Ok(value)=>{value}
+       };
+       match stdJsonStreamAdvance(&reader.state) {
+        Err(error)=>{return Err(DecimalEventError::Stream(error));},
+        Ok(state)=>{reader.state=state;return Ok(Some(number));}
+       }
+      },
+      _=>{return Err(DecimalEventError::ExpectedNumber(eventPosition(event)));}
      }
     }
    }

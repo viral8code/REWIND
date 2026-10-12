@@ -56,6 +56,17 @@
       ],
       "return": "Result<Option<BigInt>,IntegerEventError>"
     },
+    "fn:nextDecimal": {
+      "async": false,
+      "cost": "parses an exact base-10 Decimal token before advancing; failures leave the event queued.",
+      "effects": [],
+      "failure": "DecimalEventError; memory/work budget failures remain fatal.",
+      "generics": [],
+      "parameters": [
+        "&mut Reader"
+      ],
+      "return": "Result<Option<Decimal>,DecimalEventError>"
+    },
     "fn:peek": {
       "async": false,
       "effects": [],
@@ -227,6 +238,30 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:DecimalEventError": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ExpectedNumber": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "InvalidDecimal": [
+          [
+            "0",
+            "StdError"
+          ]
+        ],
+        "Stream": [
+          [
+            "0",
+            "StdError"
+          ]
+        ]
+      }
     },
     "type:DecimalRounding": {
       "generics": [],
