@@ -300,6 +300,17 @@
       ],
       "return": "Result<View,StdError>"
     },
+    "fn:overlayLayout": {
+      "async": false,
+      "cost": "O(nodes), bounded by 1024 combined nodes, depth 32, and 256 layers; applyLayout visits the nodes and assigns identical bounds to every layer.",
+      "effects": [],
+      "failure": "GuiLayoutChildren for 2..256 layer count; GuiLayoutLimit or GuiLayoutDepthLimit when the combined tree exceeds limits; applyLayout validates all IDs and bounds before updating any widget.",
+      "generics": [],
+      "parameters": [
+        "&List<Layout>"
+      ],
+      "return": "Result<Layout,StdError>"
+    },
     "fn:pollEvent": {
       "async": false,
       "effects": [

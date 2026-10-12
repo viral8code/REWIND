@@ -164,7 +164,8 @@ pub fn setScrollPosition(view:&mut View,id:String,line:Int)->Result<Unit,GuiErro
 enum LayoutNode {
  Widget(String),
  Row(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int),
- Column(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int)
+ Column(Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Frozen<List<Int>>,Int),
+ Overlay(Frozen<List<Int>>)
 }
 pub struct Layout {private nodes:Frozen<List<LayoutNode>>,private root:Int,private depth:Int}
 pub struct WeightedLayout {private layout:Layout,private weight:Int,private minimum:Int,private maximum:Int}
@@ -201,6 +202,11 @@ fn appendLayout(nodes:&mut List<LayoutNode>,layout:Layout)->Int effects {} {
     let shifted=List<Int>();
     for j in 0..children.len(){shifted.add(children.get(j)+offset);}
     nodes.add(LayoutNode::Column(freeze(shifted),weights,minimums,maximums,gap));
+   },
+   LayoutNode::Overlay(children)=>{
+    let shifted=List<Int>();
+    for j in 0..children.len(){shifted.add(children.get(j)+offset);}
+    nodes.add(LayoutNode::Overlay(freeze(shifted)));
    }
   }
  }
@@ -238,6 +244,22 @@ pub fn row(children:&List<WeightedLayout>,gap:Int)->Result<Layout,GuiError> effe
 pub fn column(children:&List<WeightedLayout>,gap:Int)->Result<Layout,GuiError> effects {} {
  return composeLayout(children,gap,false);
 }
+// @api overlayLayout places every child over the same bounds; View insertion order controls z-order.
+pub fn overlayLayout(children:&List<Layout>)->Result<Layout,GuiError> effects {} {
+ if children.len()<2 || children.len()>256{return Err(StdError("GuiLayoutChildren",children.len()));}
+ var count=1;var deepest=0;
+ for i in 0..children.len(){
+  let child=children.get(i);
+  if child.nodes.len()<1 || child.nodes.len()>1024 || child.depth<1 || child.depth>32{return Err(StdError("GuiLayoutLimit",0));}
+  count+=child.nodes.len();if count>1024{return Err(StdError("GuiLayoutLimit",count));}
+  if child.depth>deepest{deepest=child.depth;}
+ }
+ let depth=deepest+1;if depth>32{return Err(StdError("GuiLayoutDepthLimit",depth));}
+ let nodes=List<LayoutNode>();let childNodes=List<Int>();
+ for i in 0..children.len(){childNodes.add(appendLayout(&mut nodes,children.get(i)));}
+ let root=nodes.len();nodes.add(LayoutNode::Overlay(freeze(childNodes)));
+ return Ok(Layout(freeze(nodes),root,depth));
+}
 fn validLayoutBounds(bounds:Rect)->Bool effects {} {
  if bounds.x<0 || bounds.x>4096 || bounds.y<0 || bounds.y>4096{return false;}
  if bounds.width<0 || bounds.width>4096 || bounds.height<0 || bounds.height>4096{return false;}
@@ -267,6 +289,10 @@ pub fn applyLayout(view:&mut View,layout:&Layout,bounds:Rect)->Result<Unit,GuiEr
     let columnWeights=thaw(weights);let columnMinimums=thaw(minimums);let columnMaximums=thaw(maximums);
     let rectangles=splitConstrained(work.bounds,&columnWeights,&columnMinimums,&columnMaximums,gap,false)?;
     for i in 0..children.len(){pending.add(LayoutWork(children.get(i),rectangles.get(i)));}
+   },
+   LayoutNode::Overlay(children)=>{
+    if children.len()<2 || children.len()>256{return Err(StdError("GuiLayoutChildren",children.len()));}
+    for i in 0..children.len(){pending.add(LayoutWork(children.get(i),work.bounds));}
    }
   }
  }
