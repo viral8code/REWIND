@@ -38,6 +38,10 @@ fn target() -> String {
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
         (
+            "textIndex",
+            include_str!("../../../libraries/std/textIndex.rw"),
+        ),
+        (
             "orderedMap",
             include_str!("../../../libraries/std/orderedMap.rw"),
         ),

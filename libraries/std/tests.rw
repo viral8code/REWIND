@@ -780,3 +780,50 @@ test fn changes_rebase_handles_deletions_and_empty_sequences()->Unit effects {} 
     assert_eq(identity.steps.len(),0);assert_eq(identity.conflict,None);
     after.set("x",3);assert_eq(identity.value.get("x"),Some(2));
 }
+
+import textIndex as textIndex;
+
+test fn text_indices_distinguish_bytes_scalars_and_graphemes()->Unit effects {} {
+    let source=transformTake(textIndex.create("A😀é\r\n日"));
+    assert_eq(textIndex.byteLength(source),13);
+    assert_eq(textIndex.scalarLength(source),7);
+    assert_eq(textIndex.graphemeLength(source),5);
+    let combining=transformTake(textIndex.byteAt(source,6));
+    assert_eq(textIndex.scalarValue(transformTake(textIndex.byteToScalar(combining))),3);
+    match textIndex.byteToGrapheme(combining) {Err(e)=>{assert_eq(e.code,"GraphemeBoundary");},Ok(_)=>{panic("combining boundary");}}
+    let insideEmoji=transformTake(textIndex.byteAt(source,3));
+    match textIndex.byteToScalar(insideEmoji) {Err(e)=>{assert_eq(e.code,"ScalarBoundary");assert_eq(e.offset,3);},Ok(_)=>{panic("UTF-8 boundary");}}
+    let lf=transformTake(textIndex.scalarAt(source,5));
+    assert_eq(textIndex.byteValue(textIndex.scalarToByte(lf)),9);
+    match textIndex.byteToGrapheme(textIndex.scalarToByte(lf)) {Err(e)=>{assert_eq(e.code,"GraphemeBoundary");},Ok(_)=>{panic("CRLF boundary");}}
+    let end=transformTake(textIndex.byteAt(source,13));
+    assert_eq(textIndex.scalarValue(transformTake(textIndex.byteToScalar(end))),7);
+    assert_eq(textIndex.graphemeValue(transformTake(textIndex.byteToGrapheme(end))),5);
+    let start=transformTake(textIndex.graphemeAt(source,2));
+    let finish=transformTake(textIndex.graphemeAt(source,3));
+    assert_eq(textIndex.sliceGraphemes(start,finish),Ok("é"));
+    assert_eq(textIndex.byteValue(textIndex.graphemeToByte(start)),5);
+}
+
+test fn text_indices_retain_original_source_and_reject_mixed_text()->Unit effects {} {
+    var contents="日本";
+    let source=transformTake(textIndex.create(contents));
+    let start=transformTake(textIndex.scalarAt(source,0));
+    let end=transformTake(textIndex.scalarAt(source,2));
+    contents="日曜";let edited=transformTake(textIndex.create(contents));
+    assert_eq(textIndex.sliceScalars(start,end),Ok("日本"));
+    assert_eq(textIndex.text(textIndex.scalarSource(start)),"日本");
+    let other=transformTake(textIndex.scalarAt(edited,2));
+    match textIndex.sliceScalars(start,other) {Err(e)=>{assert_eq(e.code,"TextMismatch");},Ok(_)=>{panic("mixed source");}}
+    let equal=transformTake(textIndex.create("日本"));
+    assert_eq(textIndex.sliceScalars(start,transformTake(textIndex.scalarAt(equal,2))),Ok("日本"));
+    match textIndex.sliceScalars(end,start) {Err(e)=>{assert_eq(e.code,"Range");},Ok(_)=>{panic("reversed range");}}
+    match textIndex.byteAt(source,-1) {Err(e)=>{assert_eq(e.code,"ByteRange");},Ok(_)=>{panic("negative byte");}}
+    match textIndex.scalarAt(source,3) {Err(e)=>{assert_eq(e.code,"ScalarRange");},Ok(_)=>{panic("scalar overflow");}}
+    match textIndex.graphemeAt(source,3) {Err(e)=>{assert_eq(e.code,"GraphemeRange");},Ok(_)=>{panic("grapheme overflow");}}
+    let empty=transformTake(textIndex.create(""));
+    assert_eq(textIndex.byteLength(empty),0);assert_eq(textIndex.scalarLength(empty),0);assert_eq(textIndex.graphemeLength(empty),0);
+    let zero=transformTake(textIndex.byteAt(empty,0));
+    assert_eq(textIndex.scalarValue(transformTake(textIndex.byteToScalar(zero))),0);
+    assert_eq(textIndex.graphemeValue(transformTake(textIndex.byteToGrapheme(zero))),0);
+}
