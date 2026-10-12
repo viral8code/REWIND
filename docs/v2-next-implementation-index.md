@@ -11,7 +11,7 @@
 | std.changes | String Mapの差分・逆差分・合成・検査付き適用・3方向merge・rebase preview | VPERSIST-08、VHISTORY-04/05/06の一部 | [map-changes](../examples/map-changes.rw)、[rebase](../examples/rebase-preview.rw) |
 | std.historyGraph | 最大16親、branch HEAD、annotation、祖先・merge base・経路・predicate query、pinと明示prune | VHISTORY-01/02/03、07/08/09/10/11の一部 | [history-graph](../examples/history-graph.rw)、[整理とquery](../examples/history-maintenance.rw) |
 | std.parser | byte cursor、合成・先読み・検査・span・左右結合 | VPARSE-01/02/03/05/07の基本部分 | [parser-combinators](../examples/parser-combinators.rw)、[演算式](../examples/parser-expression.rw) |
-| std.orderedMap | 挿入順とlookupの一体管理、削除・再挿入、snapshot | VPERSIST-04のString key部分 | [insertion-ordered-map](../examples/insertion-ordered-map.rw) |
+| std.orderedMap | 挿入順とlookup、両端操作、touch、snapshot | VPERSIST-04のString key部分 | [insertion-ordered-map](../examples/insertion-ordered-map.rw) |
 | std.textIndex | 原文を保持するbyte/scalar/grapheme位置、境界変換、slice | VTEXT-01の3単位 | [text-positions](../examples/text-positions.rw) |
 | std.lens | typed getter/setter、欠損path、合成、検査付き変更、有限の法則確認 | VOPTIC-01/02/04/06/10の基本部分 | [typed-lens](../examples/typed-lens.rw) |
 | std.persistentSet | 任意版からのunion、複数版query、native page共有 | VPERSIST-06 | [persistent-union-find](../examples/persistent-union-find.rw) |
@@ -20,7 +20,7 @@
 | generic Frozenの型判定 | T:SendからFrozen<T>のShareを導出し、呼出し・recordへ伝播 | 上記libraryの前提修正 | [記録](v2-next-frozen-bounds-implementation.md) |
 | 入れ子Frozenのruntime修正 | 明示freezeの一段追加と、thaw時の内側Frozen保持 | snapshot/ChangeSetの合成を支える修正 | [記録](v2-next-nested-frozen-implementation.md) |
 
-追加した10 moduleは合計165のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
+追加した10 moduleは合計170のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
 
 ## 読む資料
 
@@ -38,7 +38,7 @@
 
 ## 確認sourceと未確認範囲
 
-継続分ではlibraries/std/tests.rwへ44 test、tests/generic_frozen_bounds.rsへ1 testを追加した。compile、runtime、source-free artifact、record/replay、Windows、format、API生成、性能・GC測定は今回実行していない。source読解とGitHub上の差分・ref確認を、これらの実行検証の代わりとして数えない。
+継続分ではlibraries/std/tests.rwへ45 test、tests/generic_frozen_bounds.rsへ1 testを追加した。compile、runtime、source-free artifact、record/replay、Windows、format、API生成、性能・GC測定は今回実行していない。source読解とGitHub上の差分・ref確認を、これらの実行検証の代わりとして数えない。
 
 runtimeのFrozen修正は既存artifact/traceへ影響し得るため、次回検証する場合は通常のgeneric/ownership確認だけでなく、入れ子値とrecord/replayも確認する。
 

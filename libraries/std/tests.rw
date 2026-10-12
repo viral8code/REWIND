@@ -1273,3 +1273,19 @@ test fn schemas_enforce_depth_and_node_limits_before_composition()->Unit effects
     for i in 0..128 {fields.add(transformTake(schema.field("f"+transformTake(number.formatInt(i,10)),item,false,None)));}
     match schema.object(&fields,SchemaUnknown::Reject) {Err(e)=>{assert_eq(e.code,"NodeLimit");},Ok(_)=>{panic("schema node limit");}}
 }
+
+test fn ordered_map_end_operations_and_touch_do_not_scan_or_change_capacity()->Unit effects {} {
+    let map=transformTake(createOrderedMap<Int>(3));
+    assert_eq(orderedMap.first(&map),None);assert_eq(orderedMap.popLast(&mut map),None);
+    orderedMap.put(&mut map,"a",1);orderedMap.put(&mut map,"b",2);orderedMap.put(&mut map,"c",3);
+    assert_eq(orderedMap.first(&map),Some(("a",1)));assert_eq(orderedMap.last(&map),Some(("c",3)));
+    assert(orderedMap.touch(&mut map,"a"));assert_eq(orderedMap.first(&map),Some(("b",2)));
+    assert_eq(orderedMap.last(&map),Some(("a",1)));assert_eq(orderedMap.length(&map),3);
+    assert(orderedMap.touch(&mut map,"c"));assert_eq(orderedMap.last(&map),Some(("c",3)));
+    assert(orderedMap.touch(&mut map,"c"));assert(!orderedMap.touch(&mut map,"missing"));
+    assert_eq(orderedMap.popFirst(&mut map),Some(("b",2)));
+    assert_eq(orderedMap.popLast(&mut map),Some(("c",3)));
+    assert_eq(orderedMap.first(&map),Some(("a",1)));assert_eq(orderedMap.last(&map),Some(("a",1)));
+    assert(orderedMap.touch(&mut map,"a"));
+    assert_eq(orderedMap.popFirst(&mut map),Some(("a",1)));assert_eq(orderedMap.last(&map),None);
+}

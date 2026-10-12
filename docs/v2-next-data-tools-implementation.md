@@ -108,6 +108,12 @@ VPERSIST-04のString key / Share valueの基本部分を実装する。OrderedMa
 
 library test sourceに、非key順の挿入、full時の更新と新規拒否、head/middle/tailの削除、再挿入、clear、snapshot後の順序・値の独立性を用意した。実行は省略。
 
+### 両端操作とLRU用の順序更新
+
+2026-10-12にfirst、last、popFirst、popLast、touchを追加した。両端の参照・削除は全keyを列挙せずに行う。touchは既存keyの値を保って末尾へ移し、keyがあればtrue、なければfalseを返す。末尾へのtouchは書換えを省略する。容量は変わらない。
+
+リンクの変更は少数のMap lookup/updateで行い、後続要素を全シフトしない。cacheのhit更新や最古entryのevictionに使える。先頭・中間・末尾・一要素・空・満杯での操作を1 test sourceへ追加した。実行は省略。
+
 ## 保存・検証方針
 
 codex/developだけへ小さくcommit/pushする。commitには[skip ci]を付ける。公開CI/CD、main統合、tag、Release、版更新を行わない。

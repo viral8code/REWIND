@@ -98,3 +98,50 @@ pub fn entries<T:Share>(map:&OrderedMap<T>)->List<Tuple<String,T>> effects {} {
 pub fn clear<T:Share>(map:&mut OrderedMap<T>)->Unit effects {} {
     map.data=Map<String,Entry<T>>();map.first=None;map.last=None;
 }
+
+// @api first Reads the oldest insertion position without enumerating the map.
+pub fn first<T:Share>(map:&OrderedMap<T>)->Option<Tuple<String,T>> effects {} {
+    match map.first {Some(key)=>{return Some((key,entry(map,key).value));},None=>{return None;}}
+}
+pub fn last<T:Share>(map:&OrderedMap<T>)->Option<Tuple<String,T>> effects {} {
+    match map.last {Some(key)=>{return Some((key,entry(map,key).value));},None=>{return None;}}
+}
+pub fn popFirst<T:Share>(map:&mut OrderedMap<T>)->Option<Tuple<String,T>> effects {} {
+    match map.first {
+        None=>{return None;},
+        Some(key)=>{match remove(map,key) {Some(value)=>{return Some((key,value));},None=>{panic("ordered map invariant");}}}
+    }
+}
+pub fn popLast<T:Share>(map:&mut OrderedMap<T>)->Option<Tuple<String,T>> effects {} {
+    match map.last {
+        None=>{return None;},
+        Some(key)=>{match remove(map,key) {Some(value)=>{return Some((key,value));},None=>{panic("ordered map invariant");}}}
+    }
+}
+// @api touch Moves an existing key to the end using a bounded number of link updates; does not change its value or consume capacity.
+pub fn touch<T:Share>(map:&mut OrderedMap<T>,key:String)->Bool effects {} {
+    match map.data.get(key) {
+        None=>{return false;},
+        Some(old)=>{
+            match old.next {None=>{return true;},Some(_)=>{}}
+            match old.previous {
+                Some(previous)=>{let neighbor=entry(map,previous);map.data.set(previous,Entry<T>(neighbor.value,neighbor.previous,old.next));},
+                None=>{map.first=old.next;}
+            }
+            match old.next {
+                Some(next)=>{let neighbor=entry(map,next);map.data.set(next,Entry<T>(neighbor.value,old.previous,neighbor.next));},
+                None=>{panic("ordered map invariant");}
+            }
+            match map.last {
+                Some(tail)=>{
+                    let neighbor=entry(map,tail);
+                    map.data.set(tail,Entry<T>(neighbor.value,neighbor.previous,Some(key)));
+                    map.data.set(key,Entry<T>(old.value,Some(tail),None));
+                    map.last=Some(key);
+                },
+                None=>{panic("ordered map invariant");}
+            }
+            return true;
+        }
+    }
+}
