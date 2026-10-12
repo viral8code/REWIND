@@ -267,16 +267,8 @@ v2.2のDB-01に`std.db.ColumnMap`、`indexColumns`、`columnNumber`を追加し�
 
 ## JSON event streamの再開分
 
-2026-10-12に`std.jsonStream.peek(&Reader)`と`nextBigInt(&mut Reader)`を追加しました。先頭のqueued eventを検査してもreaderをadvanceせず、整数tokenは正確な10進BigIntへのparse成功後にだけ消費します。型違い・変換失敗ではeventをqueueに保ち、再解釈できます。API manifest、library一覧、DATA-04の実装状況、2つの利用例も更新しました.
+2026-10-12に`std.jsonStream.peek(&Reader)`と`nextBigInt(&mut Reader)`を追加しました。peekは先頭のqueued eventを検査してもreaderをadvanceしません。nextBigIntはJSON number tokenを正確な10進BigIntへ変換してから消費します。型違い・非整数・変換失敗ではeventをqueueに残し、別の方法で再解釈できます。
 
-これはJSON streamからschema/recordを組み立てるadapterそのものではありません。DATA-04にはrecord materializationとDB cursor/HTTP sourceとの共通batch APIが残っています。
+API manifest、library一覧、DATA-04の実装状況、利用例を更新しました：[json-stream](../examples/json-stream/README.md)、[BigInt例](../examples/json-stream/bigint.rw)。実装commitは[1f2052d](https://github.com/viral8code/REWIND/commit/1f2052d9cab174166f225ddd2bc984304306e253)と[e1b0fbf](https://github.com/viral8code/REWIND/commit/e1b0fbf17f9d6c3c556f8bb6df9139e0d41f709d)です。
 
-source・例のcompile/runtime/API再生成とWindows確認は未実施です。commit `1f2052d` はcodex/developへ `[skip ci]`付きで保存しました。公開CI/CD、main統合、releaseは行っていません。
-
-## JSON event streamの再開分
-
-2026-10-12に`std.jsonStream.peek(&Reader)`を追加しました。先頭のqueued eventを検査してもreaderをadvanceせず、既存の`next(&mut Reader)`だけがeventを消費します。利用例はpeek後も同じObjectStartを読めることを示します。API manifest、library一覧、DATA-04の実装状況も更新しました。
-
-これはJSON streamからschema/recordを組み立てるadapterそのものではありません。DATA-04にはrecord materializationとDB cursor/HTTP sourceとの共通batch APIが残っています。
-
-source・例のcompile/runtime/API再生成とWindows確認は未実施です。commit `1f2052d` はcodex/developへ `[skip ci]`付きで保存しました。公開CI/CD、main統合、releaseは行っていません。
+DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP sourceとの共通batch APIが残っています。source・例のcompile/runtime/API再生成・Windows確認は未実施です。commitはcodex/developのみへ`[skip ci]`付きで保存し、公開CI/CD、main統合、releaseは行っていません。
