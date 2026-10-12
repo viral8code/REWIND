@@ -1,10 +1,12 @@
+import std.decimal as decimalValue;
+
 pub enum Unknown {Reject,Keep,Drop}
 pub enum Segment {Field(String),Index(Int)}
 pub record SchemaError {code:String,field:String}
 pub record ValidationError {code:String,path:Frozen<List<Segment>>,expected:String,actual:String}
 record Property {name:String,node:Int,required:Bool,fallback:Option<Json>}
 enum Node {
-    Any,Boolean,Integer(Int,Int),Number,Text(Int,Int),
+    Any,Boolean,Integer(Int,Int),Number,Decimal,Text(Int,Int),
     Nullable(Int),Array(Int,Int,Int),
     Object(Frozen<List<Property>>,Frozen<Map<String,Int>>,Unknown)
 }
@@ -23,6 +25,8 @@ fn single(node:Node)->Schema effects {} {
 pub fn any()->Schema effects {} {return single(Node::Any);}
 pub fn boolean()->Schema effects {} {return single(Node::Boolean);}
 pub fn number()->Schema effects {} {return single(Node::Number);}
+// @api decimal accepts exact decimal text; JSON Float/Number values are rejected to avoid prior binary rounding.
+pub fn decimal()->Schema effects {} {return single(Node::Decimal);}
 pub fn integer(minimum:Int,maximum:Int)->Result<Schema,SchemaError> effects {} {
     if minimum>maximum {return Err(SchemaError("Range",""));}
     return Ok(single(Node::Integer(minimum,maximum)));
@@ -130,6 +134,17 @@ fn visit(schema:Schema,index:Int,value:Json,path:Frozen<List<Segment>>,budget:&m
             if kind!="Int" && kind!="Float" {return Err(failure("Type",path,"Int or Float",value));}
             return Ok(value);
         },
+        Node::Decimal=>{
+            match value {
+                Json::Text(text)=>{
+                    match decimalValue.parse(text) {
+                        Err(_)=>{return Err(ValidationError("Decimal",path,"exact Decimal text","Text"));},
+                        Ok(_)=>{return Ok(value);}
+                    }
+                },
+                _=>{return Err(failure("Type",path,"exact Decimal text",value));}
+            }
+        },
         Node::Text(minimum,maximum)=>{
             match value {
                 Json::Text(text)=>{
@@ -221,6 +236,12 @@ fn csvCell(schema:Schema,nodeIndex:Int,value:String,path:Frozen<List<Segment>>,n
         Node::Boolean=>{return csvJsonCell(value,path,"Bool");},
         Node::Integer(_,_)=>{return csvJsonCell(value,path,"Int");},
         Node::Number=>{return csvJsonCell(value,path,"Int or Float");},
+        Node::Decimal=>{
+            match decimalValue.parse(value) {
+                Err(_)=>{return Err(csvProblem("Decimal",path,"exact Decimal text","Text"));},
+                Ok(_)=>{return Ok(Json::Text(value));}
+            }
+        },
         Node::Array(_,_,_)=>{return csvJsonCell(value,path,"Array");},
         Node::Object(_,_,_)=>{return csvJsonCell(value,path,"Object");}
     }

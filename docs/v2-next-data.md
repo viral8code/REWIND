@@ -10,7 +10,7 @@ JSON/CSV/DB/formに散在するfield検証を共通schemaへ寄せる案です�
 
 必須/任意/NULL/default、整数範囲、正確なDecimal、日時単位、unknown field、重複名、nested pathを規定します。unknown fieldを黙って削除するかどうかは明示policyにします。schema versionとデータversionを分けます。
 
-**実装source：** JSON objectとheader付きCSV rowを同じSchemaで検証できる。CSVのtyped cellは全体をJSON値として読む。Textを暗黙変換せず、NULL sentinelは呼出し側が明示する。**未実装：** DB/form mapping、Decimal/date rule、adapter間の列型変換。
+**実装source：** JSON objectとheader付きCSV rowを同じSchemaで検証できる。CSVのtyped cellは全体をJSON値として読む。Textは暗黙変換せず、Decimalはraw cell/JSON Textを既存Decimal parserで検証する。NULL sentinelは呼出し側が明示する。**未実装：** DB/form mapping、日時rule、adapter間の列型変換。
 
 **受入：** 同じrecordへのJSON/CSV/DB mappingを例示する。NULLと空文字を混同しない。巨大なerror一覧はboundedにする。Secret fieldの実値を診断へ出さない。
 

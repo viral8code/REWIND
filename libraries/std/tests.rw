@@ -1177,6 +1177,7 @@ test fn text_edit_chains_enforce_capacity_without_truncating()->Unit effects {} 
 }
 
 import schema as schema;
+import decimal as exactDecimal;
 import schema.{Unknown as SchemaUnknown,Segment as SchemaSegment};
 
 fn schemaProfile()->schema.Schema effects {} {
@@ -1246,6 +1247,31 @@ test fn schemas_apply_explicit_unknown_policies_and_validate_declarations()->Uni
     match schema.field("bad",integer,true,Some(Json::Int(1))) {Err(e)=>{assert_eq(e.code,"RequiredDefault");},Ok(_)=>{panic("required default");}}
     match schema.text(2,1) {Err(e)=>{assert_eq(e.code,"Range");},Ok(_)=>{panic("invalid text range");}}
     assert_eq(schema.validate(schema.number(),Json::Int(9007199254740993)),Ok(Json::Int(9007199254740993)));
+}
+
+test fn schema_decimal_text_preserves_exact_scale_and_hides_invalid_input()->Unit effects {} {
+    let rule=schema.decimal();
+    let input=Json::Text("9007199254740993.2500");
+    let checked=transformTake(schema.validate(rule,input));
+    assert_eq(checked,input);
+    let amount=transformTake(exactDecimal.fromJson(checked));
+    assert_eq(transformTake(exactDecimal.scale(&amount)),4);
+    assert_eq(transformTake(exactDecimal.representation(&amount)),"9007199254740993.2500");
+    let fields=List<schema.Field>();
+    fields.add(transformTake(schema.field("amount",rule,true,None)));
+    let object=transformTake(schema.object(&fields,SchemaUnknown::Reject));
+    let headers=List<String>();headers.add("amount");
+    let row=List<String>();row.add("9007199254740993.2500");
+    let csvValue=transformTake(schema.csvRow(object,&headers,&row,None));
+    assert_eq(json.get(csvValue,"amount"),Some(input));
+    match schema.validate(rule,Json::Text("private-invalid-decimal")) {
+        Err(e)=>{assert_eq(e.code,"Decimal");assert_eq(e.actual,"Text");assert_eq(e.expected,"exact Decimal text");},
+        Ok(_)=>{panic("invalid decimal text");}
+    }
+    match schema.validate(rule,Json::Int(9007199254740993)) {
+        Err(e)=>{assert_eq(e.code,"Type");assert_eq(e.actual,"Int");},
+        Ok(_)=>{panic("binary numeric value is not exact Decimal text");}
+    }
 }
 
 record SchemaAccount {name:String,age:Int}

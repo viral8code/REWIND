@@ -1,0 +1,15 @@
+import std.schema as schema;
+import std.decimal as decimal;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("Decimal schema operation failed");}
+    }
+}
+
+let decimalRule=schema.decimal();
+let wireValue=Json::Text("9007199254740993.2500");
+let validated=take(schema.validate(decimalRule,wireValue));
+let amount=take(decimal.fromJson(validated));
+Out.println(take(decimal.representation(&amount)));

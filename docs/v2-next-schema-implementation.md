@@ -2,7 +2,7 @@
 
 更新日：2026-10-12。対象：codex/develop。**source実装済み・実行検証省略**。
 
-[DATA-01](v2-next-data.md)のJSON検証、明示mapper、header付きCSV row adapterをstd.schemaへ実装した。既存std.configの入力優先順位とflatな設定検証は維持する。DB/form向けadapter、Decimal・日時向けrule、reflection/deriveは後続の範囲。
+[DATA-01](v2-next-data.md)のJSON検証、明示mapper、header付きCSV row adapterをstd.schemaへ実装した。既存std.configの入力優先順位とflatな設定検証は維持する。DB/form向けadapter、日時rule、reflection/deriveは後続の範囲。
 
 ## Schemaの構築
 
@@ -22,13 +22,21 @@ objectではunknown policyを先に検査し、宣言済みfieldは宣言順、�
 
 一回のvalidateは最大65,536 validation visit。nullable等のrule通過も数えるため、単一arrayの件数上限とは別の制約となる。anyやKeepでそのまま通した未知subtreeの全内容を検証したことにはならない。VMのwork/allocation上限は別に適用する。
 
+## Exact Decimal text rule
+
+`decimal()`は、`Json::Text`を既存`std.decimal.parse`で検査します。成功した値は元のtext表現を保持し、nested object/arrayやdefaultにも同じ検証を適用します。parse failureは値を含まない`ValidationError(code="Decimal", actual="Text")`です。
+
+JSON Numberはこのschemaで受け付けません。既存Json parserがNumberをInt/Floatとして作るときには、任意精度Decimalの元token表現を保持しないためです。wire上で正確さが必要なDecimalはJSON stringとして渡し、検証後に`std.decimal.fromJson`でDecimalへ明示変換します。構文・precision・scaleの上限は既存Decimal parserの規則を使います。schemaは追加の暗黙Float変換をしません。
+
+[decimal schema example](../examples/typed-schema-decimal.rw)。compile/runtime verificationは未実施です。
+
 ## CSV row adapter
 
 `csvRow(schema,&headers,&row,nullToken)`はrootがobjectのschemaに、1行分のヘッダーと値を対応付けます。CSV streamそのものや複数行を保持せず、既存の`std.csvStream.next`が返す`List<String>`を1行ずつ渡せます。
 
 headerは一意で各128 scalar以下、rowはheaderと同じ列数です。列は最大65,536、row全体は最大1,048,576 scalarです。schema field名はMap indexで引くため、headerごとに全schema fieldを走査しません。既定値と必須field、Unknown::Reject/Keep/Dropは通常の`validate`と同じ規則です。
 
-TextとAnyは常にCSV cellをそのまま文字列として扱います。Boolean / Integer / Number / Array / Object fieldはcell全体をJSON値としてparseし、既存schemaで型と範囲を検査します。配列や入れ子objectは1つのCSV cellにJSON表記で格納します。型を推測したり、Textを数値へ暗黙変換したりしません。
+TextとAnyは常にCSV cellをそのまま文字列として扱います。Decimal fieldはraw textをDecimal parserで検証し、JSON Floatへ変換しません。Boolean / Integer / Number / Array / Object fieldはcell全体をJSON値としてparseし、既存schemaで型と範囲を検査します。配列や入れ子objectは1つのCSV cellにJSON表記で格納します。型を推測したり、Textを数値へ暗黙変換したりしません。
 
 `nullToken`はnullable nodeにだけ適用する完全一致文字列です。`None`は暗黙のNULL tokenなし、`Some("NULL")`ならそのcellだけNULLになります。空文字は既定では空のTextです。NULL tokenが空文字ならnullable列で空cellをNULLとして扱います。sentinelの長さは128 scalar以下です。必須fieldの列自体がheaderにない場合はMissingField、headerはあるがrow cellが足りない場合はRowWidthです。
 
