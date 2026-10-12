@@ -6,7 +6,7 @@ record Property {name:String,node:Int,required:Bool,fallback:Option<Json>}
 enum Node {
     Any,Boolean,Integer(Int,Int),Number,Text(Int,Int),
     Nullable(Int),Array(Int,Int,Int),
-    Object(Frozen<List<Property>>,Frozen<Map<String,Bool>>,Unknown)
+    Object(Frozen<List<Property>>,Frozen<Map<String,Int>>,Unknown)
 }
 pub record Schema {private nodes:Frozen<List<Node>>,private root:Int,private depth:Int}
 pub record Field {private name:String,private schema:Schema,private required:Bool,private fallback:Option<Json>}
@@ -40,12 +40,13 @@ fn append(nodes:&mut List<Node>,schema:Schema)->Int effects {} {
         match node {
             Node::Nullable(child)=>{nodes.add(Node::Nullable(child+offset));},
             Node::Array(child,minimum,maximum)=>{nodes.add(Node::Array(child+offset,minimum,maximum));},
-            Node::Object(properties,known,policy)=>{
-                let shifted=List<Property>();
+            Node::Object(properties,_,policy)=>{
+                let shifted=List<Property>();let shiftedKnown=Map<String,Int>();
                 for j in 0..properties.len() {
-                    let p=thaw(properties.get(j));shifted.add(Property(p.name,p.node+offset,p.required,p.fallback));
+                    let p=thaw(properties.get(j));let child=p.node+offset;
+                    shifted.add(Property(p.name,child,p.required,p.fallback));shiftedKnown.set(p.name,child);
                 }
-                nodes.add(Node::Object(freeze(shifted),known,policy));
+                nodes.add(Node::Object(freeze(shifted),freeze(shiftedKnown),policy));
             },
             _=>{nodes.add(node);}
         }
@@ -84,19 +85,19 @@ pub fn field(name:String,schema:Schema,required:Bool,fallback:Option<Json>)->Res
 // @api object Accepts at most 128 distinct fields, 1024 total schema nodes and depth 32. Unknown-field policy is explicit.
 pub fn object(fields:&List<Field>,policy:Unknown)->Result<Schema,SchemaError> effects {} {
     if fields.len()>128 {return Err(SchemaError("FieldLimit",""));}
-    let known=Map<String,Bool>();var count=1;var depth=1;
+    let names=Map<String,Bool>();var count=1;var depth=1;
     for i in 0..fields.len() {
         let field=fields.get(i);
-        match known.get(field.name) {Some(_)=>{return Err(SchemaError("DuplicateField",field.name));},None=>{}}
-        known.set(field.name,true);count+=field.schema.nodes.len();
+        match names.get(field.name) {Some(_)=>{return Err(SchemaError("DuplicateField",field.name));},None=>{}}
+        names.set(field.name,true);count+=field.schema.nodes.len();
         if field.schema.depth+1>depth {depth=field.schema.depth+1;}
     }
     if count>1024 {return Err(SchemaError("NodeLimit",""));}
     if depth>32 {return Err(SchemaError("DepthLimit",""));}
-    let nodes=List<Node>();let properties=List<Property>();
+    let nodes=List<Node>();let properties=List<Property>();let known=Map<String,Int>();
     for i in 0..fields.len() {
         let field=fields.get(i);let child=append(&mut nodes,field.schema);
-        properties.add(Property(field.name,child,field.required,field.fallback));
+        properties.add(Property(field.name,child,field.required,field.fallback));known.set(field.name,child);
     }
     let root=nodes.len();nodes.add(Node::Object(freeze(properties),freeze(known),policy));
     return Ok(Schema(freeze(nodes),root,depth));
@@ -197,6 +198,72 @@ pub fn validate(schema:Schema,value:Json)->Result<Json,ValidationError> effects 
     let path=List<Segment>();let budget=Budget(65536);
     return visit(schema,schema.root,value,freeze(path),&mut budget);
 }
+fn csvProblem(code:String,path:Frozen<List<Segment>>,expected:String,actual:String)->ValidationError effects {} {
+    return ValidationError(code,path,expected,actual);
+}
+fn csvJsonCell(value:String,path:Frozen<List<Segment>>,expected:String)->Result<Json,ValidationError> effects {} {
+    match jsonParse(value) {
+        Ok(parsed)=>{return Ok(parsed);},
+        Err(_)=>{return Err(csvProblem("CsvCell",path,expected,"Text"));}
+    }
+}
+fn csvCell(schema:Schema,nodeIndex:Int,value:String,path:Frozen<List<Segment>>,nullToken:&Option<String>)->Result<Json,ValidationError> effects {} {
+    match thaw(schema.nodes.get(nodeIndex)) {
+        Node::Any=>{return Ok(Json::Text(value));},
+        Node::Text(_,_)=>{return Ok(Json::Text(value));},
+        Node::Nullable(child)=>{
+            match nullToken {
+                Some(token)=>{if token==&value {return Ok(Json::Null);}},
+                None=>{}
+            }
+            return csvCell(schema,child,value,path,nullToken);
+        },
+        Node::Boolean=>{return csvJsonCell(value,path,"Bool");},
+        Node::Integer(_,_)=>{return csvJsonCell(value,path,"Int");},
+        Node::Number=>{return csvJsonCell(value,path,"Int or Float");},
+        Node::Array(_,_,_)=>{return csvJsonCell(value,path,"Array");},
+        Node::Object(_,_,_)=>{return csvJsonCell(value,path,"Object");}
+    }
+}
+
+// @api csvRow Converts one header/value row for an object schema. Text stays text; typed cells use JSON syntax. nullToken is exact and only applies through nullable nodes.
+pub fn csvRow(schema:Schema,headers:&List<String>,row:&List<String>,nullToken:Option<String>)->Result<Json,ValidationError> effects {} {
+    if headers.len()>65536 {return Err(csvProblem("ColumnLimit",freeze(List<Segment>()),"<=65536 columns","HeaderLimit"));}
+    if headers.len()!=row.len() {return Err(csvProblem("RowWidth",freeze(List<Segment>()),"row matching header width","Mismatch"));}
+    let (known,policy)=match thaw(schema.nodes.get(schema.root)) {
+        Node::Object(_,known,policy)=>{(known,policy)},
+        _=>{return Err(csvProblem("RootSchema",freeze(List<Segment>()),"object schema","Other"));}
+    };
+    let names=Map<String,Bool>();let values=Map<String,Json>();var total=0;
+    for i in 0..headers.len() {
+        let name=headers.get(i);let nameLength=stdTextLength(name);
+        if nameLength>128 {return Err(csvProblem("HeaderLength",freeze(List<Segment>()),"header <=128 scalars","Text"));}
+        match names.get(name) {
+            Some(_)=>{return Err(csvProblem("DuplicateHeader",freeze(List<Segment>()),"unique headers","Duplicate"));},
+            None=>{names.set(name,true);}
+        }
+        let value=row.get(i);let length=stdTextLength(value);
+        if length>1048576-total {return Err(csvProblem("RowLimit",freeze(List<Segment>()),"row <=1048576 scalars","Text"));}
+        total+=length;
+        match known.get(name) {
+            Some(nodeIndex)=>{
+                let path=List<Segment>();path.add(Segment::Field(name));
+                let converted=csvCell(schema,nodeIndex,value,freeze(path),&nullToken)?;
+                values.set(headers.get(i),converted);
+            },
+            None=>{
+                match policy {
+                    Unknown::Drop=>{},
+                    Unknown::Keep=>{values.set(name,Json::Text(value));},
+                    Unknown::Reject=>{values.set(name,Json::Text(value));}
+                }
+            }
+        }
+    }
+    let path=List<Segment>();let budget=Budget(65536);
+    return visit(schema,schema.root,Json::Object(freeze(values)),freeze(path),&mut budget);
+}
+
 pub fn mapped<T:Share,E:Share>(schema:Schema,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Decoder<T,E> effects {} {
     return Decoder<T,E>(schema,convert);
 }
