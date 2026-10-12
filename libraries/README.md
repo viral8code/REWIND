@@ -2,7 +2,7 @@
 
 ## codex/developで追加中のmodule
 
-[構想から実装した機能](../docs/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMap、textIndex、lens、persistentSet、textEditのsourceとtestを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
+[構想から実装した機能](../docs/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMap、textIndex、lens、persistentSet、textEdit、schema、memo、lazyのsourceとtestを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
 
 | module | 公開API | 契約 |
 |---|---|---|
@@ -12,11 +12,15 @@
 | changes | ChangeSet, diff, inverse, apply, compose, merge, previewRebase | String key Map、明示等値、衝突検査、変更列の段階snapshot |
 | historyGraph | add, setHead, pin, previewPrune, prune, ancestors, mergeBases, path, matching | 有限DAG、親関係を保つ明示整理、複数merge base、通常VM model |
 | parser | literal, satisfy, map, pair, orElse, cut, repeat, lookAhead, verify, andThen, spanned, chainLeft/Right | finite Bytes、原文範囲、pure callback、結合方向と上限 |
-| orderedMap | create, put, get, remove, keys, values, entries, clear | 挿入順、既存key更新は位置保持、再挿入は末尾 |
+| orderedMap | create, put, get, remove, first/last, popFirst/Last, touch, keys, clear | 挿入順、既存key更新は位置保持、再挿入は末尾 |
 | textIndex | Source, ByteOffset, ScalarIndex, GraphemeIndex, create, byteAt/scalarAt/graphemeAt, sliceBytes/Scalars/Graphemes | 原文と境界表の保持、明示的な位置変換、別原文の範囲を拒否 |
 | lens | create, get, set, modify, compose, optional, plan, apply, inverse, checkLaws | Share値のtyped path、検査付き更新、欠損保持、有限例の法則確認 |
 | persistentSet | create, root, same, size, components, unite, uniteMany | 複数の不変版、union-by-size、既存native配列の共有page |
 | textEdit | replace, mapByte/Scalar/Grapheme, inverse, chain, mapChainByte/Scalar/Grapheme, inverseChain | 原文保持、編集位置の明示policy、boundedな編集列と失敗step |
+| schema | integer, text, nullable, array, field, object, validate, mapped, decode | 入れ子JSON、missing/NULL/defaultの区別、unknown policy、実値を含めない検証error |
+| memo | key, create, get, peek, put, resolve, invalidate, clear | 版付きkey、LRU、件数/重み上限、pureな結果とErrの保持 |
+| lazy | create, isForced, peek, force, fork, clear | 明示的な遅延計算、成功snapshot、回復可能なErr、可変ownerの独立fork |
+
 
 
 

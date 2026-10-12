@@ -1,6 +1,6 @@
 # v2.1以降：作業状態と再開手順
 
-更新日：2026-10-12。構想から実装へ移行。snapshot/historyに加え9つの標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
+更新日：2026-10-12。構想から実装へ移行。snapshot/historyに加え12の標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
 
 ## この作業で守る指示
 
@@ -41,6 +41,13 @@
 | 64f4096 | native共有pageによる永続union-find |
 | cb7c13d | 原文を保つ文字置換・旧新位置mapping・逆編集 |
 | 3c47bbe | 編集列の合成・失敗step・最終境界・逆順mapping |
+| 565dc88 | lens/永続集合/文字編集の利用例と再開状態 |
+| 3702363 | JSON schema・default/NULL/unknown policy・型付きdecoder |
+| 1fba5f7 | schemaの受入sourceと利用例 |
+| 32e98c6 | orderedMapの両端操作・touch |
+| 9a2c2a9 | 版付きkey・weight付きLRU・pure Errのcache |
+| 9294848 | 明示的な遅延値・成功snapshot・Err保持・独立fork |
+
 
 これらのtest sourceは実行していません。旧い「まず環境で検証する」という記録は、実行検証省略を許可した今回の方針で更新されています。将来検証するときのcommandとcaseは残します。
 
@@ -63,6 +70,18 @@ std.lens、std.persistentSet、std.textEditを実装した。lensはShare値とp
 追加したstd test sourceは12件。typed-lens、persistent-union-find、text-edit-mapping、text-edit-chainに利用例を保存した。compile・実行・Windows・API生成・GC/性能測定は引き続き省略。括弧対応と関数名重複の機械的なsource確認を行ったが、compiler検証の代わりには数えない。
 
 GitHubの差分とrefで保存を確認した。mainは同じ5f5ab8f37c4d21f8746b2d1db077946809e3be42、developのActions最新実行は以前の2026-10-10のまま。今回のcommitはすべて[skip ci]を付け、公開CI/CD・main統合・Release・版更新は行っていない。
+
+## 2026-10-12のschema・cache追加分
+
+DATA-01のJSON部分をstd.schemaへ追加した。入れ子object/array、型と範囲、default、明示NULL、unknown policy、typed pathを扱う。Schemaはdataとして保持でき、Decoderは明示mapperと失敗段階を持つ。CSV/DB/formへの共通adapterやderiveは未実装の範囲として残す。
+
+VCACHE-02/03/04/06/12の基本部分をstd.memoへ実装した。domain/code revision/inputを分けたkeyで複数版を保持し、entry数とcaller指定weightでLRU evictionする。weightを実測memoryと呼ばない。orderedMapへfirst/last/popFirst/popLast/touchを追加し、単一evictionで全keyを列挙する処理を避けた。
+
+VCACHE-07/06の遅延値をstd.lazyへ実装した。peekは計算せず、forceで成功snapshotまたは回復可能なErrを保持する。Sendな可変ownerの結果も独立forkへ渡せる。memo/lazyは通常のVM stateであり、hyper領域や外部I/Oのcacheではない。
+
+追加したstd test sourceは13件。typed-schema、versioned-cache、lazy-snapshotに利用例を保存した。compile・実行・API生成・Windows・GC/性能測定は省略。sourceの括弧対応と同名関数の重複を確認したが、実行検証に数えない。
+
+保存先はcodex/developのみで、すべて[skip ci]付き。確認時点のmainは5f5ab8f37c4d21f8746b2d1db077946809e3be42のまま。Actions最新実行も2026-10-10の既存commitから増えていない。
 
 ## 最初の実装単位
 

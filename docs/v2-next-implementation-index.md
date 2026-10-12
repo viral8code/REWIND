@@ -22,7 +22,7 @@
 | generic Frozenの型判定 | T:SendからFrozen<T>のShareを導出し、呼出し・recordへ伝播 | 上記libraryの前提修正 | [記録](v2-next-frozen-bounds-implementation.md) |
 | 入れ子Frozenのruntime修正 | 明示freezeの一段追加と、thaw時の内側Frozen保持 | snapshot/ChangeSetの合成を支える修正 | [記録](v2-next-nested-frozen-implementation.md) |
 
-追加した12 moduleは合計191のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
+snapshot/historyの後に追加した12 moduleは合計191のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
 
 ## 読む資料
 
