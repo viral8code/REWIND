@@ -37,7 +37,7 @@ pub fn createWithRules(fields:&List<Field>,rules:&List<Relation>,visibleRows:Int
  for i in 0..rules.len(){match rules.get(i){
   Relation::Equal(left,right)=>{if left==right{return Err(StdError("GuiFormRuleSchema",i));}let li=index(&form,left)?;let ri=index(&form,right)?;if !relationEqualCompatible(form.entries.get(li).field.kind,form.entries.get(ri).field.kind){return Err(StdError("GuiFormRuleKind",i));}copied.add(Relation::Equal(left,right));},
   Relation::IntLessEqual(left,right)=>{if left==right{return Err(StdError("GuiFormRuleSchema",i));}let li=index(&form,left)?;let ri=index(&form,right)?;var leftInt=false;var rightInt=false;match form.entries.get(li).field.kind{Kind::Integer(_,_)=>{leftInt=true;},_=>{}}match form.entries.get(ri).field.kind{Kind::Integer(_,_)=>{rightInt=true;},_=>{}}if !leftInt || !rightInt{return Err(StdError("GuiFormRuleKind",i));}copied.add(Relation::IntLessEqual(left,right));},
-  Relation::RequiredWhenChecked(target,checkbox)=>{if target==checkbox{return Err(StdError("GuiFormRuleSchema",i));}let ti=index(&form,target)?;let ci=index(&form,checkbox)?;var isCheck=false;match form.entries.get(ci).field.kind{Kind::Check=>{isCheck=true;},_=>{}}if !isCheck{return Err(StdError("GuiFormRuleKind",i));}let _=ti;copied.add(Relation::RequiredWhenChecked(target,checkbox));}
+  Relation::RequiredWhenChecked(target,checkbox)=>{if target==checkbox{return Err(StdError("GuiFormRuleSchema",i));}index(&form,target)?;let ci=index(&form,checkbox)?;var isCheck=false;match form.entries.get(ci).field.kind{Kind::Check=>{isCheck=true;},_=>{}}if !isCheck{return Err(StdError("GuiFormRuleKind",i));}copied.add(Relation::RequiredWhenChecked(target,checkbox));}
  }}
  form.rules=move copied;return Ok(move form);
 }
