@@ -161,7 +161,8 @@ fn splitWeighted(bounds:Rect,weights:&List<Int>,gap:Int,horizontal:Bool)->Result
   if weight<1 || weight>1000000{return Err(StdError("GuiLayoutWeight",0));}
   totalWeight+=weight;
  }
- let availableAxis=if horizontal {bounds.width} else {bounds.height};
+ var availableAxis=bounds.width;
+ if !horizontal{availableAxis=bounds.height;}
  let gapTotal=(count-1)*gap;
  if gapTotal>availableAxis{return Err(StdError("GuiLayoutInsufficientSpace",0));}
  let available=availableAxis-gapTotal;

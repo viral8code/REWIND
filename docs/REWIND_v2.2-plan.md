@@ -18,7 +18,7 @@
 
 ## GUI-01：構成可能なlayout
 
-既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** `gui.splitRow` / `splitColumn`が最大256個の正のweightから、gapを除いた整数pixel領域をflatな子Rectへ分割します。剰余pixelはrowなら左から、columnなら上から配り、入力は変更しません。[例](../examples/gui-layout.rw)。
+既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** `gui.splitRow` / `splitColumn`が最大256個の1..1,000,000のweightと0..4096 pixelのgapから、4096 pixel以内の領域をflatな子Rectへ分割します。剰余pixelはrowなら左から、columnなら上から配り、入力は変更しません。[例](../examples/gui-layout.rw)。
 
 次はrow、column、grid、overlayを入れ子にして、親の領域から子の`Rect`を計算するpureなlayout modelを検討します。現実装にpadding、fixed/min/max寸法、nested node・stable ID、Viewへのatomic適用、resize/focus維持はありません。
 
