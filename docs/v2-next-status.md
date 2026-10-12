@@ -309,7 +309,7 @@ DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP s
 
 `applyLayout`はboundedなwork queueでnodeを走査し、全leaf ID・重複・Rect・View boundsを確認してからgeometryを更新します。失敗時にViewは変更せず、widgetのcaption・selection・focus indexは維持します。[利用例](../examples/gui-layout.rw)。実装は[1118325](https://github.com/viral8code/REWIND/commit/1118325534ca61a338bee1a72249e1f0fe0b0eed)です。
 
-overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置は未実装です。compile/runtime/API再生成、Linux/Windows native GUI確認は未実施です。
+overlay nodeとpaddingは実装済みです。cross-axis constraints、自然寸法測定、resize eventへの自動再配置は未実装です。compile/runtime/API再生成、Linux/Windows native GUI確認は未実施です。
 
 
 ## 2026-10-12のGUI-03 table staged-edit overlay
@@ -375,3 +375,11 @@ compile、実行、API再生成、native GUI確認はしていない。commitの
 [利用例](../examples/gui-layout-overlay.rw)を追加し、GUI reference、API manifest、v2.2計画、実装indexを更新した。実装commitは`143ed9ef76a61992a729769ee76fad4ea1bda288`。
 
 コンパイル・REWINDテスト・API再生成・native GUIは環境起動失敗のため未確認。source brace balanceと公開function/API symbolの数・名前の一致のみを確認した。codex/developだけへ`[skip ci]`付きで保存し、公開CI/CD、main統合、Release、版更新は行っていない。
+
+## 2026-10-12のGUI-01 padding layout node
+
+`std.gui.padded(layout,left,top,right,bottom)`は四辺0..4096 pixelのinsetを受け取り、inner Rectへchild layoutを配置するnodeを作ります。構築時にtree node数と深さを検査し、適用時はinner width・heightにそれぞれ1 pixel以上を要求します。領域不足やID/bounds検証失敗ではViewを部分更新しません。layout depthはchildから引き継いで上限を判定します。
+
+[利用例](../examples/gui-layout-padding.rw)、GUI reference、API manifest、v2.2計画、実装indexを更新しました。実装commitは[f72411b](https://github.com/viral8code/REWIND/commit/f72411b7247c316d30c3a2f50cc5783a695665f0)。
+
+環境の起動失敗によりコンパイル・実行・API再生成・native GUI確認は未実施です。sourceのbrace balance、公開function/API symbol数、API JSON parse、padding depthの静的確認のみを行いました。codex/developだけへ`[skip ci]`付きでcommit/pushし、公開CI/CD、main統合、Release、版更新は行っていません。
