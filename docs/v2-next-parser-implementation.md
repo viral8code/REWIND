@@ -1,6 +1,6 @@
 # byte parser combinatorの実装記録
 
-更新日：2026-10-11。状態：**source実装済み・実行検証省略**。
+更新日：2026-10-12。状態：**source実装済み・実行検証省略**。
 
 [parser構想](visions/46-parser-construction.md)のVPARSE-01/02/03から、有限入力の合成、期待集合、cutをstd.parserとして実装する。grammar generator、左再帰、stream追加待ち、incremental parse、parse forest、error recoveryは含めない。
 
@@ -28,6 +28,26 @@ cutは「このgrammarを選んだ」という意味であり、言語のcommit/
 
 T:Shareに加えてrepeatの結果は既存freezeに従う。関数等のfreezeできない値をrepeatの収集結果に使うと、既存の型・実行時制約に従って拒否される。任意Share値がserialize可能になるわけではない。
 
+## 先読み・値検査・原文範囲（2026-10-12）
+
+lookAheadは成功値を返してcursorを元に戻す。notFollowedByは通常不一致なら消費せず成功し、成功した場合は呼出位置でMismatchとする。どちらもcut付き失敗は伝播する。消費しない成功をrepeat/chainへ渡す場合もprogress検査を通す。
+
+verifyは解析値をpure predicateへ渡し、falseなら読み終えたbyte位置でMismatchを返す。andThenは成功値に応じて次のParserを選び、同じ入力の続きから実行する。利用者へCursorのconstructorを公開せず、callbackから別入力のcursorを差し込まない。callbackの再帰やpanicを自動的に安全化する機能ではない。
+
+spannedは値とSpanを返す。Spanはprivateな原文Bytesと半開区間を持ち、spanStart/spanEnd/spanBytesで参照する。部分parserの開始位置を保持するため、先頭以外にあるtokenの原文も取得できる。元のBytes変数を変更しても意味は変わらない。Spanを一個保持すると原文全体も保持する。必要なbyteだけを残したい場合はspanBytesの結果を取り出してSpanを解放する。
+
+原文範囲の保持はVPARSE-07の前提となる部分であり、lossless tree、commentの付け替え、増分parseを実装した意味ではない。
+
+## 演算子の結合（2026-10-12）
+
+binary(token,description,combine)はpure Send+Shareな二項関数を持つBinaryOperator<T>のParserを作る。chainLeft(term,operator,maximum)とchainRight(...)はterm (operator term)*を解析し、左結合／右結合で値を組み立てる。factoryは0〜65,535のmaximumを検査する。
+
+左結合は累積値だけを保持し、右結合はoperand/operatorを一時Listへ置いて末尾からloopで評価する。右結合の長さに比例した関数再帰を避ける。maximumは各chainの呼出し単位で、grammar全体の総演算子数の制限ではない。右側operandと合わせてもcursorが進まなければNonProgress。maximum到達後はprobeしないので、追加operatorが残る場合はcompleteがTrailingInputとする。
+
+operatorの通常不一致はchainの終わりとなる。operatorが成功した後のterm失敗はそのまま失敗とし、欠けたoperandを黙って読み飛ばさない。cut失敗も伝播する。callbackのpanic、overflow、VM budget failureをgrammar不一致へ変えない。
+
+掛算のchainをtermとして足算のchainへ渡すと優先順位を表せる。[演算式の例](../examples/parser-expression.rw)を参照。VPARSE-05の結合・優先順位の基本部分であり、operator tableの自動生成、prefix/postfix、non-associativeの宣言、曖昧なtoken prefixの自動解決は含めない。同じprefixのoperatorはliteralのchoice順を利用者が明示する。
+
 ## 費用と境界
 
 literalは期待byte列のprefixを順に検査する。offset計算から毎回Unicode先頭scanをする方式は使わない。合成したgrammarのbacktrack回数やnative byte操作は既存VM予算へ課金される。packrat cache、左再帰停止、無制限grammar再帰の保証は追加しない。
@@ -37,5 +57,7 @@ literalは期待byte列のprefixを順に検査する。offset計算から毎回
 ## 確認用source
 
 libraries/std/tests.rwにchoice成功、同位置の期待集合、byte位置、trailing input、cut、optional、repeatの最小・最大とzero progressを追加した。実行はユーザー方針により省略。
+
+追加拡張に5 test sourceを用意した。先読みのcursor、cut、原文保持、条件検査の失敗位置、値依存のgrammar、左/右結合、優先順位、欠落operand、上限とzero progressを扱う。実行は省略。
 
 SDK/standaloneの標準module登録へ追加する。公開CI/CD、main統合、Release、版更新は行わない。

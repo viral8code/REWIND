@@ -1,6 +1,6 @@
 # parserをlibraryとして組み立てる
 
-2026-10-11の実装状況：VPARSE-01/02/03の有限byte入力の基本部分をstd.parserへ具体化しました。 sourceを保存済みで、実行検証は省略しています。[実装一覧](../v2-next-implementation-index.md)。以下の構想全体が完了した意味ではありません。
+2026-10-12の実装状況：VPARSE-01/02/03の有限byte入力、05の左右結合・優先順位合成、07の原文範囲保持をstd.parserへ具体化しました。operator tableの自動生成やlossless tree全体は含みません。 sourceを保存済みで、実行検証は省略しています。[実装一覧](../v2-next-implementation-index.md)。以下の構想全体が完了した意味ではありません。
 
 探索するparserのsketchを、grammar、error recovery、編集時の再parseへ広げる。generatorだけでなく、通常のREWIND codeから合成する方式も考える。
 

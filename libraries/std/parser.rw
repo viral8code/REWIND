@@ -168,3 +168,135 @@ pub fn repeat<T:Share>(parser:Parser<T>,minimum:Int,maximum:Int)->Result<Parser<
         return Ok(Parsed<Frozen<List<T>>>(freeze(values),next));
     }));
 }
+
+pub record Span {private input:Bytes,private start:Int,private end:Int}
+pub record Spanned<T:Share> {value:T,span:Span}
+pub record BinaryOperator<T:Share> {apply:fn(T,T)->T effects {} captures {Send,Share}}
+
+pub fn spanStart(span:Span)->Int effects {} {return span.start;}
+pub fn spanEnd(span:Span)->Int effects {} {return span.end;}
+pub fn spanBytes(span:Span)->Bytes effects {} {
+    match stdBytesSlice(span.input,span.start,span.end) {Ok(value)=>{return value;},Err(_)=>{panic("parser span invariant");}}
+}
+// @api spanned Keeps the exact original byte range of a successful parser. The span owns its input bytes.
+pub fn spanned<T:Share>(parser:Parser<T>)->Parser<Spanned<T>> effects {} {
+    let action=parser.action;
+    return Parser<Spanned<T>>(|cursor:Cursor|->Result<Parsed<Spanned<T>>,ParseError>{
+        match action(cursor) {
+            Err(problem)=>{return Err(problem);},
+            Ok(result)=>{return Ok(Parsed<Spanned<T>>(Spanned<T>(result.value,Span(cursor.input,cursor.offset,result.next.offset)),result.next));}
+        }
+    });
+}
+
+// @api lookAhead Preserves the input cursor on success; failures, including cut, propagate unchanged.
+pub fn lookAhead<T:Share>(parser:Parser<T>)->Parser<T> effects {} {
+    let action=parser.action;
+    return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
+        match action(cursor) {Ok(result)=>{return Ok(Parsed<T>(result.value,cursor));},Err(problem)=>{return Err(problem);}}
+    });
+}
+// @api notFollowedBy Succeeds without consumption on ordinary mismatch; cut failures still propagate.
+pub fn notFollowedBy<T:Share>(parser:Parser<T>,description:String)->Parser<Unit> effects {} {
+    let action=parser.action;
+    return Parser<Unit>(|cursor:Cursor|->Result<Parsed<Unit>,ParseError>{
+        match action(cursor) {
+            Ok(_)=>{return Err(error("Mismatch",cursor.offset,description,false));},
+            Err(problem)=>{if problem.committed {return Err(problem);}return Ok(Parsed<Unit>((),cursor));}
+        }
+    });
+}
+
+// @api verify Checks a parsed value with a pure predicate; rejection is an ordinary mismatch at the end of the parsed value.
+pub fn verify<T:Share>(parser:Parser<T>,description:String,predicate:fn(T)->Bool effects {} captures {Send,Share})->Parser<T> effects {} {
+    let action=parser.action;
+    return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
+        match action(cursor) {
+            Err(problem)=>{return Err(problem);},
+            Ok(result)=>{
+                if !predicate(result.value) {return Err(error("Mismatch",result.next.offset,description,false));}
+                return Ok(result);
+            }
+        }
+    });
+}
+
+// @api andThen Chooses the next parser from a parsed value; private cursors prevent the callback from switching input ownership.
+pub fn andThen<T:Share,U:Share>(parser:Parser<T>,choose:fn(T)->Parser<U> effects {} captures {Send,Share})->Parser<U> effects {} {
+    let action=parser.action;
+    return Parser<U>(|cursor:Cursor|->Result<Parsed<U>,ParseError>{
+        match action(cursor) {
+            Err(problem)=>{return Err(problem);},
+            Ok(result)=>{let next=choose(result.value);let run=next.action;return run(result.next);}
+        }
+    });
+}
+
+pub fn binary<T:Share>(token:Bytes,description:String,combine:fn(T,T)->T effects {} captures {Send,Share})->Parser<BinaryOperator<T>> effects {} {
+    return map(literal(token,description),|value:Bytes|->BinaryOperator<T>{return BinaryOperator<T>(combine);});
+}
+
+// @api chainLeft Parses term (operator term)* with left association; stops at maximum without probing another operator.
+pub fn chainLeft<T:Share>(term:Parser<T>,operator:Parser<BinaryOperator<T>>,maximum:Int)->Result<Parser<T>,ParseError> effects {} {
+    if maximum<0 || maximum>65535 {return Err(error("InvalidBounds",0,"0 <= maximum <= 65535",true));}
+    let item=term.action;let operation=operator.action;
+    return Ok(Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
+        match item(cursor) {
+            Err(problem)=>{return Err(problem);},
+            Ok(first)=>{
+                var value=first.value;var next=first.next;var count=0;
+                while count<maximum {
+                    match operation(next) {
+                        Err(problem)=>{if problem.committed {return Err(problem);}return Ok(Parsed<T>(value,next));},
+                        Ok(op)=>{
+                            match item(op.next) {
+                                Err(problem)=>{return Err(problem);},
+                                Ok(right)=>{
+                                    if right.next.offset<=next.offset {return Err(error("NonProgress",next.offset,"consuming operator and term",true));}
+                                    let combine=op.value.apply;value=combine(value,right.value);
+                                    next=right.next;count+=1;
+                                }
+                            }
+                        }
+                    }
+                }
+                return Ok(Parsed<T>(value,next));
+            }
+        }
+    }));
+}
+
+// @api chainRight Collects at most maximum operators then folds right iteratively, avoiding recursion proportional to input length.
+pub fn chainRight<T:Share>(term:Parser<T>,operator:Parser<BinaryOperator<T>>,maximum:Int)->Result<Parser<T>,ParseError> effects {} {
+    if maximum<0 || maximum>65535 {return Err(error("InvalidBounds",0,"0 <= maximum <= 65535",true));}
+    let item=term.action;let operation=operator.action;
+    return Ok(Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
+        match item(cursor) {
+            Err(problem)=>{return Err(problem);},
+            Ok(first)=>{
+                let values=List<T>();let operators=List<BinaryOperator<T>>();
+                values.add(first.value);var next=first.next;var done=false;
+                while operators.len()<maximum && !done {
+                    match operation(next) {
+                        Err(problem)=>{if problem.committed {return Err(problem);}done=true;},
+                        Ok(op)=>{
+                            match item(op.next) {
+                                Err(problem)=>{return Err(problem);},
+                                Ok(right)=>{
+                                    if right.next.offset<=next.offset {return Err(error("NonProgress",next.offset,"consuming operator and term",true));}
+                                    operators.add(op.value);values.add(right.value);next=right.next;
+                                }
+                            }
+                        }
+                    }
+                }
+                var value=values.get(values.len()-1);var index=operators.len()-1;
+                while index>=0 {
+                    let op=operators.get(index);let combine=op.apply;
+                    value=combine(values.get(index),value);index-=1;
+                }
+                return Ok(Parsed<T>(value,next));
+            }
+        }
+    }));
+}

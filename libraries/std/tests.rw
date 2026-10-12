@@ -827,3 +827,73 @@ test fn text_indices_retain_original_source_and_reject_mixed_text()->Unit effect
     assert_eq(textIndex.scalarValue(transformTake(textIndex.byteToScalar(zero))),0);
     assert_eq(textIndex.graphemeValue(transformTake(textIndex.byteToGrapheme(zero))),0);
 }
+
+test fn parser_lookahead_and_negative_lookahead_preserve_input()->Unit effects {} {
+    let letter=parser.literal(Bytes("a"),"a");
+    let pair=parser.pair(parser.lookAhead(letter),letter);
+    match parser.complete(pair,Bytes("a")) {Ok(value)=>{assert_eq(value.0,Bytes("a"));assert_eq(value.1,Bytes("a"));},Err(_)=>{panic("lookahead consumed input");}}
+    let digit=parser.satisfy("digit",|v:Int|->Bool{return v>=48 && v<=57;});
+    let keyword=parser.pair(letter,parser.notFollowedBy(digit,"non-digit"));
+    match parser.parse(keyword,Bytes("ax")) {Ok(value)=>{assert_eq(parser.position(value.next),1);},Err(_)=>{panic("negative lookahead");}}
+    match parser.parse(keyword,Bytes("a1")) {Err(e)=>{assert_eq(e.offset,1);},Ok(_)=>{panic("forbidden suffix");}}
+    match parser.parse(parser.notFollowedBy(parser.cut(letter),"not a"),Bytes("b")) {Err(e)=>{assert(e.committed);},Ok(_)=>{panic("cut swallowed");}}
+}
+
+test fn parser_spans_keep_original_bytes_and_verify_reports_value_end()->Unit effects {} {
+    var input=Bytes("日本!");
+    let word=parser.spanned(parser.literal(Bytes("日本"),"word"));
+    let parsed=transformTake(parser.parse(word,input));
+    input=Bytes("changed");
+    assert_eq(parser.spanStart(parsed.value.span),0);assert_eq(parser.spanEnd(parsed.value.span),6);
+    assert_eq(parser.spanBytes(parsed.value.span),Bytes("日本"));
+    assert_eq(parsed.value.value,Bytes("日本"));
+    let offset=parser.pair(parser.literal(Bytes("!"),"prefix"),word);
+    let nested=transformTake(parser.complete(offset,Bytes("!日本")));
+    assert_eq(parser.spanStart(nested.1.span),1);assert_eq(parser.spanEnd(nested.1.span),7);
+    let even=parser.verify(parser.satisfy("digit",|v:Int|->Bool{return v>=48 && v<=57;}),"even",|v:Int|->Bool{return (v-48)%2==0;});
+    match parser.complete(even,Bytes("3")) {Err(e)=>{assert_eq(e.offset,1);assert_eq(e.expected.get(0),"even");},Ok(_)=>{panic("predicate ignored");}}
+    assert_eq(parser.complete(even,Bytes("2")),Ok(50));
+}
+
+test fn parser_value_dependent_choice_uses_the_same_cursor()->Unit effects {} {
+    let tag=parser.satisfy("tag",|v:Int|->Bool{return v==65 || v==66;});
+    let tagged=parser.andThen(tag,|v:Int|->parser.Parser<Bytes>{
+        if v==65 {return parser.literal(Bytes("one"),"one");}
+        return parser.literal(Bytes("two"),"two");
+    });
+    assert_eq(parser.complete(tagged,Bytes("Aone")),Ok(Bytes("one")));
+    assert_eq(parser.complete(tagged,Bytes("Btwo")),Ok(Bytes("two")));
+    match parser.complete(tagged,Bytes("Atwo")) {Err(e)=>{assert_eq(e.offset,1);},Ok(_)=>{panic("wrong dependent branch");}}
+}
+
+test fn parser_operator_chains_preserve_association_and_precedence()->Unit effects {} {
+    let digit=parser.map(parser.satisfy("digit",|v:Int|->Bool{return v>=48 && v<=57;}),|v:Int|->Int{return v-48;});
+    let minus=parser.binary(Bytes("-"),"minus",|a:Int,b:Int|->Int{return a-b;});
+    let left=transformTake(parser.chainLeft(digit,minus,8));
+    let right=transformTake(parser.chainRight(digit,minus,8));
+    assert_eq(parser.complete(left,Bytes("9-3-1")),Ok(5));
+    assert_eq(parser.complete(right,Bytes("9-3-1")),Ok(7));
+    let times=parser.binary(Bytes("*"),"times",|a:Int,b:Int|->Int{return a*b;});
+    let plus=parser.binary(Bytes("+"),"plus",|a:Int,b:Int|->Int{return a+b;});
+    let products=transformTake(parser.chainLeft(digit,times,8));
+    let sums=transformTake(parser.chainLeft(products,plus,8));
+    assert_eq(parser.complete(sums,Bytes("2+3*4")),Ok(14));
+    match parser.complete(sums,Bytes("2+")) {Err(e)=>{assert_eq(e.offset,2);},Ok(_)=>{panic("missing operand");}}
+    let one=transformTake(parser.chainLeft(digit,plus,1));
+    match parser.complete(one,Bytes("1+2+3")) {Err(e)=>{assert_eq(e.code,"TrailingInput");assert_eq(e.offset,3);},Ok(_)=>{panic("operator bound");}}
+}
+
+test fn parser_operator_chains_reject_nonprogress_and_propagate_cut()->Unit effects {} {
+    let pure=parserPure<Int>(1);
+    let empty=parser.binary(Bytes(""),"empty",|a:Int,b:Int|->Int{return a+b;});
+    let left=transformTake(parser.chainLeft(pure,empty,1));
+    let right=transformTake(parser.chainRight(pure,empty,1));
+    match parser.complete(left,Bytes("")) {Err(e)=>{assert_eq(e.code,"NonProgress");},Ok(_)=>{panic("left nonprogress");}}
+    match parser.complete(right,Bytes("")) {Err(e)=>{assert_eq(e.code,"NonProgress");},Ok(_)=>{panic("right nonprogress");}}
+    let zero=transformTake(parser.chainRight(pure,empty,0));
+    assert_eq(parser.complete(zero,Bytes("")),Ok(1));
+    let plus=parser.cut(parser.binary(Bytes("+"),"plus",|a:Int,b:Int|->Int{return a+b;}));
+    let chain=transformTake(parser.chainLeft(pure,plus,1));
+    match parser.complete(chain,Bytes("")) {Err(e)=>{assert(e.committed);},Ok(_)=>{panic("operator cut");}}
+    match parser.chainRight(pure,empty,65536) {Err(e)=>{assert_eq(e.code,"InvalidBounds");},Ok(_)=>{panic("operator limit");}}
+}

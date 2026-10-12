@@ -10,13 +10,13 @@
 | std.timeline | bounded Undo/Redo、seek、Redo破棄、古いrootの保持 | CP-05/06の利用シナリオ | [snapshot-timeline](../examples/snapshot-timeline.rw) |
 | std.changes | String Mapの差分・逆差分・合成・検査付き適用・3方向merge・rebase preview | VPERSIST-08、VHISTORY-04/05/06の一部 | [map-changes](../examples/map-changes.rw) |
 | std.historyGraph | 最大16親、branch HEAD、annotation、祖先・predicate query、pinと明示prune | VHISTORY-01/02/03、08/09/10/11の一部 | [history-graph](../examples/history-graph.rw) |
-| std.parser | byte cursor、連結・選択・変換・optional・bounded repeat・cut | VPARSE-01/02/03の有限入力部分 | [parser-combinators](../examples/parser-combinators.rw) |
+| std.parser | byte cursor、合成・先読み・検査・span・左右結合 | VPARSE-01/02/03/05/07の基本部分 | [parser-combinators](../examples/parser-combinators.rw)、[演算式](../examples/parser-expression.rw) |
 | std.orderedMap | 挿入順とlookupの一体管理、削除・再挿入、snapshot | VPERSIST-04のString key部分 | [insertion-ordered-map](../examples/insertion-ordered-map.rw) |
 | std.textIndex | 原文を保持するbyte/scalar/grapheme位置、境界変換、slice | VTEXT-01の3単位 | [text-positions](../examples/text-positions.rw) |
 | generic Frozenの型判定 | T:SendからFrozen<T>のShareを導出し、呼出し・recordへ伝播 | 上記libraryの前提修正 | [記録](v2-next-frozen-bounds-implementation.md) |
 | 入れ子Frozenのruntime修正 | 明示freezeの一段追加と、thaw時の内側Frozen保持 | snapshot/ChangeSetの合成を支える修正 | [記録](v2-next-nested-frozen-implementation.md) |
 
-追加した6 moduleは合計94のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
+追加した6 moduleは合計105のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
 
 ## 読む資料
 
@@ -30,7 +30,7 @@
 
 ## 確認sourceと未確認範囲
 
-継続分ではlibraries/std/tests.rwへ20 test、tests/generic_frozen_bounds.rsへ1 testを追加した。compile、runtime、source-free artifact、record/replay、Windows、format、API生成、性能・GC測定は今回実行していない。source読解とGitHub上の差分・ref確認を、これらの実行検証の代わりとして数えない。
+継続分ではlibraries/std/tests.rwへ25 test、tests/generic_frozen_bounds.rsへ1 testを追加した。compile、runtime、source-free artifact、record/replay、Windows、format、API生成、性能・GC測定は今回実行していない。source読解とGitHub上の差分・ref確認を、これらの実行検証の代わりとして数えない。
 
 runtimeのFrozen修正は既存artifact/traceへ影響し得るため、次回検証する場合は通常のgeneric/ownership確認だけでなく、入れ子値とrecord/replayも確認する。
 
