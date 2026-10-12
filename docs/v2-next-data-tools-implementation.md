@@ -28,7 +28,7 @@ fromChangesは重複keyと65,536件超を拒否し、指定した等値関数で
 
 applyは全変更のbeforeを照合してから新しいMapを返す。元Mapを変更せず、patchが触らないkeyを保持する。別branchへの適用もこの前提検査を通す。対象Map全体のidentity一致やdomain不変条件の検証を自動的に代行しない。
 
-compose(first,second)は同じkeyのfirst.afterとsecond.beforeを検査し、一つの差分へまとめる。相殺した変更は除く。merge(base,left,right)は三方向のMap比較で、独立したkey変更と、同じ最終値への変更を統合する。削除と更新等、異なる最終値はConflictとして返す。入力は変更しない。
+compose(first,second)は同じkeyのfirst.afterとsecond.beforeを検査し、一つの差分へまとめる。相殺した変更は除く。この合成はnet差分を表し、相殺で消えたkeyのbefore検査まで保持するものではない。元列が指定baseで有効か検証したい場合はpreviewRebaseを使う。merge(base,left,right)は三方向のMap比較で、独立したkey変更と、同じ最終値への変更を統合する。削除と更新等、異なる最終値はConflictとして返す。入力は変更しない。
 
 比較関数はpureなSend+Share callbackで、呼出側が等価関係を保証する。浮動小数点の近似一致等、推移律を満たさない規則を無条件に安全なmerge規則として扱わない。errorはcodeとkeyを持ち、旧新の値を含めない。
 
@@ -46,7 +46,7 @@ VHISTORY-05のString Map限定部分としてpreviewRebase(base,onto,patches,sam
 
 各RebaseStepはindex、再適用用のpatch、直後のFrozen Mapを保持する。全変更が適用済みのstepも空patchと結果を一件返す。元patch、元base、ontoは変更しない。全step後に採用するか、保存するか、domain不変条件を再検査するかは呼出側が明示する。汎用的なdomain merge lawを導いたことにはしない。
 
-新しい土台のMapは最初に一回copyし、以降は同じ作業Mapへ変更を加えて各結果をfreezeする。毎step全keyをlibraryのloopでcopyする方式を避ける。freeze・COW・Map・payloadの費用とVM budgetは別に残る。結果は途中の全snapshotを保持するため、step上限はmemory量の上限ではない。必要な値だけを取り出しpreviewのownerを解放すれば、未保持の途中rootは通常の回収対象になる。
+空patch列はontoを直接freezeして作業Mapの構築を省略する。それ以外では新しい土台のMapは最初に一回copyし、以降は同じ作業Mapへ変更を加えて各結果をfreezeする。毎step全keyをlibraryのloopでcopyする方式を避ける。freeze・COW・Map・payloadの費用とVM budgetは別に残る。結果は途中の全snapshotを保持するため、step上限はmemory量の上限ではない。必要な値だけを取り出しpreviewのownerを解放すれば、未保持の途中rootは通常の回収対象になる。
 
 library test sourceを3件追加した。適用済みkey、段階ごとの値保持、未変更key、途中衝突のstep atomicity、元列の不整合、削除→再追加、空列を扱う。実行は省略。
 
@@ -78,7 +78,7 @@ previewPruneは削除予定の名前順Listだけを返す。pruneはそのList�
 
 ancestorsは指定root自身を含む祖先の和を名前順に返す。重複rootや複数親があっても一度だけ探索する。文字列Listはsnapshotを所有しない。
 
-pruneは保持用の新しいregistryとannotation mapを組み立ててから置換し、通常のtyped errorでは元graphを変更しない。探索はversion/edgeを一度ずつ訪ね、Map lookupの費用を伴う。整理中は新旧のMapを一時保持する。fatal予算失敗までのatomic recoveryは保証しない。
+pruneは保持用の新しいregistryとannotation mapを組み立ててから置換し、通常のtyped errorでは元graphを変更しない。探索はversion/edgeを一度ずつ訪ね、Map lookupの費用を伴う。整理中は新旧のMapを一時保持する。全版が保持対象なら置換Mapの構築を省略する。fatal予算失敗までのatomic recoveryは保証しない。
 
 外で取得済みのVersion/Snapshotはrootを保持し続ける。pruneした名前は再利用できるが、取得済みVersionが新しい値へ変わることはない。name/parentsはgraph内のlookup文字列であり、削除・再利用後に古いVersion.parentsの文字列を現在graphへ解決して同じ版だと判断しない。graph内の祖先情報まで保持したい場合はその版をpinする。
 

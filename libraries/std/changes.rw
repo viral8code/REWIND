@@ -169,6 +169,10 @@ pub fn previewRebase<T:Share>(base:&Map<String,T>,onto:&Map<String,T>,patches:&L
             overlay.set(change.key,change.after);
         }
     }
+    if patches.len()==0 {
+        let empty=List<RebaseStep<T>>();
+        return Ok(RebasePreview<T>(freeze(empty),freeze(onto),None));
+    }
     let working=Map<String,T>();let keys=onto.keys();
     for i in 0..keys.len() {
         let key=keys.get(i);

@@ -220,6 +220,7 @@ pub fn prune<T:Send>(graph:&mut HistoryGraph<T>,keep:&List<String>)->Result<List
     match retained(graph,keep) {
         Err(error)=>{return Err(error);},
         Ok(found)=>{
+            if found.len()==graph.versions.len() {return Ok(List<String>());}
             let versions=Map<String,Version<T>>();let notes=Map<String,Annotation>();let removed=List<String>();
             let keys=graph.versions.keys();
             for i in 0..keys.len() {
