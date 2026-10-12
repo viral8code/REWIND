@@ -2,7 +2,7 @@
 
 更新日：2026-10-12。対象：codex/develop。**source実装済み・実行検証省略**。
 
-[DATA-01](v2-next-data.md)のJSON検証、明示mapper、header付きCSV row adapterをstd.schemaへ実装した。既存std.configの入力優先順位とflatな設定検証は維持する。DB/form向けadapter、日時rule、reflection/deriveは後続の範囲。
+[DATA-01](v2-next-data.md)のJSON検証、明示mapper、header付きCSV row adapterをstd.schemaへ実装した。既存std.configの入力優先順位とflatな設定検証は維持する。GUI form adapter、local date/timezone rule、reflection/deriveは後続の範囲。
 
 ## Schemaの構築
 
@@ -74,4 +74,4 @@ compile・実行・API生成・性能/GC測定は省略。libraries/std/tests.rw
 
 ## DB row adapter
 
-`std.db.validateRow` consumes one frozen row and its ordered column names, checks the 256-column and row-width bounds, rejects duplicate names, constructs a JSON object, then calls the shared schema validator. It maps Null, Bool, Int, Float, and Text without parsing number-looking text. Schema defaults and unknown-field policy therefore match JSON/CSV handling. It rejects Bytes and Private cells without exposing their payloads. Applications that store Decimal as SQLite BLOB must call `std.dbDecimal.cell` and map the resulting exact Decimal explicitly. This source is not a batch-level schema mapper or an ORM.
+`std.db.validateRow` consumes one frozen row and ordered column names, checks the 256-column and row-width bounds, rejects duplicate names, builds a JSON object, then calls the shared schema validator. validateBatch validates at most 64 rows and checks column metadata once. It maps Null, Bool, Int, Float, and Text without parsing number-looking text. Schema defaults and unknown-field policy therefore match JSON/CSV handling. It rejects Bytes and Private cells without exposing their payloads. Applications that store Decimal as SQLite BLOB must call `std.dbDecimal.cell` and map the resulting exact Decimal explicitly. This is not an ORM or a common DB/HTTP streaming batch protocol.

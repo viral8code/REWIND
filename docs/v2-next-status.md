@@ -73,7 +73,7 @@ GitHubの差分とrefで保存を確認した。mainは同じ5f5ab8f37c4d21f8746
 
 ## 2026-10-12のschema・cache追加分
 
-DATA-01のJSON部分をstd.schemaへ追加した。入れ子object/array、型と範囲、default、明示NULL、unknown policy、typed pathを扱う。Schemaはdataとして保持でき、Decoderは明示mapperと失敗段階を持つ。CSV/DB/formへの共通adapterやderiveは未実装の範囲として残す。
+DATA-01のJSON部分をstd.schemaへ追加した。入れ子object/array、型と範囲、default、明示NULL、unknown policy、typed pathを扱う。Schemaはdataとして保持でき、Decoderは明示mapperと失敗段階を持つ。CSV adapterとDB row/bounded batch schema adapterを実装。form adapter・DB/HTTP共通batchとderiveは未実装。
 
 VCACHE-02/03/04/06/12の基本部分をstd.memoへ実装した。domain/code revision/inputを分けたkeyで複数版を保持し、entry数とcaller指定weightでLRU evictionする。weightを実測memoryと呼ばない。orderedMapへfirst/last/popFirst/popLast/touchを追加し、単一evictionで全keyを列挙する処理を避けた。
 
@@ -174,7 +174,7 @@ GUI-01〜03は基礎の一部を実装、他は未着手です。IDのGUI-01はv
 | GUI-02 | scoped child ID基盤 | layout ID、effect/ownership | source foundation saved; model/render/reducer and IME-preserving reuse remain |
 | GUI-03 | form relations, typed mapper, caller row IDs, bounded cell-edit overlay | 既存form/table、GUI-01 | form/row-ID/model-edit foundations saved; native input/edit lifecycle and sort/filter remain |
 | VIS-01 | 限定plot | renderer primitive、numeric view | 費用/互換確認。未成立なら保留可能 |
-| DB-01 | 明示record mapping | typed cell/cursor | NULL/列名/精度/bounded batch |
+| DB-01 | 明示record mapping | typed cell/cursor/schema | validateRow/validateBatch source saved; NULL/duplicate/missing/precision and backend cleanup execution acceptance remains |
 | DB-02 | transaction helper | external/await/affineの最小例 | 終了状態、cancel、unknown、cleanup |
 | DB-03 | 限定migration | DB-02、backend lock/DDL | 同時適用、checksum、途中失敗 |
 | APP-01 | 入力・一覧・保存の例 | 必要なGUI/DB単位 | 外部境界、失敗表示、shutdown |
@@ -278,7 +278,7 @@ nested node tableを合成するときに、object field名からchild node inde
 
 変更は[db5b39d](https://github.com/viral8code/REWIND/commit/db5b39d8f50de71b690c3666988e3f7f99a1c20a)。[csv-stream example](../examples/csv-stream/README.md)を型変換・失敗後の再試行を見せる内容に更新した。新たなtest sourceは追加していない。環境起動失敗によりcompile/runtime確認は未実施。
 
-DATA-04全体は未完了。CSVの1-row consumerとJSON eventからのbounded Json materializer/schema validatorはsource実装済み。application recordへのmapper、DB/HTTP cursor共通化、batch collection APIは残る。queue管理・chunk再送・cancelは既存reader契約を使い、std.schemaは入力streamや外部資源を所有しない。
+DATA-04全体は未完了。CSVの1-row consumer、JSON event→schema、DBのbounded schema batchはsource実装済み。application recordへのmapper、DB/HTTP cursor共通化、cross-source batch APIは残る。queue管理・chunk再送・cancelは既存reader契約を使い、std.schemaは入力streamや外部資源を所有しない。
 
 
 ## 2026-10-12のDB column mapping helper
@@ -307,6 +307,13 @@ DATA-04にはvalidated Jsonからapplication recordへ写す明示mapperと、DB
 [SQLite](../examples/database/README.md)と[PostgreSQL](../examples/postgres/README.md)の例はcursorの列metadataから`ColumnMap`を作り、`mapBatch`へmapperを渡します。DBの読込みは引き続き明示的な`db.next`で行います。API manifestへdevelop上のColumnMap APIと新しいgeneric batch APIを反映しました。
 
 実装は[d8315c8](https://github.com/viral8code/REWIND/commit/d8315c8e70f2e15d3e45327cef4b163f1887b1c5)です。compile/runtime/API再生成とSQLite/PostgreSQL実接続の受入は未実施です。
+
+
+## DB-01 / DATA-01 shared schema row and batch mapping
+
+`std.db.validateRow`は最大256列をJSON objectへ写し、`std.schema`で検証する。`validateBatch`は列metadataの重複を一度検査し、最大64行を入力順に検証してschema適用済みの`MappedBatch<Json>`を返す。row errorはbatch内indexを含む。DbBatch/cursorは変更しない。Bytes/Private cellは暗黙変換せず、SQLite Decimal BLOBは明示的な`dbDecimal.cell` mapperを必要とする。
+
+SQLite例をbounded batch APIの利用へ更新した。row shape、schema error、batch限界、元batch保持のtest sourceを追加した。compile/runtime/API generationとSQLite/PostgreSQL接続・cleanup確認は未実施。
 
 ## GUI-01のflat weighted split
 

@@ -413,6 +413,19 @@
       ],
       "return": "Result<String,DbError>"
     },
+    "fn:validateBatch": {
+      "async": false,
+      "cost": "O(columns + rows * (cells + schema visits)); maximum 256 columns and 64 rows; source batch remains unchanged.",
+      "effects": [],
+      "failure": "SchemaBatchError::Db for metadata failures, TooManyRows, or Row(batch index, SchemaRowError).",
+      "generics": [],
+      "parameters": [
+        "$import$schema$Schema",
+        "Frozen<List<String>>",
+        "&DbBatch"
+      ],
+      "return": "Result<MappedBatch<Json>,SchemaBatchError>"
+    },
     "fn:validateRow": {
       "async": false,
       "cost": "O(columns + cells + schema visits); at most 256 columns; no cell value is copied into errors.",
@@ -764,6 +777,34 @@
           [
             "0",
             "Int"
+          ]
+        ]
+      }
+    },
+    "type:SchemaBatchError": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Db": [
+          [
+            "0",
+            "DbError"
+          ]
+        ],
+        "TooManyRows": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Row": [
+          [
+            "0",
+            "Int"
+          ],
+          [
+            "1",
+            "SchemaRowError"
           ]
         ]
       }

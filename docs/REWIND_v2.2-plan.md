@@ -1,6 +1,6 @@
 # REWIND v2.2実装計画：画面構成・可視化・DB helper
 
-状態：設計案。GUI-01にflatなweighted row/column split、DB-01に列名indexとbounded record mapperのsource・利用例を一部追加しました。到達条件と受入は未完了です。v2.2の到達条件と残りの受入は未完了です。基準は公開済みv2.0.0です。[全体計画](ROADMAP_v2-next.md)の第2段階です。
+状態：設計案。GUI-01にweighted layout、DB-01に列名index、bounded record mapper、single-row/schema batch adapterのsource・利用例を一部追加しました。到達条件と受入は未完了です。v2.2の到達条件と残りの受入は未完了です。基準は公開済みv2.0.0です。[全体計画](ROADMAP_v2-next.md)の第2段階です。
 
 ## 到達条件
 
@@ -105,7 +105,7 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 
 ## DB-01：record mapping
 
-**部分実装（2026-10-12）：** `std.db.indexColumns`は最大256個のcursor column名を一度検査し、重複を拒否してimmutable `ColumnMap`を返す。`columnNumber`は同じ結果を使って名前からindexを引く。新しいpureな`mapBatch`は既存の`DbBatch`を借用し、最大64行を利用者mapperでrecordへ変換する。最初の失敗をbatch内row index付きで返し、入力batchとcursorを変更しない。SQLiteの`mapScore`とPostgreSQLの`mapStatus`がtyped accessorを明示し、共通helperへ渡す。自動ORMやreflectionは追加しない。\n\n**部分実装（2026-10-12）：** `std.db.validateRow`は最大256列の一行からJSON objectを作り、呼出側の`std.schema.Schema`で検証します。Null/Bool/Int/Float/Textだけを対応JSON値へ写し、Bytes/Private cellは拒否します。duplicate column、row shape、schema failureを区別し、cell値をerrorへ含めません。SQLite exampleをshared schema検証から明示recordへ変換する形へ更新しました。これは一行adapterであり、bounded DbBatch全体へのschema mapper、SQLite Decimal BLOB adapter、実DB受入は未実装です。
+**部分実装（2026-10-12）：** `std.db.indexColumns`は最大256個のcursor column名を一度検査し、重複を拒否してimmutable `ColumnMap`を返す。`columnNumber`は同じ結果を使って名前からindexを引く。新しいpureな`mapBatch`は既存の`DbBatch`を借用し、最大64行を利用者mapperでrecordへ変換する。最初の失敗をbatch内row index付きで返し、入力batchとcursorを変更しない。SQLiteの`mapScore`とPostgreSQLの`mapStatus`がtyped accessorを明示し、共通helperへ渡す。自動ORMやreflectionは追加しない。\n\n**部分実装（2026-10-12）：** `std.db.validateRow`は最大256列の一行を`std.schema.Schema`で検証します。`validateBatch`は列名の重複を一度検査してから最大64行を入力順に検証し、`MappedBatch<Json>`とbatch内row error indexを返します。Null/Bool/Int/Float/TextをJSONへ写し、Bytes/Privateは拒否します。SQLite exampleはshared schema batch検証後に明示recordへ変換します。SQLite Decimal BLOB adapter、実DB受入は未実施です。
 
 **未完了：** SQLite/PostgreSQL mapping exampleのcompile/runtime確認、NULL・duplicate・missing・型境界、mapping failure後のbatch再利用とcursor/cleanup検証。現環境ではcompile/runtime検証を省略している。
 

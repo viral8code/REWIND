@@ -1353,6 +1353,39 @@ test fn db_schema_row_maps_cells_and_rejects_ambiguous_or_unsupported_data()->Un
     assert_eq(json.get(exactRow,"amount"),Some(Json::Text("9007199254740993.2500")));
 }
 
+test fn db_schema_batch_is_bounded_and_preserves_source_batch()->Unit effects {} {
+    let fields=List<schema.Field>();
+    fields.add(transformTake(schema.field("name",transformTake(schema.text(1,80)),true,None)));
+    fields.add(transformTake(schema.field("score",transformTake(schema.integer(0,1000000)),true,None)));
+    let rule=transformTake(schema.object(&fields,schema.Unknown::Reject));
+    let columns=List<String>();columns.add("name");columns.add("score");
+    let goodCells=List<DbValue>();goodCells.add(DbValue::Text("Ada"));goodCells.add(DbValue::Int(42));
+    let goodRow=DbRow(freeze(goodCells));
+    let rows=List<DbRow>();rows.add(goodRow);rows.add(goodRow);
+    let batch=DbBatch(freeze(rows),true);
+    let result=transformTake(db.validateBatch(rule,freeze(columns),&batch));
+    assert_eq(result.rows.len(),2);assert_eq(result.done,true);assert_eq(batch.rows.len(),2);
+    assert_eq(json.get(result.rows.get(1),"score"),Some(Json::Int(42)));
+
+    let badCells=List<DbValue>();badCells.add(DbValue::Text("Grace"));badCells.add(DbValue::Text("wrong"));
+    let badRow=DbRow(freeze(badCells));
+    let mixedRows=List<DbRow>();mixedRows.add(goodRow);mixedRows.add(badRow);
+    let mixed=DbBatch(freeze(mixedRows),false);
+    match db.validateBatch(rule,freeze(columns),&mixed){
+        Err(db.SchemaBatchError::Row(1,db.SchemaRowError::Validation(error)))=>{assert_eq(error.code,"Type");},
+        _=>{panic("batch row index and schema error");}
+    }
+    assert_eq(mixed.rows.len(),2);
+
+    let tooManyRows=List<DbRow>();
+    for i in 0..65{tooManyRows.add(goodRow);}
+    let tooMany=DbBatch(freeze(tooManyRows),false);
+    match db.validateBatch(rule,freeze(columns),&tooMany){
+        Err(db.SchemaBatchError::TooManyRows(count))=>{assert_eq(count,65);},
+        _=>{panic("batch row limit");}
+    }
+}
+
 test fn schema_decimal_text_preserves_exact_scale_and_hides_invalid_input()->Unit effects {} {
     let rule=schema.decimal();
     let input=Json::Text("9007199254740993.2500");

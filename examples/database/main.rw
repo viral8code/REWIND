@@ -39,8 +39,8 @@ match opening {
                 external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
                 match reading {None=>{panic("missing read");},Some(task)=>{
                     let batch=take(take(await task));
-                    let data=take(db.validateRow(take(scoreSchema()),cursor.columns,batch.rows.get(0)));
-                    let score=take(scoreFromJson(data));
+                    let data=take(db.validateBatch(take(scoreSchema()),cursor.columns,&batch));
+                    let score=take(scoreFromJson(data.rows.get(0)));
                     Out.println(score.name);Out.println(score.score);
                 }}
             }

@@ -1,6 +1,6 @@
 # 次版構想：表データ・数値処理・一般ライブラリ
 
-状態：採用候補を実装へ移行中。2026-10-12にDATA-01のJSON schema・明示mapper・header付きCSV row adapterのsourceを追加しました。実行検証は省略。DB/form adapterは別の到達条件を持ちます。[実装契約](v2-next-schema-implementation.md)。版番号は未割当です。[全体計画](ROADMAP_v2-next.md)と[性能計画](v2-next-performance.md)を参照してください。
+状態：採用候補を実装へ移行中。2026-10-12にDATA-01のJSON schema・header付きCSV row adapter・DB single-row/bounded batch adapterを追加しました。実行検証は省略。GUI form adapterは別の到達条件を持ちます。[実装契約](v2-next-schema-implementation.md)。版番号は未割当です。[全体計画](ROADMAP_v2-next.md)と[性能計画](v2-next-performance.md)を参照してください。
 
 JSON/CSVと増分parser、BigInt/Decimal、IANA timezone、Unicode/regex、dense/sparse配列、線形代数、統計・分布、FFT、自動微分、optimizer、model保存、graph/flow/matching等は既存です。以下は新機能の数を増やすためではなく、既存機能間の変換と反復記述を減らす候補です。
 
@@ -10,7 +10,7 @@ JSON/CSV/DB/formに散在するfield検証を共通schemaへ寄せる案です�
 
 必須/任意/NULL/default、整数範囲、正確なDecimal、日時単位、unknown field、重複名、nested pathを規定します。unknown fieldを黙って削除するかどうかは明示policyにします。schema versionとデータversionを分けます。
 
-**実装source：** JSON objectとheader付きCSV rowを同じSchemaで検証できる。CSVのtyped cellは全体をJSON値として読む。Textは暗黙変換せず、Decimalはraw cell/JSON Textを既存Decimal parserで、Timestampはraw cell/JSON TextをRFC3339 parserで検証する。NULL sentinelは呼出し側が明示する。**部分実装：** exact Decimal textとRFC3339 instant textのschema rule。**未実装：** DB/form mapping、local date/timezone rule、adapter間の列型変換。
+**実装source：** JSON object、header付きCSV row、`db.validateRow` / `db.validateBatch`のDB row/batchを同じSchemaで検証できる。CSVのtyped cellは全体をJSON値として読む。Textは暗黙変換せず、Decimalはraw cell/JSON Textを既存Decimal parserで、Timestampはraw cell/JSON TextをRFC3339 parserで検証する。NULL sentinelは呼出し側が明示する。**部分実装：** exact Decimal textとRFC3339 instant textのschema rule。**未実装：** form adapter、DB/HTTP共通batch API、local date/timezone rule、adapter間の列型変換。
 
 **受入：** 同じrecordへのJSON/CSV/DB mappingを例示する。NULLと空文字を混同しない。巨大なerror一覧はboundedにする。Secret fieldの実値を診断へ出さない。
 
@@ -34,7 +34,7 @@ DATA-02の後続候補です。group keyの型、NULL同士の対応、行順序
 
 **実装source：** 既存`std.csvStream`へ`nextTyped`を加え、header付きCSV rowをDATA-01のobject schemaへ渡す。Validation failure時にqueued rowを保持し、成功時だけadvanceする。全件bufferingを避け、既存queueをcallerがdrainする。
 
-**追加した基盤：** `std.jsonStream.peek`は次のqueued eventを非消費で返す。`nextBigInt`はJSON number tokenを正確な10進BigIntへ、`nextDecimal`はbinary Floatを経由せず正確なDecimalへ変換してから消費し、event種別または変換失敗ではqueueを保持する。`nextJson`は深さ64・containerあたり65,536 event以内のcomplete root valueをmaterializeし、`nextValidated`はshared schema検証にも成功したときだけreaderをadvanceする。不完全なchunk・parse/duplicate-key/schema failureではqueueを保持する。regular JSON number eventはJsonのInt/Float表現となるため、exact tokenにはBigInt/Decimal helperを使う。[schema example](../examples/json-stream/schema.rw)を追加した。DB側には既存の最大64行`DbBatch`へpure mapperを適用する`db.mapBatch`を追加した。application recordへの明示mapper、DB cursor/HTTP sourceとの共通batch APIは未着手。各sourceのcancel/EOF/retry契約を維持する。
+**追加した基盤：** `std.jsonStream.peek`は次のqueued eventを非消費で返す。`nextBigInt`はJSON number tokenを正確な10進BigIntへ、`nextDecimal`はbinary Floatを経由せず正確なDecimalへ変換してから消費し、event種別または変換失敗ではqueueを保持する。`nextJson`は深さ64・containerあたり65,536 event以内のcomplete root valueをmaterializeし、`nextValidated`はshared schema検証にも成功したときだけreaderをadvanceする。不完全なchunk・parse/duplicate-key/schema failureではqueueを保持する。regular JSON number eventはJsonのInt/Float表現となるため、exact tokenにはBigInt/Decimal helperを使う。[schema example](../examples/json-stream/schema.rw)を追加した。DB側には最大64行`DbBatch`へpure mapperを適用する`db.mapBatch`とshared schemaを検証する`db.validateBatch`を追加した。application recordへの明示mapper、DB cursor/HTTP sourceとの共通batch APIは未着手。各sourceのcancel/EOF/retry契約を維持する。
 
 CSV/JSON stream、DB cursor、HTTP downloadを、bounded batchでschema検証・変換へ接続する案です。物理入力の取得とpureな変換を分けます。
 
