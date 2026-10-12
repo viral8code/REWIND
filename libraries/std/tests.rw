@@ -941,3 +941,71 @@ test fn history_graph_path_is_shortest_and_uses_declared_parent_order()->Unit ef
     match historyGraph.path(&graph,"missing","root") {Err(e)=>{assert_eq(e.code,"UnknownVersion");},Ok(_)=>{panic("missing endpoint");}}
     assert_eq(historyGraph.length(&graph),5);
 }
+
+import lens as lens;
+record LensAddress {city:String,number:Int}
+record LensPerson {name:String,address:LensAddress}
+fn lensAddress()->lens.Lens<LensPerson,LensAddress,String> effects {} {
+    return lens.create(
+        |root:LensPerson|->LensAddress{return root.address;},
+        |root:LensPerson,value:LensAddress|->Result<LensPerson,String>{return Ok(LensPerson(root.name,value));}
+    );
+}
+fn lensNumber()->lens.Lens<LensAddress,Int,String> effects {} {
+    return lens.create(
+        |root:LensAddress|->Int{return root.number;},
+        |root:LensAddress,value:Int|->Result<LensAddress,String>{
+            if value<0 {return Err("Negative");}
+            return Ok(LensAddress(root.city,value));
+        }
+    );
+}
+
+test fn lens_composition_validates_updates_and_preserves_unrelated_fields()->Unit effects {} {
+    let path=lens.compose(lensAddress(),lensNumber());
+    let original=LensPerson("before",LensAddress("Tokyo",10));
+    let change=lens.plan(path,original,20);
+    assert_eq(lens.before(change),10);assert_eq(lens.after(change),20);
+    let renamed=LensPerson("renamed",original.address);
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let changed=transformTake(lens.apply(change,renamed,same));
+    assert_eq(changed.name,"renamed");assert_eq(changed.address.city,"Tokyo");assert_eq(changed.address.number,20);
+    let restored=transformTake(lens.apply(lens.inverse(change),changed,same));
+    assert_eq(restored.address.number,10);assert_eq(restored.name,"renamed");
+    match lens.apply(change,changed,same) {Err(e)=>{assert_eq(e.code,"Conflict");},Ok(_)=>{panic("focus conflict");}}
+    assert_eq(lens.set(path,original,-1),Err("Negative"));
+    let rejected=lens.plan(path,original,-1);
+    match lens.apply(rejected,original,same) {Err(e)=>{assert_eq(e.code,"Rejected");assert_eq(e.cause,Some("Negative"));},Ok(_)=>{panic("validation ignored");}}
+    let modified=transformTake(lens.modify(path,original,|n:Int|->Result<Int,String>{return Ok(n+1);}));
+    assert_eq(modified.address.number,11);assert_eq(original.address.number,10);
+}
+
+test fn optional_lenses_do_not_create_missing_values_or_run_callbacks()->Unit effects {} {
+    let key=lens.optional(
+        |root:Frozen<Map<String,Int>>|->Option<Int>{return root.get("x");},
+        |root:Frozen<Map<String,Int>>,value:Int|->Result<Option<Frozen<Map<String,Int>>>,String>{
+            let updated=thaw(root);updated.set("x",value);return Ok(Some(freeze(updated)));
+        }
+    );
+    let empty=Map<String,Int>();let missing=freeze(empty);
+    assert_eq(lens.setIfPresent(key,missing,3),Ok(None));
+    assert_eq(lens.modifyIfPresent(key,missing,|v:Int|->Result<Int,String>{return Err("must not run");}),Ok(None));
+    empty.set("x",1);let present=freeze(empty);
+    let changed=transformTake(lens.modifyIfPresent(key,present,|v:Int|->Result<Int,String>{return Ok(v+1);}));
+    match changed {Some(root)=>{assert_eq(root.get("x"),Some(2));},None=>{panic("present focus");}}
+    assert_eq(present.get("x"),Some(1));assert_eq(missing.get("x"),None);
+    let number=lens.composeOptional(lens.asOptional(lensAddress()),lens.asOptional(lensNumber()));
+    let person=LensPerson("name",LensAddress("city",5));
+    assert_eq(lens.preview(number,person),Some(5));
+    match transformTake(lens.setIfPresent(number,person,6)) {Some(value)=>{assert_eq(value.address.number,6);},None=>{panic("optional composition");}}
+}
+
+test fn lens_law_checks_report_sample_violations()->Unit effects {} {
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let lawful=lens.create(|root:Int|->Int{return root;},|root:Int,value:Int|->Result<Int,String>{return Ok(value);});
+    let good=transformTake(lens.checkLaws(lawful,10,21,32,same,same));
+    assert(good.getPut);assert(good.putGet);assert(good.putPut);
+    let rounding=lens.create(|root:Int|->Int{return root;},|root:Int,value:Int|->Result<Int,String>{return Ok((value/10)*10);});
+    let bad=transformTake(lens.checkLaws(rounding,11,21,32,same,same));
+    assert(!bad.getPut);assert(!bad.putGet);assert(bad.putPut);
+}

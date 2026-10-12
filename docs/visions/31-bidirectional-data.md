@@ -1,5 +1,7 @@
 # 深い値の操作と双方向の変換
 
+2026-10-12：VOPTIC-01/02/04/06/10のpure callbackによる基本部分をstd.lensへ実装した。source保存済み・実行検証省略。reflection、traversal全体、構造共有の自動化は含まない。[契約](../v2-next-lens-implementation.md)。
+
 lensの構想を、永続data、型付きUI、migrationへ広げる。深い構造を更新する時に、copy範囲・欠損・履歴・逆変換の条件が読める体験を考える。
 
 ## VOPTIC-01：型付きのfield path
