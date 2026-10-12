@@ -1,0 +1,20 @@
+import std.textIndex as textIndex;
+import std.textEdit as textEdit;
+import std.textEdit.{Policy};
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(result)=>{return move result;},Err(_)=>{panic("text edit chain example");}}
+}
+
+// Expected output (not executed): aZb, 2, ab.
+let original=take(textIndex.create("ab"));
+let boundary=take(textIndex.scalarAt(original,1));
+let first=take(textEdit.replace(boundary,boundary,"XY"));
+let middle=textEdit.result(first);
+let second=take(textEdit.replace(take(textIndex.scalarAt(middle,1)),take(textIndex.scalarAt(middle,3)),"Z"));
+let edits=List<textEdit.Edit>();edits.add(first);edits.add(second);
+let mapping=take(textEdit.chain(original,&edits));
+Out.println(textIndex.text(textEdit.chainResult(mapping)));
+Out.println(textIndex.scalarValue(take(textEdit.mapChainScalar(mapping,boundary,Policy::After))));
+Out.println(textIndex.text(textEdit.chainResult(textEdit.inverseChain(mapping))));
+publish;

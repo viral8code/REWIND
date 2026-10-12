@@ -1,6 +1,6 @@
 # v2.1以降：作業状態と再開手順
 
-更新日：2026-10-12。構想から実装へ移行。snapshot/historyに加え6つの標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
+更新日：2026-10-12。構想から実装へ移行。snapshot/historyに加え9つの標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
 
 ## この作業で守る指示
 
@@ -36,6 +36,11 @@
 | b392704 | parser：先読み・原文範囲・条件検査・値依存合成・左右結合 |
 | cbeec63 | 複数merge base・最短祖先経路 |
 | 4145ec7 | 不要なprune/rebaseのMap再構築を省略 |
+| 990ff8a | 利用例・library入口・再開状態を同期 |
+| f72308f | 型付きlens・欠損focus・検査付き編集・法則確認 |
+| 64f4096 | native共有pageによる永続union-find |
+| cb7c13d | 原文を保つ文字置換・旧新位置mapping・逆編集 |
+| 3c47bbe | 編集列の合成・失敗step・最終境界・逆順mapping |
 
 これらのtest sourceは実行していません。旧い「まず環境で検証する」という記録は、実行検証省略を許可した今回の方針で更新されています。将来検証するときのcommandとcaseは残します。
 
@@ -48,6 +53,16 @@ rebaseの入力Mapと既存HEADを自動変更しないこと、pin/HEADから�
 GitHubのrefと差分でsourceの保存を確認した。確認時点のmainは5f5ab8f37c4d21f8746b2d1db077946809e3be42。developのActions一覧の最新実行は2026-10-10の既存commitであり、今回のsource追加による新規実行は見つからなかった。実行検証の代替として扱わない。
 
 利用例はrebase-preview、history-maintenance、text-positions、parser-expressionを追加。expected出力は未実行の期待値。今回もcodex/developのみへ[skip ci]付きでcommit/pushした。
+
+## 2026-10-12の追加継続分
+
+std.lens、std.persistentSet、std.textEditを実装した。lensはShare値とpure callbackを合成し、欠損focusの自動生成を避け、旧値照合とsetterの検査を通す。永続union-findは既存native配列のCOWを使い、統合ごとの全要素copyを追加しない。既存のmutable/rollback union-findは維持した。
+
+文字編集は変更前後のSourceを保持し、削除された位置と曖昧な挿入境界を明示する。最大1,024編集のChainを通して変換でき、失敗したstepを返す。通常のStringと境界表を再構築する編集であり、ropeや増分解析の実装とは区別する。
+
+追加したstd test sourceは12件。typed-lens、persistent-union-find、text-edit-mapping、text-edit-chainに利用例を保存した。compile・実行・Windows・API生成・GC/性能測定は引き続き省略。括弧対応と関数名重複の機械的なsource確認を行ったが、compiler検証の代わりには数えない。
+
+GitHubの差分とrefで保存を確認した。mainは同じ5f5ab8f37c4d21f8746b2d1db077946809e3be42、developのActions最新実行は以前の2026-10-10のまま。今回のcommitはすべて[skip ci]を付け、公開CI/CD・main統合・Release・版更新は行っていない。
 
 ## 最初の実装単位
 

@@ -50,4 +50,4 @@ libraries/std/tests.rwへ3件追加した。日本語→emoji置換、削除位�
 
 利用例は[text-edit-mapping.rw](../examples/text-edit-mapping.rw)。module registryへ登録したが、SDK/API生成・公開は行っていない。
 
-編集列には追加で3 test sourceを用意した。順序、逆変換、途中の失敗番号、入力Listとの独立性、最終grapheme境界、空列、異なる原文、1,024件上限を扱う。実行は省略。
+編集列の利用例は[text-edit-chain.rw](../examples/text-edit-chain.rw)。追加で3 test sourceを用意した。順序、逆変換、途中の失敗番号、入力Listとの独立性、最終grapheme境界、空列、異なる原文、1,024件上限を扱う。実行は省略。

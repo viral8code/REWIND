@@ -2,7 +2,7 @@
 
 ## codex/developで追加中のmodule
 
-[構想から実装した機能](../docs/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMap、textIndexのsourceとtestを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
+[構想から実装した機能](../docs/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMap、textIndex、lens、persistentSet、textEditのsourceとtestを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
 
 | module | 公開API | 契約 |
 |---|---|---|
@@ -14,6 +14,10 @@
 | parser | literal, satisfy, map, pair, orElse, cut, repeat, lookAhead, verify, andThen, spanned, chainLeft/Right | finite Bytes、原文範囲、pure callback、結合方向と上限 |
 | orderedMap | create, put, get, remove, keys, values, entries, clear | 挿入順、既存key更新は位置保持、再挿入は末尾 |
 | textIndex | Source, ByteOffset, ScalarIndex, GraphemeIndex, create, byteAt/scalarAt/graphemeAt, sliceBytes/Scalars/Graphemes | 原文と境界表の保持、明示的な位置変換、別原文の範囲を拒否 |
+| lens | create, get, set, modify, compose, optional, plan, apply, inverse, checkLaws | Share値のtyped path、検査付き更新、欠損保持、有限例の法則確認 |
+| persistentSet | create, root, same, size, components, unite, uniteMany | 複数の不変版、union-by-size、既存native配列の共有page |
+| textEdit | replace, mapByte/Scalar/Grapheme, inverse, chain, mapChainByte/Scalar/Grapheme, inverseChain | 原文保持、編集位置の明示policy、boundedな編集列と失敗step |
+
 
 
 [実行例](../examples/data-history.rw)と[型判定の変更](../docs/v2-next-frozen-bounds-implementation.md)を参照してください。
