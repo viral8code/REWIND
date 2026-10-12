@@ -799,6 +799,28 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:toValue": {
+      "async": false,
+      "cost": "O(columns), at most 16 columns; constructs one frozen row snapshot and invokes the pure mapper once.",
+      "effects": [],
+      "failure": "UnknownRow when the stable row ID is absent; Conversion carries the row ID and mapper error. Reads staged values and works for filtered-out rows.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Table",
+        "String",
+        "fn(Frozen<List<String>>)->Result<T,E>!{}~{Send+Share}"
+      ],
+      "return": "Result<T,RowMapError<E>>"
+    },
     "fn:visibleRows": {
       "async": false,
       "cost": "O(1); count of rows in the active filtered view.",
@@ -1457,6 +1479,33 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:RowMapError": {
+      "generics": [
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "kind": "enum",
+      "variants": {
+        "Conversion": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "E"
+          ]
+        ],
+        "UnknownRow": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
     },
     "type:SolveWork": {
       "constructor": false,
