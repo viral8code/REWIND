@@ -1,0 +1,212 @@
+pub enum Unknown {Reject,Keep,Drop}
+pub enum Segment {Field(String),Index(Int)}
+pub record SchemaError {code:String,field:String}
+pub record ValidationError {code:String,path:Frozen<List<Segment>>,expected:String,actual:String}
+record Property {name:String,node:Int,required:Bool,fallback:Option<Json>}
+enum Node {
+    Any,Boolean,Integer(Int,Int),Number,Text(Int,Int),
+    Nullable(Int),Array(Int,Int,Int),
+    Object(Frozen<List<Property>>,Frozen<Map<String,Bool>>,Unknown)
+}
+pub record Schema {private nodes:Frozen<List<Node>>,private root:Int,private depth:Int}
+pub record Field {private name:String,private schema:Schema,private required:Bool,private fallback:Option<Json>}
+pub record Decoder<T:Share,E:Share> {
+    private schema:Schema,
+    private convert:fn(Json)->Result<T,E> effects {} captures {Send,Share}
+}
+pub record DecodeError<E:Share> {stage:String,validation:Option<ValidationError>,conversion:Option<E>}
+struct Budget {remaining:Int}
+
+fn single(node:Node)->Schema effects {} {
+    let nodes=List<Node>();nodes.add(node);return Schema(freeze(nodes),0,1);
+}
+pub fn any()->Schema effects {} {return single(Node::Any);}
+pub fn boolean()->Schema effects {} {return single(Node::Boolean);}
+pub fn number()->Schema effects {} {return single(Node::Number);}
+pub fn integer(minimum:Int,maximum:Int)->Result<Schema,SchemaError> effects {} {
+    if minimum>maximum {return Err(SchemaError("Range",""));}
+    return Ok(single(Node::Integer(minimum,maximum)));
+}
+pub fn text(minimum:Int,maximum:Int)->Result<Schema,SchemaError> effects {} {
+    if minimum<0 || maximum<minimum || maximum>1048576 {return Err(SchemaError("Range",""));}
+    return Ok(single(Node::Text(minimum,maximum)));
+}
+
+// Copies bounded schema data while relocating node references. No recursive type or callback is stored in Schema.
+fn append(nodes:&mut List<Node>,schema:Schema)->Int effects {} {
+    let offset=nodes.len();
+    for i in 0..schema.nodes.len() {
+        let node=thaw(schema.nodes.get(i));
+        match node {
+            Node::Nullable(child)=>{nodes.add(Node::Nullable(child+offset));},
+            Node::Array(child,minimum,maximum)=>{nodes.add(Node::Array(child+offset,minimum,maximum));},
+            Node::Object(properties,known,policy)=>{
+                let shifted=List<Property>();
+                for j in 0..properties.len() {
+                    let p=thaw(properties.get(j));shifted.add(Property(p.name,p.node+offset,p.required,p.fallback));
+                }
+                nodes.add(Node::Object(freeze(shifted),known,policy));
+            },
+            _=>{nodes.add(node);}
+        }
+    }
+    return schema.root+offset;
+}
+pub fn nullable(schema:Schema)->Result<Schema,SchemaError> effects {} {
+    if schema.nodes.len()>=1024 {return Err(SchemaError("NodeLimit",""));}
+    if schema.depth>=32 {return Err(SchemaError("DepthLimit",""));}
+    let nodes=List<Node>();let child=append(&mut nodes,schema);let root=nodes.len();
+    nodes.add(Node::Nullable(child));return Ok(Schema(freeze(nodes),root,schema.depth+1));
+}
+pub fn array(item:Schema,minimum:Int,maximum:Int)->Result<Schema,SchemaError> effects {} {
+    if minimum<0 || maximum<minimum || maximum>65536 {return Err(SchemaError("Range",""));}
+    if item.nodes.len()>=1024 {return Err(SchemaError("NodeLimit",""));}
+    if item.depth>=32 {return Err(SchemaError("DepthLimit",""));}
+    let nodes=List<Node>();let child=append(&mut nodes,item);let root=nodes.len();
+    nodes.add(Node::Array(child,minimum,maximum));return Ok(Schema(freeze(nodes),root,item.depth+1));
+}
+
+// @api field Missing and null are distinct. Required fields cannot also declare defaults; defaults are validated and normalized at construction.
+pub fn field(name:String,schema:Schema,required:Bool,fallback:Option<Json>)->Result<Field,SchemaError> effects {} {
+    let size=stdTextLength(name);
+    if size<1 || size>128 {return Err(SchemaError("FieldName",name));}
+    match fallback {
+        Some(value)=>{
+            if required {return Err(SchemaError("RequiredDefault",name));}
+            match validate(schema,value) {
+                Ok(normalized)=>{return Ok(Field(name,schema,false,Some(normalized)));},
+                Err(_)=>{return Err(SchemaError("InvalidDefault",name));}
+            }
+        },
+        None=>{return Ok(Field(name,schema,required,None));}
+    }
+}
+// @api object Accepts at most 128 distinct fields, 1024 total schema nodes and depth 32. Unknown-field policy is explicit.
+pub fn object(fields:&List<Field>,policy:Unknown)->Result<Schema,SchemaError> effects {} {
+    if fields.len()>128 {return Err(SchemaError("FieldLimit",""));}
+    let known=Map<String,Bool>();var count=1;var depth=1;
+    for i in 0..fields.len() {
+        let field=fields.get(i);
+        match known.get(field.name) {Some(_)=>{return Err(SchemaError("DuplicateField",field.name));},None=>{}}
+        known.set(field.name,true);count+=field.schema.nodes.len();
+        if field.schema.depth+1>depth {depth=field.schema.depth+1;}
+    }
+    if count>1024 {return Err(SchemaError("NodeLimit",""));}
+    if depth>32 {return Err(SchemaError("DepthLimit",""));}
+    let nodes=List<Node>();let properties=List<Property>();
+    for i in 0..fields.len() {
+        let field=fields.get(i);let child=append(&mut nodes,field.schema);
+        properties.add(Property(field.name,child,field.required,field.fallback));
+    }
+    let root=nodes.len();nodes.add(Node::Object(freeze(properties),freeze(known),policy));
+    return Ok(Schema(freeze(nodes),root,depth));
+}
+
+fn descend(path:Frozen<List<Segment>>,segment:Segment)->Frozen<List<Segment>> effects {} {
+    let next=thaw(path);next.add(segment);return freeze(next);
+}
+fn failure(code:String,path:Frozen<List<Segment>>,expected:String,value:Json)->ValidationError effects {} {
+    return ValidationError(code,path,expected,jsonKind(value));
+}
+fn visit(schema:Schema,index:Int,value:Json,path:Frozen<List<Segment>>,budget:&mut Budget)->Result<Json,ValidationError> effects {} {
+    if budget.remaining==0 {return Err(failure("VisitLimit",path,"<=65536 validation visits",value));}
+    budget.remaining-=1;
+    let node=thaw(schema.nodes.get(index));
+    match node {
+        Node::Any=>{return Ok(value);},
+        Node::Boolean=>{
+            if jsonKind(value)!="Bool" {return Err(failure("Type",path,"Bool",value));}
+            return Ok(value);
+        },
+        Node::Integer(minimum,maximum)=>{
+            match value {
+                Json::Int(n)=>{if n<minimum || n>maximum {return Err(failure("IntegerRange",path,"Int in declared range",value));}return Ok(value);},
+                _=>{return Err(failure("Type",path,"Int",value));}
+            }
+        },
+        Node::Number=>{
+            let kind=jsonKind(value);
+            if kind!="Int" && kind!="Float" {return Err(failure("Type",path,"Int or Float",value));}
+            return Ok(value);
+        },
+        Node::Text(minimum,maximum)=>{
+            match value {
+                Json::Text(text)=>{
+                    let size=stdTextLength(text);
+                    if size<minimum || size>maximum {return Err(failure("TextLength",path,"Text in declared scalar range",value));}
+                    return Ok(value);
+                },
+                _=>{return Err(failure("Type",path,"Text",value));}
+            }
+        },
+        Node::Nullable(child)=>{
+            match value {Json::Null=>{return Ok(value);},_=>{return visit(schema,child,value,path,budget);}}
+        },
+        Node::Array(child,minimum,maximum)=>{
+            match value {
+                Json::Array(items)=>{
+                    if items.len()<minimum || items.len()>maximum {return Err(failure("ArrayLength",path,"Array in declared length range",value));}
+                    let output=List<Json>();
+                    for i in 0..items.len() {
+                        let item=visit(schema,child,thaw(items.get(i)),descend(path,Segment::Index(i)),budget)?;
+                        output.add(item);
+                    }
+                    return Ok(Json::Array(freeze(output)));
+                },
+                _=>{return Err(failure("Type",path,"Array",value));}
+            }
+        },
+        Node::Object(properties,known,policy)=>{
+            if jsonKind(value)!="Object" {return Err(failure("Type",path,"Object",value));}
+            let keys=jsonKeys(value);
+            if keys.len()>65536 {return Err(failure("ObjectLimit",path,"<=65536 fields",value));}
+            let output=Map<String,Json>();
+            for i in 0..keys.len() {
+                let key=keys.get(i);
+                match known.get(key) {
+                    Some(_)=>{},
+                    None=>{
+                        match policy {
+                            Unknown::Reject=>{return Err(failure("UnknownField",path,"declared fields",value));},
+                            Unknown::Drop=>{},
+                            Unknown::Keep=>{match jsonGet(value,key) {Some(item)=>{output.set(key,item);},None=>{}}}
+                        }
+                    }
+                }
+            }
+            for i in 0..properties.len() {
+                let property=thaw(properties.get(i));
+                match jsonGet(value,property.name) {
+                    Some(item)=>{
+                        let normalized=visit(schema,property.node,item,descend(path,Segment::Field(property.name)),budget)?;
+                        output.set(property.name,normalized);
+                    },
+                    None=>{
+                        if property.required {return Err(ValidationError("MissingField",descend(path,Segment::Field(property.name)),"present field","Missing"));}
+                        match property.fallback {Some(item)=>{output.set(property.name,item);},None=>{}}
+                    }
+                }
+            }
+            return Ok(Json::Object(freeze(output)));
+        }
+    }
+}
+
+// @api validate Returns normalized JSON or the first bounded structural error. Diagnostics never contain input values or unknown field names.
+pub fn validate(schema:Schema,value:Json)->Result<Json,ValidationError> effects {} {
+    let path=List<Segment>();let budget=Budget(65536);
+    return visit(schema,schema.root,value,freeze(path),&mut budget);
+}
+pub fn mapped<T:Share,E:Share>(schema:Schema,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Decoder<T,E> effects {} {
+    return Decoder<T,E>(schema,convert);
+}
+// @api decode Validates before invoking the explicit mapper; conversion failure stays separate from schema failure.
+pub fn decode<T:Share,E:Share>(decoder:Decoder<T,E>,value:Json)->Result<T,DecodeError<E>> effects {} {
+    match validate(decoder.schema,value) {
+        Err(error)=>{return Err(DecodeError<E>("Validation",Some(error),None));},
+        Ok(normalized)=>{
+            let convert=decoder.convert;
+            match convert(normalized) {Ok(output)=>{return Ok(output);},Err(error)=>{return Err(DecodeError<E>("Conversion",None,Some(error)));}}
+        }
+    }
+}

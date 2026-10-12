@@ -37,6 +37,7 @@ fn target() -> String {
 }
 pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
+        ("schema", include_str!("../../../libraries/std/schema.rw")),
         ("textEdit", include_str!("../../../libraries/std/textEdit.rw")),
         (
             "persistentSet",
