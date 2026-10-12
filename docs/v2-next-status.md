@@ -428,3 +428,12 @@ Compiler/runtime/API generation remain unverified because the execution environm
 Added [an example](../examples/gui-form-schema-validation.rw) and an acceptance source test for schema rejection, unchanged form text, and successful mapping. Updated the GUI reference, GUI-03 plan, API manifest, library list, and implementation index. Implementation commit: [81d7780](https://github.com/viral8code/REWIND/commit/81d7780ab1df3e35ee9d6acdc244703f76fa1bcc).
 
 Compiler, runtime, tests, and API generation remain unverified because the execution environment failed to start. Static checks covered source/API function names, JSON parse, and delimiter balance. The feature and this record are on `codex/develop` with `[skip ci]`; no public CI/CD, main merge, Release, or version update was run.
+
+
+## GUI-03 shared schema validation for forms
+
+`std.guiForm.toSchemaValue` applies form field/relation checks, then a reusable `std.schema`, then one pure application mapper. `SchemaSubmitError` separates form, schema, and conversion failures. Validation is read-only; the mapper does not run until both validation stages succeed.
+
+Added [an example](../examples/gui-form-schema-validation.rw) and an acceptance source test for schema rejection, unchanged form text, and successful mapping. Updated the GUI reference, GUI-03 plan, API manifest, library list, and implementation index. Implementation commit: [79c5540](https://github.com/viral8code/REWIND/commit/79c55409948bd5d02591b351768de54686a0f104).
+
+Compiler, runtime, tests, and API generation remain unverified because the execution environment failed to start. Static checks covered source/API function names, API JSON parse, and delimiter balance. The feature and this record are on `codex/develop` with `[skip ci]`; no public CI/CD, main merge, Release, or version update was run.
