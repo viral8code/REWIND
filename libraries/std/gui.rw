@@ -148,6 +148,124 @@ pub fn setScrollPosition(view:&mut View,id:String,line:Int)->Result<Unit,GuiErro
 
 // @api bounds cost O(1); client area geometry for composing bounded overlays.
 // Pure weighted partitioning for one flat row or column; remainder pixels go left-to-right.
+enum LayoutNode {
+ Widget(String),
+ Row(Frozen<List<Int>>,Frozen<List<Int>>,Int),
+ Column(Frozen<List<Int>>,Frozen<List<Int>>,Int)
+}
+pub struct Layout {private nodes:Frozen<List<LayoutNode>>,private root:Int,private depth:Int}
+pub struct WeightedLayout {private layout:Layout,private weight:Int}
+record LayoutWork {node:Int,bounds:Rect}
+record LayoutPlacement {id:String,bounds:Rect}
+
+pub fn leaf(id:String)->Result<Layout,GuiError> effects {} {
+ if id=="" || id.byteLen()>128 || stdTextFind(id,"\0")!=None{return Err(StdError("GuiInvalidId",0));}
+ let nodes=List<LayoutNode>();nodes.add(LayoutNode::Widget(id));
+ return Ok(Layout(freeze(nodes),0,1));
+}
+pub fn weighted(layout:Layout,weight:Int)->Result<WeightedLayout,GuiError> effects {} {
+ if weight<1 || weight>1000000{return Err(StdError("GuiLayoutWeight",0));}
+ if layout.nodes.len()<1 || layout.nodes.len()>1024 || layout.depth<1 || layout.depth>32{return Err(StdError("GuiLayoutLimit",0));}
+ return Ok(WeightedLayout(layout,weight));
+}
+fn appendLayout(nodes:&mut List<LayoutNode>,layout:Layout)->Int effects {} {
+ let offset=nodes.len();
+ for i in 0..layout.nodes.len(){
+  match thaw(layout.nodes.get(i)){
+   LayoutNode::Widget(id)=>{nodes.add(LayoutNode::Widget(id));},
+   LayoutNode::Row(children,weights,gap)=>{
+    let shifted=List<Int>();
+    for j in 0..children.len(){shifted.add(children.get(j)+offset);}
+    nodes.add(LayoutNode::Row(freeze(shifted),weights,gap));
+   },
+   LayoutNode::Column(children,weights,gap)=>{
+    let shifted=List<Int>();
+    for j in 0..children.len(){shifted.add(children.get(j)+offset);}
+    nodes.add(LayoutNode::Column(freeze(shifted),weights,gap));
+   }
+  }
+ }
+ return layout.root+offset;
+}
+fn composeLayout(children:&List<WeightedLayout>,gap:Int,horizontal:Bool)->Result<Layout,GuiError> effects {} {
+ if children.len()<1 || children.len()>256{return Err(StdError("GuiLayoutChildren",0));}
+ if gap<0 || gap>4096{return Err(StdError("GuiLayoutGap",0));}
+ var count=1;var deepest=0;
+ for i in 0..children.len(){
+  let child=children.get(i);
+  if child.weight<1 || child.weight>1000000{return Err(StdError("GuiLayoutWeight",0));}
+  if child.layout.nodes.len()<1 || child.layout.nodes.len()>1024{return Err(StdError("GuiLayoutLimit",0));}
+  count+=child.layout.nodes.len();
+  if count>1024{return Err(StdError("GuiLayoutLimit",0));}
+  if child.layout.depth>deepest{deepest=child.layout.depth;}
+ }
+ let depth=deepest+1;
+ if depth>32{return Err(StdError("GuiLayoutDepthLimit",0));}
+ let nodes=List<LayoutNode>();let childNodes=List<Int>();let childWeights=List<Int>();
+ for i in 0..children.len(){
+  let child=children.get(i);
+  childNodes.add(appendLayout(&mut nodes,child.layout));
+  childWeights.add(child.weight);
+ }
+ let root=nodes.len();
+ if horizontal{nodes.add(LayoutNode::Row(freeze(childNodes),freeze(childWeights),gap));}
+ else{nodes.add(LayoutNode::Column(freeze(childNodes),freeze(childWeights),gap));}
+ return Ok(Layout(freeze(nodes),root,depth));
+}
+pub fn row(children:&List<WeightedLayout>,gap:Int)->Result<Layout,GuiError> effects {} {
+ return composeLayout(children,gap,true);
+}
+pub fn column(children:&List<WeightedLayout>,gap:Int)->Result<Layout,GuiError> effects {} {
+ return composeLayout(children,gap,false);
+}
+fn validLayoutBounds(bounds:Rect)->Bool effects {} {
+ if bounds.x<0 || bounds.x>4096 || bounds.y<0 || bounds.y>4096{return false;}
+ if bounds.width<0 || bounds.width>4096 || bounds.height<0 || bounds.height>4096{return false;}
+ if bounds.width>4096-bounds.x || bounds.height>4096-bounds.y{return false;}
+ return true;
+}
+// @api applyLayout walks at most 1024 nodes and validates every placement before updating the view.
+pub fn applyLayout(view:&mut View,layout:&Layout,bounds:Rect)->Result<Unit,GuiError> effects {} {
+ if layout.nodes.len()<1 || layout.nodes.len()>1024 || layout.root<0 || layout.root>=layout.nodes.len() || layout.depth<1 || layout.depth>32{return Err(StdError("GuiLayoutLimit",0));}
+ if !validLayoutBounds(bounds){return Err(StdError("GuiLayoutBounds",0));}
+ let pending=List<LayoutWork>();pending.add(LayoutWork(layout.root,bounds));
+ let placements=List<LayoutPlacement>();var cursor=0;
+ while cursor<pending.len(){
+  if pending.len()>1024{return Err(StdError("GuiLayoutLimit",0));}
+  let work=pending.get(cursor);cursor+=1;
+  if work.node<0 || work.node>=layout.nodes.len(){return Err(StdError("GuiLayoutLimit",0));}
+  match thaw(layout.nodes.get(work.node)){
+   LayoutNode::Widget(id)=>{placements.add(LayoutPlacement(id,work.bounds));},
+   LayoutNode::Row(children,weights,gap)=>{
+    if children.len()<1 || children.len()>256 || children.len()!=weights.len(){return Err(StdError("GuiLayoutChildren",0));}
+    let rowWeights=thaw(weights);let rectangles=splitWeighted(work.bounds,&rowWeights,gap,true)?;
+    for i in 0..children.len(){pending.add(LayoutWork(children.get(i),rectangles.get(i)));}
+   },
+   LayoutNode::Column(children,weights,gap)=>{
+    if children.len()<1 || children.len()>256 || children.len()!=weights.len(){return Err(StdError("GuiLayoutChildren",0));}
+    let columnWeights=thaw(weights);let rectangles=splitWeighted(work.bounds,&columnWeights,gap,false)?;
+    for i in 0..children.len(){pending.add(LayoutWork(children.get(i),rectangles.get(i)));}
+   }
+  }
+  cursor+=0;
+ }
+ let indices=List<Int>();let seen=Map<String,Bool>();
+ for i in 0..placements.len(){
+  let placement=placements.get(i);let rect=placement.bounds;
+  if seen.get(placement.id)!=None{return Err(StdError("GuiDuplicateId",0));}
+  seen.set(placement.id,true);
+  match view.indices.get(placement.id){
+   None=>{return Err(StdError("GuiUnknownId",0));},
+   Some(index)=>{indices.add(index);}
+  }
+  if rect.width<1 || rect.height<1 || rect.width>view.width || rect.height>view.height || rect.x>view.width-rect.width || rect.y>view.height-rect.height{return Err(StdError("GuiInvalidBounds",0));}
+ }
+ for i in 0..placements.len(){
+  let index=indices.get(i);let widget=view.widgets.get(index);let placement=placements.get(i);let rect=placement.bounds;
+  view.widgets.set(index,Widget(widget.id,widget.kind,rect.x,rect.y,rect.width,rect.height,widget.caption,widget.foreground,widget.background,widget.enabled,widget.checked,widget.cursor,widget.anchor));
+ }
+ return Ok(());
+}
 fn splitWeighted(bounds:Rect,weights:&List<Int>,gap:Int,horizontal:Bool)->Result<List<Rect>,GuiError> effects {} {
  let count=weights.len();
  if count<1 || count>256{return Err(StdError("GuiLayoutChildren",0));}

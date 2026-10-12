@@ -7,6 +7,19 @@
       "generics": [],
       "target": "StdError"
     },
+    "fn:applyLayout": {
+      "async": false,
+      "cost": "O(layout nodes + leaf widgets); validates before mutation.",
+      "effects": [],
+      "failure": "GuiLayoutLimit/Bounds/Children/Gap/Weight/InsufficientSpace/UnknownId/DuplicateId; failure leaves the view unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "&Layout",
+        "Rect"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:arrange": {
       "async": false,
       "cost": "O(ids); prevalidates geometry and IDs before mutating the view.",
@@ -121,6 +134,18 @@
       "parameters": [],
       "return": "Result<Unit,StdError>"
     },
+    "fn:column": {
+      "async": false,
+      "cost": "O(total child nodes); at most 256 children, 1024 nodes and depth 32.",
+      "effects": [],
+      "failure": "GuiLayoutChildren/Gap/Weight/Limit/DepthLimit.",
+      "generics": [],
+      "parameters": [
+        "&List<WeightedLayout>",
+        "Int"
+      ],
+      "return": "Result<Layout,StdError>"
+    },
     "fn:continueInput": {
       "async": false,
       "effects": [
@@ -209,6 +234,17 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:leaf": {
+      "async": false,
+      "cost": "O(1); creates one bounded widget leaf.",
+      "effects": [],
+      "failure": "GuiInvalidId.",
+      "generics": [],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<Layout,StdError>"
+    },
     "fn:nextEvent": {
       "async": false,
       "effects": [
@@ -289,6 +325,18 @@
         "Int"
       ],
       "return": "Result<Unit,StdError>"
+    },
+    "fn:row": {
+      "async": false,
+      "cost": "O(total child nodes); at most 256 children, 1024 nodes and depth 32.",
+      "effects": [],
+      "failure": "GuiLayoutChildren/Gap/Weight/Limit/DepthLimit.",
+      "generics": [],
+      "parameters": [
+        "&List<WeightedLayout>",
+        "Int"
+      ],
+      "return": "Result<Layout,StdError>"
     },
     "fn:scene": {
       "async": false,
@@ -458,6 +506,18 @@
         "Int"
       ],
       "return": "Result<Unit,StdError>"
+    },
+    "fn:weighted": {
+      "async": false,
+      "cost": "O(1).",
+      "effects": [],
+      "failure": "GuiLayoutWeight/Limit.",
+      "generics": [],
+      "parameters": [
+        "Layout",
+        "Int"
+      ],
+      "return": "Result<WeightedLayout,StdError>"
     },
     "fn:window": {
       "async": false,
@@ -1082,6 +1142,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:Layout": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:LeastSquaresWork": {
       "constructor": false,
       "fields": [],
@@ -1231,6 +1297,12 @@
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "type:WeightedLayout": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
     }
   }
 }

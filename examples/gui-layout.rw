@@ -7,14 +7,19 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let view=take(gui.window("weighted layout",100,64));
+let view=take(gui.window("nested layout",320,240));
+take(gui.label(&mut view,"header","Header",0,0,10,10));
 take(gui.label(&mut view,"left","Left",0,0,10,10));
-take(gui.label(&mut view,"right","Right",10,0,10,10));
-let ids=List<String>();
-ids.add("left");
-ids.add("right");
-let weights=List<Int>();
-weights.add(1);
-weights.add(2);
-take(gui.arrangeRow(&mut view,&ids,Rect(0,0,100,30),&weights,2));
+take(gui.label(&mut view,"right","Right",0,0,10,10));
+
+let bodyChildren=List<gui.WeightedLayout>();
+bodyChildren.add(take(gui.weighted(take(gui.leaf("left")),1)));
+bodyChildren.add(take(gui.weighted(take(gui.leaf("right")),2)));
+let body=take(gui.row(&bodyChildren,4));
+
+let pageChildren=List<gui.WeightedLayout>();
+pageChildren.add(take(gui.weighted(take(gui.leaf("header")),1)));
+pageChildren.add(take(gui.weighted(body,3)));
+let page=take(gui.column(&pageChildren,4));
+take(gui.applyLayout(&mut view,&page,Rect(0,0,320,240)));
 Out.println(take(gui.scene(&view)));
