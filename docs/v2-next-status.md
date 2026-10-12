@@ -283,6 +283,8 @@ DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP s
 
 ## GUI-01のflat weighted split
 
-2026-10-12に`std.gui.splitRow` / `splitColumn`と`arrangeRow` / `arrangeColumn`を追加しました。最大256 child、各weight 1..1,000,000、gap 0..4096 pixel、4096 pixel以内のRectを検査します。splitの余りpixelは左から、または上から配ります。arrangeは全ID・重複・View内boundsを先に検査してからgeometryを更新し、失敗ならViewを変更しません。
+2026-10-12に`std.gui.splitRow` / `splitColumn`、`arrangeRow` / `arrangeColumn)、nested layout treeを追加しました。treeは`leaf`、`weighted`、`row`、`column`で構成し、最大1024 node・深さ32・各container 256 childに制限します。weightは1..1,000,000、gapは0..4096 pixelです。
 
-[利用例](../examples/gui-layout.rw)では2つのwidgetをweight 1:2、gap 2で配置します。nested layout tree、padding、min/max/fixed dimension、resize対応は未実装です。実装commitは[ab191aa](https://github.com/viral8code/REWIND/commit/ab191aae2cf46511b8432ec106bcc33f690f7ae4)、[a9fbbf0](https://github.com/viral8code/REWIND/commit/a9fbbf0af6011750b9d0256d4d29090c794ca1d8)、[d9ad051](https://github.com/viral8code/REWIND/commit/d9ad051ad931ff18eb38822687d6aafa179fe122)です。compile/runtime/API再生成とLinux/Windows native GUI確認は未実施です。
+`applyLayout`はboundedなwork queueでnodeを走査し、全leaf ID・重複・Rect・View boundsを確認してからgeometryを更新します。失敗時にViewは変更せず、widgetのcaption・selection・focus indexは維持します。[利用例](../examples/gui-layout.rw)。実装は[1118325](https://github.com/viral8code/REWIND/commit/1118325534ca61a338bee1a72249e1f0fe0b0eed)です。
+
+overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置は未実装です。compile/runtime/API再生成、Linux/Windows native GUI確認は未実施です。

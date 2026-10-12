@@ -247,7 +247,6 @@ pub fn applyLayout(view:&mut View,layout:&Layout,bounds:Rect)->Result<Unit,GuiEr
     for i in 0..children.len(){pending.add(LayoutWork(children.get(i),rectangles.get(i)));}
    }
   }
-  cursor+=0;
  }
  let indices=List<Int>();let seen=Map<String,Bool>();
  for i in 0..placements.len(){
