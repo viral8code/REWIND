@@ -2,17 +2,18 @@
 
 ## codex/developで追加中のmodule
 
-[構想から実装した機能](../docs/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMapのsourceとtestを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
+[構想から実装した機能](../docs/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMap、textIndexのsourceとtestを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
 
 | module | 公開API | 契約 |
 |---|---|---|
 | snapshot | Snapshot<T>, capture, read, fork | 選択したdataのFrozen root、独立したfork、全VMや実行位置は保存しない |
 | history | History<T>, HistoryError, create, save, get, remove, clear, names, contains, length | boundedな名前付きregistry、削除・名前再利用から取得済みsnapshotを分離、通常modelとしてrevert対象 |
 | timeline | create, push, pushSnapshot, current, undo, redo, seek, get, clear | bounded data履歴、ring index、独立snapshot |
-| changes | ChangeSet, diff, inverse, apply, compose, merge | String key Map、明示等値、衝突検査、新しいMapを返す |
-| historyGraph | add, addSnapshot, setHead, head, annotation, isAncestor, matching | 有限DAG、branchとdata rootを分離、通常VM model |
-| parser | literal, satisfy, map, pair, orElse, cut, optional, repeat, parse, complete | finite Bytes、byte位置、pure callback、繰返し上限 |
+| changes | ChangeSet, diff, inverse, apply, compose, merge, previewRebase | String key Map、明示等値、衝突検査、変更列の段階snapshot |
+| historyGraph | add, setHead, pin, previewPrune, prune, ancestors, mergeBases, path, matching | 有限DAG、親関係を保つ明示整理、複数merge base、通常VM model |
+| parser | literal, satisfy, map, pair, orElse, cut, repeat, lookAhead, verify, andThen, spanned, chainLeft/Right | finite Bytes、原文範囲、pure callback、結合方向と上限 |
 | orderedMap | create, put, get, remove, keys, values, entries, clear | 挿入順、既存key更新は位置保持、再挿入は末尾 |
+| textIndex | Source, ByteOffset, ScalarIndex, GraphemeIndex, create, byteAt/scalarAt/graphemeAt, sliceBytes/Scalars/Graphemes | 原文と境界表の保持、明示的な位置変換、別原文の範囲を拒否 |
 
 
 [実行例](../examples/data-history.rw)と[型判定の変更](../docs/v2-next-frozen-bounds-implementation.md)を参照してください。

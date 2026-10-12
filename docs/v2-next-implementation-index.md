@@ -8,8 +8,8 @@
 |---|---|---|---|
 | std.snapshot / std.history | data rootの保存・分岐、名前付きregistry | CP-05/06の基本部分 | [data-history](../examples/data-history.rw) |
 | std.timeline | bounded Undo/Redo、seek、Redo破棄、古いrootの保持 | CP-05/06の利用シナリオ | [snapshot-timeline](../examples/snapshot-timeline.rw) |
-| std.changes | String Mapの差分・逆差分・合成・検査付き適用・3方向merge・rebase preview | VPERSIST-08、VHISTORY-04/05/06の一部 | [map-changes](../examples/map-changes.rw) |
-| std.historyGraph | 最大16親、branch HEAD、annotation、祖先・merge base・経路・predicate query、pinと明示prune | VHISTORY-01/02/03、07/08/09/10/11の一部 | [history-graph](../examples/history-graph.rw) |
+| std.changes | String Mapの差分・逆差分・合成・検査付き適用・3方向merge・rebase preview | VPERSIST-08、VHISTORY-04/05/06の一部 | [map-changes](../examples/map-changes.rw)、[rebase](../examples/rebase-preview.rw) |
+| std.historyGraph | 最大16親、branch HEAD、annotation、祖先・merge base・経路・predicate query、pinと明示prune | VHISTORY-01/02/03、07/08/09/10/11の一部 | [history-graph](../examples/history-graph.rw)、[整理とquery](../examples/history-maintenance.rw) |
 | std.parser | byte cursor、合成・先読み・検査・span・左右結合 | VPARSE-01/02/03/05/07の基本部分 | [parser-combinators](../examples/parser-combinators.rw)、[演算式](../examples/parser-expression.rw) |
 | std.orderedMap | 挿入順とlookupの一体管理、削除・再挿入、snapshot | VPERSIST-04のString key部分 | [insertion-ordered-map](../examples/insertion-ordered-map.rw) |
 | std.textIndex | 原文を保持するbyte/scalar/grapheme位置、境界変換、slice | VTEXT-01の3単位 | [text-positions](../examples/text-positions.rw) |

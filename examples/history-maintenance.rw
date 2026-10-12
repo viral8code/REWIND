@@ -1,0 +1,22 @@
+import std.historyGraph as historyGraph;
+import std.historyGraph.{create as createGraph};
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(result)=>{return move result;},Err(_)=>{panic("history maintenance example");}}
+}
+
+// Expected output (not executed): 0, 1, 999, base on separate lines.
+let graph=take(createGraph<Int>(8));let empty=List<String>();
+let initial=10;take(historyGraph.add(&mut graph,"base",&empty,&initial));
+let parents=List<String>();parents.add("base");
+let next=20;take(historyGraph.add(&mut graph,"draft",&parents,&next));
+let scratch=999;let detached=take(historyGraph.add(&mut graph,"scratch",&empty,&scratch));
+take(historyGraph.setHead(&mut graph,"main","draft"));
+take(historyGraph.pin(&mut graph,"scratch"));
+Out.println(take(historyGraph.previewPrune(&graph,&empty)).len());
+historyGraph.unpin(&mut graph,"scratch");
+Out.println(take(historyGraph.prune(&mut graph,&empty)).len());
+Out.println(historyGraph.fork(detached));
+let bases=take(historyGraph.mergeBases(&graph,"base","draft"));
+Out.println(bases.get(0));
+publish;

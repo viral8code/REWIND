@@ -1,6 +1,6 @@
 # v2.1以降：作業状態と再開手順
 
-更新日：2026-10-11。構想から実装へ移行。snapshot/historyに加え5つの標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
+更新日：2026-10-12。構想から実装へ移行。snapshot/historyに加え6つの標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
 
 ## この作業で守る指示
 
@@ -29,14 +29,31 @@
 | 2c1ac16 | byte parser combinator・期待集合・cut |
 | aff915a | 挿入順Map・削除/再挿入・snapshot用case |
 | e9ce169 | 入れ子Frozenのwrapperとthaw/iterator materialize |
+| 58320b9 | 5 moduleの利用例と草案対応表 |
+| c3750d6 | 履歴のpin・祖先保持・削除予定・明示prune |
+| fff4017 | 元の変更列の検査とrebase preview・段階root・衝突位置 |
+| d09bece | std.textIndex：原文付きbyte/scalar/grapheme位置 |
+| b392704 | parser：先読み・原文範囲・条件検査・値依存合成・左右結合 |
+| cbeec63 | 複数merge base・最短祖先経路 |
+| 4145ec7 | 不要なprune/rebaseのMap再構築を省略 |
 
 これらのtest sourceは実行していません。旧い「まず環境で検証する」という記録は、実行検証省略を許可した今回の方針で更新されています。将来検証するときのcommandとcaseは残します。
+
+## 2026-10-12の再開分
+
+履歴の保持・整理・query、変更列のrebase preview、文字位置型、parserの追加合成を実装した。今回のsource変更に対応するstd testを14件追加した。前日分と合わせた内訳は[対応表](v2-next-implementation-index.md)で確認できる。
+
+rebaseの入力Mapと既存HEADを自動変更しないこと、pin/HEADからの祖先をpruneで保つこと、位置・spanが原文を保持することを契約へ記載した。GCや速度の実測結果はない。機能の名称だけで629構想全体や公開版の完成を宣言しない。
+
+GitHubのrefと差分でsourceの保存を確認した。確認時点のmainは5f5ab8f37c4d21f8746b2d1db077946809e3be42。developのActions一覧の最新実行は2026-10-10の既存commitであり、今回のsource追加による新規実行は見つからなかった。実行検証の代替として扱わない。
+
+利用例はrebase-preview、history-maintenance、text-positions、parser-expressionを追加。expected出力は未実行の期待値。今回もcodex/developのみへ[skip ci]付きでcommit/pushした。
 
 ## 最初の実装単位
 
 [データsnapshotと名前付き履歴](v2-next-snapshot-implementation.md)を追加する。std.snapshot、std.history、埋込みmodule登録、library/CLIの回帰test、利用例を含む。[generic Frozenの共有判定](v2-next-frozen-bounds-implementation.md)も修正する。
 
-CP-05/06全体、動的な実行checkpoint操作、hyper領域、parent graph、mergeは完了扱いにしない。既存のCLI-01以降の計画も維持する。
+CP-05/06全体、動的な実行checkpoint操作、hyper領域は完了扱いにしない。後続のparent graphとMap限定merge/rebaseの実装は継続分の表に記録する。既存のCLI-01以降の計画も維持する。
 
 作業環境のcontainer_creationが失敗し、compileと実行testは未実施。GitHub接続でsourceを調査し、codex/developへ実装と回帰testを保存する。検証できるまで状態を「実装中」とする。
 
