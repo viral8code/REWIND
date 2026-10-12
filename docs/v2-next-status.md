@@ -101,9 +101,9 @@ custom validator、呼出側recordへのtyped adapter、editable table、安定r
 
 ## 2026-10-12のGUI-01レイアウト追加分
 
-`std.gui`へnested row/column layout tree、weighted main-axis min/max/fixed sizing、atomicな`applyLayout`を追加した。flatな`splitRow`/`splitColumn`はweightとgapのみに対応し、個別min/maxは持たない。上限は1024 node、深さ32、containerあたり256 child、4096 pixel。領域が制約を満たせない場合はView更新前にerrorを返す。focus/edit stateはwidget ID単位で維持する。
+`std.gui`へnested row/column/overlay layout tree、weighted main-axis min/max/fixed sizing、atomicな`applyLayout`を追加した。flatな`splitRow`/`splitColumn`はweightとgapのみに対応し、個別min/maxは持たない。上限は1024 node、深さ32、containerあたり256 child、4096 pixel。領域が制約を満たせない場合はView更新前にerrorを返す。focus/edit stateはwidget ID単位で維持する。
 
-GUI-01は部分実装で、padding、cross-axis constraints、自然寸法測定、resize時自動再配置を残す。API manifestと計画の記述をsourceに合わせた。環境起動失敗のためcompile、実行、API生成、native Windows/Linux動作は確認していない。source変更はcodex/developのみへ`[skip ci]`付きで保存し、mainと公開CI/CDへ触れない。
+GUI-01は部分実装で、overlay layout nodeは後続commitで実装した。padding、cross-axis constraints、自然寸法測定、resize時自動再配置を残す。API manifestと計画の記述をsourceに合わせた。環境起動失敗のためcompile、実行、API生成、native Windows/Linux動作は確認していない。source変更はcodex/developのみへ`[skip ci]`付きで保存し、mainと公開CI/CDへ触れない。
 
 ## 最初の実装単位
 
@@ -367,3 +367,11 @@ compile、実行、API再生成、native GUI確認はしていない。commitの
 [利用例](../examples/gui-table-edit-lifecycle.rw)を追加し、GUI reference、v2.2計画、API manifest、実装indexを更新した。実装commitは`356baffbd4666590f542d859264cf4f654df763a`。
 
 コンパイル・REWINDテスト・API再生成・GUI event/IME/native確認は環境起動失敗のため未実施。source brace balanceと公開function/API symbol名・数が一致することを確認しただけで、compiler/runtime検証ではない。codex/developだけへ`[skip ci]`付きで保存し、公開CI/CD、main統合、Release、版更新は行っていない。
+
+## 2026-10-12のGUI-01 overlay layout node
+
+`std.gui.overlayLayout(&layers)`は2..256個のchild Layoutを合成し、各layerへ親から渡された同一Rectを割り当てる。入力treeと合成結果は既存の1024 node・深さ32制限を守る。apply時には未知ID、重複ID、invalid boundsを全placement検証後にまとめて確認し、1件でも失敗すればView widgetを更新しない。layoutの適用はwidget insertion orderを変えないため、z-orderはViewへ追加した順で決まる。
+
+[利用例](../examples/gui-layout-overlay.rw)を追加し、GUI reference、API manifest、v2.2計画、実装indexを更新した。実装commitは`143ed9ef76a61992a729769ee76fad4ea1bda288`。
+
+コンパイル・REWINDテスト・API再生成・native GUIは環境起動失敗のため未確認。source brace balanceと公開function/API symbolの数・名前の一致のみを確認した。codex/developだけへ`[skip ci]`付きで保存し、公開CI/CD、main統合、Release、版更新は行っていない。
