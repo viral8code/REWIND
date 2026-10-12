@@ -1,5 +1,7 @@
 import std.bigint as bigint;
 import std.decimal as decimal;
+import std.json as json;
+import std.schema as schema;
 pub type Event=JsonStreamEvent;
 pub struct Reader {private state:JsonStreamState}
 pub enum IntegerEventError {Stream(StdError),ExpectedNumber(Int),InvalidInteger(StdError)}
@@ -82,3 +84,123 @@ pub fn next(reader:&mut Reader)->Result<Option<Event>,StdError> effects {} {
 pub fn finish(reader:&mut Reader)->Result<Unit,StdError> effects {} {match stdEncode(""){Err(error)=>{return Err(error);},Ok(empty)=>{return feed(reader,empty,true);}}}
 pub fn cancel(reader:&mut Reader)->Result<Unit,StdError> effects {} {match stdJsonStreamCancel(&reader.state){Err(error)=>{return Err(error);},Ok(state)=>{reader.state=state;return Ok(());}}}
 pub fn position(reader:&Reader)->Result<Int,StdError> effects {} {return stdJsonStreamPosition(&reader.state);}
+
+
+pub enum JsonValueError {Stream(StdError),InvalidNumber(String,Int),DepthLimit(Int),ExpectedValue(Int),ExpectedKey(Int),DuplicateKey(Int),ContainerLimit(Int)}
+pub enum SchemaEventError {Event(JsonValueError),Validation(schema.ValidationError)}
+fn valueEvent(reader:&mut Reader)->Result<Option<Event>,JsonValueError> effects {} {
+ match next(reader){Err(error)=>{return Err(JsonValueError::Stream(error));},Ok(value)=>{return Ok(value);}}
+}
+fn readObject(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> effects {} {
+ let fields=Map<String,Json>();
+ loop {
+  match peek(reader){
+   Err(error)=>{return Err(JsonValueError::Stream(error));},
+   Ok(None)=>{return Ok(None);},
+   Ok(Some(event))=>{
+    match event {
+     JsonStreamEvent::ObjectEnd(_)=>{
+      match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{return Ok(Some(Json::Object(freeze(fields))));}}
+     },
+     JsonStreamEvent::Key(name,position)=>{
+      if fields.len()>=65536{return Err(JsonValueError::ContainerLimit(position));}
+      if fields.get(name)!=None{return Err(JsonValueError::DuplicateKey(position));}
+      match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{}}
+      let value=match readValue(reader,depth+1){
+       Err(error)=>{return Err(error);},
+       Ok(None)=>{return Ok(None);},
+       Ok(Some(value))=>value
+      };
+      fields.set(name,value);
+     },
+     _=>{return Err(JsonValueError::ExpectedKey(eventPosition(event)));}
+    }
+   }
+  }
+ }
+}
+fn readArray(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> effects {} {
+ let values=List<Json>();
+ loop {
+  match peek(reader){
+   Err(error)=>{return Err(JsonValueError::Stream(error));},
+   Ok(None)=>{return Ok(None);},
+   Ok(Some(event))=>{
+    match event {
+     JsonStreamEvent::ArrayEnd(_)=>{
+      match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{return Ok(Some(Json::Array(freeze(values))));}}
+     },
+     _=>{
+      if values.len()>=65536{return Err(JsonValueError::ContainerLimit(eventPosition(event)));}
+      match readValue(reader,depth+1){
+       Err(error)=>{return Err(error);},
+       Ok(None)=>{return Ok(None);},
+       Ok(Some(value))=>{values.add(value);}
+      }
+     }
+    }
+   }
+  }
+ }
+}
+fn readValue(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> effects {} {
+ match peek(reader){
+  Err(error)=>{return Err(JsonValueError::Stream(error));},
+  Ok(None)=>{return Ok(None);},
+  Ok(Some(event))=>{
+   let position=eventPosition(event);
+   match event {
+    JsonStreamEvent::ObjectStart(_)=>{
+     if depth>=64{return Err(JsonValueError::DepthLimit(position));}
+     match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{}}
+     return readObject(reader,depth);
+    },
+    JsonStreamEvent::ArrayStart(_)=>{
+     if depth>=64{return Err(JsonValueError::DepthLimit(position));}
+     match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{}}
+     return readArray(reader,depth);
+    },
+    JsonStreamEvent::Text(value,_)=>{
+     match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{return Ok(Some(Json::Text(value)));}}
+    },
+    JsonStreamEvent::Bool(value,_)=>{
+     match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{return Ok(Some(Json::Bool(value)));}}
+    },
+    JsonStreamEvent::Null(_)=>{
+     match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{return Ok(Some(Json::Null));}}
+    },
+    JsonStreamEvent::Number(raw,_)=>{
+     match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{}}
+     match json.parse(raw){
+      Err(error)=>{return Err(JsonValueError::InvalidNumber(error.code,error.offset));},
+      Ok(value)=>{return Ok(Some(value));}
+     }
+    },
+    _=>{return Err(JsonValueError::ExpectedValue(position));}
+   }
+  }
+ }
+}
+// @api nextJson consumes one complete JSON value only after it has been materialized; incomplete input and failures preserve the queued events.
+pub fn nextJson(reader:&mut Reader)->Result<Option<Json>,JsonValueError> effects {} {
+ let trial=Reader(reader.state);
+ match readValue(&mut trial,0){
+  Err(error)=>{return Err(error);},
+  Ok(None)=>{return Ok(None);},
+  Ok(Some(value))=>{reader.state=trial.state;return Ok(Some(value));}
+ }
+}
+// @api nextValidated consumes one complete value only after parsing and schema validation succeed; incomplete input and failures preserve the queued events.
+pub fn nextValidated(reader:&mut Reader,rule:schema.Schema)->Result<Option<Json>,SchemaEventError> effects {} {
+ let trial=Reader(reader.state);
+ match readValue(&mut trial,0){
+  Err(error)=>{return Err(SchemaEventError::Event(error));},
+  Ok(None)=>{return Ok(None);},
+  Ok(Some(value))=>{
+   match schema.validate(rule,value){
+    Err(error)=>{return Err(SchemaEventError::Validation(error));},
+    Ok(checked)=>{reader.state=trial.state;return Ok(Some(checked));}
+   }
+  }
+ }
+}

@@ -67,6 +67,29 @@
       ],
       "return": "Result<Option<Decimal>,DecimalEventError>"
     },
+    "fn:nextJson": {
+      "async": false,
+      "cost": "O(events + JSON values); max nesting 64 and 65536 values per container. Builds one complete root value.",
+      "effects": [],
+      "failure": "JsonValueError; incomplete input and failures leave all queued events unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut Reader"
+      ],
+      "return": "Result<Option<Json>,JsonValueError>"
+    },
+    "fn:nextValidated": {
+      "async": false,
+      "cost": "O(events + JSON values + schema visits); max nesting 64 and 65536 values per container.",
+      "effects": [],
+      "failure": "SchemaEventError; incomplete input, parse errors, duplicate keys and schema failures leave queued events unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut Reader",
+        "$import$schema$Schema"
+      ],
+      "return": "Result<Option<Json>,SchemaEventError>"
+    },
     "fn:peek": {
       "async": false,
       "effects": [],
@@ -590,6 +613,58 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JsonValueError": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Stream": [
+          [
+            "0",
+            "StdError"
+          ]
+        ],
+        "InvalidNumber": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "DepthLimit": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ExpectedValue": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ExpectedKey": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "DuplicateKey": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ContainerLimit": [
+          [
+            "0",
+            "Int"
+          ]
+        ]
+      }
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -624,6 +699,24 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:SchemaEventError": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Event": [
+          [
+            "0",
+            "JsonValueError"
+          ]
+        ],
+        "Validation": [
+          [
+            "0",
+            "$import$schema$ValidationError"
+          ]
+        ]
+      }
     },
     "type:StdError": {
       "constructor": true,

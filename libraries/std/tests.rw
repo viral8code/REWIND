@@ -14,8 +14,46 @@ import collections as collections;
 import math as math;
 import option as option;
 import json as json;
+import jsonStream as jsonStream;
 import config as config;
 import args as args;
+test fn json_stream_materializes_and_validates_complete_values_atomically()->Unit effects {} {
+    let fields=List<schema.Field>();
+    fields.add(transformTake(schema.field("name",transformTake(schema.text(1,80)),true,None)));
+    fields.add(transformTake(schema.field("score",transformTake(schema.integer(0,1000000)),true,None)));
+    let rule=transformTake(schema.object(&fields,schema.Unknown::Reject));
+
+    let reader=transformTake(jsonStream.reader());
+    let prefix=transformTake(stdEncode("{\"name\":\"Ada\""));
+    assert_eq(jsonStream.feed(&mut reader,prefix,false),Ok(()));
+    assert_eq(jsonStream.nextValidated(&mut reader,rule),Ok(None));
+    match jsonStream.peek(&reader){Ok(Some(JsonStreamEvent::ObjectStart(_)))=>{},_=>{panic("incomplete object was consumed");}}
+    let suffix=transformTake(stdEncode(",\"score\":42}"));
+    assert_eq(jsonStream.feed(&mut reader,suffix,true),Ok(()));
+    match jsonStream.nextValidated(&mut reader,rule){
+        Ok(Some(value))=>{assert_eq(json.get(value,"name"),Some(Json::Text("Ada")));assert_eq(json.get(value,"score"),Some(Json::Int(42)));},
+        _=>{panic("valid object did not materialize");}
+    }
+    assert_eq(jsonStream.peek(&reader),Ok(None));
+
+    let invalid=transformTake(jsonStream.reader());
+    let invalidInput=transformTake(stdEncode("{\"name\":7,\"score\":42}"));
+    assert_eq(jsonStream.feed(&mut invalid,invalidInput,true),Ok(()));
+    match jsonStream.nextValidated(&mut invalid,rule){
+        Err(jsonStream.SchemaEventError::Validation(error))=>{assert_eq(error.code,"Type");},
+        _=>{panic("schema failure expected");}
+    }
+    match jsonStream.peek(&invalid){Ok(Some(JsonStreamEvent::ObjectStart(_)))=>{},_=>{panic("validation failure consumed events");}}
+
+    let nested=transformTake(jsonStream.reader());
+    let nestedInput=transformTake(stdEncode("{\"items\":[1,true,null]}"));
+    assert_eq(jsonStream.feed(&mut nested,nestedInput,true),Ok(()));
+    match jsonStream.nextJson(&mut nested){
+        Ok(Some(value))=>{match json.get(value,"items"){Some(Json::Array(items))=>{assert_eq(items.len(),3);},_=>{panic("array materialization");}}},
+        _=>{panic("nested value");}
+    }
+}
+
 test fn algorithms() {
     assert_eq(json.floating(Json::Float(1.5)),Some(1.5));
     match json.parse("[1,true]") {Ok(v)=>{match json.array(v) {Some(values)=>{assert_eq(json.integer(thaw(values.get(0))),Some(1));assert_eq(json.boolean(thaw(values.get(1))),Some(true));},None=>{panic("expected array");}}},Err(_)=>{panic("expected parsed array");}}

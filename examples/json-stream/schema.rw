@@ -1,0 +1,23 @@
+import std.jsonStream as jsonStream;
+import std.schema as schema;
+import std.json as json;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("JSON schema conversion failed");}}
+}
+let fields=List<schema.Field>();
+fields.add(take(schema.field("name",take(schema.text(1,80)),true,None)));
+fields.add(take(schema.field("score",take(schema.integer(0,1000000)),true,None)));
+let rule=take(schema.object(&fields,schema.Unknown::Reject));
+let reader=take(jsonStream.reader());
+let bytes=take(stdEncode("{\"name\":\"Ada\",\"score\":42}"));
+take(jsonStream.feed(&mut reader,bytes,true));
+match take(jsonStream.nextValidated(&mut reader,rule)){
+    None=>{panic("expected one JSON object");},
+    Some(value)=>{
+        let name=match json.get(value,"name"){Some(raw)=>{match json.text(raw){Some(text)=>text,None=>{panic("name type");}}},None=>{panic("name field");}};
+        let score=match json.get(value,"score"){Some(raw)=>{match json.integer(raw){Some(number)=>number,None=>{panic("score type");}}},None=>{panic("score field");}};
+        Out.println(name);
+        Out.println(score);
+    }
+}

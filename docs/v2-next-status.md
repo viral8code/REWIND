@@ -73,7 +73,7 @@ GitHubの差分とrefで保存を確認した。mainは同じ5f5ab8f37c4d21f8746
 
 ## 2026-10-12のschema・cache追加分
 
-DATA-01のJSON部分をstd.schemaへ追加した。入れ子object/array、型と範囲、default、明示NULL、unknown policy、typed pathを扱う。Schemaはdataとして保持でき、Decoderは明示mapperと失敗段階を持つ。header付きCSVとDBのbounded single-row adapterを実装。form adapter・derive・共通batch pipelineは未実装。
+DATA-01のJSON部分をstd.schemaへ追加した。入れ子object/array、型と範囲、default、明示NULL、unknown policy、typed pathを扱う。Schemaはdataとして保持でき、Decoderは明示mapperと失敗段階を持つ。CSV/DB/formへの共通adapterやderiveは未実装の範囲として残す。
 
 VCACHE-02/03/04/06/12の基本部分をstd.memoへ実装した。domain/code revision/inputを分けたkeyで複数版を保持し、entry数とcaller指定weightでLRU evictionする。weightを実測memoryと呼ばない。orderedMapへfirst/last/popFirst/popLast/touchを追加し、単一evictionで全keyを列挙する処理を避けた。
 
@@ -174,7 +174,7 @@ GUI-01〜03は基礎の一部を実装、他は未着手です。IDのGUI-01はv
 | GUI-02 | scoped child ID基盤 | layout ID、effect/ownership | source foundation saved; model/render/reducer and IME-preserving reuse remain |
 | GUI-03 | form relations, typed mapper, caller row IDs, bounded cell-edit overlay | 既存form/table、GUI-01 | form/row-ID/model-edit foundations saved; native input/edit lifecycle and sort/filter remain |
 | VIS-01 | 限定plot | renderer primitive、numeric view | 費用/互換確認。未成立なら保留可能 |
-| DB-01 | 明示record mapping | typed cell/cursor/schema | single-row schema adapter source saved; backend NULL/duplicate/missing/precision and cursor cleanup execution acceptance remains |
+| DB-01 | 明示record mapping | typed cell/cursor | NULL/列名/精度/bounded batch |
 | DB-02 | transaction helper | external/await/affineの最小例 | 終了状態、cancel、unknown、cleanup |
 | DB-03 | 限定migration | DB-02、backend lock/DDL | 同時適用、checksum、途中失敗 |
 | APP-01 | 入力・一覧・保存の例 | 必要なGUI/DB単位 | 外部境界、失敗表示、shutdown |
@@ -278,7 +278,7 @@ nested node tableを合成するときに、object field名からchild node inde
 
 変更は[db5b39d](https://github.com/viral8code/REWIND/commit/db5b39d8f50de71b690c3666988e3f7f99a1c20a)。[csv-stream example](../examples/csv-stream/README.md)を型変換・失敗後の再試行を見せる内容に更新した。新たなtest sourceは追加していない。環境起動失敗によりcompile/runtime確認は未実施。
 
-DATA-04全体は未完了。実装したのは既存CSV queueを使う1-row consumerであり、JSON record adapter、DB/HTTP cursor共通化、batch collection APIは残る。queue管理・chunk再送・cancelは既存reader契約を使い、std.schemaは入力streamや外部資源を所有しない。
+DATA-04全体は未完了。CSVの1-row consumerとJSON eventからのbounded Json materializer/schema validatorはsource実装済み。application recordへのmapper、DB/HTTP cursor共通化、batch collection APIは残る。queue管理・chunk再送・cancelは既存reader契約を使い、std.schemaは入力streamや外部資源を所有しない。
 
 
 ## 2026-10-12のDB column mapping helper
@@ -293,7 +293,12 @@ v2.2のDB-01に`std.db.ColumnMap`、`indexColumns`、`columnNumber`を追加し�
 
 API manifest、library一覧、DATA-04の実装状況、利用例を更新しました：[json-stream](../examples/json-stream/README.md)、[BigInt例](../examples/json-stream/bigint.rw)。実装commitは[1f2052d](https://github.com/viral8code/REWIND/commit/1f2052d9cab174166f225ddd2bc984304306e253)と[e1b0fbf](https://github.com/viral8code/REWIND/commit/e1b0fbf17f9d6c3c556f8bb6df9139e0d41f709d)です。
 
-DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP sourceとの共通batch APIが残っています。source・例のcompile/runtime/API再生成・Windows確認は未実施です。commitはcodex/developのみへ`[skip ci]`付きで保存し、公開CI/CD、main統合、releaseは行っていません。
+DATA-04にはvalidated Jsonからapplication recordへ写す明示mapperと、DB cursor/HTTP sourceとの共通batch APIが残っています。source・例のcompile/runtime/API再生成・Windows確認は未実施です。commitはcodex/developのみへ`[skip ci]`付きで保存し、公開CI/CD、main統合、releaseは行っていません。
+
+
+## DATA-04 JSON event materialization / schema validation
+
+`std.jsonStream.nextJson`はJSON event列からnested object/arrayを含む一つのroot `Json`を構築する。`nextValidated`はshared `std.schema`で検証・default補完した値を返す。不完全chunkとparse・duplicate-key・schema errorではReaderのqueued eventを消費しない。上限は深さ64、object/array各65,536要素。number eventは通常のJSON parse経路(Int/Float)となるため、exact BigInt/Decimalは専用helperを使う。source、API manifest、split-input・validation-failureのtest source、[schema example](../examples/json-stream/schema.rw)を追加した。compile/runtime/API regenerationは未実施。
 
 ## DB-01のbounded row mapper
 
@@ -302,13 +307,6 @@ DATA-04にはJSON eventからschema/recordを作るadapterと、DB cursor/HTTP s
 [SQLite](../examples/database/README.md)と[PostgreSQL](../examples/postgres/README.md)の例はcursorの列metadataから`ColumnMap`を作り、`mapBatch`へmapperを渡します。DBの読込みは引き続き明示的な`db.next`で行います。API manifestへdevelop上のColumnMap APIと新しいgeneric batch APIを反映しました。
 
 実装は[d8315c8](https://github.com/viral8code/REWIND/commit/d8315c8e70f2e15d3e45327cef4b163f1887b1c5)です。compile/runtime/API再生成とSQLite/PostgreSQL実接続の受入は未実施です。
-
-
-## DATA-01 / DB-01：DB rowとshared schemaの接続
-
-`std.db.validateRow`は最大256列の一行をJSON objectへ明示変換し、呼出側の`std.schema.Schema`で必須field、型、範囲、default、unknown fieldを検証する。DbValue Null/Bool/Int/Float/Textを対応するJSON値へ写し、列名重複・行幅不一致・schema errorを別variantで返す。BytesとPrivateは暗黙のUTF-8/Text変換をせず拒否し、エラーにcell実値を含めない。SQLiteのDecimal BLOBは`dbDecimal.cell`を使った明示変換が必要。最大64行のmapBatch/cursor読取り契約は変更しない。
-
-SQLite統合例をschema検証から明示record作成する形へ更新し、純粋なDbRow入力のtest sourceを追加した。compile/runtime、API generator、SQLite/PostgreSQL接続、NULL/cleanupの実行検証は未実施。例のexpected outputも未実行。
 
 ## GUI-01のflat weighted split
 
