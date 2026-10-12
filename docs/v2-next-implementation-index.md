@@ -1,6 +1,6 @@
 # 構想から実装した機能の入口
 
-更新日：2026-10-11。対象：codex/develop。**実装sourceを保存済み。実行検証はユーザーの指示により省略。** 公開版の仕様・動作保証・全構想の完了表ではない。
+更新日：2026-10-12。対象：codex/develop。**実装sourceを保存済み。実行検証はユーザーの指示により省略。** 公開版の仕様・動作保証・全構想の完了表ではない。
 
 ## 今回の追加
 
@@ -9,13 +9,13 @@
 | std.snapshot / std.history | data rootの保存・分岐、名前付きregistry | CP-05/06の基本部分 | [data-history](../examples/data-history.rw) |
 | std.timeline | bounded Undo/Redo、seek、Redo破棄、古いrootの保持 | CP-05/06の利用シナリオ | [snapshot-timeline](../examples/snapshot-timeline.rw) |
 | std.changes | String Mapの差分・逆差分・合成・検査付き適用・3方向merge | VPERSIST-08、VHISTORY-04/06の一部 | [map-changes](../examples/map-changes.rw) |
-| std.historyGraph | 最大16親、branch HEAD、annotation、祖先・predicate query | VHISTORY-01/02/03、08/10の一部 | [history-graph](../examples/history-graph.rw) |
+| std.historyGraph | 最大16親、branch HEAD、annotation、祖先・predicate query、pinと明示prune | VHISTORY-01/02/03、08/09/10/11の一部 | [history-graph](../examples/history-graph.rw) |
 | std.parser | byte cursor、連結・選択・変換・optional・bounded repeat・cut | VPARSE-01/02/03の有限入力部分 | [parser-combinators](../examples/parser-combinators.rw) |
 | std.orderedMap | 挿入順とlookupの一体管理、削除・再挿入、snapshot | VPERSIST-04のString key部分 | [insertion-ordered-map](../examples/insertion-ordered-map.rw) |
 | generic Frozenの型判定 | T:SendからFrozen<T>のShareを導出し、呼出し・recordへ伝播 | 上記libraryの前提修正 | [記録](v2-next-frozen-bounds-implementation.md) |
 | 入れ子Frozenのruntime修正 | 明示freezeの一段追加と、thaw時の内側Frozen保持 | snapshot/ChangeSetの合成を支える修正 | [記録](v2-next-nested-frozen-implementation.md) |
 
-追加した5 moduleは合計65のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
+追加した5 moduleは合計71のpublic functionを持つ。標準module registryに登録し、standalone importとSDK source生成の経路に接続した。署名付きSDK生成・API snapshot生成は未実行。
 
 ## 読む資料
 
@@ -28,7 +28,7 @@
 
 ## 確認sourceと未確認範囲
 
-継続分ではlibraries/std/tests.rwへ13 test、tests/generic_frozen_bounds.rsへ1 testを追加した。compile、runtime、source-free artifact、record/replay、Windows、format、API生成、性能・GC測定は今回実行していない。source読解とGitHub上の差分・ref確認を、これらの実行検証の代わりとして数えない。
+継続分ではlibraries/std/tests.rwへ15 test、tests/generic_frozen_bounds.rsへ1 testを追加した。compile、runtime、source-free artifact、record/replay、Windows、format、API生成、性能・GC測定は今回実行していない。source読解とGitHub上の差分・ref確認を、これらの実行検証の代わりとして数えない。
 
 runtimeのFrozen修正は既存artifact/traceへ影響し得るため、次回検証する場合は通常のgeneric/ownership確認だけでなく、入れ子値とrecord/replayも確認する。
 
@@ -39,7 +39,7 @@ VTEXT-03のchunk間UTF-8 decoderの基本部分は、既存std.streamのutf8/dec
 ## 今回含まない部分
 
 - 動的な実行checkpoint handle、continuation復元、checkpoint外のhyper領域。
-- historyのprune/squash、protected root、annotation stream、跨runtimeの履歴pack。
+- historyのsquash、annotation stream、跨runtimeの履歴pack。pruneとprotected rootの基本部分は実装sourceを追加した。
 - 任意Tの自動diff/merge、domain不変条件の自動生成、外部作用のrebase。
 - parserの左再帰、stream追加待ち、lossless/incremental tree、parse forest、error recovery。
 - partial型のfile合成、native arena/ヒープ外memory、trait object、const generic等の独立したcompiler/runtime変更。

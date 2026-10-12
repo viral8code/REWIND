@@ -1,6 +1,6 @@
 # 履歴・変更操作libraryの実装記録
 
-更新日：2026-10-11。状態：**source実装済み・実行検証省略**。ユーザーの方針により、環境起動失敗を待たずに実装を進める。compile、test、性能、API生成を確認済みとは扱わない。
+更新日：2026-10-12。状態：**source実装済み・実行検証省略**。ユーザーの方針により、環境起動失敗を待たずに実装を進める。compile、test、性能、API生成を確認済みとは扱わない。
 
 既存[std.snapshot / std.history](v2-next-snapshot-implementation.md)から、[永続collection構想](visions/19-persistent-collections.md)と[履歴graph構想](visions/48-history-graphs.md)のdata操作へ進める。全VM checkpointや外部操作を扱うものではない。
 
@@ -50,9 +50,25 @@ annotateは説明4,096 scalarと著者128 scalar以内のmetadataをdataと別�
 
 isAncestorは自分自身をancestorに含め、queueとvisited mapで探索する。各到達版は一度だけenqueueし、深い履歴を再帰関数で辿らない。matchingはpure predicateで各snapshotを調べ、名前順のVersion列を返す。
 
-Graphは通常のVM model。revertでregistry、HEAD、annotationも戻る。全rootを利用者の保持として所有し、勝手に古い版を削除しない。今回、個別版のprune、squash、protected root、pack、跨runtime identityは実装しない。容量に達したらtyped errorで止まり、callerが保持範囲や次のgraphを明示する。
+Graphは通常のVM model。revertでregistry、HEAD、annotationも戻る。全rootを利用者の保持として所有し、勝手に古い版を削除しない。容量に達したらtyped errorで止まる。2026-10-12に、明示的なpruneとprotected rootを追加した。squash、pack、跨runtime identityは含まない。
 
 library test sourceに、分岐と複数親、ancestor、HEAD移動、独立Version、annotation、predicate query、欠落親・重複親・重複版・欠落HEADの拒否を用意した。実行は省略。
+
+### 保護rootと明示的な整理（2026-10-12）
+
+VHISTORY-09と11の整理の一部としてpin、unpin、pins、ancestors、previewPrune、pruneを追加した。pinは既存版だけを受け、同じ版への重複pinは一件として扱う。pinsは名前順の独立List。unpinはHEADを変更しない。
+
+pruneは現在の全HEAD、pin、明示したkeep rootの和から親を辿り、到達しない版とそのannotationを取り除く。親を残すため、保持した版のedgeが欠落しない。HEADもpinもkeepも空なら全版を整理する。自動GCや容量不足を契機に実行するものではない。
+
+previewPruneは削除予定の名前順Listだけを返す。pruneはそのListを承認tokenとして受け取らず、呼出し時点のrootで再計算する。preview後に追加したHEADやpinを無視して削除しない。keepは重複を許すが入力は65,536件まで。存在しないrootはUnknownVersionで、変更前に拒否する。
+
+ancestorsは指定root自身を含む祖先の和を名前順に返す。重複rootや複数親があっても一度だけ探索する。文字列Listはsnapshotを所有しない。
+
+pruneは保持用の新しいregistryとannotation mapを組み立ててから置換し、通常のtyped errorでは元graphを変更しない。探索はversion/edgeを一度ずつ訪ね、Map lookupの費用を伴う。整理中は新旧のMapを一時保持する。fatal予算失敗までのatomic recoveryは保証しない。
+
+外で取得済みのVersion/Snapshotはrootを保持し続ける。pruneした名前は再利用できるが、取得済みVersionが新しい値へ変わることはない。name/parentsはgraph内のlookup文字列であり、削除・再利用後に古いVersion.parentsの文字列を現在graphへ解決して同じ版だと判断しない。graph内の祖先情報まで保持したい場合はその版をpinする。
+
+library test sourceに、HEADとpinからの祖先保持、annotation除去、preview後のHEAD追加、欠落root時の入力不変、明示keep、名前再利用と取得済みrootの独立性を2件追加した。実行は省略。
 
 ## std.orderedMap：挿入順とlookupを一つのownerで保持
 

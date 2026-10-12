@@ -1,6 +1,6 @@
 # data履歴のgraph・branch・変更の運搬
 
-2026-10-11の実装状況：VHISTORY-01/02/03と08/10の基本部分をstd.historyGraphへ、04/06のMap限定部分をstd.changesへ具体化しました。 sourceを保存済みで、実行検証は省略しています。[実装一覧](../v2-next-implementation-index.md)。以下の構想全体が完了した意味ではありません。
+2026-10-12の実装状況：VHISTORY-01/02/03と08/10の基本部分、09のpin、11の明示pruneをstd.historyGraphへ、04/06のMap限定部分をstd.changesへ具体化しました。squashや注釈streamは含みません。 sourceを保存済みで、実行検証は省略しています。[実装一覧](../v2-next-implementation-index.md)。以下の構想全体が完了した意味ではありません。
 
 checkpoint名と複数版の値の構想を、利用者が操作するdata履歴graphへ広げる。Gitに似た利用体験を考えるが、実行stackのcheckpointとdata versionを同じものにはしない。
 

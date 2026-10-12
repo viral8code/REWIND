@@ -669,3 +669,55 @@ test fn snapshots_and_changes_preserve_frozen_payload_types()->Unit effects {} {
     }
     assert_eq(first.get(0),10);
 }
+
+test fn history_graph_prune_retains_heads_pins_and_their_ancestors()->Unit effects {} {
+    let graph=transformTake(createGraph<Int>(8));let empty=List<String>();
+    let value=1;transformTake(historyGraph.add(&mut graph,"base",&empty,&value));
+    let parents=List<String>();parents.add("base");
+    transformTake(historyGraph.add(&mut graph,"left",&parents,&value));
+    transformTake(historyGraph.add(&mut graph,"right",&parents,&value));
+    let right=List<String>();right.add("right");
+    transformTake(historyGraph.add(&mut graph,"leaf",&right,&value));
+    let detached=transformTake(historyGraph.add(&mut graph,"orphan",&empty,&value));
+    transformTake(historyGraph.annotate(&mut graph,"orphan",Annotation("removable","tester")));
+    transformTake(historyGraph.setHead(&mut graph,"main","left"));
+    transformTake(historyGraph.pin(&mut graph,"leaf"));
+    transformTake(historyGraph.pin(&mut graph,"leaf"));
+    assert_eq(historyGraph.pins(&graph).len(),1);
+    let preview=transformTake(historyGraph.previewPrune(&graph,&empty));
+    assert_eq(preview.len(),1);assert_eq(preview.get(0),"orphan");
+    assert_eq(historyGraph.length(&graph),5);
+    let removed=transformTake(historyGraph.prune(&mut graph,&empty));
+    assert_eq(removed.len(),1);assert_eq(removed.get(0),"orphan");
+    assert_eq(historyGraph.length(&graph),4);
+    assert_eq(historyGraph.annotation(&graph,"orphan"),None);
+    assert_eq(historyGraph.fork(detached),1);
+    assert_eq(historyGraph.isAncestor(&graph,"base","leaf"),Ok(true));
+    assert(historyGraph.unpin(&mut graph,"leaf"));assert(!historyGraph.unpin(&mut graph,"leaf"));
+    let more=transformTake(historyGraph.prune(&mut graph,&empty));
+    assert_eq(more.len(),2);assert_eq(more.get(0),"leaf");assert_eq(more.get(1),"right");
+    assert_eq(historyGraph.length(&graph),2);
+    let roots=List<String>();roots.add("left");roots.add("left");
+    let ancestors=transformTake(historyGraph.ancestors(&graph,&roots));
+    assert_eq(ancestors.len(),2);assert_eq(ancestors.get(0),"base");assert_eq(ancestors.get(1),"left");
+}
+
+test fn history_graph_prune_recomputes_roots_and_validates_before_change()->Unit effects {} {
+    let graph=transformTake(createGraph<Int>(2));let empty=List<String>();
+    let old=10;let original=transformTake(historyGraph.add(&mut graph,"version",&empty,&old));
+    let preview=transformTake(historyGraph.previewPrune(&graph,&empty));
+    assert_eq(preview.len(),1);
+    transformTake(historyGraph.setHead(&mut graph,"keep","version"));
+    assert_eq(transformTake(historyGraph.prune(&mut graph,&empty)).len(),0);
+    let missing=List<String>();missing.add("unknown");
+    match historyGraph.prune(&mut graph,&missing) {Err(e)=>{assert_eq(e.code,"UnknownVersion");},Ok(_)=>{panic("missing keep root");}}
+    match historyGraph.pin(&mut graph,"unknown") {Err(e)=>{assert_eq(e.code,"UnknownVersion");},Ok(_)=>{panic("missing pin");}}
+    assert_eq(historyGraph.length(&graph),1);
+    historyGraph.dropHead(&mut graph,"keep");
+    let explicit=List<String>();explicit.add("version");
+    assert_eq(transformTake(historyGraph.prune(&mut graph,&explicit)).len(),0);
+    assert_eq(transformTake(historyGraph.prune(&mut graph,&empty)).len(),1);
+    let updated=99;transformTake(historyGraph.add(&mut graph,"version",&empty,&updated));
+    assert_eq(historyGraph.fork(original),10);
+    match historyGraph.get(&graph,"version") {Some(v)=>{assert_eq(historyGraph.fork(v),99);},None=>{panic("reused local key");}}
+}

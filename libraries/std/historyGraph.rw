@@ -11,12 +11,13 @@ pub struct HistoryGraph<T:Send> {
     private versions:Map<String,Version<T>>,
     private heads:Map<String,String>,
     private notes:Map<String,Annotation>,
+    private protected:Map<String,Bool>,
     private capacity:Int
 }
 
 pub fn create<T:Send>(capacity:Int)->Result<HistoryGraph<T>,GraphError> effects {} {
     if capacity<1 || capacity>65536 {return Err(GraphError("InvalidCapacity",""));}
-    return Ok(HistoryGraph<T>(Map<String,Version<T>>(),Map<String,String>(),Map<String,Annotation>(),capacity));
+    return Ok(HistoryGraph<T>(Map<String,Version<T>>(),Map<String,String>(),Map<String,Annotation>(),Map<String,Bool>(),capacity));
 }
 pub fn length<T:Send>(graph:&HistoryGraph<T>)->Int effects {} {return graph.versions.len();}
 pub fn versions<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return graph.versions.keys();}
@@ -130,4 +131,110 @@ pub fn matching<T:Send>(graph:&HistoryGraph<T>,predicate:fn(Frozen<T>)->Bool eff
         }
     }
     return output;
+}
+
+// @api pin Protects a registered version and all its ancestors during explicit pruning. Does not change branch heads.
+pub fn pin<T:Send>(graph:&mut HistoryGraph<T>,version:String)->Result<Unit,GraphError> effects {} {
+    match graph.versions.get(version) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",version));}}
+    graph.protected.set(version,true);
+    return Ok(());
+}
+pub fn unpin<T:Send>(graph:&mut HistoryGraph<T>,version:String)->Bool effects {} {
+    match graph.protected.get(version) {
+        Some(_)=>{graph.protected.remove(version);return true;},
+        None=>{return false;}
+    }
+}
+pub fn pins<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return graph.protected.keys();}
+
+fn reachable<T:Send>(graph:&HistoryGraph<T>,roots:&List<String>)->Result<Map<String,Bool>,GraphError> effects {} {
+    if roots.len()>65536 {return Err(GraphError("RootLimit",""));}
+    let pending=List<String>();let seen=Map<String,Bool>();
+    for i in 0..roots.len() {
+        let root=roots.get(i);
+        match graph.versions.get(root) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",root));}}
+        match seen.get(root) {Some(_)=>{},None=>{seen.set(root,true);pending.add(root);}}
+    }
+    var cursor=0;
+    while cursor<pending.len() {
+        let current=pending.get(cursor);cursor+=1;
+        match graph.versions.get(current) {
+            Some(version)=>{
+                for i in 0..version.parents.len() {
+                    let parent=version.parents.get(i);
+                    match seen.get(parent) {Some(_)=>{},None=>{seen.set(parent,true);pending.add(parent);}}
+                }
+            },
+            None=>{panic("history graph invariant");}
+        }
+    }
+    return Ok(move seen);
+}
+
+// @api ancestors Returns the union of inclusive ancestors of explicit roots, in version-name order. Does not retain snapshots.
+pub fn ancestors<T:Send>(graph:&HistoryGraph<T>,roots:&List<String>)->Result<List<String>,GraphError> effects {} {
+    match reachable(graph,roots) {Ok(found)=>{return Ok(found.keys());},Err(error)=>{return Err(error);}}
+}
+
+fn retained<T:Send>(graph:&HistoryGraph<T>,keep:&List<String>)->Result<Map<String,Bool>,GraphError> effects {} {
+    if keep.len()>65536 {return Err(GraphError("RootLimit",""));}
+    let roots=List<String>();let seen=Map<String,Bool>();
+    // Validate explicit roots even if a branch or pin already retains everything.
+    for i in 0..keep.len() {
+        let root=keep.get(i);
+        match graph.versions.get(root) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",root));}}
+        match seen.get(root) {Some(_)=>{},None=>{seen.set(root,true);roots.add(root);}}
+    }
+    let protected=graph.protected.keys();
+    for i in 0..protected.len() {
+        let root=protected.get(i);
+        match seen.get(root) {Some(_)=>{},None=>{seen.set(root,true);roots.add(root);}}
+    }
+    let branches=graph.heads.keys();
+    for i in 0..branches.len() {
+        match graph.heads.get(branches.get(i)) {
+            Some(root)=>{match seen.get(root) {Some(_)=>{},None=>{seen.set(root,true);roots.add(root);}}},
+            None=>{panic("history graph invariant");}
+        }
+    }
+    return reachable(graph,&roots);
+}
+
+// @api previewPrune Lists versions unreachable from current heads, pins and explicit keep roots; neither metadata nor graph is mutated.
+pub fn previewPrune<T:Send>(graph:&HistoryGraph<T>,keep:&List<String>)->Result<List<String>,GraphError> effects {} {
+    match retained(graph,keep) {
+        Err(error)=>{return Err(error);},
+        Ok(found)=>{
+            let removed=List<String>();let keys=graph.versions.keys();
+            for i in 0..keys.len() {
+                let key=keys.get(i);
+                match found.get(key) {Some(_)=>{},None=>{removed.add(key);}}
+            }
+            return Ok(move removed);
+        }
+    }
+}
+
+// @api prune Recomputes protected reachability, builds retained registries, then replaces them. Detached Version/Snapshot values keep their data.
+pub fn prune<T:Send>(graph:&mut HistoryGraph<T>,keep:&List<String>)->Result<List<String>,GraphError> effects {} {
+    match retained(graph,keep) {
+        Err(error)=>{return Err(error);},
+        Ok(found)=>{
+            let versions=Map<String,Version<T>>();let notes=Map<String,Annotation>();let removed=List<String>();
+            let keys=graph.versions.keys();
+            for i in 0..keys.len() {
+                let key=keys.get(i);
+                match found.get(key) {
+                    Some(_)=>{
+                        match graph.versions.get(key) {Some(version)=>{versions.set(key,version);},None=>{panic("history graph invariant");}}
+                        match graph.notes.get(key) {Some(note)=>{notes.set(key,note);},None=>{}}
+                    },
+                    None=>{removed.add(key);}
+                }
+            }
+            graph.versions=move versions;
+            graph.notes=move notes;
+            return Ok(move removed);
+        }
+    }
 }
