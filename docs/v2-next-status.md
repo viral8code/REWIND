@@ -1,6 +1,6 @@
 # v2.1以降：作業状態と再開手順
 
-更新日：2026-10-11。構想から実装へ移行しました。最初の単位はSnapshot<T>と名前付きHistory<T>です。**実装中・実行検証待ち**であり、版更新・Release公開は行っていません。
+更新日：2026-10-11。構想から実装へ移行。snapshot/historyに加え5つの標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
 
 ## この作業で守る指示
 
@@ -17,7 +17,22 @@
 
 ユーザーから実行検証を省略して草案の実装を進める指示を受けた。環境復旧を実装の開始条件にしない。[履歴・変更操作library](v2-next-data-tools-implementation.md)へ進め、source実装と検証済みを区別して記録する。
 
-## 現在の実装単位
+## 継続分の保存履歴
+
+[実装の入口と利用例](v2-next-implementation-index.md)を参照してください。
+
+| commit | 内容 |
+|---|---|
+| fe1ba3c | bounded Undo/Redo timeline |
+| 31f3734 | 型付きMap差分・逆差分・合成・3方向merge |
+| 231cdf2 | 親関係・branch HEAD・annotation・祖先query |
+| 2c1ac16 | byte parser combinator・期待集合・cut |
+| aff915a | 挿入順Map・削除/再挿入・snapshot用case |
+| e9ce169 | 入れ子Frozenのwrapperとthaw/iterator materialize |
+
+これらのtest sourceは実行していません。旧い「まず環境で検証する」という記録は、実行検証省略を許可した今回の方針で更新されています。将来検証するときのcommandとcaseは残します。
+
+## 最初の実装単位
 
 [データsnapshotと名前付き履歴](v2-next-snapshot-implementation.md)を追加する。std.snapshot、std.history、埋込みmodule登録、library/CLIの回帰test、利用例を含む。[generic Frozenの共有判定](v2-next-frozen-bounds-implementation.md)も修正する。
 

@@ -1,0 +1,25 @@
+import std.historyGraph as history;
+import std.historyGraph.{create as createGraph};
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(result)=>{return move result;},Err(_)=>{panic("example setup");}}
+}
+
+let graph=take(createGraph<List<Int>>(8));
+let model=List<Int>();model.add(10);
+let roots=List<String>();
+let original=take(history.add(&mut graph,"v1",&roots,&model));
+let parents=List<String>();parents.add("v1");
+model.set(0,99);
+let edited=take(history.add(&mut graph,"v2",&parents,&model));
+take(history.setHead(&mut graph,"main","v1"));
+take(history.setHead(&mut graph,"experiment","v2"));
+let old=history.fork(original);Out.println(old.get(0));
+take(history.setHead(&mut graph,"main","v2"));
+match history.head(&graph,"main") {
+    Some(version)=>{let current=history.fork(version);Out.println(current.get(0));},
+    None=>{panic("main head");}
+}
+assert_eq(history.isAncestor(&graph,"v1","v2"),Ok(true));
+let stillOld=history.fork(original);Out.println(stillOld.get(0));
+publish;
+// Expected: 10, 99, 10 on separate lines. Execution has not been verified.

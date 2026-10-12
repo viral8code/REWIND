@@ -1,0 +1,22 @@
+import std.snapshot as snapshot;
+import std.timeline as timeline;
+import std.timeline.{create as createTimeline};
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(result)=>{return move result;},Err(_)=>{panic("example setup");}}
+}
+
+var score=10;
+let line=take(createTimeline(&score,4));
+score=20;timeline.push(&mut line,&score);
+score=30;timeline.push(&mut line,&score);
+match timeline.undo(&mut line) {
+    Some(saved)=>{Out.println(snapshot.fork(saved));},
+    None=>{panic("no undo");}
+}
+let kept=timeline.current(&line);
+score=99;timeline.push(&mut line,&score);
+assert(!timeline.canRedo(&line));
+Out.println(snapshot.fork(timeline.current(&line)));
+Out.println(snapshot.fork(kept));
+publish;
+// Expected: 20, 99, 20 on separate lines. Execution has not been verified.

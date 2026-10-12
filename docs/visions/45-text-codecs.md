@@ -16,6 +16,8 @@ Unicode normalizationが結果だけでなく、元の範囲との対応も返�
 
 ## VTEXT-03：途中状態を持つdecoder
 
+現行実装との照合（2026-10-11）：std.streamのutf8/decodeには、chunk間にまたがるUTF-8、不正sequence、未完了を扱う基本実装があります。以下の発展案を、この基本機能自体の欠落として扱いません。
+
 chunk間に分かれたmulti-byte文字をdecoder stateへ保持する。完了、追加入力待ち、不正sequenceを別結果にする。
 
 decoder stateをdata snapshotにしてfixtureの分岐に使える。実fileやsocketの読取り位置は別ownerが管理する。

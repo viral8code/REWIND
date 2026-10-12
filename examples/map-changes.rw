@@ -1,0 +1,18 @@
+import std.changes as changes;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(result)=>{return move result;},Err(_)=>{panic("example setup");}}
+}
+
+let same=|a:Int,b:Int|->Bool{return a==b;};
+let before=Map<String,Int>();before.set("score",10);
+let after=Map<String,Int>();after.set("score",99);
+let patch=take(changes.diff(&before,&after,same));
+let target=Map<String,Int>();target.set("score",10);target.set("unrelated",5);
+let changed=take(changes.apply(&target,patch,same));
+let restored=take(changes.apply(&changed,changes.inverse(patch),same));
+match changed.get("score") {Some(value)=>{Out.println(value);},None=>{panic("score");}}
+match restored.get("score") {Some(value)=>{Out.println(value);},None=>{panic("score");}}
+assert_eq(changed.get("unrelated"),Some(5));
+assert_eq(target.get("score"),Some(10));
+publish;
+// Expected: 99, 10 on separate lines. Execution has not been verified.
