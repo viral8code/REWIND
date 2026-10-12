@@ -18,9 +18,9 @@
 
 ## GUI-01：構成可能なlayout
 
-既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** `gui.splitRow` / `splitColumn`が最大256個の1..1,000,000のweightと0..4096 pixelのgapから、4096 pixel以内の領域をflatな子Rectへ分割します。剰余pixelはrowなら左から、columnなら上から配り、入力は変更しません。[例](../examples/gui-layout.rw)。
+既存`gui.arrange`は一定列数のgridです。**部分実装（2026-10-12）：** `gui.splitRow` / `splitColumn`が最大256個の1..1,000,000のweightと0..4096 pixelのgapから、4096 pixel以内の領域をflatな子Rectへ分割します。`arrangeRow` / `arrangeColumn`は全ID、重複、View内bounds、非ゼロ寸法を事前確認してからgeometryだけを更新し、失敗時にViewを変更しません。剰余pixelはrowなら左から、columnなら上から配り、既存widget IDに結び付いたfocus/edit stateを維持します。[例](../examples/gui-layout.rw)。
 
-次はrow、column、grid、overlayを入れ子にして、親の領域から子の`Rect`を計算するpureなlayout modelを検討します。現実装にpadding、fixed/min/max寸法、nested node・stable ID、Viewへのatomic適用、resize/focus維持はありません。
+次はrow、column、grid、overlayを入れ子にして、親の領域から子の`Rect`を計算するpureなlayout modelを検討します。nested node、padding、fixed/min/max寸法、resize時のfocus維持はありません。
 
 初期仕様は整数pixelのpadding、gap、最小/最大寸法、固定寸法、余りを配分するweightに絞ります。文字の自然寸法やDPI依存測定を純粋計算の内部で問い合わせません。必要な測定値は既存の観測境界を通して入力します。領域不足時の縮小順序、余りpixelの配分順序、clipの扱いを決め、backendによる差を減らします。
 

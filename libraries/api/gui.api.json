@@ -21,6 +21,36 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:arrangeColumn": {
+      "async": false,
+      "cost": "O(children), at most 256; validates all IDs and rectangles before updating widgets.",
+      "effects": [],
+      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace/UnknownId/DuplicateId; failure leaves the view unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "&List<String>",
+        "Rect",
+        "&List<Int>",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:arrangeRow": {
+      "async": false,
+      "cost": "O(children), at most 256; validates all IDs and rectangles before updating widgets.",
+      "effects": [],
+      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace/UnknownId/DuplicateId; failure leaves the view unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "&List<String>",
+        "Rect",
+        "&List<Int>",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:background": {
       "async": false,
       "effects": [],

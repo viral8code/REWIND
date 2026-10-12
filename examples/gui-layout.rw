@@ -7,13 +7,14 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
+let view=take(gui.window("weighted layout",100,64));
+take(gui.label(&mut view,"left","Left",0,0,10,10));
+take(gui.label(&mut view,"right","Right",10,0,10,10));
+let ids=List<String>();
+ids.add("left");
+ids.add("right");
 let weights=List<Int>();
 weights.add(1);
 weights.add(2);
-let cells=take(gui.splitRow(Rect(0,0,100,30),&weights,2));
-let first=cells.get(0);
-let second=cells.get(1);
-Out.println(first.x);
-Out.println(first.width);
-Out.println(second.x);
-Out.println(second.width);
+take(gui.arrangeRow(&mut view,&ids,Rect(0,0,100,30),&weights,2));
+Out.println(take(gui.scene(&view)));

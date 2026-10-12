@@ -182,6 +182,37 @@ fn splitWeighted(bounds:Rect,weights:&List<Int>,gap:Int,horizontal:Bool)->Result
 }
 // @api splitRow cost O(children), max 256; distributes integer remainder pixels from left to right.
 // @api splitRow failure GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; no input is changed.
+fn arrangeWeighted(view:&mut View,ids:&List<String>,bounds:Rect,weights:&List<Int>,gap:Int,horizontal:Bool)->Result<Unit,GuiError> effects {} {
+ if ids.len()<1 || ids.len()>256 || ids.len()!=weights.len(){return Err(StdError("GuiLayoutChildren",0));}
+ let indexes=List<Int>();let seen=Map<String,Bool>();
+ for i in 0..ids.len(){
+  let id=ids.get(i);
+  if seen.get(id)!=None{return Err(StdError("GuiDuplicateId",0));}
+  seen.set(id,true);
+  match view.indices.get(id){
+   None=>{return Err(StdError("GuiUnknownId",0));},
+   Some(index)=>{indexes.add(index);}
+  }
+ }
+ let rectangles=splitWeighted(bounds,weights,gap,horizontal)?;
+ for i in 0..rectangles.len(){
+  let rect=rectangles.get(i);
+  if rect.width<1 || rect.height<1 || rect.width>view.width || rect.height>view.height || rect.x>view.width-rect.width || rect.y>view.height-rect.height{return Err(StdError("GuiInvalidBounds",0));}
+ }
+ for i in 0..ids.len(){
+  let index=indexes.get(i);let widget=view.widgets.get(index);let rect=rectangles.get(i);
+  view.widgets.set(index,Widget(widget.id,widget.kind,rect.x,rect.y,rect.width,rect.height,widget.caption,widget.foreground,widget.background,widget.enabled,widget.checked,widget.cursor,widget.anchor));
+ }
+ return Ok(());
+}
+// @api arrangeRow validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.
+pub fn arrangeRow(view:&mut View,ids:&List<String>,bounds:Rect,weights:&List<Int>,gap:Int)->Result<Unit,GuiError> effects {} {
+ return arrangeWeighted(view,ids,bounds,weights,gap,true);
+}
+// @api arrangeColumn validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.
+pub fn arrangeColumn(view:&mut View,ids:&List<String>,bounds:Rect,weights:&List<Int>,gap:Int)->Result<Unit,GuiError> effects {} {
+ return arrangeWeighted(view,ids,bounds,weights,gap,false);
+}
 pub fn splitRow(bounds:Rect,weights:&List<Int>,gap:Int)->Result<List<Rect>,GuiError> effects {} {
  return splitWeighted(bounds,weights,gap,true);
 }
