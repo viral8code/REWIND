@@ -316,7 +316,7 @@ overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置
 
 std.guiTableへeditCell、editCellId、hasEdits、changes、clearEditsを追加した。変更はstable row IDとcolumn indexで記録し、cellと既存renderはoverlayを表示する。基礎のFrozen cell matrixを複製せず、元値に戻したcellは差分から除く。最大4096 cell・値合計4 MiB・各value 4096 bytesで制限する。削除時はboundedな差分一覧を再indexする。
 
-これはVM上のモデル編集で、stable text sort、bounded text filter、weighted column widthsは後続の独立した実装分に追加した。native text input/IME eventとの接続、table-row typed adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
+これはVM上のモデル編集で、stable text sort、bounded text filter、weighted column widths、stable IDを使うtyped row mappingは後続の独立した実装分に追加した。native text input/IME eventとの接続と、削除・取消・検証失敗を含むcompleteな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
 
 
 ## 2026-10-12のGUI-03 typed form adapter
@@ -351,3 +351,11 @@ compile、実行、API再生成、native GUI確認はしていない。commitの
 [利用例](../examples/gui-table-column-weights.rw)を追加し、GUI reference、v2.2計画の受入条件、実装index、API manifestを更新した。source/API/docs/exampleの実装commitは`41eb7ec18093776b826b552a68cf8e9f944a378e`。
 
 コンパイル、REWINDのテスト、API再生成、native GUI確認は環境起動失敗のため未実施。source brace balanceと公開function/API symbol数は一致し、幅配分式を外部の静的計算で境界・ランダム入力確認した。これはcompiler/runtime検証の代わりではない。codex/developだけへ`[skip ci]`付きで保存し、公開CI/CD、main統合、Release、版更新は行っていない。
+
+## 2026-10-12のGUI-03 typed table row adapter
+
+`std.guiTable.toValue<T,E>`はstable row IDから1行の列値をcolumn orderのFrozen snapshotへ作り、利用側のpure mapperを1回呼ぶ。1回に最大16列のsnapshotだけを作るため、全tableをtyped recordに一括materializeしない。staged edit overlayを反映し、filterで非表示の行も既知IDなら変換できる。mapper errorは`RowMapError::Conversion(rowId,error)`として行IDと共に返し、unknown IDは`UnknownRow(rowId)`となる。変換はtable modelを変更しない。
+
+[利用例](../examples/gui-table-typed.rw)、GUI reference、API manifest、v2.2計画、実装indexを更新した。実装commitは`599df4ef895c11ea4af95e172c1f7b36901a9d44`。
+
+コンパイル・REWINDテスト・API再生成・native GUI確認は環境起動失敗のため未実施。source brace balanceと公開function/API symbol数、function名は一致することを確認した。これをcompiler/runtime検証として扱わない。codex/developだけへ`[skip ci]`付きで保存し、公開CI/CD、main統合、Release、版更新は行っていない。
