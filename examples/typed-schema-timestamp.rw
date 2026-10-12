@@ -1,0 +1,15 @@
+import std.schema as schema;
+import std.datetime as datetime;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("Timestamp schema operation failed");}
+    }
+}
+
+let rule=schema.timestamp();
+let wireValue=Json::Text("2024-02-29T12:30:00.123456789+09:00");
+let validated=take(schema.validate(rule,wireValue));
+let instant=take(datetime.fromJson(validated));
+Out.println(take(datetime.format(&instant)));

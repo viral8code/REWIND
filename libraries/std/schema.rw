@@ -1,4 +1,5 @@
 import std.decimal as decimalValue;
+import std.datetime as dateTimeValue;
 
 pub enum Unknown {Reject,Keep,Drop}
 pub enum Segment {Field(String),Index(Int)}
@@ -6,7 +7,7 @@ pub record SchemaError {code:String,field:String}
 pub record ValidationError {code:String,path:Frozen<List<Segment>>,expected:String,actual:String}
 record Property {name:String,node:Int,required:Bool,fallback:Option<Json>}
 enum Node {
-    Any,Boolean,Integer(Int,Int),Number,Decimal,Text(Int,Int),
+    Any,Boolean,Integer(Int,Int),Number,Decimal,Timestamp,Text(Int,Int),
     Nullable(Int),Array(Int,Int,Int),
     Object(Frozen<List<Property>>,Frozen<Map<String,Int>>,Unknown)
 }
@@ -27,6 +28,8 @@ pub fn boolean()->Schema effects {} {return single(Node::Boolean);}
 pub fn number()->Schema effects {} {return single(Node::Number);}
 // @api decimal accepts exact decimal text; JSON Float/Number values are rejected to avoid prior binary rounding.
 pub fn decimal()->Schema effects {} {return single(Node::Decimal);}
+// @api timestamp accepts RFC3339 text with an explicit UTC offset and validates it through std.datetime.
+pub fn timestamp()->Schema effects {} {return single(Node::Timestamp);}
 pub fn integer(minimum:Int,maximum:Int)->Result<Schema,SchemaError> effects {} {
     if minimum>maximum {return Err(SchemaError("Range",""));}
     return Ok(single(Node::Integer(minimum,maximum)));
@@ -145,6 +148,17 @@ fn visit(schema:Schema,index:Int,value:Json,path:Frozen<List<Segment>>,budget:&m
                 _=>{return Err(failure("Type",path,"exact Decimal text",value));}
             }
         },
+        Node::Timestamp=>{
+            match value {
+                Json::Text(text)=>{
+                    match dateTimeValue.parse(text) {
+                        Err(_)=>{return Err(ValidationError("Timestamp",path,"RFC3339 timestamp with UTC offset","Text"));},
+                        Ok(_)=>{return Ok(value);}
+                    }
+                },
+                _=>{return Err(failure("Type",path,"RFC3339 timestamp with UTC offset",value));}
+            }
+        },
         Node::Text(minimum,maximum)=>{
             match value {
                 Json::Text(text)=>{
@@ -239,6 +253,12 @@ fn csvCell(schema:Schema,nodeIndex:Int,value:String,path:Frozen<List<Segment>>,n
         Node::Decimal=>{
             match decimalValue.parse(value) {
                 Err(_)=>{return Err(csvProblem("Decimal",path,"exact Decimal text","Text"));},
+                Ok(_)=>{return Ok(Json::Text(value));}
+            }
+        },
+        Node::Timestamp=>{
+            match dateTimeValue.parse(value) {
+                Err(_)=>{return Err(csvProblem("Timestamp",path,"RFC3339 timestamp with UTC offset","Text"));},
                 Ok(_)=>{return Ok(Json::Text(value));}
             }
         },

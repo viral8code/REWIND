@@ -30,6 +30,12 @@ JSON Numberはこのschemaで受け付けません。既存Json parserがNumber�
 
 [decimal schema example](../examples/typed-schema-decimal.rw)。compile/runtime verificationは未実施です。
 
+## RFC3339 instant text rule
+
+`timestamp()`は`Json::Text`を`std.datetime.parse`で検査します。UTC offset必須、fractional secondは最大9桁、leap secondは拒否する既存parser契約に従い、成功した場合は入力文字列を保ちます。CSVではraw cellを同じparserへ渡します。local calendar、IANA zoneの曖昧時刻・gap解決はこのschema ruleに含めず、別途`std.datetime` APIを使います。失敗errorはtext値を含みません。
+
+[Timestamp schema example](../examples/typed-schema-timestamp.rw)。compile/runtime verificationは未実施です。
+
 ## CSV row adapter
 
 `csvRow(schema,&headers,&row,nullToken)`はrootがobjectのschemaに、1行分のヘッダーと値を対応付けます。CSV streamそのものや複数行を保持せず、既存の`std.csvStream.next`が返す`List<String>`を1行ずつ渡せます。

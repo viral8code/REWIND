@@ -1178,6 +1178,7 @@ test fn text_edit_chains_enforce_capacity_without_truncating()->Unit effects {} 
 
 import schema as schema;
 import decimal as exactDecimal;
+import datetime as exactDateTime;
 import schema.{Unknown as SchemaUnknown,Segment as SchemaSegment};
 
 fn schemaProfile()->schema.Schema effects {} {
@@ -1271,6 +1272,30 @@ test fn schema_decimal_text_preserves_exact_scale_and_hides_invalid_input()->Uni
     match schema.validate(rule,Json::Int(9007199254740993)) {
         Err(e)=>{assert_eq(e.code,"Type");assert_eq(e.actual,"Int");},
         Ok(_)=>{panic("binary numeric value is not exact Decimal text");}
+    }
+}
+
+test fn schema_timestamp_requires_valid_rfc3339_instant_and_maps_csv_text()->Unit effects {} {
+    let rule=schema.timestamp();
+    let input=Json::Text("2024-02-29T12:30:00.123456789+09:00");
+    let checked=transformTake(schema.validate(rule,input));
+    assert_eq(checked,input);
+    let parsed=transformTake(exactDateTime.parse("2024-02-29T12:30:00.123456789+09:00"));
+    assert_eq(transformTake(exactDateTime.fromJson(checked)),parsed);
+    let fields=List<schema.Field>();
+    fields.add(transformTake(schema.field("at",rule,true,None)));
+    let object=transformTake(schema.object(&fields,SchemaUnknown::Reject));
+    let headers=List<String>();headers.add("at");
+    let row=List<String>();row.add("2024-02-29T12:30:00.123456789+09:00");
+    let csvValue=transformTake(schema.csvRow(object,&headers,&row,None));
+    assert_eq(json.get(csvValue,"at"),Some(input));
+    match schema.validate(rule,Json::Text("2023-02-29T12:30:00Z")) {
+        Err(e)=>{assert_eq(e.code,"Timestamp");assert_eq(e.actual,"Text");},
+        Ok(_)=>{panic("invalid calendar date");}
+    }
+    match schema.validate(rule,Json::Text("2024-02-29T12:30:00")) {
+        Err(e)=>{assert_eq(e.code,"Timestamp");},
+        Ok(_)=>{panic("missing explicit offset");}
     }
 }
 

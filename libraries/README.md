@@ -17,7 +17,7 @@
 | lens | create, get, set, modify, compose, optional, plan, apply, inverse, checkLaws | Share値のtyped path、検査付き更新、欠損保持、有限例の法則確認 |
 | persistentSet | create, root, same, size, components, unite, uniteMany | 複数の不変版、union-by-size、既存native配列の共有page |
 | textEdit | replace, mapByte/Scalar/Grapheme, inverse, chain, mapChainByte/Scalar/Grapheme, inverseChain | 原文保持、編集位置の明示policy、boundedな編集列と失敗step |
-| schema | Unknown, Segment, Schema, Field, ValidationError, Decoder, any/boolean/number/decimal/integer/text, nullable/array/field/object, validate, csvRow, mapped, decode | 入れ子JSON、exact DecimalはJSON Text/CSV raw cellで検証してbinary Float丸めを回避、defaultと明示NULL、field名付きCSV row |
+| schema | Unknown, Segment, Schema, Field, ValidationError, Decoder, any/boolean/number/decimal/timestamp/integer/text, nullable/array/field/object, validate, csvRow, mapped, decode | 入れ子JSON、exact Decimal JSON Text/CSV raw cellとRFC3339 instant text/CSVを検証し、Float丸めやnaive timestampを拒否、defaultと明示NULL、field名付きCSV row |
 | csvStream | Reader, TypedRowError, reader, feed, next, nextTyped, finish, cancel, position | bounded queueのheader付きrow変換、Validation error時は行を保持、成功時だけadvance |
 | jsonStream | Event, IntegerEventError, DecimalEventError, reader, feed, peek, next, nextBigInt, nextDecimal, finish, cancel, position | bounded JSON event queue。peekは非消費、nextBigInt/nextDecimalはexact conversion成功時だけ数値tokenをconsume |
 | db row mapping | ColumnMap, MappedBatch<T>, RowMapError<E>, indexColumns, columnNumber, mapBatch | 最大256列名を一度検査。pureなmapBatchは最大64行を明示mapperへ渡し、最初のrow errorを返す。DbBatchとcursorを変更しない |
