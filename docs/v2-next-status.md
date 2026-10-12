@@ -317,3 +317,10 @@ overlay node、padding、fixed/min/max寸法、resize eventへの自動再配置
 std.guiTableへeditCell、editCellId、hasEdits、changes、clearEditsを追加した。変更はstable row IDとcolumn indexで記録し、cellと既存renderはoverlayを表示する。基礎のFrozen cell matrixを複製せず、元値に戻したcellは差分から除く。最大4096 cell・値合計4 MiB・各value 4096 bytesで制限する。削除時はboundedな差分一覧を再indexする。
 
 これはVM上のモデル編集で、native text inputやIME eventとの接続、sort/filter、typed record adapter、completeな編集lifecycleは残る。gui-table-edits.rwを追加した。環境起動失敗のためcompile、実行、API再生成、native GUI確認は行っていない。source/API/doc/exampleをcodex/developのみに保存し、公開CI/CD、main統合、Release、version更新は行わない。
+
+
+## 2026-10-12のGUI-03 typed form adapter
+
+std.guiFormへSubmitError<E>とtoValue<T,E>を追加した。toValueは既存toJsonの必須・型・範囲・relation検証を通し、成功したtyped Json objectだけをpureな利用者mapperへ一度渡す。form validation errorとrecord conversion errorを別variantで返し、form stateを変更しない。reflectionや暗黙変換は含めない。
+
+gui-form-typed.rwに明示record mappingの例を追加した。API manifestとGUI-03計画を更新。環境起動失敗のためcompile、実行、API再生成は未確認。変更はcodex/developのみで[skip ci]付き、公開CI/CD、main統合、Release、version更新は行っていない。

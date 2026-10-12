@@ -57,15 +57,17 @@ componentはID、VM内のstate、配置入力、eventからstate/actionを返す
 
 ## GUI-03：form/tableの編集統合
 
-`guiForm`は既存の整数・実数・timestamp等の検証とエラー表示を再利用します。追加候補はfield間の関係検証と、検証結果を呼出側の型付きrecordへ変換する明示adapterです。検証失敗で編集中のtextを勝手に正常値へ書き換えません。custom validatorはpureな処理として扱い、callbackが許すeffectを型検査できるかを先に確認します。
+`guiForm`は既存の整数・実数・timestamp等の検証とエラー表示を再利用します。関係検証と、検証済みのtyped JSONから呼出側recordを作るpureな明示adapterを提供します。検証失敗で編集中のtextを勝手に正常値へ書き換えません。custom validatorはpureな処理として扱い、callbackが許すeffectを型検査できるかを先に確認します。
 
-**部分実装（2026-10-12）：** `guiForm.createWithRules`へ最大128個の宣言的なrelationを追加しました。`Equal`は互換scalar fieldのtyped value、`IntLessEqual`はInt field、`RequiredWhenChecked`はcheckbox依存必須を検証します。rule参照とkindをschema構築時に検査し、`validate`と`toJson`で適用します。custom callback、型付きrecord adapter、table編集・sort/filterは未実装です。入力textはrelation failureでも保持されます。[例](../examples/gui-form-relations.rw)。
+**部分実装（2026-10-12）：** `guiForm.createWithRules`へ最大128個の宣言的なrelationを追加しました。`Equal`は互換scalar fieldのtyped value、`IntLessEqual`はInt field、`RequiredWhenChecked`はcheckbox依存必須を検証します。rule参照とkindをschema構築時に検査し、`validate`と`toJson`で適用します。custom validatorは未実装です。入力textはrelation failureでも保持されます。[例](../examples/gui-form-relations.rw)。
+
+**部分実装（2026-10-12）：** `guiForm.toValue`は`toJson`の全field・relation検証に成功した後にだけ、利用者が渡したpure callbackを一度呼びます。typed JSONからapplication recordを作るmapping errorとform validation errorを`SubmitError`の別variantで返します。libraryはreflectionや暗黙変換を行いません。[例](../examples/gui-form-typed.rw)。
 
 **部分実装（2026-10-12）：** `guiTable.createWithIds`へcaller-suppliedなunique row IDを追加し、rowId/index lookup、IDによるselection、rendered row actionからdata rowへのID解決を実装しました。従来の`create`は互換用に`row:<index>`を合成しますが、これは再構築・並べ替えを越えるidentityではありません。sort/filter、text input・validationを含む編集lifecycle、stable selectionを保つ並べ替え操作は未実装です。
 
 **部分実装（2026-10-12）：** row IDとcolumn indexをキーにしたboundedなstaged-edit overlayを追加しました。editCell / editCellIdで値を保存し、cellと描画はoverlayを優先し、changesは最初の編集順のfrozen snapshotを返します。元のFrozen cell matrixは変更・複製しません。編集は最大4096 cell、値の合計4 MiB、1 cell 4096 byteまでです。元値への復元はoverlayから除去し、最大4096件を再indexします。clearEditsで全差分を破棄できます。GUI text inputとの接続、sort/filter、typed adapter、削除・取消を含む編集event lifecycleは未実装です。[例](../examples/gui-table-edits.rw)。
 
-`guiTable`のviewportと表示行制限は維持します。GUI text inputからの編集event連携、列幅指定、並べ替え・filter、typed record adapterを追加候補にします。stable row IDと差分overlayの基本部は実装済みです。表示位置をrowのidentityとして扱うAPIを増やさず、選択・編集中cell・DB保存対象をrow IDで対応させます。
+`guiTable`のviewportと表示行制限は維持します。GUI text inputからの編集event連携、列幅指定、並べ替え・filterを追加候補にします。formのtyped record adapter、tableのstable row IDと差分overlayの基本部は実装済みです。表示位置をrowのidentityとして扱うAPIを増やさず、選択・編集中cell・DB保存対象をrow IDで対応させます。
 
 全行のsort/filterと描画の費用を区別します。sort/filterが全件走査であることを記載し、各frameで再実行しないよう入力変更時だけ更新します。大規模DBの全件取得をlibrary側で自動実行しません。
 

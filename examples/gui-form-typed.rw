@@ -1,0 +1,55 @@
+import std.guiForm as form;
+
+pub record Preferences {notify:Bool,email:String,minimum:Int,maximum:Int}
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("form operation failed");}
+    }
+}
+
+fn mapPreferences(value:Json)->Result<Preferences,StdError> effects {} {
+    match value {
+        Json::Object(fields)=>{
+            let notify=match fields.get("notify") {
+                Some(Json::Bool(value))=>{value},
+                _=>{return Err(StdError("FormConversion",0));}
+            };
+            let email=match fields.get("email") {
+                Some(Json::Text(value))=>{value},
+                _=>{return Err(StdError("FormConversion",0));}
+            };
+            let minimum=match fields.get("minimum") {
+                Some(Json::Int(value))=>{value},
+                _=>{return Err(StdError("FormConversion",0));}
+            };
+            let maximum=match fields.get("maximum") {
+                Some(Json::Int(value))=>{value},
+                _=>{return Err(StdError("FormConversion",0));}
+            };
+            return Ok(Preferences(notify,email,minimum,maximum));
+        },
+        _=>{return Err(StdError("FormConversion",0));}
+    }
+}
+
+let fields=List<form.Field>();
+fields.add(form.Field("notify","Send notifications",form.Kind::Check,false,5,"false"));
+fields.add(form.Field("email","Email address",form.Kind::Text,false,128,""));
+fields.add(form.Field("minimum","Minimum",form.Kind::Integer(0,1000),false,16,"2"));
+fields.add(form.Field("maximum","Maximum",form.Kind::Integer(0,1000),false,16,"8"));
+let rules=List<form.Relation>();
+rules.add(form.Relation::RequiredWhenChecked("email","notify"));
+rules.add(form.Relation::IntLessEqual("minimum","maximum"));
+let model=take(form.createWithRules(&fields,&rules,4));
+
+take(form.setValue(&mut model,"notify","true"));
+take(form.setValue(&mut model,"email","dev@example.test"));
+let result=match form.toValue(&model,mapPreferences) {
+    Ok(value)=>{value},
+    Err(form.SubmitError::Form(error))=>{panic("form validation failed: "+error.code);},
+    Err(form.SubmitError::Conversion(error))=>{panic("record mapping failed: "+error.code);}
+};
+Out.println(result.email);
+Out.println(result.minimum.format()+".."+result.maximum.format());

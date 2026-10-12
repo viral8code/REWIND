@@ -902,6 +902,27 @@
       ],
       "return": "Result<Json,StdError>"
     },
+    "fn:toValue": {
+      "async": false,
+      "cost": "O(form fields + relations + value bytes + mapper); callback runs once after validation succeeds.",
+      "effects": [],
+      "failure": "SubmitError::Form(StdError) or SubmitError::Conversion(E); form state is unchanged.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Form",
+        "fn(Json)->Result<T,E>!{}~{Send+Share}"
+      ],
+      "return": "Result<T,SubmitError<E>>"
+    },
     "fn:validate": {
       "async": false,
       "cost": "O(fields + relations + value bytes); stores field and relation errors without changing edited text.",
@@ -1688,6 +1709,29 @@
       ],
       "generics": [],
       "kind": "record"
+    },
+    "type:SubmitError": {
+      "generics": [
+        [
+          "E",
+          "Share"
+        ]
+      ],
+      "kind": "enum",
+      "variants": {
+        "Conversion": [
+          [
+            "0",
+            "E"
+          ]
+        ],
+        "Form": [
+          [
+            "0",
+            "StdError"
+          ]
+        ]
+      }
     },
     "type:TcpError": {
       "constructor": true,

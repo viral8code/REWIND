@@ -1,6 +1,7 @@
 import gui as gui;
 import datetime as datetime;
 pub type FormError = StdError;
+pub enum SubmitError<E:Share> {Form(FormError),Conversion(E)}
 pub enum Kind {Text,Multiline,Integer(Int,Int),Real(Float,Float),Check,Timestamp}
 pub enum Relation {Equal(String,String),IntLessEqual(String,String),RequiredWhenChecked(String,String)}
 pub record Field {id:String,caption:String,kind:Kind,required:Bool,maxBytes:Int,initial:String}
@@ -97,6 +98,19 @@ pub fn toJson(form:&Form)->Result<Json,FormError> effects {} {
  let errors=validationErrors(form);
  for i in 0..form.entries.len(){let e=form.entries.get(i);match errors.get(e.field.id){Some(code)=>{return Err(StdError(code,i));},None=>{}}}
  let object=Map<String,Json>();for i in 0..form.entries.len(){let e=form.entries.get(i);object.set(e.field.id,typed(e,i)?);}return Ok(Json::Object(freeze(object)));
+}
+// @api toValue runs form validation before one pure, explicit typed mapper; it separates validation and conversion failures.
+// @api toValue failure SubmitError::Form(Required/Integer/Real/Range/Timestamp/Relation) or SubmitError::Conversion(E); mapper runs only after form validation succeeds.
+pub fn toValue<T:Share,E:Share>(form:&Form,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Result<T,SubmitError<E>> effects {} {
+ match toJson(form){
+  Err(error)=>{return Err(SubmitError::Form(error));},
+  Ok(value)=>{
+   match convert(value){
+    Ok(result)=>{return Ok(result);},
+    Err(error)=>{return Err(SubmitError::Conversion(error));}
+   }
+  }
+ }
 }
 pub fn reset(form:&mut Form)->Unit effects {} {
  for i in 0..form.entries.len(){let e=form.entries.get(i);let n=e.field.initial.charLen();form.entries.set(i,Entry(e.field,e.field.initial,n,n,0));}let errors=Map<String,String>();form.errors=move errors;form.first=0;form.active=-1;
