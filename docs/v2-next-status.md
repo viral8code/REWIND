@@ -97,13 +97,20 @@ custom validator、呼出側recordへのtyped adapter、editable table、安定r
 
 `std.gui.ComponentScope`を追加した。scope nameは1..24 UTF-8 bytes、local IDは1..64 bytesでNULを拒否し、`componentId`はbyte長を含む安定prefixで組を一意に符号化する。`componentPrefix`は最大27 bytesで、`std.guiForm.render` / `dispatch`へ渡せる。scope自体はmodel、callback、native handleを所有しない。呼出側がVM stateとaction routingを担当する。
 
-共有componentのrender/reducer、form/table wrapper、IME compositionを保つ再描画は未実装。例とAPI manifestを追加した。compile、実行、API生成、native backendは未確認。
+`componentLocalId`を追加し、dispatchから返るfull widget IDをowner scopeで検査してcomponent-local action名へ戻せるようにした。対応する例・API manifest・test sourceを更新。共有component state/render/reducer、form/table wrapper、IME compositionを保つ再描画は未実装。compile、実行、API生成、native backendは未確認。
 
 ## 2026-10-12のGUI-01レイアウト追加分
 
 `std.gui`へnested row/column/overlay layout tree、weighted main-axis min/max/fixed sizing、atomicな`applyLayout`を追加した。flatな`splitRow`/`splitColumn`はweightとgapのみに対応し、個別min/maxは持たない。上限は1024 node、深さ32、containerあたり256 child、4096 pixel。領域が制約を満たせない場合はView更新前にerrorを返す。focus/edit stateはwidget ID単位で維持する。
 
 GUI-01は部分実装で、overlay layout nodeは後続commitで実装した。padding、cross-axis constraints、自然寸法測定、resize時自動再配置を残す。API manifestと計画の記述をsourceに合わせた。環境起動失敗のためcompile、実行、API生成、native Windows/Linux動作は確認していない。source変更はcodex/developのみへ`[skip ci]`付きで保存し、mainと公開CI/CDへ触れない。
+
+
+## 2026-10-12のGUI-02 action routing追加分
+
+`std.gui.componentLocalId(scope, widgetId)`を追加した。GUI dispatchで受け取ったfull widget IDが指定scopeのprefixを持ち、componentIdのlocal ID規則を満たす場合だけlocal IDを返す。別scope、空ID、不正な長さのID、偽装されたprefixはNoneとなる。componentがActionの副作用を隠さず、application側がstate updateやpublishを決める契約は維持する。二つのcomponent scopeから各自のincrement actionを処理する例を更新し、test sourceを追加した。
+
+共有state/model、render/reducer、form/table component wrapper、IME composition保持を伴う再描画は残る。環境が起動しないためcompile・実行・API generator・native GUI確認は行っていない。API manifest・計画・実装indexはsourceと同期した。
 
 ## 最初の実装単位
 
@@ -171,7 +178,7 @@ GUI-01〜03は基礎の一部を実装、他は未着手です。IDのGUI-01はv
 | ID | 実装差分 | 依存・確認 | 完了または保留の判断 |
 |---|---|---|---|
 | GUI-01 | 入れ子row/column、main-axis min/max、atomic applyLayout | arrange、edit、composition | source保存済み。padding/cross-axis/自動resizeと実行確認は残る |
-| GUI-02 | scoped child ID基盤 | layout ID、effect/ownership | source foundation saved; model/render/reducer and IME-preserving reuse remain |
+| GUI-02 | scoped child ID・action routing | layout ID、effect/ownership | componentLocalId source saved; reusable state/model/render/reducer and IME-preserving reuse remain |
 | GUI-03 | form relations, typed mapper, caller row IDs, bounded cell-edit overlay | 既存form/table、GUI-01 | form/row-ID/model-edit foundations saved; native input/edit lifecycle and sort/filter remain |
 | VIS-01 | 限定plot | renderer primitive、numeric view | 費用/互換確認。未成立なら保留可能 |
 | DB-01 | 明示record mapping | typed cell/cursor | NULL/列名/精度/bounded batch |

@@ -8,8 +8,8 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 fn addCounter(view:&mut gui.View,scope:&gui.ComponentScope,title:String,value:Int,x:Int)->Result<Unit,gui.GuiError> effects {} {
-    let valueId=gui.componentId(scope,"value")?;
-    let incrementId=gui.componentId(scope,"increment")?;
+    let valueId=take(gui.componentId(scope,"value"));
+    let incrementId=take(gui.componentId(scope,"increment"));
     gui.label(view,valueId,title+": "+value.format(),x,20,160,24)?;
     gui.button(view,incrementId,"+",x,52,32,28)?;
     return Ok(());
@@ -24,17 +24,22 @@ take(addCounter(&mut view,&left,"Left",leftValue,20));
 take(addCounter(&mut view,&right,"Right",rightValue,220));
 
 let leftValueId=take(gui.componentId(&left,"value"));
-let leftIncrementId=take(gui.componentId(&left,"increment"));
 let rightValueId=take(gui.componentId(&right,"value"));
-let rightIncrementId=take(gui.componentId(&right,"increment"));
 
-// Dispatch once, then route the stable child ID to its owning model.
+// The event keeps the full widget ID. componentLocalId checks the owner scope
+// and returns the component-local action name for a small app-level reducer.
 match gui.dispatch(&mut view,gui.Event("pointer",24,56,"",0,0)) {
-    Some(gui.Action::Activate(id))=>{
-        if id==leftIncrementId {
+    Some(gui.Action::Activate(widgetId))=>{
+        if gui.componentLocalId(&left,widgetId)==Some("increment") {
             leftValue+=1;
             take(gui.setText(&mut view,leftValueId,"Left: "+leftValue.format()));
-        } else if id==rightIncrementId {
+        }
+    },
+    _=>{}
+}
+match gui.dispatch(&mut view,gui.Event("pointer",224,56,"",0,0)) {
+    Some(gui.Action::Activate(widgetId))=>{
+        if gui.componentLocalId(&right,widgetId)==Some("increment") {
             rightValue+=1;
             take(gui.setText(&mut view,rightValueId,"Right: "+rightValue.format()));
         }

@@ -47,7 +47,7 @@ nested row/column layout treeとatomicなView適用をsourceへ追加しまし�
 
 まず入力欄とlabel、検証message、button、一覧領域を組み合わせる例から、componentの契約を抽出します。新しいUI専用構文や実行時reflectionは導入条件にしません。
 
-**部分実装（2026-10-12）：** `std.gui`に`ComponentScope`、`componentId`、`componentPrefix`を追加しました。UTF-8 byte長を含むprefixでscope/local IDのpairを一意に符号化し、同じ画面で同じ部品形状を複数回組み立てるID衝突を避けます。scopeは通常のVM値で、状態やnative resourceを保持しません。[例](../examples/gui-component-scope.rw)。これはID基盤であり、共通render/reducerやform/table componentの完了を意味しません。
+**部分実装（2026-10-12）：** `std.gui`に`ComponentScope`、`componentId`、`componentPrefix`を追加しました。UTF-8 byte長を含むprefixでscope/local IDのpairを一意に符号化し、同じ画面で同じ部品形状を複数回組み立てるID衝突を避けます。`componentLocalId`は`Action`から得たwidget IDをscopeで検査し、validなlocal action名を返します。scopeは通常のVM値で、状態やnative resourceを保持しません。[例](../examples/gui-component-scope.rw)。stateful component model/render/reducerは未実装です。
 
 componentはID、VM内のstate、配置入力、eventからstate/actionを返す処理、Viewへ反映する処理を分けます。component IDと子IDの衝突規則を固定します。actionは呼出側が処理し、renderがSQLやpublishを隠れて実行しない設計にします。native resourceやaffine値をcomponentの共有可能なstateに閉じ込めません。
 

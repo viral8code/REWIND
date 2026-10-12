@@ -158,6 +158,17 @@
       ],
       "return": "Result<String,StdError>"
     },
+    "fn:componentLocalId": {
+      "async": false,
+      "cost": "O(scope bytes + widget ID bytes); returns None for another scope or invalid local IDs.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&ComponentScope",
+        "String"
+      ],
+      "return": "Option<String>"
+    },
     "fn:componentPrefix": {
       "async": false,
       "cost": "O(name bytes); stable length-prefixed prefix, at most 27 bytes and valid as guiForm render prefix.",

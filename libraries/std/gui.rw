@@ -17,6 +17,16 @@ pub fn componentId(scope:&ComponentScope,local:String)->Result<String,GuiError> 
  if local=="" || local.byteLen()>64 || stdTextFind(local,"\\0")!=None{return Err(StdError("GuiComponentId",0));}
  return Ok(componentPrefix(scope)+":"+local);
 }
+// @api componentLocalId cost O(scope bytes + widget ID bytes); returns None for another scope or invalid local IDs.
+pub fn componentLocalId(scope:&ComponentScope,widgetId:String)->Option<String> effects {} {
+ let marker=componentPrefix(scope)+":";
+ if stdTextFind(widgetId,marker)!=Some(0){return None;}
+ match stdTextSlice(widgetId,marker.charLen(),widgetId.charLen()){
+  Err(_)=>{return None;},
+  Ok(local)=>{if local=="" || local.byteLen()>64 || stdTextFind(local,"\\0")!=None{return None;}return Some(local);}
+ }
+}
+
 // @api window failure InvalidSize/InvalidTitle; 64..4096 client pixels per axis.
 pub fn window(title:String,width:Int,height:Int)->Result<View,GuiError> effects {} {
  if width<64 || width>4096 || height<64 || height>4096{return Err(StdError("GuiInvalidSize",0));}

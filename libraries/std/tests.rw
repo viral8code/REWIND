@@ -144,6 +144,22 @@ test fn fallible_callbacks_leave_originals_unchanged()->Unit effects {} {
 }
 
 import gui as gui;
+test fn gui_component_scope_action_routing() {
+ let left=match gui.componentScope("left"){Ok(scope)=>scope,Err(_)=>{panic("left scope");}};
+ let right=match gui.componentScope("right"){Ok(scope)=>scope,Err(_)=>{panic("right scope");}};
+ let leftSave=match gui.componentId(&left,"save"){Ok(id)=>id,Err(_)=>{panic("left id");}};
+ let rightSave=match gui.componentId(&right,"save"){Ok(id)=>id,Err(_)=>{panic("right id");}};
+ assert_eq(gui.componentLocalId(&left,leftSave),Some("save"));
+ let leftAgain=match gui.componentId(&left,"save"){Ok(id)=>id,Err(_)=>{panic("left id");}};
+ assert_eq(gui.componentLocalId(&right,leftAgain),None);
+ assert_eq(gui.componentLocalId(&right,rightSave),Some("save"));
+ let local=match gui.componentId(&left,"field:保存"){Ok(id)=>id,Err(_)=>{panic("unicode id");}};
+ assert_eq(gui.componentLocalId(&left,local),Some("field:保存"));
+ assert_eq(gui.componentLocalId(&left,gui.componentPrefix(&left)+":"),None);
+ assert_eq(gui.componentLocalId(&left,gui.componentPrefix(&left)+":xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),None);
+ assert_eq(gui.componentLocalId(&left,"left:save"),None);
+}
+
 test fn gui_controls_hit_testing_focus_and_validation() {
  match gui.window("test",320,200) {Err(_)=>{panic("window");},Ok(view)=>{
  assert_eq(gui.button(&mut view,"add","Add",10,10,100,30),Ok(()));
