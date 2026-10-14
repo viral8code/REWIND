@@ -1,0 +1,68 @@
+import std.db as db;
+
+record Entry {id:Int,name:String,score:Int,note:Option<String>}
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+fn params(a:Int,b:String,c:Int,d:DbValue)->Frozen<List<DbValue>> effects {} {
+    let items=List<DbValue>();
+    items.add(DbValue::Int(a));items.add(DbValue::Text(b));items.add(DbValue::Int(c));items.add(d);
+    return freeze(items);
+}
+fn mapEntry(row:Frozen<DbRow>,columns:&db.ColumnMap)->Result<Entry,String> effects {} {
+    var score=0;
+    match db.integer(row,take(db.columnNumber(columns,"score"))) {
+        Ok(v)=>{score=v;},
+        Err(e)=>{return Err(e.code);}
+    }
+    return Ok(Entry(0,"",score,None));
+}
+fn failOnNote(row:Frozen<DbRow>,columns:&db.ColumnMap)->Result<Entry,String> effects {} {
+    match db.text(row,take(db.columnNumber(columns,"note"))) {
+        Ok(v)=>{return Ok(Entry(0,"",0,Some(v)));},
+        Err(e)=>{return Err(e.code);}
+    }
+}
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+external {opening=Some(db.sqlite(":memory:",false,5000));}
+match opening {
+    None=>{panic("missing connection");},
+    Some(task)=>{
+        let connection=take(take(await task));
+        var steps:Option<Task<Result<Int,DbError>>>=None;
+        external {steps=Some(db.execute(&mut connection,"CREATE TABLE t(id INTEGER, name TEXT, score INTEGER, note TEXT)",freeze(List<DbValue>()),5000));}
+        match steps {None=>{panic("create");},Some(t)=>{take(take(await t));}}
+        external {steps=Some(db.execute(&mut connection,"INSERT INTO t VALUES (?1,?2,?3,?4)",params(1,"a",10,DbValue::Null),5000));}
+        match steps {None=>{panic("insert1");},Some(t)=>{take(take(await t));}}
+        external {steps=Some(db.execute(&mut connection,"INSERT INTO t VALUES (?1,?2,?3,?4)",params(2,"b",9223372036854775807,DbValue::Text("x")),5000));}
+        match steps {None=>{panic("insert2");},Some(t)=>{take(take(await t));}}
+        var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+        external {querying=Some(db.query(&mut connection,"SELECT id, name, score, note FROM t ORDER BY id",freeze(List<DbValue>()),5000));}
+        match querying {None=>{panic("query");},Some(t)=>{
+            let cursor=take(take(await t));
+            var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+            external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
+            match reading {None=>{panic("read");},Some(r)=>{
+                let batch=take(take(await r));
+                let columns=take(db.indexColumns(cursor.columns));
+                match db.mapBatch(&batch,&columns,mapEntry) {
+                    Ok(mapped)=>{Out.println(mapped.rows.len());Out.println(mapped.rows.get(1).score);},
+                    Err(_)=>{panic("mapping failed");}
+                }
+                match db.columnNumber(&columns,"missing") {Err(_)=>{Out.println("missing column rejected");},Ok(_)=>{panic("missing accepted");}}
+                // a mapper failure reports the batch row index and leaves the batch usable
+                match db.mapBatch(&batch,&columns,failOnNote) {
+                    Err(db.RowMapError::Row(index,code))=>{Out.println(index);Out.println(code);},
+                    _=>{panic("expected a row failure");}
+                }
+                // duplicate column names are rejected before any row is mapped
+                let duplicate=List<String>();duplicate.add("a");duplicate.add("a");
+                match db.indexColumns(freeze(duplicate)) {Err(_)=>{Out.println("duplicate rejected");},Ok(_)=>{panic("duplicate accepted");}}
+                // the borrowed batch is still usable after mapping
+                Out.println(batch.rows.len());
+            }}
+        }}
+    }
+}
+publish;

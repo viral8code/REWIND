@@ -107,7 +107,9 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 
 **部分実装（2026-10-12）：** `std.db.indexColumns`は最大256個のcursor column名を一度検査し、重複を拒否してimmutable `ColumnMap`を返す。`columnNumber`は同じ結果を使って名前からindexを引く。新しいpureな`mapBatch`は既存の`DbBatch`を借用し、最大64行を利用者mapperでrecordへ変換する。最初の失敗をbatch内row index付きで返し、入力batchとcursorを変更しない。SQLiteの`mapScore`とPostgreSQLの`mapStatus`がtyped accessorを明示し、共通helperへ渡す。自動ORMやreflectionは追加しない。\n\n**部分実装（2026-10-12）：** `std.db.validateRow`は最大256列の一行を`std.schema.Schema`で検証します。`validateBatch`は列名の重複を一度検査してから最大64行を入力順に検証し、`MappedBatch<Json>`とbatch内row error indexを返します。Null/Bool/Int/Float/TextをJSONへ写し、Bytes/Privateは拒否します。SQLite exampleはshared schema batch検証後に明示recordへ変換します。SQLite Decimal BLOB adapter、実DB受入は未実施です。
 
-**未完了：** SQLite/PostgreSQL mapping exampleのcompile/runtime確認、NULL・duplicate・missing・型境界、mapping failure後のbatch再利用とcursor/cleanup検証。現環境ではcompile/runtime検証を省略している。
+**確認済み（2026-10-14、SQLite）：** [tests/db_row_mapping.rs](../tests/db_row_mapping.rs)が実際のSQLite memory DBで、`indexColumns`、`mapBatch`、`columnNumber`を実行します。NULL cell、`Int`の最大値9223372036854775807、mapper失敗時のbatch内row index（`RowMapError::Row`）とerror code（`DbType`）、重複列名の拒否、存在しない列名の拒否、失敗後も借用元の`DbBatch`が使えることを確認しました。`std.db`の標準ライブラリtest（`validateRow`、`validateBatch`、64行上限）も通過しています。
+
+**未完了：** PostgreSQLでの同じ確認（接続先が必要）、日時の単位・timezone、SQLite Decimal BLOB adapterの実DB確認、cursorを閉じるcleanup完了の検証。
 
 既存のtyped cell変換に、行から利用者のrecordを作る明示mapperを組み合わせます。自動ORMやreflectionを前提にしません。まず利用者の関数でmappingを書く例を作り、重複する列検証だけをlibraryへ抽出します。
 
