@@ -4,6 +4,7 @@ use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 mod effects;
+mod interpolate;
 mod namespacing;
 mod packages;
 mod pattern_space;

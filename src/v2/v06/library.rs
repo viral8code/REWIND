@@ -17,7 +17,7 @@ pub(super) fn method_type(
         ("Bytes", "slice", [a, b]) if a == "Int" && b == "Int" => "Result<Bytes,String>",
         ("String", "parseInt", []) => "Result<Int,String>",
         ("String", "parseFloat", []) => "Result<Float,String>",
-        ("Int" | "Float", "format", []) => "String",
+        ("Int" | "Float" | "Bool" | "String", "format", []) => "String",
         ("Float", "toIntChecked", []) => "Result<Int,String>",
         ("Int", "toFloatChecked", []) => "Result<Float,String>",
         ("Float", "isFinite" | "isNaN", []) => "Bool",
@@ -211,6 +211,8 @@ pub(in crate::v2) fn primitive_method(
             .filter(|n| n.is_finite())
             .map(|n| success(Value::Float(n.to_bits())))
             .unwrap_or_else(|| failure("InvalidFloatOrNonFinite")),
+        (Value::Bool(b), "format", []) => Value::Text(b.to_string().into()),
+        (Value::Text(s), "format", []) => Value::Text(s.clone()),
         (Value::Int(n), "format", []) => Value::Text(n.to_string().into()),
         (Value::Float(n), "format", []) => Value::Text(f64::from_bits(*n).to_string().into()),
         (Value::Float(n), "isFinite", []) => Value::Bool(f64::from_bits(*n).is_finite()),

@@ -296,3 +296,33 @@ fn index_syntax_reads_and_writes_lists_and_maps() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "70\n3\n37\n");
 }
+
+#[test]
+fn string_interpolation_formats_embedded_expressions() {
+    let out = main_output(
+        r#"fn label(name:String,count:Int)->String effects {} {
+    return "${name}: ${count + 1} item(s), done=${count > 0}";
+}
+fn run()->Unit effects {output} {
+    Out.println(label("tasks", 2));
+    Out.println("literal $${not interpolated} and ${1 + 1}");
+    Out.println("plain text");
+    let ratio=2.5;
+    Out.println("r=${ratio}");
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "tasks: 3 item(s), done=true\nliteral ${not interpolated} and 2\nplain text\nr=2.5\n"
+    );
+}
+
+#[test]
+fn string_interpolation_reports_malformed_forms() {
+    let out = main_output("fn run()->Unit effects {} { let s=\"a ${1 + \"; }");
+    assert!(!out.status.success());
+    let out = main_output("fn run()->Unit effects {} { let s=\"a ${}\"; }");
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("empty ${}"), "{}", stderr(&out));
+}

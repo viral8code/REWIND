@@ -20,6 +20,7 @@ const NAMES: &[&str] = &[
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
     if language_at_least(&p.language, "3.0.0") {
         install_literal_helpers(p)?;
+        super::interpolate::expand(p)?;
         // From 3.0.0 a source file holds declarations only; executable code
         // lives in functions, and an application starts at `fn main`.
         if let Some(stmt) = p
