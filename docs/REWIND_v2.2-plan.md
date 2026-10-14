@@ -87,6 +87,8 @@ sortByTextは全source row、filterByTextはfilter列を全走査します。fil
 - 整数overflow、空値、必須、field間矛盾、無効timestampを診断できる。
 - row ID、column ID、初期値の不正を公開前に検証する。
 
+**部分実装（2026-10-14）：** `guiTable`にセル編集の流れを追加。draftのセルを`prefix:edit`のtextboxで描き、`dispatch`がtext/keyを`setDraft`へ反映、Enterで確定、Escapeで取消、F2で開始。Action `EditStarted/EditCommitted/EditCancelled/EditRejected`は行IDと列を持つ。確定失敗は`EditRejected`でdraftを保持。複数行は拒否（`GuiSingleLine`）。IME preeditはnative層が処理。行削除は未対応（tableはimmutable）。`EditRejected`の経路は未テスト。
+
 ## VIS-01：小規模なplot library
 
 初期候補はlinear axisの折れ線・散布図とlabelです。numeric配列の結果を表示する用途に絞り、統計やFFTを再実装しません。実装に入る前に既存Viewの描画primitiveとbackend費用を調べます。primitiveが不足する場合は、native rendererの追加範囲を別の小さな設計として確定します。
