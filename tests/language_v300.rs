@@ -277,3 +277,22 @@ fn run()->Unit effects {output} {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "1\na\n2\n");
 }
+
+#[test]
+fn index_syntax_reads_and_writes_lists_and_maps() {
+    let out = main_output(
+        r#"fn run()->Unit effects {output} {
+    let xs=[10, 20, 30];
+    xs[1]=25;
+    xs[2]+=5;
+    Out.println((xs[0]+xs[1]+xs[2]).format());
+    let grid=[[1, 2], [3, 4]];
+    Out.println(grid[1][0].format());
+    let ages={"ada": 36};
+    ages["ada"]=37;
+    match ages["ada"] { Some(a)=>{ Out.println(a.format()); }, None=>{ Out.println("none"); } }
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "70\n3\n37\n");
+}

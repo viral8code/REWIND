@@ -2072,6 +2072,9 @@ impl Parser {
                 self.pos += 1;
                 let rhs = self.expr(0)?;
                 self.need(";")?;
+                if lhs.at.text == "$index" {
+                    return Ok(Self::index_assignment(lhs, &op, rhs, at));
+                }
                 StmtKind::Assign(lhs, op, rhs)
             } else {
                 self.need(";")?;
@@ -2079,6 +2082,51 @@ impl Parser {
             }
         };
         Ok(Stmt { kind, at })
+    }
+    /// `items[i] op= value` becomes `items.set(i, value)` (or `items.set(i, items[i] op value)`).
+    fn index_assignment(target: Expr, op: &str, rhs: Expr, at: Tok) -> Stmt {
+        let ExprKind::Call(getter, mut args) = target.kind else {
+            unreachable!("index expressions are calls")
+        };
+        let ExprKind::Member(base, _) = getter.kind else {
+            unreachable!("index expressions call a member")
+        };
+        let index = args.remove(0);
+        let value = if op == "=" {
+            rhs
+        } else {
+            let read = Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Member(base.clone(), "get".into()),
+                        at: at.clone(),
+                    }),
+                    vec![index.clone()],
+                ),
+                at: at.clone(),
+            };
+            Expr {
+                kind: ExprKind::Binary(
+                    op.trim_end_matches('=').into(),
+                    Box::new(read),
+                    Box::new(rhs),
+                ),
+                at: at.clone(),
+            }
+        };
+        Stmt {
+            kind: StmtKind::Expr(Expr {
+                kind: ExprKind::Call(
+                    Box::new(Expr {
+                        kind: ExprKind::Member(base, "set".into()),
+                        at: at.clone(),
+                    }),
+                    vec![index, value],
+                ),
+                at: at.clone(),
+            }),
+            at,
+        }
     }
     fn starts_statement_keyword(&self) -> bool {
         matches!(
@@ -2627,6 +2675,27 @@ impl Parser {
                         at: at.clone(),
                     };
                 }
+                continue;
+            }
+            // `items[i]` reads through `get`; `items[i] = v` is rewritten to `set`
+            // by the statement parser (the `$index` mark identifies it).
+            if self.is("[") {
+                let open = self.current().clone();
+                self.pos += 1;
+                let index = self.expr(0)?;
+                self.need("]")?;
+                let mut mark = open;
+                mark.text = "$index".into();
+                lhs = Expr {
+                    kind: ExprKind::Call(
+                        Box::new(Expr {
+                            kind: ExprKind::Member(Box::new(lhs), "get".into()),
+                            at: at.clone(),
+                        }),
+                        vec![index],
+                    ),
+                    at: mark,
+                };
                 continue;
             }
             // `pair.0` / `pair.1.0`: tuple elements are the fields _0, _1, ...
