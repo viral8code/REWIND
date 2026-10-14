@@ -1,4 +1,4 @@
-# REWIND 2.0.0
+# REWIND 3.0.0
 
 REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う言語です。v2.0.0ではGUI・通信・DB・数値処理とVMの巻き戻しを組み合わせます。[変更点と公開条件](docs/REWIND_v2.0.md)を参照してください。
 
