@@ -5681,7 +5681,9 @@ impl<R: BufRead> Vm<R> {
                                 .iter()
                                 .filter_map(|(n, b)| b.as_ref().map(|b| (n.clone(), b.clone())))
                                 .collect(),
-                            origin: self.engine.program.root_origin.clone(),
+                            // Field and symbol visibility follow the module that
+                            // defined the closure, not the module running it.
+                            origin: f.origin.clone(),
                         };
                         // The closure was created in a specialized generic function;
                         // its name carries the concrete type arguments (`$closure<P,A>`).
