@@ -14618,6 +14618,13 @@ fn compatible(expected: &str, actual: &str) -> bool {
     if expected == actual || expected == "Unknown" || actual == "Unknown" || actual == "Never" {
         return true;
     }
+    // A runtime value such as an empty List carries no element type; accept it
+    // wherever the same container with any element type is expected.
+    if let Some((expected_head, _)) = expected.split_once('<') {
+        if !actual.contains('<') && actual == expected_head {
+            return true;
+        }
+    }
     let (Some((expected_head, expected_inner)), Some((actual_head, actual_inner))) =
         (expected.split_once('<'), actual.split_once('<'))
     else {
