@@ -2535,7 +2535,16 @@ fn rename_type(ty: &str, names: &BTreeMap<String, String>) -> String {
             token.push(c);
         } else {
             if !token.is_empty() {
-                out.push_str(names.get(&token).unwrap_or(&token));
+                match names.get(&token) {
+                    Some(replacement) => out.push_str(replacement),
+                    // `module.Type`: rename the module alias, keep the member.
+                    None => match token.split_once('.').and_then(|(head, tail)| {
+                        names.get(head).map(|replacement| format!("{replacement}.{tail}"))
+                    }) {
+                        Some(qualified) => out.push_str(&qualified),
+                        None => out.push_str(&token),
+                    },
+                }
                 token.clear();
             }
             out.push(c);
@@ -9010,7 +9019,8 @@ impl Checker<'_> {
                                         ));
                                     }
                                 }
-                                name.clone()
+                                // Element types may use module aliases (mod.Item).
+                                rename_type(name, &self.program.import_aliases)
                             }
                             _ if matches!(
                                 self.program.language.as_str(),
