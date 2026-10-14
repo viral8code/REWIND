@@ -21,7 +21,7 @@ match form.toSchemaValue(&model,rule,|value:Json|->Result<Int,String>{
     }
 }) {
     Ok(age)=>{Out.println(age.format());},
-    Err(form.SchemaSubmitError::Form(error))=>{Out.println("form:"+error.code);},
-    Err(form.SchemaSubmitError::Schema(error))=>{Out.println("schema:"+error.code);},
+    Err(form.SchemaSubmitError::Form(error,_))=>{Out.println("form:"+error.code);},
+    Err(form.SchemaSubmitError::Schema(error,_))=>{Out.println("schema:"+error.code);},
     Err(form.SchemaSubmitError::Conversion(_))=>{Out.println("mapping failed");}
 }

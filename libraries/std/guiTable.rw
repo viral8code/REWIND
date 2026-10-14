@@ -5,7 +5,7 @@ pub struct CellEdit {rowId:String,column:Int,value:String}
 pub struct CellDraft {rowId:String,column:Int,original:String,value:String}
 // UnknownRow carries None as its second field so the type argument is inferable.
 pub enum RowMapError<E:Share> {UnknownRow(String,Option<E>),Conversion(String,E)}
-struct SortKey {value:String,row:Int,descending:Bool}
+record SortKey {value:String,row:Int,descending:Bool}
 pub struct Table {private headers:Frozen<List<String>>,private columnWeights:List<Int>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private editing:Bool,private editRowId:String,private editColumn:Int,private editOriginal:String,private editValue:String,private visible:Int,private first:Int,private selected:Int}
 pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close}
 fn valid(text:String)->Bool effects {} {return text.byteLen()<=4096 && stdTextFind(text,"\0")==None;}
@@ -58,7 +58,7 @@ fn positionsFor(table:&Table,display:&List<Int>)->List<Int> effects {} {
 }
 fn normalizeView(table:&mut Table)->Unit effects {} {
  if table.selected>=0{let position=displayRow(table,table.selected);if position<0{table.selected=-1;}else{if position<table.first{table.first=position;}if position>=table.first+table.visible{table.first=position-table.visible+1;}}}
- let limit=visibleRows(table)-table.visible;if limit<0{limit=0;}if table.first>limit{table.first=limit;}if table.first<0{table.first=0;}
+ var limit=visibleRows(table)-table.visible;if limit<0{limit=0;}if table.first>limit{table.first=limit;}if table.first<0{table.first=0;}
 }
 fn refreshFilter(table:&mut Table)->Unit effects {} {
  let display=filterOrder(table,&table.rowOrder,table.filterColumn,table.filterQuery);let positions=positionsFor(table,&display);
@@ -103,7 +103,7 @@ pub fn toValue<T:Share,E:Share>(table:&Table,id:String,convert:fn(Frozen<List<St
 fn editKey(id:String,column:Int)->String effects {} {return id.byteLen().format()+":"+id+":"+column.format();}
 fn removeEdit(table:&mut Table,index:Int)->Unit effects {} {
  let values=List<CellEdit>();let indices=Map<String,Int>();var bytes=0;var i=0;
- while i<table.editedCells.len(){if i!=index{let edit=table.editedCells.get(i);indices.set(editKey(edit.rowId,edit.column),values.len());values.add(edit);bytes+=edit.value.byteLen();}i+=1;}
+ while i<table.editedCells.len(){if i!=index{let edit=table.editedCells.get(i);indices.set(editKey(edit.rowId,edit.column),values.len());values.add(CellEdit(edit.rowId,edit.column,edit.value));bytes+=edit.value.byteLen();}i+=1;}
  table.editedCells=move values;table.editIndex=move indices;table.editBytes=bytes;
 }
 fn stageEdit(table:&mut Table,row:Int,id:String,column:Int,value:String)->Result<Unit,TableError> effects {} {
@@ -113,7 +113,7 @@ fn stageEdit(table:&mut Table,row:Int,id:String,column:Int,value:String)->Result
  match table.editIndex.get(key){
   Some(index)=>{
    if value==original{removeEdit(table,index);if table.filterQuery!="" && column==table.filterColumn{refreshFilter(table);}return Ok(());}
-   let previous=table.editedCells.get(index);let nextBytes=table.editBytes-previous.value.byteLen()+value.byteLen();
+   let previousBytes=table.editedCells.get(index).value.byteLen();let nextBytes=table.editBytes-previousBytes+value.byteLen();
    if nextBytes>4194304{return Err(StdError("GuiTableEditCapacity",nextBytes));}
    table.editedCells.set(index,CellEdit(id,column,value));table.editBytes=nextBytes;if table.filterQuery!="" && column==table.filterColumn{refreshFilter(table);}return Ok(());
   },

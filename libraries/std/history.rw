@@ -48,7 +48,9 @@ pub fn get<T:Send>(history:&History<T>,name:String)->Option<snapshot.Snapshot<T>
 
 // @api names Returns an owned list in the underlying String Map key order.
 pub fn names<T:Send>(history:&History<T>)->List<String> effects {} {
-    return history.entries.keys();
+    let keys=history.entries.keys();let output=List<String>();var i=0;
+    while i<keys.len(){output.add(keys.get(i));i+=1;}
+    return output;
 }
 
 // @api remove Unregisters one name and returns its snapshot. Other holders and VM checkpoints may still retain its data.

@@ -383,7 +383,7 @@ test fn data_snapshot_isolates_capture_and_forks()->Unit effects {} {
     left.set(0,7);right.add(20);
     assert_eq(left.len(),1);assert_eq(right.get(0),10);
     assert_eq(right.len(),2);assert_eq(old.len(),1);assert_eq(values.get(0),99);
-    let scalar=42;assert_eq(snapshot.fork(snapshot.capture(&scalar)),42);
+    let scalar=List<Int>();scalar.add(42);let scalarSaved=snapshot.capture(&scalar);let restored=snapshot.fork(scalarSaved);assert_eq(restored.get(0),42);
 }
 
 test fn named_data_history_preserves_removed_and_reused_roots()->Unit effects {} {
@@ -461,14 +461,14 @@ test fn timeline_wraps_truncates_and_keeps_detached_snapshots()->Unit effects {}
             match timeline.undo(&mut line) {Some(v)=>{assert_eq(snapshot.fork(v),13);},None=>{panic("undo");}}
             let replacement=99;timeline.push(&mut line,&replacement);
             assert(!timeline.canRedo(&line));
-            assert_eq(snapshot.fork(timeline.current(&line)),99);
+            let currentSaved1=timeline.current(&line);assert_eq(snapshot.fork(currentSaved1),99);
             assert_eq(snapshot.fork(original),10);
             match timeline.seek(&mut line,-1) {Err(e)=>{assert_eq(e,TimelineError::Index);},Ok(_)=>{panic("negative index");}}
             assert_eq(timeline.position(&line),2);
             timeline.clear(&mut line);
             assert_eq(timeline.length(&line),1);
             assert(!timeline.canUndo(&line));
-            assert_eq(snapshot.fork(timeline.current(&line)),99);
+            let currentSaved2=timeline.current(&line);assert_eq(snapshot.fork(currentSaved2),99);
         },
         Err(_)=>{panic("timeline setup");}
     }
@@ -482,7 +482,7 @@ test fn timeline_capacity_one_and_redo_boundaries()->Unit effects {} {
         Ok(line)=>{
             let two=2;timeline.push(&mut line,&two);
             assert_eq(timeline.length(&line),1);
-            assert_eq(snapshot.fork(timeline.current(&line)),2);
+            let currentSaved3=timeline.current(&line);assert_eq(snapshot.fork(currentSaved3),2);
             match timeline.undo(&mut line) {None=>{},Some(_)=>{panic("undo past start");}}
             match timeline.redo(&mut line) {None=>{},Some(_)=>{panic("redo past end");}}
         },
@@ -795,9 +795,9 @@ test fn changes_rebase_retains_step_roots_and_accepts_already_applied_values()->
     assert_eq(preview.conflict,None);assert_eq(preview.steps.len(),2);
     let first=thaw(preview.steps.get(0));let second=thaw(preview.steps.get(1));
     assert_eq(changes.length(first.patch),0);assert_eq(changes.length(second.patch),1);
-    assert_eq(first.value.get("score"),Some(20));
-    assert_eq(second.value.get("score"),Some(30));
-    assert_eq(preview.value.get("unrelated"),Some(7));
+    assert_eq(thaw(first.value.get("score")),Some(20));
+    assert_eq(thaw(second.value.get("score")),Some(30));
+    assert_eq(thaw(preview.value.get("unrelated")),Some(7));
     assert_eq(onto.get("score"),Some(20));assert_eq(base.get("score"),Some(10));
     let replayed=transformTake(changes.apply(&onto,second.patch,same));
     assert_eq(replayed.get("score"),Some(30));assert_eq(replayed.get("unrelated"),Some(7));
@@ -815,7 +815,7 @@ test fn changes_rebase_stops_before_conflicting_step_without_partial_edits()->Un
     let preview=transformTake(changes.previewRebase(&base,&onto,&patches,same));
     assert_eq(preview.steps.len(),1);
     match preview.conflict {Some(c)=>{assert_eq(c.step,1);assert_eq(c.key,"b");},None=>{panic("missing conflict");}}
-    assert_eq(preview.value.get("a"),Some(2));assert_eq(preview.value.get("b"),Some(9));
+    assert_eq(thaw(preview.value.get("a")),Some(2));assert_eq(thaw(preview.value.get("b")),Some(9));
     assert_eq(onto.get("a"),Some(1));assert_eq(base.get("b"),Some(1));
     let invalid=List<Change<Int>>();invalid.add(Change<Int>("a",Some(99),Some(4)));
     patches.add(transformTake(changes.fromChanges(&invalid,same)));
@@ -833,12 +833,12 @@ test fn changes_rebase_handles_deletions_and_empty_sequences()->Unit effects {} 
     patches.add(transformTake(changes.diff(&base,&absent,same)));
     patches.add(transformTake(changes.diff(&absent,&after,same)));
     let preview=transformTake(changes.previewRebase(&base,&absent,&patches,same));
-    assert_eq(preview.conflict,None);assert_eq(preview.value.get("x"),Some(2));
+    assert_eq(preview.conflict,None);assert_eq(thaw(preview.value.get("x")),Some(2));
     assert_eq(changes.length(thaw(preview.steps.get(0)).patch),0);
     let empty=List<changes.ChangeSet<Int>>();
     let identity=transformTake(changes.previewRebase(&base,&after,&empty,same));
     assert_eq(identity.steps.len(),0);assert_eq(identity.conflict,None);
-    after.set("x",3);assert_eq(identity.value.get("x"),Some(2));
+    after.set("x",3);assert_eq(thaw(identity.value.get("x")),Some(2));
 }
 
 import textIndex as textIndex;
@@ -1043,7 +1043,7 @@ test fn lens_composition_validates_updates_and_preserves_unrelated_fields()->Uni
 
 test fn optional_lenses_do_not_create_missing_values_or_run_callbacks()->Unit effects {} {
     let key=lens.optional(
-        |root:Frozen<Map<String,Int>>|->Option<Int>{return root.get("x");},
+        |root:Frozen<Map<String,Int>>|->Option<Int>{return thaw(root.get("x"));},
         |root:Frozen<Map<String,Int>>,value:Int|->Result<Option<Frozen<Map<String,Int>>>,String>{
             let updated=thaw(root);updated.set("x",value);return Ok(Some(freeze(updated)));
         }
@@ -1053,8 +1053,8 @@ test fn optional_lenses_do_not_create_missing_values_or_run_callbacks()->Unit ef
     assert_eq(lens.modifyIfPresent(key,missing,|v:Int|->Result<Int,String>{return Err("must not run");}),Ok(None));
     empty.set("x",1);let present=freeze(empty);
     let changed=transformTake(lens.modifyIfPresent(key,present,|v:Int|->Result<Int,String>{return Ok(v+1);}));
-    match changed {Some(root)=>{assert_eq(root.get("x"),Some(2));},None=>{panic("present focus");}}
-    assert_eq(present.get("x"),Some(1));assert_eq(missing.get("x"),None);
+    match changed {Some(root)=>{assert_eq(thaw(root.get("x")),Some(2));},None=>{panic("present focus");}}
+    assert_eq(thaw(present.get("x")),Some(1));assert_eq(thaw(missing.get("x")),None);
     let number=lens.composeOptional(lens.asOptional(lensAddress()),lens.asOptional(lensNumber()));
     let person=LensPerson("name",LensAddress("city",5));
     assert_eq(lens.preview(number,person),Some(5));
@@ -1372,7 +1372,7 @@ test fn db_schema_batch_is_bounded_and_preserves_source_batch()->Unit effects {}
     let batch=DbBatch(freeze(rows),true);
     let result=transformTake(db.validateBatch(rule,freeze(columns),&batch));
     assert_eq(result.rows.len(),2);assert_eq(result.done,true);assert_eq(batch.rows.len(),2);
-    assert_eq(json.get(result.rows.get(1),"score"),Some(Json::Int(42)));
+    assert_eq(json.get(thaw(result.rows.get(1)),"score"),Some(Json::Int(42)));
 
     let badCells=List<DbValue>();badCells.add(DbValue::Text("Grace"));badCells.add(DbValue::Text("wrong"));
     let badRow=DbRow(freeze(badCells));
@@ -1452,7 +1452,7 @@ test fn gui_form_runs_shared_schema_before_typed_mapping()->Unit effects {} {
     match guiForm.toSchemaValue(&model,rule,|value:Json|->Result<Int,String>{
         match jsonGet(value,"age"){Some(Json::Int(age))=>{return Ok(age);},_=>{return Err("age");}}
     }) {
-        Err(guiForm.SchemaSubmitError::Schema(error))=>{assert_eq(error.code,"IntegerRange");assert_eq(error.actual,"Int");},
+        Err(guiForm.SchemaSubmitError::Schema(error,_))=>{assert_eq(error.code,"IntegerRange");assert_eq(error.actual,"Int");},
         Err(_)=>{panic("expected shared schema rejection");},
         Ok(_)=>{panic("mapper ran before schema validation");}
     }

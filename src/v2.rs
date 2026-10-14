@@ -8708,7 +8708,17 @@ impl Checker<'_> {
                             .map(String::as_str)
                             .unwrap_or(name);
                         let params = s.type_params.clone();
-                        let substitutions = infer_arguments(&s.fields, &params, &types, &e.at)?;
+                        let explicit_args = name
+                            .split_once('<')
+                            .map(|(_, rest)| split_type_args(outer_type_end(rest)))
+                            .unwrap_or_default();
+                        let substitutions = infer_arguments_seeded(
+                            &s.fields,
+                            &params,
+                            &types,
+                            &explicit_args,
+                            &e.at,
+                        )?;
                         v09::record_arguments(
                             self.program,
                             s,
@@ -12330,8 +12340,18 @@ impl<R: BufRead> Engine<R> {
                 .iter()
                 .map(|arg| value_type(arg, &self.runtime))
                 .collect::<Vec<_>>();
-            let substitutions = infer_arguments(&def.fields, &def.type_params, &actuals, at)
-                .map_err(Flow::Error)?;
+            let explicit_args = name
+                .split_once('<')
+                .map(|(_, rest)| split_type_args(outer_type_end(rest)))
+                .unwrap_or_default();
+            let substitutions = infer_arguments_seeded(
+                &def.fields,
+                &def.type_params,
+                &actuals,
+                &explicit_args,
+                at,
+            )
+            .map_err(Flow::Error)?;
             for ((field, ty), arg) in def.fields.iter().zip(args) {
                 let actual = value_type(&arg, &self.runtime);
                 let expected = substitute_type(ty, &substitutions);
@@ -14382,6 +14402,17 @@ fn infer_arguments(
     actual: &[String],
     at: &Tok,
 ) -> Result<BTreeMap<String, String>> {
+    infer_arguments_seeded(params, type_params, actual, &[], at)
+}
+/// Like `infer_arguments`, but explicit type arguments (`Name<T>(..)`) seed the
+/// substitutions so parameters that no argument determines can still be bound.
+fn infer_arguments_seeded(
+    params: &[(String, String)],
+    type_params: &[String],
+    actual: &[String],
+    explicit: &[&str],
+    at: &Tok,
+) -> Result<BTreeMap<String, String>> {
     if params.len() != actual.len() {
         return Err(diagnostic(
             at,
@@ -14393,6 +14424,11 @@ fn infer_arguments(
         ));
     }
     let mut substitutions = BTreeMap::new();
+    if explicit.len() == type_params.len() {
+        for (p, t) in type_params.iter().zip(explicit) {
+            substitutions.insert(p.clone(), (*t).to_string());
+        }
+    }
     for ((_, expected), found) in params.iter().zip(actual) {
         if !unify_type(expected, found, type_params, &mut substitutions) {
             return Err(diagnostic(

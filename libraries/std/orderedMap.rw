@@ -76,6 +76,7 @@ pub fn keys<T:Share>(map:&OrderedMap<T>)->List<String> effects {} {
             None=>{return output;}
         }
     }
+    return output;
 }
 pub fn values<T:Share>(map:&OrderedMap<T>)->List<T> effects {} {
     let output=List<T>();var cursor=map.first;
@@ -85,6 +86,7 @@ pub fn values<T:Share>(map:&OrderedMap<T>)->List<T> effects {} {
             None=>{return output;}
         }
     }
+    return output;
 }
 pub fn entries<T:Share>(map:&OrderedMap<T>)->List<Tuple<String,T>> effects {} {
     let output=List<Tuple<String,T>>();var cursor=map.first;
@@ -94,6 +96,7 @@ pub fn entries<T:Share>(map:&OrderedMap<T>)->List<Tuple<String,T>> effects {} {
             None=>{return output;}
         }
     }
+    return output;
 }
 pub fn clear<T:Share>(map:&mut OrderedMap<T>)->Unit effects {} {
     map.data=Map<String,Entry<T>>();map.first=None;map.last=None;

@@ -193,7 +193,7 @@ fn visit(schema:Schema,index:Int,value:Json,path:Frozen<List<Segment>>,budget:&m
             let output=Map<String,Json>();
             for i in 0..keys.len() {
                 let key=keys.get(i);
-                match known.get(key) {
+                match thaw(known.get(key)) {
                     Some(_)=>{},
                     None=>{
                         match policy {
@@ -292,7 +292,7 @@ fn csvRowFields(schema:Schema,headers:&List<String>,row:&List<String>,nullToken:
         let value=row.get(i);let length=stdTextLength(value);
         if length>1048576-total {return Err(csvProblem("RowLimit",freeze(List<Segment>()),"row <=1048576 scalars","Text"));}
         total+=length;
-        match known.get(name) {
+        match thaw(known.get(name)) {
             Some(nodeIndex)=>{
                 let path=List<Segment>();path.add(Segment::Field(name));
                 let converted=csvCell(schema,nodeIndex,value,freeze(path),nullToken)?;

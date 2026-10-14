@@ -42,6 +42,7 @@ pub fn root(set:PersistentSet,index:Int)->Result<Int,SetError> effects {} {
         if parent==current {return Ok(current);}
         current=parent;
     }
+    return Err(SetError("Range",index));
 }
 pub fn same(set:PersistentSet,a:Int,b:Int)->Result<Bool,SetError> effects {} {return Ok(root(set,a)?==root(set,b)?);}
 pub fn size(set:PersistentSet,index:Int)->Result<Int,SetError> effects {} {return at(&set.sizes,root(set,index)?);}

@@ -178,7 +178,7 @@ enum LayoutNode {
  Overlay(Frozen<List<Int>>),
  Padding(Int,Int,Int,Int,Int)
 }
-pub struct Layout {private nodes:Frozen<List<LayoutNode>>,private root:Int,private depth:Int}
+pub record Layout {private nodes:Frozen<List<LayoutNode>>,private root:Int,private depth:Int}
 pub struct WeightedLayout {private layout:Layout,private weight:Int,private minimum:Int,private maximum:Int,private crossMinimum:Int,private crossMaximum:Int}
 record LayoutWork {node:Int,bounds:Rect}
 record LayoutPlacement {id:String,bounds:Rect}

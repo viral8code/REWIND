@@ -119,6 +119,7 @@ fn readObject(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError>
    }
   }
  }
+ return Ok(None);
 }
 fn readArray(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> effects {} {
  let values=List<Json>();
@@ -143,6 +144,7 @@ fn readArray(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> 
    }
   }
  }
+ return Ok(None);
 }
 fn readValue(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> effects {} {
  match peek(reader){
