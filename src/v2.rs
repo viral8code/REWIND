@@ -2170,6 +2170,88 @@ impl Parser {
             at: at.clone(),
         })
     }
+    /// `[a, b, c]` builds a List whose element type is the first element's type.
+    /// It lowers to a block: `{ let l = stdListOf(a); l.add(b); l.add(c); l }`.
+    fn list_literal(&mut self, at: &Tok) -> Result<Expr> {
+        if self.eat("]") {
+            return Err(diagnostic(
+                at,
+                "an empty list literal has no element type; write List<T>()",
+            ));
+        }
+        let first = self.expr(0)?;
+        let mut rest = Vec::new();
+        while self.eat(",") {
+            if self.is("]") {
+                break;
+            }
+            rest.push(self.expr(0)?);
+        }
+        self.need("]")?;
+        let name = format!("$lit{}_{}", at.line, at.col);
+        Ok(Self::literal_block(at, &name, "stdListOf", vec![first], "add", rest.into_iter().map(|e| vec![e]).collect()))
+    }
+    /// `{k: v, ...}` builds a Map keyed and valued by the first entry's types.
+    fn map_literal(&mut self, at: &Tok) -> Result<Expr> {
+        let mut entries = Vec::new();
+        loop {
+            let key = self.expr(0)?;
+            self.need(":")?;
+            let value = self.expr(0)?;
+            entries.push(vec![key, value]);
+            if !self.eat(",") || self.is("}") {
+                break;
+            }
+        }
+        self.need("}")?;
+        let first = entries.remove(0);
+        let name = format!("$lit{}_{}", at.line, at.col);
+        Ok(Self::literal_block(at, &name, "stdMapOf", first, "set", entries))
+    }
+    fn literal_block(
+        at: &Tok,
+        name: &str,
+        constructor: &str,
+        first: Vec<Expr>,
+        method: &str,
+        rest: Vec<Vec<Expr>>,
+    ) -> Expr {
+        let named = |n: &str| Expr {
+            kind: ExprKind::Name(n.into()),
+            at: at.clone(),
+        };
+        let mut body = vec![Stmt {
+            kind: StmtKind::Let(
+                name.into(),
+                false,
+                None,
+                Expr {
+                    kind: ExprKind::Call(Box::new(named(constructor)), first),
+                    at: at.clone(),
+                },
+            ),
+            at: at.clone(),
+        }];
+        for args in rest {
+            body.push(Stmt {
+                kind: StmtKind::Expr(Expr {
+                    kind: ExprKind::Call(
+                        Box::new(Expr {
+                            kind: ExprKind::Member(Box::new(named(name)), method.into()),
+                            at: at.clone(),
+                        }),
+                        args,
+                    ),
+                    at: at.clone(),
+                }),
+                at: at.clone(),
+            });
+        }
+        Expr {
+            kind: ExprKind::Block(body, Some(Box::new(named(name)))),
+            at: at.clone(),
+        }
+    }
     /// `if cond { a } else { b }` is an expression: it lowers to a Bool match.
     /// Without `else` the missing branch is an empty block of type Unit.
     fn if_expression(&mut self, at: &Tok) -> Result<Expr> {
@@ -2316,7 +2398,13 @@ impl Parser {
                 kind: ExprKind::Value(Value::Null),
                 at: at.clone(),
             },
+            "{" if self.toks.get(self.pos + 1).is_some_and(|t| t.text == ":")
+                && !self.is("}") =>
+            {
+                self.map_literal(&at)?
+            }
             "{" => self.block_expression(&at)?,
+            "[" => self.list_literal(&at)?,
             "if" => self.if_expression(&at)?,
             "match" => {
                 let value = self.expr(0)?;
@@ -9125,7 +9213,12 @@ impl Checker<'_> {
                                 {
                                     let parts = split_type_args(inner);
                                     if parts.len() != 2
-                                        || !trait_satisfied(self.program, "Ord", parts[0])
+                                        || !trait_satisfied_in_context(
+                                            self.program,
+                                            "Ord",
+                                            parts[0],
+                                            &self.bounds,
+                                        )
                                     {
                                         return Err(diagnostic(
                                             &e.at,

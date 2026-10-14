@@ -227,3 +227,38 @@ fn run()->Unit effects {output} {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "5\nhas 7\nnone\n");
 }
+
+#[test]
+fn collection_literals_build_typed_lists_and_maps() {
+    let out = main_output(
+        r#"fn total(values:&List<Int>)->Int effects {} {
+    var sum=0;
+    for i in 0..values.len() { sum+=values.get(i); }
+    return sum;
+}
+fn run()->Unit effects {output} {
+    let numbers=[1, 2, 3,];
+    let nested=[[1], [2, 3]];
+    let ages={"ada": 36, "grace": 45};
+    Out.println(total(&numbers).format());
+    Out.println(nested.len().format());
+    Out.println(nested.get(1).len().format());
+    match ages.get("grace") { Some(age)=>{ Out.println(age.format()); }, None=>{ Out.println("none"); } }
+    let words=["a", "b"];
+    Out.println(words.get(1));
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "6\n2\n2\n45\nb\n");
+}
+
+#[test]
+fn collection_literals_reject_mixed_and_untyped_forms() {
+    let out = main_output("fn run()->Unit effects {} { let mixed=[1, \"two\"]; }");
+    assert!(!out.status.success());
+    let out = main_output("fn run()->Unit effects {} { let empty=[]; }");
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("empty list literal"), "{}", stderr(&out));
+    let out = main_output("fn run()->Unit effects {} { let m={\"a\": 1, \"b\": \"x\"}; }");
+    assert!(!out.status.success());
+}

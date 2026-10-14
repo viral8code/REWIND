@@ -19,6 +19,7 @@ const NAMES: &[&str] = &[
 
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
     if language_at_least(&p.language, "3.0.0") {
+        install_literal_helpers(p)?;
         // From 3.0.0 a source file holds declarations only; executable code
         // lives in functions, and an application starts at `fn main`.
         if let Some(stmt) = p
@@ -987,4 +988,27 @@ fn number_syntax(raw: &str) -> bool {
         }
     }
     i == b.len()
+}
+
+/// Collection literals lower to calls of these generic constructors, which fix
+/// the element types from the first entry; later entries are type-checked
+/// against them by the ordinary `add` / `set` calls.
+fn install_literal_helpers(p: &mut Program) -> Result<()> {
+    const SOURCE: &str = "pub fn stdListOf<T>(first:T)->List<T> effects {} { let items=List<T>(); items.add(first); return items; }\n\
+        pub fn stdMapOf<K:Ord,V>(key:K,value:V)->Map<K,V> effects {} { let entries=Map<K,V>(); entries.set(key,value); return entries; }\n";
+    let mut parser = super::Parser {
+        toks: lex(SOURCE)?,
+        pos: 0,
+        type_depth: 0,
+    };
+    let parsed = parser.program()?;
+    for (name, mut function) in parsed.functions {
+        if p.functions.contains_key(&name) {
+            continue;
+        }
+        function.origin = p.root_origin.clone();
+        function.public = true;
+        p.functions.insert(name, function);
+    }
+    Ok(())
 }
