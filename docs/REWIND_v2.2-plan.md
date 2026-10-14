@@ -103,6 +103,8 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 - native描画とexportの座標変換が一致する。
 - 必要なprimitiveの費用・backend互換を確認できなければ、VIS-01は保留理由を記録しGUI/DBの公開を妨げない。
 
+**保留（2026-10-14）：** 既存の`std.gui`の描画primitiveは、label、button、checkbox、塗りつぶした`rectangle`、背景色、text系widgetです。線分・点・折れ線を描くprimitiveはありません。細い`rectangle`を並べて折れ線を描くと、描画element数が点数に比例して増え、斜線は階段状になり、native描画とexportで座標が一致する保証もできません。そのため、受入条件の「描画element数が上限を超えない」「native描画とexportの座標変換が一致する」を満たせません。native rendererへ線分primitiveを足す設計（Linux/Windows backendの双方、clip、座標overflow、DPI）を別の小さな案として確定してから実装します。この保留は、GUI/DBの公開を妨げません。
+
 ## DB-01：record mapping
 
 **部分実装（2026-10-12）：** `std.db.indexColumns`は最大256個のcursor column名を一度検査し、重複を拒否してimmutable `ColumnMap`を返す。`columnNumber`は同じ結果を使って名前からindexを引く。新しいpureな`mapBatch`は既存の`DbBatch`を借用し、最大64行を利用者mapperでrecordへ変換する。最初の失敗をbatch内row index付きで返し、入力batchとcursorを変更しない。SQLiteの`mapScore`とPostgreSQLの`mapStatus`がtyped accessorを明示し、共通helperへ渡す。自動ORMやreflectionは追加しない。\n\n**部分実装（2026-10-12）：** `std.db.validateRow`は最大256列の一行を`std.schema.Schema`で検証します。`validateBatch`は列名の重複を一度検査してから最大64行を入力順に検証し、`MappedBatch<Json>`とbatch内row error indexを返します。Null/Bool/Int/Float/TextをJSONへ写し、Bytes/Privateは拒否します。SQLite exampleはshared schema batch検証後に明示recordへ変換します。SQLite Decimal BLOB adapter、実DB受入は未実施です。
