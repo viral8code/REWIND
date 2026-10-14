@@ -15390,6 +15390,16 @@ fn binary(op: &str, a: Value, b: Value, at: &Tok) -> Exec<Value> {
                 _ => a >= b,
             }))
         }
+        // Strings order by UTF-8 byte sequence, which equals Unicode scalar order.
+        (op, Value::Text(a), Value::Text(b)) if matches!(op, "<" | "<=" | ">" | ">=") => {
+            let order = a.as_bytes().cmp(b.as_bytes());
+            Ok(Value::Bool(match op {
+                "<" => order.is_lt(),
+                "<=" => order.is_le(),
+                ">" => order.is_gt(),
+                _ => order.is_ge(),
+            }))
+        }
         (op, Value::Decimal(a), Value::Decimal(b))
             if matches!(op, "==" | "!=" | "<" | "<=" | ">" | ">=") =>
         {
