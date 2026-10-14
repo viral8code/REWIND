@@ -1462,7 +1462,25 @@ impl Parser {
                 let ret = if annotated { self.ty()? } else { "Unit".into() };
                 let effects = self.effect_set()?;
                 self.where_bounds(&mut type_params)?;
-                let body = self.block()?;
+                // `fn double(x:Int)->Int = x*2;` is shorthand for a body that returns it.
+                let body = if self.is("=") {
+                    let equals = self.current().clone();
+                    self.pos += 1;
+                    if !annotated {
+                        return Err(diagnostic(
+                            &equals,
+                            "an expression-bodied function needs a return type: fn name(...) -> Type = expression;",
+                        ));
+                    }
+                    let value = self.expr(0)?;
+                    self.need(";")?;
+                    vec![Stmt {
+                        kind: StmtKind::Return(Some(value)),
+                        at: equals,
+                    }]
+                } else {
+                    self.block()?
+                };
                 if p.functions
                     .insert(
                         name.clone(),

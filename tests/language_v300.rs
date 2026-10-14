@@ -326,3 +326,20 @@ fn string_interpolation_reports_malformed_forms() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("empty ${}"), "{}", stderr(&out));
 }
+
+#[test]
+fn expression_bodied_functions_return_their_expression() {
+    let out = main_output(
+        r#"fn double(x:Int)->Int = x*2;
+fn greet(name:String)->String = "hi ${name}";
+fn run()->Unit effects {output} {
+    Out.println(double(21).format());
+    Out.println(greet("ada"));
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "42\nhi ada\n");
+    let out = main_output("fn bad(x:Int) = x;\nfn run()->Unit effects {} { }");
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("needs a return type"), "{}", stderr(&out));
+}
