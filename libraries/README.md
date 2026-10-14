@@ -22,6 +22,7 @@
 | jsonStream | Event, IntegerEventError, DecimalEventError, JsonValueError, SchemaEventError, reader, feed, peek, next, nextBigInt, nextDecimal, nextJson, nextValidated, finish, cancel, position | bounded JSON event queue。nextJson materializes one nested root value; nextValidated advances only after shared schema validation; incomplete/failure preserves queued events |
 | db row mapping | ColumnMap, MappedBatch<T>, RowMapError<E>, SchemaRowError, SchemaBatchError, indexColumns, columnNumber, mapBatch, validateRow, validateBatch | 最大256列名を一度検査。pureなschema batch mapperは最大64行で、row error index付き。source DbBatch/cursorを変更しない |
 | dbMigration | Migration, Applied, Plan, MigrationError, migration, checksum, plan, createTableSql, selectAppliedSql, recordSql | 利用者が書いたSQL command列を保持し、適用済み行との整合（接頭辞・checksum・順序・backend）を検証して未適用の末尾を返す。SQLの生成・分割・実行は行わない |
+| plot | Series, Axis, Chart, Point, Segment, PlotError, series, axisOf, chart, project, polyline, scatter, svg, render | 数値配列を線形軸で画素座標へ写し、クリップと列ごとの極値保持で線分・点の数を上限内に縮約する。render以外は純粋で、描画はgui.lineのみ |
 | dbTransaction | TxState, Transaction, TxError, Finished, begun, state, isActive, connectionReusable, requestCommit, requestRollback, completeCommit, completeRollback, close, finished | 物理BEGIN/COMMIT/ROLLBACKはstd.dbのtask。要求と応答の状態を追跡し、二重要求・終了後の要求を拒否、`DbError.phase`で失敗を分類。dropでcommitしない |
 | memo | key, create, get, peek, put, resolve, invalidate, clear | 版付きkey、LRU、件数/重み上限、pureな結果とErrの保持 |
 | lazy | create, isForced, peek, force, fork, clear | 明示的な遅延計算、成功snapshot、回復可能なErr、可変ownerの独立fork |

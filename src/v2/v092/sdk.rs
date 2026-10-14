@@ -184,6 +184,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/dbMigration.rw"),
         ),
         ("gui", include_str!("../../../libraries/std/gui.rw")),
+        ("plot", include_str!("../../../libraries/std/plot.rw")),
         (
             "guiDialog",
             include_str!("../../../libraries/std/guiDialog.rw"),

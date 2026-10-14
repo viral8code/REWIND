@@ -1,0 +1,380 @@
+// Small plot helpers for numeric arrays with linear axes. The functions are pure:
+// they map finite Float points to pixel coordinates, clip them to the plot area and
+// reduce them to a bounded number of 1px line segments or points. Only render uses
+// std.gui, and it only adds lines to a view that the program owns.
+//
+// Reduction keeps, for every pixel column of a continuous run, the first, lowest,
+// highest and last point, so extremes survive. It does not thin the data by sampling.
+// When the result still exceeds the limit, the column width grows 2, 3, 4, ... pixels.
+//
+// Costs: series and axisOf read every element once, O(n). polyline reads every point
+// once and then reduces at most about 4 vertices per column per pass.
+//
+//   xs, ys       1..1048576 finite Float values, equal length
+//   width,height 64..4096 pixels; margins 0..4096; plot area at least 2 by 2
+//   maxSegments  1..2000 for polyline and svg; maxPoints 1..2000 for scatter
+import gui as gui;
+pub record Series {xs:Frozen<List<Float>>,ys:Frozen<List<Float>>}
+pub record Axis {low:Float,high:Float}
+pub record Chart {width:Int,height:Int,left:Int,top:Int,plotWidth:Int,plotHeight:Int,x:Axis,y:Axis}
+pub record Point {x:Int,y:Int}
+pub record Segment {x1:Int,y1:Int,x2:Int,y2:Int}
+pub enum PlotError {LengthMismatch,Empty,TooManyPoints(Int),NonFinite(Int),InvalidSize,InvalidLimit,Overflow}
+record Verts {x:Frozen<List<Int>>,y:Frozen<List<Int>>,b:Frozen<List<Bool>>}
+record Cut {ok:Bool,t0:Float,t1:Float}
+
+fn toFloat(n:Int)->Result<Float,PlotError> effects {} {
+    match n.toFloatChecked(){Ok(v)=>{return Ok(v);},Err(_)=>{return Err(PlotError::Overflow);}}
+}
+// Rounds to the nearest pixel; anything outside the safe integer range is an overflow.
+fn toPixel(v:Float)->Result<Int,PlotError> effects {} {
+    match v.roundChecked(){
+        Ok(n)=>{if n>9007199254740991 || n< -9007199254740991 {return Err(PlotError::Overflow);} return Ok(n);},
+        Err(_)=>{return Err(PlotError::Overflow);}
+    }
+}
+
+// @api series cost O(n); checks length, 1..1048576 points and finiteness, then copies both lists into frozen storage.
+pub fn series(xs:&List<Float>,ys:&List<Float>)->Result<Series,PlotError> effects {} {
+    let n=xs.len();
+    if n!=ys.len(){return Err(PlotError::LengthMismatch);}
+    if n==0{return Err(PlotError::Empty);}
+    if n>1048576{return Err(PlotError::TooManyPoints(n));}
+    let xc=List<Float>();
+    let yc=List<Float>();
+    for i in 0..n {
+        let x=xs.get(i);
+        let y=ys.get(i);
+        if !x.isFinite() || !y.isFinite(){return Err(PlotError::NonFinite(i));}
+        xc.add(x);
+        yc.add(y);
+    }
+    return Ok(Series(freeze(xc),freeze(yc)));
+}
+
+// @api axisOf cost O(n); scans every value once. A single repeated value v gives [-1,1] when v is 0, otherwise [v-|v|/2,v+|v|/2].
+pub fn axisOf(values:&Frozen<List<Float>>)->Result<Axis,PlotError> effects {} {
+    let n=values.len();
+    if n==0{return Err(PlotError::Empty);}
+    var low=0.0;
+    var high=0.0;
+    for i in 0..n {
+        let v=values.get(i);
+        if !v.isFinite(){return Err(PlotError::NonFinite(i));}
+        if i==0 || v<low {low=v;}
+        if i==0 || v>high {high=v;}
+    }
+    if low==high {
+        if low==0.0 {return Ok(Axis(-1.0,1.0));}
+        var half=low;
+        if half<0.0 {half=-half;}
+        half=half/2.0;
+        let widened=Axis(low-half,low+half);
+        if !widened.low.isFinite() || !widened.high.isFinite() {return Err(PlotError::Overflow);}
+        return Ok(widened);
+    }
+    if !(high-low).isFinite() {return Err(PlotError::Overflow);}
+    return Ok(Axis(low,high));
+}
+
+// @api chart failure InvalidSize; width and height are 64..4096, margins are 0..4096 and the plot area is at least 2 by 2.
+pub fn chart(width:Int,height:Int,left:Int,top:Int,right:Int,bottom:Int,x:Axis,y:Axis)->Result<Chart,PlotError> effects {} {
+    if width<64 || width>4096 || height<64 || height>4096 {return Err(PlotError::InvalidSize);}
+    if left<0 || top<0 || right<0 || bottom<0 || left>4096 || top>4096 || right>4096 || bottom>4096 {return Err(PlotError::InvalidSize);}
+    let plotWidth=width-left-right;
+    let plotHeight=height-top-bottom;
+    if plotWidth<2 || plotHeight<2 {return Err(PlotError::InvalidSize);}
+    return Ok(Chart(width,height,left,top,plotWidth,plotHeight,x,y));
+}
+
+fn span(a:Axis)->Result<Float,PlotError> effects {} {
+    if !a.low.isFinite() || !a.high.isFinite() {return Err(PlotError::Overflow);}
+    let d=a.high-a.low;
+    if !d.isFinite() || d<=0.0 {return Err(PlotError::Overflow);}
+    return Ok(d);
+}
+// Unrounded offset in cells from the low end of an axis: 0 at low, cells-1 at high.
+fn unitOffset(value:Float,a:Axis,cells:Int)->Result<Float,PlotError> effects {} {
+    if !value.isFinite() {return Err(PlotError::Overflow);}
+    let d=span(a)?;
+    let scale=toFloat(cells-1)?;
+    let v=(value-a.low)/d*scale;
+    if !v.isFinite() || v>9007199254740991.0 || v< -9007199254740991.0 {return Err(PlotError::Overflow);}
+    return Ok(v);
+}
+
+// @api project failure Overflow for non-finite values, an unusable axis (zero or negative span) or a result outside the safe integer range.
+pub fn project(c:&Chart,x:Float,y:Float)->Result<Point,PlotError> effects {} {
+    let ox=unitOffset(x,c.x,c.plotWidth)?;
+    let oy=unitOffset(y,c.y,c.plotHeight)?;
+    let dx=toPixel(ox)?;
+    let dy=toPixel(oy)?;
+    let px=c.left+dx;
+    let py=c.top+c.plotHeight-1-dy;
+    return Ok(Point(px,py));
+}
+
+// Liang-Barsky step: restrict the parameter interval [t0,t1] by p*t <= q.
+fn cut(p:Float,q:Float,s:Cut)->Cut effects {} {
+    if !s.ok {return s;}
+    if p==0.0 {
+        if q<0.0 {return Cut(false,s.t0,s.t1);}
+        return s;
+    }
+    let r=q/p;
+    if p<0.0 {
+        if r>s.t1 {return Cut(false,s.t0,s.t1);}
+        if r>s.t0 {return Cut(true,r,s.t1);}
+        return s;
+    }
+    if r<s.t0 {return Cut(false,s.t0,s.t1);}
+    if r<s.t1 {return Cut(true,s.t0,r);}
+    return s;
+}
+fn clipPiece(x1:Float,y1:Float,x2:Float,y2:Float,x0:Float,xe:Float,y0:Float,ye:Float)->Cut effects {} {
+    let dx=x2-x1;
+    let dy=y2-y1;
+    var s=Cut(true,0.0,1.0);
+    s=cut(-dx,x1-x0,s);
+    s=cut(dx,xe-x1,s);
+    s=cut(-dy,y1-y0,s);
+    s=cut(dy,ye-y1,s);
+    return s;
+}
+
+// Builds the clipped pixel vertices of the polyline in point order. A break flag marks the
+// first vertex of a run; consecutive vertices without a break form one connected run.
+// Points inside the plot area take a fast path; only segments that leave it call clipPiece.
+fn runs(c:&Chart,s:&Series)->Result<Verts,PlotError> effects {} {
+    let xd=span(c.x)?;
+    let yd=span(c.y)?;
+    let sx=toFloat(c.plotWidth-1)?;
+    let sy=toFloat(c.plotHeight-1)?;
+    let x0=toFloat(c.left)?;
+    let y0=toFloat(c.top)?;
+    let xe=x0+sx;
+    let ye=y0+sy;
+    let bottom=c.top+c.plotHeight-1;
+    let xlow=c.x.low;
+    let ylow=c.y.low;
+    let xl=thaw(s.xs);
+    let yl=thaw(s.ys);
+    let n=xl.len();
+    let vx=List<Int>();
+    let vy=List<Int>();
+    let vb=List<Bool>();
+    var px=0.0;
+    var py=0.0;
+    var pix=0;
+    var piy=0;
+    var prevIn=false;
+    var open=false;
+    for i in 0..n {
+        let ox=(xl.get(i)-xlow)/xd*sx;
+        let oy=(yl.get(i)-ylow)/yd*sy;
+        if !ox.isFinite() || !oy.isFinite() || ox>9007199254740991.0 || ox< -9007199254740991.0 || oy>9007199254740991.0 || oy< -9007199254740991.0 {return Err(PlotError::Overflow);}
+        let cx=x0+ox;
+        let cy=ye-oy;
+        let curIn=cx>=x0 && cx<=xe && cy>=y0 && cy<=ye;
+        var cix=0;
+        var ciy=0;
+        if curIn {
+            cix=c.left+toPixel(ox)?;
+            ciy=bottom-toPixel(oy)?;
+        }
+        if i>0 {
+            if prevIn && curIn {
+                if !open {
+                    vx.add(pix);
+                    vy.add(piy);
+                    vb.add(true);
+                }
+                vx.add(cix);
+                vy.add(ciy);
+                vb.add(false);
+                open=true;
+            } else {
+                let piece=clipPiece(px,py,cx,cy,x0,xe,y0,ye);
+                if piece.ok {
+                    if !(prevIn && open) {
+                        if prevIn {
+                            vx.add(pix);
+                            vy.add(piy);
+                        } else {
+                            vx.add(toPixel(px+piece.t0*(cx-px))?);
+                            vy.add(toPixel(py+piece.t0*(cy-py))?);
+                        }
+                        vb.add(true);
+                    }
+                    if curIn {
+                        vx.add(cix);
+                        vy.add(ciy);
+                    } else {
+                        vx.add(toPixel(px+piece.t1*(cx-px))?);
+                        vy.add(toPixel(py+piece.t1*(cy-py))?);
+                    }
+                    vb.add(false);
+                    open=curIn;
+                } else {
+                    open=false;
+                }
+            }
+        }
+        px=cx;
+        py=cy;
+        pix=cix;
+        piy=ciy;
+        prevIn=curIn;
+    }
+    return Ok(Verts(freeze(vx),freeze(vy),freeze(vb)));
+}
+
+fn segmentCount(v:&Verts)->Int effects {} {
+    var breaks=0;
+    let bl=thaw(v.b);
+    let n=bl.len();
+    for i in 0..n {if bl.get(i){breaks+=1;}}
+    return v.x.len()-breaks;
+}
+// Every run with at least two vertices keeps its first and last vertex, so it needs one segment.
+fn minimumSegments(v:&Verts)->Int effects {} {
+    var count=0;
+    let bl=thaw(v.b);
+    let n=bl.len();
+    for i in 0..n {if bl.get(i) && i+1<n && !bl.get(i+1) {count+=1;}}
+    return count;
+}
+
+// One reduction pass: within each run, group vertices by column bucket (x-left)/width and keep
+// the first, lowest, highest and last vertex of each group, in their original order.
+fn reduceColumns(v:&Verts,left:Int,width:Int)->Verts effects {} {
+    let nx=List<Int>();
+    let ny=List<Int>();
+    let nb=List<Bool>();
+    let vx=thaw(v.x);
+    let vy=thaw(v.y);
+    let vb=thaw(v.b);
+    let n=vx.len();
+    var i=0;
+    while i<n {
+        let bucket=(vx.get(i)-left)/width;
+        var j=i+1;
+        while j<n && !vb.get(j) && (vx.get(j)-left)/width==bucket {j+=1;}
+        let last=j-1;
+        var mn=i;
+        var mx=i;
+        for k in i..j {
+            if vy.get(k)<vy.get(mn) {mn=k;}
+            if vy.get(k)>vy.get(mx) {mx=k;}
+        }
+        var lo=mn;
+        var hi=mx;
+        if hi<lo {lo=mx;hi=mn;}
+        let cand=List<Int>();
+        cand.add(i);
+        cand.add(lo);
+        cand.add(hi);
+        cand.add(last);
+        var emitted=-1;
+        for t in 0..4 {
+            let k=cand.get(t);
+            if k>emitted {
+                nx.add(vx.get(k));
+                ny.add(vy.get(k));
+                nb.add(vb.get(k));
+                emitted=k;
+            }
+        }
+        i=j;
+    }
+    return Verts(freeze(nx),freeze(ny),freeze(nb));
+}
+
+// @api polyline failure InvalidLimit for maxSegments outside 1..2000; TooManyPoints when the segments cannot fit the limit even after widening the columns to the plot width.
+pub fn polyline(c:&Chart,s:&Series,maxSegments:Int)->Result<List<Segment>,PlotError> effects {} {
+    if maxSegments<1 || maxSegments>2000 {return Err(PlotError::InvalidLimit);}
+    let stage=runs(c,s)?;
+    let floor=minimumSegments(&stage);
+    if floor>maxSegments {return Err(PlotError::TooManyPoints(floor));}
+    var w=1;
+    var cur=reduceColumns(&stage,c.left,w);
+    while segmentCount(&cur)>maxSegments {
+        if w>=c.plotWidth {return Err(PlotError::TooManyPoints(segmentCount(&cur)));}
+        w+=1;
+        cur=reduceColumns(&cur,c.left,w);
+    }
+    let out=List<Segment>();
+    let cx=thaw(cur.x);
+    let cy=thaw(cur.y);
+    let cb=thaw(cur.b);
+    let n=cx.len();
+    if n>1 {
+        for k in 1..n {
+            if !cb.get(k) {out.add(Segment(cx.get(k-1),cy.get(k-1),cx.get(k),cy.get(k)));}
+        }
+    }
+    return Ok(out);
+}
+
+// @api scatter failure InvalidLimit for maxPoints outside 1..2000; TooManyPoints(count) when more distinct pixels are inside the plot area than allowed.
+pub fn scatter(c:&Chart,s:&Series,maxPoints:Int)->Result<List<Point>,PlotError> effects {} {
+    if maxPoints<1 || maxPoints>2000 {return Err(PlotError::InvalidLimit);}
+    let x0=toFloat(c.left)?;
+    let y0=toFloat(c.top)?;
+    let xe=x0+toFloat(c.plotWidth-1)?;
+    let ye=y0+toFloat(c.plotHeight-1)?;
+    let bottom=c.top+c.plotHeight-1;
+    let seen=Map<Int,Bool>();
+    let out=List<Point>();
+    let xd=span(c.x)?;
+    let yd=span(c.y)?;
+    let sx=toFloat(c.plotWidth-1)?;
+    let sy=toFloat(c.plotHeight-1)?;
+    let xlow=c.x.low;
+    let ylow=c.y.low;
+    let xl=thaw(s.xs);
+    let yl=thaw(s.ys);
+    let n=xl.len();
+    for i in 0..n {
+        let ox=(xl.get(i)-xlow)/xd*sx;
+        let oy=(yl.get(i)-ylow)/yd*sy;
+        if !ox.isFinite() || !oy.isFinite() || ox>9007199254740991.0 || ox< -9007199254740991.0 || oy>9007199254740991.0 || oy< -9007199254740991.0 {return Err(PlotError::Overflow);}
+        let cx=x0+ox;
+        let cy=ye-oy;
+        if cx>=x0 && cx<=xe && cy>=y0 && cy<=ye {
+            let px=c.left+toPixel(ox)?;
+            let py=bottom-toPixel(oy)?;
+            let key=(py-c.top)*c.plotWidth+(px-c.left);
+            if seen.get(key)==None {
+                seen.set(key,true);
+                out.add(Point(px,py));
+            }
+        }
+    }
+    if out.len()>maxPoints {return Err(PlotError::TooManyPoints(out.len()));}
+    return Ok(out);
+}
+
+// @api svg failure Same as polyline. The frame and lines are built from the same segments that render draws.
+pub fn svg(c:&Chart,s:&Series,maxSegments:Int)->Result<String,PlotError> effects {} {
+    let segs=polyline(c,s,maxSegments)?;
+    var doc="<svg width=\""+c.width.format()+"\" height=\""+c.height.format()+"\" xmlns=\"http://www.w3.org/2000/svg\">";
+    doc=doc+"<rect x=\""+c.left.format()+"\" y=\""+c.top.format()+"\" width=\""+c.plotWidth.format()+"\" height=\""+c.plotHeight.format()+"\" fill=\"none\" stroke=\"#000000\"/>";
+    for i in 0..segs.len() {
+        let g=segs.get(i);
+        doc=doc+"<line x1=\""+g.x1.format()+"\" y1=\""+g.y1.format()+"\" x2=\""+g.x2.format()+"\" y2=\""+g.y2.format()+"\" stroke=\"#000000\"/>";
+    }
+    return Ok(doc+"</svg>");
+}
+
+// @api render failure Adds each segment as a 1px gui line named prefix:index and stops at the first GUI error.
+pub fn render(view:&mut gui.View,prefix:String,segments:&List<Segment>,color:Int)->Result<Unit,gui.GuiError> effects {} {
+    for i in 0..segments.len() {
+        let g=segments.get(i);
+        match gui.line(view,prefix+":"+i.format(),g.x1,g.y1,g.x2,g.y2,color){
+            Err(e)=>{return Err(e);},
+            Ok(_)=>{}
+        }
+    }
+    return Ok(());
+}

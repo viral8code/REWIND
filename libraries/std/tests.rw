@@ -1764,3 +1764,177 @@ test fn float_floor_and_round_convert_explicitly_and_reject_non_finite() {
     assert_eq(floatInt((0.0/0.0).floorChecked()),"InexactOrOverflow");
     assert_eq(floatInt((1e30).floorChecked()),"InexactOrOverflow");
 }
+
+import plot as plot;
+test fn plot_series_rejects_length_empty_and_non_finite() {
+    let xs=List<Float>();
+    let ys=List<Float>();
+    match plot.series(&xs,&ys){Err(plot.PlotError::Empty)=>{},_=>{panic("empty accepted");}}
+    xs.add(1.0);
+    match plot.series(&xs,&ys){Err(plot.PlotError::LengthMismatch)=>{},_=>{panic("length mismatch accepted");}}
+    ys.add(2.0);
+    xs.add(0.0/0.0);
+    ys.add(3.0);
+    match plot.series(&xs,&ys){Err(plot.PlotError::NonFinite(i))=>{assert_eq(i,1);},_=>{panic("NaN accepted");}}
+    let good=List<Float>();
+    good.add(1.0);
+    match plot.series(&good,&good){Ok(_)=>{},Err(_)=>{panic("valid series rejected");}}
+}
+test fn plot_axis_of_widens_equal_values() {
+    let same=List<Float>();
+    same.add(5.0);
+    same.add(5.0);
+    match plot.series(&same,&same){Err(_)=>{panic("series");},Ok(s)=>{
+        match plot.axisOf(&s.xs){Err(_)=>{panic("axis");},Ok(ax)=>{assert(ax.low==2.5);assert(ax.high==7.5);}}
+    }}
+    let zero=List<Float>();
+    zero.add(0.0);
+    match plot.series(&zero,&zero){Err(_)=>{panic("series zero");},Ok(s)=>{
+        match plot.axisOf(&s.ys){Err(_)=>{panic("zero axis");},Ok(ax)=>{assert(ax.low==-1.0);assert(ax.high==1.0);}}
+    }}
+    let spread=List<Float>();
+    spread.add(-2.0);
+    spread.add(6.0);
+    match plot.series(&spread,&spread){Err(_)=>{panic("series spread");},Ok(s)=>{
+        match plot.axisOf(&s.xs){Err(_)=>{panic("spread axis");},Ok(ax)=>{assert(ax.low==-2.0);assert(ax.high==6.0);}}
+    }}
+}
+test fn plot_chart_rejects_invalid_sizes() {
+    match plot.chart(63,100,0,0,0,0,plot.Axis(0.0,1.0),plot.Axis(0.0,1.0)){Err(plot.PlotError::InvalidSize)=>{},_=>{panic("narrow chart accepted");}}
+    match plot.chart(100,100,60,0,40,0,plot.Axis(0.0,1.0),plot.Axis(0.0,1.0)){Err(plot.PlotError::InvalidSize)=>{},_=>{panic("empty plot width accepted");}}
+    match plot.chart(100,100,0,-1,0,0,plot.Axis(0.0,1.0),plot.Axis(0.0,1.0)){Err(plot.PlotError::InvalidSize)=>{},_=>{panic("negative margin accepted");}}
+    match plot.chart(120,70,10,5,10,5,plot.Axis(0.0,1.0),plot.Axis(0.0,1.0)){Ok(c)=>{assert_eq(c.plotWidth,100);assert_eq(c.plotHeight,60);},Err(_)=>{panic("valid chart rejected");}}
+}
+test fn plot_project_maps_corners_and_rejects_bad_values() {
+    match plot.chart(120,70,10,5,10,5,plot.Axis(0.0,10.0),plot.Axis(0.0,100.0)){Err(_)=>{panic("chart");},Ok(c)=>{
+        match plot.project(&c,0.0,0.0){Ok(p)=>{assert_eq(p.x,10);assert_eq(p.y,64);},Err(_)=>{panic("origin");}}
+        match plot.project(&c,10.0,100.0){Ok(p)=>{assert_eq(p.x,109);assert_eq(p.y,5);},Err(_)=>{panic("corner");}}
+        match plot.project(&c,20.0,0.0){Ok(p)=>{assert_eq(p.x,208);},Err(_)=>{panic("outside value");}}
+        match plot.project(&c,1e300,0.0){Err(plot.PlotError::Overflow)=>{},_=>{panic("huge value accepted");}}
+        match plot.project(&c,0.0/0.0,0.0){Err(plot.PlotError::Overflow)=>{},_=>{panic("NaN accepted");}}
+    }}
+    match plot.chart(120,70,10,5,10,5,plot.Axis(1.0,1.0),plot.Axis(0.0,100.0)){Err(_)=>{panic("degenerate chart");},Ok(c)=>{
+        match plot.project(&c,1.0,0.0){Err(plot.PlotError::Overflow)=>{},_=>{panic("zero axis accepted");}}
+    }}
+}
+test fn plot_polyline_bounds_segments_and_keeps_extremes() {
+    // A triangle wave (0..40 repeatedly) of 400 points: several points per pixel column, so the
+    // column reduction and widening are needed to meet maxSegments. This test needs a larger
+    // runtime budget than the default, e.g. --steps 100000000 --native-work 100000000.
+    let xs=List<Float>();
+    let ys=List<Float>();
+    var i=0;
+    var x=0.0;
+    var y=0.0;
+    var dir=1.0;
+    var k=0;
+    while i<400 {
+        xs.add(x);
+        ys.add(y);
+        x+=1.0;
+        y+=dir;
+        k+=1;
+        if k==40 {dir=-dir;k=0;}
+        i+=1;
+    }
+    match plot.series(&xs,&ys){Err(_)=>{panic("series");},Ok(s)=>{
+        let ax=plot.Axis(0.0,399.0);
+        let ay=plot.Axis(0.0,40.0);
+        match plot.chart(512,256,40,10,10,30,ax,ay){Err(_)=>{panic("chart");},Ok(c)=>{
+            match plot.polyline(&c,&s,40){Err(_)=>{panic("polyline");},Ok(segs)=>{
+                assert(segs.len()>0);
+                assert(segs.len()<=40);
+                match plot.project(&c,0.0,40.0){Err(_)=>{panic("top");},Ok(top)=>{
+                    match plot.project(&c,0.0,0.0){Err(_)=>{panic("bottom");},Ok(bot)=>{
+                        var hasTop=false;
+                        var hasBottom=false;
+                        for j in 0..segs.len() {
+                            let g=segs.get(j);
+                            if g.y1==top.y || g.y2==top.y {hasTop=true;}
+                            if g.y1==bot.y || g.y2==bot.y {hasBottom=true;}
+                        }
+                        assert(hasTop);
+                        assert(hasBottom);
+                    }}
+                }}
+                match plot.polyline(&c,&s,0) {Err(plot.PlotError::InvalidLimit)=>{},_=>{panic("zero limit accepted");}}
+            }}
+        }}
+    }}
+}
+test fn plot_polyline_clips_points_outside_the_plot() {
+    let xs=List<Float>();
+    xs.add(-5.0);
+    xs.add(5.0);
+    xs.add(5.0);
+    xs.add(20.0);
+    let ys=List<Float>();
+    ys.add(5.0);
+    ys.add(5.0);
+    ys.add(50.0);
+    ys.add(5.0);
+    match plot.series(&xs,&ys){Err(_)=>{panic("series");},Ok(s)=>{
+        match plot.chart(64,64,0,0,0,0,plot.Axis(0.0,10.0),plot.Axis(0.0,10.0)){Err(_)=>{panic("chart");},Ok(c)=>{
+            match plot.polyline(&c,&s,100){Err(_)=>{panic("polyline");},Ok(segs)=>{
+                assert(segs.len()>=2);
+                var inside=true;
+                for j in 0..segs.len() {
+                    let g=segs.get(j);
+                    if g.x1<0 || g.x1>63 || g.x2<0 || g.x2>63 || g.y1<0 || g.y1>63 || g.y2<0 || g.y2>63 {inside=false;}
+                }
+                assert(inside);
+            }}
+        }}
+    }}
+}
+test fn plot_scatter_merges_pixels_and_limits_count() {
+    let xs=List<Float>();
+    xs.add(1.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    xs.add(-5.0);
+    xs.add(70.0);
+    let ys=List<Float>();
+    ys.add(1.0);
+    ys.add(1.0);
+    ys.add(2.0);
+    ys.add(3.0);
+    ys.add(3.0);
+    match plot.series(&xs,&ys){Err(_)=>{panic("series");},Ok(s)=>{
+        match plot.chart(64,64,0,0,0,0,plot.Axis(0.0,63.0),plot.Axis(0.0,63.0)){Err(_)=>{panic("chart");},Ok(c)=>{
+            match plot.scatter(&c,&s,10){Err(_)=>{panic("scatter");},Ok(points)=>{
+                assert_eq(points.len(),2);
+                assert_eq(points.get(0).x,1);
+                assert_eq(points.get(0).y,62);
+            }}
+            match plot.scatter(&c,&s,1){Err(plot.PlotError::TooManyPoints(n))=>{assert_eq(n,2);},_=>{panic("limit not enforced");}}
+            match plot.scatter(&c,&s,0){Err(plot.PlotError::InvalidLimit)=>{},_=>{panic("zero limit accepted");}}
+        }}
+    }}
+}
+test fn plot_svg_and_render_share_segments() {
+    let xs=List<Float>();
+    xs.add(0.0);
+    xs.add(5.0);
+    xs.add(10.0);
+    let ys=List<Float>();
+    ys.add(0.0);
+    ys.add(10.0);
+    ys.add(0.0);
+    match plot.series(&xs,&ys){Err(_)=>{panic("series");},Ok(s)=>{
+        match plot.chart(128,96,8,8,8,8,plot.Axis(0.0,10.0),plot.Axis(0.0,10.0)){Err(_)=>{panic("chart");},Ok(c)=>{
+            match plot.polyline(&c,&s,100){Err(_)=>{panic("polyline");},Ok(segs)=>{
+                match plot.svg(&c,&s,100){Err(_)=>{panic("svg");},Ok(doc)=>{
+                    assert_eq(doc.split("<line").len()-1,segs.len());
+                    assert(stdTextFind(doc,"<rect")!=None);
+                }}
+                match gui.window("plot",320,240){Err(_)=>{panic("window");},Ok(view)=>{
+                    assert_eq(plot.render(&mut view,"series",&segs,0x123456),Ok(()));
+                    match gui.scene(&view){Err(_)=>{panic("scene");},Ok(scene)=>{
+                        assert(stdTextFind(scene,"line")!=None);
+                    }}
+                }}
+            }}
+        }}
+    }}
+}
