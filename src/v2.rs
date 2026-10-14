@@ -1535,10 +1535,73 @@ impl Parser {
     }
     fn block_inner(&mut self) -> Result<Vec<Stmt>> {
         self.need("{")?;
+        self.block_rest()
+    }
+    /// True at `let Some(x) = value else { ... };` (a refutable variant pattern).
+    fn let_else_ahead(&self) -> bool {
+        if !self.is("let") {
+            return false;
+        }
+        let name = self.toks.get(self.pos + 1);
+        let after = self.toks.get(self.pos + 2);
+        name.is_some_and(|t| t.text.chars().next().is_some_and(|c| c.is_uppercase()))
+            && after.is_some_and(|t| t.text == "(" || t.text == "::")
+    }
+    /// `let Pat = value else { diverge };` — the statements that follow become
+    /// the matching arm, so the pattern's bindings stay in scope for them.
+    fn let_else(&mut self) -> Result<Stmt> {
+        let at = self.current().clone();
+        self.need("let")?;
+        let pattern = self.pattern()?;
+        self.need("=")?;
+        let value = self.expr(0)?;
+        let else_at = self.current().clone();
+        self.need("else")?;
+        let otherwise = self.block()?;
+        if !block_diverges(&otherwise) {
+            return Err(diagnostic(
+                &else_at,
+                "let-else block must leave the scope: end it with return, break, continue or panic",
+            ));
+        }
+        self.eat(";");
+        let rest = self.block_rest()?;
+        Ok(Stmt {
+            kind: StmtKind::Match(
+                value,
+                vec![
+                    (
+                        pattern,
+                        None,
+                        Stmt {
+                            kind: StmtKind::Block(rest),
+                            at: at.clone(),
+                        },
+                    ),
+                    (
+                        Pattern::Wildcard,
+                        None,
+                        Stmt {
+                            kind: StmtKind::Block(otherwise),
+                            at: at.clone(),
+                        },
+                    ),
+                ],
+            ),
+            at,
+        })
+    }
+    /// Statements up to and including the closing brace of the current block.
+    fn block_rest(&mut self) -> Result<Vec<Stmt>> {
         let mut body = Vec::new();
         while !self.eat("}") {
             if self.is("<eof>") {
                 return Err(diagnostic(self.current(), "unclosed block; add '}'"));
+            }
+            if self.let_else_ahead() {
+                let stmt = self.let_else()?;
+                body.push(stmt);
+                return Ok(body);
             }
             let stmt = self.stmt()?;
             Self::push_stmt(&mut body, stmt);
@@ -1724,6 +1787,46 @@ impl Parser {
             self.need(";")?;
             StmtKind::Using(name, init)
         } else if self.eat("if") {
+            if self.eat("let") {
+                // `if let Pat = value { yes } else { no }` is a two-arm match.
+                let pattern = self.pattern()?;
+                self.need("=")?;
+                let value = self.expr(0)?;
+                let yes = self.block()?;
+                let no = if self.eat("else") {
+                    if self.is("if") {
+                        vec![self.stmt()?]
+                    } else {
+                        self.block()?
+                    }
+                } else {
+                    Vec::new()
+                };
+                return Ok(Stmt {
+                    kind: StmtKind::Match(
+                        value,
+                        vec![
+                            (
+                                pattern,
+                                None,
+                                Stmt {
+                                    kind: StmtKind::Block(yes),
+                                    at: at.clone(),
+                                },
+                            ),
+                            (
+                                Pattern::Wildcard,
+                                None,
+                                Stmt {
+                                    kind: StmtKind::Block(no),
+                                    at: at.clone(),
+                                },
+                            ),
+                        ],
+                    ),
+                    at,
+                });
+            }
             let cond = self.expr(0)?;
             let yes = self.block()?;
             let no = if self.eat("else") {
@@ -2070,7 +2173,18 @@ impl Parser {
     /// `if cond { a } else { b }` is an expression: it lowers to a Bool match.
     /// Without `else` the missing branch is an empty block of type Unit.
     fn if_expression(&mut self, at: &Tok) -> Result<Expr> {
-        let condition = self.expr(0)?;
+        let (condition, then_pattern) = if self.eat("let") {
+            let pattern = self.pattern()?;
+            self.need("=")?;
+            (self.expr(0)?, pattern)
+        } else {
+            (self.expr(0)?, Pattern::Literal(Value::Bool(true)))
+        };
+        let else_pattern = if matches!(then_pattern, Pattern::Literal(Value::Bool(true))) {
+            Pattern::Literal(Value::Bool(false))
+        } else {
+            Pattern::Wildcard
+        };
         let open = self.current().clone();
         self.need("{")?;
         let then_branch = self.block_expression(&open)?;
@@ -2092,8 +2206,8 @@ impl Parser {
             kind: ExprKind::Match(
                 Box::new(condition),
                 vec![
-                    (Pattern::Literal(Value::Bool(true)), None, then_branch),
-                    (Pattern::Literal(Value::Bool(false)), None, else_branch),
+                    (then_pattern, None, then_branch),
+                    (else_pattern, None, else_branch),
                 ],
             ),
             at: at.clone(),

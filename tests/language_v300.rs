@@ -183,3 +183,47 @@ fn running_without_main_is_an_error() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("start at fn main"), "{}", stderr(&out));
 }
+
+#[test]
+fn let_else_binds_for_the_rest_of_the_block_and_must_exit() {
+    let out = main_output(
+        r#"fn first(items:&Map<String,Int>)->Result<Int,String> effects {} {
+    let Some(head)=items.get("a") else { return Err("empty"); };
+    let doubled=head*2;
+    return Ok(doubled);
+}
+fn run()->Unit effects {output} {
+    let full=Map<String,Int>();full.set("a",21);
+    let none=Map<String,Int>();
+    match first(&full) { Ok(v)=>{ Out.println(v.format()); }, Err(e)=>{ Out.println(e); } }
+    match first(&none) { Ok(v)=>{ Out.println(v.format()); }, Err(e)=>{ Out.println(e); } }
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "42\nempty\n");
+    let out = main_output(
+        r#"fn run()->Unit effects {} {
+    let Some(x)=Some(1) else { };
+}"#,
+    );
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("must leave the scope"), "{}", stderr(&out));
+}
+
+#[test]
+fn if_let_works_as_statement_and_expression() {
+    let out = main_output(
+        r#"fn label(value:Option<Int>)->String effects {} {
+    return if let Some(n)=value { "has "+n.format() } else { "none" };
+}
+fn run()->Unit effects {output} {
+    if let Some(n)=Some(5) { Out.println(n.format()); } else { Out.println("no"); }
+    let nothing:Option<Int>=None;
+    if let Some(n)=nothing { Out.println(n.format()); }
+    Out.println(label(Some(7)));
+    Out.println(label(None));
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "5\nhas 7\nnone\n");
+}
