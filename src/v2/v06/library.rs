@@ -18,7 +18,7 @@ pub(super) fn method_type(
         ("String", "parseInt", []) => "Result<Int,String>",
         ("String", "parseFloat", []) => "Result<Float,String>",
         ("Int" | "Float" | "Bool" | "String", "format", []) => "String",
-        ("Float", "toIntChecked", []) => "Result<Int,String>",
+        ("Float", "toIntChecked" | "floorChecked" | "roundChecked", []) => "Result<Int,String>",
         ("Int", "toFloatChecked", []) => "Result<Float,String>",
         ("Float", "isFinite" | "isNaN", []) => "Bool",
         _ => {
@@ -225,6 +225,22 @@ pub(in crate::v2) fn primitive_method(
                 && n < 9223372036854775808.0
             {
                 success(Value::Int(n as i64))
+            } else {
+                failure("InexactOrOverflow")
+            }
+        }
+        // Rounding conversions keep the failure explicit: NaN, infinities and values
+        // outside the exactly representable Int range are errors, never clamped.
+        (Value::Float(n), "floorChecked" | "roundChecked", []) => {
+            let n = f64::from_bits(*n);
+            let rounded = if method == "floorChecked" {
+                n.floor()
+            } else {
+                n.round()
+            };
+            if rounded.is_finite() && rounded >= -9007199254740992.0 && rounded <= 9007199254740992.0
+            {
+                success(Value::Int(rounded as i64))
             } else {
                 failure("InexactOrOverflow")
             }

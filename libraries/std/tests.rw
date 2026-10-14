@@ -1751,3 +1751,16 @@ test fn gui_line_primitive() {
  match gui.scene(&view){Ok(value)=>{if stdTextFind(value,"\"kind\":\"line\"")==None{panic("line missing");}},Err(_)=>{panic("scene");}}
  }}
 }
+
+fn floatInt(result:Result<Int,String>)->String effects {} {
+    match result {Ok(v)=>{return v.format();},Err(e)=>{return e;}}
+}
+test fn float_floor_and_round_convert_explicitly_and_reject_non_finite() {
+    assert_eq(floatInt((2.7).floorChecked()),"2");
+    assert_eq(floatInt((-2.7).floorChecked()),"-3");
+    assert_eq(floatInt((2.5).roundChecked()),"3");
+    assert_eq(floatInt((-2.5).roundChecked()),"-3");
+    assert_eq(floatInt((1e300*1e300).roundChecked()),"InexactOrOverflow");
+    assert_eq(floatInt((0.0/0.0).floorChecked()),"InexactOrOverflow");
+    assert_eq(floatInt((1e30).floorChecked()),"InexactOrOverflow");
+}
