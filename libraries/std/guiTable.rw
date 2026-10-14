@@ -5,8 +5,9 @@ pub struct CellEdit {rowId:String,column:Int,value:String}
 pub struct CellDraft {rowId:String,column:Int,original:String,value:String}
 pub enum RowMapError<E:Share> {UnknownRow(String),Conversion(String,E)}
 record SortKey {value:String,row:Int,descending:Bool}
-pub struct Table {private headers:Frozen<List<String>>,private columnWeights:List<Int>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private editing:Bool,private editRowId:String,private editColumn:Int,private editOriginal:String,private editValue:String,private visible:Int,private first:Int,private selected:Int}
-pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close}
+pub struct Table {private headers:Frozen<List<String>>,private columnWeights:List<Int>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private editing:Bool,private editRowId:String,private editColumn:Int,private editOriginal:String,private editValue:String,private visible:Int,private first:Int,private selected:Int,private draftCursor:Int,private draftAnchor:Int,private focusColumn:Int}
+// Edit actions carry the stable row ID and column, so they stay valid after sort or filter changes.
+pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close,EditStarted(String,Int),EditCommitted(String,Int),EditCancelled(String,Int),EditRejected(String,Int)}
 fn valid(text:String)->Bool effects {} {return text.byteLen()<=4096 && stdTextFind(text,"\0")==None;}
 fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int,customIds:Bool)->Result<Table,TableError> effects {} {
  let columns=headers.len();if columns<1 || columns>16 || cells.len()>1048576 || cells.len()%columns!=0 || cells.len()/columns>65536 || visibleRows<1 || visibleRows>64{return Err(StdError("GuiTableShape",0));}
@@ -16,7 +17,7 @@ fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells
  if customIds{for i in 0..rowIds.len(){let id=rowIds.get(i);if id=="" || id.byteLen()>64 || !valid(id){return Err(StdError("GuiTableRowId",i));}if rowIndices.get(id)!=None{return Err(StdError("GuiTableDuplicateRowId",i));}rowIndices.set(id,i);bytes+=id.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}}
  for i in 0..cells.len(){let text=cells.get(i);if !valid(text){return Err(StdError("GuiInvalidText",i));}bytes+=text.byteLen();if bytes>16777216{return Err(StdError("GuiTableCapacity",i));}}
  let columnWeights=List<Int>();for i in 0..columns{columnWeights.add(1);}let rowOrder=List<Int>();let displayOrder=List<Int>();let rowPositions=List<Int>();for i in 0..rowCount{rowOrder.add(i);displayOrder.add(i);rowPositions.add(i);}
- return Ok(Table(headers,move columnWeights,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,move rowOrder,move displayOrder,move rowPositions,0,"",false,"",-1,"","",visibleRows,0,-1));
+ return Ok(Table(headers,move columnWeights,rowIds,move rowIndices,customIds,cells,List<CellEdit>(),Map<String,Int>(),0,move rowOrder,move displayOrder,move rowPositions,0,"",false,"",-1,"","",visibleRows,0,-1,0,0,0));
 }
 // @api create cost O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.
 pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
@@ -125,24 +126,38 @@ fn stageEdit(table:&mut Table,row:Int,id:String,column:Int,value:String)->Result
  }
 }
 fn clearDraft(table:&mut Table)->Unit effects {} {
- table.editing=false;table.editRowId="";table.editColumn=-1;table.editOriginal="";table.editValue="";
+ table.editing=false;table.editRowId="";table.editColumn=-1;table.editOriginal="";table.editValue="";table.draftCursor=0;table.draftAnchor=0;
 }
 // @api beginEdit starts one row/column draft using the current effective cell value and stable row ID.
 pub fn beginEdit(table:&mut Table,row:Int,column:Int)->Result<Unit,TableError> effects {} {
  if table.editing{return Err(StdError("GuiTableEditActive",0));}
  if row<0 || row>=visibleRows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}
  let id=rowId(table,row)?;let base=baseRow(table,row);let original=cellForBase(table,base,column);
- table.editing=true;table.editRowId=id;table.editColumn=column;table.editOriginal=original;table.editValue=original;return Ok(());
+ table.editing=true;table.editRowId=id;table.editColumn=column;table.editOriginal=original;table.editValue=original;table.draftCursor=original.charLen();table.draftAnchor=table.draftCursor;return Ok(());
 }
-// @api draft returns the active uncommitted cell edit; it is not visible through cell/render/changes.
+// @api draft returns the active uncommitted cell edit; render shows it in the textbox prefix:edit, and cell/changes/toValue still see only committed values.
 pub fn draft(table:&Table)->Option<CellDraft> effects {} {
  if !table.editing{return None;}return Some(CellDraft(table.editRowId,table.editColumn,table.editOriginal,table.editValue));
 }
-// @api setDraft accepts at most 4096 valid UTF-8 bytes; failures preserve the existing draft.
+// @api setDraft accepts at most 4096 valid single-line UTF-8 bytes; failures preserve the existing draft. The caret moves to the end.
 pub fn setDraft(table:&mut Table,value:String)->Result<Unit,TableError> effects {} {
  if !table.editing{return Err(StdError("GuiTableNoActiveEdit",0));}
  if !valid(value){return Err(StdError("GuiInvalidText",0));}
- table.editValue=value;return Ok(());
+ if stdTextFind(value,"\n")!=None || stdTextFind(value,"\r")!=None{return Err(StdError("GuiSingleLine",0));}
+ table.editValue=value;table.draftCursor=value.charLen();table.draftAnchor=table.draftCursor;return Ok(());
+}
+fn draftAt(table:&Table,rowKey:String,column:Int)->Bool effects {} {return table.editing && table.editColumn==column && table.editRowId==rowKey;}
+fn endDraft(view:&mut gui.View,editId:String)->Unit effects {} {match gui.remove(view,editId){Err(_)=>{},Ok(_)=>{}}}
+// Copies the textbox text and caret from the View into the draft; rejects multi-line text, leaving the draft unchanged.
+fn keepDraft(table:&mut Table,view:&gui.View,editId:String)->Result<Unit,TableError> effects {} {
+ let value=gui.text(view,editId)?;
+ match gui.selection(view,editId){
+  Err(error)=>{return Err(error);},
+  Ok((cursor,anchor))=>{
+   if !valid(value) || stdTextFind(value,"\n")!=None || stdTextFind(value,"\r")!=None{return Err(StdError("GuiSingleLine",0));}
+   table.editValue=value;table.draftCursor=cursor;table.draftAnchor=anchor;return Ok(());
+  }
+ }
 }
 // @api commitEdit stages the draft; capacity failures keep it active for correction or cancellation.
 pub fn commitEdit(table:&mut Table)->Result<Unit,TableError> effects {} {
@@ -229,7 +244,7 @@ pub fn select(table:&mut Table,row:Int)->Result<Unit,TableError> effects {} {
  if row<table.first{table.first=row;}if row>=table.first+table.visible{table.first=row-table.visible+1;}return Ok(());
 }
 // @api render cost O(columns + visible rows * columns); relative column weights consume the full inner width, with at least one pixel per column. New view keeps failures away from the caller's published scene.
-// @api render failure Bounds/Id; weighted column widths have a 1-pixel minimum, row height 16..128, caller publishes the returned view.
+// @api render failure Bounds/Id; weighted column widths have a 1-pixel minimum, row height 16..128, caller publishes the returned view. An open draft in the viewport renders as a focused textbox prefix:edit with the saved caret.
 pub fn render(table:&Table,title:String,width:Int,height:Int,rowHeight:Int,prefix:String)->Result<gui.View,TableError> effects {} {
  if width<128 || width>4096 || height<96 || height>4096 || rowHeight<16 || rowHeight>128 || 16+(table.visible+1)*rowHeight>height{return Err(StdError("GuiInvalidBounds",0));}
  if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiInvalidId",0));}
@@ -238,17 +253,47 @@ pub fn render(table:&Table,title:String,width:Int,height:Int,rowHeight:Int,prefi
  var remainder=available-used;var c=0;while c<columns && remainder>0{widths.set(c,widths.get(c)+1);remainder-=1;c+=1;}
  var x=16;for c in 0..columns{let cellWidth=widths.get(c);let id=prefix+":head:"+c.format();gui.label(&mut view,id,table.headers.get(c),x,16,cellWidth,rowHeight)?;gui.style(&mut view,id,0x111827,0xe5e7eb)?;x+=cellWidth;}
  var shown=table.visible;if shown>visibleRows(table)-table.first{shown=visibleRows(table)-table.first;}
- for r in 0..shown {let row=table.first+r;let base=baseRow(table,row);let y=16+(r+1)*rowHeight;let id=prefix+":row:"+rowId(table,row)?;var color=0xffffff;if base==table.selected{color=0xdbeafe;}
+ for r in 0..shown {let row=table.first+r;let base=baseRow(table,row);let y=16+(r+1)*rowHeight;let rowKey=rowId(table,row)?;let id=prefix+":row:"+rowKey;var color=0xffffff;if base==table.selected{color=0xdbeafe;}
   gui.button(&mut view,id,"",16,y,width-32,rowHeight)?;gui.style(&mut view,id,0x111827,color)?;
-  var cellX=16;for c in 0..columns {let cellWidth=widths.get(c);let cellId=prefix+":cell:"+r.format()+":"+c.format();gui.label(&mut view,cellId,cell(table,row,c)?,cellX,y,cellWidth,rowHeight)?;if color!=0xffffff{gui.style(&mut view,cellId,0x111827,color)?;}cellX+=cellWidth;}
+  var cellX=16;for c in 0..columns {let cellWidth=widths.get(c);let cellId=prefix+":cell:"+r.format()+":"+c.format();
+   if draftAt(table,rowKey,c){let editId=prefix+":edit";let value=table.editValue;var cursor=table.draftCursor;var anchor=table.draftAnchor;if cursor>value.charLen(){cursor=value.charLen();}if anchor>value.charLen(){anchor=value.charLen();}
+    gui.textBox(&mut view,editId,value,cellX,y,cellWidth,rowHeight)?;gui.style(&mut view,editId,0x111827,0xffffff)?;gui.setSelection(&mut view,editId,cursor,anchor)?;gui.focus(&mut view,editId)?;}
+   else{gui.label(&mut view,cellId,cell(table,row,c)?,cellX,y,cellWidth,rowHeight)?;if color!=0xffffff{gui.style(&mut view,cellId,0x111827,color)?;}}
+   cellX+=cellWidth;}
  }
  return Ok(move view);
 }
-// @api dispatch failure Range/Id; wheel and Up/Down/Home/End move the selected row or viewport.
+// @api dispatch failure Range/Id/Text; wheel and Up/Down/Home/End move the selected row or viewport. F2 starts a draft on the selected row at the focused column (Left/Right); while a draft is open, Enter commits, Escape cancels, and key/text input edits prefix:edit (Up/Down are ignored). Callers re-render after Edit* actions.
+// @api dispatch edit failure EditRejected keeps the draft open when commit fails; text input is ignored when prefix:edit is not rendered.
 pub fn dispatch(table:&mut Table,view:&mut gui.View,event:gui.Event,prefix:String)->Result<Option<Action>,TableError> effects {} {
  if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiInvalidId",0));}
+ let editId=prefix+":edit";
+ if table.editing && (event.kind=="key" || event.kind=="text"){
+  let id=table.editRowId;let column=table.editColumn;
+  if event.kind=="key" && event.key=="Enter"{
+   match commitEdit(table){
+    Err(_)=>{return Ok(Some(Action::EditRejected(id,column)));},
+    Ok(_)=>{endDraft(view,editId);return Ok(Some(Action::EditCommitted(id,column)));}
+   }
+  }
+  if event.kind=="key" && event.key=="Escape"{cancelEdit(table);endDraft(view,editId);return Ok(Some(Action::EditCancelled(id,column)));}
+  if event.key=="F2" || event.key=="Tab" || event.key=="Up" || event.key=="Down"{return Ok(None);}
+  match gui.edit(view,editId,event){
+   Err(_)=>{return Ok(None);},
+   Ok(_)=>{}
+  }
+  keepDraft(table,view,editId)?;
+  return Ok(None);
+ }
  if event.kind=="wheel"{scroll(table,event.y);return Ok(Some(Action::Scrolled(table.first)));}
  if event.kind=="key" && visibleRows(table)>0 {var next=table.first;if table.selected>=0{next=displayRow(table,table.selected);}
+  if event.key=="F2"{
+   if table.selected<0{return Ok(None);}
+   let position=displayRow(table,table.selected);if position<0{return Ok(None);}
+   let id=rowId(table,position)?;beginEdit(table,position,table.focusColumn)?;return Ok(Some(Action::EditStarted(id,table.focusColumn)));
+  }
+  if event.key=="Left"{if table.focusColumn>0{table.focusColumn-=1;}return Ok(None);}
+  if event.key=="Right"{if table.focusColumn<columns(table)-1{table.focusColumn+=1;}return Ok(None);}
   if event.key=="Up"{if next>0{next-=1;}select(table,next)?;return Ok(Some(Action::Selected(next)));}
   if event.key=="Down"{if next<visibleRows(table)-1{next+=1;}select(table,next)?;return Ok(Some(Action::Selected(next)));}
   if event.key=="Home"{select(table,0)?;return Ok(Some(Action::Selected(0)));}

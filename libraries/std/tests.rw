@@ -336,6 +336,58 @@ test fn form_and_empty_table_contracts() {
  let headings=List<String>();headings.add("Value");let cells=List<String>();
  match guiTable.create(freeze(headings),freeze(cells),4){Err(_)=>{panic("empty table");},Ok(table)=>{assert_eq(guiTable.rows(&table),0);guiTable.scroll(&mut table,9223372036854775807);assert_eq(guiTable.position(&table),0);assert_eq(guiTable.selection(&table),None);}}
 }
+fn editFixture()->guiTable.Table effects {} {
+ let headers=List<String>();headers.add("Name");headers.add("Score");
+ let ids=List<String>();ids.add("a");ids.add("b");
+ let cells=List<String>();cells.add("x");cells.add("1");cells.add("y");cells.add("2");
+ match guiTable.createWithIds(freeze(headers),freeze(ids),freeze(cells),4){Err(_)=>{panic("edit table");},Ok(table)=>{return table;}}
+}
+fn renderEdit(table:&guiTable.Table)->gui.View effects {} {
+ match guiTable.render(table,"Edit",320,240,30,"t"){Err(_)=>{panic("edit render");},Ok(view)=>{return view;}}
+}
+fn sendEdit(table:&mut guiTable.Table,view:&mut gui.View,event:gui.Event)->Option<guiTable.Action> effects {} {
+ match guiTable.dispatch(table,view,event,"t"){Err(_)=>{panic("edit dispatch");},Ok(action)=>{return action;}}
+}
+test fn table_cell_edit_lifecycle() {
+ var table=editFixture();
+ assert_eq(guiTable.select(&mut table,0),Ok(()));
+ var view=renderEdit(&table);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Right",0,0)),None);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"F2",0,0)),Some(guiTable.Action::EditStarted("a",1)));
+ view=renderEdit(&table);
+ assert_eq(gui.text(&view,"t:edit"),Ok("1"));
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"F2",0,0)),None);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Up",0,0)),None);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("text",0,0,"5",0,0)),None);
+ assert_eq(gui.text(&view,"t:edit"),Ok("15"));
+ assert_eq(guiTable.cell(&table,0,1),Ok("1"));
+ match guiTable.draft(&table){None=>{panic("draft missing");},Some(draft)=>{assert_eq(draft.original,"1");assert_eq(draft.value,"15");}}
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Escape",0,0)),Some(guiTable.Action::EditCancelled("a",1)));
+ assert_eq(gui.text(&view,"t:edit"),Err(StdError("GuiUnknownId",0)));
+ assert_eq(guiTable.cell(&table,0,1),Ok("1"));
+ match guiTable.draft(&table){None=>{},Some(_)=>{panic("draft kept after cancel");}}
+ view=renderEdit(&table);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"F2",0,0)),Some(guiTable.Action::EditStarted("a",1)));
+ view=renderEdit(&table);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Backspace",0,0)),None);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("text",0,0,"9",0,0)),None);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Enter",0,0)),Some(guiTable.Action::EditCommitted("a",1)));
+ assert_eq(guiTable.cell(&table,0,1),Ok("9"));
+ assert_eq(guiTable.changes(&table).len(),1);
+ match guiTable.draft(&table){None=>{},Some(_)=>{panic("draft kept after commit");}}
+ assert_eq(guiTable.beginEdit(&mut table,0,1),Ok(()));
+ assert_eq(guiTable.setDraft(&mut table,"a\nb"),Err(StdError("GuiSingleLine",0)));
+ match guiTable.draft(&table){None=>{panic("draft lost");},Some(draft)=>{assert_eq(draft.value,"9");}}
+ assert(guiTable.cancelEdit(&mut table));
+ view=renderEdit(&table);
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"F2",0,0)),Some(guiTable.Action::EditStarted("a",1)));
+ assert_eq(guiTable.filterByText(&mut table,0,"y"),Ok(()));
+ view=renderEdit(&table);
+ assert_eq(gui.text(&view,"t:edit"),Err(StdError("GuiUnknownId",0)));
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("text",0,0,"7",0,0)),None);
+ match guiTable.draft(&table){None=>{panic("draft lost under filter");},Some(draft)=>{assert_eq(draft.value,"9");}}
+ assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Escape",0,0)),Some(guiTable.Action::EditCancelled("a",1)));
+}
 
 import fft as fft;
 import sparse as sparse;
