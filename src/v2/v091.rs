@@ -18,6 +18,20 @@ const NAMES: &[&str] = &[
 ];
 
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
+    if language_at_least(&p.language, "3.0.0") {
+        // From 3.0.0 a source file holds declarations only; executable code
+        // lives in functions, and an application starts at `fn main`.
+        if let Some(stmt) = p
+            .stmts
+            .iter()
+            .find(|s| !matches!(s.kind, StmtKind::Runtime(..)))
+        {
+            return Err(diagnostic(
+                &stmt.at,
+                "top-level statements are not allowed in language 3.0.0; move this code into a function such as fn main()->Int",
+            ));
+        }
+    }
     if !matches!(
         p.language.as_str(),
         "0.9.1"
