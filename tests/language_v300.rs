@@ -148,3 +148,31 @@ fn older_languages_reject_block_expressions() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("require language 3.0.0"), "{}", stderr(&out));
 }
+
+#[test]
+fn while_true_without_break_needs_no_trailing_return() {
+    let out = main_output(
+        r#"fn firstOver(limit:Int)->Int effects {} {
+    var n=0;
+    while true {
+        n+=3;
+        if n>limit { return n; }
+    }
+}
+fn run()->Unit effects {output} { Out.println(firstOver(10).format()); }"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "12\n");
+    let out = main_output(
+        r#"fn broken(limit:Int)->Int effects {} {
+    var n=0;
+    while true {
+        n+=3;
+        if n>limit { break; }
+    }
+}
+fn run()->Unit effects {} { }"#,
+    );
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("return on every path"), "{}", stderr(&out));
+}

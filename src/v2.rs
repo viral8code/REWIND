@@ -5215,11 +5215,35 @@ fn check_program(program: &Program) -> Result<()> {
     v07::validate_constants(program)?;
     Ok(())
 }
+/// True when `body` contains a `break` that leaves the loop owning `body`.
+/// Breaks inside nested loops belong to those loops.
+fn breaks_out(body: &[Stmt]) -> bool {
+    body.iter().any(|stmt| match &stmt.kind {
+        StmtKind::Break => true,
+        StmtKind::Block(inner) | StmtKind::External(_, inner) | StmtKind::Branch(_, inner) => {
+            breaks_out(inner)
+        }
+        StmtKind::If(_, yes, no) => breaks_out(yes) || breaks_out(no),
+        StmtKind::Match(_, arms) => arms
+            .iter()
+            .any(|(_, _, arm)| breaks_out(std::slice::from_ref(arm))),
+        _ => false,
+    })
+}
 fn guarantees_return(body: &[Stmt]) -> bool {
     body.iter().any(|stmt| match &stmt.kind {
         StmtKind::Return(_) => true,
         StmtKind::External(_, body) | StmtKind::Block(body) => guarantees_return(body),
         StmtKind::If(_, yes, no) => guarantees_return(yes) && guarantees_return(no),
+        // `while true` with no `break` never falls through: it either returns
+        // or runs forever, so code after it is unreachable.
+        StmtKind::While(
+            Expr {
+                kind: ExprKind::Value(Value::Bool(true)),
+                ..
+            },
+            body,
+        ) => !breaks_out(body),
         StmtKind::Match(_, arms) => {
             !arms.is_empty()
                 && arms
