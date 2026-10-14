@@ -175,6 +175,8 @@ DDLのtransaction性はSQLite/PostgreSQLで異なるため、各commandの成功
 
 入力・一覧・保存を持つ小さな例をSQLiteで提供します。PostgreSQL差分は明示設定の別例にします。DB接続先や実データをrepositoryへ保存しません。
 
+**部分実装（2026-10-14）：** [examples/notes-sqlite](../examples/notes-sqlite/README.md)がSQLite memory DBで、migration（`std.dbMigration`）の適用、入力検証（タイトルが空なら保存しない）、`std.dbTransaction`で2件を1つのtransactionにまとめた保存、`mapBatch`での一覧、2件目が失敗した保存のrollbackと件数の確認までを実行します。出力は[tests/db_row_mapping.rs](../tests/db_row_mapping.rs)で固定しています。この例はコンソール版で、GUIと保存結果不明時の表示、window終了時のcleanup、PostgreSQL差分は含みません（いずれも未完了）。
+
 例では、編集取消のVM revert、入力検証、明示transaction、保存成功後の画面更新、保存結果不明時の表示、window終了とcleanupを扱います。network、DB、native入力がVM revertで巻き戻るような説明やUIを作りません。
 
 API文書と入門書は実装済みsignatureから更新し、計画上の候補APIを現行referenceへ混ぜません。
