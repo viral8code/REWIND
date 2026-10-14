@@ -1,7 +1,7 @@
-import std.bigint as bigint;
-import std.decimal as decimal;
-import std.json as json;
-import std.schema as schema;
+import bigint as bigint;
+import decimal as decimal;
+import json as json;
+import schema as schema;
 pub type Event=JsonStreamEvent;
 pub struct Reader {private state:JsonStreamState}
 pub enum IntegerEventError {Stream(StdError),ExpectedNumber(Int),InvalidInteger(StdError)}
@@ -34,13 +34,14 @@ pub fn nextBigInt(reader:&mut Reader)->Result<Option<BigInt>,IntegerEventError> 
     Some(event)=>{
      match event {
       JsonStreamEvent::Number(raw,_)=>{
-       let number=match bigint.parse(raw,10) {
+       match bigint.parse(raw,10) {
         Err(error)=>{return Err(IntegerEventError::InvalidInteger(error));},
-        Ok(value)=>{value}
-       };
-       match stdJsonStreamAdvance(&reader.state) {
-        Err(error)=>{return Err(IntegerEventError::Stream(error));},
-        Ok(state)=>{reader.state=state;return Ok(Some(number));}
+        Ok(number)=>{
+         match stdJsonStreamAdvance(&reader.state) {
+          Err(error)=>{return Err(IntegerEventError::Stream(error));},
+          Ok(state)=>{reader.state=state;return Ok(Some(number));}
+         }
+        }
        }
       },
       _=>{return Err(IntegerEventError::ExpectedNumber(eventPosition(event)));}
@@ -60,13 +61,14 @@ pub fn nextDecimal(reader:&mut Reader)->Result<Option<Decimal>,DecimalEventError
     Some(event)=>{
      match event {
       JsonStreamEvent::Number(raw,_)=>{
-       let number=match decimal.parse(raw) {
+       match decimal.parse(raw) {
         Err(error)=>{return Err(DecimalEventError::InvalidDecimal(error));},
-        Ok(value)=>{value}
-       };
-       match stdJsonStreamAdvance(&reader.state) {
-        Err(error)=>{return Err(DecimalEventError::Stream(error));},
-        Ok(state)=>{reader.state=state;return Ok(Some(number));}
+        Ok(number)=>{
+         match stdJsonStreamAdvance(&reader.state) {
+          Err(error)=>{return Err(DecimalEventError::Stream(error));},
+          Ok(state)=>{reader.state=state;return Ok(Some(number));}
+         }
+        }
        }
       },
       _=>{return Err(DecimalEventError::ExpectedNumber(eventPosition(event)));}
@@ -93,7 +95,7 @@ fn valueEvent(reader:&mut Reader)->Result<Option<Event>,JsonValueError> effects 
 }
 fn readObject(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> effects {} {
  let fields=Map<String,Json>();
- loop {
+ while true {
   match peek(reader){
    Err(error)=>{return Err(JsonValueError::Stream(error));},
    Ok(None)=>{return Ok(None);},
@@ -106,12 +108,11 @@ fn readObject(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError>
       if fields.len()>=65536{return Err(JsonValueError::ContainerLimit(position));}
       if fields.get(name)!=None{return Err(JsonValueError::DuplicateKey(position));}
       match valueEvent(reader){Err(error)=>{return Err(error);},Ok(None)=>{return Ok(None);},Ok(Some(_))=>{}}
-      let value=match readValue(reader,depth+1){
+      match readValue(reader,depth+1){
        Err(error)=>{return Err(error);},
        Ok(None)=>{return Ok(None);},
-       Ok(Some(value))=>value
-      };
-      fields.set(name,value);
+       Ok(Some(value))=>{fields.set(name,value);}
+      }
      },
      _=>{return Err(JsonValueError::ExpectedKey(eventPosition(event)));}
     }
@@ -121,7 +122,7 @@ fn readObject(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError>
 }
 fn readArray(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> effects {} {
  let values=List<Json>();
- loop {
+ while true {
   match peek(reader){
    Err(error)=>{return Err(JsonValueError::Stream(error));},
    Ok(None)=>{return Ok(None);},

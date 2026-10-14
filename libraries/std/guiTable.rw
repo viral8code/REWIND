@@ -3,7 +3,8 @@ import sort as sort;
 pub type TableError = StdError;
 pub struct CellEdit {rowId:String,column:Int,value:String}
 pub struct CellDraft {rowId:String,column:Int,original:String,value:String}
-pub enum RowMapError<E:Share> {UnknownRow(String),Conversion(String,E)}
+// UnknownRow carries None as its second field so the type argument is inferable.
+pub enum RowMapError<E:Share> {UnknownRow(String,Option<E>),Conversion(String,E)}
 struct SortKey {value:String,row:Int,descending:Bool}
 pub struct Table {private headers:Frozen<List<String>>,private columnWeights:List<Int>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private editing:Bool,private editRowId:String,private editColumn:Int,private editOriginal:String,private editValue:String,private visible:Int,private first:Int,private selected:Int}
 pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close}
@@ -89,7 +90,7 @@ pub fn cell(table:&Table,row:Int,column:Int)->Result<String,TableError> effects 
 // @api toValue failure UnknownRow for a missing ID; Conversion includes the row ID and mapper error. The table is not mutated.
 pub fn toValue<T:Share,E:Share>(table:&Table,id:String,convert:fn(Frozen<List<String>>)->Result<T,E> effects {} captures {Send,Share})->Result<T,RowMapError<E>> effects {} {
  match baseIndex(table,id){
-  None=>{return Err(RowMapError::UnknownRow(id));},
+  None=>{return Err(RowMapError::UnknownRow(id,None));},
   Some(row)=>{
    let values=List<String>();for column in 0..columns(table){values.add(cellForBase(table,row,column));}
    match convert(freeze(values)){

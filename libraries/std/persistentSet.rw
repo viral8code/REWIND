@@ -62,7 +62,7 @@ pub fn uniteMany(set:PersistentSet,pairs:&List<Tuple<Int,Int>>)->Result<Persiste
     if pairs.len()>65536 {return Err(SetError("BatchLimit",pairs.len()));}
     var current=set;
     for i in 0..pairs.len() {
-        let pair=pairs.get(i);let joined=unite(current,pair.0,pair.1)?;
+        let (leftIndex,rightIndex)=pairs.get(i);let joined=unite(current,leftIndex,rightIndex)?;
         current=joined.state;
     }
     return Ok(current);

@@ -1,5 +1,5 @@
-import std.decimal as decimalValue;
-import std.datetime as dateTimeValue;
+import decimal as decimalValue;
+import datetime as dateTimeValue;
 
 pub enum Unknown {Reject,Keep,Drop}
 pub enum Segment {Field(String),Index(Int)}
@@ -275,10 +275,12 @@ pub fn csvRow(schema:Schema,headers:&List<String>,row:&List<String>,nullToken:Op
         Some(token)=>{if stdTextLength(token)>128 {return Err(csvProblem("NullTokenLimit",freeze(List<Segment>()),"token <=128 scalars","Text"));}},
         None=>{}
     }
-    let (known,policy)=match thaw(schema.nodes.get(schema.root)) {
-        Node::Object(_,known,policy)=>{(known,policy)},
+    match thaw(schema.nodes.get(schema.root)) {
+        Node::Object(_,known,policy)=>{return csvRowFields(schema,headers,row,&nullToken,known,policy);},
         _=>{return Err(csvProblem("RootSchema",freeze(List<Segment>()),"object schema","Other"));}
-    };
+    }
+}
+fn csvRowFields(schema:Schema,headers:&List<String>,row:&List<String>,nullToken:&Option<String>,known:Frozen<Map<String,Int>>,policy:Unknown)->Result<Json,ValidationError> effects {} {
     let names=Map<String,Bool>();let values=Map<String,Json>();var total=0;
     for i in 0..headers.len() {
         let name=headers.get(i);let nameLength=stdTextLength(name);
@@ -293,7 +295,7 @@ pub fn csvRow(schema:Schema,headers:&List<String>,row:&List<String>,nullToken:Op
         match known.get(name) {
             Some(nodeIndex)=>{
                 let path=List<Segment>();path.add(Segment::Field(name));
-                let converted=csvCell(schema,nodeIndex,value,freeze(path),&nullToken)?;
+                let converted=csvCell(schema,nodeIndex,value,freeze(path),nullToken)?;
                 values.set(headers.get(i),converted);
             },
             None=>{

@@ -71,7 +71,7 @@ pub fn put<T:Share>(cache:&mut Cache<T>,key:Key,value:T,weight:Int)->Result<List
     // Subtract first so admission cannot overflow even when weightLimit is Int::MAX.
     while orderedMap.length(&cache.items)>=cache.capacity || cache.totalWeight>cache.weightLimit-weight {
         match orderedMap.popFirst(&mut cache.items) {
-            Some(pair)=>{cache.totalWeight-=pair.1.weight;evicted.add(pair.1.key);},
+            Some(pair)=>{let (_order,evictedEntry)=pair;cache.totalWeight-=evictedEntry.weight;evicted.add(evictedEntry.key);},
             None=>{panic("memo capacity invariant");}
         }
     }

@@ -182,16 +182,22 @@ test fn fallible_callbacks_leave_originals_unchanged()->Unit effects {} {
 }
 
 import gui as gui;
+fn takeGuiResult<T,E>(value:Result<T,E>)->T effects {} {
+ match move value {
+  Ok(item)=>{return move item;},
+  Err(_)=>{panic("GUI operation failed");}
+ }
+}
 test fn gui_component_scope_action_routing() {
- let left=match gui.componentScope("left"){Ok(scope)=>scope,Err(_)=>{panic("left scope");}};
- let right=match gui.componentScope("right"){Ok(scope)=>scope,Err(_)=>{panic("right scope");}};
- let leftSave=match gui.componentId(&left,"save"){Ok(id)=>id,Err(_)=>{panic("left id");}};
- let rightSave=match gui.componentId(&right,"save"){Ok(id)=>id,Err(_)=>{panic("right id");}};
+ let left=takeGuiResult(gui.componentScope("left"));
+ let right=takeGuiResult(gui.componentScope("right"));
+ let leftSave=takeGuiResult(gui.componentId(&left,"save"));
+ let rightSave=takeGuiResult(gui.componentId(&right,"save"));
  assert_eq(gui.componentLocalId(&left,leftSave),Some("save"));
- let leftAgain=match gui.componentId(&left,"save"){Ok(id)=>id,Err(_)=>{panic("left id");}};
+ let leftAgain=takeGuiResult(gui.componentId(&left,"save"));
  assert_eq(gui.componentLocalId(&right,leftAgain),None);
  assert_eq(gui.componentLocalId(&right,rightSave),Some("save"));
- let local=match gui.componentId(&left,"field:保存"){Ok(id)=>id,Err(_)=>{panic("unicode id");}};
+ let local=takeGuiResult(gui.componentId(&left,"field:保存"));
  assert_eq(gui.componentLocalId(&left,local),Some("field:保存"));
  assert_eq(gui.componentLocalId(&left,gui.componentPrefix(&left)+":"),None);
  assert_eq(gui.componentLocalId(&left,gui.componentPrefix(&left)+":xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),None);
@@ -637,7 +643,7 @@ test fn parser_cut_prevents_fallback_and_optional_preserves_cursor()->Unit effec
     let fallback=parser.literal(Bytes("ac"),"ac");
     match parser.complete(parser.orElse(committed,fallback),Bytes("ac")) {Err(problem)=>{assert(problem.committed);},Ok(_)=>{panic("cut ignored");}}
     let sequence=parser.pair(parser.optional(parser.literal(Bytes("x"),"x")),parser.literal(Bytes("a"),"a"));
-    match parser.complete(sequence,Bytes("a")) {Ok(value)=>{assert_eq(value.0,None);assert_eq(value.1,Bytes("a"));},Err(_)=>{panic("optional");}}
+    match parser.complete(sequence,Bytes("a")) {Ok(value)=>{let (first,second)=value;assert_eq(first,None);assert_eq(second,Bytes("a"));},Err(_)=>{panic("optional");}}
 }
 
 test fn parser_repeat_is_bounded_and_rejects_empty_success()->Unit effects {} {
@@ -885,7 +891,7 @@ test fn text_indices_retain_original_source_and_reject_mixed_text()->Unit effect
 test fn parser_lookahead_and_negative_lookahead_preserve_input()->Unit effects {} {
     let letter=parser.literal(Bytes("a"),"a");
     let pair=parser.pair(parser.lookAhead(letter),letter);
-    match parser.complete(pair,Bytes("a")) {Ok(value)=>{assert_eq(value.0,Bytes("a"));assert_eq(value.1,Bytes("a"));},Err(_)=>{panic("lookahead consumed input");}}
+    match parser.complete(pair,Bytes("a")) {Ok(value)=>{let (first,second)=value;assert_eq(first,Bytes("a"));assert_eq(second,Bytes("a"));},Err(_)=>{panic("lookahead consumed input");}}
     let digit=parser.satisfy("digit",|v:Int|->Bool{return v>=48 && v<=57;});
     let keyword=parser.pair(letter,parser.notFollowedBy(digit,"non-digit"));
     match parser.parse(keyword,Bytes("ax")) {Ok(value)=>{assert_eq(parser.position(value.next),1);},Err(_)=>{panic("negative lookahead");}}
@@ -903,7 +909,8 @@ test fn parser_spans_keep_original_bytes_and_verify_reports_value_end()->Unit ef
     assert_eq(parsed.value.value,Bytes("日本"));
     let offset=parser.pair(parser.literal(Bytes("!"),"prefix"),word);
     let nested=transformTake(parser.complete(offset,Bytes("!日本")));
-    assert_eq(parser.spanStart(nested.1.span),1);assert_eq(parser.spanEnd(nested.1.span),7);
+    let (_prefix,nestedWord)=nested;
+    assert_eq(parser.spanStart(nestedWord.span),1);assert_eq(parser.spanEnd(nestedWord.span),7);
     let even=parser.verify(parser.satisfy("digit",|v:Int|->Bool{return v>=48 && v<=57;}),"even",|v:Int|->Bool{return (v-48)%2==0;});
     match parser.complete(even,Bytes("3")) {Err(e)=>{assert_eq(e.offset,1);assert_eq(e.expected.get(0),"even");},Ok(_)=>{panic("predicate ignored");}}
     assert_eq(parser.complete(even,Bytes("2")),Ok(50));

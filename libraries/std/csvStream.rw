@@ -1,4 +1,4 @@
-import std.schema as schema;
+import schema as schema;
 
 pub struct Reader {private state:CsvStreamState}
 pub enum TypedRowError {Stream(StdError),Validation(schema.ValidationError)}
@@ -18,13 +18,14 @@ pub fn nextTyped(reader:&mut Reader,headers:&List<String>,rule:schema.Schema,nul
    match move value {
     None=>{return Ok(None);},
     Some(row)=>{
-     let normalized=match schema.csvRow(rule,headers,&row,nullToken) {
+     match schema.csvRow(rule,headers,&row,nullToken) {
       Err(error)=>{return Err(TypedRowError::Validation(error));},
-      Ok(value)=>{value}
-     };
-     match stdCsvStreamAdvance(&reader.state) {
-      Err(error)=>{return Err(TypedRowError::Stream(error));},
-      Ok(state)=>{reader.state=state;return Ok(Some(normalized));}
+      Ok(normalized)=>{
+       match stdCsvStreamAdvance(&reader.state) {
+        Err(error)=>{return Err(TypedRowError::Stream(error));},
+        Ok(state)=>{reader.state=state;return Ok(Some(normalized));}
+       }
+      }
      }
     }
    }

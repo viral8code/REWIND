@@ -36,7 +36,7 @@ fn relationEqualCompatible(left:Kind,right:Kind)->Bool effects {} {
 // @api createWithRules cost O(fields + rules + schema bytes); at most 128 typed relations, validates referenced field kinds.
 pub fn createWithRules(fields:&List<Field>,rules:&List<Relation>,visibleRows:Int)->Result<Form,FormError> effects {} {
  if rules.len()>128{return Err(StdError("GuiFormRuleLimit",0));}
- let mut form=create(fields,visibleRows)?;let copied=List<Relation>();
+ var form=create(fields,visibleRows)?;let copied=List<Relation>();
  for i in 0..rules.len(){match rules.get(i){
   Relation::Equal(left,right)=>{if left==right{return Err(StdError("GuiFormRuleSchema",i));}let li=index(&form,left)?;let ri=index(&form,right)?;if !relationEqualCompatible(form.entries.get(li).field.kind,form.entries.get(ri).field.kind){return Err(StdError("GuiFormRuleKind",i));}copied.add(Relation::Equal(left,right));},
   Relation::IntLessEqual(left,right)=>{if left==right{return Err(StdError("GuiFormRuleSchema",i));}let li=index(&form,left)?;let ri=index(&form,right)?;var leftInt=false;var rightInt=false;match form.entries.get(li).field.kind{Kind::Integer(_,_)=>{leftInt=true;},_=>{}}match form.entries.get(ri).field.kind{Kind::Integer(_,_)=>{rightInt=true;},_=>{}}if !leftInt || !rightInt{return Err(StdError("GuiFormRuleKind",i));}copied.add(Relation::IntLessEqual(left,right));},
@@ -117,17 +117,19 @@ pub fn toValue<T:Share,E:Share>(form:&Form,convert:fn(Json)->Result<T,E> effects
 // @api toSchemaValue validates form fields, then a shared schema, then calls one pure typed mapper. It never mutates the form.
 // @api toSchemaValue failure SchemaSubmitError::Form(StdError), ::Schema(ValidationError), or ::Conversion(E); mapper runs only after both validations succeed.
 pub fn toSchemaValue<T:Share,E:Share>(form:&Form,rule:schema.Schema,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Result<T,SchemaSubmitError<E>> effects {} {
- let value=match toJson(form){
+ match toJson(form){
   Err(error)=>{return Err(SchemaSubmitError::Form(error));},
-  Ok(value)=>{value}
- };
- let normalized=match schema.validate(rule,value){
-  Err(error)=>{return Err(SchemaSubmitError::Schema(error));},
-  Ok(value)=>{value}
- };
- match convert(normalized){
-  Ok(result)=>{return Ok(result);},
-  Err(error)=>{return Err(SchemaSubmitError::Conversion(error));}
+  Ok(value)=>{
+   match schema.validate(rule,value){
+    Err(error)=>{return Err(SchemaSubmitError::Schema(error));},
+    Ok(normalized)=>{
+     match convert(normalized){
+      Ok(result)=>{return Ok(result);},
+      Err(error)=>{return Err(SchemaSubmitError::Conversion(error));}
+     }
+    }
+   }
+  }
  }
 }
 pub fn reset(form:&mut Form)->Unit effects {} {

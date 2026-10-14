@@ -76,16 +76,17 @@ pub fn indexColumns(columns:Frozen<List<String>>)->Result<ColumnMap,DbError> eff
 }
 // @api columnNumber cost O(log column count); missing names return DbColumnMissing.
 pub fn columnNumber(columns:&ColumnMap,name:String)->Result<Int,DbError> effects {} {
-    match columns.indexes.get(name){
+    match thaw(columns.indexes.get(name)){
         Some(index)=>{return Ok(index);},
         None=>{return Err(conversionError("DbColumnMissing"));}
     }
 }
 pub record MappedBatch<T:Share>{rows:Frozen<List<T>>,done:Bool}
-pub enum RowMapError<E:Share>{TooManyRows(Int),Row(Int,E)}
+// TooManyRows carries None as its second field; the parameter lets one error type describe mapper failures.
+pub enum RowMapError<E:Share>{TooManyRows(Int,Option<E>),Row(Int,E)}
 // @api mapBatch is pure, maps at most 64 rows, and does not read or advance the cursor. The borrowed DbBatch remains available after failure.
 pub fn mapBatch<T:Share,E:Share>(batch:&DbBatch,columns:&ColumnMap,mapper:fn(Frozen<DbRow>,&ColumnMap)->Result<T,E> effects {} captures {Send,Share})->Result<MappedBatch<T>,RowMapError<E>> effects {} {
-    if batch.rows.len()>64{return Err(RowMapError::TooManyRows(batch.rows.len()));}
+    if batch.rows.len()>64{return Err(RowMapError::TooManyRows(batch.rows.len(),None));}
     let mapped=List<T>();var index=0;
     while index<batch.rows.len(){
         match mapper(batch.rows.get(index),columns){
@@ -126,11 +127,10 @@ fn validateRowCells(rule:schema.Schema,columns:Frozen<List<String>>,row:Frozen<D
     var index=0;
     while index<columns.len(){
         let name=columns.get(index);
-        let cell=match schemaCell(thaw(row.values.get(index))){
+        match schemaCell(thaw(row.values.get(index))){
             Err(error)=>{return Err(SchemaRowError::Db(error));},
-            Ok(value)=>value
-        };
-        values.set(name,cell);
+            Ok(cell)=>{values.set(name,cell);}
+        }
         index+=1;
     }
     match schema.validate(rule,Json::Object(freeze(values))){
