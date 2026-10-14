@@ -48,7 +48,7 @@ take(form.setValue(&mut model,"notify","true"));
 take(form.setValue(&mut model,"email","dev@example.test"));
 let result=match form.toValue(&model,mapPreferences) {
     Ok(value)=>{value},
-    Err(form.SubmitError::Form(error,_))=>{panic("form validation failed: "+error.code);},
+    Err(form.SubmitError::Form(error))=>{panic("form validation failed: "+error.code);},
     Err(form.SubmitError::Conversion(error))=>{panic("record mapping failed: "+error.code);}
 };
 Out.println(result.email);

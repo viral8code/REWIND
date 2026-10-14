@@ -1452,7 +1452,7 @@ test fn gui_form_runs_shared_schema_before_typed_mapping()->Unit effects {} {
     match guiForm.toSchemaValue(&model,rule,|value:Json|->Result<Int,String>{
         match jsonGet(value,"age"){Some(Json::Int(age))=>{return Ok(age);},_=>{return Err("age");}}
     }) {
-        Err(guiForm.SchemaSubmitError::Schema(error,_))=>{assert_eq(error.code,"IntegerRange");assert_eq(error.actual,"Int");},
+        Err(guiForm.SchemaSubmitError::Schema(error))=>{assert_eq(error.code,"IntegerRange");assert_eq(error.actual,"Int");},
         Err(_)=>{panic("expected shared schema rejection");},
         Ok(_)=>{panic("mapper ran before schema validation");}
     }

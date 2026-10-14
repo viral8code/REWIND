@@ -2350,7 +2350,7 @@ impl Parser {
                         }
                         Ok(())
                     })();
-                    if parsed.is_err() || !self.is("(") {
+                    if parsed.is_err() || !(self.is("(") || self.is("::")) {
                         self.pos = saved;
                         name = at.text.clone();
                     }
@@ -2512,6 +2512,11 @@ impl Parser {
 fn rename_symbol(name: &str, names: &BTreeMap<String, String>) -> String {
     if let Some(replacement) = names.get(name) {
         return replacement.clone();
+    }
+    if let Some(end) = name.rfind(">::") {
+        // Enum<T>::Variant: rename the type, never the variant name.
+        let (head, variant) = name.split_at(end + 1);
+        return format!("{}{variant}", rename_type(head, names));
     }
     if name.contains('<') {
         return rename_type(name, names);

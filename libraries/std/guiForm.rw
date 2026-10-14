@@ -2,9 +2,8 @@ import gui as gui;
 import datetime as datetime;
 import schema as schema;
 pub type FormError = StdError;
-// Form/Schema variants carry None as a trailing field so the type argument E is inferable.
-pub enum SubmitError<E:Share> {Form(FormError,Option<E>),Conversion(E)}
-pub enum SchemaSubmitError<E:Share> {Form(FormError,Option<E>),Schema(schema.ValidationError,Option<E>),Conversion(E)}
+pub enum SubmitError<E:Share> {Form(FormError),Conversion(E)}
+pub enum SchemaSubmitError<E:Share> {Form(FormError),Schema(schema.ValidationError),Conversion(E)}
 pub enum Kind {Text,Multiline,Integer(Int,Int),Real(Float,Float),Check,Timestamp}
 pub enum Relation {Equal(String,String),IntLessEqual(String,String),RequiredWhenChecked(String,String)}
 pub record Field {id:String,caption:String,kind:Kind,required:Bool,maxBytes:Int,initial:String}
@@ -106,11 +105,11 @@ pub fn toJson(form:&Form)->Result<Json,FormError> effects {} {
 // @api toValue failure SubmitError::Form(Required/Integer/Real/Range/Timestamp/Relation) or SubmitError::Conversion(E); mapper runs only after form validation succeeds.
 pub fn toValue<T:Share,E:Share>(form:&Form,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Result<T,SubmitError<E>> effects {} {
  match toJson(form){
-  Err(error)=>{return Err(SubmitError::Form(error,None));},
+  Err(error)=>{return Err(SubmitError<E>::Form(error));},
   Ok(value)=>{
    match convert(value){
     Ok(result)=>{return Ok(result);},
-    Err(error)=>{return Err(SubmitError::Conversion(error));}
+    Err(error)=>{return Err(SubmitError<E>::Conversion(error));}
    }
   }
  }
@@ -119,14 +118,14 @@ pub fn toValue<T:Share,E:Share>(form:&Form,convert:fn(Json)->Result<T,E> effects
 // @api toSchemaValue failure SchemaSubmitError::Form(StdError), ::Schema(ValidationError), or ::Conversion(E); mapper runs only after both validations succeed.
 pub fn toSchemaValue<T:Share,E:Share>(form:&Form,rule:schema.Schema,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Result<T,SchemaSubmitError<E>> effects {} {
  match toJson(form){
-  Err(error)=>{return Err(SchemaSubmitError::Form(error,None));},
+  Err(error)=>{return Err(SchemaSubmitError<E>::Form(error));},
   Ok(value)=>{
    match schema.validate(rule,value){
-    Err(error)=>{return Err(SchemaSubmitError::Schema(error,None));},
+    Err(error)=>{return Err(SchemaSubmitError<E>::Schema(error));},
     Ok(normalized)=>{
      match convert(normalized){
       Ok(result)=>{return Ok(result);},
-      Err(error)=>{return Err(SchemaSubmitError::Conversion(error));}
+      Err(error)=>{return Err(SchemaSubmitError<E>::Conversion(error));}
      }
     }
    }

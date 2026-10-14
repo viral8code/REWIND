@@ -195,7 +195,15 @@ impl Expand<'_> {
                 }
             }
             ExprKind::Name(n) if n.contains('<') => {
-                *n = self.ty(n, 0)?;
+                // `Enum<T>::Variant` names a type followed by a variant; only
+                // the type part is resolved.
+                match n.rfind(">::") {
+                    Some(end) => {
+                        let (head, variant) = n.split_at(end + 1);
+                        *n = format!("{}{variant}", self.ty(head, 0)?);
+                    }
+                    None => *n = self.ty(n, 0)?,
+                }
             }
             ExprKind::NamedConstructor(n, fields) => {
                 *n = self.ty(n, 0)?;
