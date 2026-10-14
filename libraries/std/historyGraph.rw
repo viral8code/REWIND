@@ -19,14 +19,14 @@ pub fn create<T:Send>(capacity:Int)->Result<HistoryGraph<T>,GraphError> effects 
     if capacity<1 || capacity>65536 {return Err(GraphError("InvalidCapacity",""));}
     return Ok(HistoryGraph<T>(Map<String,Version<T>>(),Map<String,String>(),Map<String,Annotation>(),Map<String,Bool>(),capacity));
 }
-fn copyNames(keys:List<String>)->List<String> effects {} {
-    let output=List<String>();var i=0;
+fn copyNames<V:Send>(map:&Map<String,V>)->List<String> effects {} {
+    let keys=map.keys();let output=List<String>();var i=0;
     while i<keys.len(){output.add(keys.get(i));i+=1;}
     return output;
 }
 pub fn length<T:Send>(graph:&HistoryGraph<T>)->Int effects {} {return graph.versions.len();}
-pub fn versions<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return copyNames(graph.versions.keys());}
-pub fn branches<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return copyNames(graph.heads.keys());}
+pub fn versions<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return copyNames(&graph.versions);}
+pub fn branches<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return copyNames(&graph.heads);}
 pub fn get<T:Send>(graph:&HistoryGraph<T>,name:String)->Option<Version<T>> effects {} {return graph.versions.get(name);}
 pub fn name<T:Send>(version:Version<T>)->String effects {} {return version.name;}
 pub fn parents<T:Send>(version:Version<T>)->Frozen<List<String>> effects {} {return version.parents;}
@@ -128,7 +128,7 @@ pub fn isAncestor<T:Send>(graph:&HistoryGraph<T>,ancestor:String,descendant:Stri
 
 // @api matching Evaluates a pure predicate on each saved root in version-name key order; returned Version values retain their snapshots.
 pub fn matching<T:Send>(graph:&HistoryGraph<T>,predicate:fn(Frozen<T>)->Bool effects {} captures {Send,Share})->List<Version<T>> effects {} {
-    let output=List<Version<T>>();let keys=copyNames(graph.versions.keys());
+    let output=List<Version<T>>();let keys=copyNames(&graph.versions);
     for i in 0..keys.len() {
         match graph.versions.get(keys.get(i)) {
             Some(version)=>{if predicate(snapshot.read(version.saved)) {output.add(version);}},
@@ -150,7 +150,7 @@ pub fn unpin<T:Send>(graph:&mut HistoryGraph<T>,version:String)->Bool effects {}
         None=>{return false;}
     }
 }
-pub fn pins<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return copyNames(graph.protected.keys());}
+pub fn pins<T:Send>(graph:&HistoryGraph<T>)->List<String> effects {} {return copyNames(&graph.protected);}
 
 fn reachable<T:Send>(graph:&HistoryGraph<T>,roots:&List<String>)->Result<Map<String,Bool>,GraphError> effects {} {
     if roots.len()>65536 {return Err(GraphError("RootLimit",""));}
@@ -210,7 +210,7 @@ pub fn previewPrune<T:Send>(graph:&HistoryGraph<T>,keep:&List<String>)->Result<L
     match retained(graph,keep) {
         Err(error)=>{return Err(error);},
         Ok(found)=>{
-            let removed=List<String>();let keys=copyNames(graph.versions.keys());
+            let removed=List<String>();let keys=copyNames(&graph.versions);
             for i in 0..keys.len() {
                 let key=keys.get(i);
                 match found.get(key) {Some(_)=>{},None=>{removed.add(key);}}
@@ -227,7 +227,7 @@ pub fn prune<T:Send>(graph:&mut HistoryGraph<T>,keep:&List<String>)->Result<List
         Ok(found)=>{
             if found.len()==graph.versions.len() {return Ok(List<String>());}
             let versions=Map<String,Version<T>>();let notes=Map<String,Annotation>();let removed=List<String>();
-            let keys=copyNames(graph.versions.keys());
+            let keys=copyNames(&graph.versions);
             for i in 0..keys.len() {
                 let key=keys.get(i);
                 match found.get(key) {
