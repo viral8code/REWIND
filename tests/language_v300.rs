@@ -262,3 +262,18 @@ fn collection_literals_reject_mixed_and_untyped_forms() {
     let out = main_output("fn run()->Unit effects {} { let m={\"a\": 1, \"b\": \"x\"}; }");
     assert!(!out.status.success());
 }
+
+#[test]
+fn tuple_elements_are_read_with_dot_index() {
+    let out = main_output(
+        r#"fn pair()->(Int,(String,Int)) effects {} { return (1,("a",2)); }
+fn run()->Unit effects {output} {
+    let t=pair();
+    Out.println(t.0.format());
+    Out.println(t.1.0);
+    Out.println(t.1.1.format());
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "1\na\n2\n");
+}

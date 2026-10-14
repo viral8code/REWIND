@@ -2629,6 +2629,27 @@ impl Parser {
                 }
                 continue;
             }
+            // `pair.0` / `pair.1.0`: tuple elements are the fields _0, _1, ...
+            if self.is(".")
+                && self
+                    .toks
+                    .get(self.pos + 1)
+                    .is_some_and(|t| t.text.starts_with(|c: char| c.is_ascii_digit()))
+            {
+                self.pos += 1;
+                let token = self.current().clone();
+                self.pos += 1;
+                for part in token.text.split('.') {
+                    if part.is_empty() || !part.chars().all(|c| c.is_ascii_digit()) {
+                        return Err(diagnostic(&token, "expected a tuple index such as .0"));
+                    }
+                    lhs = Expr {
+                        kind: ExprKind::Member(Box::new(lhs), format!("_{part}")),
+                        at: at.clone(),
+                    };
+                }
+                continue;
+            }
             if self.eat(".") {
                 let field = self.name()?;
                 if let ExprKind::Name(module) = &lhs.kind {
