@@ -327,6 +327,7 @@ test fn cooperative_numeric_domain_is_inner_result()->Unit effects {tasks} {
 
 import guiForm as guiForm;
 import guiTable as guiTable;
+import guiField as guiField;
 test fn form_and_empty_table_contracts() {
  let defs=List<guiForm.Field>();defs.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"-"));
  match guiForm.create(&defs,1){Err(_)=>{panic("form creation");},Ok(model)=>{
@@ -1989,4 +1990,71 @@ test fn plot_svg_and_render_share_segments() {
             }}
         }}
     }}
+}
+
+fn fieldKey(name:String)->gui.Event {
+ return gui.Event("key",0,0,name,0,0);
+}
+fn fieldText(value:String)->gui.Event {
+ return gui.Event("text",0,0,value,0,0);
+}
+test fn field_two_scopes_do_not_mix() {
+ let left=takeGuiResult(gui.componentScope("left"));
+ let right=takeGuiResult(gui.componentScope("right"));
+ var a=guiField.new("Name","ab");
+ var b=guiField.new("Name","cd");
+ let act=takeGuiResult(guiField.dispatch(&mut a,&left,fieldText("x")));
+ match act {
+  guiField.Action::Changed(id,text)=>{
+   assert_eq(gui.componentLocalId(&left,id),Some("input"));
+   assert_eq(text,"abx");
+  },
+  _=>{panic("expected Changed");}
+ }
+ assert_eq(guiField.text(&a),"abx");
+ assert_eq(guiField.text(&b),"cd");
+ let sub=takeGuiResult(guiField.dispatch(&mut b,&right,fieldKey("Enter")));
+ match sub {
+  guiField.Action::Submitted(id,text)=>{
+   assert_eq(gui.componentLocalId(&right,id),Some("input"));
+   assert_eq(text,"cd");
+  },
+  _=>{panic("expected Submitted");}
+ }
+}
+test fn field_copy_keeps_text() {
+ let scope=takeGuiResult(gui.componentScope("copy"));
+ var a=guiField.new("Name","hello");
+ let saved=guiField.text(&a);
+ let _=takeGuiResult(guiField.dispatch(&mut a,&scope,fieldText("!")));
+ assert_eq(guiField.text(&a),"hello!");
+ var reverted=guiField.new("Name",saved);
+ assert_eq(guiField.text(&reverted),"hello");
+}
+test fn field_error_set_and_clear() {
+ let scope=takeGuiResult(gui.componentScope("err"));
+ var state=guiField.new("Age","7");
+ assert_eq(guiField.error(&state),None);
+ let plain=takeGuiResult(guiField.render(&state,&scope));
+ assert_eq(plain.len(),2);
+ guiField.setError(&mut state,"too small");
+ assert_eq(guiField.error(&state),Some("too small"));
+ let shown=takeGuiResult(guiField.render(&state,&scope));
+ assert_eq(shown.len(),3);
+ guiField.clearError(&mut state);
+ assert_eq(guiField.error(&state),None);
+ let cleared=takeGuiResult(guiField.render(&state,&scope));
+ assert_eq(cleared.len(),2);
+}
+test fn field_render_keeps_caret() {
+ let scope=takeGuiResult(gui.componentScope("caret"));
+ var state=guiField.new("Name","abc");
+ let _=takeGuiResult(guiField.dispatch(&mut state,&scope,fieldKey("Left")));
+ let cursor=guiField.cursor(&state);
+ let anchor=guiField.anchor(&state);
+ let items=takeGuiResult(guiField.render(&state,&scope));
+ let again=takeGuiResult(guiField.render(&state,&scope));
+ assert_eq(items.get(1).cursor,cursor);
+ assert_eq(items.get(1).anchor,anchor);
+ assert_eq(again.get(1).cursor,cursor);
 }

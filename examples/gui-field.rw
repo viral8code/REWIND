@@ -1,0 +1,35 @@
+import std.gui as gui;
+import std.guiField as field;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {
+        Ok(item)=>{return move item;},
+        Err(_)=>{panic("GUI operation failed");}
+    }
+}
+
+fn drawField(view:&mut gui.View,state:&field.FieldState,scope:&gui.ComponentScope)->Result<Unit,gui.GuiError> effects {gui} {
+    let items=take(field.render(state,scope));
+    for item in items {
+        if item.kind=="label" {
+            gui.label(view,item.id,item.caption,20,20,300,24)?;
+        } else if item.kind=="textbox" {
+            gui.textBox(view,item.id,item.caption,20,52,300,30)?;
+            gui.setSelection(view,item.id,item.cursor,item.anchor)?;
+        } else {
+            gui.label(view,item.id,item.caption,20,90,300,24)?;
+        }
+    }
+    return Ok(());
+}
+
+let view=take(gui.window("Field",360,140));
+let scope=take(gui.componentScope("name"));
+var state=field.new("Name","Ada");
+take(drawField(&mut view,&state,&scope));
+field.setError(&mut state,"Name is required");
+take(drawField(&mut view,&state,&scope));
+field.clearError(&mut state);
+take(drawField(&mut view,&state,&scope));
+Out.println(field.text(&state));
+publish;

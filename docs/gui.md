@@ -130,3 +130,5 @@ Windowsの未確定入力はIMM対応のOSサービスを利用します。シ�
 回答します。確定文字だけがVMの記録へ入ります。実Microsoft日本語IMEの
 preedit / convert / commit、focus取消、終了の受入と検証範囲は
 [v1.9.65](REWIND_v1.9.65.md)を参照してください。SDK起動はOSの言語設定を変更しません。
+
+`std.guiField`は、ラベル、単一行入力、validation messageを持つ再利用可能な部品です。状態はtext、caret、anchor、errorだけを持つ通常のVM値で、native resourceを持ちません。そのためcheckpointの複製や取り消しで文字列と編集位置が戻ります。`render`はI/Oを行わず、`dispatch`は`stdGuiEdit`で文字列を更新して`Changed`または`Submitted`を返します。focusは引き続き呼び出し側が`gui.focus`で管理します。例は[gui-field.rw](../examples/gui-field.rw)を参照してください。

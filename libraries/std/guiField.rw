@@ -1,0 +1,66 @@
+import gui as gui;
+// A labelled single-line input with a validation message. State is plain VM data
+// (no native resources), so copying or reverting a FieldState restores its text, caret and error.
+// render performs no I/O. dispatch edits the text with stdGuiEdit; focus stays with the caller.
+pub struct FieldState {private label:String,private text:String,private cursor:Int,private anchor:Int,private error:Option<String>}
+// kind is "label", "textbox" or "error"; cursor and anchor are meaningful for "textbox" only.
+pub record Item {kind:String,id:String,caption:String,cursor:Int,anchor:Int}
+// Changed and Submitted carry the scope-qualified input id followed by the current text.
+pub enum Action {Changed(String,String),Submitted(String,String),Ignored}
+
+fn jsonInt(value:Json,key:String)->Int effects {} {match jsonGet(value,key){Some(Json::Int(v))=>{return v;},_=>{return 0;}}}
+fn jsonText(value:Json,key:String)->String effects {} {match jsonGet(value,key){Some(Json::Text(v))=>{return v;},_=>{return "";}}}
+
+pub fn new(label:String,initial:String)->FieldState effects {} {
+ let end=initial.charLen();
+ return FieldState(label,initial,end,end,None);
+}
+
+// @api render cost O(label bytes + text bytes); ids come from componentId, so two scopes never share ids.
+pub fn render(state:&FieldState,scope:&gui.ComponentScope)->Result<List<Item>,gui.GuiError> effects {} {
+ var items=List<Item>();
+ let labelId=gui.componentId(scope,"label")?;
+ let inputId=gui.componentId(scope,"input")?;
+ items.add(Item("label",labelId,state.label,0,0));
+ items.add(Item("textbox",inputId,state.text,state.cursor,state.anchor));
+ match state.error {
+  Some(message)=>{let errorId=gui.componentId(scope,"error")?;items.add(Item("error",errorId,message,0,0));},
+  None=>{}
+ }
+ return Ok(items);
+}
+
+// @api dispatch cost O(text bytes); Enter submits, other key and text events edit through stdGuiEdit.
+pub fn dispatch(state:&mut FieldState,scope:&gui.ComponentScope,event:gui.Event)->Result<Action,gui.GuiError> effects {} {
+ let inputId=gui.componentId(scope,"input")?;
+ if event.kind!="text" && event.kind!="key" {return Ok(Action::Ignored);}
+ if event.kind=="key" && event.key=="Enter" {return Ok(Action::Submitted(inputId,state.text));}
+ var typed="";
+ var key=event.key;
+ if event.kind=="text" {typed=event.key;key="";}
+ let result=stdGuiEdit(state.text,state.cursor,state.anchor,key,typed,false)?;
+ match jsonParse(result) {
+  Err(e)=>{return Err(StdError(e.code,e.offset));},
+  Ok(j)=>{
+   let before=state.text;
+   state.text=jsonText(j,"text");
+   state.cursor=jsonInt(j,"cursor");
+   state.anchor=jsonInt(j,"anchor");
+   if state.text!=before {return Ok(Action::Changed(inputId,state.text));}
+   return Ok(Action::Ignored);
+  }
+ }
+}
+
+pub fn setError(state:&mut FieldState,message:String)->Unit effects {} {
+ state.error=Some(message);
+}
+
+pub fn clearError(state:&mut FieldState)->Unit effects {} {
+ state.error=None;
+}
+
+pub fn text(state:&FieldState)->String effects {} {return state.text;}
+pub fn error(state:&FieldState)->Option<String> effects {} {return state.error;}
+pub fn cursor(state:&FieldState)->Int effects {} {return state.cursor;}
+pub fn anchor(state:&FieldState)->Int effects {} {return state.anchor;}

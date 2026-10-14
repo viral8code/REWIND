@@ -196,6 +196,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/guiTable.rw"),
         ),
         (
+            "guiField",
+            include_str!("../../../libraries/std/guiField.rw"),
+        ),
+        (
             "guiWindows",
             include_str!("../../../libraries/std/guiWindows.rw"),
         ),

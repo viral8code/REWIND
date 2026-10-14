@@ -26,6 +26,7 @@
 | dbTransaction | TxState, Transaction, TxError, Finished, begun, state, isActive, connectionReusable, requestCommit, requestRollback, completeCommit, completeRollback, close, finished | 物理BEGIN/COMMIT/ROLLBACKはstd.dbのtask。要求と応答の状態を追跡し、二重要求・終了後の要求を拒否、`DbError.phase`で失敗を分類。dropでcommitしない |
 | memo | key, create, get, peek, put, resolve, invalidate, clear | 版付きkey、LRU、件数/重み上限、pureな結果とErrの保持 |
 | lazy | create, isForced, peek, force, fork, clear | 明示的な遅延計算、成功snapshot、回復可能なErr、可変ownerの独立fork |
+| guiField | new, render, dispatch, setError, clearError, text, error, cursor, anchor | 単一行入力のVM状態、renderはI/Oなし、scopeごとのid、caretとvalidation errorを保持、focusは呼び出し側 |
 
 
 
