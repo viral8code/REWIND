@@ -126,6 +126,10 @@ cursorを全件materializeする便利関数を既定にしません。1行ず�
 
 ## DB-02：transaction helper
 
+**実装済み（2026-10-14）：** `std.dbTransaction`は、物理的なBEGIN / COMMIT / ROLLBACKを`std.db`のtaskに任せたまま、要求と応答の状態だけを追跡します。`Transaction`は通常のVM値で、`requestCommit` / `requestRollback`で`Committing` / `RollingBack`へ移り、`completeCommit` / `completeRollback`にtaskの結果を渡して`Committed` / `RolledBack`へ進みます。完了待ちの二重要求、終了後の再要求、要求の無い完了通知は`TxError`で拒否し、状態を変えません。失敗は`DbError.phase`で分けます：`NotSent`は元の状態へ戻し、`Unknown`は`Unknown`（再試行もrollbackも許可しない）、それ以外は`Failed`（rollbackは可）。`close`は未完了のhandleを`NotFinished`として報告します。`finished`は業務失敗とcleanup失敗を別々に保持します。dropによる自動commitはありません。`connectionReusable`は終了が確定した状態だけ真です。
+
+確認：状態遷移の標準ライブラリtest3件と、実際のSQLiteでcommit・rollback・二重要求・古い完了通知を確認する[tests/db_row_mapping.rs](../tests/db_row_mapping.rs)。**未完了：** PostgreSQLでの確認、cancel・接続断・commit結果不明を実backendで再現する確認、`defer`でのrollback（非同期完了の待機）。callbackで全操作を隠す形は、所有権とeffectの契約を先に設計するため作っていません。VM revert後は古い`Transaction`値が残り得ますが、終了済みの物理transactionは復活せず、次のcommit / rollbackはbackendのエラーとして`Failed`になります。
+
 既存のbegin/commit/rollbackをまとめるhelperを検討します。`defer`でrollbackの非同期完了まで処理できると仮定しません。externalへのsubmitとVM側のawait、affine connectionのborrow・task移動制約を、最小の実行例で先に証明します。
 
 初期候補は明示transaction handleと状態遷移です。callbackで全操作を隠す形は、現在のeffect/所有権契約で安全に成立する場合に限ります。

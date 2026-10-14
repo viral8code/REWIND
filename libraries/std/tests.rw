@@ -1624,3 +1624,50 @@ test fn lazy_nested_frozen_results_preserve_their_declared_layer()->Unit effects
     assert_eq(inner.get(0),7);
     assert_eq(transformTake(lazy.fork(&mut value)).get(0),7);
 }
+
+import dbTransaction as tx;
+fn txOk(outcome:Result<Unit,tx.TxError>)->Bool effects {} {
+    match outcome {Ok(_)=>{return true;},Err(_)=>{return false;}}
+}
+fn txFailure(phase:String)->DbError effects {} {return DbError("DbTest",phase,None,None);}
+test fn db_transaction_commit_path_and_duplicate_requests() {
+    let t=tx.begun();
+    assert_eq(tx.isActive(&t),true);
+    assert_eq(txOk(tx.requestCommit(&mut t)),true);
+    match tx.requestCommit(&mut t) {Err(tx.TxError::NotActive(tx.TxState::Committing))=>{},_=>{panic("duplicate commit request accepted");}}
+    match tx.requestRollback(&mut t) {Err(tx.TxError::NotActive(tx.TxState::Committing))=>{},_=>{panic("rollback during commit accepted");}}
+    assert_eq(txOk(tx.completeCommit(&mut t,Ok(()))),true);
+    assert_eq(tx.connectionReusable(&t),true);
+    match tx.requestCommit(&mut t) {Err(tx.TxError::NotActive(tx.TxState::Committed))=>{},_=>{panic("commit after commit accepted");}}
+    match tx.completeCommit(&mut t,Ok(())) {Err(tx.TxError::WrongRequest(tx.TxState::Committed))=>{},_=>{panic("completion without request accepted");}}
+    assert_eq(txOk(tx.close(&mut t)),true);
+    match tx.requestRollback(&mut t) {Err(tx.TxError::NotActive(tx.TxState::Closed))=>{},_=>{panic("request on closed handle accepted");}}
+}
+test fn db_transaction_failures_keep_the_backend_phase() {
+    let notSent=tx.begun();
+    assert_eq(txOk(tx.requestCommit(&mut notSent)),true);
+    match tx.completeCommit(&mut notSent,Err(txFailure("NotSent"))) {Err(tx.TxError::Backend(error))=>{assert_eq(error.phase,"NotSent");},_=>{panic("backend error lost");}}
+    assert_eq(tx.isActive(&notSent),true);
+    let unknown=tx.begun();
+    assert_eq(txOk(tx.requestCommit(&mut unknown)),true);
+    assert_eq(txOk(tx.completeCommit(&mut unknown,Err(txFailure("Unknown")))),false);
+    match tx.requestRollback(&mut unknown) {Err(tx.TxError::NotActive(tx.TxState::Unknown))=>{},_=>{panic("rollback of unknown outcome accepted");}}
+    assert_eq(tx.connectionReusable(&unknown),false);
+    let failed=tx.begun();
+    assert_eq(txOk(tx.requestCommit(&mut failed)),true);
+    assert_eq(txOk(tx.completeCommit(&mut failed,Err(txFailure("ResponseReceived")))),false);
+    assert_eq(tx.connectionReusable(&failed),false);
+    assert_eq(txOk(tx.requestRollback(&mut failed)),true);
+    assert_eq(txOk(tx.completeRollback(&mut failed,Ok(()))),true);
+    assert_eq(tx.connectionReusable(&failed),true);
+}
+test fn db_transaction_close_reports_unfinished_work_and_keeps_both_failures() {
+    let t=tx.begun();
+    match tx.close(&mut t) {Err(tx.TxError::NotFinished(tx.TxState::Active))=>{},_=>{panic("active transaction closed silently");}}
+    assert_eq(txOk(tx.requestRollback(&mut t)),true);
+    match tx.close(&mut t) {Err(tx.TxError::NotFinished(tx.TxState::RollingBack))=>{},_=>{panic("pending rollback closed silently");}}
+    assert_eq(txOk(tx.completeRollback(&mut t,Err(txFailure("Unknown")))),false);
+    let summary=tx.finished(&t,Some("insert failed"),Some(txFailure("Unknown")));
+    assert_eq(summary.business,Some("insert failed"));
+    match summary.cleanup {Some(error)=>{assert_eq(error.phase,"Unknown");},None=>{panic("cleanup failure dropped");}}
+}
