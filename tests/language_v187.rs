@@ -38,7 +38,7 @@ fn csv_chunks_checkpoint_and_source_free_replay() {
     success(&out);
     assert_eq!(
         String::from_utf8(out.stdout.clone()).unwrap(),
-        "name\nnote\n日本語\na\"b\n日\nname\n"
+        "name\nactive\nnote\nValidation\n{\"active\":true,\"name\":\"日本語\",\"note\":\"a\\\"b\\n日\"}\n日本語\n"
     );
     let replay = call(&root, &["replay", "trace.json"]);
     success(&replay);

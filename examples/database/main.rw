@@ -10,8 +10,9 @@ fn scoreSchema()->Result<schema.Schema,schema.SchemaError> effects {} {
     return schema.object(&fields,schema.Unknown::Reject);
 }
 fn scoreFromJson(value:Json)->Result<Score,String> effects {} {
-    let name=match json.get(value,"name"){Some(Json::Text(text))=>text,_=>{return Err("Name");}};
-    let score=match json.get(value,"score"){Some(Json::Int(number))=>number,_=>{return Err("Score");}};
+    var name="";var score=0;
+    match json.get(value,"name"){Some(Json::Text(text))=>{name=text;},_=>{return Err("Name");}}
+    match json.get(value,"score"){Some(Json::Int(number))=>{score=number;},_=>{return Err("Score");}}
     return Ok(Score(name,score));
 }
 fn take<T,E>(value:Result<T,E>)->T effects {} {
@@ -40,7 +41,7 @@ match opening {
                 match reading {None=>{panic("missing read");},Some(task)=>{
                     let batch=take(take(await task));
                     let data=take(db.validateBatch(take(scoreSchema()),cursor.columns,&batch));
-                    let score=take(scoreFromJson(data.rows.get(0)));
+                    let score=take(scoreFromJson(thaw(data.rows.get(0))));
                     Out.println(score.name);Out.println(score.score);
                 }}
             }

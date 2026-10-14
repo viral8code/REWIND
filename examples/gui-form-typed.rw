@@ -12,22 +12,26 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 fn mapPreferences(value:Json)->Result<Preferences,StdError> effects {} {
     match value {
         Json::Object(fields)=>{
-            let notify=match fields.get("notify") {
-                Some(Json::Bool(value))=>{value},
+            var notify=false;
+            match fields.get("notify") {
+                Some(Json::Bool(value))=>{notify=value;},
                 _=>{return Err(StdError("FormConversion",0));}
-            };
-            let email=match fields.get("email") {
-                Some(Json::Text(value))=>{value},
+            }
+            var email="";
+            match fields.get("email") {
+                Some(Json::Text(value))=>{email=value;},
                 _=>{return Err(StdError("FormConversion",0));}
-            };
-            let minimum=match fields.get("minimum") {
-                Some(Json::Int(value))=>{value},
+            }
+            var minimum=0;
+            match fields.get("minimum") {
+                Some(Json::Int(value))=>{minimum=value;},
                 _=>{return Err(StdError("FormConversion",0));}
-            };
-            let maximum=match fields.get("maximum") {
-                Some(Json::Int(value))=>{value},
+            }
+            var maximum=0;
+            match fields.get("maximum") {
+                Some(Json::Int(value))=>{maximum=value;},
                 _=>{return Err(StdError("FormConversion",0));}
-            };
+            }
             return Ok(Preferences(notify,email,minimum,maximum));
         },
         _=>{return Err(StdError("FormConversion",0));}
@@ -47,9 +51,9 @@ let model=take(form.createWithRules(&fields,&rules,4));
 take(form.setValue(&mut model,"notify","true"));
 take(form.setValue(&mut model,"email","dev@example.test"));
 let result=match form.toValue(&model,mapPreferences) {
-    Ok(value)=>{value},
-    Err(form.SubmitError::Form(error))=>{panic("form validation failed: "+error.code);},
-    Err(form.SubmitError::Conversion(error))=>{panic("record mapping failed: "+error.code);}
+    Ok(value)=>value,
+    Err(form.SubmitError::Form(error))=>panic("form validation failed: "+error.code),
+    Err(form.SubmitError::Conversion(error))=>panic("record mapping failed: "+error.code)
 };
 Out.println(result.email);
 Out.println(result.minimum.format()+".."+result.maximum.format());

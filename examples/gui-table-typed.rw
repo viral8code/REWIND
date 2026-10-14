@@ -12,11 +12,12 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 
 fn parseTask(cells:Frozen<List<String>>)->Result<Task,RowError> effects {} {
     if cells.len()!=2{return Err(RowError::Shape);}
-    let done=match cells.get(1) {
-        "true"=>{true},
-        "false"=>{false},
+    var done=false;
+    match cells.get(1) {
+        "true"=>{done=true;},
+        "false"=>{done=false;},
         _=>{return Err(RowError::Done);}
-    };
+    }
     return Ok(Task(cells.get(0),done));
 }
 

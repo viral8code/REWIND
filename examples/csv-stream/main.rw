@@ -16,8 +16,8 @@ while offset<stdBytesLength(input){
 take(csv.finish(&mut reader));
 commit rows;
 let headers=match take(csv.next(&mut reader)){
- None=>{panic("header missing");},
- Some(value)=>{value}
+ None=>panic("header missing"),
+ Some(value)=>value
 };
 Out.println(headers.get(0));Out.println(headers.get(1));Out.println(headers.get(2));
 

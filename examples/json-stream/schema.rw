@@ -15,8 +15,9 @@ take(jsonStream.feed(&mut reader,bytes,true));
 match take(jsonStream.nextValidated(&mut reader,rule)){
     None=>{panic("expected one JSON object");},
     Some(value)=>{
-        let name=match json.get(value,"name"){Some(raw)=>{match json.text(raw){Some(text)=>text,None=>{panic("name type");}}},None=>{panic("name field");}};
-        let score=match json.get(value,"score"){Some(raw)=>{match json.integer(raw){Some(number)=>number,None=>{panic("score type");}}},None=>{panic("score field");}};
+        var name="";var score=0;
+        match json.get(value,"name"){Some(raw)=>{match json.text(raw){Some(text)=>{name=text;},None=>{panic("name type");}}},None=>{panic("name field");}}
+        match json.get(value,"score"){Some(raw)=>{match json.integer(raw){Some(number)=>{score=number;},None=>{panic("score type");}}},None=>{panic("score field");}};
         Out.println(name);
         Out.println(score);
     }
