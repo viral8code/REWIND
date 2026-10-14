@@ -42,13 +42,13 @@ pub(in crate::v2) fn load(
             .values()
             .any(|f| f.asynchronous || restricted(&f.body));
     v05::expressions(&program.stmts, &mut |e| {
-        if let ExprKind::Closure(_, _, b) = &e.kind {
+        if let ExprKind::Closure(_, _, b) | ExprKind::Block(b, _) = &e.kind {
             forbidden |= restricted(b);
         }
     });
     for f in program.functions.values() {
         v05::expressions(&f.body, &mut |e| {
-            if let ExprKind::Closure(_, _, b) = &e.kind {
+            if let ExprKind::Closure(_, _, b) | ExprKind::Block(b, _) = &e.kind {
                 forbidden |= restricted(b);
             }
         });

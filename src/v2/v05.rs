@@ -1750,6 +1750,12 @@ pub(super) fn expressions(body: &[Stmt], visit: &mut impl FnMut(&Expr)) {
                 }
             }
             ExprKind::Closure(_, _, b) => expressions(b, visit),
+            ExprKind::Block(b, tail) => {
+                expressions(b, visit);
+                if let Some(tail) = tail {
+                    expr(tail, visit);
+                }
+            }
             ExprKind::Match(v, arms) => {
                 expr(v, visit);
                 for (_, g, a) in arms {
@@ -1842,6 +1848,13 @@ pub(super) fn free_names(body: &[Stmt], params: &[(String, String)]) -> BTreeSet
                 let mut local = locals.clone();
                 local.extend(params.iter().map(|(n, _)| n.clone()));
                 stmts(body, &mut local, out);
+            }
+            ExprKind::Block(body, tail) => {
+                let mut local = locals.clone();
+                stmts(body, &mut local, out);
+                if let Some(tail) = tail {
+                    expr(tail, &local, out);
+                }
             }
             ExprKind::Match(v, arms) => {
                 expr(v, locals, out);

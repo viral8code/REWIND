@@ -645,6 +645,9 @@ enum ExprKind {
     Member(Box<Expr>, String),
     Try(Box<Expr>),
     Match(Box<Expr>, Vec<(Pattern, Option<Expr>, Expr)>),
+    /// Language 3.0.0 block expression: statements, then an optional tail
+    /// expression that gives the block its value.
+    Block(Vec<Stmt>, Option<Box<Expr>>),
     Closure(Vec<(String, String)>, String, Vec<Stmt>),
     NamedConstructor(String, Vec<(String, Expr)>),
 }
@@ -1974,6 +1977,128 @@ impl Parser {
         };
         Ok(Stmt { kind, at })
     }
+    fn starts_statement_keyword(&self) -> bool {
+        matches!(
+            self.current().text.as_str(),
+            "let" | "var"
+                | "using"
+                | "while"
+                | "for"
+                | "break"
+                | "continue"
+                | "return"
+                | "defer"
+                | "commit"
+                | "revert"
+                | "resume"
+                | "drop"
+                | "publish"
+                | "branch"
+                | "runtime"
+                | "external"
+        )
+    }
+    /// Parses `{ statements; tail }` after the opening brace was consumed.
+    /// The optional tail expression, written without `;`, is the block's value.
+    fn block_expression(&mut self, at: &Tok) -> Result<Expr> {
+        let mut body = Vec::new();
+        let mut tail = None;
+        loop {
+            if self.eat("}") {
+                break;
+            }
+            if self.is("<eof>") {
+                return Err(diagnostic(self.current(), "unclosed block; add '}'"));
+            }
+            if self.starts_statement_keyword() {
+                let stmt = self.stmt()?;
+                Self::push_stmt(&mut body, stmt);
+                continue;
+            }
+            let block_like = self.is("if") || self.is("match") || self.is("{");
+            let saved = self.pos;
+            let lhs = match self.expr(0) {
+                Ok(lhs) => lhs,
+                Err(_) if block_like => {
+                    // Fall back to the statement form of `if` / `match`.
+                    self.pos = saved;
+                    let stmt = self.stmt()?;
+                    Self::push_stmt(&mut body, stmt);
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            if self.eat("}") {
+                tail = Some(Box::new(lhs));
+                break;
+            }
+            if matches!(
+                self.current().text.as_str(),
+                "=" | "+=" | "-=" | "*=" | "/=" | "%="
+            ) {
+                let op = self.current().text.clone();
+                self.pos += 1;
+                let rhs = self.expr(0)?;
+                self.need(";")?;
+                let at = lhs.at.clone();
+                Self::push_stmt(
+                    &mut body,
+                    Stmt {
+                        kind: StmtKind::Assign(lhs, op, rhs),
+                        at,
+                    },
+                );
+                continue;
+            }
+            if !self.eat(";") && !(block_like && matches!(lhs.kind, ExprKind::Block(..) | ExprKind::Match(..))) {
+                self.need(";")?;
+            }
+            let at = lhs.at.clone();
+            Self::push_stmt(
+                &mut body,
+                Stmt {
+                    kind: StmtKind::Expr(lhs),
+                    at,
+                },
+            );
+        }
+        Ok(Expr {
+            kind: ExprKind::Block(body, tail),
+            at: at.clone(),
+        })
+    }
+    /// `if cond { a } else { b }` is an expression: it lowers to a Bool match.
+    /// Without `else` the missing branch is an empty block of type Unit.
+    fn if_expression(&mut self, at: &Tok) -> Result<Expr> {
+        let condition = self.expr(0)?;
+        let open = self.current().clone();
+        self.need("{")?;
+        let then_branch = self.block_expression(&open)?;
+        let else_branch = if self.eat("else") {
+            let open = self.current().clone();
+            if self.eat("if") {
+                self.if_expression(&open)?
+            } else {
+                self.need("{")?;
+                self.block_expression(&open)?
+            }
+        } else {
+            Expr {
+                kind: ExprKind::Block(Vec::new(), None),
+                at: at.clone(),
+            }
+        };
+        Ok(Expr {
+            kind: ExprKind::Match(
+                Box::new(condition),
+                vec![
+                    (Pattern::Literal(Value::Bool(true)), None, then_branch),
+                    (Pattern::Literal(Value::Bool(false)), None, else_branch),
+                ],
+            ),
+            at: at.clone(),
+        })
+    }
     fn expr(&mut self, min_bp: u8) -> Result<Expr> {
         if self.type_depth >= 64 {
             return Err(diagnostic(
@@ -2077,6 +2202,8 @@ impl Parser {
                 kind: ExprKind::Value(Value::Null),
                 at: at.clone(),
             },
+            "{" => self.block_expression(&at)?,
+            "if" => self.if_expression(&at)?,
             "match" => {
                 let value = self.expr(0)?;
                 self.need("{")?;
@@ -2090,8 +2217,10 @@ impl Parser {
                     };
                     self.need("=>")?;
                     let result = self.expr(0)?;
+                    // A block arm may omit the comma, as in `Pat => { ... }`.
+                    let block_arm = matches!(result.kind, ExprKind::Block(..));
                     arms.push((pattern, guard, result));
-                    if !self.is("}") {
+                    if !self.eat(",") && !block_arm && !self.is("}") {
                         self.need(",")?;
                     }
                 }
@@ -2502,6 +2631,21 @@ fn rename_expr(expr: &mut Expr, names: &BTreeMap<String, String>) {
                     rename_expr(guard, names);
                 }
                 rename_expr(result, names);
+            }
+        }
+        ExprKind::Block(body, tail) => {
+            let mut locals = BTreeSet::new();
+            collect_local_bindings(body, &mut locals);
+            let filtered = names
+                .iter()
+                .filter(|(n, _)| !locals.contains(*n))
+                .map(|(n, v)| (n.clone(), v.clone()))
+                .collect();
+            for stmt in body.iter_mut() {
+                rename_stmt(stmt, &filtered);
+            }
+            if let Some(tail) = tail {
+                rename_expr(tail, &filtered);
             }
         }
         ExprKind::Closure(params, ret, body) => {
@@ -9857,7 +10001,9 @@ impl Checker<'_> {
                         check_guard_effects(self.program, guard)?;
                     }
                     let arm_ty = scoped.expr(arm)?;
-                    if let Some(prior) = &result {
+                    if result.as_deref() == Some("Never") {
+                        result = Some(arm_ty);
+                    } else if let Some(prior) = &result {
                         if !compatible(prior, &arm_ty) {
                             return Err(diagnostic(
                                 &arm.at,
@@ -9869,6 +10015,31 @@ impl Checker<'_> {
                     }
                 }
                 result.unwrap_or("Unit".into())
+            }
+            ExprKind::Block(body, tail) => {
+                if !language_at_least(&self.program.language, "3.0.0") {
+                    return Err(diagnostic(
+                        &e.at,
+                        "block and if expressions require language 3.0.0",
+                    ));
+                }
+                let mut scoped = Checker {
+                    program: self.program,
+                    scopes: self.scopes.clone(),
+                    return_ty: self.return_ty.clone(),
+                    loop_depth: self.loop_depth,
+                    bounds: self.bounds.clone(),
+                    origin: self.origin.clone(),
+                };
+                scoped.scopes.push(BTreeMap::new());
+                for stmt in body {
+                    scoped.stmt(stmt)?;
+                }
+                match tail {
+                    Some(tail) => scoped.expr(tail)?,
+                    None if block_diverges(body) => "Never".into(),
+                    None => "Unit".into(),
+                }
             }
             ExprKind::Closure(params, ret, body) => {
                 let mut scoped = Checker {
@@ -10392,6 +10563,18 @@ impl Checker<'_> {
         Ok(())
     }
 }
+/// A block without a tail expression has type Never when it ends in a jump.
+fn block_diverges(body: &[Stmt]) -> bool {
+    match body.last().map(|s| &s.kind) {
+        Some(StmtKind::Return(_) | StmtKind::Break | StmtKind::Continue) => true,
+        Some(StmtKind::Expr(e)) => matches!(
+            &e.kind,
+            ExprKind::Call(target, _) if matches!(&target.kind, ExprKind::Name(n) if n == "panic")
+        ),
+        Some(StmtKind::Block(inner)) => block_diverges(inner),
+        _ => false,
+    }
+}
 fn defer_safe(expr: &Expr) -> bool {
     match &expr.kind {
         ExprKind::Call(target, args) => {
@@ -10403,7 +10586,10 @@ fn defer_safe(expr: &Expr) -> bool {
             defer_safe(base)
         }
         ExprKind::Binary(_, a, b) => defer_safe(a) && defer_safe(b),
-        ExprKind::Match(_, _) | ExprKind::Closure(_, _, _) | ExprKind::NamedConstructor(_, _) => {
+        ExprKind::Match(_, _)
+        | ExprKind::Block(_, _)
+        | ExprKind::Closure(_, _, _)
+        | ExprKind::NamedConstructor(_, _) => {
             false
         }
         ExprKind::Value(_) | ExprKind::Name(_) => true,
@@ -10511,6 +10697,10 @@ fn cleanup_calls_publish(program: &Program, body: &[Stmt], seen: &mut BTreeSet<S
                     })
             }
             ExprKind::Closure(_, _, body) => cleanup_calls_publish(program, body, seen),
+            ExprKind::Block(body, tail) => {
+                cleanup_calls_publish(program, body, seen)
+                    || tail.as_ref().is_some_and(|t| expr(program, t, seen))
+            }
             ExprKind::NamedConstructor(_, fields) => {
                 fields.iter().any(|(_, e)| expr(program, e, seen))
             }
@@ -11358,6 +11548,10 @@ impl<R: BufRead> Engine<R> {
             ExprKind::Closure(_, _, _) => {
                 Err(self.fail(&e.at, "closure cannot be evaluated in deferred expression"))
             }
+            ExprKind::Block(_, _) => Err(self.fail(
+                &e.at,
+                "block expression cannot be evaluated in deferred expression",
+            )),
             ExprKind::NamedConstructor(name, fields) => {
                 let mut values = Vec::new();
                 for (field, expr) in fields {

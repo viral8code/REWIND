@@ -158,7 +158,7 @@ pub(in crate::v2) fn constant_values(program: &Program) -> Result<BTreeMap<Strin
             }
             *forbidden |= boundary(body);
             v05::expressions(body, &mut |e| {
-                if let ExprKind::Closure(_, _, b) = &e.kind {
+                if let ExprKind::Closure(_, _, b) | ExprKind::Block(b, _) = &e.kind {
                     *forbidden |= boundary(b);
                 }
             });

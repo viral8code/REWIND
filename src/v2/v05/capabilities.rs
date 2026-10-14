@@ -446,7 +446,7 @@ fn analyze_flat(
         needs.direct.insert("publish".into());
     }
     expressions(body, &mut |e| {
-        if let ExprKind::Closure(_, _, b) = &e.kind {
+        if let ExprKind::Closure(_, _, b) | ExprKind::Block(b, _) = &e.kind {
             if publish(b) {
                 needs.direct.insert("publish".into());
             }

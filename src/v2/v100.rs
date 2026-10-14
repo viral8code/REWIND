@@ -358,6 +358,14 @@ pub(super) fn syntax_budget(program: &Program) -> Result<()> {
                         add(Item::Stmt(s));
                     }
                 }
+                ExprKind::Block(body, tail) => {
+                    for s in body {
+                        add(Item::Stmt(s));
+                    }
+                    if let Some(tail) = tail {
+                        add(Item::Expr(tail));
+                    }
+                }
                 ExprKind::NamedConstructor(_, fields) => {
                     for (_, e) in fields {
                         add(Item::Expr(e));

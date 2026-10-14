@@ -210,6 +210,12 @@ impl Expand<'_> {
                 *ret = self.ty(ret, 0)?;
                 self.body(body)?;
             }
+            ExprKind::Block(body, tail) => {
+                self.body(body)?;
+                if let Some(tail) = tail {
+                    self.expr(tail)?;
+                }
+            }
             ExprKind::Match(e, arms) => {
                 self.expr(e)?;
                 for (_, guard, e) in arms {

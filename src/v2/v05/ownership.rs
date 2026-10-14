@@ -667,7 +667,9 @@ impl Flow<'_> {
                 .iter()
                 .map(|(n, v)| (n.clone(), (v.ty.clone(), true)))
                 .collect()],
-            return_ty: None,
+            // Ownership analysis is not the return-type check; a block
+            // expression may contain `return`, so accept any return type here.
+            return_ty: Some("Unknown".into()),
             loop_depth: 0,
             bounds: self.bounds.clone(),
             origin: self.origin.clone(),
@@ -2364,6 +2366,23 @@ impl Flow<'_> {
                     }
                     if self.vars.get(&n).is_some_and(|v| v.borrow.is_some()) {
                         return Err(diagnostic(&e.at, "closure cannot capture a lexical borrow"));
+                    }
+                }
+            }
+            ExprKind::Block(body, tail) => {
+                // The block runs unconditionally: analyse it on a copy so its
+                // locals stay scoped, then keep what it did to outer owners.
+                let mut inner = self.clone();
+                inner.body(body)?;
+                if let Some(tail) = tail {
+                    inner.expr(tail)?;
+                }
+                for (n, owner) in &mut self.vars {
+                    if let Some(v) = inner.vars.get(n) {
+                        owner.moved |= v.moved;
+                        owner.moved_fields.extend(v.moved_fields.clone());
+                        owner.transferable &= v.transferable;
+                        owner.shareable &= v.shareable;
                     }
                 }
             }

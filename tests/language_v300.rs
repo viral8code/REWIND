@@ -52,3 +52,99 @@ fn top_level_statements_are_rejected() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("top-level statements are not allowed"), "{}", stderr(&out));
 }
+
+fn main_output(body: &str) -> Output {
+    run(&format!(
+        "{body}\nfn main()->Int effects {{output}} {{ run(); publish; return 0; }}\n"
+    ))
+}
+
+#[test]
+fn match_arms_may_be_blocks_with_early_return_and_a_tail_value() {
+    let out = main_output(
+        r#"fn parse(n:Int)->Result<Int,String> effects {} {
+    if n<0 { return Err("negative"); }
+    return Ok(n*2);
+}
+fn describe(n:Int)->Result<String,String> effects {} {
+    let doubled=match parse(n) {
+        Ok(v)=>v,
+        Err(e)=>{ return Err(e); }
+    };
+    let label=if doubled>10 { "big" } else { "small" };
+    let extra={
+        let base=doubled+1;
+        base*2
+    };
+    return Ok(label+":"+extra.format());
+}
+fn run()->Unit effects {output} {
+    match describe(3) { Ok(s)=>{ Out.println(s); }, Err(e)=>{ Out.println("err "+e); } }
+    match describe(-1) { Ok(s)=>{ Out.println(s); }, Err(e)=>{ Out.println("err "+e); } }
+    match describe(9) { Ok(s)=>{ Out.println(s); }, Err(e)=>{ Out.println("err "+e); } }
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "small:14\nerr negative\nbig:38\n");
+}
+
+#[test]
+fn if_without_else_is_unit_and_else_if_chains_work() {
+    let out = main_output(
+        r#"fn grade(n:Int)->String effects {} {
+    return if n>=90 { "A" } else if n>=80 { "B" } else { "C" };
+}
+fn run()->Unit effects {output} {
+    var count=0;
+    let ignored=if count==0 { count+=1; };
+    Out.println(grade(95)+grade(85)+grade(10)+count.format());
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ABC1\n");
+}
+
+#[test]
+fn block_arm_types_must_agree() {
+    let out = main_output(
+        r#"fn run()->Unit effects {} {
+    let x=if true { 1 } else { "no" };
+}"#,
+    );
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("match arm expects"), "{}", stderr(&out));
+}
+
+#[test]
+fn block_expressions_respect_ownership() {
+    let out = main_output(
+        r#"fn run()->Unit effects {} {
+    let items=List<Int>();
+    let moved={ let inner=move items; inner };
+    items.add(1);
+}"#,
+    );
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("use after move"), "{}", stderr(&out));
+}
+
+#[test]
+fn older_languages_reject_block_expressions() {
+    let root = std::env::temp_dir().join(format!("rewind-v300-old-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir(&root).unwrap();
+    fs::write(
+        root.join("main.rw"),
+        "fn main()->Int effects {} { let x={ 1 }; return x; }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("rewind.toml"),
+        "language = \"2.0.0\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"\"\n",
+    )
+    .unwrap();
+    assert!(call(&root, &["update"]).status.success());
+    let out = call(&root, &["run", "--root", "."]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("require language 3.0.0"), "{}", stderr(&out));
+}

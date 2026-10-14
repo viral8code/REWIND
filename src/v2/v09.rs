@@ -567,6 +567,11 @@ pub(in crate::v2) fn record_signatures(p: &Program) -> Result<()> {
                     error = Some(e);
                 }
             }
+            if let ExprKind::Block(b, _) = &e.kind {
+                if let Err(e) = body(p, b, bounds) {
+                    error = Some(e);
+                }
+            }
         });
         if let Some(e) = error {
             return Err(e);

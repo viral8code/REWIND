@@ -164,6 +164,14 @@ impl<'a> Index<'a> {
                     self.expr(e);
                 }
             }
+            ExprKind::Block(body, tail) => {
+                self.scopes.push(BTreeMap::new());
+                self.body(body);
+                if let Some(tail) = tail {
+                    self.expr(tail);
+                }
+                self.scopes.pop();
+            }
             ExprKind::Closure(params, _, body) => {
                 self.scopes.push(BTreeMap::new());
                 let mut at = e.at.clone();

@@ -47,6 +47,15 @@ fn expression(
                 expression(result, names, types, &arm);
             }
         }
+        ExprKind::Block(body, tail) => {
+            let mut local = bound.clone();
+            for s in body.iter_mut() {
+                statement(s, names, types, &mut local);
+            }
+            if let Some(tail) = tail {
+                expression(tail, names, types, &local);
+            }
+        }
         ExprKind::Closure(params, ret, body) => {
             for (_, t) in params.iter_mut() {
                 *t = rename_type(t, types);

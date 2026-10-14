@@ -401,6 +401,15 @@ impl Scan<'_> {
                     self.expr(e)?;
                 }
             }
+            ExprKind::Block(body, tail) => {
+                self.checker.scopes.push(BTreeMap::new());
+                let result = self.body(body).and_then(|_| match tail {
+                    Some(tail) => self.expr(tail),
+                    None => Ok(()),
+                });
+                self.checker.scopes.pop();
+                result?;
+            }
             ExprKind::Match(v, arms) => {
                 let ty = self.checker.expr(v)?;
                 self.expr(v)?;

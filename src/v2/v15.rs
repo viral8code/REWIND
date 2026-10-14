@@ -27,6 +27,12 @@ fn walk_expr(e: &Expr, visit: &mut impl FnMut(&Expr)) {
                 walk_expr(e, visit);
             }
         }
+        // A block expression's statements are checked by the statement walkers.
+        ExprKind::Block(_, tail) => {
+            if let Some(tail) = tail {
+                walk_expr(tail, visit);
+            }
+        }
         // A closure's return does not escape its enclosing lexical region.
         ExprKind::Closure(_, _, _) => {}
         _ => {}
@@ -74,7 +80,12 @@ fn calls(p: &Program, e: &Expr, needs: &BTreeSet<String>) -> bool {
 fn requires(p: &Program, b: &[Stmt], needs: &BTreeSet<String>) -> bool {
     b.iter().any(|s| {
         let mut found = false;
-        direct_exprs(s, &mut |e| found |= calls(p, e, needs));
+        direct_exprs(s, &mut |e| {
+            found |= calls(p, e, needs);
+            if let ExprKind::Block(inner, _) = &e.kind {
+                found |= requires(p, inner, needs);
+            }
+        });
         found
             || match &s.kind {
                 StmtKind::External(_, _) => false,
@@ -145,6 +156,11 @@ pub(super) fn validate(p: &Program) -> Result<()> {
         for s in b {
             let mut error = None;
             direct_exprs(s, &mut |e| {
+                if let ExprKind::Block(inner, _) = &e.kind {
+                    if let Err(e) = body(p, inner, region, permitted, needs) {
+                        error = Some(e);
+                    }
+                }
                 if let ExprKind::Closure(_, _, closure) = &e.kind {
                     if let Err(e) = body(
                         p,

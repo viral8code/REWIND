@@ -155,6 +155,12 @@ fn expr(program: &Program, e: &Expr, seen: &mut BTreeSet<String>, required: &mut
             expr(program, b, seen, required);
         }
         ExprKind::Closure(_, _, stmts) => body(program, stmts, seen, required),
+        ExprKind::Block(stmts, tail) => {
+            body(program, stmts, seen, required);
+            if let Some(tail) = tail {
+                expr(program, tail, seen, required);
+            }
+        }
         ExprKind::Match(e, arms) => {
             expr(program, e, seen, required);
             for (_, guard, value) in arms {

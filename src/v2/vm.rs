@@ -1359,6 +1359,19 @@ impl Compiler {
                 self.expr(inner)?;
                 self.emit(Op::Try, &e.at);
             }
+            ExprKind::Block(body, tail) => {
+                self.enter(&e.at);
+                for stmt in body {
+                    self.stmt(stmt)?;
+                }
+                match tail {
+                    Some(tail) => self.expr(tail)?,
+                    None => {
+                        self.emit(Op::Push(Value::Null), &e.at);
+                    }
+                }
+                self.exit(&e.at);
+            }
             ExprKind::Match(value, arms) => {
                 let value_type = self.expression_type(value);
                 self.hidden += 1;
