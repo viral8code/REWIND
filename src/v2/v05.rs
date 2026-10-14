@@ -1701,18 +1701,15 @@ fn transfer_type_with_bounds(
             .cloned()
             .zip(args.into_iter().map(str::to_string))
             .collect();
-        e.variants
-            .values()
-            .flatten()
-            .all(|(_, t)| {
-                transfer_type_with_bounds(
-                    program,
-                    &substitute_type(t, &substitutions),
-                    shared,
-                    bounds,
-                    seen,
-                )
-            })
+        e.variants.values().flatten().all(|(_, t)| {
+            transfer_type_with_bounds(
+                program,
+                &substitute_type(t, &substitutions),
+                shared,
+                bounds,
+                seen,
+            )
+        })
     } else if matches!(base, "List" | "Map" | "Option" | "Result") {
         ty.split_once('<').is_some_and(|(_, args)| {
             split_type_args(outer_type_end(args))

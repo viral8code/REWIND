@@ -2150,7 +2150,8 @@ impl Parser {
     fn starts_statement_keyword(&self) -> bool {
         matches!(
             self.current().text.as_str(),
-            "let" | "var"
+            "let"
+                | "var"
                 | "using"
                 | "while"
                 | "for"
@@ -2220,7 +2221,9 @@ impl Parser {
                 );
                 continue;
             }
-            if !self.eat(";") && !(block_like && matches!(lhs.kind, ExprKind::Block(..) | ExprKind::Match(..))) {
+            if !self.eat(";")
+                && !(block_like && matches!(lhs.kind, ExprKind::Block(..) | ExprKind::Match(..)))
+            {
                 self.need(";")?;
             }
             let at = lhs.at.clone();
@@ -2256,7 +2259,14 @@ impl Parser {
         }
         self.need("]")?;
         let name = format!("$lit{}_{}", at.line, at.col);
-        Ok(Self::literal_block(at, &name, "stdListOf", vec![first], "add", rest.into_iter().map(|e| vec![e]).collect()))
+        Ok(Self::literal_block(
+            at,
+            &name,
+            "stdListOf",
+            vec![first],
+            "add",
+            rest.into_iter().map(|e| vec![e]).collect(),
+        ))
     }
     /// `{k: v, ...}` builds a Map keyed and valued by the first entry's types.
     fn map_literal(&mut self, at: &Tok) -> Result<Expr> {
@@ -2273,7 +2283,9 @@ impl Parser {
         self.need("}")?;
         let first = entries.remove(0);
         let name = format!("$lit{}_{}", at.line, at.col);
-        Ok(Self::literal_block(at, &name, "stdMapOf", first, "set", entries))
+        Ok(Self::literal_block(
+            at, &name, "stdMapOf", first, "set", entries,
+        ))
     }
     fn literal_block(
         at: &Tok,
@@ -2465,9 +2477,7 @@ impl Parser {
                 kind: ExprKind::Value(Value::Null),
                 at: at.clone(),
             },
-            "{" if self.toks.get(self.pos + 1).is_some_and(|t| t.text == ":")
-                && !self.is("}") =>
-            {
+            "{" if self.toks.get(self.pos + 1).is_some_and(|t| t.text == ":") && !self.is("}") => {
                 self.map_literal(&at)?
             }
             "{" => self.block_expression(&at)?,
@@ -2850,7 +2860,9 @@ fn rename_type(ty: &str, names: &BTreeMap<String, String>) -> String {
                     Some(replacement) => out.push_str(replacement),
                     // `module.Type`: rename the module alias, keep the member.
                     None => match token.split_once('.').and_then(|(head, tail)| {
-                        names.get(head).map(|replacement| format!("{replacement}.{tail}"))
+                        names
+                            .get(head)
+                            .map(|replacement| format!("{replacement}.{tail}"))
                     }) {
                         Some(qualified) => out.push_str(&qualified),
                         None => out.push_str(&token),
@@ -10957,9 +10969,7 @@ fn defer_safe(expr: &Expr) -> bool {
         ExprKind::Match(_, _)
         | ExprKind::Block(_, _)
         | ExprKind::Closure(_, _, _)
-        | ExprKind::NamedConstructor(_, _) => {
-            false
-        }
+        | ExprKind::NamedConstructor(_, _) => false,
         ExprKind::Value(_) | ExprKind::Name(_) => true,
     }
 }
@@ -12959,14 +12969,9 @@ impl<R: BufRead> Engine<R> {
                 .split_once('<')
                 .map(|(_, rest)| split_type_args(outer_type_end(rest)))
                 .unwrap_or_default();
-            let substitutions = infer_arguments_seeded(
-                &def.fields,
-                &def.type_params,
-                &actuals,
-                &explicit_args,
-                at,
-            )
-            .map_err(Flow::Error)?;
+            let substitutions =
+                infer_arguments_seeded(&def.fields, &def.type_params, &actuals, &explicit_args, at)
+                    .map_err(Flow::Error)?;
             for ((field, ty), arg) in def.fields.iter().zip(args) {
                 let actual = value_type(&arg, &self.runtime);
                 let expected = substitute_type(ty, &substitutions);

@@ -40,7 +40,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("lazy", include_str!("../../../libraries/std/lazy.rw")),
         ("memo", include_str!("../../../libraries/std/memo.rw")),
         ("schema", include_str!("../../../libraries/std/schema.rw")),
-        ("textEdit", include_str!("../../../libraries/std/textEdit.rw")),
+        (
+            "textEdit",
+            include_str!("../../../libraries/std/textEdit.rw"),
+        ),
         (
             "persistentSet",
             include_str!("../../../libraries/std/persistentSet.rw"),
@@ -60,8 +63,14 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/historyGraph.rw"),
         ),
         ("changes", include_str!("../../../libraries/std/changes.rw")),
-        ("timeline", include_str!("../../../libraries/std/timeline.rw")),
-        ("snapshot", include_str!("../../../libraries/std/snapshot.rw")),
+        (
+            "timeline",
+            include_str!("../../../libraries/std/timeline.rw"),
+        ),
+        (
+            "snapshot",
+            include_str!("../../../libraries/std/snapshot.rw"),
+        ),
         ("history", include_str!("../../../libraries/std/history.rw")),
         (
             "taskError",

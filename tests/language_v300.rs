@@ -41,7 +41,8 @@ fn stderr(out: &Output) -> String {
 
 #[test]
 fn main_is_the_entry_point() {
-    let out = run("fn main()->Int effects {output} { Out.println(\"hello\"); publish; return 0; }\n");
+    let out =
+        run("fn main()->Int effects {output} { Out.println(\"hello\"); publish; return 0; }\n");
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "hello\n");
 }
@@ -50,7 +51,11 @@ fn main_is_the_entry_point() {
 fn top_level_statements_are_rejected() {
     let out = run("fn main()->Int effects {} { return 0; }\nlet x=1;\n");
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("top-level statements are not allowed"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("top-level statements are not allowed"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 fn main_output(body: &str) -> Output {
@@ -112,7 +117,11 @@ fn block_arm_types_must_agree() {
 }"#,
     );
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("match arm expects"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("match arm expects"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
@@ -146,7 +155,11 @@ fn older_languages_reject_block_expressions() {
     assert!(call(&root, &["update"]).status.success());
     let out = call(&root, &["run", "--root", "."]);
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("require language 3.0.0"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("require language 3.0.0"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
@@ -174,14 +187,22 @@ fn run()->Unit effects {output} { Out.println(firstOver(10).format()); }"#,
 fn run()->Unit effects {} { }"#,
     );
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("return on every path"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("return on every path"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
 fn running_without_main_is_an_error() {
     let out = run("fn helper()->Int effects {} { return 1; }\n");
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("start at fn main"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("start at fn main"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
@@ -207,7 +228,11 @@ fn run()->Unit effects {output} {
 }"#,
     );
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("must leave the scope"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("must leave the scope"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
@@ -258,7 +283,11 @@ fn collection_literals_reject_mixed_and_untyped_forms() {
     assert!(!out.status.success());
     let out = main_output("fn run()->Unit effects {} { let empty=[]; }");
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("empty list literal"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("empty list literal"),
+        "{}",
+        stderr(&out)
+    );
     let out = main_output("fn run()->Unit effects {} { let m={\"a\": 1, \"b\": \"x\"}; }");
     assert!(!out.status.success());
 }
@@ -341,7 +370,11 @@ fn run()->Unit effects {output} {
     assert_eq!(stdout(&out), "42\nhi ada\n");
     let out = main_output("fn bad(x:Int) = x;\nfn run()->Unit effects {} { }");
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("needs a return type"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("needs a return type"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
@@ -353,7 +386,9 @@ fn output_is_published_when_main_returns_without_publish() {
 
 #[test]
 fn panic_in_main_does_not_publish_pending_output() {
-    let out = run("fn main()->Int effects {output} { Out.println(\"lost\"); panic(\"boom\"); return 0; }\n");
+    let out = run(
+        "fn main()->Int effects {output} { Out.println(\"lost\"); panic(\"boom\"); return 0; }\n",
+    );
     assert!(!out.status.success());
     assert_eq!(stdout(&out), "");
 }

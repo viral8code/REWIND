@@ -162,7 +162,10 @@ fn interpolate(text: &str, at: &Tok) -> Result<Expr> {
             };
             let inner = parser.expr(0)?;
             if !parser.is("<eof>") {
-                return Err(diagnostic(at, "unexpected text after the expression in ${...}"));
+                return Err(diagnostic(
+                    at,
+                    "unexpected text after the expression in ${...}",
+                ));
             }
             parts.push(Expr {
                 kind: ExprKind::Call(

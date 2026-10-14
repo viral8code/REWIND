@@ -238,7 +238,9 @@ pub(in crate::v2) fn primitive_method(
             } else {
                 n.round()
             };
-            if rounded.is_finite() && rounded >= -9007199254740992.0 && rounded <= 9007199254740992.0
+            if rounded.is_finite()
+                && rounded >= -9007199254740992.0
+                && rounded <= 9007199254740992.0
             {
                 success(Value::Int(rounded as i64))
             } else {
