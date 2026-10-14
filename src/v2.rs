@@ -14729,11 +14729,6 @@ fn infer_arguments_seeded(
         ));
     }
     let mut substitutions = BTreeMap::new();
-    if explicit.len() == type_params.len() {
-        for (p, t) in type_params.iter().zip(explicit) {
-            substitutions.insert(p.clone(), (*t).to_string());
-        }
-    }
     for ((_, expected), found) in params.iter().zip(actual) {
         if !unify_type(expected, found, type_params, &mut substitutions) {
             return Err(diagnostic(
@@ -14748,6 +14743,14 @@ fn infer_arguments_seeded(
                 at,
                 format!("effect inclusion constraint failed: {expected} <- {found}"),
             ));
+        }
+    }
+    // Explicit type arguments only fill parameters that no argument determines.
+    if explicit.len() == type_params.len() {
+        for (p, t) in type_params.iter().zip(explicit) {
+            if substitutions.get(p).is_none_or(|s| s.contains("Unknown")) {
+                substitutions.insert(p.clone(), (*t).to_string());
+            }
         }
     }
     for name in type_params {

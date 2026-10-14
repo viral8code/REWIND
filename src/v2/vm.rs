@@ -5683,7 +5683,28 @@ impl<R: BufRead> Vm<R> {
                                 .collect(),
                             origin: self.engine.program.root_origin.clone(),
                         };
-                        let effects = v06::closure_effects(&checker, &f.params, &f.body)?;
+                        // The closure was created in a specialized generic function;
+                        // its name carries the concrete type arguments (`$closure<P,A>`).
+                        // Resolve the declared parameter types the same way the
+                        // captured values already are.
+                        let concrete = name
+                            .split_once('<')
+                            .map(|(_, rest)| split_type_args(outer_type_end(rest)))
+                            .filter(|args| args.len() == f.type_params.len())
+                            .map(|args| {
+                                f.type_params
+                                    .iter()
+                                    .map(|(n, _)| n.clone())
+                                    .zip(args.into_iter().map(str::to_string))
+                                    .collect::<BTreeMap<_, _>>()
+                            })
+                            .unwrap_or_default();
+                        let params = f
+                            .params
+                            .iter()
+                            .map(|(n, t)| (n.clone(), substitute_type(t, &concrete)))
+                            .collect::<Vec<_>>();
+                        let effects = v06::closure_effects(&checker, &params, &f.body)?;
                         let ty = format!(
                             "{ty}!{{{}}}",
                             effects.into_iter().collect::<Vec<_>>().join("+")
