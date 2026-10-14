@@ -742,7 +742,7 @@ impl Bridge {
         for (index, i) in previous
             .into_iter()
             .flat_map(|f| f.items.iter())
-            .filter(|i| i.kind != "rect")
+            .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
             .enumerate()
         {
             if !new.contains_key(&i.id) {
@@ -755,7 +755,12 @@ impl Bridge {
                 );
             }
         }
-        for (index, i) in next.items.iter().filter(|i| i.kind != "rect").enumerate() {
+        for (index, i) in next
+            .items
+            .iter()
+            .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
+            .enumerate()
+        {
             let p = path(&i.id);
             if let Some(before) = old.get(&i.id) {
                 if before.text != i.text {

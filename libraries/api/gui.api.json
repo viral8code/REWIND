@@ -291,6 +291,21 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:line": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut View",
+        "String",
+        "Int",
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:leaf": {
       "async": false,
       "cost": "O(1); creates one bounded widget leaf.",

@@ -965,6 +965,24 @@ impl Surface {
                 frame.height as u32,
             );
             for item in &frame.items {
+                if item.kind == "line" {
+                    (self.api.XSetForeground)(self.display, self.gc, item.foreground as c_ulong);
+                    let (y1, y2) = if item.checked {
+                        (item.y + item.height - 1, item.y)
+                    } else {
+                        (item.y, item.y + item.height - 1)
+                    };
+                    (self.api.XDrawLine)(
+                        self.display,
+                        self.window,
+                        self.gc,
+                        item.x,
+                        y1,
+                        item.x + item.width - 1,
+                        y2,
+                    );
+                    continue;
+                }
                 if item.kind != "label" {
                     (self.api.XSetForeground)(self.display, self.gc, item.background as c_ulong);
                     (self.api.XFillRectangle)(

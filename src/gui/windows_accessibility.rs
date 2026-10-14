@@ -773,13 +773,13 @@ pub(super) fn changed(window: Handle, previous: Option<&super::Frame>, next: &su
     let old_ids: Vec<_> = previous
         .into_iter()
         .flat_map(|f| f.items.iter())
-        .filter(|i| i.kind != "rect")
+        .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
         .map(|i| &i.id)
         .collect();
     let new_ids: Vec<_> = next
         .items
         .iter()
-        .filter(|i| i.kind != "rect")
+        .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
         .map(|i| &i.id)
         .collect();
     unsafe {
@@ -789,7 +789,12 @@ pub(super) fn changed(window: Handle, previous: Option<&super::Frame>, next: &su
         if previous.is_none_or(|f| f.title != next.title) {
             NotifyWinEvent(0x800c, window, -4, 0);
         }
-        for (index, i) in next.items.iter().filter(|i| i.kind != "rect").enumerate() {
+        for (index, i) in next
+            .items
+            .iter()
+            .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
+            .enumerate()
+        {
             let child = index as i32 + 1;
             if let Some(before) = old.get(&i.id) {
                 if before.text != i.text {

@@ -31,6 +31,7 @@ Linux では `DISPLAY`、24-bit 以上の X11 display、`libX11.so.6` と core f
 | --- | --- |
 | `window(title,width,height)` | `Result<View,GuiError>`。ウィンドウモデルを作るだけで画面は開かない |
 | `label`, `button`, `checkbox`, `rectangle` | `&mut View` に ID、内容、ピクセル座標・寸法を指定して追加 |
+| `line(view,id,x1,y1,x2,y2,color)` | 2点を結ぶ太さ1pxの線分を追加。両端を囲む矩形の対角線を描き、左下→右上の向きなら `checked` が true になる。操作対象ではなくフォーカスやクリックの対象にならない |
 | `setText`, `text`, `checked`, `setEnabled`, `background` | 内容・選択状態・有効状態・背景色を変更または取得 |
 | `scene(&view)` | 検証用の JSON scene を生成 |
 | `present(&view)` | 描画内容をステージ。**続く `publish;` で表示** |

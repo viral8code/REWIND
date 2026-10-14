@@ -1740,3 +1740,14 @@ test fn db_migration_plan_rejects_edits_gaps_unknown_rows_and_order() {
     match mig.plan("sqlite",&shuffled,&none) {Err(mig.MigrationError::Unordered(_))=>{},_=>{panic("unordered list accepted");}}
     match mig.plan("postgres",&list,&none) {Err(mig.MigrationError::BackendMismatch(_))=>{},_=>{panic("wrong backend accepted");}}
 }
+
+test fn gui_line_primitive() {
+ match gui.window("line",320,200) {Err(_)=>{panic("window");},Ok(view)=>{
+ assert_eq(gui.line(&mut view,"slash",10,40,50,10,0x123456),Ok(()));
+ assert_eq(gui.line(&mut view,"back",10,10,50,40,0x654321),Ok(()));
+ assert_eq(gui.line(&mut view,"far",300,0,400,10,0),Err(StdError("GuiInvalidBounds",0)));
+ assert_eq(gui.line(&mut view,"color",0,0,5,5,0x1000000),Err(StdError("GuiInvalidColor",0)));
+ assert_eq(gui.dispatch(&mut view,gui.Event("pointer",20,20,"",0,0)),None);
+ match gui.scene(&view){Ok(value)=>{if stdTextFind(value,"\"kind\":\"line\"")==None{panic("line missing");}},Err(_)=>{panic("scene");}}
+ }}
+}

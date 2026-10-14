@@ -117,6 +117,7 @@ unsafe extern "system" {
     fn MoveToEx(dc: Handle, x: i32, y: i32, old: *mut Point) -> i32;
     fn LineTo(dc: Handle, x: i32, y: i32) -> i32;
     fn CreateSolidBrush(color: u32) -> Handle;
+    fn CreatePen(style: i32, width: i32, color: u32) -> Handle;
     fn DeleteObject(object: Handle) -> i32;
     fn SetTextColor(dc: Handle, color: u32) -> u32;
     fn SetBkMode(dc: Handle, mode: i32) -> i32;
@@ -821,6 +822,20 @@ unsafe fn draw(hwnd: Handle, frame: Option<&Frame>, preedit: Option<&(String, us
                     right: item.x + item.width,
                     bottom: item.y + item.height,
                 };
+                if item.kind == "line" {
+                    let pen = CreatePen(0, 1, color(item.foreground));
+                    let old_pen = SelectObject(dc, pen);
+                    let (y1, y2) = if item.checked {
+                        (item.y + item.height - 1, item.y)
+                    } else {
+                        (item.y, item.y + item.height - 1)
+                    };
+                    MoveToEx(dc, item.x, y1, std::ptr::null_mut());
+                    LineTo(dc, item.x + item.width - 1, y2);
+                    SelectObject(dc, old_pen);
+                    DeleteObject(pen);
+                    continue;
+                }
                 if item.kind != "label" {
                     fill(dc, &rect, item.background, false);
                     fill(

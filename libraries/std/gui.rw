@@ -46,6 +46,19 @@ pub fn label(view:&mut View,id:String,caption:String,x:Int,y:Int,width:Int,heigh
 pub fn button(view:&mut View,id:String,caption:String,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"button",caption,x,y,width,height,0xe5e7eb,false);}
 pub fn checkbox(view:&mut View,id:String,caption:String,checked:Bool,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"checkbox",caption,x,y,width,height,0xf3f4f6,checked);}
 pub fn rectangle(view:&mut View,id:String,x:Int,y:Int,width:Int,height:Int,color:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"rect","",x,y,width,height,color,false);}
+pub fn line(view:&mut View,id:String,x1:Int,y1:Int,x2:Int,y2:Int,color:Int)->Result<Unit,GuiError> effects {} {
+ if x1<0 || y1<0 || x2<0 || y2<0 || x1>4096 || y1>4096 || x2>4096 || y2>4096{return Err(StdError("GuiInvalidBounds",0));}
+ if color<0 || color>0xffffff{return Err(StdError("GuiInvalidColor",0));}
+ var x=x1;if x2<x{x=x2;}
+ var y=y1;if y2<y{y=y2;}
+ var w=x2-x1;if w<0{w=-w;}
+ var h=y2-y1;if h<0{h=-h;}
+ match add(view,id,"line","",x,y,w+1,h+1,0xffffff,(x2-x1)*(y2-y1)<0) {Err(e)=>{return Err(e);},Ok(_)=>{}}
+ let i=view.widgets.len()-1;
+ let s=view.widgets.get(i);
+ view.widgets.set(i,Widget(s.id,s.kind,s.x,s.y,s.width,s.height,s.caption,color,s.background,s.enabled,s.checked,s.cursor,s.anchor));
+ return Ok(());
+}
 pub fn background(view:&mut View,color:Int)->Result<Unit,GuiError> effects {} {if color<0 || color>0xffffff{return Err(StdError("GuiInvalidColor",0));}view.background=color;return Ok(());}
 pub fn setText(view:&mut View,id:String,caption:String)->Result<Unit,GuiError> effects {} {
  if caption.byteLen()>4096 || stdTextFind(caption,"\0")!=None{return Err(StdError("GuiInvalidText",0));}
