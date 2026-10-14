@@ -103,7 +103,7 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 - native描画とexportの座標変換が一致する。
 - 必要なprimitiveの費用・backend互換を確認できなければ、VIS-01は保留理由を記録しGUI/DBの公開を妨げない。
 
-**保留（2026-10-14）：** 既存の`std.gui`の描画primitiveは、label、button、checkbox、塗りつぶした`rectangle`、背景色、text系widgetです。線分・点・折れ線を描くprimitiveはありません。細い`rectangle`を並べて折れ線を描くと、描画element数が点数に比例して増え、斜線は階段状になり、native描画とexportで座標が一致する保証もできません。そのため、受入条件の「描画element数が上限を超えない」「native描画とexportの座標変換が一致する」を満たせません。native rendererへ線分primitiveを足す設計（Linux/Windows backendの双方、clip、座標overflow、DPI）を別の小さな案として確定してから実装します。この保留は、GUI/DBの公開を妨げません。
+**実装済み（2026-10-14）：** 線分primitive `gui.line`（Linux X11 / Windows GDI、foreground色、bboxと向き）と`std.plot`（`series`/`axisOf`/`chart`/`project`/`polyline`/`scatter`/`svg`/`render`）を追加。`polyline`はClip（Liang–Barsky）と画素列ごとの極値保持（先頭・最小・最大・末尾）で線分数を1..2000に制限し、`svg`と`render`は同じ線分を使うため座標が一致する。NaN/Infinity・空・長さ不一致・サイズ不正・overflowは`PlotError`で拒否。Xvfbのスクリーンショットで折れ線の向きと1px線を確認。**制約：** `Frozen<List>`の`get`が呼び出しごとに全長を計上するため、既定の`--native-work`では数百点でも予算を超える。テストは`--steps 100000000 --native-work 100000000`で実行する（10万点は別実行で通過、約7.6分）。`axisOf`を値渡しにして`thaw`で線形化する案は、署名変更になるため未実施。
 
 ## DB-01：record mapping
 
