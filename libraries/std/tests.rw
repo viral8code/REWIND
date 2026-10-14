@@ -1671,3 +1671,72 @@ test fn db_transaction_close_reports_unfinished_work_and_keeps_both_failures() {
     assert_eq(summary.business,Some("insert failed"));
     match summary.cleanup {Some(error)=>{assert_eq(error.phase,"Unknown");},None=>{panic("cleanup failure dropped");}}
 }
+
+import dbMigration as mig;
+fn migTake(result:Result<mig.Migration,mig.MigrationError>)->mig.Migration effects {} {
+    match result {Ok(m)=>{return m;},Err(_)=>{panic("migration rejected");}}
+}
+fn migSql(first:String,second:String)->List<String> effects {} {
+    let commands=List<String>();commands.add(first);commands.add(second);return commands;
+}
+fn migOf(id:String,first:String,second:String)->mig.Migration effects {} {
+    let commands=migSql(first,second);
+    return migTake(mig.migration(id,"sqlite",&commands));
+}
+fn migList()->List<mig.Migration> effects {} {
+    let list=List<mig.Migration>();
+    list.add(migOf("001_users","CREATE TABLE users(id INTEGER)","CREATE INDEX users_id ON users(id)"));
+    list.add(migOf("002_notes","CREATE TABLE notes(id INTEGER)","CREATE INDEX notes_id ON notes(id)"));
+    list.add(migOf("003_tags","CREATE TABLE tags(id INTEGER)","CREATE INDEX tags_id ON tags(id)"));
+    return list;
+}
+fn migApplied(list:&List<mig.Migration>,count:Int)->List<mig.Applied> effects {} {
+    let rows=List<mig.Applied>();
+    var i=0;
+    while i<count {let m=list.get(i);rows.add(mig.Applied(m.id,mig.checksum(&m)));i+=1;}
+    return rows;
+}
+test fn db_migration_validates_inputs_and_checksums_commands() {
+    let noCommands=List<String>();
+    let pair=migSql("a","b");
+    let emptyFirst=migSql("","b");
+    match mig.migration("bad id","sqlite",&pair) {Err(mig.MigrationError::InvalidId(_))=>{},_=>{panic("space accepted in id");}}
+    match mig.migration("ok","oracle",&pair) {Err(mig.MigrationError::InvalidBackend(_))=>{},_=>{panic("unknown backend accepted");}}
+    match mig.migration("ok","sqlite",&noCommands) {Err(mig.MigrationError::InvalidCommands(_))=>{},_=>{panic("empty command list accepted");}}
+    match mig.migration("ok","sqlite",&emptyFirst) {Err(mig.MigrationError::InvalidCommands(_))=>{},_=>{panic("empty command accepted");}}
+    let a=migOf("m","CREATE TABLE x(a)","SELECT 1");
+    let same=migOf("m","CREATE TABLE x(a)","SELECT 1");
+    let edited=migOf("m","CREATE TABLE x(a)","SELECT 2");
+    let moved=migOf("m","CREATE TABLE x(aSELECT 1","SELECT");
+    assert_eq(mig.checksum(&a)!=mig.checksum(&moved),true);
+    assert_eq(mig.checksum(&a),mig.checksum(&same));
+    assert_eq(mig.checksum(&a)!=mig.checksum(&edited),true);
+    assert_eq(mig.checksum(&a).charLen(),16);
+}
+test fn db_migration_plan_returns_the_pending_suffix() {
+    let list=migList();
+    let none=List<mig.Applied>();
+    match mig.plan("sqlite",&list,&none) {Ok(plan)=>{assert_eq(plan.pending.len(),3);assert_eq(plan.alreadyApplied,0);},Err(_)=>{panic("fresh database rejected");}}
+    let applied2=migApplied(&list,2);
+    match mig.plan("sqlite",&list,&applied2) {Ok(plan)=>{assert_eq(plan.pending.len(),1);assert_eq(thaw(plan.pending.get(0)).id,"003_tags");},Err(_)=>{panic("partial state rejected");}}
+    let applied3=migApplied(&list,3);
+    match mig.plan("sqlite",&list,&applied3) {Ok(plan)=>{assert_eq(plan.pending.len(),0);},Err(_)=>{panic("complete state rejected");}}
+}
+test fn db_migration_plan_rejects_edits_gaps_unknown_rows_and_order() {
+    let list=migList();
+    let none=List<mig.Applied>();
+    let edited=migApplied(&list,2);
+    edited.set(1,mig.Applied("002_notes","0000000000000000"));
+    match mig.plan("sqlite",&list,&edited) {Err(mig.MigrationError::ChecksumMismatch(id))=>{assert_eq(id,"002_notes");},_=>{panic("edited migration accepted");}}
+    let unknown=migApplied(&list,1);
+    unknown.add(mig.Applied("999_other","x"));
+    match mig.plan("sqlite",&list,&unknown) {Err(mig.MigrationError::UnknownApplied(id))=>{assert_eq(id,"999_other");},_=>{panic("unknown applied row accepted");}}
+    let gap=List<mig.Applied>();
+    let second=list.get(1);
+    gap.add(mig.Applied(second.id,mig.checksum(&second)));
+    match mig.plan("sqlite",&list,&gap) {Err(mig.MigrationError::Gap(_))=>{},_=>{panic("skipped migration accepted");}}
+    let shuffled=List<mig.Migration>();
+    shuffled.add(list.get(1));shuffled.add(list.get(0));
+    match mig.plan("sqlite",&shuffled,&none) {Err(mig.MigrationError::Unordered(_))=>{},_=>{panic("unordered list accepted");}}
+    match mig.plan("postgres",&list,&none) {Err(mig.MigrationError::BackendMismatch(_))=>{},_=>{panic("wrong backend accepted");}}
+}

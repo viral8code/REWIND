@@ -1,0 +1,177 @@
+// Small, explicit migrations for std.db. A migration is an id, a backend name and
+// a list of SQL commands that the caller wrote; nothing is generated, split or
+// run here. This module validates a list of migrations against the rows already
+// recorded in the version table and says which ones are still pending, and it
+// builds the SQL for the version table. Applying a migration is a physical
+// operation the program starts itself, inside std.dbTransaction.
+//
+// Not an automatic runner: concurrent runners must be excluded by the database
+// (a transaction that writes the version table first on SQLite, an advisory lock
+// on PostgreSQL). The checksum detects accidental edits to an applied migration;
+// it is not a cryptographic digest.
+//
+//   id        1..64 of A-Z a-z 0-9 _ . -, unique, strictly increasing in the given list
+//   backend   "sqlite" or "postgres"
+//   commands  1..256 statements, each 1..65536 bytes, run in order
+pub record Migration {id:String,backend:String,commands:Frozen<List<String>>}
+pub record Applied {id:String,checksum:String}
+pub record Plan {pending:Frozen<List<Migration>>,alreadyApplied:Int}
+pub enum MigrationError {
+    InvalidId(String),
+    InvalidBackend(String),
+    InvalidCommands(String),
+    Unordered(String),
+    ChecksumMismatch(String),
+    UnknownApplied(String),
+    BackendMismatch(String),
+    Gap(String)
+}
+
+fn idByte(byte:Int)->Bool effects {} {
+    if byte>=48 && byte<=57 {return true;}
+    if byte>=65 && byte<=90 {return true;}
+    if byte>=97 && byte<=122 {return true;}
+    return byte==95 || byte==46 || byte==45;
+}
+fn validId(id:String)->Bool effects {} {
+    let size=stdTextLength(id);
+    if size<1 || size>64 {return false;}
+    match stdEncode(id) {
+        Err(_)=>{return false;},
+        Ok(bytes)=>{
+            var i=0;
+            let count=stdBytesLength(bytes);
+            while i<count {
+                match stdBytesGet(bytes,i) {
+                    Ok(byte)=>{if !idByte(byte) {return false;}},
+                    Err(_)=>{return false;}
+                }
+                i+=1;
+            }
+            return true;
+        }
+    }
+}
+
+// @api migration Validates the id, the backend name and 1..256 non-empty commands of at most 65536 bytes each, then returns an immutable migration.
+pub fn migration(id:String,backend:String,commands:&List<String>)->Result<Migration,MigrationError> effects {} {
+    if !validId(id) {return Err(MigrationError::InvalidId(id));}
+    if backend!="sqlite" && backend!="postgres" {return Err(MigrationError::InvalidBackend(backend));}
+    if commands.len()<1 || commands.len()>256 {return Err(MigrationError::InvalidCommands(id));}
+    let copy=List<String>();
+    var i=0;
+    while i<commands.len() {
+        let sql=commands.get(i);
+        if stdTextLength(sql)<1 || sql.byteLen()>65536 {return Err(MigrationError::InvalidCommands(id));}
+        copy.add(sql);
+        i+=1;
+    }
+    return Ok(Migration(id,backend,freeze(copy)));
+}
+
+// Two independent polynomial hashes over the UTF-8 bytes, joined as 16 hex digits.
+// Command boundaries are part of the input, so moving text between commands changes the sum.
+fn hex(value:Int)->String effects {} {
+    let digits="0123456789abcdef";
+    var out="";
+    var rest=value;
+    var i=0;
+    while i<8 {
+        let nibble=rest%16;
+        match stdTextSlice(digits,nibble,nibble+1) {Ok(d)=>{out=d+out;},Err(_)=>{panic("hex digit");}}
+        rest=rest/16;
+        i+=1;
+    }
+    return out;
+}
+// @api checksum Deterministic sum over the id, backend and every command (including boundaries).
+pub fn checksum(m:&Migration)->String effects {} {
+    var a=7;
+    var b=11;
+    var index=0;
+    let parts=List<String>();
+    parts.add(m.id);
+    parts.add(m.backend);
+    var c=0;
+    while c<m.commands.len() {parts.add(m.commands.get(c));c+=1;}
+    while index<parts.len() {
+        match stdEncode(parts.get(index)) {
+            Err(_)=>{panic("checksum encode");},
+            Ok(bytes)=>{
+                var i=0;
+                let count=stdBytesLength(bytes);
+                while i<count {
+                    match stdBytesGet(bytes,i) {
+                        Ok(byte)=>{
+                            a=(a*31+byte+1)%2147483647;
+                            b=(b*131+byte+1)%2147483629;
+                        },
+                        Err(_)=>{panic("checksum byte");}
+                    }
+                    i+=1;
+                }
+                // part separator
+                a=(a*31+257)%2147483647;
+                b=(b*131+257)%2147483629;
+            }
+        }
+        index+=1;
+    }
+    return hex(a)+hex(b);
+}
+
+// @api plan Checks the migration list and the applied rows, then returns the pending suffix.
+// Rules: ids are unique and strictly increasing; applied rows must be a prefix of the list with equal checksums; every migration targets `backend`.
+pub fn plan(backend:String,migrations:&List<Migration>,applied:&List<Applied>)->Result<Plan,MigrationError> effects {} {
+    if migrations.len()>4096 {return Err(MigrationError::InvalidCommands("too many migrations"));}
+    var i=0;
+    while i<migrations.len() {
+        let m=migrations.get(i);
+        if m.backend!=backend {return Err(MigrationError::BackendMismatch(m.id));}
+        if i>0 {
+            let previous=migrations.get(i-1);
+            if !(previous.id<m.id) {return Err(MigrationError::Unordered(m.id));}
+        }
+        i+=1;
+    }
+    if applied.len()>migrations.len() {return Err(MigrationError::UnknownApplied(applied.get(migrations.len()).id));}
+    var j=0;
+    while j<applied.len() {
+        let row=applied.get(j);
+        let m=migrations.get(j);
+        if row.id!=m.id {
+            // the database knows an id the list does not have at this position
+            var known=false;
+            var k=0;
+            while k<migrations.len() {
+                if migrations.get(k).id==row.id {known=true;}
+                k+=1;
+            }
+            if known {return Err(MigrationError::Gap(m.id));}
+            return Err(MigrationError::UnknownApplied(row.id));
+        }
+        if row.checksum!=checksum(&m) {return Err(MigrationError::ChecksumMismatch(m.id));}
+        j+=1;
+    }
+    let pending=List<Migration>();
+    var p=applied.len();
+    while p<migrations.len() {
+        pending.add(migrations.get(p));
+        p+=1;
+    }
+    return Ok(Plan(freeze(pending),applied.len()));
+}
+
+// @api createTableSql Creates the version table if needed; safe to run every time.
+pub fn createTableSql()->String effects {} {
+    return "CREATE TABLE IF NOT EXISTS rewind_migrations (id TEXT PRIMARY KEY, checksum TEXT NOT NULL)";
+}
+// @api selectAppliedSql Lists applied migrations in id order (the order plan expects).
+pub fn selectAppliedSql()->String effects {} {
+    return "SELECT id, checksum FROM rewind_migrations ORDER BY id";
+}
+// @api recordSql Records one applied migration; bind id and checksum as the two Text parameters.
+pub fn recordSql(backend:String)->String effects {} {
+    if backend=="postgres" {return "INSERT INTO rewind_migrations (id, checksum) VALUES ($1, $2)";}
+    return "INSERT INTO rewind_migrations (id, checksum) VALUES (?1, ?2)";
+}

@@ -154,6 +154,10 @@ cursorを全件materializeする便利関数を既定にしません。1行ず�
 
 ## DB-03：限定したmigration
 
+**部分実装（2026-10-14）：** `std.dbMigration`は計画と検証だけを担います。`migration`はid（1〜64文字の英数字と`_.-`）、backend（`sqlite` / `postgres`）、1〜256個のSQL command（各1〜65536 byte）を検証して不変の`Migration`にします。SQLは利用者が書いたものをそのまま保持し、分割も生成もしません。`checksum`はid・backend・各commandとその境界から作る16桁のhex（2本の多項式hash。偶発的な編集の検出用で、暗号用ではありません）。`plan`は、idが重複せず昇順であること、適用済み行が先頭からの接頭辞で`checksum`が一致すること、全migrationが指定backendであることを確かめ、未適用の末尾を返します。編集は`ChecksumMismatch`、列に無いidは`UnknownApplied`、飛ばされたidは`Gap`、順序違反は`Unordered`です。version tableの`createTableSql` / `selectAppliedSql` / `recordSql`を返します。
+
+確認：純粋な計画の標準ライブラリtest3件と、実際のSQLiteで「2件を各々transactionで適用し、再実行では未適用0、編集したmigrationを実行前に検出、2つ目のcommandが失敗した3件目はtransaction全体がrollbackされ、1つ目のcommandで作ったtableも残らない」ことを確認する[tests/db_row_mapping.rs](../tests/db_row_mapping.rs)。**未完了（自動runnerとして公開しない理由）：** 同時runnerをDB側で排他できることの確認（PostgreSQLのadvisory lock、SQLiteの書き込みlock下の挙動）、PostgreSQL DDLのtransaction性と再開条件、接続断・二重runnerの再現。このmoduleはversion tableへの記録と各migrationの適用を利用者のプログラムが明示的に行う前提で、importしただけではschemaを変更しません。
+
 明示的なmigration ID、checksum、backend別SQL command列、適用済みversion tableを使う小さなrunnerを候補とします。自動schema差分生成、SQL文字列をsemicolonで分割するparser、自動down、無断force適用は対象外です。
 
 DDLのtransaction性はSQLite/PostgreSQLで異なるため、各commandの成功・失敗と再開条件をbackendごとに決めます。同時適用を排除するlock、version記録とSQLのatomicity、checksum不一致を検証します。DB側で同時適用を排除できる実装を確認できるまで便利な自動runnerとして公開しません。

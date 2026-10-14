@@ -179,6 +179,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "dbTransaction",
             include_str!("../../../libraries/std/dbTransaction.rw"),
         ),
+        (
+            "dbMigration",
+            include_str!("../../../libraries/std/dbMigration.rw"),
+        ),
         ("gui", include_str!("../../../libraries/std/gui.rw")),
         (
             "guiDialog",
