@@ -3690,6 +3690,19 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
         .unwrap_or_default();
     v05::prepare(&mut program)?;
     check_program(&program)?;
+    // From 3.0.0 an application is its `fn main`; a run without one would
+    // silently do nothing, so reject it before executing.
+    if mode == "run"
+        && language_at_least(&program.language, "3.0.0")
+        && !program
+            .functions
+            .get("main")
+            .is_some_and(|f| f.origin == program.root_origin)
+    {
+        return Err(Error::InvalidOperation(
+            "language 3.0.0 programs start at fn main()->Int; add it to the entry file".into(),
+        ));
+    }
     if let Some(config) = &manifest {
         if matches!(
             config.language.as_str(),

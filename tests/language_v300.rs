@@ -176,3 +176,10 @@ fn run()->Unit effects {} { }"#,
     assert!(!out.status.success());
     assert!(stderr(&out).contains("return on every path"), "{}", stderr(&out));
 }
+
+#[test]
+fn running_without_main_is_an_error() {
+    let out = run("fn helper()->Int effects {} { return 1; }\n");
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("start at fn main"), "{}", stderr(&out));
+}
