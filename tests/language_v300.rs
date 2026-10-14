@@ -343,3 +343,24 @@ fn run()->Unit effects {output} {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("needs a return type"), "{}", stderr(&out));
 }
+
+#[test]
+fn output_is_published_when_main_returns_without_publish() {
+    let out = run("fn main()->Int effects {output} { Out.println(\"implicit\"); return 0; }\n");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "implicit\n");
+}
+
+#[test]
+fn panic_in_main_does_not_publish_pending_output() {
+    let out = run("fn main()->Int effects {output} { Out.println(\"lost\"); panic(\"boom\"); return 0; }\n");
+    assert!(!out.status.success());
+    assert_eq!(stdout(&out), "");
+}
+
+#[test]
+fn explicit_publish_still_publishes_early() {
+    let out = run("fn main()->Int effects {output} { Out.println(\"one\"); publish; Out.println(\"two\"); return 0; }\n");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "one\ntwo\n");
+}

@@ -210,6 +210,17 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
                 vec![],
             ),
         };
+        // From 3.0.0 output is published when main returns, whatever its status;
+        // a panic or error inside main never reaches the publish.
+        let implicit_publish = language_at_least(&p.language, "3.0.0");
+        let code = if implicit_publish {
+            Expr {
+                at: at.clone(),
+                kind: ExprKind::Name("$status".into()),
+            }
+        } else {
+            call.clone()
+        };
         let status = Expr {
             at: at.clone(),
             kind: ExprKind::Call(
@@ -218,7 +229,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
                     kind: ExprKind::Name("appStatus".into()),
                 }),
                 vec![
-                    call,
+                    code,
                     Expr {
                         at: at.clone(),
                         kind: ExprKind::Value(Value::Text(String::new().into())),
@@ -226,6 +237,18 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
                 ],
             ),
         };
+        if implicit_publish {
+            p.stmts.push(Stmt {
+                at: at.clone(),
+                kind: StmtKind::Let("$status".into(), false, None, call),
+            });
+            p.stmts.push(Stmt {
+                at: at.clone(),
+                kind: StmtKind::Publish(false),
+            });
+            p.stmt_origins.push(p.root_origin.clone());
+            p.stmt_origins.push(p.root_origin.clone());
+        }
         p.stmts.push(Stmt {
             at,
             kind: StmtKind::Expr(status),
