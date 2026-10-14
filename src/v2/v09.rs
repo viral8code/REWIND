@@ -98,6 +98,7 @@ pub(in crate::v2) fn record_arguments(
                 | "1.9.64"
                 | "1.9.65"
                 | "2.0.0"
+                | "3.0.0"
         )
     }) {
         if let Some(ty) = sub.get(param) {
@@ -319,6 +320,7 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
                 | "1.9.64"
                 | "1.9.65"
                 | "2.0.0"
+                | "3.0.0"
         ) {
             v091::write_release(output, &installed)?;
         }
