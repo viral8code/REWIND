@@ -1,0 +1,147 @@
+import std.db as db;
+import std.dbMigration as mig;
+import std.dbTransaction as tx;
+
+record Note {id:Int,title:String}
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+fn noParams()->Frozen<List<DbValue>> effects {} {return freeze(List<DbValue>());}
+fn noteParams(id:Int,title:String)->Frozen<List<DbValue>> effects {} {
+    let items=List<DbValue>();items.add(DbValue::Int(id));items.add(DbValue::Text(title));items.add(DbValue::Null);
+    return freeze(items);
+}
+fn text2(a:String,b:String)->Frozen<List<DbValue>> effects {} {
+    let items=List<DbValue>();items.add(DbValue::Text(a));items.add(DbValue::Text(b));return freeze(items);
+}
+// input validation runs before any database call
+fn titleOk(title:String)->Bool effects {} {
+    if title=="" {return false;}
+    return true;
+}
+fn notesMigration()->mig.Migration effects {} {
+    let c=List<String>();c.add("CREATE INDEX notes_title ON notes(title)");
+    return take(mig.migration("001_notes","sqlite",&c));
+}
+fn mapNote(row:Frozen<DbRow>,columns:&db.ColumnMap)->Result<Note,String> effects {} {
+    var id=0;
+    match db.integer(row,take(db.columnNumber(columns,"id"))) {
+        Ok(v)=>{id=v;},
+        Err(e)=>{return Err(e.code);}
+    }
+    var title="";
+    match db.text(row,take(db.columnNumber(columns,"title"))) {
+        Ok(v)=>{title=v;},
+        Err(e)=>{return Err(e.code);}
+    }
+    return Ok(Note(id,title));
+}
+
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+external {opening=Some(db.sqlite(":memory:",false,5000));}
+match opening {None=>{panic("open");},Some(task)=>{
+    let connection=take(take(await task));
+    var step:Option<Task<Result<Int,DbError>>>=None;
+    var flow:Option<Task<Result<Unit,DbError>>>=None;
+
+    // 1. memory DB with the notes table and the migration version table
+    external {step=Some(db.execute(&mut connection,"CREATE TABLE notes(id INTEGER, title TEXT, body TEXT)",noParams(),5000));}
+    match step {None=>{panic("create notes");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut connection,mig.createTableSql(),noParams(),5000));}
+    match step {None=>{panic("version table");},Some(t)=>{take(take(await t));}}
+
+    // 2. plan the migration, then apply each pending one in its own transaction
+    let list=List<mig.Migration>();
+    list.add(notesMigration());
+    let none=List<mig.Applied>();
+    let plan=take(mig.plan("sqlite",&list,&none));
+    var i=0;
+    while i<plan.pending.len() {
+        let m=thaw(plan.pending.get(i));
+        external {flow=Some(db.beginTransaction(&mut connection,5000));}
+        match flow {None=>{panic("begin migration");},Some(t)=>{take(take(await t));}}
+        let migrating=tx.begun();
+        var c=0;
+        while c<m.commands.len() {
+            external {step=Some(db.execute(&mut connection,m.commands.get(c),noParams(),5000));}
+            match step {None=>{panic("command");},Some(s)=>{take(take(await s));}}
+            c+=1;
+        }
+        external {step=Some(db.execute(&mut connection,mig.recordSql("sqlite"),text2(m.id,mig.checksum(&m)),5000));}
+        match step {None=>{panic("record");},Some(s)=>{take(take(await s));}}
+        take(tx.requestCommit(&mut migrating));
+        external {flow=Some(db.commitTransaction(&mut connection,5000));}
+        match flow {None=>{panic("commit migration");},Some(f)=>{take(tx.completeCommit(&mut migrating,take(await f)));}}
+        i+=1;
+    }
+
+    // 3. input validation: a blank title is rejected before the database is touched
+    let blank="";
+    if titleOk(blank) {panic("blank accepted");} else {Out.println("title required");}
+
+    // 4. save two notes in one transaction; the success line prints only after commit
+    external {flow=Some(db.beginTransaction(&mut connection,5000));}
+    match flow {None=>{panic("begin save");},Some(t)=>{take(take(await t));}}
+    let saving=tx.begun();
+    external {step=Some(db.execute(&mut connection,"INSERT INTO notes VALUES (?1,?2,?3)",noteParams(1,"first"),5000));}
+    match step {None=>{panic("insert first");},Some(s)=>{take(take(await s));}}
+    external {step=Some(db.execute(&mut connection,"INSERT INTO notes VALUES (?1,?2,?3)",noteParams(2,"second"),5000));}
+    match step {None=>{panic("insert second");},Some(s)=>{take(take(await s));}}
+    take(tx.requestCommit(&mut saving));
+    external {flow=Some(db.commitTransaction(&mut connection,5000));}
+    match flow {None=>{panic("commit save");},Some(f)=>{take(tx.completeCommit(&mut saving,take(await f)));}}
+    Out.println("saved 2");
+
+    // 5. list the notes: SELECT, then map each row to a Note by column name
+    var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+    external {querying=Some(db.query(&mut connection,"SELECT id, title FROM notes ORDER BY id",noParams(),5000));}
+    match querying {None=>{panic("query list");},Some(q)=>{
+        let cursor=take(take(await q));
+        var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+        external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
+        match reading {None=>{panic("read list");},Some(r)=>{
+            let batch=take(take(await r));
+            let columns=take(db.indexColumns(cursor.columns));
+            match db.mapBatch(&batch,&columns,mapNote) {
+                Ok(mapped)=>{
+                    Out.println(mapped.rows.get(0).id.format()+" "+mapped.rows.get(0).title);
+                    Out.println(mapped.rows.get(1).id.format()+" "+mapped.rows.get(1).title);
+                },
+                Err(_)=>{panic("mapping failed");}
+            }
+        }}
+    }}
+
+    // 6. a failing save: the second INSERT is invalid SQL, so the whole transaction is rolled back
+    external {flow=Some(db.beginTransaction(&mut connection,5000));}
+    match flow {None=>{panic("begin failing");},Some(t)=>{take(take(await t));}}
+    let failing=tx.begun();
+    external {step=Some(db.execute(&mut connection,"INSERT INTO notes VALUES (?1,?2,?3)",noteParams(3,"third"),5000));}
+    match step {None=>{panic("insert third");},Some(s)=>{take(take(await s));}}
+    external {step=Some(db.execute(&mut connection,"INSERT INTO notes VALUES (?1,?2,?3",noteParams(4,"broken"),5000));}
+    match step {None=>{panic("broken step");},Some(s)=>{
+        match await s {
+            Ok(Ok(_))=>{panic("broken insert accepted");},
+            _=>{}
+        }
+    }}
+    take(tx.requestRollback(&mut failing));
+    external {flow=Some(db.rollbackTransaction(&mut connection,5000));}
+    match flow {None=>{panic("rollback");},Some(f)=>{take(tx.completeRollback(&mut failing,take(await f)));}}
+    Out.println("rolled back");
+
+    // the count is still 2 after the rollback
+    var counting:Option<Task<Result<DbCursor,DbError>>>=None;
+    external {counting=Some(db.query(&mut connection,"SELECT count(*) FROM notes",noParams(),5000));}
+    match counting {None=>{panic("query count");},Some(q)=>{
+        let cursor=take(take(await q));
+        var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+        external {reading=Some(db.next(&mut cursor,8,1048576,5000));}
+        match reading {None=>{panic("read count");},Some(r)=>{
+            let batch=take(take(await r));
+            Out.println("count "+take(db.integer(batch.rows.get(0),0)).format());
+        }}
+    }}
+}}
+publish;

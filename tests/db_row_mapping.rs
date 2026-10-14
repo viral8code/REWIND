@@ -72,3 +72,27 @@ fn sqlite_migrations_apply_once_detect_edits_and_roll_back_failures() {
         "2\n0\n2\nchecksum mismatch 001_users\nbroken command failed\nrolled back table is gone\n"
     );
 }
+
+/// APP-01: the notes example saves through a transaction, lists rows by column
+/// name, rolls back a failing save, and keeps the committed count.
+#[test]
+fn sqlite_notes_example_saves_lists_and_rolls_back_a_failed_save() {
+    let dir = std::env::temp_dir().join(format!("rewind-app-notes-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir(&dir).unwrap();
+    fs::copy("tests/fixtures/notes_sqlite.rw", dir.join("main.rw")).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .current_dir(&dir)
+        .args(["run", "main.rw", "--allow-effects", "external,db,tasks"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "title required\nsaved 2\n1 first\n2 second\nrolled back\ncount 2\n"
+    );
+}
