@@ -26,6 +26,7 @@
 | 文字列補間 | `"${name}: ${n + 1}"` | 各式を`.format()`して連結。`$${`で`${`。`${}`内に文字列リテラルは書けない |
 | 式本体の関数 | `fn double(x:Int)->Int = x*2;` | 戻り型が必須 |
 | 総称enumの明示 | `Result<…>`ではなく利用者のenum `RowMapError<E>::TooManyRows(n)` | 型引数を推論できない変種で使う |
+| 暗黙の`publish` | `main`が戻ったら自動でpublish | 戻り値が非0でも出力は確定する。`main`内のpanicやエラーでは確定しない。明示`publish;`も従来どおり使える |
 | `while true`の網羅性 | `break`が無い`while true`の後に`return`は不要 | 2.0.0以前でも許可（緩和のみ） |
 
 `.format()`は`Int`、`Float`、`Bool`、`String`で使えます。
@@ -49,7 +50,7 @@
 
 ## 未実装・検討中
 
-- 暗黙の`publish`：`main`が正常に戻った時点と、ブロックする入力待ちの直前で自動publishし、明示`publish;`も残す案。パニック時はpublishしない。
+- 入力待ちの直前の自動`publish`：未実装です。対話型のプロンプトは、入力を読む前に`publish;`を書いてください。タスクが動いている最中の`publish`の条件（アプリケーションタスクのみ）との整合を先に設計します。
 - 型推論つきの短いクロージャ（`|a, b| a == b`）。
 - `Frozen`の読み取りで`thaw`を不要にする。
 - `.unwrap()`、`.expect("msg")`。
