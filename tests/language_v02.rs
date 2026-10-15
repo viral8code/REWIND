@@ -74,7 +74,7 @@ fn check_reports_positioned_type_errors_without_host_effects() {
     let output = command("check", &script, &root);
     assert!(!output.status.success());
     let error = String::from_utf8_lossy(&output.stderr);
-    assert!(error.contains("1:1: type mismatch"), "{error}");
+    assert!(error.contains("main.rw:1:1") && error.contains("type mismatch"), "{error}");
     assert!(!root.join("x").exists());
     fs::remove_dir_all(root).unwrap();
 }
