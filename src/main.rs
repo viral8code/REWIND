@@ -593,6 +593,18 @@ fn command_help(command: &str) -> Option<&'static str> {
     })
 }
 
+/// The nearest directory at or above `source` that holds a `rewind.toml`.
+fn locate_project_root(source: &Path) -> Option<PathBuf> {
+    let mut ancestor = source.parent();
+    while let Some(dir) = ancestor {
+        if dir.join("rewind.toml").exists() {
+            return Some(dir.to_path_buf());
+        }
+        ancestor = dir.parent();
+    }
+    None
+}
+
 fn main() {
     let mut arguments = Vec::new();
     let mut format = "text".to_string();
@@ -907,10 +919,12 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             Error::InvalidOperation("usage: rewind doc FILE [--root DIR] [--output FILE]".into())
         })?;
         let mut root = env::current_dir()?;
+        let mut explicit_root = false;
         let mut output: Option<String> = None;
         while let Some(option) = args.next() {
             match option.as_str() {
                 "--root" => {
+                    explicit_root = true;
                     root = args
                         .next()
                         .ok_or_else(|| Error::InvalidOperation("missing root directory".into()))?
@@ -923,6 +937,13 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                     )
                 }
                 _ => return Err(Error::InvalidOperation(format!("unknown option: {option}"))),
+            }
+        }
+        if !explicit_root {
+            if let Ok(full) = std::fs::canonicalize(&file) {
+                if let Some(project) = locate_project_root(&full) {
+                    root = project;
+                }
             }
         }
         let document = v2::documentation(&file, &root)?;
@@ -1437,19 +1458,27 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             index += 1;
         }
         let file = if default_file { String::new() } else { file };
-        if !explicit_root && !file.is_empty() {
+        if !file.is_empty() {
             let full = std::fs::canonicalize(&file)?;
-            let mut ancestor = full.parent();
-            let mut project_root = None;
-            while let Some(dir) = ancestor {
-                if dir.join("rewind.toml").exists() {
-                    project_root = Some(dir.to_path_buf());
-                    break;
+            if !explicit_root {
+                // The nearest manifest above the source wins; otherwise the source's
+                // directory is the standalone boundary.
+                root = locate_project_root(&full)
+                    .unwrap_or_else(|| full.parent().unwrap().to_path_buf());
+                options.standalone = !root.join("rewind.toml").exists();
+            } else if file.ends_with(".rw") && !root.join("rewind.toml").exists() {
+                // An explicit root without a manifest is a standalone boundary, not the
+                // legacy project path. The source must stay inside it.
+                let boundary = std::fs::canonicalize(&root)?;
+                if !full.starts_with(&boundary) {
+                    return Err(Error::InvalidOperation(format!(
+                        "source {} is outside --root {}; pass a root that contains the source or omit --root",
+                        full.display(),
+                        boundary.display()
+                    )));
                 }
-                ancestor = dir.parent();
+                options.standalone = true;
             }
-            root = project_root.unwrap_or_else(|| full.parent().unwrap().to_path_buf());
-            options.standalone = !root.join("rewind.toml").exists();
         }
         if script == "compile" && options.output.is_none() {
             let source = if file.is_empty() {
