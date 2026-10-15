@@ -25,7 +25,7 @@ fn read(cursor:&mut DbCursor)->Task<Result<DbBatch,DbError>> effects {external,d
  external fresh {pending=Some(db.next(cursor,64,1048576,5000));}
  match pending {Some(work)=>{return move work;},None=>{panic("missing read");}}
 }
-fn main()->Int effects {args, db, env, external, fileRead, gui, network, output, tasks} {
+fn main()->Int {
 let args=Args.all();assert(args.len()==3);
 let backend=args.get(0);assert(backend=="sqlite" || backend=="postgres");
 let url=args.get(1);let title=args.get(2);

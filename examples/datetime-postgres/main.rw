@@ -5,7 +5,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
 }
 
-fn main()->Int effects {env, fileRead, external, db, tasks, output} {
+fn main()->Int {
     var opening:Option<Task<Result<DbConnection,DbError>>>=None;
     match Env.getSecret("REWIND_PG_DSN") {
         None=>{panic("supply REWIND_PG_DSN as a secret environment value");},

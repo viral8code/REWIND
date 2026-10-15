@@ -8,7 +8,7 @@ fn build()->Result<List<Int>,String> effects {} {
 }
 
 // Expected output (not executed): false, 10, 99, 10.
-fn main()->Int effects {output} {
+fn main()->Int {
     let deferred=lazy.create(build);
     Out.println(lazy.isForced(&deferred));
     let saved=take(lazy.force(&mut deferred));

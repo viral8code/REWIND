@@ -23,7 +23,7 @@ fn drawField(view:&mut gui.View,state:&field.FieldState,scope:&gui.ComponentScop
     return Ok(());
 }
 
-fn main()->Int effects {gui, output} {
+fn main()->Int {
     let view=take(gui.window("Field",360,140));
     let scope=take(gui.componentScope("name"));
     var state=field.new("Name","Ada");

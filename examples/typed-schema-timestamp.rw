@@ -8,7 +8,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-fn main()->Int effects {output} {
+fn main()->Int {
     let rule=schema.timestamp();
     let wireValue=Json::Text("2024-02-29T12:30:00.123456789+09:00");
     let validated=take(schema.validate(rule,wireValue));

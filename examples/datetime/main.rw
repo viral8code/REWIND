@@ -1,7 +1,7 @@
 import std.datetime as datetime;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("datetime operation failed");}}}
 
-fn main()->Int effects {output} {
+fn main()->Int {
 let wall=datetime.Calendar(2024,11,3,1,30,0,123456789);
 var first=take(datetime.resolve(move wall,"America/New_York",datetime.Ambiguity::Earlier));
 let second=take(datetime.resolve(datetime.Calendar(2024,11,3,1,30,0,123456789),"America/New_York",datetime.Ambiguity::Later));

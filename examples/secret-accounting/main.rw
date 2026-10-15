@@ -1,4 +1,4 @@
-fn main()->Int effects {output} {
+fn main()->Int {
 let text="example-sensitive";
 let first=secret(text);
 commit retained;

@@ -15,7 +15,7 @@ async fn consume(channel: Channel<Int>) -> Int {
     return total;
 }
 
-fn main()->Int effects {tasks, output} {
+fn main()->Int {
     let channel = Channel<Int>(1);
     using group = TaskGroup();
     let producer = produce(channel);

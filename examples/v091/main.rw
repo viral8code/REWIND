@@ -2,7 +2,7 @@ import lib.json as json;
 import lib.config as config;
 import lib.args as args;
 record State {count:Int}
-fn main()->Int effects {args,env,fileRead,fileWrite,output} {
+fn main()->Int {
     let names=List<String>();names.add("count");
     let values=Args.all();
     var options=Map<String,String>();

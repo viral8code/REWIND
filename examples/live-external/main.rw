@@ -5,7 +5,7 @@ fn execute(connection:&mut DbConnection,sql:String)->Task<Result<Int,DbError>> e
  external live {pending=Some(db.execute(connection,sql,freeze(List<DbValue>()),5000));}
  match pending {Some(task)=>{return move task;},None=>{panic("missing task");}}
 }
-fn main()->Int effects {db, external, live, output, tasks} {
+fn main()->Int {
 var opening:Option<Task<Result<DbConnection,DbError>>>=None;
 external live {opening=Some(db.sqlite(":memory:",false,5000));}
 match opening {None=>{panic("missing task");},Some(task)=>{

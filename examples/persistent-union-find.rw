@@ -5,7 +5,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Expected output (not executed): false, true, false, true.
-fn main()->Int effects {output} {
+fn main()->Int {
     let base=take(persistentSet.create(4));
     let left=take(persistentSet.unite(base,0,1)).state;
     let right=take(persistentSet.unite(base,1,2)).state;

@@ -1,7 +1,7 @@
 import std.text as text;
 import std.number as number;
 import std.collections as collections;
-fn main()->Int effects {input,output} {
+fn main()->Int {
     var line="";
     match In.readLine(){Some(value)=>{line=value;},None=>{return 2;}}
     var tokens=List<String>();

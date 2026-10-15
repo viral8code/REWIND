@@ -7,7 +7,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 fn answer()->Int effects {} {return 42;}
 
 // Expected output (not executed): false, true, 42.
-fn main()->Int effects {output} {
+fn main()->Int {
     let cache=take(createMemo<Int>(16,1024));
     let key=take(memo.key("answer","implementation-v1",""));
     let first=take(memo.resolve(&mut cache,key,1,answer));

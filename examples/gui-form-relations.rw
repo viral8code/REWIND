@@ -7,7 +7,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-fn main()->Int effects {output} {
+fn main()->Int {
     let fields=List<form.Field>();
     fields.add(form.Field("notify","Send notifications",form.Kind::Check,false,5,"false"));
     fields.add(form.Field("email","Email address",form.Kind::Text,false,128,""));

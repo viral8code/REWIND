@@ -3,7 +3,7 @@ import std.httpRouter as router;
 import std.bytes as bytes;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value {Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
 
-fn main()->Int effects {external, network, output, tasks} {
+fn main()->Int {
     let routes=List<router.Route>();routes.add(router.Route("POST","/echo","echo"));let routing=freeze(move routes);
     var opening:Option<Task<Result<HttpServer,HttpServerError>>>=None;
     external {opening=Some(server.configured("127.0.0.1",PORT,65536,2,10000,5000));}

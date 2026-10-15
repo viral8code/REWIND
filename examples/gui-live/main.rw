@@ -6,7 +6,7 @@ fn waitInput()->Task<Result<windows.WindowEvent,windows.GuiError>> effects {gui,
  match waiting {Some(task)=>{return move task;},None=>{panic("missing");}}
 }
  async fn work()->Int effects {tasks} {for i in 0..100 {task.yieldNow();}return 42;}
-fn main()->Int effects {gui, tasks, external, live, output} {
+fn main()->Int {
  let view=take(gui.window("Async",160,96));take(windows.present("one",&view));publish;
  let cancelled=waitInput();commit cancelledWait;cancelled.cancel();assert_eq(await cancelled,Err(TaskError::Cancelled));
  revert cancelledWait;assert_eq(await cancelled,Ok(Err(StdError("GuiCancelled",0))));drop cancelledWait;

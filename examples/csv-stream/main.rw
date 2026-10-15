@@ -6,7 +6,7 @@ import std.json as json;
 
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("CSV operation failed");}}}
 
-fn main()->Int effects {output} {
+fn main()->Int {
 let reader=take(csv.reader());
 let input=take(stdEncode("name,active,note\r\n日本語,true,\"a\"\"b\n日\"\r\n"));
 var offset=0;

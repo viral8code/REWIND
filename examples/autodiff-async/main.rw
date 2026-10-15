@@ -3,7 +3,7 @@ fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},
 fn model(x:FloatArray)->(ad.Tape,ad.Node,ad.Node) effects {} {var tape=ad.create();let parameter=take(ad.parameter(&mut tape,"x",x));let square=take(ad.unary(&mut tape,"square",parameter));let loss=take(ad.sum(&mut tape,square));return (move tape,parameter,loss);}
 async fn marker()->Int effects {tasks}{return 7;}
 
-fn main()->Int effects {tasks, output} {
+fn main()->Int {
 let one=List<Int>();one.add(1);let values=List<Float>();values.add(0.5);let scalar=take(n.fromFloat(&one,&values));let shape=List<Int>();shape.add(32769);let x=take(n.broadcastFloat(&scalar,&shape));
 let graph=model(x);let expected=take(ad.backward(&graph._0,graph._2));let work=spawn jobs.backward(move graph._0,graph._2);let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
 commit halfway;

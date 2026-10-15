@@ -2,7 +2,7 @@ import std.bigint as big;
 import std.json as json;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("exact integer operation failed");}}}
 
-fn main()->Int effects {output} {
+fn main()->Int {
 let two=take(big.fromInt(2));
 var value=take(big.pow(&two,100));
 commit saved;

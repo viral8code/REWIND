@@ -1,7 +1,7 @@
 import std.jsonStream as json;
 import std.bigint as bigint;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("JSON stream operation failed");}}}
-fn main()->Int effects {output} {
+fn main()->Int {
     let reader=take(json.reader());
     let input=take(stdEncode("{\"items\":[1267650600228229401496703205376,2,3],\"name\":\"日\\u672c\"}"));
     var offset=0;

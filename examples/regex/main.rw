@@ -1,6 +1,6 @@
 import std.regex as regex;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("regex operation failed");}}}
-fn main()->Int effects {output} {
+fn main()->Int {
 var pattern=take(regex.compile("(?P<name>[A-Za-z]+)-([0-9]+)"));
 let input="Alice-42 Bob-7";
 match take(regex.find(&pattern,&input)){None=>{panic("missing match");},Some(found)=>{

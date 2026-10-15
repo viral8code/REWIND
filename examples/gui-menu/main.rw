@@ -8,7 +8,7 @@ fn receive(choices:&mut menu.Menu,base:&gui.View)->menu.Item effects {gui} {
  }
  panic("unreachable");
 }
-fn main()->Int effects {args, gui, output} {
+fn main()->Int {
 let args=Args.all();var title="REWIND menus";if args.len()>0{title=args.get(0);}
 let base=take(gui.window(title,320,200));take(gui.textBox(&mut base,"body","Underlying input",10,140,280,30));take(gui.graphemeEditing(&mut base,true));take(gui.focus(&mut base,"body"));
 let choices=menu.create();take(menu.add(&mut choices,menu.Item("toggle","Toggle mark","Ctrl+T",true,true,false)));take(menu.add(&mut choices,menu.Item("open","Open","Ctrl+O",true,false,false)));take(menu.add(&mut choices,menu.Item("disabled","Unavailable","Ctrl+D",false,false,false)));

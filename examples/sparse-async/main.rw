@@ -1,7 +1,7 @@
 import std.numeric as numeric;import std.sparse as sparse;import std.sparseAsync as sparseAsync;import std.task as task;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
 async fn marker()->Int effects {tasks}{return 7;}
-fn main()->Int effects {output,tasks} {
+fn main()->Int {
 let shape=List<Int>();shape.add(16384);let zero=take(numeric.zerosFloat(&shape));let ones=take(numeric.mapFloat("exp",&zero));
 let offsetsShape=List<Int>();offsetsShape.add(16385);let offsets=take(numeric.zerosInt(&offsetsShape));
 let emptyShape=List<Int>();emptyShape.add(0);let indices=take(numeric.zerosInt(&emptyShape));let values=take(numeric.zerosFloat(&emptyShape));

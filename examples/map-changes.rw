@@ -4,7 +4,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Expected: 99, 10 on separate lines. Execution has not been verified.
-fn main()->Int effects {output} {
+fn main()->Int {
     let same=|a:Int,b:Int|->Bool{return a==b;};
     let before=Map<String,Int>();before.set("score",10);
     let after=Map<String,Int>();after.set("score",99);

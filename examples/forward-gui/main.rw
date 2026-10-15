@@ -14,7 +14,7 @@ async fn model(array:FloatArray)->Result<Tuple<ad.Tape,ad.Node>,StdError> effect
  return take(await spawn jobs.mean(move tape3,b));
 }
 
-fn main()->Int effects {gui, output, tasks, args} {
+fn main()->Int {
 let args=Args.all();var title="REWIND forward";if args.len()>0{title=args.get(0);}
 let view=take(gui.window(title,320,160));
 take(gui.label(&mut view,"state","Click to cancel forward computation",10,10,300,36));

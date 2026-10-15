@@ -4,7 +4,7 @@ fn decimal(value:Int)->String effects {} {match number.formatInt(value,10){Ok(te
 fn checked(result:Result<Unit,gui.GuiError>)->Unit effects {} {
  match result {Ok(_)=>{},Err(e)=>{panic(e.code);}}
 }
-fn main()->Int effects {gui, output} {
+fn main()->Int {
 match gui.window("REWIND counter",360,220) {
  Err(e)=>{panic(e.code);},
  Ok(view)=>{

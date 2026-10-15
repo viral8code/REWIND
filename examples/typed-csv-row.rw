@@ -6,7 +6,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(result)=>{return move result;},Err(_)=>{panic("csv schema example");}}
 }
 
-fn main()->Int effects {output} {
+fn main()->Int {
     let fields=List<schema.Field>();
     fields.add(take(schema.field("sku",take(schema.text(1,32)),true,None)));
     fields.add(take(schema.field("in_stock",schema.boolean(),true,None)));

@@ -1,4 +1,4 @@
-fn main()->Int effects {fileWrite, output} {
+fn main()->Int {
     var a = 10;
     var b = 20;
     File.write("result.txt", "initial\n");

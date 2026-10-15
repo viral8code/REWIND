@@ -6,7 +6,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Expected output (not executed): 10, 20, 10 on separate lines.
-fn main()->Int effects {output} {
+fn main()->Int {
     let balance=lens.create(
         |account:Account|->Int{return account.balance;},
         |account:Account,value:Int|->Result<Account,String>{

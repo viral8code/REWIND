@@ -8,7 +8,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
  match move value {Ok(result)=>{return move result;},Err(_)=>{panic("operation failed");}}
 }
 
-fn main()->Int effects {gui, output, tasks, args} {
+fn main()->Int {
 let args=Args.all();var title="REWIND backward";if args.len()>0{title=args.get(0);}
 let view=take(gui.window(title,320,160));
 take(gui.label(&mut view,"state","Click to cancel gradient computation",10,10,300,36));

@@ -2,7 +2,7 @@ import std.numeric as numeric;import std.fftAsync as fft;import std.task as task
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
 async fn marker()->Int effects {tasks}{return 7;}
 
-fn main()->Int effects {tasks, output} {
+fn main()->Int {
 let shape=List<Int>();shape.add(16384);let zero=take(numeric.zerosFloat(&shape));let real=take(numeric.mapFloat("exp",&zero));
 let work=spawn fft.transform(real,zero,false);let fast=spawn marker();assert_eq(take(await fast),7);assert(!work.isDone());
 commit halfway;

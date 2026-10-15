@@ -7,7 +7,7 @@ fn sum(a:Int,b:Int)->Int effects {} {return a+b;}
 fn add(a:Int,b:Int,n:Int)->Int effects {} {return a+b*n;}
 fn compose(a:Int,b:Int)->Int effects {} {return a+b;}
 
-fn main()->Int effects {output} {
+fn main()->Int {
     let values=List<Int>();for i in 0..8{values.add(i);}
     let tree=take(lazy.build<Int,Int>(&values,0,sum));
     commit saved;

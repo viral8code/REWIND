@@ -28,12 +28,12 @@ program = root / "main.rw"
 program_text = source.read_text(encoding="utf-8")
 if live_mode:
     program_text = program_text.replace("external fresh {", "external live {").replace("external {", "external live {").replace("windows.nextEventAnyAsync()", "liveInput()")
-    program_text = program_text.replace("let arguments=Args.all();", """fn liveInput()->Task<Result<windows.WindowEvent,windows.GuiError>> effects {gui,tasks,external,live} {
+    program_text = program_text.replace("fn main()->Int {", """fn liveInput()->Task<Result<windows.WindowEvent,windows.GuiError>> effects {gui,tasks,external,live} {
  var waiting:Option<Task<Result<windows.WindowEvent,windows.GuiError>>>=None;
  external live {waiting=Some(windows.nextEventAnyLiveAsync());}
  match waiting {Some(task)=>{return move task;},None=>{panic("missing live wait");}}
 }
-let arguments=Args.all();""")
+fn main()->Int {""")
 program.write_text(program_text, encoding="utf-8")
 effects = "gui,external,network,db,tasks" + (",live" if live_mode else "")
 subprocess.run([str(binary), "compile", str(program), "--allow-effects", effects], cwd=root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

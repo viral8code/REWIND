@@ -6,7 +6,7 @@ fn take<T,E>(result:Result<T,E>)->T effects {} {
 }
 async fn marker()->Int effects {tasks} {return 7;}
 
-fn main()->Int effects {tasks, output} {
+fn main()->Int {
 let size=65;
 let shape=List<Int>();shape.add(size);shape.add(size);
 let zero=take(numeric.zerosFloat(&shape));let ones=take(numeric.mapFloat("exp",&zero));

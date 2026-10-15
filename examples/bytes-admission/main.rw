@@ -1,6 +1,6 @@
 fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("unexpected encoding error");}}}
 
-fn main()->Int effects {output} {
+fn main()->Int {
 var text="x";for i in 0..20{text+=text;}
 let data=take(stdEncode(text));
 let items=List<Bytes>();commit saved;

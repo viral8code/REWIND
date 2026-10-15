@@ -2,7 +2,7 @@ import std.numeric as numeric;
 import std.distributions as distributions;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("numeric operation failed");}}}
 fn near(value:Float,expected:Float)->Bool effects {} {return take(numeric.math("abs",value-expected))<0.000000001;}
-fn main()->Int effects {output} {
+fn main()->Int {
 let shape=List<Int>();shape.push(4);shape.push(2);
 let values=List<Float>();values.push(1.0);values.push(0.0);values.push(1.0);values.push(1.0);values.push(1.0);values.push(2.0);values.push(1.0);values.push(3.0);
 let matrix=take(numeric.fromFloat(&shape,&values));

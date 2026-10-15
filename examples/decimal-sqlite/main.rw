@@ -5,7 +5,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
 }
 
-fn main()->Int effects {external, db, tasks, output} {
+fn main()->Int {
 var opening:Option<Task<Result<DbConnection,DbError>>>=None;
 external {opening=Some(db.sqlite(":memory:",false,5000));}
 match opening {

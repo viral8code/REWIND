@@ -1,6 +1,6 @@
 import std.gui as gui;
 fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("unexpected error");}}}
-fn main()->Int effects {gui, output} {
+fn main()->Int {
 let view=take(gui.window("Unicode editing",320,200));
 take(gui.textBox(&mut view,"name","é👩‍💻🇯🇵",10,10,280,30));
 take(gui.setSelection(&mut view,"name",1,1));

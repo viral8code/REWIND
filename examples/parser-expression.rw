@@ -5,7 +5,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Single digits, no whitespace or parentheses. Expected output: 14 then 7 (not executed).
-fn main()->Int effects {output} {
+fn main()->Int {
     let digit=parser.map(
         parser.satisfy("digit",|byte:Int|->Bool{return byte>=48 && byte<=57;}),
         |byte:Int|->Int{return byte-48;}

@@ -3,7 +3,7 @@ import std.guiWindows as windows;
 import std.guiForm as form;
 import std.guiTable as table;
 fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("GUI operation failed");}}}
-fn main()->Int effects {gui, output} {
+fn main()->Int {
 let schema=List<form.Field>();
 schema.add(form.Field("name","Name",form.Kind::Text,true,128,"日本"));
 schema.add(form.Field("age","Age",form.Kind::Integer(0,150),true,12,"13"));
