@@ -330,6 +330,12 @@ impl fmt::Display for Value {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+struct WorkProfile {
+    scope: String,
+    native: BTreeMap<String, u64>,
+}
+
 /// Terminal publish failure. A failed Host call may itself have changed state.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PublishFailure {
@@ -919,6 +925,7 @@ pub struct Runtime {
     shared_checked_generation: std::cell::Cell<usize>,
     shared_gc_start: usize,
     execution_remaining: Option<usize>,
+    work_profile: Option<WorkProfile>,
 }
 
 impl Runtime {
@@ -1881,6 +1888,7 @@ impl Runtime {
             shared_checked_generation: std::cell::Cell::new(0),
             shared_gc_start: 0,
             execution_remaining: None,
+            work_profile: None,
         })
     }
     /// Enable opt-in timing of borrowed-root heap collection, including failed attempts.
@@ -2525,7 +2533,27 @@ impl Runtime {
     pub fn configure_native_work(&mut self, limit: usize) {
         self.native_remaining = Some(limit);
     }
+    /// Opt-in attribution of native work to the function that was running.
+    pub fn enable_work_profile(&mut self) {
+        self.work_profile.get_or_insert_with(WorkProfile::default);
+    }
+    pub fn set_profile_scope(&mut self, scope: &str) {
+        if let Some(profile) = &mut self.work_profile {
+            if profile.scope != scope {
+                profile.scope = scope.to_string();
+            }
+        }
+    }
+    pub fn native_work_by_scope(&self) -> Option<&BTreeMap<String, u64>> {
+        self.work_profile.as_ref().map(|p| &p.native)
+    }
     pub fn charge_native_work(&mut self, amount: usize) -> Result<()> {
+        if let Some(profile) = &mut self.work_profile {
+            let scope = profile.scope.clone();
+            if profile.native.len() < 4096 || profile.native.contains_key(&scope) {
+                *profile.native.entry(scope).or_default() += amount as u64;
+            }
+        }
         if let Some(remaining) = &mut self.native_remaining {
             *remaining = remaining
                 .checked_sub(amount)

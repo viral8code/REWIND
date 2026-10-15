@@ -452,6 +452,68 @@ impl Runtime {
         }
         Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
     }
+    /// Explains what each root (current state, every checkpoint) keeps alive. Roots that
+    /// share one heap are grouped, so reference totals are never summed into memory.
+    /// This walks every heap once; it is an explicit investigation, never part of GC.
+    pub fn retention_report(&self) -> Json {
+        let mut roots: Vec<(String, &State)> = vec![("current".into(), &self.state)];
+        for (name, checkpoint) in &self.checkpoints {
+            roots.push((format!("checkpoint:{name}"), &checkpoint.state));
+        }
+        let mut groups: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for (index, (_, state)) in roots.iter().enumerate() {
+            groups
+                .entry(Arc::as_ptr(&state.heap) as usize)
+                .or_default()
+                .push(index);
+        }
+        let mut group_bytes: BTreeMap<usize, usize> = BTreeMap::new();
+        for (pointer, members) in &groups {
+            group_bytes.insert(*pointer, roots[members[0]].1.heap.logical_bytes());
+        }
+        let rows = roots
+            .iter()
+            .map(|(name, state)| {
+                let pointer = Arc::as_ptr(&state.heap) as usize;
+                let members = &groups[&pointer];
+                let shared_with = members
+                    .iter()
+                    .map(|i| roots[*i].0.clone())
+                    .filter(|other| other != name)
+                    .collect::<Vec<_>>();
+                let heap_bytes = group_bytes[&pointer];
+                json!({
+                    "root": name,
+                    "heap_objects": state.heap.len(),
+                    "heap_logical_bytes": heap_bytes,
+                    "heap_shared_with": shared_with,
+                    "heap_exclusive_bytes": if members.len() == 1 { heap_bytes } else { 0 },
+                    "pending_stdout_bytes": state.stdout.len(),
+                    "pending_stderr_bytes": state.stderr.len(),
+                    "file_overlays": state.files.len(),
+                })
+            })
+            .collect::<Vec<_>>();
+        let reference_total: usize = roots
+            .iter()
+            .map(|(_, state)| group_bytes[&(Arc::as_ptr(&state.heap) as usize)])
+            .sum();
+        let unique_total: usize = group_bytes.values().sum();
+        json!({
+            "roots": rows,
+            "heap_references_total_bytes": reference_total,
+            "heap_unique_bytes": unique_total,
+            "unique_heaps": groups.len(),
+            "observation_bytes": self.observations.values().flat_map(|o| o.blocks.values()).map(|b| { let (m, s) = b.usage(); m + s }).sum::<usize>(),
+            "native_resources": self.native_resource_count(),
+            "notes": [
+                "heap_references_total_bytes counts a heap once per root that holds it; it is not memory use and must not be read as RSS",
+                "heap_unique_bytes counts each distinct heap once; pages shared inside two different heaps are not subtracted, so the true figure can be lower",
+                "heap_exclusive_bytes is the heap held by this root alone; dropping the checkpoint frees at most that, and other roots (tasks, bindings, observations) can still keep objects alive",
+                "scheduler task storage and Host resources are reported separately in the scheduler and native_resources figures"
+            ]
+        })
+    }
     pub fn debug_state(&self) -> Json {
         let deltas=self.state.files.iter().map(|(path,file)| {
             let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>(),"content":if file.len<=65536 {file.to_vec().ok().map(|bytes|self.masked_value(&String::from_utf8(bytes.clone()).map(|text| Value::Text(text.into())).unwrap_or(Value::Bytes(bytes.into()))))}else{None}})}else{json!({"operation":"delete"})};(path.clone(),delta)

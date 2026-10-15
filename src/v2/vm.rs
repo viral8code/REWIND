@@ -1569,6 +1569,80 @@ fn gc_branch_roots(branches: &[BranchFrame], out: &mut Vec<Value>) {
         branch.scheduler.gc_roots(out);
     }
 }
+/// Logical work attributed to functions and source lines (opt-in via `rewind profile`).
+/// Unit: VM instructions and native-work units, never wall-clock time.
+#[derive(Default)]
+struct WorkProfile {
+    functions: BTreeMap<(u64, String), (u64, u64)>,
+    lines: BTreeMap<(String, usize), u64>,
+    truncated: bool,
+}
+impl WorkProfile {
+    const MAX_FUNCTIONS: usize = 4096;
+    const MAX_LINES: usize = 4096;
+    fn sample<'a>(
+        &mut self,
+        task: u64,
+        current: &str,
+        stack: impl Iterator<Item = &'a str>,
+        source: &str,
+        line: usize,
+    ) {
+        let mut seen = BTreeSet::new();
+        seen.insert(current.to_string());
+        for name in stack {
+            seen.insert(name.to_string());
+        }
+        for name in seen {
+            let key = (task, name.clone());
+            if !self.functions.contains_key(&key) && self.functions.len() >= Self::MAX_FUNCTIONS {
+                self.truncated = true;
+                continue;
+            }
+            let entry = self.functions.entry(key).or_default();
+            // inclusive: once per instruction per function, so recursion is not double counted
+            entry.1 += 1;
+            if name == current {
+                entry.0 += 1;
+            }
+        }
+        let key = (source.to_string(), line);
+        if !self.lines.contains_key(&key) && self.lines.len() >= Self::MAX_LINES {
+            self.truncated = true;
+        } else {
+            *self.lines.entry(key).or_default() += 1;
+        }
+    }
+    fn report(&self, native: Option<&BTreeMap<String, u64>>) -> serde_json::Value {
+        let mut functions: Vec<_> = self.functions.iter().collect();
+        functions.sort_by(|a, b| b.1 .1.cmp(&a.1 .1).then(a.0.cmp(b.0)));
+        let mut lines: Vec<_> = self.lines.iter().collect();
+        lines.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        let mut top = Vec::new();
+        for ((task, name), (exclusive, inclusive)) in functions.iter().take(10) {
+            let work = native.and_then(|n| n.get(name)).copied().unwrap_or(0);
+            top.push(format!(
+                "task {task} {name}: {exclusive} instructions exclusive, {inclusive} inclusive, {work} native work"
+            ));
+        }
+        serde_json::json!({
+            "unit":"logical work: VM instructions and native-work units; not wall-clock time",
+            "meaning":{
+                "exclusive":"instructions executed directly in the function",
+                "inclusive":"instructions executed in the function or anything it called; a recursive function is counted once per instruction, so inclusive values of different functions must not be added together",
+                "native_work":"native-work units charged while the function was the running one (its callees' own native work is charged to them)"
+            },
+            "functions":functions.iter().take(1024).map(|((task, name),(exclusive, inclusive))| serde_json::json!({
+                "task":task,"function":name,"exclusive":exclusive,"inclusive":inclusive,
+                "native_work":native.and_then(|n| n.get(name)).copied().unwrap_or(0)
+            })).collect::<Vec<_>>(),
+            "lines":lines.iter().take(256).map(|((source,line),steps)| serde_json::json!({"source":source,"line":line,"instructions":steps})).collect::<Vec<_>>(),
+            "truncated":self.truncated || functions.len() > 1024 || lines.len() > 256,
+            "summary":top,
+        })
+    }
+}
+
 struct Vm<R: BufRead> {
     engine: Engine<R>,
     code: Vec<Inst>,
@@ -1578,6 +1652,7 @@ struct Vm<R: BufRead> {
     frames: Vec<VmFrame>,
     branches: Vec<BranchFrame>,
     snapshots: BTreeMap<String, VmSnapshot>,
+    profile: Option<WorkProfile>,
     global_cleanups: Vec<Cleanup>,
     pc: usize,
     steps: usize,
@@ -1759,6 +1834,7 @@ impl<R: BufRead> Vm<R> {
                 && options.pause_after.is_none(),
         );
         if options.profile {
+            engine.runtime.enable_work_profile();
             engine.runtime.enable_gc_profiling();
         }
         if language_at_least(&engine.program.language, "1.9.47") {
@@ -2062,6 +2138,7 @@ impl<R: BufRead> Vm<R> {
             frames: Vec::new(),
             branches: Vec::new(),
             snapshots: BTreeMap::new(),
+            profile: options.profile.then(WorkProfile::default),
             global_cleanups: Vec::new(),
             pc: 0,
             steps: options.execution_steps.unwrap_or(1_000_000),
@@ -3923,7 +4000,23 @@ impl<R: BufRead> Vm<R> {
             if let Some(metrics) = self.engine.runtime.sensitive_registry_metrics() {
                 profile["sensitive_registry"] = metrics;
             }
-            eprintln!("{}", profile);
+            if let Some(work) = &self.profile {
+                profile["attribution"] = work.report(self.engine.runtime.native_work_by_scope());
+                profile["retention"] = self.engine.runtime.retention_report();
+                profile["retention"]["scheduler_storage_bytes"] =
+                    serde_json::json!(self.scheduler.accounted_storage_bytes(&self.engine.runtime));
+            }
+            if self.options.profile_text {
+                for line in profile["attribution"]["summary"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                {
+                    eprintln!("{}", line.as_str().unwrap_or(""));
+                }
+            } else {
+                eprintln!("{}", profile);
+            }
         }
         Ok(())
     }
@@ -4348,6 +4441,24 @@ impl<R: BufRead> Vm<R> {
             let inst = self.code.get(self.pc).cloned().ok_or_else(|| {
                 Error::InvalidOperation(format!("invalid program counter {}", self.pc))
             })?;
+            if self.profile.is_some() {
+                let current = self
+                    .frames
+                    .last()
+                    .map(|f| f.name.clone())
+                    .unwrap_or_else(|| "<entry>".into());
+                let task = self.scheduler.active;
+                if let Some(profile) = &mut self.profile {
+                    profile.sample(
+                        task,
+                        &current,
+                        self.frames.iter().map(|f| f.name.as_str()),
+                        &inst.at.source,
+                        inst.at.line,
+                    );
+                }
+                self.engine.runtime.set_profile_scope(&current);
+            }
             if self.scheduler.active != 0
                 && self.task_instruction_count(self.scheduler.active)
                     >= self.options.task_steps.unwrap_or(100_000)

@@ -254,6 +254,7 @@ pub struct RunOptions {
     pub replay: Option<serde_json::Value>,
     pub inspect: bool,
     pub profile: bool,
+    pub profile_text: bool,
     pub explore: usize,
     pub choices: Vec<usize>,
     pub virtual_publish: bool,

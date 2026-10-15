@@ -588,7 +588,7 @@ fn command_help(command: &str) -> Option<&'static str> {
         "lsp" => "rewind lsp --root DIR\nStarts a language server over stdin/stdout. Supports projects and standalone files.",
         "replay" => "rewind replay TRACE.json [--root DIR] [--allow-effects EFFECTS]\nReplays recorded observations and verifies execution using the matching compiler version.",
         "debug" => "rewind debug FILE.rw|FILE.rwc|TRACE.json [--root DIR] [--allow-effects EFFECTS]\nInspects execution with virtual publish, or displays a debug trace. Compact traces have no step history.",
-        "profile" => "rewind profile FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS]\nRuns and reports storage and task instruction metrics.",
+        "profile" => "rewind profile FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--profile-format text|json]\nRuns and reports per-function, per-line and native-work attribution (logical work, not wall-clock time) plus storage and task instruction metrics.",
         "doc" => "rewind doc FILE.rw [--root DIR] [--output FILE]\nWrites the public API of a module as Markdown. The nearest rewind.toml above FILE selects the project unless --root is given.",
         "update" => "rewind update [--root DIR] [--preview [--output FILE] | --apply FILE]\nResolves dependencies and rewrites rewind.lock. --preview writes a proposal without changing the project; --apply installs a reviewed proposal.",
         "lock" => "rewind lock [--root DIR]\nVerifies and rewrites rewind.lock for the current manifest.",
@@ -1376,6 +1376,18 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                             ))
                         }
                     });
+                }
+                "--profile-format" => {
+                    index += 1;
+                    options.profile_text = match remaining.get(index).map(String::as_str) {
+                        Some("text") => true,
+                        Some("json") => false,
+                        _ => {
+                            return Err(Error::InvalidOperation(
+                                "--profile-format requires text or json".into(),
+                            ))
+                        }
+                    };
                 }
                 "--history-memory" | "--history-storage" | "--spill-threshold" => {
                     let option = remaining[index].clone();
