@@ -69,6 +69,8 @@
 
 **検証：** List、closure capture、private factory、native接続、子task転送、generic callback。Unicode位置はCLI scalarとLSP UTF-16で同じ箇所を指す。redactionをバイパスしない。
 
+**実装済み（2026-10-15）：** `DiagnosticRecord.related`（移動した式、借用の開始位置、効果は既存のcause route）をCLI・JSON・LSPが同じ元から出す。noteは位置と種類だけで局所値を含まない。[tests/diag_related.rs](../tests/diag_related.rs)。
+
 ### DIAG-02：checkpoint継続と外部境界
 
 InvalidContinuation、begin制約、external内のawait/publish拒否を説明する。可能ならcheckpoint作成場所、現在の関数呼出し/scope、制約の種類を添える。
@@ -80,11 +82,15 @@ InvalidContinuation、begin制約、external内のawait/publish拒否を説明�
 
 **検証：** 外側checkpointへif内からrevert、終了済scope、再帰の別呼出し、begin、active branch、external、publish部分適用。
 
+**実装済み（2026-10-15）：** `InvalidContinuation`にcheckpointを作った位置・関数と、revertできない理由（呼出しの終了、scopeの終了、式の途中、branch）を添える。`ExternalBoundary`・`ReservedLabel`・`MissingEffect`の説明は、宣言と実行許可、external内で禁止される操作を分けて書く。
+
 ### DIAG-03：子taskとcleanupの表示
 
 既存TaskError/Failureを再利用し、原因tree、typed budget、wait graph、cleanup failureを見やすく表示する。asStdが情報を投影して失う契約を変えず、詳細表示のために元のFailureを選べるようにする。
 
 **検証：** 取消、logical timeout、native work/steps/history超過、元診断付きFailed、待機循環、主失敗＋cleanup失敗。最大件数と省略表示を定義し、巨大な原因treeを無制限にformatしない。
+
+**実装済み（2026-10-15）：** 待機グラフ（最大16辺）と、原因treeの1段あたり最大16件・深さ8の省略表示。子taskの原因・budget・cleanupは既存のcauseを再利用する。
 
 ## C. エディタの記録デバッガー
 
@@ -100,6 +106,8 @@ InvalidContinuation、begin制約、external内のawait/publish拒否を説明�
 
 **検証：** 既存CLIのstep/back/line移動/continue/reverse-continue/break/task/checkpoint/state/files/diffの同等性。破損記録、過去のreadable範囲、署名違反、index不足、末尾/先頭の移動。
 
+**実装済み（2026-10-15）：** `DebugEngine`が記録の検証（大きさ・署名・format・fingerprint・index長）とevent移動を持ち、`debug-session`とDAPが同じ実装を使う。既存のコマンドは同じ応答を返す。[docs/debugger.md](debugger.md)。
+
 ### DBG-02：boundedな値閲覧とwatch
 
 - scope/variableをlazyに列挙する。List/Map/Bytesはoffsetと件数でページ化する。
@@ -110,6 +118,8 @@ InvalidContinuation、begin制約、external内のawait/publish拒否を説明�
 - event移動で無効になったreferenceへstale状態を返す。前eventの可変viewを新eventへ流用しない。
 
 **検証：** 深い値、循環、大List/Map、Frozen、Secret、opaque resource、取消済task、checkpoint復元、範囲外watch。閲覧前後でruntime digest・外部操作数が同一。
+
+**実装済み（2026-10-15）：** `debug_values`がscope/変数を遅延展開し、List/Map/recordはoffsetと件数でページ化する。循環は`cycle`で止め、長い値は省略し、watchは変数・field・index読取りだけ。referenceはeventが動くと`stale`。値は記録された表示文字列から取り出すため、区切り文字を含む文字列は分割が不正確になることがある（この制限は文書に記載）。
 
 ### DBG-03：DAP transportと最小client
 
@@ -131,6 +141,8 @@ compact記録にstep履歴を作ったふりをしない。unsupported capabilit
 **検証：** request/response ID、event順、切断、欠損/過大message、不明request、短い/長い記録、二つのclient session、Windows/Linuxのstdio。最小のエディタ設定例とCLI transcriptを両方提供する。
 
 **保留：** live breakpoint、process attach、任意expression評価、外部作用の書換え、GUIの中断中編集。必要なら別の受入を追加する。
+
+**実装済み（2026-10-15）：** `rewind dap`（stdio）。launch/setBreakpoints/threads/stackTrace/scopes/variables/evaluate/next/stepIn/continue/stepBack/reverseContinue/source/disconnect。compact記録とstepOut等は理由付きで拒否。Content-Length・サイズ・深さ・スタックに上限。[tests/dap.rs](../tests/dap.rs)。
 
 ## D. 費用と保持理由のprofile
 

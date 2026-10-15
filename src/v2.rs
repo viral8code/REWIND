@@ -4742,6 +4742,9 @@ pub fn verify_file(path: &Path, signature: &Path, public: &str, kind: &str) -> R
 pub fn lsp(root: &Path) -> Result<()> {
     v05::lsp(root)
 }
+pub fn dap(root: &Path, options: RunOptions) -> Result<()> {
+    v05::dap_serve(root, options)
+}
 pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()> {
     v05::debug_session(path, root, options)
 }

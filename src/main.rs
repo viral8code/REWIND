@@ -600,6 +600,7 @@ fn command_help(command: &str) -> Option<&'static str> {
         "api-snapshot" => "rewind api-snapshot [--root DIR] [--output FILE]\nWrites the public API snapshot of the project entry.",
         "api-diff" => "rewind api-diff BEFORE AFTER [--deny-breaking]\nCompares two API snapshots; --deny-breaking fails on a breaking change.",
         "migrate" => "rewind migrate [--root DIR] [--write]\nPreviews language migration of a project; --write applies it.",
+        "dap" => "rewind dap [--root DIR] [--verify-key KEY]\nServes the Debug Adapter Protocol on stdin/stdout over a recorded debug trace (launch with arguments.trace). Supports stepping forward and back, breakpoints, scopes, variables and read-only watch expressions. Compact recordings and live execution are not supported.",
         "debug-session" => "rewind debug-session TRACE [--root DIR] [--secret-env NAME] [--secret-input FILE] [--verify-key KEY]\nOpens an interactive session over a recorded trace.",
         _ => return None,
     })
@@ -828,6 +829,21 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             }
         }
         return v2::debug_session(Path::new(&path), &root, options);
+    }
+    if script == "dap" {
+        let mut root = env::current_dir()?;
+        let mut options = v2::RunOptions::default();
+        while let Some(option) = args.next() {
+            let value = args
+                .next()
+                .ok_or_else(|| Error::InvalidOperation("missing option value".into()))?;
+            match option.as_str() {
+                "--root" => root = PathBuf::from(value),
+                "--verify-key" => options.verify_key = Some(value),
+                _ => return Err(Error::InvalidOperation(format!("unknown option {option}"))),
+            }
+        }
+        return v2::dap(&root, options);
     }
     if script == "keygen" {
         let path = args

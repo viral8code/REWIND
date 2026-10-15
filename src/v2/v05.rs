@@ -1,9 +1,12 @@
 use super::*;
 mod artifact;
 mod capabilities;
+pub mod dap;
+pub mod debug_values;
 mod ownership;
 mod tooling;
 pub(super) use artifact::{build as artifact, run as run_artifact, run_compiled};
+pub(super) use dap::serve as dap_serve;
 pub(super) use tooling::{debug_session, lsp};
 
 pub(super) mod pairs {
