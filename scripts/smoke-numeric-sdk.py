@@ -294,7 +294,7 @@ actual = run("run", root / "model-training.rwc", "--allow-effects", "fileRead,fi
              "--record-mode", "compact", "--record", root / "model-training-trace.json")
 assert actual == b"true\n", actual
 reader = root / "model-reader.rw"
-reader.write_text('effects {fileRead};import std.models as models;match models.load("model.rwm"){Ok(model)=>{assert(models.get(&model,"linear")!=None);Out.println(true);},Err(e)=>{panic(e.code);}}publish;',encoding="utf-8")
+reader.write_text('import std.models as models;fn main()->Int {match models.load("model.rwm"){Ok(model)=>{assert(models.get(&model,"linear")!=None);Out.println(true);},Err(e)=>{panic(e.code);}}return 0;}',encoding="utf-8")
 run("compile",reader,"--allow-effects","fileRead")
 reader.unlink()
 observed=run("run",root / "model-reader.rwc","--allow-effects","fileRead","--record-mode","compact","--record",root / "model-reader-trace.json")
