@@ -18,6 +18,7 @@ fn fixture(source: &str) -> (std::path::PathBuf, std::path::PathBuf) {
 }
 fn command(mode: &str, script: &Path, root: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg(mode)
         .arg(script)
         .arg("--root")
@@ -118,6 +119,7 @@ fn test_functions_have_independent_virtual_files() {
     "#,
     );
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("test")
         .arg("--root")
         .arg(&root)
@@ -201,6 +203,7 @@ fn revert_in_function_keeps_continuation_and_trace_is_separate() {
     "#,
     );
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg(&script)
         .arg("--root")

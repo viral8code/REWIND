@@ -589,6 +589,18 @@ fn command_help(command: &str) -> Option<&'static str> {
         "replay" => "rewind replay TRACE.json [--root DIR] [--allow-effects EFFECTS]\nReplays recorded observations and verifies execution using the matching compiler version.",
         "debug" => "rewind debug FILE.rw|FILE.rwc|TRACE.json [--root DIR] [--allow-effects EFFECTS]\nInspects execution with virtual publish, or displays a debug trace. Compact traces have no step history.",
         "profile" => "rewind profile FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS]\nRuns and reports storage and task instruction metrics.",
+        "doc" => "rewind doc FILE.rw [--root DIR] [--output FILE]\nWrites the public API of a module as Markdown. The nearest rewind.toml above FILE selects the project unless --root is given.",
+        "update" => "rewind update [--root DIR] [--preview [--output FILE] | --apply FILE]\nResolves dependencies and rewrites rewind.lock. --preview writes a proposal without changing the project; --apply installs a reviewed proposal.",
+        "lock" => "rewind lock [--root DIR]\nVerifies and rewrites rewind.lock for the current manifest.",
+        "keygen" => "rewind keygen NEW_SEED_FILE\nCreates a signing seed file and prints the public key.",
+        "sign" => "rewind sign PACKAGE --key SEED [--output SIGNATURE] [--check]\nSigns a package directory, or verifies its signature with --check.",
+        "sdk-build" => "rewind sdk-build --output DIR --key SEED\nBuilds a signed SDK directory (documentation, API snapshots, standard library).",
+        "sdk-install" => "rewind sdk-install --root DIR --sdk SDK --public-key KEY\nInstalls the standard library of a verified SDK into a project.",
+        "sdk-verify" => "rewind sdk-verify --sdk SDK --public-key KEY\nVerifies the signature and contents of an SDK directory.",
+        "api-snapshot" => "rewind api-snapshot [--root DIR] [--output FILE]\nWrites the public API snapshot of the project entry.",
+        "api-diff" => "rewind api-diff BEFORE AFTER [--deny-breaking]\nCompares two API snapshots; --deny-breaking fails on a breaking change.",
+        "migrate" => "rewind migrate [--root DIR] [--write]\nPreviews language migration of a project; --write applies it.",
+        "debug-session" => "rewind debug-session TRACE [--root DIR] [--secret-env NAME] [--secret-input FILE] [--verify-key KEY]\nOpens an interactive session over a recorded trace.",
         _ => return None,
     })
 }
@@ -603,6 +615,30 @@ fn locate_project_root(source: &Path) -> Option<PathBuf> {
         ancestor = dir.parent();
     }
     None
+}
+
+/// Gives option and usage failures a stable code and points at the command help.
+fn classify_cli_error(error: &mut Error, command: &str) -> Option<&'static str> {
+    let Error::InvalidOperation(message) = error else {
+        return None;
+    };
+    let code = if message.starts_with("usage:") {
+        "CliUsage"
+    } else if message.starts_with("unknown ") && message.contains("option") {
+        "CliUnknownOption"
+    } else if message.starts_with("missing ") || message.contains(" requires an integer") {
+        "CliMissingValue"
+    } else if message.starts_with("invalid ") && message.contains("budget") {
+        "CliInvalidValue"
+    } else {
+        return None;
+    };
+    if command_help(command).is_some() && !message.contains("--help") {
+        *message = format!("{code}: {message} (see `rewind {command} --help`)");
+    } else {
+        *message = format!("{code}: {message}");
+    }
+    Some(code)
 }
 
 fn main() {
@@ -677,6 +713,7 @@ fn main() {
             return;
         }
     }
+    let arguments_for_errors = arguments.clone();
     let result = if matches!(format.as_str(), "text" | "json") {
         memory_limit.and_then(|limit| {
             if let Some(mib) = limit {
@@ -691,6 +728,8 @@ fn main() {
     };
     if let Err(mut error) = result {
         v2::enrich_diagnostic(&mut error);
+        let command = arguments_for_errors.first().cloned().unwrap_or_default();
+        let cli_code = classify_cli_error(&mut error, &command);
         let status = exit_status(&error);
         if format == "json" {
             let diagnostic = if let Error::Diagnostic(d) = &error {
@@ -700,7 +739,7 @@ fn main() {
             };
             eprintln!(
                 "{}",
-                serde_json::json!({"exit_status":status,"message":error.to_string(),"diagnostic":diagnostic,"publish_failure":error.publish_report(),"retryable":false,"retry_hint":if status==72 {"reload_and_decide"}else{"none"}})
+                serde_json::json!({"exit_status":status,"message":error.to_string(),"diagnostic":diagnostic,"publish_failure":error.publish_report(),"code":cli_code,"retryable":false,"retry_hint":if status==72 {"reload_and_decide"}else{"none"}})
             );
         } else {
             eprintln!("{}", v2::render_diagnostic(&error));
@@ -1466,7 +1505,10 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                 root = locate_project_root(&full)
                     .unwrap_or_else(|| full.parent().unwrap().to_path_buf());
                 options.standalone = !root.join("rewind.toml").exists();
-            } else if file.ends_with(".rw") && !root.join("rewind.toml").exists() {
+            } else if file.ends_with(".rw")
+                && !root.join("rewind.toml").exists()
+                && env::var_os("REWIND_LEGACY_EXPLICIT_ROOT").is_none()
+            {
                 // An explicit root without a manifest is a standalone boundary, not the
                 // legacy project path. The source must stay inside it.
                 let boundary = std::fs::canonicalize(&root)?;

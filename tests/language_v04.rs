@@ -18,6 +18,7 @@ fn fixture(source: &str) -> (PathBuf, PathBuf) {
 }
 fn command(path: &Path, root: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg(path)
         .arg("--root")
@@ -122,6 +123,7 @@ fn record_replay_uses_observations_and_reports_divergence() {
     fs::write(root.join("input.txt"), "observed").unwrap();
     let trace = root.join("record.json");
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg(&path)
         .arg("--root")
@@ -141,6 +143,7 @@ fn record_replay_uses_observations_and_reports_divergence() {
     fs::write(root.join("input.txt"), "changed").unwrap();
     fs::remove_file(root.join("result.txt")).unwrap();
     let replay = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("replay")
         .arg(&trace)
         .arg("--root")
@@ -158,6 +161,7 @@ fn record_replay_uses_observations_and_reports_divergence() {
     json["events"][0]["pc"] = serde_json::json!(999);
     fs::write(&trace, serde_json::to_vec(&json).unwrap()).unwrap();
     let replay = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("replay")
         .arg(&trace)
         .arg("--root")
@@ -173,6 +177,7 @@ fn secret_values_are_redacted_from_record_and_debugger() {
     let (root,path)=fixture("let secret=Env.get(\"REWIND_V04_SECRET\"); commit saved; assert_eq(secret,Some(\"hidden-value\"));");
     let trace = root.join("record.json");
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("debug")
         .arg(&path)
         .arg("--root")
@@ -192,6 +197,7 @@ fn secret_values_are_redacted_from_record_and_debugger() {
     assert!(!String::from_utf8_lossy(&output.stderr).contains("hidden-value"));
     assert!(!fs::read_to_string(&trace).unwrap().contains("hidden-value"));
     let replay = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("replay")
         .arg(&trace)
         .arg("--root")
@@ -216,6 +222,7 @@ fn signed_packages_version_effects_and_reproducible_build() {
     let seed = root.join("seed");
     fs::write(&seed, "07".repeat(32)).unwrap();
     let sign = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("sign")
         .arg(&package)
         .arg("--key")
@@ -226,6 +233,7 @@ fn signed_packages_version_effects_and_reproducible_build() {
     let public = String::from_utf8(sign.stdout).unwrap();
     fs::write(root.join("rewind.toml"),format!("language = \"0.4\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"\"\n[dependencies]\nmath = \"file:vendor/math\"\n[dependency_versions]\nmath = \"^1.2.0\"\n[dependency_signers]\nmath = \"author\"\n[trust]\nauthor = \"{}\"\n",public.trim())).unwrap();
     let update = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("update")
         .arg("--root")
         .arg(&root)
@@ -243,6 +251,7 @@ fn signed_packages_version_effects_and_reproducible_build() {
         String::from_utf8_lossy(&output.stderr)
     );
     let build = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("build")
         .arg("--root")
         .arg(&root)
@@ -256,6 +265,7 @@ fn signed_packages_version_effects_and_reproducible_build() {
     let bytes = fs::read(root.join("rewind.build.json")).unwrap();
     assert!(!String::from_utf8_lossy(&bytes).contains(&root.to_string_lossy().to_string()));
     let build = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("build")
         .arg("--root")
         .arg(&root)
@@ -272,6 +282,7 @@ fn signed_packages_version_effects_and_reproducible_build() {
         fs::copy(root.join(name), other.join(name)).unwrap();
     }
     let build = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("build")
         .arg("--root")
         .arg(&other)
@@ -289,6 +300,7 @@ fn signed_packages_version_effects_and_reproducible_build() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("signature verification failed"));
     let sign = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("sign")
         .arg(&package)
         .arg("--key")
@@ -306,6 +318,7 @@ fn signed_packages_version_effects_and_reproducible_build() {
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("update")
         .arg("--root")
         .arg(&root)
@@ -319,6 +332,7 @@ fn signed_packages_version_effects_and_reproducible_build() {
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("update")
         .arg("--root")
         .arg(&root)
@@ -342,6 +356,7 @@ fn undeclared_effect_and_library_publish_are_rejected() {
     )
     .unwrap();
     let update = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("update")
         .arg("--root")
         .arg(&root)
@@ -380,6 +395,7 @@ fn schedule_exploration_and_profile_report_tasks() {
     "#,
     );
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("test")
         .arg(&path)
         .arg("--root")
@@ -396,6 +412,7 @@ fn schedule_exploration_and_profile_report_tasks() {
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("profile")
         .arg(&path)
         .arg("--root")
@@ -433,6 +450,7 @@ fn suspended_cancellation_and_instruction_budget_run_cleanup() {
     "#,
     );
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg(&path)
         .arg("--root")
@@ -513,6 +531,7 @@ fn debug_publication_and_saved_inspection_do_not_change_host() {
     let (root,path)=fixture("File.writeText(\"out.txt\",\"a\");Out.println(\"a\");commit saved;publish;assert_eq(File.readText(\"out.txt\"),Ok(\"a\"));");
     let trace = root.join("debug.json");
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("debug")
         .arg(&path)
         .arg("--root")
@@ -529,6 +548,7 @@ fn debug_publication_and_saved_inspection_do_not_change_host() {
     assert!(output.stdout.is_empty());
     assert!(!root.join("out.txt").exists());
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("debug")
         .arg(&trace)
         .output()
@@ -537,6 +557,7 @@ fn debug_publication_and_saved_inspection_do_not_change_host() {
     assert!(!root.join("out.txt").exists());
     assert!(String::from_utf8_lossy(&output.stdout).contains("saved"));
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("replay")
         .arg(&trace)
         .arg("--root")

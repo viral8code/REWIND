@@ -241,6 +241,7 @@ fn fixture(source: &str) -> (PathBuf, PathBuf) {
 }
 fn command(mode: &str, path: &Path, root: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg(mode)
         .arg(path)
         .arg("--root")
@@ -368,6 +369,7 @@ fn environment_observations_and_directory_entries() {
     "#,
     );
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg(&path)
         .arg("--root")
@@ -455,6 +457,7 @@ fn manifest_lock_and_module_visibility() {
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg("--root")
         .arg(&root)
@@ -468,6 +471,7 @@ fn manifest_lock_and_module_visibility() {
     assert!(root.join("rewind.lock").exists());
     fs::write(source.join("main.rw"), "import dep.math;\nhidden();\n").unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("check")
         .arg("--root")
         .arg(&root)
@@ -481,6 +485,7 @@ fn manifest_lock_and_module_visibility() {
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("check")
         .arg("--root")
         .arg(&root)
@@ -513,6 +518,7 @@ fn module_alias_and_selective_import() {
     .unwrap();
     let run = || {
         Command::new(env!("CARGO_BIN_EXE_rewind"))
+            .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
             .arg("run")
             .arg("--root")
             .arg(&root)
@@ -565,6 +571,7 @@ fn aliases_resolve_colliding_exports() {
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg("--root")
         .arg(&root)
@@ -596,6 +603,7 @@ fn aliases_resolve_colliding_types_and_enum_variants() {
     .unwrap();
     fs::write(source.join("main.rw"),"import a as a;\nimport b as b;\nassert_eq(a.make().n, 1);\nassert_eq(b.Item(2).n, 2);\nlet choice = a.Choice::Yes;\nlet text = match choice { a.Choice::Yes => \"yes\", a.Choice::No => \"no\", };\nassert_eq(text, \"yes\");\n").unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg("--root")
         .arg(&root)
@@ -649,6 +657,7 @@ fn structured_file_error_and_json_trace() {
     "#,
     );
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("run")
         .arg(&path)
         .arg("--root")
@@ -671,6 +680,7 @@ fn structured_file_error_and_json_trace() {
 fn formatter_and_public_api_documentation() {
     let (root,path) = fixture("/// Returns the answer.\n/// Example: `answer()` is 42.\npub fn answer()->Int {\nreturn 42;\n}\n");
     let fmt = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("fmt")
         .arg(&path)
         .output()
@@ -684,6 +694,7 @@ fn formatter_and_public_api_documentation() {
         .unwrap()
         .contains("    return 42;"));
     let check = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("fmt")
         .arg(&path)
         .arg("--check")
@@ -691,6 +702,7 @@ fn formatter_and_public_api_documentation() {
         .unwrap();
     assert!(check.status.success());
     let doc = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .env("REWIND_LEGACY_EXPLICIT_ROOT", "1")
         .arg("doc")
         .arg(&path)
         .arg("--root")

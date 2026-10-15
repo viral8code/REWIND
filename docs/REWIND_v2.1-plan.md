@@ -42,6 +42,8 @@
 
 **検証：** 親manifestあり/なし、壊れたmanifest、異なるcwd、root内外、relative std/user import、Unicode/空白を含むpath、Windows driveのsource指定、ソース削除後artifact、replay。型検査だけと実行でlanguageが変わらないこと。
 
+**実装済み（2026-10-15）：** `run`/`compile`/`check`/`debug`/`profile`と`doc`が、ソースから最も近い親の`rewind.toml`を同じ規則で探す。`--root`を明示してmanifestが無い場合は、そのrootをFile/importの境界とするstandaloneとして扱い、ソースがroot外なら`outside --root`で失敗する（旧project経路への移行は旧languageを書いたmanifestを用意する）。壊れたmanifestは「無かった」扱いにならない。旧versionの古い試験だけが`REWIND_LEGACY_EXPLICIT_ROOT`で旧経路を使う。[tests/cli_context.rs](../tests/cli_context.rs)。
+
 ### CLI-02：helpと機械可読エラー
 
 - doc等、現在subcommand helpが一律でない入口を整理する。
@@ -51,6 +53,8 @@
 - runtime/source/compiler/OSの予算の違いをhelpへ簡潔に示す。
 
 **検証：** helpでFile/通信が発生しない、`-- --help`はapplicationへ届く、subcommandの組合せと終了値、text/JSONのcode一致。
+
+**実装済み（2026-10-15）：** 全subcommand（doc/update/lock/keygen/sign/sdk-*/api-*/migrate/debug-sessionを含む）で`--help`はソースを読まず何も作らずに終了する。不明option・値不足・不正予算は`CliUnknownOption`/`CliMissingValue`/`CliInvalidValue`/`CliUsage`のcodeと`rewind <command> --help`への案内を持ち、JSON診断（stderr）の`code`にも同じ値が入る。`--`以降はapplicationの引数。[tests/cli_help.rs](../tests/cli_help.rs)。
 
 ## B. 診断を開発中の判断へ結び付ける
 
