@@ -2,7 +2,7 @@
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
 
-# Most integration tests exercise the 2.0.0 language through standalone files;
+# Most integration tests exercise the 2.0.0 language through standalone files (those without fn main);
 # new-language tests select 3.0.0 explicitly through rewind.toml.
 [env]
-REWIND_STANDALONE_LANGUAGE = "2.0.0"
+REWIND_STANDALONE_LANGUAGE = "auto"

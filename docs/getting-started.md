@@ -73,9 +73,13 @@ GitHubが自動生成するSource codeのzip/tar.gzには実行バイナリは�
 新しいdirectoryで`main.rw`を作ります。
 
 ```rewind
-Out.println("Hello, REWIND!");
-publish;
+fn main()->Int {
+    Out.println("Hello, REWIND!");
+    return 0;
+}
 ```
+
+3.0.0では、実行コードはすべて関数の中に書きます。`main`が戻ると、出力は自動で`publish`されます。
 
 ```sh
 rewind run main.rw
@@ -88,15 +92,17 @@ compileは`main.rwc`を生成し、runはその成果物をsourceなしでも実
 ## Checkpointとpublish
 
 ```rewind
-var score = 10;
-commit test1;
-score = 99;
-Out.println(score);
-commit test2;
-publish;
-revert test1;
-Out.println(score);
-publish;
+fn main()->Int {
+    var score = 10;
+    commit test1;
+    score = 99;
+    Out.println(score);
+    commit test2;
+    publish;
+    revert test1;
+    Out.println(score);
+    return 0;
+}
 ```
 
 出力は次の通りです。

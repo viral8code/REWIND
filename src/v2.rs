@@ -276,6 +276,38 @@ fn language_at_least(actual: &str, minimum: &str) -> bool {
         .is_ok_and(|v| v >= semver::Version::parse(minimum).expect("valid minimum language"))
 }
 
+/// Language used for a standalone file. `REWIND_STANDALONE_LANGUAGE` pins an older
+/// language (at most the compiler version); `auto` keeps legacy files that define no
+/// `fn main` on 2.0.0. Without it every standalone file is checked as the compiler version.
+fn standalone_language(entry: &Path) -> String {
+    let current = env!("CARGO_PKG_VERSION");
+    let Ok(wanted) = std::env::var("REWIND_STANDALONE_LANGUAGE") else {
+        return current.into();
+    };
+    if wanted == "auto" {
+        let has_main = fs::read_to_string(entry).is_ok_and(|text| {
+            text.lines().any(|line| {
+                let line = line.trim_start();
+                let line = line.strip_prefix("async ").unwrap_or(line).trim_start();
+                line.strip_prefix("fn main")
+                    .is_some_and(|rest| rest.trim_start().starts_with('('))
+            })
+        });
+        return if has_main {
+            current.into()
+        } else {
+            "2.0.0".into()
+        };
+    }
+    let valid = semver::Version::parse(&wanted)
+        .is_ok_and(|v| v <= semver::Version::parse(current).unwrap());
+    if valid {
+        wanted
+    } else {
+        current.into()
+    }
+}
+
 fn standalone_config(
     root: &Path,
     entry: PathBuf,
@@ -284,13 +316,7 @@ fn standalone_config(
     let mut effects = standalone_effects();
     effects.extend(extra.iter().cloned());
     let mut config = project::ProjectConfig::artifact(root, entry, effects);
-    config.language = std::env::var("REWIND_STANDALONE_LANGUAGE")
-        .ok()
-        .filter(|v| {
-            semver::Version::parse(v)
-                .is_ok_and(|v| v <= semver::Version::parse(env!("CARGO_PKG_VERSION")).unwrap())
-        })
-        .unwrap_or_else(|| env!("CARGO_PKG_VERSION").into());
+    config.language = standalone_language(&config.entry);
     let base = root.join(".rewind");
     if fs::symlink_metadata(&base).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error::InvalidPath(base.display().to_string()));
