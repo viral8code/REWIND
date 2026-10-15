@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.59",
+  "language": "3.0.0",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
@@ -9,9 +9,8 @@
     },
     "fn:applyLayout": {
       "async": false,
-      "cost": "O(layout nodes + leaf widgets); validates before mutation.",
+      "cost": "walks at most 1024 nodes and validates every placement before updating the view.",
       "effects": [],
-      "failure": "GuiLayoutLimit/Bounds/Children/Gap/Weight/Dimension/InsufficientSpace/UnknownId/DuplicateId; failure leaves the view unchanged.",
       "generics": [],
       "parameters": [
         "&mut View",
@@ -36,9 +35,8 @@
     },
     "fn:arrangeColumn": {
       "async": false,
-      "cost": "O(children), at most 256; validates all IDs and rectangles before updating widgets.",
+      "cost": "validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace/UnknownId/DuplicateId; failure leaves the view unchanged.",
       "generics": [],
       "parameters": [
         "&mut View",
@@ -51,9 +49,8 @@
     },
     "fn:arrangeRow": {
       "async": false,
-      "cost": "O(children), at most 256; validates all IDs and rectangles before updating widgets.",
+      "cost": "validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace/UnknownId/DuplicateId; failure leaves the view unchanged.",
       "generics": [],
       "parameters": [
         "&mut View",
@@ -136,9 +133,7 @@
     },
     "fn:column": {
       "async": false,
-      "cost": "O(total child nodes); at most 256 children, 1024 nodes and depth 32.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Weight/Dimension/Limit/DepthLimit/InsufficientSpace; failure leaves the view unchanged.",
       "generics": [],
       "parameters": [
         "&List<WeightedLayout>",
@@ -148,9 +143,8 @@
     },
     "fn:componentId": {
       "async": false,
-      "cost": "O(scope bytes + local bytes); distinct scope/local pairs encode uniquely.",
+      "cost": "O(scope bytes + local bytes); local id is 1..64 UTF-8 bytes; distinct scope/local pairs encode uniquely.",
       "effects": [],
-      "failure": "GuiComponentId.",
       "generics": [],
       "parameters": [
         "&ComponentScope",
@@ -181,9 +175,8 @@
     },
     "fn:componentScope": {
       "async": false,
-      "cost": "O(name bytes); case-sensitive UTF-8 name is 1..24 bytes and contains no NUL.",
+      "cost": "O(name bytes); names are case-sensitive UTF-8, 1..24 bytes, and contain no NUL.",
       "effects": [],
-      "failure": "GuiComponentScope.",
       "generics": [],
       "parameters": [
         "String"
@@ -202,9 +195,8 @@
     },
     "fn:crossSized": {
       "async": false,
-      "cost": "O(1); sets the cross-axis minimum and maximum for one weighted child.",
+      "cost": "bounds the cross axis: height in a row and width in a column; content stays at the leading edge.",
       "effects": [],
-      "failure": "GuiLayoutDimension; applyLayout may return GuiLayoutInsufficientSpace if the parent cross axis is below the minimum. Content aligns to the leading edge and excess space remains trailing.",
       "generics": [],
       "parameters": [
         "WeightedLayout",
@@ -291,6 +283,15 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:leaf": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<Layout,StdError>"
+    },
     "fn:line": {
       "async": false,
       "effects": [],
@@ -305,17 +306,6 @@
         "Int"
       ],
       "return": "Result<Unit,StdError>"
-    },
-    "fn:leaf": {
-      "async": false,
-      "cost": "O(1); creates one bounded widget leaf.",
-      "effects": [],
-      "failure": "GuiInvalidId.",
-      "generics": [],
-      "parameters": [
-        "String"
-      ],
-      "return": "Result<Layout,StdError>"
     },
     "fn:nextEvent": {
       "async": false,
@@ -341,9 +331,8 @@
     },
     "fn:overlayLayout": {
       "async": false,
-      "cost": "O(nodes), bounded by 1024 combined nodes, depth 32, and 256 layers; applyLayout visits the nodes and assigns identical bounds to every layer.",
+      "cost": "places every child over the same bounds; View insertion order controls z-order.",
       "effects": [],
-      "failure": "GuiLayoutChildren for 2..256 layer count; GuiLayoutLimit or GuiLayoutDepthLimit when the combined tree exceeds limits; applyLayout validates all IDs and bounds before updating any widget.",
       "generics": [],
       "parameters": [
         "&List<Layout>"
@@ -352,9 +341,8 @@
     },
     "fn:padded": {
       "async": false,
-      "cost": "O(nodes), copies at most 1023 child nodes and adds one wrapper; applyLayout applies four insets in O(1).",
+      "cost": "wraps one layout in bounded insets; the child receives the remaining inner rectangle.",
       "effects": [],
-      "failure": "GuiLayoutDimension for a negative or over-4096 inset; GuiLayoutLimit when the resulting tree exceeds 1024 nodes; GuiLayoutDepthLimit when depth would exceed 32; GuiLayoutInsufficientSpace if fewer than one pixel remains on either axis.",
       "generics": [],
       "parameters": [
         "Layout",
@@ -426,9 +414,7 @@
     },
     "fn:row": {
       "async": false,
-      "cost": "O(total child nodes); at most 256 children, 1024 nodes and depth 32.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Weight/Dimension/Limit/DepthLimit/InsufficientSpace; failure leaves the view unchanged.",
       "generics": [],
       "parameters": [
         "&List<WeightedLayout>",
@@ -527,9 +513,8 @@
     },
     "fn:sized": {
       "async": false,
-      "cost": "O(1); constrains the child's main-axis pixels, minimum == maximum is fixed.",
+      "cost": "constrains the child's main axis; minimum == maximum requests a fixed size.",
       "effects": [],
-      "failure": "GuiLayoutWeight/Dimension/Limit.",
       "generics": [],
       "parameters": [
         "Layout",
@@ -541,9 +526,9 @@
     },
     "fn:splitColumn": {
       "async": false,
-      "cost": "O(children), at most 256; integer remainder pixels are assigned left-to-right or top-to-bottom.",
+      "cost": "O(children), max 256; distributes integer remainder pixels from top to bottom.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; input geometry and weights remain unchanged.",
+      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; no input is changed.",
       "generics": [],
       "parameters": [
         "Rect",
@@ -554,9 +539,9 @@
     },
     "fn:splitRow": {
       "async": false,
-      "cost": "O(children), at most 256; integer remainder pixels are assigned left-to-right or top-to-bottom.",
+      "cost": "O(children), max 256; distributes integer remainder pixels from left to right.",
       "effects": [],
-      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; input geometry and weights remain unchanged.",
+      "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; no input is changed.",
       "generics": [],
       "parameters": [
         "Rect",
@@ -564,6 +549,39 @@
         "Int"
       ],
       "return": "Result<List<Rect>,StdError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "fn:style": {
       "async": false,
@@ -621,9 +639,8 @@
     },
     "fn:weighted": {
       "async": false,
-      "cost": "O(1); default main-axis range is 0..4096 pixels.",
+      "cost": "uses the default main-axis range 0..4096.",
       "effects": [],
-      "failure": "GuiLayoutWeight/Dimension/Limit.",
       "generics": [],
       "parameters": [
         "Layout",
@@ -696,7 +713,7 @@
       "constructor": false,
       "fields": [],
       "generics": [],
-      "kind": "record"
+      "kind": "struct"
     },
     "type:CsvStreamState": {
       "constructor": false,
@@ -1410,6 +1427,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:View": {
       "constructor": false,
       "fields": [],
@@ -1420,7 +1443,7 @@
       "constructor": false,
       "fields": [],
       "generics": [],
-      "kind": "record"
+      "kind": "struct"
     }
   }
 }

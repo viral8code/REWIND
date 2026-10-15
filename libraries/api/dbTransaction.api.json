@@ -1,0 +1,875 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.0.0",
+  "symbols": {
+    "fn:begun": {
+      "async": false,
+      "cost": "Starts tracking after db.beginTransaction returned Ok.",
+      "effects": [],
+      "generics": [],
+      "parameters": [],
+      "return": "Transaction"
+    },
+    "fn:close": {
+      "async": false,
+      "effects": [],
+      "failure": "Releases the handle. Pending or active transactions are reported, not closed silently.",
+      "generics": [],
+      "parameters": [
+        "&mut Transaction"
+      ],
+      "return": "Result<Unit,TxError>"
+    },
+    "fn:completeCommit": {
+      "async": false,
+      "effects": [],
+      "failure": "Committing -> Committed on Ok. A failure that never reached the backend returns to Active; an unknown outcome becomes Unknown; other failures become Failed.",
+      "generics": [],
+      "parameters": [
+        "&mut Transaction",
+        "Result<Unit,DbError>"
+      ],
+      "return": "Result<Unit,TxError>"
+    },
+    "fn:completeRollback": {
+      "async": false,
+      "effects": [],
+      "failure": "RollingBack -> RolledBack on Ok. A failure that never reached the backend returns to the previous state; an unknown outcome becomes Unknown; other failures become Failed.",
+      "generics": [],
+      "parameters": [
+        "&mut Transaction",
+        "Result<Unit,DbError>"
+      ],
+      "return": "Result<Unit,TxError>"
+    },
+    "fn:connectionReusable": {
+      "async": false,
+      "effects": [],
+      "failure": "False while the outcome is pending, failed or unknown; true once the transaction is over cleanly.",
+      "generics": [],
+      "parameters": [
+        "&Transaction"
+      ],
+      "return": "Bool"
+    },
+    "fn:finished": {
+      "async": false,
+      "effects": [],
+      "failure": "Summarises the end of a unit of work: the business failure (if any) next to the cleanup failure (if any).",
+      "generics": [],
+      "parameters": [
+        "&Transaction",
+        "Option<String>",
+        "Option<DbError>"
+      ],
+      "return": "Finished"
+    },
+    "fn:isActive": {
+      "async": false,
+      "cost": "True while queries and a commit or rollback request are allowed.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Transaction"
+      ],
+      "return": "Bool"
+    },
+    "fn:requestCommit": {
+      "async": false,
+      "effects": [],
+      "failure": "Active -> Committing. Any other state is rejected and left unchanged.",
+      "generics": [],
+      "parameters": [
+        "&mut Transaction"
+      ],
+      "return": "Result<Unit,TxError>"
+    },
+    "fn:requestRollback": {
+      "async": false,
+      "effects": [],
+      "failure": "Active or Failed -> RollingBack. Unknown, finished and pending states are rejected.",
+      "generics": [],
+      "parameters": [
+        "&mut Transaction"
+      ],
+      "return": "Result<Unit,TxError>"
+    },
+    "fn:state": {
+      "async": false,
+      "cost": "Reads the tracked state.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Transaction"
+      ],
+      "return": "TxState"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Finished": {
+      "constructor": true,
+      "fields": [
+        [
+          "state",
+          "TxState"
+        ],
+        [
+          "business",
+          "Option<String>"
+        ],
+        [
+          "cleanup",
+          "Option<DbError>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Transaction": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:TxError": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Backend": [
+          [
+            "0",
+            "DbError"
+          ]
+        ],
+        "NotActive": [
+          [
+            "0",
+            "TxState"
+          ]
+        ],
+        "NotFinished": [
+          [
+            "0",
+            "TxState"
+          ]
+        ],
+        "WrongRequest": [
+          [
+            "0",
+            "TxState"
+          ]
+        ]
+      }
+    },
+    "type:TxState": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Active": [],
+        "Closed": [],
+        "Committed": [],
+        "Committing": [],
+        "Failed": [],
+        "RolledBack": [],
+        "RollingBack": [],
+        "Unknown": []
+      }
+    }
+  }
+}

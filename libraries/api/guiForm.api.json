@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.59",
+  "language": "3.0.0",
   "symbols": {
     "alias:FormError": {
       "generics": [],
@@ -292,10 +292,167 @@
         "immutable": false
       }
     },
+    "dependency:decimal.rw": {
+      "fn:$import$decimal$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$coefficient": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<BigInt,StdError>"
+      },
+      "fn:$import$decimal$compare": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$decimal$divide": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$format": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$decimal$fromCoefficient": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&BigInt",
+          "Int"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$fromJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$parse": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$quantize": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "Int",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$representation": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$decimal$scale": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$decimal$subtract": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$toJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<Json,StdError>"
+      }
+    },
     "dependency:gui.rw": {
       "alias:$import$gui$GuiError": {
         "params": [],
         "target": "StdError"
+      },
+      "fn:$import$gui$applyLayout": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&$import$gui$Layout",
+          "$import$gui$Rect"
+        ],
+        "return": "Result<Unit,StdError>"
       },
       "fn:$import$gui$arrange": {
         "async": false,
@@ -306,6 +463,32 @@
           "&List<String>",
           "$import$gui$Rect",
           "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$arrangeColumn": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&List<String>",
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$arrangeRow": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&List<String>",
+          "$import$gui$Rect",
+          "&List<Int>",
           "Int"
         ],
         "return": "Result<Unit,StdError>"
@@ -379,6 +562,54 @@
         "parameters": [],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$column": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$gui$WeightedLayout>",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$componentId": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$ComponentScope",
+          "String"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$gui$componentLocalId": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$ComponentScope",
+          "String"
+        ],
+        "return": "Option<String>"
+      },
+      "fn:$import$gui$componentPrefix": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$ComponentScope"
+        ],
+        "return": "String"
+      },
+      "fn:$import$gui$componentScope": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<$import$gui$ComponentScope,StdError>"
+      },
       "fn:$import$gui$continueInput": {
         "async": false,
         "effects": [
@@ -387,6 +618,17 @@
         "generics": [],
         "parameters": [],
         "return": "Unit"
+      },
+      "fn:$import$gui$crossSized": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$WeightedLayout",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
       },
       "fn:$import$gui$dispatch": {
         "async": false,
@@ -462,6 +704,30 @@
         ],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$leaf": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$line": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
       "fn:$import$gui$nextEvent": {
         "async": false,
         "effects": [
@@ -480,6 +746,28 @@
           "&$import$gui$View"
         ],
         "return": "Result<$import$gui$View,StdError>"
+      },
+      "fn:$import$gui$overlayLayout": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$gui$Layout>"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$padded": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
       },
       "fn:$import$gui$pollEvent": {
         "async": false,
@@ -536,6 +824,16 @@
           "Int"
         ],
         "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$row": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$gui$WeightedLayout>",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
       },
       "fn:$import$gui$scene": {
         "async": false,
@@ -622,6 +920,40 @@
         ],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$sized": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
+      },
+      "fn:$import$gui$splitColumn": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<List<$import$gui$Rect>,StdError>"
+      },
+      "fn:$import$gui$splitRow": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<List<$import$gui$Rect>,StdError>"
+      },
       "fn:$import$gui$style": {
         "async": false,
         "effects": [],
@@ -673,6 +1005,16 @@
           "Int"
         ],
         "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$weighted": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
       },
       "fn:$import$gui$window": {
         "async": false,
@@ -727,6 +1069,12 @@
           ]
         }
       },
+      "type:$import$gui$ComponentScope": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
       "type:$import$gui$Event": {
         "bounds": {},
         "fields": [
@@ -758,6 +1106,12 @@
         "generics": [],
         "immutable": true
       },
+      "type:$import$gui$Layout": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
       "type:$import$gui$Rect": {
         "bounds": {},
         "fields": [
@@ -786,6 +1140,281 @@
         "fields": [],
         "generics": [],
         "immutable": false
+      },
+      "type:$import$gui$WeightedLayout": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      }
+    },
+    "dependency:schema.rw": {
+      "fn:$import$schema$any": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$array": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$schema$Schema",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$boolean": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$csvRow": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$schema$Schema",
+          "&List<String>",
+          "&List<String>",
+          "Option<String>"
+        ],
+        "return": "Result<Json,$import$schema$ValidationError>"
+      },
+      "fn:$import$schema$decimal": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$decode": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "$import$schema$Decoder<T,E>",
+          "Json"
+        ],
+        "return": "Result<T,$import$schema$DecodeError<E>>"
+      },
+      "fn:$import$schema$field": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "$import$schema$Schema",
+          "Bool",
+          "Option<Json>"
+        ],
+        "return": "Result<$import$schema$Field,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$integer": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$mapped": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "$import$schema$Schema",
+          "fn(Json)->Result<T,E>!{}~{Send+Share}"
+        ],
+        "return": "$import$schema$Decoder<T,E>"
+      },
+      "fn:$import$schema$nullable": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$schema$Schema"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$number": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$object": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$schema$Field>",
+          "$import$schema$Unknown"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$text": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$timestamp": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$validate": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$schema$Schema",
+          "Json"
+        ],
+        "return": "Result<Json,$import$schema$ValidationError>"
+      },
+      "type:$import$schema$DecodeError": {
+        "bounds": {
+          "E": "Share"
+        },
+        "fields": [
+          [
+            "stage",
+            "String"
+          ],
+          [
+            "validation",
+            "Option<$import$schema$ValidationError>"
+          ],
+          [
+            "conversion",
+            "Option<E>"
+          ]
+        ],
+        "generics": [
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$schema$Decoder": {
+        "bounds": {
+          "E": "Share",
+          "T": "Share"
+        },
+        "fields": [],
+        "generics": [
+          "T",
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$schema$Field": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$Schema": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$SchemaError": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "field",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$Segment": {
+        "generics": [],
+        "variants": {
+          "Field": [
+            [
+              "0",
+              "String"
+            ]
+          ],
+          "Index": [
+            [
+              "0",
+              "Int"
+            ]
+          ]
+        }
+      },
+      "type:$import$schema$Unknown": {
+        "generics": [],
+        "variants": {
+          "Drop": [],
+          "Keep": [],
+          "Reject": []
+        }
+      },
+      "type:$import$schema$ValidationError": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "path",
+            "Frozen<List<$import$schema$Segment>>"
+          ],
+          [
+            "expected",
+            "String"
+          ],
+          [
+            "actual",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
       }
     },
     "fn:create": {
@@ -804,7 +1433,6 @@
       "async": false,
       "cost": "O(fields + rules + schema bytes); at most 128 typed relations, validates referenced field kinds.",
       "effects": [],
-      "failure": "GuiFormRuleLimit/RuleSchema/RuleKind/UnknownId/Schema/Id/Text.",
       "generics": [],
       "parameters": [
         "&List<Field>",
@@ -892,6 +1520,39 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:toJson": {
       "async": false,
       "effects": [],
@@ -904,9 +1565,9 @@
     },
     "fn:toSchemaValue": {
       "async": false,
-      "cost": "O(form fields + relations + schema visits + value bytes + mapper); callback runs once after both validations succeed.",
+      "cost": "validates form fields, then a shared schema, then calls one pure typed mapper. It never mutates the form.",
       "effects": [],
-      "failure": "SchemaSubmitError::Form(StdError), Schema(ValidationError), or Conversion(E); form state is unchanged.",
+      "failure": "SchemaSubmitError::Form(StdError), ::Schema(ValidationError), or ::Conversion(E); mapper runs only after both validations succeed.",
       "generics": [
         [
           "T",
@@ -926,9 +1587,9 @@
     },
     "fn:toValue": {
       "async": false,
-      "cost": "O(form fields + relations + value bytes + mapper); callback runs once after validation succeeds.",
+      "cost": "runs form validation before one pure, explicit typed mapper; it separates validation and conversion failures.",
       "effects": [],
-      "failure": "SubmitError::Form(StdError) or SubmitError::Conversion(E); form state is unchanged.",
+      "failure": "SubmitError::Form(Required/Integer/Real/Range/Timestamp/Relation) or SubmitError::Conversion(E); mapper runs only after form validation succeeds.",
       "generics": [
         [
           "T",
@@ -1707,10 +2368,7 @@
     },
     "type:SchemaSubmitError": {
       "generics": [
-        [
-          "E",
-          "Share"
-        ]
+        "E"
       ],
       "kind": "enum",
       "variants": {
@@ -1763,10 +2421,7 @@
     },
     "type:SubmitError": {
       "generics": [
-        [
-          "E",
-          "Share"
-        ]
+        "E"
       ],
       "kind": "enum",
       "variants": {
@@ -1811,6 +2466,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

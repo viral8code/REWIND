@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.59",
+  "language": "3.0.0",
   "symbols": {
     "alias:TableError": {
       "generics": [],
@@ -12,6 +12,17 @@
         "params": [],
         "target": "StdError"
       },
+      "fn:$import$gui$applyLayout": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&$import$gui$Layout",
+          "$import$gui$Rect"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
       "fn:$import$gui$arrange": {
         "async": false,
         "effects": [],
@@ -21,6 +32,32 @@
           "&List<String>",
           "$import$gui$Rect",
           "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$arrangeColumn": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&List<String>",
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$arrangeRow": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&List<String>",
+          "$import$gui$Rect",
+          "&List<Int>",
           "Int"
         ],
         "return": "Result<Unit,StdError>"
@@ -94,6 +131,54 @@
         "parameters": [],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$column": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$gui$WeightedLayout>",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$componentId": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$ComponentScope",
+          "String"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$gui$componentLocalId": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$ComponentScope",
+          "String"
+        ],
+        "return": "Option<String>"
+      },
+      "fn:$import$gui$componentPrefix": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$gui$ComponentScope"
+        ],
+        "return": "String"
+      },
+      "fn:$import$gui$componentScope": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<$import$gui$ComponentScope,StdError>"
+      },
       "fn:$import$gui$continueInput": {
         "async": false,
         "effects": [
@@ -102,6 +187,17 @@
         "generics": [],
         "parameters": [],
         "return": "Unit"
+      },
+      "fn:$import$gui$crossSized": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$WeightedLayout",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
       },
       "fn:$import$gui$dispatch": {
         "async": false,
@@ -177,6 +273,30 @@
         ],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$leaf": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$line": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
       "fn:$import$gui$nextEvent": {
         "async": false,
         "effects": [
@@ -195,6 +315,28 @@
           "&$import$gui$View"
         ],
         "return": "Result<$import$gui$View,StdError>"
+      },
+      "fn:$import$gui$overlayLayout": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$gui$Layout>"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$padded": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
       },
       "fn:$import$gui$pollEvent": {
         "async": false,
@@ -251,6 +393,16 @@
           "Int"
         ],
         "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$row": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$gui$WeightedLayout>",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
       },
       "fn:$import$gui$scene": {
         "async": false,
@@ -337,6 +489,40 @@
         ],
         "return": "Result<Unit,StdError>"
       },
+      "fn:$import$gui$sized": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
+      },
+      "fn:$import$gui$splitColumn": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<List<$import$gui$Rect>,StdError>"
+      },
+      "fn:$import$gui$splitRow": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<List<$import$gui$Rect>,StdError>"
+      },
       "fn:$import$gui$style": {
         "async": false,
         "effects": [],
@@ -388,6 +574,16 @@
           "Int"
         ],
         "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$weighted": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
       },
       "fn:$import$gui$window": {
         "async": false,
@@ -442,6 +638,12 @@
           ]
         }
       },
+      "type:$import$gui$ComponentScope": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
       "type:$import$gui$Event": {
         "bounds": {},
         "fields": [
@@ -473,6 +675,12 @@
         "generics": [],
         "immutable": true
       },
+      "type:$import$gui$Layout": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
       "type:$import$gui$Rect": {
         "bounds": {},
         "fields": [
@@ -501,9 +709,39 @@
         "fields": [],
         "generics": [],
         "immutable": false
+      },
+      "type:$import$gui$WeightedLayout": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
       }
     },
     "dependency:sort.rw": {
+      "fn:$import$sort$inPlace": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&mut List<T>",
+          "fn(T,T)->Int!{}~{Send+Share}"
+        ],
+        "return": "Unit"
+      },
+      "fn:$import$sort$integers": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>"
+        ],
+        "return": "List<Int>"
+      },
       "fn:$import$sort$stable": {
         "async": false,
         "effects": [],
@@ -518,13 +756,31 @@
           "fn(T,T)->Int!{}~{Send+Share}"
         ],
         "return": "List<T>"
+      },
+      "fn:$import$sort$tryStable": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "&List<T>",
+          "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<List<T>,E>"
       }
     },
     "fn:beginEdit": {
       "async": false,
-      "cost": "O(1) plus bounded overlay lookup; starts one draft identified by the selected row's stable ID.",
+      "cost": "starts one row/column draft using the current effective cell value and stable row ID.",
       "effects": [],
-      "failure": "Range for an invalid visible row/column; EditActive if another draft is open.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -535,7 +791,7 @@
     },
     "fn:cancelEdit": {
       "async": false,
-      "cost": "O(1); clears only the draft and returns whether one was active.",
+      "cost": "discards only the active draft and returns false when nothing was active.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -547,7 +803,6 @@
       "async": false,
       "cost": "O(1) overlay lookup plus frozen base access; staged values are visible to render.",
       "effects": [],
-      "failure": "Range.",
       "generics": [],
       "parameters": [
         "&Table",
@@ -558,7 +813,7 @@
     },
     "fn:changes": {
       "async": false,
-      "cost": "O(edits), at most 4096 entries; returns a frozen snapshot in first-edit order.",
+      "cost": "O(edits), at most 4096 entries; preserves first-edit order in a frozen snapshot.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -568,17 +823,17 @@
     },
     "fn:clearEdits": {
       "async": false,
+      "cost": "O(edits), plus O(rows) to refresh an active filter.",
       "effects": [],
       "generics": [],
       "parameters": [
         "&mut Table"
       ],
-      "return": "Unit",
-      "cost": "O(edits), plus O(rows) to refresh an active filter."
+      "return": "Unit"
     },
     "fn:clearFilter": {
       "async": false,
-      "cost": "O(rows) to rebuild current display indexes.",
+      "cost": "restores every source row in the current full sort order; O(rows) index rebuild.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -597,9 +852,8 @@
     },
     "fn:commitEdit": {
       "async": false,
-      "cost": "O(1), except bounded staged-edit reindexing or active-filter refresh.",
       "effects": [],
-      "failure": "NoActiveEdit, UnknownRow, EditLimit, or EditCapacity; failed staging keeps the draft active.",
+      "failure": "stages the draft; capacity failures keep it active for correction or cancellation.",
       "generics": [],
       "parameters": [
         "&mut Table"
@@ -610,7 +864,6 @@
       "async": false,
       "cost": "O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.",
       "effects": [],
-      "failure": "Shape/Capacity/Text; 1..16 columns, at most 65536 rows and 1048576 cells, 16MiB text.",
       "generics": [],
       "parameters": [
         "Frozen<List<String>>",
@@ -635,8 +888,9 @@
     },
     "fn:dispatch": {
       "async": false,
+      "cost": "edit failure EditRejected keeps the draft open when commit fails; text input is ignored when prefix:edit is not rendered.",
       "effects": [],
-      "failure": "Range/Id; wheel and Up/Down/Home/End move the selected row or viewport.",
+      "failure": "Range/Id/Text; wheel and Up/Down/Home/End move the selected row or viewport. F2 starts a draft on the selected row at the focused column (Left/Right); while a draft is open, Enter commits, Escape cancels, and key/text input edits prefix:edit (Up/Down are ignored). Callers re-render after Edit* actions.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -648,7 +902,7 @@
     },
     "fn:draft": {
       "async": false,
-      "cost": "O(1); returns the active draft snapshot or None.",
+      "cost": "returns the active uncommitted cell edit; render shows it in the textbox prefix:edit, and cell/changes/toValue still see only committed values.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -658,7 +912,7 @@
     },
     "fn:editCell": {
       "async": false,
-      "cost": "O(1), except bounded edit removal or active-filter refresh over at most 8192 rows.",
+      "cost": "O(1), except bounded edit removal or active-filter refresh over at most 8192 rows; max 4096 staged cells and 4 MiB of value bytes.",
       "effects": [],
       "failure": "Range/Text/EditLimit/EditCapacity/EditActive.",
       "generics": [],
@@ -672,7 +926,7 @@
     },
     "fn:editCellId": {
       "async": false,
-      "cost": "O(1), except bounded edit removal or active-filter refresh over at most 8192 rows; accepts known rows even when filtered out.",
+      "cost": "resolves stable row IDs in O(1), including filtered-out rows; an active filter refresh scans at most 8192 rows.",
       "effects": [],
       "failure": "UnknownRow/Range/Text/EditLimit/EditCapacity/EditActive.",
       "generics": [],
@@ -686,9 +940,9 @@
     },
     "fn:filterByText": {
       "async": false,
-      "cost": "O(rows + scanned cell bytes), case-sensitive substring scan; non-empty query allows at most 8192 source rows.",
+      "cost": "O(rows + scanned cell bytes); case-sensitive substring match in the current full sort order. Empty query clears filtering. Non-empty query is limited to 8192 source rows and 256 UTF-8 bytes.",
       "effects": [],
-      "failure": "Range for invalid column; FilterRows above 8192 rows; FilterQuery above 256 UTF-8 bytes or invalid text. Failure leaves view state unchanged.",
+      "failure": "Range/FilterRows/FilterQuery; failures leave view and selection unchanged.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -717,9 +971,9 @@
     },
     "fn:render": {
       "async": false,
-      "cost": "O(visible rows * columns); new view keeps failures away from the caller's published scene.",
+      "cost": "O(columns + visible rows * columns); relative column weights consume the full inner width, with at least one pixel per column. New view keeps failures away from the caller's published scene.",
       "effects": [],
-      "failure": "Bounds/Id; equal-width columns, row height 16..128, caller publishes the returned view.",
+      "failure": "Bounds/Id; weighted column widths have a 1-pixel minimum, row height 16..128, caller publishes the returned view. An open draft in the viewport renders as a focused textbox prefix:edit with the saved caret.",
       "generics": [],
       "parameters": [
         "&Table",
@@ -733,9 +987,7 @@
     },
     "fn:rowId": {
       "async": false,
-      "cost": "O(1); legacy positional IDs format the row number.",
       "effects": [],
-      "failure": "Range.",
       "generics": [],
       "parameters": [
         "&Table",
@@ -745,7 +997,7 @@
     },
     "fn:rowIndex": {
       "async": false,
-      "cost": "O(1) with caller IDs, O(id bytes) for legacy positional IDs; None for unknown or filtered rows.",
+      "cost": "returns the current display position; None means unknown or filtered out. Cost O(1) with caller IDs, O(id bytes) for legacy positional IDs.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -756,13 +1008,13 @@
     },
     "fn:rows": {
       "async": false,
+      "cost": "returns total source rows, independent of the active filter.",
       "effects": [],
       "generics": [],
       "parameters": [
         "&Table"
       ],
-      "return": "Int",
-      "cost": "O(1); total source row count, unaffected by filtering."
+      "return": "Int"
     },
     "fn:scroll": {
       "async": false,
@@ -783,14 +1035,11 @@
         "&mut Table",
         "Int"
       ],
-      "return": "Result<Unit,StdError>",
-      "cost": "O(1); row is a current display position."
+      "return": "Result<Unit,StdError>"
     },
     "fn:selectId": {
       "async": false,
-      "cost": "O(1) with caller IDs, O(id bytes) for legacy positional IDs.",
       "effects": [],
-      "failure": "UnknownRow for unknown ID; FilteredRow for a known row outside the active view.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -800,17 +1049,16 @@
     },
     "fn:selection": {
       "async": false,
+      "cost": "returns the selected row's current display position; use selectionId for stable identity.",
       "effects": [],
       "generics": [],
       "parameters": [
         "&Table"
       ],
-      "return": "Option<Int>",
-      "cost": "O(1); returns current display position. Use selectionId for stable row identity."
+      "return": "Option<Int>"
     },
     "fn:selectionId": {
       "async": false,
-      "cost": "O(1); returns the identity of the selected data row.",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -820,9 +1068,8 @@
     },
     "fn:setColumnWeights": {
       "async": false,
-      "cost": "O(columns), at most 16 entries; next render allocates the full inner width using relative weights.",
       "effects": [],
-      "failure": "ColumnCount if the number of weights differs from the column count; ColumnWeight if a value is outside 1..65535. Failure leaves the previous weights unchanged.",
+      "failure": "accepts one positive relative weight per column; maximum 65535. A failed call leaves the previous configuration unchanged.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -832,9 +1079,8 @@
     },
     "fn:setDraft": {
       "async": false,
-      "cost": "O(value bytes), at most 4096 UTF-8 bytes.",
       "effects": [],
-      "failure": "NoActiveEdit or InvalidText; failure preserves the existing draft.",
+      "failure": "accepts at most 4096 valid single-line UTF-8 bytes; failures preserve the existing draft. The caret moves to the end.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -844,9 +1090,9 @@
     },
     "fn:sortByText": {
       "async": false,
-      "cost": "O(n log n) comparisons plus O(n) filter indexes; stable ties retain current full sort order.",
+      "cost": "descending=false is ascending, true is descending. Stable ties retain current full sort order; cost O(n log n) comparisons plus bounded indexes. Limits: 8192 source rows and 256 UTF-8 bytes per key.",
       "effects": [],
-      "failure": "Range for invalid column; SortRows above 8192 source rows; SortKey above 256 UTF-8 bytes. Failure leaves full order, filter, selection, viewport, and staged edits unchanged.",
+      "failure": "Range/SortRows/SortKey; any failure leaves order, filter, selection, viewport, and staged edits unchanged.",
       "generics": [],
       "parameters": [
         "&mut Table",
@@ -855,11 +1101,44 @@
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:toValue": {
       "async": false,
-      "cost": "O(columns), at most 16 columns; constructs one frozen row snapshot and invokes the pure mapper once.",
+      "cost": "maps one row by stable ID in O(columns), including staged edits and filtered-out rows.",
       "effects": [],
-      "failure": "UnknownRow when the stable row ID is absent; Conversion carries the row ID and mapper error. Reads staged values and works for filtered-out rows.",
+      "failure": "UnknownRow for a missing ID; Conversion includes the row ID and mapper error. The table is not mutated.",
       "generics": [
         [
           "T",
@@ -879,7 +1158,7 @@
     },
     "fn:visibleRows": {
       "async": false,
-      "cost": "O(1); count of rows in the active filtered view.",
+      "cost": "returns the number of rows in the current filtered view in O(1).",
       "effects": [],
       "generics": [],
       "parameters": [
@@ -892,6 +1171,46 @@
       "kind": "enum",
       "variants": {
         "Close": [],
+        "EditCancelled": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "EditCommitted": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "EditRejected": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "EditStarted": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
         "Resize": [
           [
             "0",
@@ -943,7 +1262,7 @@
         ]
       ],
       "generics": [],
-      "kind": "record"
+      "kind": "struct"
     },
     "type:CellEdit": {
       "constructor": true,
@@ -962,7 +1281,7 @@
         ]
       ],
       "generics": [],
-      "kind": "record"
+      "kind": "struct"
     },
     "type:CsvStreamState": {
       "constructor": false,
@@ -1561,10 +1880,7 @@
     },
     "type:RowMapError": {
       "generics": [
-        [
-          "E",
-          "Share"
-        ]
+        "E"
       ],
       "kind": "enum",
       "variants": {
@@ -1646,6 +1962,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }
