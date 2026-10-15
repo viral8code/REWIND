@@ -157,6 +157,8 @@ compact記録にstep履歴を作ったふりをしない。unsupported capabilit
 
 **検証：** nested call、再帰、generic specialization、async/await、native wrapper、取消とbudget失敗。同じ計算の非profile実行とdigest/出力/観測が一致。追加費用は測定し記録する。
 
+**実装済み（2026-10-15）：** `rewind profile`のJSONに`attribution`（task/function別のexclusive・inclusive・native_work、行別instruction数、意味の説明）を追加。再帰は命令ごとに1回だけinclusiveへ数える。`--profile-format text|json`。logical workでありミリ秒ではない。[tests/profile_attribution.rs](../tests/profile_attribution.rs)。
+
 ### PROF-02：checkpointによる保持の説明
 
 現在state、checkpoint、Task、観測/secret保護、Host resourceがrootになることを説明するprofileを追加する。
@@ -168,6 +170,8 @@ compact記録にstep履歴を作ったふりをしない。unsupported capabilit
 - 詳細retainer走査は明示した調査操作で行い、通常GCに常時追加しない。調査にもwork/memory上限を設ける。
 
 **検証：** 同じpageを二つのcheckpointが保持、独立COW更新、begin、drop、Task完了、Bytes slice、native cleanup、循環、weak index。runtime全体のledgerと矛盾しない。
+
+**実装済み（2026-10-15）：** `retention`にroot別（current/checkpoint）のheap参照量・exclusive量・`heap_shared_with`、参照総量とunique量を分けて出力。RSSではない旨をnotesに明記。詳細retainer走査は未実装（通常実行には追加しない）。
 
 ## 作業順と版の判断
 
