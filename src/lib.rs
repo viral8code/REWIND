@@ -434,6 +434,16 @@ pub struct DiagnosticRecord {
     pub frames_truncated: bool,
     pub causes: Vec<DiagnosticRecord>,
     pub wait_edges: Vec<WaitEdge>,
+    /// Other source locations that explain this one (moved here, borrowed here, ...).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related: Vec<RelatedLocation>,
+}
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct RelatedLocation {
+    pub source: String,
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DiagnosticFrame {

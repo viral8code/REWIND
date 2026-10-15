@@ -736,6 +736,7 @@ pub(super) fn call(rt: &Runtime, n: &str, args: &[Value]) -> Result<Option<Value
                     frames_truncated: false,
                     causes: vec![],
                     wait_edges: vec![],
+                    related: Vec::new(),
                 })));
             }
             Value::Null

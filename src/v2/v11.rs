@@ -77,7 +77,9 @@ pub(super) fn enrich(d: &mut rewind::DiagnosticRecord) {
             "PublishPartiallyApplied" => "Some external effects may already be applied. Inspect publish_failure; do not blindly retry.",
             "ExternalStateConflict" => "An external file changed. Reload its state and decide how to reconcile it before publishing.",
             "TaskDeadlock" => "Inspect the wait graph; make sure each awaited task or channel can make progress.",
-            "EffectMissing" | "MissingEffect" => "Declare the effect in the function and grant the corresponding CLI or manifest permission.",
+            "EffectMissing" | "MissingEffect" => "Two separate steps: add the effect to the function's effects clause (a source change), and let the person running the program grant it (--allow-effects or the manifest effects). A declaration alone grants nothing.",
+            "ExternalBoundary" => "Inside an external block only the host operation runs: do not await, publish, commit, revert, or leave it with return/break/continue. Do those before or after the block.",
+            "ReservedLabel" => "`begin` is the automatic initial checkpoint. Pick another label; `revert begin;` returns to the initial state and discards everything not yet published.",
             "NotFound" => "File paths are relative to the execution root; check the path and its spelling.",
             _ => "",
         }
@@ -128,11 +130,44 @@ pub(super) fn render(error: &Error) -> String {
         if d.frames_truncated {
             let _ = writeln!(out, "  further callers omitted");
         }
+        if !d.wait_edges.is_empty() {
+            let shown = d.wait_edges.iter().take(16).map(|edge| {
+                let target = match &edge.target {
+                    rewind::WaitTarget::Task(id) => format!("task {id}"),
+                    rewind::WaitTarget::Channel(id) => format!("channel {id}"),
+                    rewind::WaitTarget::Group(id) => format!("group {id}"),
+                };
+                format!("task {} waits for {target}", edge.task)
+            });
+            let _ = writeln!(
+                out,
+                "  wait graph: {}{}",
+                shown.collect::<Vec<_>>().join("; "),
+                if d.wait_edges.len() > 16 {
+                    "; further edges omitted"
+                } else {
+                    ""
+                }
+            );
+        }
+        for note in d.related.iter().take(8) {
+            let _ = writeln!(
+                out,
+                "  note: {} ({}:{}:{})",
+                safe(&note.message),
+                safe(&note.source),
+                note.line,
+                note.column
+            );
+        }
         for hint in &d.hints {
             let _ = writeln!(out, "  help: {}", safe(hint));
         }
-        for cause in &d.causes {
+        for cause in d.causes.iter().take(16) {
             record(cause, out, depth + 1);
+        }
+        if d.causes.len() > 16 {
+            let _ = writeln!(out, "  {} further causes omitted", d.causes.len() - 16);
         }
     }
     let mut out = String::new();

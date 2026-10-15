@@ -669,6 +669,7 @@ fn effect_route(
             frames_truncated: false,
             causes: Vec::new(),
             wait_edges: Vec::new(),
+            related: Vec::new(),
         };
         if operation {
             route = Some(record);

@@ -2224,6 +2224,7 @@ impl<R: BufRead> Vm<R> {
                 } else {
                     vec![]
                 },
+                related: Vec::new(),
             }));
         }
         diagnostic(at, message)
@@ -6571,10 +6572,43 @@ impl<R: BufRead> Vm<R> {
                         || snap.stack_len != self.engine.runtime.state().stack.len()
                         || snap.branches.len() != self.branches.len()
                     {
-                        return Err(self.error(
+                        let reason = if saved_ids != current_ids {
+                            "the call frames live when the checkpoint was created are not the live ones now: the creating function has returned, or this is a different call"
+                        } else if !scopes_match {
+                            "the block scope that held the checkpoint has ended"
+                        } else if snap.stack_len != self.engine.runtime.state().stack.len() {
+                            "an expression was still being evaluated when the checkpoint was created"
+                        } else {
+                            "the branch context differs from the one at the checkpoint"
+                        };
+                        let mut error = self.error(
                             &inst.at,
                             "InvalidContinuation: checkpoint call frames, scopes, stack or branch context are incompatible with the current continuation",
-                        ));
+                        );
+                        if let Error::Diagnostic(record) = &mut error {
+                            if let Some(created) = self.code.get(snap.pc.saturating_sub(1)) {
+                                let function = snap
+                                    .frames
+                                    .last()
+                                    .map(|f| f.name.clone())
+                                    .unwrap_or_else(|| "<entry>".into());
+                                record.related.push(rewind::RelatedLocation {
+                                    source: created.at.source.clone(),
+                                    line: created.at.line,
+                                    column: created.at.col,
+                                    message: format!(
+                                        "checkpoint `{name}` was created here, in {function}"
+                                    ),
+                                });
+                            }
+                            record.related.push(rewind::RelatedLocation {
+                                source: inst.at.source.clone(),
+                                line: inst.at.line,
+                                column: inst.at.col,
+                                message: format!("revert cannot continue: {reason}"),
+                            });
+                        }
+                        return Err(error);
                     }
                     // Revert restores data, but continues at the current instruction.
                     // Keep the active block structure so subsequent Exit/break/return

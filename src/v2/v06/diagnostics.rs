@@ -34,6 +34,7 @@ pub(in crate::v2) fn record(error: &Error, at: &Tok, task_id: u64) -> rewind::Di
         frames_truncated: false,
         causes: vec![],
         wait_edges: vec![],
+        related: Vec::new(),
     }
 }
 pub(in crate::v2) fn value(d: &rewind::DiagnosticRecord) -> Value {

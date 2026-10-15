@@ -2758,6 +2758,7 @@ impl<R: BufRead> Vm<R> {
                     frames_truncated: false,
                     causes: vec![],
                     wait_edges: vec![],
+                    related: Vec::new(),
                 });
             }
         }
@@ -3238,6 +3239,7 @@ impl<R: BufRead> Vm<R> {
                                         frames_truncated: false,
                                         causes,
                                         wait_edges: vec![],
+                                        related: Vec::new(),
                                     });
                                 Some(Err("logical timeout".into()))
                             } else {
@@ -3766,6 +3768,7 @@ impl<R: BufRead> Vm<R> {
                 frames_truncated: false,
                 causes: vec![failure],
                 wait_edges: vec![],
+                related: Vec::new(),
             })
         })
     }
@@ -4090,6 +4093,7 @@ impl<R: BufRead> Vm<R> {
             frames_truncated: false,
             causes: vec![],
             wait_edges: vec![],
+            related: Vec::new(),
         };
         if let Some(context) = task.context {
             let current = self.capture_context();

@@ -717,6 +717,14 @@ pub(super) fn diagnostics(root: &Path, path: &Path, text: &str, error: &Error) -
             let path=root.join(&cause.source);let text=fs::read_to_string(&path).unwrap_or_default();let line=cause.line.saturating_sub(1);let col=utf16_column(&text,line,cause.column.saturating_sub(1));
             json!({"location":{"uri":file_uri(&path),"range":{"start":{"line":line,"character":col},"end":{"line":line,"character":col+1}}},"message":cause.message})
         }).collect::<Vec<_>>();
+        let mut related = related;
+        for note in d.related.iter().take(8) {
+            let path = root.join(&note.source);
+            let text = fs::read_to_string(&path).unwrap_or_default();
+            let line = note.line.saturating_sub(1);
+            let col = utf16_column(&text, line, note.column.saturating_sub(1));
+            related.push(json!({"location":{"uri":file_uri(&path),"range":{"start":{"line":line,"character":col},"end":{"line":line,"character":col+1}}},"message":note.message}));
+        }
         result["relatedInformation"] = json!(related);
     }
     if target != path {

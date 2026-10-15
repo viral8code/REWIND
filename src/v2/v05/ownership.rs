@@ -8,6 +8,9 @@ struct Owner {
     moved: bool,
     moved_fields: BTreeSet<String>,
     borrow: Option<(String, bool)>,
+    /// Where the current borrow started and where the value was moved (for related notes).
+    borrow_at: Option<Tok>,
+    moved_at: Option<Tok>,
     capture_borrows: BTreeSet<String>,
 }
 #[derive(Clone)]
@@ -36,7 +39,11 @@ impl Flow<'_> {
             .get(root)
             .is_some_and(|v| v.moved || v.moved_fields.iter().any(|m| Self::overlaps(m, place)))
         {
-            return Err(diagnostic(at, format!("use after move: {place}")));
+            return Err(diagnostic_related(
+                at,
+                format!("use after move: {place}"),
+                &[(self.moved_site(place).as_ref(), "value moved here")],
+            ));
         }
         if self.vars.values().any(|v| {
             v.borrow
@@ -675,6 +682,20 @@ impl Flow<'_> {
             origin: self.origin.clone(),
         }
     }
+    /// Where the borrow that currently blocks `n` started, if known.
+    fn borrow_site(&self, n: &str) -> Option<Tok> {
+        self.vars.values().find_map(|v| {
+            v.borrow
+                .as_ref()
+                .filter(|(target, _)| Self::overlaps(target, n))
+                .and_then(|_| v.borrow_at.clone())
+        })
+    }
+    fn moved_site(&self, place: &str) -> Option<Tok> {
+        self.vars
+            .get(place.split('.').next().unwrap())
+            .and_then(|v| v.moved_at.clone())
+    }
     fn borrowed(&self, n: &str) -> bool {
         self.vars.values().any(|v| {
             v.capture_borrows
@@ -898,9 +919,10 @@ impl Flow<'_> {
             return self.use_place(n, at);
         }
         if self.vars.get(n).is_some_and(|v| v.moved) {
-            return Err(diagnostic(
+            return Err(diagnostic_related(
                 at,
                 format!("use after move: {n}; freeze or borrow before transferring ownership"),
+                &[(self.moved_site(n).as_ref(), "value moved here")],
             ));
         }
         if self.vars.values().any(|v| {
@@ -1056,6 +1078,7 @@ impl Flow<'_> {
                                 return Err(diagnostic(&e.at, "cannot capture move from a borrow"));
                             }
                             v.moved = true;
+                            v.moved_at = Some(e.at.clone());
                         }
                     }
                 } else {
@@ -1071,6 +1094,8 @@ impl Flow<'_> {
                         nested.vars.insert(
                             n.clone(),
                             Owner {
+                                borrow_at: None,
+                                moved_at: None,
                                 ty: t.clone(),
                                 transferable: self.transfer_ty(t, false),
                                 shareable: self.transfer_ty(t, true),
@@ -1217,6 +1242,7 @@ impl Flow<'_> {
                         return Err(diagnostic(&e.at, "cannot move a borrowed value"));
                     }
                     v.moved = true;
+                    v.moved_at = Some(e.at.clone());
                 }
             }
             ExprKind::Unary(op, v) if matches!(op.as_str(), "borrow" | "borrowMut") => {
@@ -1660,9 +1686,13 @@ impl Flow<'_> {
                         ) {
                             if let Some(place) = Self::place(base) {
                                 if self.borrowed(&place) {
-                                    return Err(diagnostic(
+                                    return Err(diagnostic_related(
                                         &e.at,
                                         "cannot mutate an owner while borrowed",
+                                        &[(
+                                            self.borrow_site(&place).as_ref(),
+                                            "borrow starts here",
+                                        )],
                                     ));
                                 }
                                 if self
@@ -1696,9 +1726,10 @@ impl Flow<'_> {
                                 | "next"
                         ) {
                             if self.borrowed(n) {
-                                return Err(diagnostic(
+                                return Err(diagnostic_related(
                                     &e.at,
                                     "cannot mutate an owner while borrowed",
+                                    &[(self.borrow_site(n).as_ref(), "borrow starts here")],
                                 ));
                             }
                             if self
@@ -2239,6 +2270,8 @@ impl Flow<'_> {
                     nested.vars.insert(
                         n.clone(),
                         Owner {
+                            borrow_at: None,
+                            moved_at: None,
                             ty: t.clone(),
                             transferable: self.transfer_ty(t, false),
                             shareable: self.transfer_ty(t, true),
@@ -2397,6 +2430,8 @@ impl Flow<'_> {
                         branch.vars.insert(
                             n,
                             Owner {
+                                borrow_at: None,
+                                moved_at: None,
                                 transferable: self.transfer_ty(&ty, false),
                                 shareable: self.transfer_ty(&ty, true),
                                 mutable: false,
@@ -3251,6 +3286,8 @@ impl Flow<'_> {
                     self.vars.insert(
                         n.clone(),
                         Owner {
+                            borrow_at: borrow.as_ref().map(|_| e.at.clone()),
+                            moved_at: None,
                             ty,
                             transferable,
                             shareable,
@@ -3514,6 +3551,8 @@ impl Flow<'_> {
                     self.vars.insert(
                         n.clone(),
                         Owner {
+                            borrow_at: None,
+                            moved_at: None,
                             ty: "Int".into(),
                             transferable: true,
                             shareable: true,
@@ -3552,6 +3591,8 @@ impl Flow<'_> {
                             branch.vars.insert(
                                 n,
                                 Owner {
+                                    borrow_at: None,
+                                    moved_at: None,
                                     transferable: self.transfer_ty(&t, false),
                                     shareable: self.transfer_ty(&t, true),
                                     mutable: false,
@@ -3847,6 +3888,8 @@ pub(super) fn validate(program: &Program) -> Result<()> {
             flow.vars.insert(
                 n.clone(),
                 Owner {
+                    borrow_at: None,
+                    moved_at: None,
                     ty: ty.clone(),
                     transferable: flow.transfer_ty(ty, false),
                     shareable: flow.transfer_ty(ty, true),

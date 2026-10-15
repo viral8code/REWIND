@@ -908,171 +908,294 @@ fn debugger_view(
         Ok(trace["debug"]["final"].clone())
     }
 }
-pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()> {
-    if fs::metadata(path)?.len() > 128 * 1024 * 1024 {
-        return Err(Error::InvalidOperation("debug trace exceeds budget".into()));
-    }
-    let trace: Json = serde_json::from_slice(&fs::read(path)?)
-        .map_err(|e| Error::InvalidOperation(e.to_string()))?;
-    let signature_kind = if trace["kind"] == "rewind-inspection" {
-        "inspection"
-    } else {
-        "trace"
-    };
-    let trace = v08::inspection_trace(trace)?;
-    if trace["record_mode"] == "compact" {
-        return Err(Error::InvalidOperation(
-            "CompactTraceNoDebugHistory: record with --record-mode debug for stepping".into(),
-        ));
-    }
-    if !v08::readable_trace(&trace) {
-        return Err(Error::InvalidOperation(
-            "unsupported debug trace format/compiler; rebuild the recording with this compiler"
-                .into(),
-        ));
-    }
-    if let Some(key) = &options.verify_key {
-        packages::verify_file(
-            path,
-            &PathBuf::from(format!("{}.signature", path.display())),
-            key,
-            signature_kind,
-        )?;
-    }
-    let entry = trace["entry"]
-        .as_str()
-        .ok_or_else(|| Error::InvalidOperation("missing trace entry".into()))?;
-    let entry = Path::new(entry);
-    if entry.is_absolute()
-        || entry
-            .components()
-            .any(|c| !matches!(c, std::path::Component::Normal(_)))
-    {
-        return Err(Error::InvalidPath("debug entry".into()));
-    }
-    let events = trace["events"]
-        .as_array()
-        .ok_or_else(|| Error::InvalidOperation("missing events".into()))?;
-    let indexed = !trace["debug"]["index"].is_null();
-    if indexed
-        && trace["debug"]["index"]["deltas"]
+/// A recorded-execution debugger over a validated trace. The command-line session and
+/// the Debug Adapter Protocol server both drive this engine. It restores state from the
+/// recorded index (or by replaying the saved source) and never re-runs the program's
+/// external operations.
+pub struct DebugEngine {
+    trace: Json,
+    root: PathBuf,
+    options: RunOptions,
+    parsed: Option<Program>,
+    indexed: bool,
+    index: usize,
+    selected_task: Option<u64>,
+    breakpoints: BTreeSet<(String, usize)>,
+    current: Json,
+}
+impl DebugEngine {
+    /// Reads and validates a debug trace: size, signature, format, fingerprint and
+    /// index length. Compact recordings have no step history and are refused.
+    pub fn open(path: &Path, root: &Path, options: RunOptions) -> Result<Self> {
+        if fs::metadata(path)?.len() > 128 * 1024 * 1024 {
+            return Err(Error::InvalidOperation("debug trace exceeds budget".into()));
+        }
+        let trace: Json = serde_json::from_slice(&fs::read(path)?)
+            .map_err(|e| Error::InvalidOperation(e.to_string()))?;
+        let signature_kind = if trace["kind"] == "rewind-inspection" {
+            "inspection"
+        } else {
+            "trace"
+        };
+        let trace = v08::inspection_trace(trace)?;
+        if trace["record_mode"] == "compact" {
+            return Err(Error::InvalidOperation(
+                "CompactTraceNoDebugHistory: record with --record-mode debug for stepping".into(),
+            ));
+        }
+        if !v08::readable_trace(&trace) {
+            return Err(Error::InvalidOperation(
+                "unsupported debug trace format/compiler; rebuild the recording with this compiler"
+                    .into(),
+            ));
+        }
+        if let Some(key) = &options.verify_key {
+            packages::verify_file(
+                path,
+                &PathBuf::from(format!("{}.signature", path.display())),
+                key,
+                signature_kind,
+            )?;
+        }
+        let entry = trace["entry"]
+            .as_str()
+            .ok_or_else(|| Error::InvalidOperation("missing trace entry".into()))?;
+        let entry = Path::new(entry);
+        if entry.is_absolute()
+            || entry
+                .components()
+                .any(|c| !matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err(Error::InvalidPath("debug entry".into()));
+        }
+        let events = trace["events"]
             .as_array()
-            .is_none_or(|a| a.len() != events.len())
-    {
-        return Err(Error::InvalidOperation("invalid debug index length".into()));
-    }
-    if indexed && trace["artifact_sha256"] != trace["fingerprint"] {
-        return Err(Error::InvalidOperation(
-            "debug artifact fingerprint mismatch".into(),
-        ));
-    }
-    let source = root.join(entry);
-    let parsed = if !indexed && source.exists() {
-        if let Some(c) = project::ProjectConfig::load(root)? {
-            c.lock(root, false)?;
+            .ok_or_else(|| Error::InvalidOperation("missing events".into()))?;
+        let indexed = !trace["debug"]["index"].is_null();
+        if indexed
+            && trace["debug"]["index"]["deltas"]
+                .as_array()
+                .is_none_or(|a| a.len() != events.len())
+        {
+            return Err(Error::InvalidOperation("invalid debug index length".into()));
         }
-        Some(program(root, &source, &BTreeMap::new())?)
-    } else {
-        None
-    };
-    let checkpoints = trace["debug"]["checkpoints"]
-        .as_array()
-        .ok_or_else(|| Error::InvalidOperation("missing checkpoints".into()))?;
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-    let mut output = stdout.lock();
-    let mut index = 0usize;
-    let mut current = debugger_view(parsed.as_ref(), root, &trace, index, &options)?;
-    let mut selected_task: Option<u64> = None;
-    let mut breakpoints: BTreeSet<(String, usize)> = BTreeSet::new();
-    writeln!(output,"REWIND recorded debugger: step, back, next-line, previous-line, continue, reverse-continue, break SOURCE:LINE, clear SOURCE:LINE, task ID, checkpoint NAME, state, tasks, files, diff EVENT, quit")?;
-    output.flush()?;
-    loop {
-        let mut command = String::new();
-        if stdin.lock().read_line(&mut command)? == 0 {
-            break;
+        if indexed && trace["artifact_sha256"] != trace["fingerprint"] {
+            return Err(Error::InvalidOperation(
+                "debug artifact fingerprint mismatch".into(),
+            ));
         }
-        let command = command.trim();
-        let previous = index;
+        let source = root.join(entry);
+        let parsed = if !indexed && source.exists() {
+            if let Some(c) = project::ProjectConfig::load(root)? {
+                c.lock(root, false)?;
+            }
+            Some(program(root, &source, &BTreeMap::new())?)
+        } else {
+            None
+        };
+        if trace["debug"]["checkpoints"].as_array().is_none() {
+            return Err(Error::InvalidOperation("missing checkpoints".into()));
+        }
+        let current = debugger_view(parsed.as_ref(), root, &trace, 0, &options)?;
+        Ok(Self {
+            trace,
+            root: root.to_path_buf(),
+            options,
+            parsed,
+            indexed,
+            index: 0,
+            selected_task: None,
+            breakpoints: BTreeSet::new(),
+            current,
+        })
+    }
+    fn events(&self) -> &Vec<Json> {
+        self.trace["events"].as_array().expect("validated in open")
+    }
+    pub fn event_count(&self) -> usize {
+        self.events().len()
+    }
+    pub fn index(&self) -> usize {
+        self.index
+    }
+    pub fn current(&self) -> &Json {
+        &self.current
+    }
+    pub fn trace(&self) -> &Json {
+        &self.trace
+    }
+    pub fn selected_task(&self) -> Option<u64> {
+        self.selected_task
+    }
+    pub fn state_available(&self) -> bool {
+        self.indexed || self.parsed.is_some()
+    }
+    /// The recorded event nearest before `index`, if any.
+    pub fn event_at(&self, index: usize) -> Option<&Json> {
+        self.events().get(index)
+    }
+    fn matches_task(&self, event: usize) -> bool {
+        self.selected_task
+            .is_none_or(|task| self.events()[event]["task"] == task)
+    }
+    fn go(&mut self, index: usize) -> Result<()> {
+        if index != self.index {
+            self.current = debugger_view(
+                self.parsed.as_ref(),
+                &self.root,
+                &self.trace,
+                index,
+                &self.options,
+            )?;
+            self.index = index;
+        }
+        Ok(())
+    }
+    pub fn step(&mut self) -> Result<Json> {
+        let end = self.event_count();
+        let index = (self.index..end)
+            .find(|i| self.matches_task(*i))
+            .map(|i| i + 1)
+            .unwrap_or(end);
+        self.go(index)?;
+        Ok(
+            json!({"event":index,"instruction":self.events().get(index.saturating_sub(1)),"state_available":self.state_available()}),
+        )
+    }
+    pub fn back(&mut self) -> Result<Json> {
+        let index = (0..self.index)
+            .rev()
+            .find(|i| self.matches_task(*i))
+            .unwrap_or(0);
+        self.go(index)?;
+        Ok(
+            json!({"event":index,"instruction":self.events().get(index),"state_available":self.state_available()}),
+        )
+    }
+    pub fn move_line(&mut self, forward: bool) -> Result<Json> {
+        let end = self.event_count();
+        let base = self.events().get(self.index.min(end.saturating_sub(1)));
+        let range: Box<dyn Iterator<Item = usize>> = if forward {
+            Box::new(self.index + 1..end)
+        } else {
+            Box::new((0..self.index).rev())
+        };
+        let index = range
+            .filter(|i| self.matches_task(*i))
+            .find(|i| {
+                base.is_none_or(|base| {
+                    self.events()[*i]["source"] != base["source"]
+                        || self.events()[*i]["line"] != base["line"]
+                })
+            })
+            .unwrap_or(if forward { end } else { 0 });
+        self.go(index)?;
+        Ok(json!({"event":index,"instruction":self.events().get(index)}))
+    }
+    pub fn run_to_breakpoint(&mut self, forward: bool) -> Result<Json> {
+        let end = self.event_count();
+        let range: Box<dyn Iterator<Item = usize>> = if forward {
+            Box::new(self.index + 1..end)
+        } else {
+            Box::new((0..self.index).rev())
+        };
+        let stop = range.filter(|i| self.matches_task(*i)).find(|i| {
+            self.breakpoints.contains(&(
+                self.events()[*i]["source"].as_str().unwrap_or("").into(),
+                self.events()[*i]["line"].as_u64().unwrap_or(0) as usize,
+            ))
+        });
+        let index = stop.unwrap_or(if forward { end } else { 0 });
+        self.go(index)?;
+        Ok(
+            json!({"event":index,"breakpoint":stop.is_some(),"result":if index==end{self.trace["result"].clone()}else{Json::Null}}),
+        )
+    }
+    pub fn state(&self) -> Json {
+        let current = &self.current;
+        if let Some(task) = self.selected_task {
+            json!({"event":self.index,"task":task,"task_state":current["scheduler"]["tasks"][task.to_string()],"frames":if current["scheduler"]["active"]==task{current["frames"].clone()}else{current["task_frames"][task.to_string()].clone()},"runtime":current["runtime"]})
+        } else {
+            current.clone()
+        }
+    }
+    pub fn tasks(&self) -> Json {
+        self.current["scheduler"].clone()
+    }
+    pub fn files(&self) -> Json {
+        self.current["runtime"]["file_deltas"].clone()
+    }
+    pub fn go_to_checkpoint(&mut self, name: &str) -> Result<Json> {
+        let target = self.trace["debug"]["checkpoints"]
+            .as_array()
+            .and_then(|all| all.iter().rfind(|c| c["checkpoint"] == name))
+            .map(|c| c["event_index"].as_u64().unwrap_or(0) as usize);
+        if let Some(index) = target {
+            self.go(index.min(self.event_count()))?;
+        }
+        Ok(json!({"checkpoint":name,"found":target.is_some(),"event":self.index}))
+    }
+    pub fn select_task(&mut self, task: u64) -> Json {
+        if self.current["scheduler"]["tasks"]
+            .get(task.to_string())
+            .is_some()
+        {
+            self.selected_task = Some(task);
+            json!({"task":task})
+        } else {
+            json!({"error":"unknown task"})
+        }
+    }
+    pub fn set_breakpoint(&mut self, source: &str, line: usize, enabled: bool) -> Json {
+        if enabled {
+            self.breakpoints.insert((source.to_string(), line));
+        } else {
+            self.breakpoints.remove(&(source.to_string(), line));
+        }
+        json!({"source":source,"line":line,"enabled":enabled})
+    }
+    /// Replaces every breakpoint of one source file at once (DAP setBreakpoints).
+    pub fn replace_breakpoints(&mut self, source: &str, lines: &[usize]) {
+        self.breakpoints.retain(|(s, _)| s != source);
+        for line in lines {
+            self.breakpoints.insert((source.to_string(), *line));
+        }
+    }
+    pub fn diff(&self, other: usize) -> Result<Json> {
+        if other > self.event_count() {
+            return Ok(json!({"error":"event out of range"}));
+        }
+        let before = debugger_view(
+            self.parsed.as_ref(),
+            &self.root,
+            &self.trace,
+            other,
+            &self.options,
+        )?;
+        Ok(
+            json!({"from":other,"to":self.index,"files":v06::debug::delta(&before["runtime"]["file_deltas"],&self.current["runtime"]["file_deltas"])}),
+        )
+    }
+    /// Runs one text command of the interactive debugger. Returns the JSON reply and
+    /// whether the session should end.
+    pub fn command(&mut self, command: &str) -> Result<(Json, bool)> {
         let value = match command {
-            "step" => {
-                index = (index..events.len())
-                    .find(|i| selected_task.is_none_or(|task| events[*i]["task"] == task))
-                    .map(|i| i + 1)
-                    .unwrap_or(events.len());
-                json!({"event":index,"instruction":events.get(index.saturating_sub(1)),"state_available":indexed||parsed.is_some()})
-            }
-            "back" | "reverse-step" => {
-                index = (0..index)
-                    .rev()
-                    .find(|i| selected_task.is_none_or(|task| events[*i]["task"] == task))
-                    .unwrap_or(0);
-                json!({"event":index,"instruction":events.get(index),"state_available":indexed||parsed.is_some()})
-            }
-            "next-line" | "previous-line" => {
-                let forward = command == "next-line";
-                let base = events.get(index.min(events.len().saturating_sub(1)));
-                let range: Box<dyn Iterator<Item = usize>> = if forward {
-                    Box::new(index + 1..events.len())
-                } else {
-                    Box::new((0..index).rev())
-                };
-                index = range
-                    .filter(|i| selected_task.is_none_or(|task| events[*i]["task"] == task))
-                    .find(|i| {
-                        base.is_none_or(|base| {
-                            events[*i]["source"] != base["source"]
-                                || events[*i]["line"] != base["line"]
-                        })
-                    })
-                    .unwrap_or(if forward { events.len() } else { 0 });
-                json!({"event":index,"instruction":events.get(index)})
-            }
-            "continue" | "reverse-continue" => {
-                let forward = command == "continue";
-                let range: Box<dyn Iterator<Item = usize>> = if forward {
-                    Box::new(index + 1..events.len())
-                } else {
-                    Box::new((0..index).rev())
-                };
-                let stop = range
-                    .filter(|i| selected_task.is_none_or(|task| events[*i]["task"] == task))
-                    .find(|i| {
-                        breakpoints.contains(&(
-                            events[*i]["source"].as_str().unwrap_or("").into(),
-                            events[*i]["line"].as_u64().unwrap_or(0) as usize,
-                        ))
-                    });
-                index = stop.unwrap_or(if forward { events.len() } else { 0 });
-                json!({"event":index,"breakpoint":stop.is_some(),"result":if index==events.len(){trace["result"].clone()}else{Json::Null}})
-            }
-            "state" => {
-                if let Some(task) = selected_task {
-                    json!({"event":index,"task":task,"task_state":current["scheduler"]["tasks"][task.to_string()],"frames":if current["scheduler"]["active"]==task{current["frames"].clone()}else{current["task_frames"][task.to_string()].clone()},"runtime":current["runtime"]})
-                } else {
-                    current.clone()
-                }
-            }
-            "tasks" => current["scheduler"].clone(),
-            "files" => current["runtime"]["file_deltas"].clone(),
-            "quit" => break,
+            "step" => self.step()?,
+            "back" | "reverse-step" => self.back()?,
+            "next-line" => self.move_line(true)?,
+            "previous-line" => self.move_line(false)?,
+            "continue" => self.run_to_breakpoint(true)?,
+            "reverse-continue" => self.run_to_breakpoint(false)?,
+            "state" => self.state(),
+            "tasks" => self.tasks(),
+            "files" => self.files(),
+            "quit" => return Ok((Json::Null, true)),
             _ => {
                 if let Some(name) = command.strip_prefix("checkpoint ") {
-                    let checkpoint = checkpoints.iter().rfind(|c| c["checkpoint"] == name);
-                    if let Some(c) = checkpoint {
-                        index = c["event_index"].as_u64().unwrap_or(0) as usize;
-                    }
-                    json!({"checkpoint":name,"found":checkpoint.is_some(),"event":index})
+                    self.go_to_checkpoint(name)?
                 } else if let Some(text) = command.strip_prefix("task ") {
                     match text.parse::<u64>() {
-                        Ok(task)
-                            if current["scheduler"]["tasks"]
-                                .get(task.to_string())
-                                .is_some() =>
-                        {
-                            selected_task = Some(task);
-                            json!({"task":task})
-                        }
+                        Ok(task) => self.select_task(task),
                         _ => json!({"error":"unknown task"}),
                     }
                 } else if let Some(text) = command
@@ -1083,35 +1206,38 @@ pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()
                         .rsplit_once(':')
                         .and_then(|(s, n)| n.parse::<usize>().ok().map(|n| (s.to_string(), n)))
                     {
-                        let remove = command.starts_with("clear ");
-                        if remove {
-                            breakpoints.remove(&(source.clone(), line));
-                        } else {
-                            breakpoints.insert((source.clone(), line));
-                        }
-                        json!({"source":source,"line":line,"enabled":!remove})
+                        self.set_breakpoint(&source, line, !command.starts_with("clear "))
                     } else {
                         json!({"error":"expected SOURCE:LINE"})
                     }
                 } else if let Some(text) = command.strip_prefix("diff ") {
-                    if let Ok(other) = text.parse::<usize>() {
-                        if other <= events.len() {
-                            let before =
-                                debugger_view(parsed.as_ref(), root, &trace, other, &options)?;
-                            json!({"from":other,"to":index,"files":v06::debug::delta(&before["runtime"]["file_deltas"],&current["runtime"]["file_deltas"])})
-                        } else {
-                            json!({"error":"event out of range"})
-                        }
-                    } else {
-                        json!({"error":"expected event number"})
+                    match text.parse::<usize>() {
+                        Ok(other) => self.diff(other)?,
+                        Err(_) => json!({"error":"expected event number"}),
                     }
                 } else {
                     json!({"error":"unknown debugger command"})
                 }
             }
         };
-        if index != previous {
-            current = debugger_view(parsed.as_ref(), root, &trace, index, &options)?;
+        Ok((value, false))
+    }
+}
+pub fn debug_session(path: &Path, root: &Path, options: RunOptions) -> Result<()> {
+    let mut engine = DebugEngine::open(path, root, options)?;
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut output = stdout.lock();
+    writeln!(output,"REWIND recorded debugger: step, back, next-line, previous-line, continue, reverse-continue, break SOURCE:LINE, clear SOURCE:LINE, task ID, checkpoint NAME, state, tasks, files, diff EVENT, quit")?;
+    output.flush()?;
+    loop {
+        let mut command = String::new();
+        if stdin.lock().read_line(&mut command)? == 0 {
+            break;
+        }
+        let (value, quit) = engine.command(command.trim())?;
+        if quit {
+            break;
         }
         writeln!(output, "{value}")?;
         output.flush()?;

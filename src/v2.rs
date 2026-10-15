@@ -370,7 +370,32 @@ fn diagnostic(t: &Tok, message: impl AsRef<str>) -> Error {
         frames_truncated: false,
         causes: vec![],
         wait_edges: vec![],
+        related: Vec::new(),
     }))
+}
+
+/// A diagnostic whose primary location is `t`, with other locations that explain it.
+/// Notes name positions and kinds only; they never contain local values.
+fn diagnostic_related(
+    t: &Tok,
+    message: impl AsRef<str>,
+    related: &[(Option<&Tok>, &str)],
+) -> Error {
+    let mut error = diagnostic(t, message);
+    if let Error::Diagnostic(record) = &mut error {
+        record.related = related
+            .iter()
+            .filter_map(|(tok, note)| {
+                tok.map(|tok| rewind::RelatedLocation {
+                    source: tok.source.clone(),
+                    line: tok.line,
+                    column: tok.col,
+                    message: (*note).into(),
+                })
+            })
+            .collect();
+    }
+    error
 }
 
 fn integer_magnitude(text: &str) -> Option<u64> {

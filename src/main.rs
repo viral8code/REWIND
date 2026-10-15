@@ -1546,11 +1546,21 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             let mut errors = Vec::new();
             for path in files {
                 if let Err(error) = v2::cli("check", &path, &root, false, options.clone()) {
-                    errors.push(format!("{path}: {error}"));
+                    errors.push((path, error));
                 }
             }
+            // A single failure keeps its structured diagnostic (code, notes, JSON).
+            if errors.len() == 1 && matches!(errors[0].1, Error::Diagnostic(_)) {
+                return Err(errors.remove(0).1);
+            }
             if !errors.is_empty() {
-                return Err(Error::InvalidOperation(errors.join("\n")));
+                return Err(Error::InvalidOperation(
+                    errors
+                        .iter()
+                        .map(|(path, error)| format!("{path}: {error}"))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                ));
             }
             return Ok(());
         }
