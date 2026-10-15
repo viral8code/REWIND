@@ -68,7 +68,7 @@ assert run("replay", root / "decimal-trace.json", "--root", root) == actual
 print("Verified extracted Decimal SDK: exact arithmetic, rounding, canonical Map keys and source-free replay")
 
 datetime = root / "datetime.rw"
-datetime.write_text((sdk / "share/rewind/examples/datetime/main.rw").read_text(encoding="utf-8") + '\nlet encodedDuration=take(datetime.durationToJson(&distance));let decodedDuration=take(datetime.durationFromJson(move encodedDuration));Out.println(decodedDuration==distance);publish;\n', encoding="utf-8")
+datetime.write_text(rw3.append((sdk / "share/rewind/examples/datetime/main.rw").read_text(encoding="utf-8"), 'let encodedDuration=take(datetime.durationToJson(&distance));let decodedDuration=take(datetime.durationFromJson(move encodedDuration));Out.println(decodedDuration==distance);publish;'), encoding="utf-8")
 run("compile", datetime)
 datetime.unlink()
 if cache.exists():
@@ -90,7 +90,7 @@ assert run("replay", root / "unicode-trace.json", "--root", root) == actual
 print("Verified extracted Unicode SDK: grapheme clusters, normalization, case mapping and source-free replay")
 
 regex = root / "regex.rw"
-regex.write_text((sdk / "share/rewind/examples/regex/main.rw").read_text(encoding="utf-8") + '\nlet encodedPattern=take(regex.toJson(&pattern));let decodedPattern=take(regex.fromJson(encodedPattern));Out.println(decodedPattern==pattern);publish;\n', encoding="utf-8")
+regex.write_text(rw3.append((sdk / "share/rewind/examples/regex/main.rw").read_text(encoding="utf-8"), 'let encodedPattern=take(regex.toJson(&pattern));let decodedPattern=take(regex.fromJson(encodedPattern));Out.println(decodedPattern==pattern);publish;'), encoding="utf-8")
 run("compile", regex)
 regex.unlink()
 if cache.exists():
@@ -106,8 +106,8 @@ run("compile", csv)
 csv.unlink()
 if cache.exists():
     shutil.rmtree(cache)
-actual = run("run", root / "csv-stream.rwc", "--record", root / "csv-stream-trace.json")
-assert actual.decode("utf-8") == 'name\nnote\n日本語\na"b\n日\nname\n', actual
+actual = run("run", root / "csv-stream.rwc", "--record", root / "csv-stream-trace.json", "--record-mode", "compact")
+assert actual.decode("utf-8") == 'name\nactive\nnote\nValidation\n{"active":true,"name":"日本語","note":"a\\"b\\n日"}\n日本語\n', actual
 assert run("replay", root / "csv-stream-trace.json", "--root", root) == actual
 print("Verified extracted incremental CSV SDK: byte chunk boundaries, quoted UTF-8, checkpoint and source-free replay")
 

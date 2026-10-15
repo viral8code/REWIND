@@ -8,7 +8,7 @@ _DECL = re.compile(r'^(pub\s+)?(async\s+fn|fn|struct|enum|record|const|import|tr
 def _end(s, i):
     n = len(s); depth = 0; j = i
     m = re.match(r'\s*(\w+)', s[i:]); head = m.group(1) if m else ''
-    block = (bool(_DECL.match(s[i:])) and head not in ('import', 'const', 'type')) or head in ('for', 'while', 'if', 'match', 'loop')
+    block = (bool(_DECL.match(s[i:])) and head not in ('import', 'const', 'type')) or head in ('for', 'while', 'if', 'match', 'loop', 'external')
     while j < n:
         c = s[j]
         if c == '/' and s[j:j + 2] == '//':
@@ -55,3 +55,12 @@ def install():
             data = to_main(data)
         return original(self, data, *args, **kwargs)
     pathlib.Path.write_text = write_text
+
+def append(source, statements):
+    """Insert extra statements at the end of a converted program's main."""
+    m = None
+    for m in re.finditer(r'\n[ \t]*return 0;\s*\n\}\s*$', source):
+        pass
+    if m is None:
+        return source + '\n' + statements
+    return source[:m.start()] + '\n    ' + statements.strip() + source[m.start():]

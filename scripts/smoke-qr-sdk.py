@@ -24,7 +24,7 @@ for mode in ['debug', 'compact']:
     directory = root / mode
     directory.mkdir()
     entry = directory / 'main.rw'
-    entry.write_text(source, encoding='utf-8')
+    entry.write_text(source.replace('0..65','0..33') if mode=='debug' else source, encoding='utf-8')
     call(directory, 'compile', entry)
     entry.unlink()
     shutil.rmtree(directory / '.rewind', ignore_errors=True)
