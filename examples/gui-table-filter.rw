@@ -7,35 +7,38 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let headers=List<String>();
-headers.add("Name");
-headers.add("Note");
-let rowIds=List<String>();
-rowIds.add("item-c");
-rowIds.add("item-a");
-rowIds.add("item-b");
-let cells=List<String>();
-cells.add("Cherry");cells.add("original");
-cells.add("Apple");cells.add("first");
-cells.add("Banana");cells.add("second");
+fn main()->Int {
+    let headers=List<String>();
+    headers.add("Name");
+    headers.add("Note");
+    let rowIds=List<String>();
+    rowIds.add("item-c");
+    rowIds.add("item-a");
+    rowIds.add("item-b");
+    let cells=List<String>();
+    cells.add("Cherry");cells.add("original");
+    cells.add("Apple");cells.add("first");
+    cells.add("Banana");cells.add("second");
 
-let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
-take(table.selectId(&mut model,"item-b"));
-take(table.filterByText(&mut model,0,"Ban"));
-Out.println(table.visibleRows(&model).format());
-take(table.editCellId(&mut model,"item-b",0,"Blueberry"));
-Out.println(table.visibleRows(&model).format());
-take(table.editCellId(&mut model,"item-a",0,"Blue Apple"));
-take(table.filterByText(&mut model,0,"Blue"));
-Out.println(table.visibleRows(&model).format());
-Out.println(take(table.rowId(&model,0)));
-match table.rowIndex(&model,"item-b") {
-    Some(row)=>{Out.println(take(table.cell(&model,row,0)));},
-    None=>{panic("filtered row missing");}
+    let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
+    take(table.selectId(&mut model,"item-b"));
+    take(table.filterByText(&mut model,0,"Ban"));
+    Out.println(table.visibleRows(&model).format());
+    take(table.editCellId(&mut model,"item-b",0,"Blueberry"));
+    Out.println(table.visibleRows(&model).format());
+    take(table.editCellId(&mut model,"item-a",0,"Blue Apple"));
+    take(table.filterByText(&mut model,0,"Blue"));
+    Out.println(table.visibleRows(&model).format());
+    Out.println(take(table.rowId(&model,0)));
+    match table.rowIndex(&model,"item-b") {
+        Some(row)=>{Out.println(take(table.cell(&model,row,0)));},
+        None=>{panic("filtered row missing");}
+    }
+    match table.selectionId(&model) {
+        Some(_)=>{panic("hidden selection should be cleared");},
+        None=>{Out.println("selection cleared");}
+    }
+    table.clearFilter(&mut model);
+    Out.println(table.visibleRows(&model).format());
+    return 0;
 }
-match table.selectionId(&model) {
-    Some(_)=>{panic("hidden selection should be cleared");},
-    None=>{Out.println("selection cleared");}
-}
-table.clearFilter(&mut model);
-Out.println(table.visibleRows(&model).format());

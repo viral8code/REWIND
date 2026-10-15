@@ -7,13 +7,16 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let view=take(gui.window("Cross-axis layout",360,200));
-take(gui.label(&mut view,"wide","Full height",0,0,8,8));
-take(gui.label(&mut view,"badge","Limited height",0,0,8,8));
+fn main()->Int {
+    let view=take(gui.window("Cross-axis layout",360,200));
+    take(gui.label(&mut view,"wide","Full height",0,0,8,8));
+    take(gui.label(&mut view,"badge","Limited height",0,0,8,8));
 
-let rowChildren=List<gui.WeightedLayout>();
-rowChildren.add(take(gui.weighted(take(gui.leaf("wide")),3)));
-rowChildren.add(take(gui.crossSized(take(gui.weighted(take(gui.leaf("badge")),1)),32,64)));
-let layout=take(gui.row(&rowChildren,8));
-take(gui.applyLayout(&mut view,&layout,Rect(16,16,328,168)));
-Out.println(take(gui.scene(&view)));
+    let rowChildren=List<gui.WeightedLayout>();
+    rowChildren.add(take(gui.weighted(take(gui.leaf("wide")),3)));
+    rowChildren.add(take(gui.crossSized(take(gui.weighted(take(gui.leaf("badge")),1)),32,64)));
+    let layout=take(gui.row(&rowChildren,8));
+    take(gui.applyLayout(&mut view,&layout,gui.Rect(16,16,328,168)));
+    Out.println(take(gui.scene(&view)));
+    return 0;
+}

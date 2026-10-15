@@ -2,6 +2,7 @@ import std.httpServer as server;
 import std.httpRouter as router;
 import std.bytes as bytes;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value {Ok(v)=>{return move v;},Err(_)=>{panic("failed");}}}
+fn main()->Int effects {env, external, fileRead, network, output, tasks} {
 let routes=List<router.Route>();routes.add(router.Route("POST","/echo","echo"));let routing=freeze(move routes);
 var opening:Option<Task<Result<HttpServer,HttpServerError>>>=None;
 match Env.getSecret("REWIND_HTTP_SERVER_KEY") {
@@ -43,4 +44,6 @@ match opening {None=>{panic("missing listener");},Some(task)=>{
   match closing {None=>{panic("missing close");},Some(task)=>{take(take(await task));}}
  }}
 }}
-Out.println("authenticated https server done");publish;
+Out.println("authenticated https server done");
+return 0;
+}

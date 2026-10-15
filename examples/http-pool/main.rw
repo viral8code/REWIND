@@ -3,6 +3,7 @@ import std.bytes as bytes;
 fn take<T,E>(result:Result<T,E>)->T effects {} {
  match move result {Ok(value)=>{return move value;},Err(_)=>{panic("HTTP operation failed");}}
 }
+fn main()->Int effects {args, external, network, output, tasks} {
 let urls=Args.all();assert(urls.len()>0);
 for url in urls {
  var pending:Option<Task<Result<HttpResponse,HttpError>>>=None;
@@ -12,4 +13,6 @@ for url in urls {
   None=>{panic("missing request");}
  }
 }
-Out.println("requests done");publish;
+Out.println("requests done");
+return 0;
+}

@@ -7,9 +7,12 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let view=take(gui.window("Padded layout",400,220));
-take(gui.button(&mut view,"content","Inset content",0,0,8,8));
-let child=take(gui.leaf("content"));
-let layout=take(gui.padded(child,20,12,20,12));
-take(gui.applyLayout(&mut view,&layout,gui.Rect(24,24,352,152)));
-Out.println(take(gui.scene(&view)));
+fn main()->Int {
+    let view=take(gui.window("Padded layout",400,220));
+    take(gui.button(&mut view,"content","Inset content",0,0,8,8));
+    let child=take(gui.leaf("content"));
+    let layout=take(gui.padded(child,20,12,20,12));
+    take(gui.applyLayout(&mut view,&layout,gui.Rect(24,24,352,152)));
+    Out.println(take(gui.scene(&view)));
+    return 0;
+}

@@ -8,8 +8,11 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let decimalRule=schema.decimal();
-let wireValue=Json::Text("9007199254740993.2500");
-let validated=take(schema.validate(decimalRule,wireValue));
-let amount=take(decimal.fromJson(validated));
-Out.println(take(decimal.representation(&amount)));
+fn main()->Int effects {output} {
+    let decimalRule=schema.decimal();
+    let wireValue=Json::Text("9007199254740993.2500");
+    let validated=take(schema.validate(decimalRule,wireValue));
+    let amount=take(decimal.fromJson(validated));
+    Out.println(take(decimal.representation(&amount)));
+    return 0;
+}

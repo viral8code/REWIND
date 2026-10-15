@@ -2,6 +2,7 @@ import std.numeric as numeric;
 fn take<T,E>(value:Result<T,E>)->T effects {} {
  match move value {Ok(v)=>{return move v;},Err(_)=>{panic("numeric operation failed");}}
 }
+fn main()->Int effects {output} {
 let shape=List<Int>();shape.add(8193);
 var input=take(numeric.zerosFloat(&shape));
 let index=List<Int>();index.add(8192);
@@ -22,4 +23,6 @@ Out.println("pages done");publish;
 revert saved;
 assert_eq(take(numeric.getFloat(&reverse,&first)),4.0);
 drop saved;
-Out.println("restore done");publish;
+Out.println("restore done");
+return 0;
+}

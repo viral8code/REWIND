@@ -1,6 +1,6 @@
 import std.guiTable as table;
 
-pub record Task {title:String,done:Bool}
+pub record TodoTask {title:String,done:Bool}
 enum RowError {Shape,Done}
 
 fn take<T,E>(value:Result<T,E>)->T effects {} {
@@ -10,7 +10,7 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-fn parseTask(cells:Frozen<List<String>>)->Result<Task,RowError> effects {} {
+fn parseTodoTask(cells:Frozen<List<String>>)->Result<TodoTask,RowError> effects {} {
     if cells.len()!=2{return Err(RowError::Shape);}
     var done=false;
     match cells.get(1) {
@@ -18,24 +18,27 @@ fn parseTask(cells:Frozen<List<String>>)->Result<Task,RowError> effects {} {
         "false"=>{done=false;},
         _=>{return Err(RowError::Done);}
     }
-    return Ok(Task(cells.get(0),done));
+    return Ok(TodoTask(cells.get(0),done));
 }
 
-let headers=List<String>();
-headers.add("Title");
-headers.add("Done");
-let rowIds=List<String>();
-rowIds.add("task-a");
-rowIds.add("task-b");
-let cells=List<String>();
-cells.add("Alpha");
-cells.add("false");
-cells.add("Beta");
-cells.add("true");
-let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),4));
+fn main()->Int {
+    let headers=List<String>();
+    headers.add("Title");
+    headers.add("Done");
+    let rowIds=List<String>();
+    rowIds.add("task-a");
+    rowIds.add("task-b");
+    let cells=List<String>();
+    cells.add("Alpha");
+    cells.add("false");
+    cells.add("Beta");
+    cells.add("true");
+    let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),4));
 
-take(table.filterByText(&mut model,0,"Beta"));
-take(table.editCellId(&mut model,"task-a",0,"Alpha revised"));
-let task=take(table.toValue(&model,"task-a",parseTask));
-Out.println(task.title);
-Out.println(task.done.format());
+    take(table.filterByText(&mut model,0,"Beta"));
+    take(table.editCellId(&mut model,"task-a",0,"Alpha revised"));
+    let task=take(table.toValue(&model,"task-a",parseTodoTask));
+    Out.println(task.title);
+    Out.println(task.done.format());
+    return 0;
+}

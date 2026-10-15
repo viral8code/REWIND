@@ -1,6 +1,6 @@
 import std.external as host;
 
-fn main()->Int effects {external, output} {
+fn main()->Int effects {external, clock, output} {
 var stamp=0;
 commit before;
 external {

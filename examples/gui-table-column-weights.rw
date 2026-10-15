@@ -8,22 +8,25 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let headers=List<String>();
-headers.add("ID");
-headers.add("Description");
-headers.add("State");
-let rowIds=List<String>();
-rowIds.add("task-12");
-let cells=List<String>();
-cells.add("12");
-cells.add("Support resumable imports");
-cells.add("Ready");
+fn main()->Int {
+    let headers=List<String>();
+    headers.add("ID");
+    headers.add("Description");
+    headers.add("State");
+    let rowIds=List<String>();
+    rowIds.add("task-12");
+    let cells=List<String>();
+    cells.add("12");
+    cells.add("Support resumable imports");
+    cells.add("Ready");
 
-let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),4));
-let weights=List<Int>();
-weights.add(1);
-weights.add(4);
-weights.add(2);
-take(table.setColumnWeights(&mut model,&weights));
-let view=take(table.render(&model,"Tasks",640,200,32,"tasks"));
-Out.println(take(gui.scene(&view)));
+    let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),4));
+    let weights=List<Int>();
+    weights.add(1);
+    weights.add(4);
+    weights.add(2);
+    take(table.setColumnWeights(&mut model,&weights));
+    let view=take(table.render(&model,"Tasks",640,200,32,"tasks"));
+    Out.println(take(gui.scene(&view)));
+    return 0;
+}

@@ -2,6 +2,7 @@ import std.numeric as numeric;
 fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(item)=>{return move item;},Err(_)=>{panic("numeric operation failed");}}
 }
+fn main()->Int effects {output} {
 let shape=List<Int>();shape.push(2);shape.push(2);
 let values=List<Float>();values.push(0.0);values.push(2.0);values.push(1.0);values.push(3.0);
 var matrix=take(numeric.fromFloat(&shape,&values));
@@ -22,4 +23,5 @@ publish;
 revert saved;
 let oldCell=List<Int>();oldCell.push(0);oldCell.push(0);
 Out.println(take(numeric.getFloat(&matrix,&oldCell)));
-publish;
+return 0;
+}

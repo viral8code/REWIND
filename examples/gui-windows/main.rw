@@ -1,6 +1,7 @@
 import std.gui as gui;
 import std.guiWindows as windows;
 fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("GUI operation failed");}}}
+fn main()->Int effects {gui, output} {
 let left=take(gui.window("Text — REWIND",320,160));
 let right=take(gui.window("Counter — REWIND",320,200));
 take(gui.textBox(&mut left,"text","REWIND",10,10,280,36));
@@ -28,4 +29,6 @@ while running {
   take(windows.present("text",&left));take(windows.present("counter",&right));publish;
  }
 }
-take(windows.close("text"));take(windows.close("counter"));publish;drop modelStart;
+take(windows.close("text"));take(windows.close("counter"));drop modelStart;
+return 0;
+}

@@ -7,29 +7,32 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let headers=List<String>();
-headers.add("Name");
-headers.add("Note");
-let rowIds=List<String>();
-rowIds.add("item-c");
-rowIds.add("item-a");
-rowIds.add("item-b");
-let cells=List<String>();
-cells.add("Cherry");cells.add("original");
-cells.add("Apple");cells.add("first");
-cells.add("Banana");cells.add("second");
+fn main()->Int {
+    let headers=List<String>();
+    headers.add("Name");
+    headers.add("Note");
+    let rowIds=List<String>();
+    rowIds.add("item-c");
+    rowIds.add("item-a");
+    rowIds.add("item-b");
+    let cells=List<String>();
+    cells.add("Cherry");cells.add("original");
+    cells.add("Apple");cells.add("first");
+    cells.add("Banana");cells.add("second");
 
-let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
-take(table.selectId(&mut model,"item-c"));
-take(table.editCellId(&mut model,"item-c",1,"selected edit"));
-take(table.sortByText(&mut model,0,false));
+    let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
+    take(table.selectId(&mut model,"item-c"));
+    take(table.editCellId(&mut model,"item-c",1,"selected edit"));
+    take(table.sortByText(&mut model,0,false));
 
-Out.println(take(table.rowId(&model,0)));
-match table.selectionId(&model) {
-    Some(id)=>{Out.println(id);},
-    None=>{panic("selection missing");}
-}
-match table.rowIndex(&model,"item-c") {
-    Some(row)=>{Out.println(row.format());Out.println(take(table.cell(&model,row,1)));},
-    None=>{panic("row ID missing");}
+    Out.println(take(table.rowId(&model,0)));
+    match table.selectionId(&model) {
+        Some(id)=>{Out.println(id);},
+        None=>{panic("selection missing");}
+    }
+    match table.rowIndex(&model,"item-c") {
+        Some(row)=>{Out.println(row.format());Out.println(take(table.cell(&model,row,1)));},
+        None=>{panic("row ID missing");}
+    }
+    return 0;
 }

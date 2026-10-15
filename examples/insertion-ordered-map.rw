@@ -4,15 +4,16 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(result)=>{return move result;},Err(_)=>{panic("example setup");}}
 }
 
-let values=take(createOrderedMap<Int>(4));
-take(orderedMap.put(&mut values,"beta",2));
-take(orderedMap.put(&mut values,"alpha",1));
-take(orderedMap.put(&mut values,"beta",20));
-let original=orderedMap.keys(&values);
-assert_eq(original.get(0),"beta");
-orderedMap.remove(&mut values,"beta");
-take(orderedMap.put(&mut values,"beta",22));
-let names=orderedMap.keys(&values);
-for i in 0..names.len() {Out.println(names.get(i));}
-publish;
-// Expected: alpha, beta on separate lines. Execution has not been verified.
+fn main()->Int {
+    let values=take(createOrderedMap<Int>(4));
+    take(orderedMap.put(&mut values,"beta",2));
+    take(orderedMap.put(&mut values,"alpha",1));
+    take(orderedMap.put(&mut values,"beta",20));
+    let original=orderedMap.keys(&values);
+    assert_eq(original.get(0),"beta");
+    orderedMap.remove(&mut values,"beta");
+    take(orderedMap.put(&mut values,"beta",22));
+    let names=orderedMap.keys(&values);
+    for i in 0..names.len() {Out.println(names.get(i));}
+    return 0;
+}

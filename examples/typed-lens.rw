@@ -6,17 +6,19 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Expected output (not executed): 10, 20, 10 on separate lines.
-let balance=lens.create(
-    |account:Account|->Int{return account.balance;},
-    |account:Account,value:Int|->Result<Account,String>{
-        if value<0 {return Err("negative balance");}
-        return Ok(Account(account.name,value));
-    }
-);
-let original=Account("sample",10);
-let change=lens.plan(balance,original,20);
-let same=|a:Int,b:Int|->Bool{return a==b;};
-let updated=take(lens.apply(change,original,same));
-let restored=take(lens.apply(lens.inverse(change),updated,same));
-Out.println(original.balance);Out.println(updated.balance);Out.println(restored.balance);
-publish;
+fn main()->Int effects {output} {
+    let balance=lens.create(
+        |account:Account|->Int{return account.balance;},
+        |account:Account,value:Int|->Result<Account,String>{
+            if value<0 {return Err("negative balance");}
+            return Ok(Account(account.name,value));
+        }
+    );
+    let original=Account("sample",10);
+    let change=lens.plan(balance,original,20);
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let updated=take(lens.apply(change,original,same));
+    let restored=take(lens.apply(lens.inverse(change),updated,same));
+    Out.println(original.balance);Out.println(updated.balance);Out.println(restored.balance);
+    return 0;
+}

@@ -7,17 +7,19 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(result)=>{return move result;},Err(_)=>{panic("schema example");}}
 }
 
-let fields=List<schema.Field>();
-fields.add(take(schema.field("name",take(schema.text(1,32)),true,None)));
-fields.add(take(schema.field("age",take(schema.integer(0,150)),false,Some(Json::Int(18)))));
-let rule=take(schema.object(&fields,Unknown::Reject));
-let decoder=schema.mapped(rule,|value:Json|->Result<Profile,String>{
-    var name="";var age=0;
-    match json.get(value,"name") {Some(v)=>{match json.text(v) {Some(v)=>{name=v;},None=>{return Err("name");}}},None=>{return Err("name");}}
-    match json.get(value,"age") {Some(v)=>{match json.integer(v) {Some(v)=>{age=v;},None=>{return Err("age");}}},None=>{return Err("age");}}
-    return Ok(Profile(name,age));
-});
 // Expected output (not executed): sample then 18.
-let profile=take(schema.decode(decoder,take(json.parse("{\"name\":\"sample\"}"))));
-Out.println(profile.name);Out.println(profile.age);
-publish;
+fn main()->Int effects {output} {
+    let fields=List<schema.Field>();
+    fields.add(take(schema.field("name",take(schema.text(1,32)),true,None)));
+    fields.add(take(schema.field("age",take(schema.integer(0,150)),false,Some(Json::Int(18)))));
+    let rule=take(schema.object(&fields,Unknown::Reject));
+    let decoder=schema.mapped(rule,|value:Json|->Result<Profile,String>{
+        var name="";var age=0;
+        match json.get(value,"name") {Some(v)=>{match json.text(v) {Some(v)=>{name=v;},None=>{return Err("name");}}},None=>{return Err("name");}}
+        match json.get(value,"age") {Some(v)=>{match json.integer(v) {Some(v)=>{age=v;},None=>{return Err("age");}}},None=>{return Err("age");}}
+        return Ok(Profile(name,age));
+    });
+    let profile=take(schema.decode(decoder,take(json.parse("{\"name\":\"sample\"}"))));
+    Out.println(profile.name);Out.println(profile.age);
+    return 0;
+}

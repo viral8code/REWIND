@@ -5,11 +5,13 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Expected output (not executed): 8, 4, 3, é on separate lines.
-let source=take(textIndex.create("A😀é"));
-Out.println(textIndex.byteLength(source));
-Out.println(textIndex.scalarLength(source));
-Out.println(textIndex.graphemeLength(source));
-let start=take(textIndex.graphemeAt(source,2));
-let end=take(textIndex.graphemeAt(source,3));
-Out.println(take(textIndex.sliceGraphemes(start,end)));
-publish;
+fn main()->Int effects {output} {
+    let source=take(textIndex.create("A😀é"));
+    Out.println(textIndex.byteLength(source));
+    Out.println(textIndex.scalarLength(source));
+    Out.println(textIndex.graphemeLength(source));
+    let start=take(textIndex.graphemeAt(source,2));
+    let end=take(textIndex.graphemeAt(source,3));
+    Out.println(take(textIndex.sliceGraphemes(start,end)));
+    return 0;
+}

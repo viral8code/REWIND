@@ -7,16 +7,19 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let view=take(gui.window("Overlay layout",480,240));
-take(gui.rectangle(&mut view,"backdrop",0,0,10,10,0x1f2937));
-take(gui.button(&mut view,"dialog","Save",0,0,10,10));
+fn main()->Int {
+    let view=take(gui.window("Overlay layout",480,240));
+    take(gui.rectangle(&mut view,"backdrop",0,0,10,10,0x1f2937));
+    take(gui.button(&mut view,"dialog","Save",0,0,10,10));
 
-let backdrop=take(gui.leaf("backdrop"));
-let dialog=take(gui.leaf("dialog"));
-let layers=List<gui.Layout>();
-layers.add(backdrop);
-layers.add(dialog);
-let layout=take(gui.overlayLayout(&layers));
-take(gui.applyLayout(&mut view,&layout,gui.Rect(72,64,336,112)));
+    let backdrop=take(gui.leaf("backdrop"));
+    let dialog=take(gui.leaf("dialog"));
+    let layers=List<gui.Layout>();
+    layers.add(backdrop);
+    layers.add(dialog);
+    let layout=take(gui.overlayLayout(&layers));
+    take(gui.applyLayout(&mut view,&layout,gui.Rect(72,64,336,112)));
 
-Out.println(take(gui.scene(&view)));
+    Out.println(take(gui.scene(&view)));
+    return 0;
+}

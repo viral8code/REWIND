@@ -8,8 +8,11 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let rule=schema.timestamp();
-let wireValue=Json::Text("2024-02-29T12:30:00.123456789+09:00");
-let validated=take(schema.validate(rule,wireValue));
-let instant=take(datetime.fromJson(validated));
-Out.println(take(datetime.format(&instant)));
+fn main()->Int effects {output} {
+    let rule=schema.timestamp();
+    let wireValue=Json::Text("2024-02-29T12:30:00.123456789+09:00");
+    let validated=take(schema.validate(rule,wireValue));
+    let instant=take(datetime.fromJson(validated));
+    Out.println(take(datetime.format(&instant)));
+    return 0;
+}

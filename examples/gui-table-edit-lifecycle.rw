@@ -7,27 +7,30 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let headers=List<String>();
-headers.add("Task");
-let rowIds=List<String>();
-rowIds.add("task-a");
-let cells=List<String>();
-cells.add("original");
-let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),4));
+fn main()->Int {
+    let headers=List<String>();
+    headers.add("Task");
+    let rowIds=List<String>();
+    rowIds.add("task-a");
+    let cells=List<String>();
+    cells.add("original");
+    let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),4));
 
-take(table.beginEdit(&mut model,0,0));
-take(table.setDraft(&mut model,"temporary"));
-match table.draft(&model) {
-    Some(draft)=>{Out.println(draft.original+" -> "+draft.value);},
-    None=>{panic("draft missing");}
+    take(table.beginEdit(&mut model,0,0));
+    take(table.setDraft(&mut model,"temporary"));
+    match table.draft(&model) {
+        Some(draft)=>{Out.println(draft.original+" -> "+draft.value);},
+        None=>{panic("draft missing");}
+    }
+    Out.println(take(table.cell(&model,0,0)));
+    Out.println(table.changes(&model).len().format());
+    table.cancelEdit(&mut model);
+    Out.println(take(table.cell(&model,0,0)));
+
+    take(table.beginEdit(&mut model,0,0));
+    take(table.setDraft(&mut model,"committed"));
+    take(table.commitEdit(&mut model));
+    Out.println(take(table.cell(&model,0,0)));
+    Out.println(table.changes(&model).len().format());
+    return 0;
 }
-Out.println(take(table.cell(&model,0,0)));
-Out.println(table.changes(&model).len().format());
-table.cancelEdit(&mut model);
-Out.println(take(table.cell(&model,0,0)));
-
-take(table.beginEdit(&mut model,0,0));
-take(table.setDraft(&mut model,"committed"));
-take(table.commitEdit(&mut model));
-Out.println(take(table.cell(&model,0,0)));
-Out.println(table.changes(&model).len().format());

@@ -8,6 +8,7 @@ fn receive(choices:&mut menu.Menu,base:&gui.View)->menu.Item effects {gui} {
  }
  panic("unreachable");
 }
+fn main()->Int effects {args, gui, output} {
 let args=Args.all();var title="REWIND menus";if args.len()>0{title=args.get(0);}
 let base=take(gui.window(title,320,200));take(gui.textBox(&mut base,"body","Underlying input",10,140,280,30));take(gui.graphemeEditing(&mut base,true));take(gui.focus(&mut base,"body"));
 let choices=menu.create();take(menu.add(&mut choices,menu.Item("toggle","Toggle mark","Ctrl+T",true,true,false)));take(menu.add(&mut choices,menu.Item("open","Open","Ctrl+O",true,false,false)));take(menu.add(&mut choices,menu.Item("disabled","Unavailable","Ctrl+D",false,false,false)));
@@ -16,4 +17,6 @@ commit opened;
 let first=receive(&mut choices,&base);assert_eq(first.id,"toggle");assert(first.checked);assert(take(menu.checked(&choices,"toggle")));let changed=take(menu.draw(&choices,&base,"actions"));assert_eq(gui.focused(&changed),Some("body"));take(windows.present("main",&changed));Out.println("toggle");publish;
 revert opened;windows.continueInput();assert(!take(menu.checked(&choices,"toggle")));assert(menu.isOpen(&choices));let restored=take(menu.draw(&choices,&base,"actions"));take(windows.present("main",&restored));Out.println("undo");publish;
 let second=receive(&mut choices,&base);assert_eq(second.id,"toggle");assert(second.checked);Out.println("toggle");publish;
-let third=receive(&mut choices,&base);assert_eq(third.id,"open");Out.println("open");drop opened;take(windows.close("main"));publish;
+let third=receive(&mut choices,&base);assert_eq(third.id,"open");Out.println("open");drop opened;take(windows.close("main"));
+return 0;
+}

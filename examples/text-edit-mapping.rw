@@ -7,12 +7,14 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Expected output (not executed): A😀Z, 2, A日本Z on separate lines.
-let original=take(textIndex.create("A日本Z"));
-let start=take(textIndex.scalarAt(original,1));
-let end=take(textIndex.scalarAt(original,3));
-let edit=take(textEdit.replace(start,end,"😀"));
-Out.println(textIndex.text(textEdit.result(edit)));
-let mapped=take(textEdit.mapScalar(edit,end,Policy::Exact));
-Out.println(textIndex.scalarValue(mapped));
-Out.println(textIndex.text(textEdit.result(textEdit.inverse(edit))));
-publish;
+fn main()->Int effects {output} {
+    let original=take(textIndex.create("A日本Z"));
+    let start=take(textIndex.scalarAt(original,1));
+    let end=take(textIndex.scalarAt(original,3));
+    let edit=take(textEdit.replace(start,end,"😀"));
+    Out.println(textIndex.text(textEdit.result(edit)));
+    let mapped=take(textEdit.mapScalar(edit,end,Policy::Exact));
+    Out.println(textIndex.scalarValue(mapped));
+    Out.println(textIndex.text(textEdit.result(textEdit.inverse(edit))));
+    return 0;
+}

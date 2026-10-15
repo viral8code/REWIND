@@ -7,23 +7,26 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let headers=List<String>();
-headers.add("Order");
-headers.add("Status");
-let rowIds=List<String>();
-rowIds.add("order-2026-0042");
-rowIds.add("order-2026-0043");
-let cells=List<String>();
-cells.add("0042");cells.add("Open");
-cells.add("0043");cells.add("Paid");
+fn main()->Int {
+    let headers=List<String>();
+    headers.add("Order");
+    headers.add("Status");
+    let rowIds=List<String>();
+    rowIds.add("order-2026-0042");
+    rowIds.add("order-2026-0043");
+    let cells=List<String>();
+    cells.add("0042");cells.add("Open");
+    cells.add("0043");cells.add("Paid");
 
-let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
-take(table.selectId(&mut model,"order-2026-0043"));
-match table.selection(&model) {
-    Some(row)=>{Out.println(take(table.rowId(&model,row)));},
-    None=>{panic("selection missing");}
-}
-match table.rowIndex(&model,"order-2026-0043") {
-    Some(row)=>{Out.println(take(table.cell(&model,row,1)));},
-    None=>{panic("row ID missing");}
+    let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
+    take(table.selectId(&mut model,"order-2026-0043"));
+    match table.selection(&model) {
+        Some(row)=>{Out.println(take(table.rowId(&model,row)));},
+        None=>{panic("selection missing");}
+    }
+    match table.rowIndex(&model,"order-2026-0043") {
+        Some(row)=>{Out.println(take(table.cell(&model,row,1)));},
+        None=>{panic("row ID missing");}
+    }
+    return 0;
 }

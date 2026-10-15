@@ -7,27 +7,30 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let headers=List<String>();
-headers.add("Order");
-headers.add("Status");
-let rowIds=List<String>();
-rowIds.add("order-2026-0042");
-rowIds.add("order-2026-0043");
-let cells=List<String>();
-cells.add("0042");cells.add("Open");
-cells.add("0043");cells.add("Paid");
+fn main()->Int {
+    let headers=List<String>();
+    headers.add("Order");
+    headers.add("Status");
+    let rowIds=List<String>();
+    rowIds.add("order-2026-0042");
+    rowIds.add("order-2026-0043");
+    let cells=List<String>();
+    cells.add("0042");cells.add("Open");
+    cells.add("0043");cells.add("Paid");
 
-let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
-take(table.editCellId(&mut model,"order-2026-0043",1,"Shipped"));
-Out.println(take(table.cell(&model,1,1)));
+    let model=take(table.createWithIds(freeze(headers),freeze(rowIds),freeze(cells),8));
+    take(table.editCellId(&mut model,"order-2026-0043",1,"Shipped"));
+    Out.println(take(table.cell(&model,1,1)));
 
-let edits=table.changes(&model);
-var i=0;
-while i<edits.len() {
-    let edit=edits.get(i);
-    Out.println(edit.rowId+":"+edit.column.format()+"="+edit.value);
-    i+=1;
+    let edits=table.changes(&model);
+    var i=0;
+    while i<edits.len() {
+        let edit=edits.get(i);
+        Out.println(edit.rowId+":"+edit.column.format()+"="+edit.value);
+        i+=1;
+    }
+
+    table.clearEdits(&mut model);
+    Out.println(take(table.cell(&model,1,1)));
+    return 0;
 }
-
-table.clearEdits(&mut model);
-Out.println(take(table.cell(&model,1,1)));
