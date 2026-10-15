@@ -284,7 +284,13 @@ fn standalone_config(
     let mut effects = standalone_effects();
     effects.extend(extra.iter().cloned());
     let mut config = project::ProjectConfig::artifact(root, entry, effects);
-    config.language = env!("CARGO_PKG_VERSION").into();
+    config.language = std::env::var("REWIND_STANDALONE_LANGUAGE")
+        .ok()
+        .filter(|v| {
+            semver::Version::parse(v)
+                .is_ok_and(|v| v <= semver::Version::parse(env!("CARGO_PKG_VERSION")).unwrap())
+        })
+        .unwrap_or_else(|| env!("CARGO_PKG_VERSION").into());
     let base = root.join(".rewind");
     if fs::symlink_metadata(&base).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error::InvalidPath(base.display().to_string()));
