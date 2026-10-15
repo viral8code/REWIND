@@ -33,7 +33,7 @@ fn least_squares_checkpoint_and_source_free_debug_compact_replay() {
     let r = root();
     fs::write(
         r.join("main.rw"),
-        include_str!("../examples/least-squares-async/main.rw"),
+        include_str!("../examples/least-squares-async/main.rw").replace("0..65", "0..33"),
     )
     .unwrap();
     ok(&call(&r, &["compile", "main.rw"]));

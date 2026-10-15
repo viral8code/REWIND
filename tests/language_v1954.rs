@@ -30,7 +30,7 @@ fn direct_numeric_pages_keep_old_language_and_source_free_restore_contracts() {
             fs::create_dir(&root).unwrap();
             fs::write(
                 root.join("main.rw"),
-                fs::read_to_string(repo.join("examples/numeric-pages/main.rw"))
+                fs::read_to_string(repo.join("tests/fixtures/numeric_pages_legacy.rw"))
                     .unwrap()
                     .replace("import std.numeric", "import numeric"),
             )

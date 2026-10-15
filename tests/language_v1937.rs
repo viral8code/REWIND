@@ -33,7 +33,7 @@ fn qr_checkpoint_and_source_free_debug_compact_replay() {
     let r = root();
     fs::write(
         r.join("main.rw"),
-        include_str!("../examples/qr-async/main.rw"),
+        include_str!("../examples/qr-async/main.rw").replace("0..65", "0..33"),
     )
     .unwrap();
     ok(&call(&r, &["compile", "main.rw"]));

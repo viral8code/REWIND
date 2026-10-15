@@ -34,7 +34,17 @@ fn csv_chunks_checkpoint_and_source_free_replay() {
     .unwrap();
     success(&call(&root, &["compile", "main.rw"]));
     fs::remove_file(root.join("main.rw")).unwrap();
-    let out = call(&root, &["run", "main.rwc", "--record", "trace.json"]);
+    let out = call(
+        &root,
+        &[
+            "run",
+            "main.rwc",
+            "--record",
+            "trace.json",
+            "--record-mode",
+            "compact",
+        ],
+    );
     success(&out);
     assert_eq!(
         String::from_utf8(out.stdout.clone()).unwrap(),

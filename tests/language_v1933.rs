@@ -154,7 +154,9 @@ let work=spawn jobs.solve(matrix,rhs,1e-13);for turn in 0..6{task.yieldNow();}as
 revert elimination;assert(!work.isDone());
 {let restored=take(take(await work));assert_eq(restored,take(numeric.solve(&matrix,&rhs,1e-13)));}drop elimination;
 let index=List<Int>();index.add(0);index.add(1);assert_eq(take(numeric.getFloat(&matrix,&index)),100.0);
-Out.println("elimination restored");publish;
+Out.println("elimination restored");
+return 0;
+}
 "#
     );
     let out = run(&r, &source, &[]);
