@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Exercise unequal-batch nonlinear training with the extracted SDK."""
+import rw3
+rw3.install()
 import shutil,subprocess,sys
 from pathlib import Path
 binary=Path(sys.argv[1]).resolve();root=Path(sys.argv[2]).resolve();root.mkdir()

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Bounded repeated native GUI/HTTP/DB transactions, shutdown and recorded replay."""
+import rw3
+rw3.install()
 from pathlib import Path
 import subprocess
 import sys

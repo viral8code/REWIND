@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Check bounded client ownership and physical HTTP/1 keepalive in a shipped SDK."""
+import rw3
+rw3.install()
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path

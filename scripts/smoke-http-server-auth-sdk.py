@@ -1,3 +1,5 @@
+import rw3
+rw3.install()
 import base64,os,ssl,pathlib,subprocess,tempfile,socket,threading,time,http.client,json,shutil,sys
 binary=str(pathlib.Path(sys.argv[1]).resolve())
 work=pathlib.Path(sys.argv[2]).resolve();work.mkdir()

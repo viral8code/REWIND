@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Exercise live result lifetimes and explicit new sends in the extracted SDK."""
+import rw3
+rw3.install()
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json

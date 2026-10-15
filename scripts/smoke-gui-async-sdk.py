@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Actual native GUI input during a pending HTTP request, SQLite undo boundary, offline replay."""
+import rw3
+rw3.install()
 import ctypes as C
 from contextlib import closing
 import ctypes.util

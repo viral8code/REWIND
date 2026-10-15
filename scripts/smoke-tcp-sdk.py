@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Actual source-free TCP and disconnected replay in the extracted SDK."""
+import rw3
+rw3.install()
 from pathlib import Path
 import json
 import shutil

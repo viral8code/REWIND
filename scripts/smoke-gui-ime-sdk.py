@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Committed IME input, VM undo and display-free source-free SDK replay."""
+import rw3
+rw3.install()
 import ctypes as C
 import os
 from pathlib import Path

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Native clipboard input, VM undo and disconnected source-free replay."""
+import rw3
+rw3.install()
 import os
 from pathlib import Path
 import queue

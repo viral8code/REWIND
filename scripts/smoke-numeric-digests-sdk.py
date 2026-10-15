@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Verify numeric identities and shared checkpoint storage from the extracted SDK."""
+import rw3
+rw3.install()
 import shutil
 import subprocess
 import sys

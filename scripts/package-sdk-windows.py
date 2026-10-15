@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Build, extract and smoke-test the native Windows SDK before release upload."""
+import rw3
+rw3.install()
 import hashlib
 import json
 import os

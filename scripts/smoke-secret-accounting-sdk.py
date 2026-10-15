@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Check execution-wide redaction accounting in the extracted SDK."""
+import rw3
+rw3.install()
 import json,shutil,subprocess,sys
 from pathlib import Path
 binary=Path(sys.argv[1]).resolve();root=Path(sys.argv[2]).resolve();root.mkdir();source=binary.parent.parent/'share/rewind/examples/secret-accounting/main.rw'

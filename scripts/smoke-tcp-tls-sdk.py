@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Actual TLS trust, plaintext byte counts and replay from the extracted SDK."""
+import rw3
+rw3.install()
 from pathlib import Path
 import json
 import shutil

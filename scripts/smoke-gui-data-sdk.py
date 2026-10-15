@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Real multi-window GUI, retry/cancel, HTTP JSON, SQLite/PostgreSQL and offline replay."""
+import rw3
+rw3.install()
 from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json

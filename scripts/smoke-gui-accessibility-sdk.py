@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Actual platform accessibility input, VM restore, source-free and offline replay."""
+import rw3
+rw3.install()
 import os
 from pathlib import Path
 import queue

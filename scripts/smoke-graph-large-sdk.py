@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Verify native graph bulk construction and BFS from the extracted SDK."""
+import rw3
+rw3.install()
 import shutil
 import subprocess
 import sys

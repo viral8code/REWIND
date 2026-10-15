@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Verify numeric page outputs and restore after removing all source files."""
+import rw3
+rw3.install()
 import json
 from pathlib import Path
 import shutil

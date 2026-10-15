@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Verify streaming transport in an extracted SDK with no source files or server on replay."""
+import rw3
+rw3.install()
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 import shutil

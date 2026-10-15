@@ -1,4 +1,6 @@
 """Combined numerical/GUI/HTTP/database progress, cleanup and disconnected replay."""
+import rw3
+rw3.install()
 from pathlib import Path
 from contextlib import closing
 import http.client

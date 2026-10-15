@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Native pointer dispatch while materialized reverse-mode work remains pending."""
+import rw3
+rw3.install()
 import os
 from pathlib import Path
 import queue

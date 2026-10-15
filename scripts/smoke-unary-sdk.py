@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Verify shipped cooperative unary transforms after removing source and compile cache."""
+import rw3
+rw3.install()
 import json
 from pathlib import Path
 import shutil

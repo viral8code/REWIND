@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Run the shipped cooperative FFT without source and replay both trace modes."""
+import rw3
+rw3.install()
 import json
 from pathlib import Path
 import shutil

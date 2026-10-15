@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Verify the shipped LU task without source or compilation cache."""
+import rw3
+rw3.install()
 import json
 from pathlib import Path
 import shutil

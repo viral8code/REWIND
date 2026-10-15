@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Verify bounded scalar-storage GC work using the extracted SDK's shipped history demo."""
+import rw3
+rw3.install()
 import json
 from pathlib import Path
 import shutil

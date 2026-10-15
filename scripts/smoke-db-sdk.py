@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Exercise real SQLite, source-free execution and DB-free replay in an extracted SDK."""
+import rw3
+rw3.install()
 from pathlib import Path
 import shutil
 import subprocess

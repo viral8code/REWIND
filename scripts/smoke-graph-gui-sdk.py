@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Source-free fixture GUI dispatch while bounded graph work remains pending."""
+import rw3
+rw3.install()
 import json
 from pathlib import Path
 import shutil

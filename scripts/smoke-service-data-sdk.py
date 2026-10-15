@@ -1,4 +1,6 @@
 """Real GUI/server, partial DB failure, durable commit, resource shutdown and replay."""
+import rw3
+rw3.install()
 from pathlib import Path
 from contextlib import closing
 import http.client
