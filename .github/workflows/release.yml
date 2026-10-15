@@ -166,7 +166,7 @@ jobs:
             printf '%s (this release only): `%s`\n\n' "$(basename "$KEY")" "$(tr -d '\r\n' < "$KEY")" >> "$NOTES"
           done
           gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "REWIND $RELEASE_TAG — Linux / Windows x86_64 SDK" --notes-file "$NOTES"
-          if [[ "$RELEASE_TAG" == v1.* || "$RELEASE_TAG" == v2.* ]]; then
+          if [[ "$RELEASE_TAG" == v1.* || "$RELEASE_TAG" == v2.* || "$RELEASE_TAG" == v3.* ]]; then
             gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest
           else
             gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
