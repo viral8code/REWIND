@@ -98,6 +98,12 @@ struct LoopPatch {
     depth: usize,
     continue_target: Option<usize>,
 }
+#[derive(Clone)]
+struct CompiledParts {
+    code: Vec<Inst>,
+    functions: BTreeMap<String, usize>,
+    closure_defs: BTreeMap<String, Function>,
+}
 struct Compiler {
     code: Vec<Inst>,
     functions: BTreeMap<String, usize>,
@@ -114,6 +120,13 @@ struct Compiler {
     closure_typing: BTreeMap<String, Vec<BTreeMap<String, (String, bool)>>>,
 }
 impl Compiler {
+    fn into_parts(self) -> CompiledParts {
+        CompiledParts {
+            code: self.code,
+            functions: self.functions,
+            closure_defs: self.closure_defs,
+        }
+    }
     fn expression_type(&self, e: &Expr) -> Option<String> {
         if !matches!(
             self.typing_program.language.as_str(),
@@ -1598,7 +1611,18 @@ struct Vm<R: BufRead> {
 
 impl<R: BufRead> Vm<R> {
     fn new(
+        program: Program,
+        root: &Path,
+        input: R,
+        trace: bool,
+        test_mode: bool,
+        options: &RunOptions,
+    ) -> Result<Self> {
+        Self::new_with(program, None, root, input, trace, test_mode, options)
+    }
+    fn new_with(
         mut program: Program,
+        precompiled: Option<&CompiledParts>,
         root: &Path,
         input: R,
         trace: bool,
@@ -1614,7 +1638,10 @@ impl<R: BufRead> Vm<R> {
         {
             return Err(Error::InvalidOperation("ExternalLiveRecordingUnsupported: live effects require execution without record, replay or inspection".into()));
         }
-        let compiled = Compiler::compile(&program)?;
+        let compiled = match precompiled {
+            Some(parts) => parts.clone(),
+            None => Compiler::compile(&program)?.into_parts(),
+        };
         let artifact = options
             .artifact
             .clone()
@@ -6801,11 +6828,25 @@ pub(super) fn execute(
             })
             .map(|(name, _)| name.clone())
             .collect::<Vec<_>>();
+        // Every test shares one program: compile it and describe it once.
+        let (precompiled, shared_artifact) = if tests.len() > 1 {
+            (
+                Some(Compiler::compile(&program)?.into_parts()),
+                match &options.artifact {
+                    Some(artifact) => Some(artifact.clone()),
+                    None => Some(build_artifact_mode(&program, root, true)?),
+                },
+            )
+        } else {
+            (None, options.artifact.clone())
+        };
         for test in tests {
             let mut config = options.clone();
             config.recorded_test = Some(test.clone());
-            let mut vm = Vm::new(
+            config.artifact = shared_artifact.clone();
+            let mut vm = Vm::new_with(
                 program.clone(),
+                precompiled.as_ref(),
                 root,
                 io::stdin().lock(),
                 trace,
