@@ -23,13 +23,15 @@ fn drawField(view:&mut gui.View,state:&field.FieldState,scope:&gui.ComponentScop
     return Ok(());
 }
 
-let view=take(gui.window("Field",360,140));
-let scope=take(gui.componentScope("name"));
-var state=field.new("Name","Ada");
-take(drawField(&mut view,&state,&scope));
-field.setError(&mut state,"Name is required");
-take(drawField(&mut view,&state,&scope));
-field.clearError(&mut state);
-take(drawField(&mut view,&state,&scope));
-Out.println(field.text(&state));
-publish;
+fn main()->Int effects {gui, output} {
+    let view=take(gui.window("Field",360,140));
+    let scope=take(gui.componentScope("name"));
+    var state=field.new("Name","Ada");
+    take(drawField(&mut view,&state,&scope));
+    field.setError(&mut state,"Name is required");
+    take(drawField(&mut view,&state,&scope));
+    field.clearError(&mut state);
+    take(drawField(&mut view,&state,&scope));
+    Out.println(field.text(&state));
+    return 0;
+}

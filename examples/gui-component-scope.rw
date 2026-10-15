@@ -15,35 +15,38 @@ fn addCounter(view:&mut gui.View,scope:&gui.ComponentScope,title:String,value:In
     return Ok(());
 }
 
-let view=take(gui.window("Scoped components",420,120));
-let left=take(gui.componentScope("left"));
-let right=take(gui.componentScope("right"));
-var leftValue=3;
-var rightValue=8;
-take(addCounter(&mut view,&left,"Left",leftValue,20));
-take(addCounter(&mut view,&right,"Right",rightValue,220));
+fn main()->Int effects {gui, output} {
+    let view=take(gui.window("Scoped components",420,120));
+    let left=take(gui.componentScope("left"));
+    let right=take(gui.componentScope("right"));
+    var leftValue=3;
+    var rightValue=8;
+    take(addCounter(&mut view,&left,"Left",leftValue,20));
+    take(addCounter(&mut view,&right,"Right",rightValue,220));
 
-let leftValueId=take(gui.componentId(&left,"value"));
-let rightValueId=take(gui.componentId(&right,"value"));
+    let leftValueId=take(gui.componentId(&left,"value"));
+    let rightValueId=take(gui.componentId(&right,"value"));
 
-// The event keeps the full widget ID. componentLocalId checks the owner scope
-// and returns the component-local action name for a small app-level reducer.
-match gui.dispatch(&mut view,gui.Event("pointer",24,56,"",0,0)) {
-    Some(gui.Action::Activate(widgetId))=>{
-        if gui.componentLocalId(&left,widgetId)==Some("increment") {
-            leftValue+=1;
-            take(gui.setText(&mut view,leftValueId,"Left: "+leftValue.format()));
-        }
-    },
-    _=>{}
+    // The event keeps the full widget ID. componentLocalId checks the owner scope
+    // and returns the component-local action name for a small app-level reducer.
+    match gui.dispatch(&mut view,gui.Event("pointer",24,56,"",0,0)) {
+        Some(gui.Action::Activate(widgetId))=>{
+            if gui.componentLocalId(&left,widgetId)==Some("increment") {
+                leftValue+=1;
+                take(gui.setText(&mut view,leftValueId,"Left: "+leftValue.format()));
+            }
+        },
+        _=>{}
+    }
+    match gui.dispatch(&mut view,gui.Event("pointer",224,56,"",0,0)) {
+        Some(gui.Action::Activate(widgetId))=>{
+            if gui.componentLocalId(&right,widgetId)==Some("increment") {
+                rightValue+=1;
+                take(gui.setText(&mut view,rightValueId,"Right: "+rightValue.format()));
+            }
+        },
+        _=>{}
+    }
+    Out.println(take(gui.scene(&view)));
+    return 0;
 }
-match gui.dispatch(&mut view,gui.Event("pointer",224,56,"",0,0)) {
-    Some(gui.Action::Activate(widgetId))=>{
-        if gui.componentLocalId(&right,widgetId)==Some("increment") {
-            rightValue+=1;
-            take(gui.setText(&mut view,rightValueId,"Right: "+rightValue.format()));
-        }
-    },
-    _=>{}
-}
-Out.println(take(gui.scene(&view)));
