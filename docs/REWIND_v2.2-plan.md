@@ -114,7 +114,7 @@ NaN/Infinity、空配列、同一値だけの軸、桁違いの値、座標overf
 
 **確認済み（2026-10-14、SQLite）：** [tests/db_row_mapping.rs](../tests/db_row_mapping.rs)が実際のSQLite memory DBで、`indexColumns`、`mapBatch`、`columnNumber`を実行します。NULL cell、`Int`の最大値9223372036854775807、mapper失敗時のbatch内row index（`RowMapError::Row`）とerror code（`DbType`）、重複列名の拒否、存在しない列名の拒否、失敗後も借用元の`DbBatch`が使えることを確認しました。`std.db`の標準ライブラリtest（`validateRow`、`validateBatch`、64行上限）も通過しています。
 
-**未完了：** PostgreSQLでの同じ確認（接続先が必要）、日時の単位・timezone、SQLite Decimal BLOB adapterの実DB確認、cursorを閉じるcleanup完了の検証。
+**未完了：** SQLiteでは日時（timezone offsetとnanosecondsの往復、不正値のRowMapErrorで行番号と列を報告）、Decimal BLOBの往復（9007199254740993.25、浮動小数点列は拒否）、mapper失敗後のcloseCursorと同一接続での再利用を確認済みです（[tests/db_row_mapping.rs](../tests/db_row_mapping.rs)）。PostgreSQLでの同じ確認はCI専用のままで、接続先が必要です。
 
 既存のtyped cell変換に、行から利用者のrecordを作る明示mapperを組み合わせます。自動ORMやreflectionを前提にしません。まず利用者の関数でmappingを書く例を作り、重複する列検証だけをlibraryへ抽出します。
 

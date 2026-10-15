@@ -1,0 +1,81 @@
+import std.db as db;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+fn failOnB(row:Frozen<DbRow>,columns:&db.ColumnMap)->Result<String,String> effects {} {
+    match db.columnNumber(columns,"name") {
+        Err(_)=>{return Err("column name missing");},
+        Ok(index)=>{
+            match db.text(row,index) {
+                Err(_)=>{return Err("column name rejected");},
+                Ok(name)=>{
+                    if name=="b" {return Err("b rejected");}
+                    return Ok(name);
+                }
+            }
+        }
+    }
+}
+
+fn main()->Int {
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+external {opening=Some(db.sqlite(":memory:",false,5000));}
+match opening {
+    None=>{panic("missing connection");},
+    Some(task)=>{
+        let connection=take(take(await task));
+        var writing:Option<Task<Result<Int,DbError>>>=None;
+        external {writing=Some(db.execute(&mut connection,"CREATE TABLE items (name TEXT)",freeze(List<DbValue>()),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing create");}}
+        external {writing=Some(db.execute(&mut connection,"INSERT INTO items VALUES ('a'),('b'),('c')",freeze(List<DbValue>()),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing insert");}}
+        var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+        external {querying=Some(db.query(&mut connection,"SELECT name FROM items ORDER BY rowid",freeze(List<DbValue>()),5000));}
+        match querying {
+            None=>{panic("missing query");},
+            Some(task)=>{
+                let cursor=take(take(await task));
+                var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+                external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
+                match reading {
+                    None=>{panic("missing read");},
+                    Some(readTask)=>{
+                        let batch=take(take(await readTask));
+                        let names=List<String>();names.push("name");
+                        let columns=take(db.indexColumns(freeze(move names)));
+                        match db.mapBatch(&batch,&columns,failOnB) {
+                            Err(db.RowMapError::Row(index,message))=>{Out.println(message);Out.println(index==1);},
+                            _=>{panic("mapper accepted");}
+                        }
+                        var closing:Option<Task<Result<Unit,DbError>>>=None;
+                        external {closing=Some(db.closeCursor(&mut cursor,5000));}
+                        match closing {None=>{panic("missing close");},Some(closeTask)=>{take(take(await closeTask));}}
+                    }
+                }
+            }
+        }
+        var againQuery:Option<Task<Result<DbCursor,DbError>>>=None;
+        external {againQuery=Some(db.query(&mut connection,"SELECT 'ok' AS value",freeze(List<DbValue>()),5000));}
+        match againQuery {
+            None=>{panic("missing second query");},
+            Some(task)=>{
+                let againCursor=take(take(await task));
+                var againReading:Option<Task<Result<DbBatch,DbError>>>=None;
+                external {againReading=Some(db.next(&mut againCursor,64,1048576,5000));}
+                match againReading {
+                    None=>{panic("missing second read");},
+                    Some(readTask)=>{
+                        let againBatch=take(take(await readTask));
+                        Out.println(take(db.text(againBatch.rows.get(0),0)));
+                    }
+                }
+            }
+        }
+    }
+}
+var cleanup:Option<Task<Result<Unit,DbError>>>=None;
+external {cleanup=Some(db.waitForCleanup(5000));}
+match cleanup {None=>{panic("missing cleanup");},Some(task)=>{take(take(await task));}}
+publish;
+return 0;
+}

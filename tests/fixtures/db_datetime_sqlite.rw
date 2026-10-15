@@ -1,0 +1,68 @@
+import std.db as db;
+import std.datetime as datetime;
+import std.dbDatetime as dbDatetime;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+fn mapAt(row:Frozen<DbRow>,columns:&db.ColumnMap)->Result<Instant,String> effects {} {
+    match db.columnNumber(columns,"at") {
+        Err(_)=>{return Err("column at missing");},
+        Ok(index)=>{
+            match dbDatetime.cell(row,index) {
+                Ok(value)=>{return Ok(value);},
+                Err(_)=>{return Err("column at rejected");}
+            }
+        }
+    }
+}
+
+fn main()->Int {
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+external {opening=Some(db.sqlite(":memory:",false,5000));}
+match opening {
+    None=>{panic("missing connection");},
+    Some(task)=>{
+        let connection=take(take(await task));
+        var writing:Option<Task<Result<Int,DbError>>>=None;
+        external {writing=Some(db.execute(&mut connection,"CREATE TABLE events (at TEXT)",freeze(List<DbValue>()),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing create");}}
+        let original=take(datetime.parse("2024-02-29T12:34:56.123456789+09:00"));
+        let values=List<DbValue>();values.push(take(dbDatetime.sqliteParameter(&original)));
+        external {writing=Some(db.execute(&mut connection,"INSERT INTO events VALUES (?1)",freeze(move values),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing insert");}}
+        external {writing=Some(db.execute(&mut connection,"INSERT INTO events VALUES ('2024-13-99T00:00:00Z')",freeze(List<DbValue>()),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing bad insert");}}
+        var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+        external {querying=Some(db.query(&mut connection,"SELECT at FROM events ORDER BY rowid",freeze(List<DbValue>()),5000));}
+        match querying {
+            None=>{panic("missing query");},
+            Some(task)=>{
+                let cursor=take(take(await task));
+                var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+                external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
+                match reading {
+                    None=>{panic("missing read");},
+                    Some(readTask)=>{
+                        let batch=take(take(await readTask));
+                        let names=List<String>();names.push("at");
+                        let columns=take(db.indexColumns(freeze(move names)));
+                        match db.mapBatch(&batch,&columns,mapAt) {
+                            Err(db.RowMapError::Row(index,message))=>{Out.println(message);Out.println(index==1);},
+                            _=>{panic("bad row accepted");}
+                        }
+                        let restored=take(dbDatetime.cell(batch.rows.get(0),0));
+                        Out.println(take(datetime.formatOffset(&restored,32400)));
+                        Out.println(take(datetime.nanoseconds(&restored))==123456789);
+                        Out.println(take(datetime.format(&restored))==take(datetime.format(&original)));
+                    }
+                }
+            }
+        }
+    }
+}
+var cleanup:Option<Task<Result<Unit,DbError>>>=None;
+external {cleanup=Some(db.waitForCleanup(5000));}
+match cleanup {None=>{panic("missing cleanup");},Some(task)=>{take(take(await task));}}
+publish;
+return 0;
+}

@@ -96,3 +96,54 @@ fn sqlite_notes_example_saves_lists_and_rolls_back_a_failed_save() {
         "title required\nsaved 2\n1 first\n2 second\nrolled back\ncount 2\n"
     );
 }
+
+/// DB-01 on SQLite: datetime text keeps its offset and nanoseconds through a
+/// round trip, and a malformed stored value reports its row and column.
+#[test]
+fn sqlite_datetime_round_trip_keeps_offset_and_nanos_and_reports_bad_rows() {
+    run_fixture(
+        "db_datetime_sqlite.rw",
+        "rewind-db-datetime",
+        "column at rejected\ntrue\n2024-02-29T12:34:56.123456789+09:00\ntrue\ntrue\n",
+    );
+}
+
+/// DB-01 on SQLite: a Decimal survives a BLOB round trip exactly, and a float
+/// column is rejected instead of being accepted as an exact decimal.
+#[test]
+fn sqlite_decimal_blob_round_trip_is_exact_and_rejects_floats() {
+    run_fixture(
+        "db_decimal_blob_sqlite.rw",
+        "rewind-db-decimal-blob",
+        "9007199254740993.25\ntrue\nfloat rejected\n",
+    );
+}
+
+/// DB-01 on SQLite: after a mapper failure mid-batch, closing the cursor lets
+/// the same connection run another query.
+#[test]
+fn sqlite_cursor_is_closed_after_mapper_failure_and_connection_is_reusable() {
+    run_fixture(
+        "db_cursor_cleanup_sqlite.rw",
+        "rewind-db-cursor-cleanup",
+        "b rejected\ntrue\nok\n",
+    );
+}
+
+fn run_fixture(fixture: &str, prefix: &str, expected: &str) {
+    let dir = std::env::temp_dir().join(format!("{prefix}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir(&dir).unwrap();
+    fs::copy(format!("tests/fixtures/{fixture}"), dir.join("main.rw")).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .current_dir(&dir)
+        .args(["run", "main.rw", "--allow-effects", "external,db,tasks"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&out.stdout), expected);
+}

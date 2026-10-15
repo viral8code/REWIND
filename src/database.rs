@@ -112,6 +112,7 @@ pub enum Operation {
 
 enum Job {
     Cleanup(std::time::Instant),
+    Unit,
     Open {
         receiver: mpsc::Receiver<std::result::Result<adapter::Worker, adapter::Error>>,
         deadline: std::time::Instant,
@@ -264,6 +265,14 @@ impl Host {
             self.jobs
                 .insert(id, Job::Cleanup(std::time::Instant::now() + timeout));
             return Ok(());
+        }
+        // An exhausted or already closed cursor is no longer tracked. Explicit
+        // closeCursor on it is a no-op so the parent connection stays usable.
+        if let Operation::CloseCursor { cursor } = &operation {
+            if !self.cursors.contains_key(cursor) {
+                self.jobs.insert(id, Job::Unit);
+                return Ok(());
+            }
         }
         if matches!(
             operation,
@@ -452,6 +461,7 @@ impl Host {
                     json!({"adapter":"db","unit":true})
                 }
             }
+            Job::Unit => json!({"adapter":"db","unit":true}),
             Job::Open { receiver, .. } => {
                 let result = match receiver.try_recv() {
                     Ok(result) => result,

@@ -1,0 +1,68 @@
+import std.db as db;
+import std.decimal as decimal;
+import std.dbDecimal as dbDecimal;
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+
+fn main()->Int {
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+external {opening=Some(db.sqlite(":memory:",false,5000));}
+match opening {
+    None=>{panic("missing connection");},
+    Some(task)=>{
+        let connection=take(take(await task));
+        var writing:Option<Task<Result<Int,DbError>>>=None;
+        external {writing=Some(db.execute(&mut connection,"CREATE TABLE money (amount BLOB)",freeze(List<DbValue>()),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing create");}}
+        let amount=take(decimal.parse("9007199254740993.25"));
+        let values=List<DbValue>();values.push(take(dbDecimal.sqliteParameter(&amount)));
+        external {writing=Some(db.execute(&mut connection,"INSERT INTO money VALUES (?1)",freeze(move values),5000));}
+        match writing {Some(task)=>{take(take(await task));},None=>{panic("missing insert");}}
+        var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+        external {querying=Some(db.query(&mut connection,"SELECT amount FROM money",freeze(List<DbValue>()),5000));}
+        match querying {
+            None=>{panic("missing query");},
+            Some(task)=>{
+                let cursor=take(take(await task));
+                var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+                external {reading=Some(db.next(&mut cursor,64,1048576,5000));}
+                match reading {
+                    None=>{panic("missing read");},
+                    Some(readTask)=>{
+                        let batch=take(take(await readTask));
+                        let restored=take(dbDecimal.cell(batch.rows.get(0),0));
+                        Out.println(take(decimal.format(&restored)));
+                        Out.println(take(decimal.compare(&restored,&amount))==0);
+                    }
+                }
+            }
+        }
+        var floatQuery:Option<Task<Result<DbCursor,DbError>>>=None;
+        external {floatQuery=Some(db.query(&mut connection,"SELECT 1.5 AS amount",freeze(List<DbValue>()),5000));}
+        match floatQuery {
+            None=>{panic("missing float query");},
+            Some(task)=>{
+                let floatCursor=take(take(await task));
+                var floatReading:Option<Task<Result<DbBatch,DbError>>>=None;
+                external {floatReading=Some(db.next(&mut floatCursor,64,1048576,5000));}
+                match floatReading {
+                    None=>{panic("missing float read");},
+                    Some(readTask)=>{
+                        let floatBatch=take(take(await readTask));
+                        match dbDecimal.cell(floatBatch.rows.get(0),0) {
+                            Err(_)=>{Out.println("float rejected");},
+                            Ok(_)=>{panic("float accepted");}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+var cleanup:Option<Task<Result<Unit,DbError>>>=None;
+external {cleanup=Some(db.waitForCleanup(5000));}
+match cleanup {None=>{panic("missing cleanup");},Some(task)=>{take(take(await task));}}
+publish;
+return 0;
+}
