@@ -5,6 +5,8 @@ fn take<T,E>(result:Result<T,E>)->T effects {} {
  match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric failure");}}
 }
 async fn marker()->Int effects {tasks} {return 7;}
+
+fn main()->Int effects {tasks, output} {
 let size=65;
 let shape=List<Int>();shape.add(size);shape.add(size);
 let zero=take(numeric.zerosFloat(&shape));let ones=take(numeric.mapFloat("exp",&zero));
@@ -34,3 +36,5 @@ drop diagonalizing;publish;
 let cancelled=spawn jobs.eigenSymmetric(matrix,1e-13,40);task.yieldNow();assert(!cancelled.isDone());cancelled.cancel();
 match await cancelled {Err(TaskError::Cancelled)=>{},_=>{panic("partial result escaped");}}
 Out.println("eigen done");publish;
+return 0;
+}

@@ -5,16 +5,18 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Single digits, no whitespace or parentheses. Expected output: 14 then 7 (not executed).
-let digit=parser.map(
-    parser.satisfy("digit",|byte:Int|->Bool{return byte>=48 && byte<=57;}),
-    |byte:Int|->Int{return byte-48;}
-);
-let times=parser.binary(Bytes("*"),"multiplication",|a:Int,b:Int|->Int{return a*b;});
-let plus=parser.binary(Bytes("+"),"addition",|a:Int,b:Int|->Int{return a+b;});
-let minus=parser.binary(Bytes("-"),"subtraction",|a:Int,b:Int|->Int{return a-b;});
-let product=take(parser.chainLeft(digit,times,64));
-let expression=take(parser.chainLeft(product,plus,64));
-Out.println(take(parser.complete(expression,Bytes("2+3*4"))));
-let right=take(parser.chainRight(digit,minus,64));
-Out.println(take(parser.complete(right,Bytes("9-3-1"))));
-publish;
+fn main()->Int effects {output} {
+    let digit=parser.map(
+        parser.satisfy("digit",|byte:Int|->Bool{return byte>=48 && byte<=57;}),
+        |byte:Int|->Int{return byte-48;}
+    );
+    let times=parser.binary(Bytes("*"),"multiplication",|a:Int,b:Int|->Int{return a*b;});
+    let plus=parser.binary(Bytes("+"),"addition",|a:Int,b:Int|->Int{return a+b;});
+    let minus=parser.binary(Bytes("-"),"subtraction",|a:Int,b:Int|->Int{return a-b;});
+    let product=take(parser.chainLeft(digit,times,64));
+    let expression=take(parser.chainLeft(product,plus,64));
+    Out.println(take(parser.complete(expression,Bytes("2+3*4"))));
+    let right=take(parser.chainRight(digit,minus,64));
+    Out.println(take(parser.complete(right,Bytes("9-3-1"))));
+    return 0;
+}

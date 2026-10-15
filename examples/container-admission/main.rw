@@ -1,3 +1,4 @@
+fn main()->Int effects {output} {
 let items=List<Int>();for i in 0..4096{items.add(i);}
 commit original;
 items.set(0,0);commit snapshot0;
@@ -67,3 +68,5 @@ drop snapshot29;
 drop snapshot30;
 drop snapshot31;
 drop original;
+return 0;
+}

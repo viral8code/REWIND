@@ -5,11 +5,13 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Expected output (not executed): false, true, false, true.
-let base=take(persistentSet.create(4));
-let left=take(persistentSet.unite(base,0,1)).state;
-let right=take(persistentSet.unite(base,1,2)).state;
-Out.println(take(persistentSet.same(base,0,1)));
-Out.println(take(persistentSet.same(left,0,1)));
-Out.println(take(persistentSet.same(right,0,1)));
-Out.println(take(persistentSet.same(right,1,2)));
-publish;
+fn main()->Int effects {output} {
+    let base=take(persistentSet.create(4));
+    let left=take(persistentSet.unite(base,0,1)).state;
+    let right=take(persistentSet.unite(base,1,2)).state;
+    Out.println(take(persistentSet.same(base,0,1)));
+    Out.println(take(persistentSet.same(left,0,1)));
+    Out.println(take(persistentSet.same(right,0,1)));
+    Out.println(take(persistentSet.same(right,1,2)));
+    return 0;
+}

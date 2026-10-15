@@ -15,14 +15,16 @@ async fn consume(channel: Channel<Int>) -> Int {
     return total;
 }
 
-let channel = Channel<Int>(1);
-using group = TaskGroup();
-let producer = produce(channel);
-let consumer = consume(channel);
-group.add(producer);
-group.add(consumer);
-commit ready;
-assert_eq(await consumer, Ok(15));
-assert_eq(await group.join(), Ok(()));
-Out.println("total=15");
-publish;
+fn main()->Int effects {tasks, output} {
+    let channel = Channel<Int>(1);
+    using group = TaskGroup();
+    let producer = produce(channel);
+    let consumer = consume(channel);
+    group.add(producer);
+    group.add(consumer);
+    commit ready;
+    assert_eq(await consumer, Ok(15));
+    assert_eq(await group.join(), Ok(()));
+    Out.println("total=15");
+    return 0;
+}

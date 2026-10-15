@@ -3,6 +3,7 @@ import std.guiDialog as dialog;
 fn take<T,E>(r:Result<T,E>)->T effects {} {match move r{Ok(v)=>{return move v;},Err(_)=>{panic("dialog failed");}}}
 fn future(value:Option<Task<Result<Option<String>,StdError>>>)->Task<Result<Option<String>,StdError>> effects {} {match value{Some(v)=>{return v;},None=>{panic("missing dialog");}}}
 async fn calculate()->Int effects {tasks}{for i in 0..20{tasks.yieldNow();}return 42;}
+fn main()->Int effects {args, external, output, tasks, gui} {
 let arguments=Args.all();assert(arguments.len()==3);
 let title=arguments.get(0);let initial=arguments.get(1);let save=arguments.get(2)=="save";
 var pending:Option<Task<Result<Option<String>,StdError>>>=None;
@@ -16,3 +17,5 @@ revert before;
 external {if save{pending=Some(dialog.saveFile(title,initial));}else{pending=Some(dialog.openFile(title,initial));}}
 let cached=take(take(await future(pending)));match cached{Some(path)=>{assert_eq(path,initial);},None=>{}}
 Out.println("cached");publish;drop before;
+return 0;
+}

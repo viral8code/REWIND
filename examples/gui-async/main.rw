@@ -4,6 +4,7 @@ import std.task as task;
 import std.db as db;
 import std.http as http;
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value {Ok(item)=>{return move item;},Err(_)=>{panic("application operation failed");}}}
+fn main()->Int effects {args, db, gui, network, output, tasks, external} {
 let arguments=Args.all();assert(arguments.len()==2);
 var opening:Option<Task<Result<DbConnection,DbError>>>=None;
 external {opening=Some(db.sqlite("state.sqlite",false,5000));}
@@ -69,4 +70,5 @@ match opening {
 var cleanup:Option<Task<Result<Unit,DbError>>>=None;
 external {cleanup=Some(db.waitForCleanup(5000));}
 match cleanup {None=>{panic("cleanup");},Some(operation)=>{take(take(await operation));}}
-publish;
+return 0;
+}

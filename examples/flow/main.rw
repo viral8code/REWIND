@@ -3,6 +3,8 @@ import std.matching as matching;
 fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(item)=>{return move item;},Err(_)=>{panic("algorithm failed");}}
 }
+
+fn main()->Int effects {output} {
 let network=take(flow.create(3,3));
 take(flow.add(&mut network,0,1,4));
 take(flow.add(&mut network,1,2,3));
@@ -16,3 +18,5 @@ let pairs=List<Tuple<Int,Int>>();pairs.push((0,0));pairs.push((0,1));pairs.push(
 let result=take(matching.maximum(2,2,&pairs));
 Out.println(result.size);
 publish;
+return 0;
+}

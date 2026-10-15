@@ -8,20 +8,23 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let fields=List<form.Field>();
-fields.add(form.Field("age","Age",form.Kind::Integer(0,150),true,16,"17"));
-let model=take(form.create(&fields,1));
-let schemaFields=List<schema.Field>();
-schemaFields.add(take(schema.field("age",take(schema.integer(18,100)),true,None)));
-let rule=take(schema.object(&schemaFields,schema.Unknown::Reject));
-match form.toSchemaValue(&model,rule,|value:Json|->Result<Int,String>{
-    match jsonGet(value,"age") {
-        Some(Json::Int(age))=>{return Ok(age);},
-        _=>{return Err("age mapping");}
+fn main()->Int effects {output} {
+    let fields=List<form.Field>();
+    fields.add(form.Field("age","Age",form.Kind::Integer(0,150),true,16,"17"));
+    let model=take(form.create(&fields,1));
+    let schemaFields=List<schema.Field>();
+    schemaFields.add(take(schema.field("age",take(schema.integer(18,100)),true,None)));
+    let rule=take(schema.object(&schemaFields,schema.Unknown::Reject));
+    match form.toSchemaValue(&model,rule,|value:Json|->Result<Int,String>{
+        match jsonGet(value,"age") {
+            Some(Json::Int(age))=>{return Ok(age);},
+            _=>{return Err("age mapping");}
+        }
+    }) {
+        Ok(age)=>{Out.println(age.format());},
+        Err(form.SchemaSubmitError::Form(error))=>{Out.println("form:"+error.code);},
+        Err(form.SchemaSubmitError::Schema(error))=>{Out.println("schema:"+error.code);},
+        Err(form.SchemaSubmitError::Conversion(_))=>{Out.println("mapping failed");}
     }
-}) {
-    Ok(age)=>{Out.println(age.format());},
-    Err(form.SchemaSubmitError::Form(error))=>{Out.println("form:"+error.code);},
-    Err(form.SchemaSubmitError::Schema(error))=>{Out.println("schema:"+error.code);},
-    Err(form.SchemaSubmitError::Conversion(_))=>{Out.println("mapping failed");}
+    return 0;
 }

@@ -98,6 +98,7 @@ async fn serve(listener:HttpServer,connection:DbConnection,backend:String,entry:
  match closingDb{None=>{panic("missing DB close");},Some(started)=>{database(take(await started));}}
  return ();
 }
+fn main()->Int effects {args,env,external,network,db,tasks,output,gui,input,fileRead} {
 let args=Args.all();assert_eq(args.len(),4);let backend=args.get(0);let port=take(args.get(1).parseInt());let title=args.get(2);let entry=args.get(3);
 assert(backend=="sqlite" || backend=="postgres");
 var opening:Option<Task<Result<DbConnection,DbError>>>=None;
@@ -135,4 +136,5 @@ match opening{None=>{panic("missing database");},Some(started)=>{
 }}
 var cleanup:Option<Task<Result<Unit,DbError>>>=None;external fresh{cleanup=Some(db.waitForCleanup(5000));}
 match cleanup{None=>{panic("missing cleanup");},Some(started)=>{database(take(await started));}}
-publish;
+return 0;
+}

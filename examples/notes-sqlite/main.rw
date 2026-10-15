@@ -38,6 +38,7 @@ fn mapNote(row:Frozen<DbRow>,columns:&db.ColumnMap)->Result<Note,String> effects
     return Ok(Note(id,title));
 }
 
+fn main()->Int effects {db,external,output,tasks} {
 var opening:Option<Task<Result<DbConnection,DbError>>>=None;
 external {opening=Some(db.sqlite(":memory:",false,5000));}
 match opening {None=>{panic("open");},Some(task)=>{
@@ -144,4 +145,5 @@ match opening {None=>{panic("open");},Some(task)=>{
         }}
     }}
 }}
-publish;
+return 0;
+}

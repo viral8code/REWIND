@@ -6,6 +6,7 @@ import std.json as json;
 
 fn take<T,E>(value:Result<T,E>)->T effects {} {match move value{Ok(item)=>{return move item;},Err(_)=>{panic("CSV operation failed");}}}
 
+fn main()->Int effects {output} {
 let reader=take(csv.reader());
 let input=take(stdEncode("name,active,note\r\n日本語,true,\"a\"\"b\n日\"\r\n"));
 var offset=0;
@@ -46,3 +47,5 @@ match take(csv.next(&mut reader)){None=>{panic("restored header missing");},Some
 let restoredRow=take(csv.next(&mut reader));
 match restoredRow{None=>{panic("restored row missing");},Some(row)=>{Out.println(row.get(0));}}
 publish;
+return 0;
+}

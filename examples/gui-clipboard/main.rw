@@ -7,6 +7,7 @@ fn textInput()->windows.WindowEvent effects {gui} {
  while true {let input=take(windows.nextEventAny());if input.event.kind=="text"{return input;}if input.event.kind=="close"{panic("window closed");}}
  panic("unreachable");
 }
+fn main()->Int effects {args, gui, output} {
 let args=Args.all();
 var title="REWIND clipboard";if args.len()>0{title=args.get(0);}
 let original="界🙂clipboard";
@@ -31,4 +32,6 @@ gui.dispatch(&mut right,second.event);
 assert_eq(gui.text(&right,"text"),Ok(original));
 Out.println(original);publish;
 drop editing;
-take(windows.close("copy"));take(windows.close("paste"));publish;
+take(windows.close("copy"));take(windows.close("paste"));
+return 0;
+}

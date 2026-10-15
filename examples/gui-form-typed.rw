@@ -13,22 +13,22 @@ fn mapPreferences(value:Json)->Result<Preferences,StdError> effects {} {
     match value {
         Json::Object(fields)=>{
             var notify=false;
-            match fields.get("notify") {
+            match thaw(fields.get("notify")) {
                 Some(Json::Bool(value))=>{notify=value;},
                 _=>{return Err(StdError("FormConversion",0));}
             }
             var email="";
-            match fields.get("email") {
+            match thaw(fields.get("email")) {
                 Some(Json::Text(value))=>{email=value;},
                 _=>{return Err(StdError("FormConversion",0));}
             }
             var minimum=0;
-            match fields.get("minimum") {
+            match thaw(fields.get("minimum")) {
                 Some(Json::Int(value))=>{minimum=value;},
                 _=>{return Err(StdError("FormConversion",0));}
             }
             var maximum=0;
-            match fields.get("maximum") {
+            match thaw(fields.get("maximum")) {
                 Some(Json::Int(value))=>{maximum=value;},
                 _=>{return Err(StdError("FormConversion",0));}
             }
@@ -38,22 +38,25 @@ fn mapPreferences(value:Json)->Result<Preferences,StdError> effects {} {
     }
 }
 
-let fields=List<form.Field>();
-fields.add(form.Field("notify","Send notifications",form.Kind::Check,false,5,"false"));
-fields.add(form.Field("email","Email address",form.Kind::Text,false,128,""));
-fields.add(form.Field("minimum","Minimum",form.Kind::Integer(0,1000),false,16,"2"));
-fields.add(form.Field("maximum","Maximum",form.Kind::Integer(0,1000),false,16,"8"));
-let rules=List<form.Relation>();
-rules.add(form.Relation::RequiredWhenChecked("email","notify"));
-rules.add(form.Relation::IntLessEqual("minimum","maximum"));
-let model=take(form.createWithRules(&fields,&rules,4));
+fn main()->Int effects {output} {
+    let fields=List<form.Field>();
+    fields.add(form.Field("notify","Send notifications",form.Kind::Check,false,5,"false"));
+    fields.add(form.Field("email","Email address",form.Kind::Text,false,128,""));
+    fields.add(form.Field("minimum","Minimum",form.Kind::Integer(0,1000),false,16,"2"));
+    fields.add(form.Field("maximum","Maximum",form.Kind::Integer(0,1000),false,16,"8"));
+    let rules=List<form.Relation>();
+    rules.add(form.Relation::RequiredWhenChecked("email","notify"));
+    rules.add(form.Relation::IntLessEqual("minimum","maximum"));
+    let model=take(form.createWithRules(&fields,&rules,4));
 
-take(form.setValue(&mut model,"notify","true"));
-take(form.setValue(&mut model,"email","dev@example.test"));
-let result=match form.toValue(&model,mapPreferences) {
-    Ok(value)=>value,
-    Err(form.SubmitError::Form(error))=>panic("form validation failed: "+error.code),
-    Err(form.SubmitError::Conversion(error))=>panic("record mapping failed: "+error.code)
-};
-Out.println(result.email);
-Out.println(result.minimum.format()+".."+result.maximum.format());
+    take(form.setValue(&mut model,"notify","true"));
+    take(form.setValue(&mut model,"email","dev@example.test"));
+    let result=match form.toValue(&model,mapPreferences) {
+        Ok(value)=>value,
+        Err(form.SubmitError::Form(error))=>panic("form validation failed: "+error.code),
+        Err(form.SubmitError::Conversion(error))=>panic("record mapping failed: "+error.code)
+    };
+    Out.println(result.email);
+    Out.println(result.minimum.format()+".."+result.maximum.format());
+    return 0;
+}

@@ -1,5 +1,6 @@
 import std.http as http;
 import std.bytes as bytes;
+fn main()->Int effects {args, external, network, output, tasks} {
 let arguments=Args.all();
 if arguments.len()!=1 {Err.println("usage: rewind run main.rw --allow-effects external,network,tasks -- URL");publish;}
 else {
@@ -22,5 +23,6 @@ else {
             }
         }
     }
-    publish;
+}
+return 0;
 }

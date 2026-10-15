@@ -3,14 +3,16 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(result)=>{return move result;},Err(_)=>{panic("example setup");}}
 }
 
-let digit=parser.map(
-    parser.satisfy("digit",|byte:Int|->Bool{return byte>=48 && byte<=57;}),
-    |byte:Int|->Int{return byte-48;}
-);
-let grammar=take(parser.repeat(digit,1,9));
-let digits=take(parser.complete(grammar,Bytes("314159")));
-var value=0;
-for i in 0..digits.len() {value=value*10+digits.get(i);}
-Out.println(value);
-publish;
 // Expected: 314159. Execution has not been verified.
+fn main()->Int effects {output} {
+    let digit=parser.map(
+        parser.satisfy("digit",|byte:Int|->Bool{return byte>=48 && byte<=57;}),
+        |byte:Int|->Int{return byte-48;}
+    );
+    let grammar=take(parser.repeat(digit,1,9));
+    let digits=take(parser.complete(grammar,Bytes("314159")));
+    var value=0;
+    for i in 0..digits.len() {value=value*10+digits.get(i);}
+    Out.println(value);
+    return 0;
+}

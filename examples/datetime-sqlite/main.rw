@@ -4,6 +4,8 @@ import std.dbDatetime as dbDecimal;
 fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
 }
+
+fn main()->Int effects {external, db, tasks, output} {
 var opening:Option<Task<Result<DbConnection,DbError>>>=None;
 external {opening=Some(db.sqlite(":memory:",false,5000));}
 match opening {
@@ -33,3 +35,5 @@ var cleanup:Option<Task<Result<Unit,DbError>>>=None;
 external {cleanup=Some(db.waitForCleanup(5000));}
 match cleanup {None=>{panic("missing cleanup");},Some(task)=>{take(take(await task));}}
 publish;
+return 0;
+}

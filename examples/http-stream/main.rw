@@ -3,6 +3,7 @@ import std.http as http;
 fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(item)=>{return move item;},Err(_)=>{panic("HTTP operation failed");}}
 }
+fn main()->Int effects {args, external, network, output, tasks} {
 let arguments=Args.all();
 if arguments.len()!=1 {Err.println("usage: rewind run main.rw --allow-effects external,network,tasks -- URL");publish;}
 else {
@@ -32,5 +33,6 @@ else {
             // connection closes when this owning scope ends.
         }
     }
-    publish;
+}
+return 0;
 }

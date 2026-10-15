@@ -2,6 +2,7 @@ import std.graphLarge as graph;
 import std.numericRange as range;
 import std.numericIndex as index;
 fn take<T,E>(result:Result<T,E>)->T effects {} {match move result{Ok(value)=>{return move value;},Err(_)=>{panic("graph failure");}}}
+fn main()->Int effects {output} {
 let froms=take(range.integers(0,1,5));
 var tos=take(range.integers(1,1,5));
 let weights=take(range.integers(1,0,5));
@@ -19,4 +20,6 @@ assert_eq(take(index.getInt(&tos,0)),1);
 let reversed=take(graph.bfs(&chain,5));
 assert_eq(take(index.getInt(&reversed,0)),-1);
 drop saved;
-Out.println(take(index.getInt(&reversed,0)));publish;
+Out.println(take(index.getInt(&reversed,0)));
+return 0;
+}
