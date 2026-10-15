@@ -201,18 +201,18 @@ pub fn leaf(id:String)->Result<Layout,GuiError> effects {} {
  let nodes=List<LayoutNode>();nodes.add(LayoutNode::Widget(id));
  return Ok(Layout(freeze(nodes),0,1));
 }
-// @api sized constrains the child's main axis; minimum == maximum requests a fixed size.
+// @api sized cost constrains the child's main axis; minimum == maximum requests a fixed size.
 pub fn sized(layout:Layout,weight:Int,minimum:Int,maximum:Int)->Result<WeightedLayout,GuiError> effects {} {
  if weight<1 || weight>1000000{return Err(StdError("GuiLayoutWeight",0));}
  if minimum<0 || maximum<minimum || maximum>4096{return Err(StdError("GuiLayoutDimension",0));}
  if layout.nodes.len()<1 || layout.nodes.len()>1024 || layout.depth<1 || layout.depth>32{return Err(StdError("GuiLayoutLimit",0));}
  return Ok(WeightedLayout(layout,weight,minimum,maximum,0,4096));
 }
-// @api weighted uses the default main-axis range 0..4096.
+// @api weighted cost uses the default main-axis range 0..4096.
 pub fn weighted(layout:Layout,weight:Int)->Result<WeightedLayout,GuiError> effects {} {
  return sized(layout,weight,0,4096);
 }
-// @api crossSized bounds the cross axis: height in a row and width in a column; content stays at the leading edge.
+// @api crossSized cost bounds the cross axis: height in a row and width in a column; content stays at the leading edge.
 pub fn crossSized(child:WeightedLayout,minimum:Int,maximum:Int)->Result<WeightedLayout,GuiError> effects {} {
  if minimum<0 || maximum<minimum || maximum>4096{return Err(StdError("GuiLayoutDimension",0));}
  return Ok(WeightedLayout(child.layout,child.weight,child.minimum,child.maximum,minimum,maximum));
@@ -276,7 +276,7 @@ pub fn row(children:&List<WeightedLayout>,gap:Int)->Result<Layout,GuiError> effe
 pub fn column(children:&List<WeightedLayout>,gap:Int)->Result<Layout,GuiError> effects {} {
  return composeLayout(children,gap,false);
 }
-// @api overlayLayout places every child over the same bounds; View insertion order controls z-order.
+// @api overlayLayout cost places every child over the same bounds; View insertion order controls z-order.
 pub fn overlayLayout(children:&List<Layout>)->Result<Layout,GuiError> effects {} {
  if children.len()<2 || children.len()>256{return Err(StdError("GuiLayoutChildren",children.len()));}
  var count=1;var deepest=0;
@@ -292,7 +292,7 @@ pub fn overlayLayout(children:&List<Layout>)->Result<Layout,GuiError> effects {}
  let root=nodes.len();nodes.add(LayoutNode::Overlay(freeze(childNodes)));
  return Ok(Layout(freeze(nodes),root,depth));
 }
-// @api padded wraps one layout in bounded insets; the child receives the remaining inner rectangle.
+// @api padded cost wraps one layout in bounded insets; the child receives the remaining inner rectangle.
 pub fn padded(layout:Layout,left:Int,top:Int,right:Int,bottom:Int)->Result<Layout,GuiError> effects {} {
  if left<0 || top<0 || right<0 || bottom<0 || left>4096 || top>4096 || right>4096 || bottom>4096{return Err(StdError("GuiLayoutDimension",0));}
  if layout.nodes.len()<1 || layout.nodes.len()>=1024 || layout.depth<1 || layout.depth>32{return Err(StdError("GuiLayoutLimit",0));}
@@ -307,7 +307,7 @@ fn validLayoutBounds(bounds:Rect)->Bool effects {} {
  if bounds.width>4096-bounds.x || bounds.height>4096-bounds.y{return false;}
  return true;
 }
-// @api applyLayout walks at most 1024 nodes and validates every placement before updating the view.
+// @api applyLayout cost walks at most 1024 nodes and validates every placement before updating the view.
 pub fn applyLayout(view:&mut View,layout:&Layout,bounds:Rect)->Result<Unit,GuiError> effects {} {
  if layout.nodes.len()<1 || layout.nodes.len()>1024 || layout.root<0 || layout.root>=layout.nodes.len() || layout.depth<1 || layout.depth>32{return Err(StdError("GuiLayoutLimit",0));}
  if !validLayoutBounds(bounds){return Err(StdError("GuiLayoutBounds",0));}
@@ -443,9 +443,9 @@ fn arrangeWeighted(view:&mut View,ids:&List<String>,bounds:Rect,weights:&List<In
  }
  return Ok(());
 }
-// @api arrangeRow validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.
+// @api arrangeRow cost validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.
 pub fn arrangeRow(view:&mut View,ids:&List<String>,bounds:Rect,weights:&List<Int>,gap:Int)->Result<Unit,GuiError> effects {} {return arrangeWeighted(view,ids,bounds,weights,gap,true);}
-// @api arrangeColumn validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.
+// @api arrangeColumn cost validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.
 pub fn arrangeColumn(view:&mut View,ids:&List<String>,bounds:Rect,weights:&List<Int>,gap:Int)->Result<Unit,GuiError> effects {} {return arrangeWeighted(view,ids,bounds,weights,gap,false);}
 // @api splitRow cost O(children), max 256; distributes integer remainder pixels from left to right.
 // @api splitRow failure GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; no input is changed.

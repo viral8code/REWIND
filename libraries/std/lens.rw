@@ -20,7 +20,7 @@ pub fn modify<R:Share,V:Share,E:Share>(path:Lens<R,V,E>,root:R,transform:fn(V)->
     match transform(get(path,root)) {Ok(value)=>{return set(path,root,value);},Err(error)=>{return Err(error);}}
 }
 
-// @api compose Reads the outer focus once for each get/set; inner rejection prevents the outer setter from running.
+// @api compose failure Reads the outer focus once for each get/set; inner rejection prevents the outer setter from running.
 pub fn compose<R:Share,M:Share,V:Share,E:Share>(outer:Lens<R,M,E>,inner:Lens<M,V,E>)->Lens<R,V,E> effects {} {
     return Lens<R,V,E>(
         |root:R|->V{return get(inner,get(outer,root));},
@@ -35,7 +35,7 @@ pub fn optional<R:Share,V:Share,E:Share>(read:fn(R)->Option<V> effects {} captur
     return OptionalLens<R,V,E>(read,write);
 }
 pub fn preview<R:Share,V:Share,E:Share>(path:OptionalLens<R,V,E>,root:R)->Option<V> effects {} {let read=path.read;return read(root);}
-// @api setIfPresent Does not call the setter for a missing focus and never automatically creates an intermediate value.
+// @api setIfPresent failure Does not call the setter for a missing focus and never automatically creates an intermediate value.
 pub fn setIfPresent<R:Share,V:Share,E:Share>(path:OptionalLens<R,V,E>,root:R,value:V)->Result<Option<R>,E> effects {} {
     match preview(path,root) {
         None=>{return Ok(None);},
@@ -82,7 +82,7 @@ pub fn asOptional<R:Share,V:Share,E:Share>(path:Lens<R,V,E>)->OptionalLens<R,V,E
     );
 }
 
-// @api plan Captures only the focused before/after values and path; unrelated root fields are not preconditions.
+// @api plan failure Captures only the focused before/after values and path; unrelated root fields are not preconditions.
 pub fn plan<R:Share,V:Share,E:Share>(path:Lens<R,V,E>,root:R,value:V)->Change<R,V,E> effects {} {return Change<R,V,E>(path,get(path,root),value);}
 pub fn before<R:Share,V:Share,E:Share>(change:Change<R,V,E>)->V effects {} {return change.before;}
 pub fn after<R:Share,V:Share,E:Share>(change:Change<R,V,E>)->V effects {} {return change.after;}
@@ -95,7 +95,7 @@ pub fn apply<R:Share,V:Share,E:Share>(change:Change<R,V,E>,root:R,same:fn(V,V)->
     }
 }
 
-// @api checkLaws Checks get-put, put-get and put-put on the supplied sample only; does not prove laws for every root or accepted value.
+// @api checkLaws failure Checks get-put, put-get and put-put on the supplied sample only; does not prove laws for every root or accepted value.
 pub fn checkLaws<R:Share,V:Share,E:Share>(path:Lens<R,V,E>,root:R,first:V,second:V,sameRoot:fn(R,R)->Bool effects {} captures {Send,Share},sameValue:fn(V,V)->Bool effects {} captures {Send,Share})->Result<LawReport,E> effects {} {
     let reset=set(path,root,get(path,root))?;
     let once=set(path,root,first)?;

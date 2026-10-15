@@ -11,7 +11,7 @@ pub struct Timeline<T:Send> {
     private cursor:Int
 }
 
-// @api create Capacity includes the current version; accepts 1..65536.
+// @api create cost Capacity includes the current version; accepts 1..65536.
 pub fn create<T:Send>(initial:&T,capacity:Int)->Result<Timeline<T>,TimelineError> effects {} {
     if capacity<1 || capacity>65536 {return Err(TimelineError::InvalidCapacity);}
     let entries=Map<Int,snapshot.Snapshot<T>>();
@@ -37,7 +37,7 @@ pub fn get<T:Send>(timeline:&Timeline<T>,index:Int)->Option<snapshot.Snapshot<T>
     return Some(at(timeline,index));
 }
 
-// @api seek Indices are relative to the oldest retained version and can change after eviction.
+// @api seek cost Indices are relative to the oldest retained version and can change after eviction.
 pub fn seek<T:Send>(timeline:&mut Timeline<T>,index:Int)->Result<snapshot.Snapshot<T>,TimelineError> effects {} {
     if index<0 || index>=timeline.count {return Err(TimelineError::Index);}
     timeline.cursor=index;
@@ -56,7 +56,7 @@ pub fn redo<T:Send>(timeline:&mut Timeline<T>)->Option<snapshot.Snapshot<T>> eff
     return Some(at(timeline,timeline.cursor));
 }
 
-// @api pushSnapshot Discards redo entries, then evicts the oldest entry when full. Retained snapshot values stay valid.
+// @api pushSnapshot cost Discards redo entries, then evicts the oldest entry when full. Retained snapshot values stay valid.
 pub fn pushSnapshot<T:Send>(timeline:&mut Timeline<T>,saved:snapshot.Snapshot<T>)->Unit effects {} {
     while timeline.count>timeline.cursor+1 {
         timeline.entries.remove((timeline.start+timeline.count-1)%timeline.capacity);
@@ -72,13 +72,13 @@ pub fn pushSnapshot<T:Send>(timeline:&mut Timeline<T>,saved:snapshot.Snapshot<T>
     timeline.cursor=timeline.count-1;
 }
 
-// @api push Captures before changing the registry; allocation/budget failures retain the VM's existing fatal semantics.
+// @api push failure Captures before changing the registry; allocation/budget failures retain the VM's existing fatal semantics.
 pub fn push<T:Send>(timeline:&mut Timeline<T>,value:&T)->Unit effects {} {
     let saved=snapshot.capture(value);
     pushSnapshot(timeline,saved);
 }
 
-// @api clear Retains the current snapshot as the sole entry; other holders keep their roots.
+// @api clear cost Retains the current snapshot as the sole entry; other holders keep their roots.
 pub fn clear<T:Send>(timeline:&mut Timeline<T>)->Unit effects {} {
     let saved=current(timeline);
     let entries=Map<Int,snapshot.Snapshot<T>>();entries.set(0,saved);

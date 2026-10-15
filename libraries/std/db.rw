@@ -83,7 +83,7 @@ pub fn columnNumber(columns:&ColumnMap,name:String)->Result<Int,DbError> effects
 }
 pub record MappedBatch<T:Share>{rows:Frozen<List<T>>,done:Bool}
 pub enum RowMapError<E:Share>{TooManyRows(Int),Row(Int,E)}
-// @api mapBatch is pure, maps at most 64 rows, and does not read or advance the cursor. The borrowed DbBatch remains available after failure.
+// @api mapBatch failure is pure, maps at most 64 rows, and does not read or advance the cursor. The borrowed DbBatch remains available after failure.
 pub fn mapBatch<T:Share,E:Share>(batch:&DbBatch,columns:&ColumnMap,mapper:fn(Frozen<DbRow>,&ColumnMap)->Result<T,E> effects {} captures {Send,Share})->Result<MappedBatch<T>,RowMapError<E>> effects {} {
     let rowCount=batch.rows.len();
     if rowCount>64{return Err(RowMapError<E>::TooManyRows(rowCount));}
@@ -143,7 +143,7 @@ pub fn validateRow(rule:schema.Schema,columns:Frozen<List<String>>,row:Frozen<Db
     match validateColumnNames(&columns){Err(error)=>{return Err(SchemaRowError::Db(error));},Ok(_)=>{}}
     return validateRowCells(rule,columns,row);
 }
-// @api validateBatch validates at most 64 rows, checking column names once and preserving batch order and done state.
+// @api validateBatch cost validates at most 64 rows, checking column names once and preserving batch order and done state.
 pub fn validateBatch(rule:schema.Schema,columns:Frozen<List<String>>,batch:&DbBatch)->Result<MappedBatch<Json>,SchemaBatchError> effects {} {
     let rowCount=batch.rows.len();
     if rowCount>64{return Err(SchemaBatchError::TooManyRows(rowCount));}

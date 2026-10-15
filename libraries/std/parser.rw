@@ -31,7 +31,7 @@ fn best(left:ParseError,right:ParseError)->ParseError effects {} {
     return ParseError("Mismatch",left.offset,freeze(expected),false);
 }
 
-// @api parse Input is limited to 1 MiB; positions are byte offsets. Returns the remaining cursor on success.
+// @api parse cost Input is limited to 1 MiB; positions are byte offsets. Returns the remaining cursor on success.
 pub fn parse<T:Share>(parser:Parser<T>,input:Bytes)->Result<Parsed<T>,ParseError> effects {} {
     if stdBytesLength(input)>1048576 {return Err(error("InputLimit",0,"input <= 1 MiB",true));}
     let action=parser.action;return action(Cursor(input,0));
@@ -53,7 +53,7 @@ pub fn fail<T:Share>(description:String)->Parser<T> effects {} {
     return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{return Err(error("Mismatch",cursor.offset,description,false));});
 }
 
-// @api literal Matches bytes exactly and reports the first differing byte; descriptions are caller-supplied labels.
+// @api literal cost Matches bytes exactly and reports the first differing byte; descriptions are caller-supplied labels.
 pub fn literal(value:Bytes,description:String)->Parser<Bytes> effects {} {
     return Parser<Bytes>(|cursor:Cursor|->Result<Parsed<Bytes>,ParseError>{
         var i=0;let size=stdBytesLength(value);let end=stdBytesLength(cursor.input);
@@ -106,7 +106,7 @@ pub fn pair<T:Share,U:Share>(first:Parser<T>,second:Parser<U>)->Parser<Tuple<T,U
     });
 }
 
-// @api orElse Retries second from the original cursor, unless first failed with cut. Equal farthest offsets merge at most 32 unique expectations.
+// @api orElse failure Retries second from the original cursor, unless first failed with cut. Equal farthest offsets merge at most 32 unique expectations.
 pub fn orElse<T:Share>(first:Parser<T>,second:Parser<T>)->Parser<T> effects {} {
     let left=first.action;let right=second.action;
     return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
@@ -123,7 +123,7 @@ pub fn orElse<T:Share>(first:Parser<T>,second:Parser<T>)->Parser<T> effects {} {
     });
 }
 
-// @api cut Commits grammar failure only; does not create a VM checkpoint or publish output.
+// @api cut failure Commits grammar failure only; does not create a VM checkpoint or publish output.
 pub fn cut<T:Share>(parser:Parser<T>)->Parser<T> effects {} {
     let action=parser.action;
     return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
@@ -147,7 +147,7 @@ pub fn optional<T:Share>(parser:Parser<T>)->Parser<Option<T>> effects {} {
     });
 }
 
-// @api repeat Requires 0 <= minimum <= maximum <= 65536. Stops at maximum without a probe; zero-progress success is an error.
+// @api repeat failure Requires 0 <= minimum <= maximum <= 65536. Stops at maximum without a probe; zero-progress success is an error.
 pub fn repeat<T:Share>(parser:Parser<T>,minimum:Int,maximum:Int)->Result<Parser<Frozen<List<T>>>,ParseError> effects {} {
     if minimum<0 || maximum<minimum || maximum>65536 {return Err(error("InvalidBounds",0,"0 <= min <= max <= 65536",true));}
     let action=parser.action;
@@ -178,7 +178,7 @@ pub fn spanEnd(span:Span)->Int effects {} {return span.end;}
 pub fn spanBytes(span:Span)->Bytes effects {} {
     match stdBytesSlice(span.input,span.start,span.end) {Ok(value)=>{return value;},Err(_)=>{panic("parser span invariant");}}
 }
-// @api spanned Keeps the exact original byte range of a successful parser. The span owns its input bytes.
+// @api spanned cost Keeps the exact original byte range of a successful parser. The span owns its input bytes.
 pub fn spanned<T:Share>(parser:Parser<T>)->Parser<Spanned<T>> effects {} {
     let action=parser.action;
     return Parser<Spanned<T>>(|cursor:Cursor|->Result<Parsed<Spanned<T>>,ParseError>{
@@ -189,14 +189,14 @@ pub fn spanned<T:Share>(parser:Parser<T>)->Parser<Spanned<T>> effects {} {
     });
 }
 
-// @api lookAhead Preserves the input cursor on success; failures, including cut, propagate unchanged.
+// @api lookAhead failure Preserves the input cursor on success; failures, including cut, propagate unchanged.
 pub fn lookAhead<T:Share>(parser:Parser<T>)->Parser<T> effects {} {
     let action=parser.action;
     return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
         match action(cursor) {Ok(result)=>{return Ok(Parsed<T>(result.value,cursor));},Err(problem)=>{return Err(problem);}}
     });
 }
-// @api notFollowedBy Succeeds without consumption on ordinary mismatch; cut failures still propagate.
+// @api notFollowedBy failure Succeeds without consumption on ordinary mismatch; cut failures still propagate.
 pub fn notFollowedBy<T:Share>(parser:Parser<T>,description:String)->Parser<Unit> effects {} {
     let action=parser.action;
     return Parser<Unit>(|cursor:Cursor|->Result<Parsed<Unit>,ParseError>{
@@ -207,7 +207,7 @@ pub fn notFollowedBy<T:Share>(parser:Parser<T>,description:String)->Parser<Unit>
     });
 }
 
-// @api verify Checks a parsed value with a pure predicate; rejection is an ordinary mismatch at the end of the parsed value.
+// @api verify failure Checks a parsed value with a pure predicate; rejection is an ordinary mismatch at the end of the parsed value.
 pub fn verify<T:Share>(parser:Parser<T>,description:String,predicate:fn(T)->Bool effects {} captures {Send,Share})->Parser<T> effects {} {
     let action=parser.action;
     return Parser<T>(|cursor:Cursor|->Result<Parsed<T>,ParseError>{
@@ -221,7 +221,7 @@ pub fn verify<T:Share>(parser:Parser<T>,description:String,predicate:fn(T)->Bool
     });
 }
 
-// @api andThen Chooses the next parser from a parsed value; private cursors prevent the callback from switching input ownership.
+// @api andThen cost Chooses the next parser from a parsed value; private cursors prevent the callback from switching input ownership.
 pub fn andThen<T:Share,U:Share>(parser:Parser<T>,choose:fn(T)->Parser<U> effects {} captures {Send,Share})->Parser<U> effects {} {
     let action=parser.action;
     return Parser<U>(|cursor:Cursor|->Result<Parsed<U>,ParseError>{
@@ -236,7 +236,7 @@ pub fn binary<T:Share>(token:Bytes,description:String,combine:fn(T,T)->T effects
     return map(literal(token,description),|value:Bytes|->BinaryOperator<T>{return BinaryOperator<T>(combine);});
 }
 
-// @api chainLeft Parses term (operator term)* with left association; stops at maximum without probing another operator.
+// @api chainLeft cost Parses term (operator term)* with left association; stops at maximum without probing another operator.
 pub fn chainLeft<T:Share>(term:Parser<T>,operator:Parser<BinaryOperator<T>>,maximum:Int)->Result<Parser<T>,ParseError> effects {} {
     if maximum<0 || maximum>65535 {return Err(error("InvalidBounds",0,"0 <= maximum <= 65535",true));}
     let item=term.action;let operation=operator.action;
@@ -266,7 +266,7 @@ pub fn chainLeft<T:Share>(term:Parser<T>,operator:Parser<BinaryOperator<T>>,maxi
     }));
 }
 
-// @api chainRight Collects at most maximum operators then folds right iteratively, avoiding recursion proportional to input length.
+// @api chainRight cost Collects at most maximum operators then folds right iteratively, avoiding recursion proportional to input length.
 pub fn chainRight<T:Share>(term:Parser<T>,operator:Parser<BinaryOperator<T>>,maximum:Int)->Result<Parser<T>,ParseError> effects {} {
     if maximum<0 || maximum>65535 {return Err(error("InvalidBounds",0,"0 <= maximum <= 65535",true));}
     let item=term.action;let operation=operator.action;

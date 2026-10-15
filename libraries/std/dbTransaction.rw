@@ -25,15 +25,15 @@ pub enum TxError {NotActive(TxState),NotFinished(TxState),WrongRequest(TxState),
 // Business failure and cleanup failure are both kept; neither replaces the other.
 pub record Finished {state:TxState,business:Option<String>,cleanup:Option<DbError>}
 
-// @api begun Starts tracking after db.beginTransaction returned Ok.
+// @api begun cost Starts tracking after db.beginTransaction returned Ok.
 pub fn begun()->Transaction effects {} {return Transaction(TxState::Active,TxState::Active);}
-// @api state Reads the tracked state.
+// @api state cost Reads the tracked state.
 pub fn state(tx:&Transaction)->TxState effects {} {return tx.state;}
-// @api isActive True while queries and a commit or rollback request are allowed.
+// @api isActive cost True while queries and a commit or rollback request are allowed.
 pub fn isActive(tx:&Transaction)->Bool effects {} {
     match tx.state {TxState::Active=>{return true;},_=>{return false;}}
 }
-// @api connectionReusable False while the outcome is pending, failed or unknown; true once the transaction is over cleanly.
+// @api connectionReusable failure False while the outcome is pending, failed or unknown; true once the transaction is over cleanly.
 pub fn connectionReusable(tx:&Transaction)->Bool effects {} {
     match tx.state {
         TxState::Committed=>{return true;},
@@ -42,14 +42,14 @@ pub fn connectionReusable(tx:&Transaction)->Bool effects {} {
         _=>{return false;}
     }
 }
-// @api requestCommit Active -> Committing. Any other state is rejected and left unchanged.
+// @api requestCommit failure Active -> Committing. Any other state is rejected and left unchanged.
 pub fn requestCommit(tx:&mut Transaction)->Result<Unit,TxError> effects {} {
     match tx.state {
         TxState::Active=>{tx.before=TxState::Active;tx.state=TxState::Committing;return Ok(());},
         other=>{return Err(TxError::NotActive(other));}
     }
 }
-// @api requestRollback Active or Failed -> RollingBack. Unknown, finished and pending states are rejected.
+// @api requestRollback failure Active or Failed -> RollingBack. Unknown, finished and pending states are rejected.
 pub fn requestRollback(tx:&mut Transaction)->Result<Unit,TxError> effects {} {
     match tx.state {
         TxState::Active=>{tx.before=TxState::Active;tx.state=TxState::RollingBack;return Ok(());},
@@ -63,7 +63,7 @@ fn afterFailure(error:&DbError,previous:TxState)->TxState effects {} {
     if error.phase=="Unknown" {return TxState::Unknown;}
     return TxState::Failed;
 }
-// @api completeCommit Committing -> Committed on Ok. A failure that never reached the backend returns to Active; an unknown outcome becomes Unknown; other failures become Failed.
+// @api completeCommit failure Committing -> Committed on Ok. A failure that never reached the backend returns to Active; an unknown outcome becomes Unknown; other failures become Failed.
 pub fn completeCommit(tx:&mut Transaction,outcome:Result<Unit,DbError>)->Result<Unit,TxError> effects {} {
     match tx.state {
         TxState::Committing=>{},
@@ -74,7 +74,7 @@ pub fn completeCommit(tx:&mut Transaction,outcome:Result<Unit,DbError>)->Result<
         Err(error)=>{tx.state=afterFailure(&error,tx.before);return Err(TxError::Backend(error));}
     }
 }
-// @api completeRollback RollingBack -> RolledBack on Ok. A failure that never reached the backend returns to the previous state; an unknown outcome becomes Unknown; other failures become Failed.
+// @api completeRollback failure RollingBack -> RolledBack on Ok. A failure that never reached the backend returns to the previous state; an unknown outcome becomes Unknown; other failures become Failed.
 pub fn completeRollback(tx:&mut Transaction,outcome:Result<Unit,DbError>)->Result<Unit,TxError> effects {} {
     match tx.state {
         TxState::RollingBack=>{},
@@ -85,7 +85,7 @@ pub fn completeRollback(tx:&mut Transaction,outcome:Result<Unit,DbError>)->Resul
         Err(error)=>{tx.state=afterFailure(&error,tx.before);return Err(TxError::Backend(error));}
     }
 }
-// @api close Releases the handle. Pending or active transactions are reported, not closed silently.
+// @api close failure Releases the handle. Pending or active transactions are reported, not closed silently.
 pub fn close(tx:&mut Transaction)->Result<Unit,TxError> effects {} {
     match tx.state {
         TxState::Active=>{return Err(TxError::NotFinished(TxState::Active));},
@@ -94,7 +94,7 @@ pub fn close(tx:&mut Transaction)->Result<Unit,TxError> effects {} {
         _=>{tx.state=TxState::Closed;return Ok(());}
     }
 }
-// @api finished Summarises the end of a unit of work: the business failure (if any) next to the cleanup failure (if any).
+// @api finished failure Summarises the end of a unit of work: the business failure (if any) next to the cleanup failure (if any).
 pub fn finished(tx:&Transaction,business:Option<String>,cleanup:Option<DbError>)->Finished effects {} {
     return Finished(tx.state,business,cleanup);
 }

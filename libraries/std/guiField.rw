@@ -8,8 +8,8 @@ pub record Item {kind:String,id:String,caption:String,cursor:Int,anchor:Int}
 // Changed and Submitted carry the scope-qualified input id followed by the current text.
 pub enum Action {Changed(String,String),Submitted(String,String),Ignored}
 
-fn jsonInt(value:Json,key:String)->Int effects {} {match jsonGet(value,key){Some(Json::Int(v))=>{return v;},_=>{return 0;}}}
-fn jsonText(value:Json,key:String)->String effects {} {match jsonGet(value,key){Some(Json::Text(v))=>{return v;},_=>{return "";}}}
+fn fieldInt(value:Json,key:String)->Int effects {} {match jsonGet(value,key){Some(Json::Int(v))=>{return v;},_=>{return 0;}}}
+fn fieldText(value:Json,key:String)->String effects {} {match jsonGet(value,key){Some(Json::Text(v))=>{return v;},_=>{return "";}}}
 
 pub fn new(label:String,initial:String)->FieldState effects {} {
  let end=initial.charLen();
@@ -43,9 +43,9 @@ pub fn dispatch(state:&mut FieldState,scope:&gui.ComponentScope,event:gui.Event)
   Err(e)=>{return Err(StdError(e.code,e.offset));},
   Ok(j)=>{
    let before=state.text;
-   state.text=jsonText(j,"text");
-   state.cursor=jsonInt(j,"cursor");
-   state.anchor=jsonInt(j,"anchor");
+   state.text=fieldText(j,"text");
+   state.cursor=fieldInt(j,"cursor");
+   state.anchor=fieldInt(j,"anchor");
    if state.text!=before {return Ok(Action::Changed(inputId,state.text));}
    return Ok(Action::Ignored);
   }

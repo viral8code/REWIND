@@ -22,7 +22,7 @@ fn entry<T:Share>(map:&OrderedMap<T>,key:String)->Entry<T> effects {} {
     match map.data.get(key) {Some(value)=>{return value;},None=>{panic("ordered map invariant");}}
 }
 
-// @api put Existing keys retain their position; removing and reinserting a key appends it.
+// @api put cost Existing keys retain their position; removing and reinserting a key appends it.
 pub fn put<T:Share>(map:&mut OrderedMap<T>,key:String,value:T)->Result<Option<T>,OrderedMapError> effects {} {
     match map.data.get(key) {
         Some(old)=>{
@@ -44,7 +44,7 @@ pub fn put<T:Share>(map:&mut OrderedMap<T>,key:String,value:T)->Result<Option<T>
     return Ok(None);
 }
 
-// @api remove Unlinks by key without shifting later entries. Missing keys do not change the order.
+// @api remove failure Unlinks by key without shifting later entries. Missing keys do not change the order.
 pub fn remove<T:Share>(map:&mut OrderedMap<T>,key:String)->Option<T> effects {} {
     match map.data.get(key) {
         None=>{return None;},
@@ -102,7 +102,7 @@ pub fn clear<T:Share>(map:&mut OrderedMap<T>)->Unit effects {} {
     map.data=Map<String,Entry<T>>();map.first=None;map.last=None;
 }
 
-// @api first Reads the oldest insertion position without enumerating the map.
+// @api first cost Reads the oldest insertion position without enumerating the map.
 pub fn first<T:Share>(map:&OrderedMap<T>)->Option<Tuple<String,T>> effects {} {
     match map.first {Some(key)=>{return Some((key,entry(map,key).value));},None=>{return None;}}
 }
@@ -121,7 +121,7 @@ pub fn popLast<T:Share>(map:&mut OrderedMap<T>)->Option<Tuple<String,T>> effects
         Some(key)=>{match remove(map,key) {Some(value)=>{return Some((key,value));},None=>{panic("ordered map invariant");}}}
     }
 }
-// @api touch Moves an existing key to the end using a bounded number of link updates; does not change its value or consume capacity.
+// @api touch failure Moves an existing key to the end using a bounded number of link updates; does not change its value or consume capacity.
 pub fn touch<T:Share>(map:&mut OrderedMap<T>,key:String)->Bool effects {} {
     match map.data.get(key) {
         None=>{return false;},

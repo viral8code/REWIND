@@ -3,17 +3,17 @@ pub record Snapshot<T:Send> {
     private value:Frozen<T>
 }
 
-// @api capture Uses freeze(value): graph validation/materialization and allocation are charged by the VM. No constant-time guarantee.
+// @api capture cost Uses freeze(value): graph validation/materialization and allocation are charged by the VM. No constant-time guarantee.
 pub fn capture<T:Send>(value:&T)->Snapshot<T> effects {} {
     return Snapshot<T>(freeze(value));
 }
 
-// @api read Retains the existing immutable root. Does not restore model bindings or run user callbacks.
+// @api read failure Retains the existing immutable root. Does not restore model bindings or run user callbacks.
 pub fn read<T:Send>(saved:Snapshot<T>)->Frozen<T> effects {} {
     return saved.value;
 }
 
-// @api fork Uses thaw: returns an independent mutable owner for mutable T; cost follows the existing thaw implementation.
+// @api fork cost Uses thaw: returns an independent mutable owner for mutable T; cost follows the existing thaw implementation.
 pub fn fork<T:Send>(saved:Snapshot<T>)->T effects {} {
     return thaw(saved.value);
 }

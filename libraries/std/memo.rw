@@ -12,7 +12,7 @@ pub struct Cache<T:Share> {
 }
 pub record Resolved<T:Share> {value:T,hit:Bool}
 
-// @api key Separates domain, code revision and caller-chosen input identity. JSON tuple encoding avoids delimiter collisions.
+// @api key cost Separates domain, code revision and caller-chosen input identity. JSON tuple encoding avoids delimiter collisions.
 pub fn key(domain:String,revision:String,input:String)->Result<Key,CacheError> effects {} {
     let domainSize=stdTextLength(domain);let revisionSize=stdTextLength(revision);
     if domainSize<1 || domainSize>128 {return Err(CacheError::InvalidDomain);}
@@ -28,7 +28,7 @@ pub fn domain(key:Key)->String effects {} {return key.domain;}
 pub fn revision(key:Key)->String effects {} {return key.revision;}
 pub fn input(key:Key)->String effects {} {return key.input;}
 
-// @api create Bounds entry count to 1..65536 and total caller-assigned positive weight. Weight is not a measurement of physical bytes.
+// @api create failure Bounds entry count to 1..65536 and total caller-assigned positive weight. Weight is not a measurement of physical bytes.
 pub fn create<T:Share>(capacity:Int,weightLimit:Int)->Result<Cache<T>,CacheError> effects {} {
     if capacity<1 || capacity>65536 {return Err(CacheError::Capacity);}
     if weightLimit<1 {return Err(CacheError::WeightBudget);}
@@ -39,7 +39,7 @@ pub fn create<T:Share>(capacity:Int,weightLimit:Int)->Result<Cache<T>,CacheError
 }
 pub fn length<T:Share>(cache:&Cache<T>)->Int effects {} {return orderedMap.length(&cache.items);}
 pub fn weight<T:Share>(cache:&Cache<T>)->Int effects {} {return cache.totalWeight;}
-// @api keys Returns keys from least to most recently used, without exposing cached payloads.
+// @api keys cost Returns keys from least to most recently used, without exposing cached payloads.
 pub fn keys<T:Share>(cache:&Cache<T>)->List<Key> effects {} {
     let encoded=orderedMap.keys(&cache.items);let output=List<Key>();
     for i in 0..encoded.len() {
@@ -50,7 +50,7 @@ pub fn keys<T:Share>(cache:&Cache<T>)->List<Key> effects {} {
 pub fn peek<T:Share>(cache:&Cache<T>,key:Key)->Option<T> effects {} {
     match orderedMap.get(&cache.items,key.encoded) {Some(entry)=>{return Some(entry.value);},None=>{return None;}}
 }
-// @api get A hit moves the entry to most-recent position; peek leaves recency unchanged.
+// @api get cost A hit moves the entry to most-recent position; peek leaves recency unchanged.
 pub fn get<T:Share>(cache:&mut Cache<T>,key:Key)->Option<T> effects {} {
     match orderedMap.get(&cache.items,key.encoded) {
         Some(entry)=>{orderedMap.touch(&mut cache.items,key.encoded);return Some(entry.value);},
@@ -63,7 +63,7 @@ pub fn remove<T:Share>(cache:&mut Cache<T>,key:Key)->Option<T> effects {} {
         None=>{return None;}
     }
 }
-// @api put Validates weight before mutation, replaces an existing key, then evicts least-recent entries until both bounds permit insertion.
+// @api put cost Validates weight before mutation, replaces an existing key, then evicts least-recent entries until both bounds permit insertion.
 pub fn put<T:Share>(cache:&mut Cache<T>,key:Key,value:T,weight:Int)->Result<List<Key>,CacheError> effects {} {
     if weight<1 || weight>cache.weightLimit {return Err(CacheError::Weight);}
     match orderedMap.remove(&mut cache.items,key.encoded) {Some(old)=>{cache.totalWeight-=old.weight;},None=>{}}
@@ -80,7 +80,7 @@ pub fn put<T:Share>(cache:&mut Cache<T>,key:Key,value:T,weight:Int)->Result<List
         Err(_)=>{panic("memo capacity invariant");}
     }
 }
-// @api resolve Computes only on a miss. Pure Result values may be cached as T; callback panic or fatal budget failure is not cached.
+// @api resolve failure Computes only on a miss. Pure Result values may be cached as T; callback panic or fatal budget failure is not cached.
 pub fn resolve<T:Share>(cache:&mut Cache<T>,key:Key,weight:Int,compute:fn()->T effects {} captures {Send,Share})->Result<Resolved<T>,CacheError> effects {} {
     if weight<1 || weight>cache.weightLimit {return Err(CacheError::Weight);}
     match get(cache,key) {
@@ -91,7 +91,7 @@ pub fn resolve<T:Share>(cache:&mut Cache<T>,key:Key,weight:Int,compute:fn()->T e
         }
     }
 }
-// @api invalidate Selects matching keys with a pure predicate before removing entries. Existing returned values retain their own lifetime.
+// @api invalidate cost Selects matching keys with a pure predicate before removing entries. Existing returned values retain their own lifetime.
 pub fn invalidate<T:Share>(cache:&mut Cache<T>,predicate:fn(Key)->Bool effects {} captures {Send,Share})->List<Key> effects {} {
     let candidates=keys(cache);let selected=List<Key>();
     for i in 0..candidates.len() {let key=candidates.get(i);if predicate(key) {selected.add(key);}}

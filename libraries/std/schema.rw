@@ -26,9 +26,9 @@ fn single(node:Node)->Schema effects {} {
 pub fn any()->Schema effects {} {return single(Node::Any);}
 pub fn boolean()->Schema effects {} {return single(Node::Boolean);}
 pub fn number()->Schema effects {} {return single(Node::Number);}
-// @api decimal accepts exact decimal text; JSON Float/Number values are rejected to avoid prior binary rounding.
+// @api decimal failure accepts exact decimal text; JSON Float/Number values are rejected to avoid prior binary rounding.
 pub fn decimal()->Schema effects {} {return single(Node::Decimal);}
-// @api timestamp accepts RFC3339 text with an explicit UTC offset and validates it through std.datetime.
+// @api timestamp cost accepts RFC3339 text with an explicit UTC offset and validates it through std.datetime.
 pub fn timestamp()->Schema effects {} {return single(Node::Timestamp);}
 pub fn integer(minimum:Int,maximum:Int)->Result<Schema,SchemaError> effects {} {
     if minimum>maximum {return Err(SchemaError("Range",""));}
@@ -74,7 +74,7 @@ pub fn array(item:Schema,minimum:Int,maximum:Int)->Result<Schema,SchemaError> ef
     nodes.add(Node::Array(child,minimum,maximum));return Ok(Schema(freeze(nodes),root,item.depth+1));
 }
 
-// @api field Missing and null are distinct. Required fields cannot also declare defaults; defaults are validated and normalized at construction.
+// @api field failure Missing and null are distinct. Required fields cannot also declare defaults; defaults are validated and normalized at construction.
 pub fn field(name:String,schema:Schema,required:Bool,fallback:Option<Json>)->Result<Field,SchemaError> effects {} {
     let size=stdTextLength(name);
     if size<1 || size>128 {return Err(SchemaError("FieldName",name));}
@@ -89,7 +89,7 @@ pub fn field(name:String,schema:Schema,required:Bool,fallback:Option<Json>)->Res
         None=>{return Ok(Field(name,schema,required,None));}
     }
 }
-// @api object Accepts at most 128 distinct fields, 1024 total schema nodes and depth 32. Unknown-field policy is explicit.
+// @api object cost Accepts at most 128 distinct fields, 1024 total schema nodes and depth 32. Unknown-field policy is explicit.
 pub fn object(fields:&List<Field>,policy:Unknown)->Result<Schema,SchemaError> effects {} {
     if fields.len()>128 {return Err(SchemaError("FieldLimit",""));}
     let names=Map<String,Bool>();var count=1;var depth=1;
@@ -222,7 +222,7 @@ fn visit(schema:Schema,index:Int,value:Json,path:Frozen<List<Segment>>,budget:&m
     }
 }
 
-// @api validate Returns normalized JSON or the first bounded structural error. Diagnostics never contain input values or unknown field names.
+// @api validate failure Returns normalized JSON or the first bounded structural error. Diagnostics never contain input values or unknown field names.
 pub fn validate(schema:Schema,value:Json)->Result<Json,ValidationError> effects {} {
     let path=List<Segment>();let budget=Budget(65536);
     return visit(schema,schema.root,value,freeze(path),&mut budget);
@@ -267,7 +267,7 @@ fn csvCell(schema:Schema,nodeIndex:Int,value:String,path:Frozen<List<Segment>>,n
     }
 }
 
-// @api csvRow Converts one header/value row for an object schema. Text stays text; typed cells use JSON syntax. nullToken is exact and only applies through nullable nodes.
+// @api csvRow cost Converts one header/value row for an object schema. Text stays text; typed cells use JSON syntax. nullToken is exact and only applies through nullable nodes.
 pub fn csvRow(schema:Schema,headers:&List<String>,row:&List<String>,nullToken:Option<String>)->Result<Json,ValidationError> effects {} {
     if headers.len()>65536 {return Err(csvProblem("ColumnLimit",freeze(List<Segment>()),"<=65536 columns","HeaderLimit"));}
     if headers.len()!=row.len() {return Err(csvProblem("RowWidth",freeze(List<Segment>()),"row matching header width","Mismatch"));}
@@ -314,7 +314,7 @@ fn csvRowFields(schema:Schema,headers:&List<String>,row:&List<String>,nullToken:
 pub fn mapped<T:Share,E:Share>(schema:Schema,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Decoder<T,E> effects {} {
     return Decoder<T,E>(schema,convert);
 }
-// @api decode Validates before invoking the explicit mapper; conversion failure stays separate from schema failure.
+// @api decode failure Validates before invoking the explicit mapper; conversion failure stays separate from schema failure.
 pub fn decode<T:Share,E:Share>(decoder:Decoder<T,E>,value:Json)->Result<T,DecodeError<E>> effects {} {
     match validate(decoder.schema,value) {
         Err(error)=>{return Err(DecodeError<E>("Validation",Some(error),None));},

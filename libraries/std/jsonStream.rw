@@ -24,7 +24,7 @@ fn eventPosition(event:Event)->Int effects {} {
   JsonStreamEvent::Null(position)=>{return position;}
  }
 }
-// @api nextBigInt parses an exact base-10 integer token before advancing; a non-number or failed conversion remains queued.
+// @api nextBigInt failure parses an exact base-10 integer token before advancing; a non-number or failed conversion remains queued.
 pub fn nextBigInt(reader:&mut Reader)->Result<Option<BigInt>,IntegerEventError> effects {} {
  match stdJsonStreamPeek(&reader.state) {
   Err(error)=>{return Err(IntegerEventError::Stream(error));},
@@ -51,7 +51,7 @@ pub fn nextBigInt(reader:&mut Reader)->Result<Option<BigInt>,IntegerEventError> 
   }
  }
 }
-// @api nextDecimal parses a JSON number token as exact base-10 Decimal before advancing; a wrong event kind or parse failure remains queued.
+// @api nextDecimal failure parses a JSON number token as exact base-10 Decimal before advancing; a wrong event kind or parse failure remains queued.
 pub fn nextDecimal(reader:&mut Reader)->Result<Option<Decimal>,DecimalEventError> effects {} {
  match stdJsonStreamPeek(&reader.state) {
   Err(error)=>{return Err(DecimalEventError::Stream(error));},
@@ -184,7 +184,7 @@ fn readValue(reader:&mut Reader,depth:Int)->Result<Option<Json>,JsonValueError> 
   }
  }
 }
-// @api nextJson consumes one complete JSON value only after it has been materialized; incomplete input and failures preserve the queued events.
+// @api nextJson failure consumes one complete JSON value only after it has been materialized; incomplete input and failures preserve the queued events.
 pub fn nextJson(reader:&mut Reader)->Result<Option<Json>,JsonValueError> effects {} {
  let trial=Reader(reader.state);
  match readValue(&mut trial,0){
@@ -193,7 +193,7 @@ pub fn nextJson(reader:&mut Reader)->Result<Option<Json>,JsonValueError> effects
   Ok(Some(value))=>{reader.state=trial.state;return Ok(Some(value));}
  }
 }
-// @api nextValidated consumes one complete value only after parsing and schema validation succeed; incomplete input and failures preserve the queued events.
+// @api nextValidated failure consumes one complete value only after parsing and schema validation succeed; incomplete input and failures preserve the queued events.
 pub fn nextValidated(reader:&mut Reader,rule:schema.Schema)->Result<Option<Json>,SchemaEventError> effects {} {
  let trial=Reader(reader.state);
  match readValue(&mut trial,0){

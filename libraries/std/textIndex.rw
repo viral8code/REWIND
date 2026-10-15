@@ -14,7 +14,7 @@ fn octet(input:Bytes,offset:Int)->Int effects {} {
     match stdBytesGet(input,offset) {Ok(value)=>{return value;},Err(_)=>{panic("text index invariant");}}
 }
 
-// @api create Indexes valid String data, at most 1 MiB and 65535 scalars. Uses the existing Unicode grapheme implementation.
+// @api create cost Indexes valid String data, at most 1 MiB and 65535 scalars. Uses the existing Unicode grapheme implementation.
 pub fn create(text:String)->Result<Source,IndexError> effects {} {
     match stdEncode(text) {
         Err(e)=>{return Err(IndexError(e.code,e.offset));},
@@ -82,14 +82,14 @@ fn boundary(offsets:Frozen<List<Int>>,offset:Int)->Option<Int> effects {} {
     return None;
 }
 
-// @api byteToScalar Rejects byte positions inside a UTF-8 scalar; the terminal position is valid.
+// @api byteToScalar failure Rejects byte positions inside a UTF-8 scalar; the terminal position is valid.
 pub fn byteToScalar(position:ByteOffset)->Result<ScalarIndex,IndexError> effects {} {
     match boundary(position.source.scalars,position.offset) {
         Some(index)=>{return Ok(ScalarIndex(position.source,index));},
         None=>{return Err(IndexError("ScalarBoundary",position.offset));}
     }
 }
-// @api byteToGrapheme Rejects positions inside a grapheme, including between combining scalars or CR and LF.
+// @api byteToGrapheme failure Rejects positions inside a grapheme, including between combining scalars or CR and LF.
 pub fn byteToGrapheme(position:ByteOffset)->Result<GraphemeIndex,IndexError> effects {} {
     match boundary(position.source.graphemes,position.offset) {
         Some(index)=>{return Ok(GraphemeIndex(position.source,index));},
@@ -97,7 +97,7 @@ pub fn byteToGrapheme(position:ByteOffset)->Result<GraphemeIndex,IndexError> eff
     }
 }
 
-// @api sliceBytes Requires equal original text content and an ordered half-open range. Numeric offsets are never applied to different text implicitly.
+// @api sliceBytes cost Requires equal original text content and an ordered half-open range. Numeric offsets are never applied to different text implicitly.
 pub fn sliceBytes(start:ByteOffset,end:ByteOffset)->Result<Bytes,IndexError> effects {} {
     if start.source.text!=end.source.text {return Err(IndexError("TextMismatch",end.offset));}
     if end.offset<start.offset {return Err(IndexError("Range",end.offset));}

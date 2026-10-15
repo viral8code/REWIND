@@ -13,7 +13,7 @@ pub struct History<T:Send> {
     private capacity:Int
 }
 
-// @api create Requires 1 <= capacity <= 65536; capacity bounds registered names, not retained bytes.
+// @api create failure Requires 1 <= capacity <= 65536; capacity bounds registered names, not retained bytes.
 pub fn create<T:Send>(capacity:Int)->Result<History<T>,HistoryError> effects {} {
     if capacity<1 || capacity>65536 {return Err(HistoryError::InvalidCapacity);}
     return Ok(History<T>(Map<String,snapshot.Snapshot<T>>(),capacity));
@@ -30,7 +30,7 @@ pub fn contains<T:Send>(history:&History<T>,name:String)->Bool effects {} {
     }
 }
 
-// @api save Checks name, duplicate, and capacity before capture. Names contain 1..128 Unicode scalars. Runtime budget/capture failures remain VM failures.
+// @api save failure Checks name, duplicate, and capacity before capture. Names contain 1..128 Unicode scalars. Runtime budget/capture failures remain VM failures.
 pub fn save<T:Send>(history:&mut History<T>,name:String,value:&T)->Result<Unit,HistoryError> effects {} {
     let size=stdTextLength(name);
     if size<1 || size>128 {return Err(HistoryError::InvalidName);}
@@ -41,26 +41,26 @@ pub fn save<T:Send>(history:&mut History<T>,name:String,value:&T)->Result<Unit,H
     return Ok(());
 }
 
-// @api get Returns an independently retained snapshot root; later removal or name reuse does not retarget it.
+// @api get failure Returns an independently retained snapshot root; later removal or name reuse does not retarget it.
 pub fn get<T:Send>(history:&History<T>,name:String)->Option<snapshot.Snapshot<T>> effects {} {
     return history.entries.get(name);
 }
 
-// @api names Returns an owned list in the underlying String Map key order.
+// @api names cost Returns an owned list in the underlying String Map key order.
 pub fn names<T:Send>(history:&History<T>)->List<String> effects {} {
     let keys=history.entries.keys();let output=List<String>();var i=0;
     while i<keys.len(){output.add(keys.get(i));i+=1;}
     return output;
 }
 
-// @api remove Unregisters one name and returns its snapshot. Other holders and VM checkpoints may still retain its data.
+// @api remove cost Unregisters one name and returns its snapshot. Other holders and VM checkpoints may still retain its data.
 pub fn remove<T:Send>(history:&mut History<T>,name:String)->Option<snapshot.Snapshot<T>> effects {} {
     let saved=history.entries.get(name);
     history.entries.remove(name);
     return saved;
 }
 
-// @api clear Drops this registry's entries. Live snapshot values and execution checkpoints keep their own roots.
+// @api clear cost Drops this registry's entries. Live snapshot values and execution checkpoints keep their own roots.
 pub fn clear<T:Send>(history:&mut History<T>)->Unit effects {} {
     history.entries=Map<String,snapshot.Snapshot<T>>();
 }

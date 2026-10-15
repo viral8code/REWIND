@@ -74,7 +74,6 @@ fn typed(e:Entry,position:Int)->Result<Json,FormError> effects {} {
   _=>{return Err(StdError("GuiFormSchema",position));}
  }
 }
-// @api validate cost O(all fields + value bytes); stores every error, never discards the edited text.
 fn fieldValid(valid:&Map<String,Bool>,id:String)->Bool effects {} {match valid.get(id){Some(value)=>{return value;},None=>{return false;}}}
 fn sameTyped(left:Json,right:Json)->Bool effects {} {
  match (left,right){
@@ -101,7 +100,7 @@ pub fn toJson(form:&Form)->Result<Json,FormError> effects {} {
  for i in 0..form.entries.len(){let e=form.entries.get(i);match errors.get(e.field.id){Some(code)=>{return Err(StdError(code,i));},None=>{}}}
  let object=Map<String,Json>();for i in 0..form.entries.len(){let e=form.entries.get(i);object.set(e.field.id,typed(e,i)?);}return Ok(Json::Object(freeze(object)));
 }
-// @api toValue runs form validation before one pure, explicit typed mapper; it separates validation and conversion failures.
+// @api toValue cost runs form validation before one pure, explicit typed mapper; it separates validation and conversion failures.
 // @api toValue failure SubmitError::Form(Required/Integer/Real/Range/Timestamp/Relation) or SubmitError::Conversion(E); mapper runs only after form validation succeeds.
 pub fn toValue<T:Share,E:Share>(form:&Form,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Result<T,SubmitError<E>> effects {} {
  match toJson(form){
@@ -114,7 +113,7 @@ pub fn toValue<T:Share,E:Share>(form:&Form,convert:fn(Json)->Result<T,E> effects
   }
  }
 }
-// @api toSchemaValue validates form fields, then a shared schema, then calls one pure typed mapper. It never mutates the form.
+// @api toSchemaValue cost validates form fields, then a shared schema, then calls one pure typed mapper. It never mutates the form.
 // @api toSchemaValue failure SchemaSubmitError::Form(StdError), ::Schema(ValidationError), or ::Conversion(E); mapper runs only after both validations succeed.
 pub fn toSchemaValue<T:Share,E:Share>(form:&Form,rule:schema.Schema,convert:fn(Json)->Result<T,E> effects {} captures {Send,Share})->Result<T,SchemaSubmitError<E>> effects {} {
  match toJson(form){

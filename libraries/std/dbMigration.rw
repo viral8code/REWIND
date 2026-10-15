@@ -53,7 +53,7 @@ fn validId(id:String)->Bool effects {} {
     }
 }
 
-// @api migration Validates the id, the backend name and 1..256 non-empty commands of at most 65536 bytes each, then returns an immutable migration.
+// @api migration cost Validates the id, the backend name and 1..256 non-empty commands of at most 65536 bytes each, then returns an immutable migration.
 pub fn migration(id:String,backend:String,commands:&List<String>)->Result<Migration,MigrationError> effects {} {
     if !validId(id) {return Err(MigrationError::InvalidId(id));}
     if backend!="sqlite" && backend!="postgres" {return Err(MigrationError::InvalidBackend(backend));}
@@ -84,7 +84,7 @@ fn hex(value:Int)->String effects {} {
     }
     return out;
 }
-// @api checksum Deterministic sum over the id, backend and every command (including boundaries).
+// @api checksum cost Deterministic sum over the id, backend and every command (including boundaries).
 pub fn checksum(m:&Migration)->String effects {} {
     var a=7;
     var b=11;
@@ -120,7 +120,7 @@ pub fn checksum(m:&Migration)->String effects {} {
     return hex(a)+hex(b);
 }
 
-// @api plan Checks the migration list and the applied rows, then returns the pending suffix.
+// @api plan cost Checks the migration list and the applied rows, then returns the pending suffix.
 // Rules: ids are unique and strictly increasing; applied rows must be a prefix of the list with equal checksums; every migration targets `backend`.
 pub fn plan(backend:String,migrations:&List<Migration>,applied:&List<Applied>)->Result<Plan,MigrationError> effects {} {
     if migrations.len()>4096 {return Err(MigrationError::InvalidCommands("too many migrations"));}
@@ -162,15 +162,15 @@ pub fn plan(backend:String,migrations:&List<Migration>,applied:&List<Applied>)->
     return Ok(Plan(freeze(pending),applied.len()));
 }
 
-// @api createTableSql Creates the version table if needed; safe to run every time.
+// @api createTableSql cost Creates the version table if needed; safe to run every time.
 pub fn createTableSql()->String effects {} {
     return "CREATE TABLE IF NOT EXISTS rewind_migrations (id TEXT PRIMARY KEY, checksum TEXT NOT NULL)";
 }
-// @api selectAppliedSql Lists applied migrations in id order (the order plan expects).
+// @api selectAppliedSql cost Lists applied migrations in id order (the order plan expects).
 pub fn selectAppliedSql()->String effects {} {
     return "SELECT id, checksum FROM rewind_migrations ORDER BY id";
 }
-// @api recordSql Records one applied migration; bind id and checksum as the two Text parameters.
+// @api recordSql cost Records one applied migration; bind id and checksum as the two Text parameters.
 pub fn recordSql(backend:String)->String effects {} {
     if backend=="postgres" {return "INSERT INTO rewind_migrations (id, checksum) VALUES ($1, $2)";}
     return "INSERT INTO rewind_migrations (id, checksum) VALUES (?1, ?2)";

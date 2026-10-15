@@ -28,12 +28,12 @@ pub fn create(headers:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRow
 pub fn createWithIds(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int)->Result<Table,TableError> effects {} {
  return createInternal(headers,rowIds,cells,visibleRows,true);
 }
-// @api rows returns total source rows, independent of the active filter.
+// @api rows cost returns total source rows, independent of the active filter.
 pub fn rows(table:&Table)->Int effects {} {return table.cells.len()/table.headers.len();}
-// @api visibleRows returns the number of rows in the current filtered view in O(1).
+// @api visibleRows cost returns the number of rows in the current filtered view in O(1).
 pub fn visibleRows(table:&Table)->Int effects {} {return table.displayOrder.len();}
 pub fn columns(table:&Table)->Int effects {} {return table.headers.len();}
-// @api setColumnWeights accepts one positive relative weight per column; maximum 65535. A failed call leaves the previous configuration unchanged.
+// @api setColumnWeights failure accepts one positive relative weight per column; maximum 65535. A failed call leaves the previous configuration unchanged.
 pub fn setColumnWeights(table:&mut Table,weights:&List<Int>)->Result<Unit,TableError> effects {} {
  if weights.len()!=columns(table){return Err(StdError("GuiTableColumnCount",weights.len()));}
  let next=List<Int>();for i in 0..weights.len(){let weight=weights.get(i);if weight<1 || weight>65535{return Err(StdError("GuiTableColumnWeight",i));}next.add(weight);}
@@ -65,13 +65,13 @@ fn refreshFilter(table:&mut Table)->Unit effects {} {
  table.displayOrder=move display;table.rowPositions=move positions;normalizeView(table);
 }
 pub fn position(table:&Table)->Int effects {} {return table.first;}
-// @api selection returns the selected row's current display position; use selectionId for stable identity.
+// @api selection cost returns the selected row's current display position; use selectionId for stable identity.
 pub fn selection(table:&Table)->Option<Int> effects {} {if table.selected<0{return None;}let row=displayRow(table,table.selected);if row<0{return None;}return Some(row);}
 pub fn rowId(table:&Table,row:Int)->Result<String,TableError> effects {} {
  if row<0 || row>=visibleRows(table){return Err(StdError("GuiTableRange",row));}
  return Ok(rowIdForBase(table,baseRow(table,row)));
 }
-// @api rowIndex returns the current display position; None means unknown or filtered out. Cost O(1) with caller IDs, O(id bytes) for legacy positional IDs.
+// @api rowIndex cost returns the current display position; None means unknown or filtered out. Cost O(1) with caller IDs, O(id bytes) for legacy positional IDs.
 pub fn rowIndex(table:&Table,id:String)->Option<Int> effects {} {
  match baseIndex(table,id){Some(base)=>{let position=displayRow(table,base);if position<0{return None;}return Some(position);},None=>{return None;}}
 }
@@ -86,7 +86,7 @@ pub fn cell(table:&Table,row:Int,column:Int)->Result<String,TableError> effects 
  if row<0 || row>=visibleRows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}
  return Ok(cellForBase(table,baseRow(table,row),column));
 }
-// @api toValue maps one row by stable ID in O(columns), including staged edits and filtered-out rows.
+// @api toValue cost maps one row by stable ID in O(columns), including staged edits and filtered-out rows.
 // @api toValue failure UnknownRow for a missing ID; Conversion includes the row ID and mapper error. The table is not mutated.
 pub fn toValue<T:Share,E:Share>(table:&Table,id:String,convert:fn(Frozen<List<String>>)->Result<T,E> effects {} captures {Send,Share})->Result<T,RowMapError<E>> effects {} {
  match baseIndex(table,id){
@@ -128,18 +128,18 @@ fn stageEdit(table:&mut Table,row:Int,id:String,column:Int,value:String)->Result
 fn clearDraft(table:&mut Table)->Unit effects {} {
  table.editing=false;table.editRowId="";table.editColumn=-1;table.editOriginal="";table.editValue="";table.draftCursor=0;table.draftAnchor=0;
 }
-// @api beginEdit starts one row/column draft using the current effective cell value and stable row ID.
+// @api beginEdit cost starts one row/column draft using the current effective cell value and stable row ID.
 pub fn beginEdit(table:&mut Table,row:Int,column:Int)->Result<Unit,TableError> effects {} {
  if table.editing{return Err(StdError("GuiTableEditActive",0));}
  if row<0 || row>=visibleRows(table) || column<0 || column>=columns(table){return Err(StdError("GuiTableRange",0));}
  let id=rowId(table,row)?;let base=baseRow(table,row);let original=cellForBase(table,base,column);
  table.editing=true;table.editRowId=id;table.editColumn=column;table.editOriginal=original;table.editValue=original;table.draftCursor=original.charLen();table.draftAnchor=table.draftCursor;return Ok(());
 }
-// @api draft returns the active uncommitted cell edit; render shows it in the textbox prefix:edit, and cell/changes/toValue still see only committed values.
+// @api draft cost returns the active uncommitted cell edit; render shows it in the textbox prefix:edit, and cell/changes/toValue still see only committed values.
 pub fn draft(table:&Table)->Option<CellDraft> effects {} {
  if !table.editing{return None;}return Some(CellDraft(table.editRowId,table.editColumn,table.editOriginal,table.editValue));
 }
-// @api setDraft accepts at most 4096 valid single-line UTF-8 bytes; failures preserve the existing draft. The caret moves to the end.
+// @api setDraft failure accepts at most 4096 valid single-line UTF-8 bytes; failures preserve the existing draft. The caret moves to the end.
 pub fn setDraft(table:&mut Table,value:String)->Result<Unit,TableError> effects {} {
  if !table.editing{return Err(StdError("GuiTableNoActiveEdit",0));}
  if !valid(value){return Err(StdError("GuiInvalidText",0));}
@@ -159,7 +159,7 @@ fn keepDraft(table:&mut Table,view:&gui.View,editId:String)->Result<Unit,TableEr
   }
  }
 }
-// @api commitEdit stages the draft; capacity failures keep it active for correction or cancellation.
+// @api commitEdit failure stages the draft; capacity failures keep it active for correction or cancellation.
 pub fn commitEdit(table:&mut Table)->Result<Unit,TableError> effects {} {
  if !table.editing{return Err(StdError("GuiTableNoActiveEdit",0));}
  let id=table.editRowId;let column=table.editColumn;let value=table.editValue;
@@ -173,7 +173,7 @@ pub fn commitEdit(table:&mut Table)->Result<Unit,TableError> effects {} {
   }
  }
 }
-// @api cancelEdit discards only the active draft and returns false when nothing was active.
+// @api cancelEdit cost discards only the active draft and returns false when nothing was active.
 pub fn cancelEdit(table:&mut Table)->Bool effects {} {
  if !table.editing{return false;}clearDraft(table);return true;
 }
@@ -184,7 +184,7 @@ pub fn editCell(table:&mut Table,row:Int,column:Int,value:String)->Result<Unit,T
  if row<0 || row>=visibleRows(table){return Err(StdError("GuiTableRange",row));}
  let id=rowId(table,row)?;return stageEdit(table,baseRow(table,row),id,column,value);
 }
-// @api editCellId resolves stable row IDs in O(1), including filtered-out rows; an active filter refresh scans at most 8192 rows.
+// @api editCellId cost resolves stable row IDs in O(1), including filtered-out rows; an active filter refresh scans at most 8192 rows.
 // @api editCellId failure UnknownRow/Range/Text/EditLimit/EditCapacity/EditActive.
 pub fn editCellId(table:&mut Table,id:String,column:Int,value:String)->Result<Unit,TableError> effects {} {
  if table.editing{return Err(StdError("GuiTableEditActive",0));}
@@ -196,7 +196,7 @@ fn compareSortKeys(a:SortKey,b:SortKey)->Int effects {} {
  if a.value>b.value{if a.descending{return -1;}return 1;}
  return 0;
 }
-// @api sortByText descending=false is ascending, true is descending. Stable ties retain current full sort order; cost O(n log n) comparisons plus bounded indexes. Limits: 8192 source rows and 256 UTF-8 bytes per key.
+// @api sortByText cost descending=false is ascending, true is descending. Stable ties retain current full sort order; cost O(n log n) comparisons plus bounded indexes. Limits: 8192 source rows and 256 UTF-8 bytes per key.
 // @api sortByText failure Range/SortRows/SortKey; any failure leaves order, filter, selection, viewport, and staged edits unchanged.
 pub fn sortByText(table:&mut Table,column:Int,descending:Bool)->Result<Unit,TableError> effects {} {
  if column<0 || column>=columns(table){return Err(StdError("GuiTableRange",column));}
@@ -228,7 +228,7 @@ pub fn filterByText(table:&mut Table,column:Int,query:String)->Result<Unit,Table
  let display=filterOrder(table,&table.rowOrder,column,query);let positions=positionsFor(table,&display);
  table.filterColumn=column;table.filterQuery=query;table.displayOrder=move display;table.rowPositions=move positions;normalizeView(table);return Ok(());
 }
-// @api clearFilter restores every source row in the current full sort order; O(rows) index rebuild.
+// @api clearFilter cost restores every source row in the current full sort order; O(rows) index rebuild.
 pub fn clearFilter(table:&mut Table)->Unit effects {} {
  let display=filterOrder(table,&table.rowOrder,table.filterColumn,"");let positions=positionsFor(table,&display);
  table.filterQuery="";table.displayOrder=move display;table.rowPositions=move positions;normalizeView(table);
@@ -264,7 +264,7 @@ pub fn render(table:&Table,title:String,width:Int,height:Int,rowHeight:Int,prefi
  return Ok(move view);
 }
 // @api dispatch failure Range/Id/Text; wheel and Up/Down/Home/End move the selected row or viewport. F2 starts a draft on the selected row at the focused column (Left/Right); while a draft is open, Enter commits, Escape cancels, and key/text input edits prefix:edit (Up/Down are ignored). Callers re-render after Edit* actions.
-// @api dispatch edit failure EditRejected keeps the draft open when commit fails; text input is ignored when prefix:edit is not rendered.
+// @api dispatch cost edit failure EditRejected keeps the draft open when commit fails; text input is ignored when prefix:edit is not rendered.
 pub fn dispatch(table:&mut Table,view:&mut gui.View,event:gui.Event,prefix:String)->Result<Option<Action>,TableError> effects {} {
  if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiInvalidId",0));}
  let editId=prefix+":edit";

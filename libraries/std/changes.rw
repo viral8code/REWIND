@@ -13,7 +13,7 @@ fn equal<T:Share>(left:Option<T>,right:Option<T>,same:fn(T,T)->Bool effects {} c
 pub fn length<T:Share>(patch:ChangeSet<T>)->Int effects {} {return patch.edits.len();}
 pub fn edits<T:Share>(patch:ChangeSet<T>)->Frozen<List<Change<T>>> effects {} {return patch.edits;}
 
-// @api fromChanges Rejects duplicate keys and more than 65536 entries; drops no-op changes under the supplied equality.
+// @api fromChanges failure Rejects duplicate keys and more than 65536 entries; drops no-op changes under the supplied equality.
 pub fn fromChanges<T:Share>(input:&List<Change<T>>,same:fn(T,T)->Bool effects {} captures {Send,Share})->Result<ChangeSet<T>,ChangeError> effects {} {
     if input.len()>65536 {return Err(ChangeError("Limit",""));}
     let seen=Map<String,Bool>();let output=List<Change<T>>();
@@ -26,7 +26,7 @@ pub fn fromChanges<T:Share>(input:&List<Change<T>>,same:fn(T,T)->Bool effects {}
     return Ok(ChangeSet<T>(freeze(output)));
 }
 
-// @api diff Scans sorted key lists once, includes additions/removals/updates, and limits the resulting change count to 65536.
+// @api diff cost Scans sorted key lists once, includes additions/removals/updates, and limits the resulting change count to 65536.
 pub fn diff<T:Share>(before:&Map<String,T>,after:&Map<String,T>,same:fn(T,T)->Bool effects {} captures {Send,Share})->Result<ChangeSet<T>,ChangeError> effects {} {
     let left=before.keys();let right=after.keys();let output=List<Change<T>>();
     var i=0;var j=0;
@@ -58,7 +58,7 @@ pub fn inverse<T:Share>(patch:ChangeSet<T>)->ChangeSet<T> effects {} {
     return ChangeSet<T>(freeze(output));
 }
 
-// @api apply Validates every old value first, then returns a new map. The input is never mutated; unrelated keys are preserved.
+// @api apply cost Validates every old value first, then returns a new map. The input is never mutated; unrelated keys are preserved.
 pub fn apply<T:Share>(values:&Map<String,T>,patch:ChangeSet<T>,same:fn(T,T)->Bool effects {} captures {Send,Share})->Result<Map<String,T>,ChangeError> effects {} {
     for i in 0..patch.edits.len() {
         let change=thaw(patch.edits.get(i));
@@ -92,7 +92,7 @@ fn packed<T:Share>(values:&Map<String,Change<T>>)->ChangeSet<T> effects {} {
     return ChangeSet<T>(freeze(output));
 }
 
-// @api compose Represents first followed by second. Overlapping keys require first.after == second.before.
+// @api compose cost Represents first followed by second. Overlapping keys require first.after == second.before.
 pub fn compose<T:Share>(first:ChangeSet<T>,second:ChangeSet<T>,same:fn(T,T)->Bool effects {} captures {Send,Share})->Result<ChangeSet<T>,ChangeError> effects {} {
     let output=indexed(first);
     for i in 0..second.edits.len() {
@@ -112,7 +112,7 @@ pub fn compose<T:Share>(first:ChangeSet<T>,second:ChangeSet<T>,same:fn(T,T)->Boo
     return Ok(packed(&output));
 }
 
-// @api merge Three-way map merge. Independent edits and equal final values combine; conflicting edits return an error without changing inputs.
+// @api merge failure Three-way map merge. Independent edits and equal final values combine; conflicting edits return an error without changing inputs.
 pub fn merge<T:Share>(base:&Map<String,T>,left:&Map<String,T>,right:&Map<String,T>,same:fn(T,T)->Bool effects {} captures {Send,Share})->Result<Map<String,T>,ChangeError> effects {} {
     match diff(base,left,same) {
         Err(error)=>{return Err(error);},
@@ -149,7 +149,7 @@ pub record RebasePreview<T:Share> {
     conflict:Option<RebaseConflict>
 }
 
-// @api previewRebase Validates the original chain, then replays at most 1024 patches / 65536 edits onto a new base. Stops before the first conflicting step.
+// @api previewRebase failure Validates the original chain, then replays at most 1024 patches / 65536 edits onto a new base. Stops before the first conflicting step.
 pub fn previewRebase<T:Share>(base:&Map<String,T>,onto:&Map<String,T>,patches:&List<ChangeSet<T>>,same:fn(T,T)->Bool effects {} captures {Send,Share})->Result<RebasePreview<T>,RebaseError> effects {} {
     if patches.len()>1024 {return Err(RebaseError("StepLimit","",-1));}
     var count=0;

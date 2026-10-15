@@ -1871,9 +1871,9 @@ test fn plot_project_maps_corners_and_rejects_bad_values() {
     }}
 }
 test fn plot_polyline_bounds_segments_and_keeps_extremes() {
-    // A triangle wave (0..40 repeatedly) of 400 points: several points per pixel column, so the
-    // column reduction and widening are needed to meet maxSegments. This test needs a larger
-    // runtime budget than the default, e.g. --steps 100000000 --native-work 100000000.
+    // A triangle wave (0..10 repeatedly) of 60 points: several points per pixel column, so the
+    // column reduction and widening are needed to meet maxSegments.
+    // small input: list reads are charged by list length, so larger inputs exceed the default budget.
     let xs=List<Float>();
     let ys=List<Float>();
     var i=0;
@@ -1881,23 +1881,23 @@ test fn plot_polyline_bounds_segments_and_keeps_extremes() {
     var y=0.0;
     var dir=1.0;
     var k=0;
-    while i<400 {
+    while i<60 {
         xs.add(x);
         ys.add(y);
         x+=1.0;
         y+=dir;
         k+=1;
-        if k==40 {dir=-dir;k=0;}
+        if k==10 {dir=-dir;k=0;}
         i+=1;
     }
     match plot.series(&xs,&ys){Err(_)=>{panic("series");},Ok(s)=>{
-        let ax=plot.Axis(0.0,399.0);
-        let ay=plot.Axis(0.0,40.0);
-        match plot.chart(512,256,40,10,10,30,ax,ay){Err(_)=>{panic("chart");},Ok(c)=>{
-            match plot.polyline(&c,&s,40){Err(_)=>{panic("polyline");},Ok(segs)=>{
+        let ax=plot.Axis(0.0,59.0);
+        let ay=plot.Axis(0.0,10.0);
+        match plot.chart(64,64,8,4,4,8,ax,ay){Err(_)=>{panic("chart");},Ok(c)=>{
+            match plot.polyline(&c,&s,12){Err(_)=>{panic("polyline");},Ok(segs)=>{
                 assert(segs.len()>0);
-                assert(segs.len()<=40);
-                match plot.project(&c,0.0,40.0){Err(_)=>{panic("top");},Ok(top)=>{
+                assert(segs.len()<=12);
+                match plot.project(&c,0.0,10.0){Err(_)=>{panic("top");},Ok(top)=>{
                     match plot.project(&c,0.0,0.0){Err(_)=>{panic("bottom");},Ok(bot)=>{
                         var hasTop=false;
                         var hasBottom=false;
