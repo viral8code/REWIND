@@ -1,0 +1,47 @@
+{
+  "fib": {
+    "instructions": 36732,
+    "stdout": "987\n",
+    "storage_work": [
+      0,
+      0,
+      0
+    ]
+  },
+  "json_parse": {
+    "instructions": 2079,
+    "stdout": "1361\n",
+    "storage_work": [
+      423,
+      0,
+      0
+    ]
+  },
+  "list_sort": {
+    "instructions": 152914,
+    "stdout": "103\n300\n",
+    "storage_work": [
+      48910,
+      8151,
+      99110
+    ]
+  },
+  "loop_sum": {
+    "instructions": 30024,
+    "stdout": "3999\n",
+    "storage_work": [
+      6003,
+      0,
+      0
+    ]
+  },
+  "map_text": {
+    "instructions": 13335,
+    "stdout": "37\n16\n",
+    "storage_work": [
+      2401,
+      0,
+      0
+    ]
+  }
+}

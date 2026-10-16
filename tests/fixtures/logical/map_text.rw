@@ -1,0 +1,17 @@
+fn main()->Int {
+    let counts = Map<String,Int>();
+    var i = 0;
+    var text = "";
+    while i < 300 {
+        let key = "k" + (i % 37).format();
+        match counts.get(key) {
+            Some(n) => { counts.set(key, n + 1); },
+            None => { counts.set(key, 1); }
+        }
+        if i % 50 == 0 { text = text + key; }
+        i += 1;
+    }
+    Out.println(counts.len());
+    Out.println(text.byteLen());
+    return 0;
+}

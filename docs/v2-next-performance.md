@@ -28,6 +28,8 @@
 
 Windowsのworking set/private bytesとLinuxのRSSは定義を併記します。予約address space、allocatorの保持、到達可能live bytes、Host resource、record fileのサイズを区別します。OS間の数値を無条件に直接比較しません。
 
+**実装済み（2026-10-16、決定的な部分のみ）：** [tests/logical_cost.rs](../tests/logical_cost.rs)が小さな基準program5本（[tests/fixtures/logical/](../tests/fixtures/logical/)：loop・再帰・sort・Map/text・JSON parse）の論理仕事量（VM命令数と`storage_work`）を`rewind profile`で測り、[logical-cost.json](../tests/fixtures/logical-cost.json)の予算を20 %超えて増えると失敗する。出力も固定する。命令数は環境に依存しないのでdebug/releaseやOSを問わず同じ値。意図した変更の後は`REWIND_UPDATE_LOGICAL_COST=1 cargo test --test logical_cost`で更新する。wall time・peak RSS・GC時間・p95は**取得していない**（ゼロではない）。既存のbenchmark script群（`scripts/benchmark-*.py`）との接続と、環境・binary hash・seedの記録様式は未実施。
+
 **受入条件：** 第三者が入力・binary・設定から同じcaseを再実行できる。改善報告にはbaselineと正しさ確認があり、測定不能項目は明記される。
 
 ## PERF-02：既存caseと不足する測定

@@ -1,0 +1,16 @@
+import std.json as json;
+fn main()->Int {
+    var body = "[";
+    var i = 0;
+    while i < 60 {
+        if i > 0 { body = body + ","; }
+        body = body + "{\"id\":" + i.format() + ",\"name\":\"n" + i.format() + "\"}";
+        i += 1;
+    }
+    body = body + "]";
+    match json.parse(body) {
+        Ok(value) => { Out.println(body.byteLen()); },
+        Err(_) => { Out.println("bad"); }
+    }
+    return 0;
+}

@@ -1,0 +1,16 @@
+import std.sort as sort;
+fn byValue(a:Int,b:Int)->Int {
+    if a < b { return -1; }
+    if a > b { return 1; }
+    return 0;
+}
+fn main()->Int {
+    let items = List<Int>();
+    var i = 0;
+    var seed = 12345;
+    while i < 300 { seed = (seed * 1103 + 12345) % 100003; items.add(seed); i += 1; }
+    let sorted = sort.stable(&items, byValue);
+    Out.println(sorted.get(0));
+    Out.println(sorted.len());
+    return 0;
+}

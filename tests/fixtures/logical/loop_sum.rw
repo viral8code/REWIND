@@ -1,0 +1,7 @@
+fn main()->Int {
+    var total = 0;
+    var i = 0;
+    while i < 2000 { total += i * i % 7; i += 1; }
+    Out.println(total);
+    return 0;
+}
