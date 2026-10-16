@@ -1,0 +1,1629 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.3.0",
+  "symbols": {
+    "dependency:datetime.rw": {
+      "fn:$import$datetime$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "&Duration"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$addDurations": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration",
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$calendar": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "String"
+        ],
+        "return": "Result<$import$datetime$LocalTime,StdError>"
+      },
+      "fn:$import$datetime$calendarOffset": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "Int"
+        ],
+        "return": "Result<$import$datetime$LocalTime,StdError>"
+      },
+      "fn:$import$datetime$databaseVersion": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$difference": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "&Instant"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$duration": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$durationFromJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$durationNanoseconds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$durationSeconds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$durationToJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Json,StdError>"
+      },
+      "fn:$import$datetime$format": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$formatOffset": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant",
+          "Int"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$fromJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$instant": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$nanoseconds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$negateDuration": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$parse": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$resolve": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$datetime$Calendar",
+          "String",
+          "$import$datetime$Ambiguity"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$resolveOffset": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$datetime$Calendar",
+          "Int"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$seconds": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$subtractDurations": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Duration",
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$toJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Json,StdError>"
+      },
+      "type:$import$datetime$Ambiguity": {
+        "generics": [],
+        "variants": {
+          "Earlier": [],
+          "Later": [],
+          "Reject": []
+        }
+      },
+      "type:$import$datetime$Calendar": {
+        "bounds": {},
+        "fields": [
+          [
+            "year",
+            "Int"
+          ],
+          [
+            "month",
+            "Int"
+          ],
+          [
+            "day",
+            "Int"
+          ],
+          [
+            "hour",
+            "Int"
+          ],
+          [
+            "minute",
+            "Int"
+          ],
+          [
+            "second",
+            "Int"
+          ],
+          [
+            "nanosecond",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$datetime$LocalTime": {
+        "bounds": {},
+        "fields": [
+          [
+            "calendar",
+            "$import$datetime$Calendar"
+          ],
+          [
+            "offsetSeconds",
+            "Int"
+          ],
+          [
+            "weekday",
+            "Int"
+          ],
+          [
+            "dayOfYear",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      }
+    },
+    "dependency:decimal.rw": {
+      "fn:$import$decimal$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$coefficient": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<BigInt,StdError>"
+      },
+      "fn:$import$decimal$compare": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$decimal$divide": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$format": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$decimal$fromCoefficient": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&BigInt",
+          "Int"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$fromJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$parse": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$quantize": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "Int",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$representation": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$decimal$scale": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$decimal$subtract": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$toJson": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<Json,StdError>"
+      }
+    },
+    "dependency:schema.rw": {
+      "fn:$import$schema$any": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$array": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$schema$Schema",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$boolean": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$csvRow": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$schema$Schema",
+          "&List<String>",
+          "&List<String>",
+          "Option<String>"
+        ],
+        "return": "Result<Json,$import$schema$ValidationError>"
+      },
+      "fn:$import$schema$decimal": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$decode": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "$import$schema$Decoder<T,E>",
+          "Json"
+        ],
+        "return": "Result<T,$import$schema$DecodeError<E>>"
+      },
+      "fn:$import$schema$field": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "$import$schema$Schema",
+          "Bool",
+          "Option<Json>"
+        ],
+        "return": "Result<$import$schema$Field,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$integer": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$mapped": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "parameters": [
+          "$import$schema$Schema",
+          "fn(Json)->Result<T,E>!{}~{Send+Share}"
+        ],
+        "return": "$import$schema$Decoder<T,E>"
+      },
+      "fn:$import$schema$nullable": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$schema$Schema"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$number": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$object": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$schema$Field>",
+          "$import$schema$Unknown"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$text": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$timestamp": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$validate": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "$import$schema$Schema",
+          "Json"
+        ],
+        "return": "Result<Json,$import$schema$ValidationError>"
+      },
+      "type:$import$schema$DecodeError": {
+        "bounds": {
+          "E": "Share"
+        },
+        "fields": [
+          [
+            "stage",
+            "String"
+          ],
+          [
+            "validation",
+            "Option<$import$schema$ValidationError>"
+          ],
+          [
+            "conversion",
+            "Option<E>"
+          ]
+        ],
+        "generics": [
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$schema$Decoder": {
+        "bounds": {
+          "E": "Share",
+          "T": "Share"
+        },
+        "fields": [],
+        "generics": [
+          "T",
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$schema$Field": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$Schema": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$SchemaError": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "field",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$Segment": {
+        "generics": [],
+        "variants": {
+          "Field": [
+            [
+              "0",
+              "String"
+            ]
+          ],
+          "Index": [
+            [
+              "0",
+              "Int"
+            ]
+          ]
+        }
+      },
+      "type:$import$schema$Unknown": {
+        "generics": [],
+        "variants": {
+          "Drop": [],
+          "Keep": [],
+          "Reject": []
+        }
+      },
+      "type:$import$schema$ValidationError": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "path",
+            "Frozen<List<$import$schema$Segment>>"
+          ],
+          [
+            "expected",
+            "String"
+          ],
+          [
+            "actual",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      }
+    },
+    "fn:add": {
+      "async": false,
+      "cost": "O(1); records one issue or, when the limit is reached, only counts it as omitted.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Collector",
+        "String",
+        "String"
+      ],
+      "return": "Unit"
+    },
+    "fn:addDetail": {
+      "async": false,
+      "cost": "O(1); expected and actual are short type or constraint descriptions (cut to 64 bytes), not input values.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Collector",
+        "String",
+        "String",
+        "String",
+        "String"
+      ],
+      "return": "Unit"
+    },
+    "fn:at": {
+      "async": false,
+      "cost": "O(bytes); appends [index] to a path.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String",
+        "Int"
+      ],
+      "return": "String"
+    },
+    "fn:child": {
+      "async": false,
+      "cost": "O(bytes); appends .name to a path, or just the name for an empty path.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String",
+        "String"
+      ],
+      "return": "String"
+    },
+    "fn:collector": {
+      "async": false,
+      "cost": "O(1); limit is the most issues kept (1..256), later ones only count as omitted.",
+      "effects": [],
+      "failure": "BadLimit.",
+      "generics": [],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Result<Collector,IssueError>"
+    },
+    "fn:count": {
+      "async": false,
+      "cost": "O(1); issues kept so far.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Collector"
+      ],
+      "return": "Int"
+    },
+    "fn:finish": {
+      "async": false,
+      "cost": "O(issues); Valid(value) when nothing was reported, otherwise Invalid(report) and the value is dropped.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Collector",
+        "T"
+      ],
+      "return": "Validated<T>"
+    },
+    "fn:fromValidation": {
+      "async": false,
+      "cost": "O(segments); reports a std.schema validation error at its path.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Collector",
+        "$import$schema$ValidationError"
+      ],
+      "return": "Unit"
+    },
+    "fn:isEmpty": {
+      "async": false,
+      "cost": "O(1); true while nothing was reported or omitted.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Collector"
+      ],
+      "return": "Bool"
+    },
+    "fn:omittedCount": {
+      "async": false,
+      "cost": "O(1); issues dropped because the limit was reached.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Collector"
+      ],
+      "return": "Int"
+    },
+    "fn:pathOf": {
+      "async": false,
+      "cost": "O(segments); renders a schema path as a.b[2].",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Frozen<List<$import$schema$Segment>>"
+      ],
+      "return": "String"
+    },
+    "fn:render": {
+      "async": false,
+      "cost": "O(issues); one line per issue (\"path: code\"), plus a count of omitted ones. Contains no input values.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Report"
+      ],
+      "return": "String"
+    },
+    "fn:report": {
+      "async": false,
+      "cost": "O(issues); an immutable snapshot of what was collected.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Collector"
+      ],
+      "return": "Report"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Collector": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Issue": {
+      "constructor": true,
+      "fields": [
+        [
+          "path",
+          "String"
+        ],
+        [
+          "code",
+          "String"
+        ],
+        [
+          "expected",
+          "String"
+        ],
+        [
+          "actual",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IssueError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Report": {
+      "constructor": true,
+      "fields": [
+        [
+          "issues",
+          "Frozen<List<Issue>>"
+        ],
+        [
+          "omitted",
+          "Int"
+        ],
+        [
+          "limit",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Validated": {
+      "generics": [
+        "T"
+      ],
+      "kind": "enum",
+      "variants": {
+        "Invalid": [
+          [
+            "0",
+            "Report"
+          ]
+        ],
+        "Valid": [
+          [
+            "0",
+            "T"
+          ]
+        ]
+      }
+    }
+  }
+}

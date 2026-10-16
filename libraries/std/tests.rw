@@ -502,6 +502,44 @@ test fn url_resolve_follows_rfc3986_examples() {
     assert_eq(urlCode(url.resolve(&relativeBase,&reference)),"BaseNotAbsolute");
 }
 
+import issues as issues;
+fn issuesOk<T>(r:Result<T,issues.IssueError>)->T effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("issues unexpected error");}}}
+test fn issues_collect_bounded_and_keep_values_out_of_invalid_results() {
+    match issues.collector(0) {Err(e)=>{assert_eq(e.code,"BadLimit");},Ok(_)=>{panic("zero limit accepted");}}
+    match issues.collector(257) {Err(e)=>{assert_eq(e.code,"BadLimit");},Ok(_)=>{panic("huge limit accepted");}}
+    let c=issuesOk(issues.collector(2));
+    assert(issues.isEmpty(&c));
+    match issues.finish(&c,7) {issues.Validated::Valid(v)=>{assert_eq(v,7);},issues.Validated::Invalid(_)=>{panic("empty collector invalid");}}
+    issues.add(&mut c,issues.at(issues.child("user","tags"),3),"TooLong");
+    issues.addDetail(&mut c,"age","OutOfRange","0..150","Int");
+    issues.add(&mut c,"name","Missing");
+    issues.add(&mut c,"extra","Unknown");
+    assert_eq(issues.count(&c),2);
+    assert_eq(issues.omittedCount(&c),2);
+    match issues.finish(&c,"secret-value") {
+        issues.Validated::Valid(_)=>{panic("collected issues produced a valid value");},
+        issues.Validated::Invalid(r)=>{
+            assert_eq(r.issues.len(),2);assert_eq(r.omitted,2);
+            assert_eq(issues.render(r),"user.tags[3]: TooLong\nage: OutOfRange (expected 0..150)\n... and 2 more");
+        }
+    }
+}
+test fn issues_adapt_schema_errors_with_their_path() {
+    let rule=schemaProfile();
+    let bad=transformTake(json.parse("{\"name\":\"\",\"age\":\"old\"}"));
+    let c=issuesOk(issues.collector(8));
+    match schema.validate(rule,bad) {Ok(_)=>{panic("bad input accepted");},Err(e)=>{issues.fromValidation(&mut c,e);}}
+    assert_eq(issues.count(&c),1);
+    match issues.finish(&c,0) {
+        issues.Validated::Valid(_)=>{panic("invalid input produced a value");},
+        issues.Validated::Invalid(r)=>{assert_eq(r.issues.len(),1);assert_eq(r.omitted,0);}
+    }
+    let longPath=issuesOk(issues.collector(1));
+    var name="";var i=0;while i<100 {name=name+"x";i+=1;}
+    issues.add(&mut longPath,"p",name);
+    match issues.finish(&longPath,0) {issues.Validated::Invalid(r)=>{assert(r.issues.get(0).code.byteLen()<=64);},_=>{panic("not invalid");}}
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}

@@ -54,6 +54,8 @@ Share制約付きのmap/helperは既存です。connectionやnative ownerを含�
 
 件数上限と省略情報を持たせます。成功値とerrorが同時に存在するとき、部分値を保存操作へ流用できるかを型で分けます。offsetの単位を固定し、機密な入力値をmessageへ埋め込まない設計にします。
 
+**実装済み（2026-10-16、library）：** `std.issues`。`collector(limit)`（1..256）に`add`/`addDetail`でpath・code・型記述を集め、上限を超えた分は`omittedCount`だけ増える。`finish(c,value)`は`Validated<T>`（`Valid`は問題が無いときだけ、`Invalid(Report)`では値を捨てる）を返すので、部分的に検証済みの値を保存に渡せない。`fromValidation`が`std.schema`のerrorをpath付きで取り込み、`render`は入力値を含まない行を作る。form/設定/CLI表示への接続（`guiForm`との統合）は未実施。
+
 **受入：** nested JSON、設定、formで同じ検証結果をCLI/GUIへ表示できる。無制限error収集でmemoryを消費しない。検証失敗で外部保存しない。
 
 ## STATE-01：checkpoint保持方針のhelper

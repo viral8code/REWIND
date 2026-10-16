@@ -1,0 +1,86 @@
+// Collect several validation problems instead of stopping at the first one (LANG-06).
+// A Collector is a bounded mutable builder; finish turns it into an immutable Report or a Valid value, so a
+// partially checked value can never be handed to a save step: Validated<T> is Valid(T) only when nothing was
+// reported. Issues carry a path, a code and optional type descriptions, never the offending input value.
+import schema as schema;
+
+pub record Issue {path:String,code:String,expected:String,actual:String}
+pub record Report {issues:Frozen<List<Issue>>,omitted:Int,limit:Int}
+pub enum Validated<T:Share> {Valid(T),Invalid(Report)}
+pub record IssueError {code:String}
+pub struct Collector {private items:List<Issue>,private limit:Int,private omitted:Int}
+
+// @api collector cost O(1); limit is the most issues kept (1..256), later ones only count as omitted.
+// @api collector failure BadLimit.
+pub fn collector(limit:Int)->Result<Collector,IssueError> effects {} {
+    if limit<1 || limit>256 {return Err(IssueError("BadLimit"));}
+    return Ok(Collector(List<Issue>(),limit,0));
+}
+// @api add cost O(1); records one issue or, when the limit is reached, only counts it as omitted.
+pub fn add(c:&mut Collector,path:String,code:String)->Unit effects {} {addDetail(c,path,code,"","");}
+// @api addDetail cost O(1); expected and actual are short type or constraint descriptions (cut to 64 bytes), not input values.
+pub fn addDetail(c:&mut Collector,path:String,code:String,expected:String,actual:String)->Unit effects {} {
+    if c.items.len()>=c.limit {c.omitted+=1;return;}
+    c.items.add(Issue(cut(path),cut(code),cut(expected),cut(actual)));
+}
+fn cut(text:String)->String effects {} {
+    if text.byteLen()<=64 {return text;}
+    match stdTextSlice(text,0,32) {Ok(head)=>{return head;},Err(_)=>{return "";}}
+}
+// @api count cost O(1); issues kept so far.
+pub fn count(c:&Collector)->Int effects {} {return c.items.len();}
+// @api omittedCount cost O(1); issues dropped because the limit was reached.
+pub fn omittedCount(c:&Collector)->Int effects {} {return c.omitted;}
+// @api isEmpty cost O(1); true while nothing was reported or omitted.
+pub fn isEmpty(c:&Collector)->Bool effects {} {return c.items.len()==0 && c.omitted==0;}
+
+// @api child cost O(bytes); appends .name to a path, or just the name for an empty path.
+pub fn child(path:String,name:String)->String effects {} {
+    if path=="" {return name;}
+    return path+"."+name;
+}
+// @api at cost O(bytes); appends [index] to a path.
+pub fn at(path:String,index:Int)->String effects {} {return path+"["+index.format()+"]";}
+// @api pathOf cost O(segments); renders a schema path as a.b[2].
+pub fn pathOf(segments:Frozen<List<schema.Segment>>)->String effects {} {
+    var out="";var i=0;
+    while i<segments.len() {
+        match thaw(segments.get(i)) {
+            schema.Segment::Field(name)=>{out=child(out,name);},
+            schema.Segment::Index(index)=>{out=at(out,index);}
+        }
+        i+=1;
+    }
+    return out;
+}
+// @api fromValidation cost O(segments); reports a std.schema validation error at its path.
+pub fn fromValidation(c:&mut Collector,error:schema.ValidationError)->Unit effects {} {
+    addDetail(c,pathOf(error.path),error.code,error.expected,error.actual);
+}
+
+// @api finish cost O(issues); Valid(value) when nothing was reported, otherwise Invalid(report) and the value is dropped.
+pub fn finish<T:Share>(c:&Collector,value:T)->Validated<T> effects {} {
+    if isEmpty(c) {return Validated<T>::Valid(value);}
+    return Validated<T>::Invalid(report(c));
+}
+// @api report cost O(issues); an immutable snapshot of what was collected.
+pub fn report(c:&Collector)->Report effects {} {
+    let copy=List<Issue>();var i=0;
+    while i<c.items.len() {copy.add(c.items.get(i));i+=1;}
+    return Report(freeze(copy),c.omitted,c.limit);
+}
+// @api render cost O(issues); one line per issue ("path: code"), plus a count of omitted ones. Contains no input values.
+pub fn render(report:Report)->String effects {} {
+    var out="";var i=0;
+    while i<report.issues.len() {
+        let issue=report.issues.get(i);
+        if i>0 {out=out+"\n";}
+        var where=issue.path;
+        if where=="" {where="(root)";}
+        out=out+where+": "+issue.code;
+        if issue.expected!="" {out=out+" (expected "+issue.expected+")";}
+        i+=1;
+    }
+    if report.omitted>0 {out=out+"\n... and "+report.omitted.format()+" more";}
+    return out;
+}

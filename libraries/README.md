@@ -27,6 +27,7 @@
 | memo | key, create, get, peek, put, resolve, invalidate, clear | 版付きkey、LRU、件数/重み上限、pureな結果とErrの保持 |
 | lazy | create, isForced, peek, force, fork, clear | 明示的な遅延計算、成功snapshot、回復可能なErr、可変ownerの独立fork |
 | url | UrlError, Param, Url, encodeComponent, decodeComponent, parseQuery, formatQuery, parse, format, display, pathSegments, resolve | URL・query・percent encodingのpure helper。成分はencodedのまま保持し、decodeは一度だけ、queryは順序と重複を保持、displayはuserinfoを隠す、errorは入力値を含まない。上限は8192 byte・128 param |
+| issues | Issue, Report, Validated, IssueError, Collector, collector, add, addDetail, count, omittedCount, isEmpty, child, at, pathOf, fromValidation, finish, report, render | 複数の検証問題を上限付きで集める。上限（1..256）を超えた分は件数だけ数え、`Validated<T>`はValidかInvalidで部分値を保存へ流用できない。問題はpath・code・型記述だけで入力値を含まない。`std.schema`のerrorを取り込める |
 | guiField | new, render, dispatch, setError, clearError, text, error, cursor, anchor | 単一行入力のVM状態、renderはI/Oなし、scopeごとのid、caretとvalidation errorを保持、focusは呼び出し側 |
 
 
