@@ -1,0 +1,69 @@
+// Typed amounts and opaque IDs (LANG-03). Quantity<U> and Id<K> wrap an Int or String together with a marker
+// type, so a Millis can never be passed where Seconds are expected and a UserId is not an OrderId. The marker
+// records are empty tags: they cost nothing at run time and exist only for the type checker. The wrapped value
+// is private; read it with amount / text, which is the explicit step back to the legacy Int / String APIs.
+import integer as integer;
+pub record UnitError {code:String}
+pub record Second {}
+pub record Milli {}
+pub record Nano {}
+pub record Byte {}
+pub record Scalar {}
+pub record Grapheme {}
+pub record Quantity<U:Share> {private value:Int}
+pub record Id<K:Share> {private label:String}
+
+// @api of cost O(1); wraps an Int in the unit U (any Int, including negative ones for differences).
+pub fn of<U:Share>(amount:Int)->Quantity<U> effects {} {return Quantity<U>(amount);}
+// @api amount cost O(1); the raw Int, for legacy APIs that still take plain integers.
+pub fn amount<U:Share>(q:Quantity<U>)->Int effects {} {return q.value;}
+// @api add failure Overflow; adds two amounts of the same unit with checked arithmetic.
+pub fn add<U:Share>(a:Quantity<U>,b:Quantity<U>)->Result<Quantity<U>,UnitError> effects {} {
+    match integer.add(a.value,b.value) {Ok(sum)=>{return Ok(Quantity<U>(sum));},Err(_)=>{return Err(UnitError("Overflow"));}}
+}
+// @api sub failure Overflow; the difference of two amounts of the same unit.
+pub fn sub<U:Share>(a:Quantity<U>,b:Quantity<U>)->Result<Quantity<U>,UnitError> effects {} {
+    if b.value==(-9223372036854775807-1) {
+        if a.value>=0 {return Err(UnitError("Overflow"));}
+        return Ok(Quantity<U>(a.value-(b.value+1)-1));
+    }
+    match integer.add(a.value,-b.value) {Ok(difference)=>{return Ok(Quantity<U>(difference));},Err(_)=>{return Err(UnitError("Overflow"));}}
+}
+// @api less cost O(1); compares two amounts of the same unit.
+pub fn less<U:Share>(a:Quantity<U>,b:Quantity<U>)->Bool effects {} {return a.value<b.value;}
+// @api equal cost O(1); compares two amounts of the same unit.
+pub fn equal<U:Share>(a:Quantity<U>,b:Quantity<U>)->Bool effects {} {return a.value==b.value;}
+
+fn scaled<A:Share,B:Share>(q:Quantity<A>,factor:Int)->Result<Quantity<B>,UnitError> effects {} {
+    match integer.multiply(q.value,factor) {Ok(product)=>{return Ok(Quantity<B>(product));},Err(_)=>{return Err(UnitError("Overflow"));}}
+}
+// @api secondsToMilli failure Overflow; exact, multiplies by 1000.
+pub fn secondsToMilli(q:Quantity<Second>)->Result<Quantity<Milli>,UnitError> effects {} {return scaled<Second,Milli>(q,1000);}
+// @api milliToNano failure Overflow; exact, multiplies by 1000000.
+pub fn milliToNano(q:Quantity<Milli>)->Result<Quantity<Nano>,UnitError> effects {} {return scaled<Milli,Nano>(q,1000000);}
+// @api secondsToNano failure Overflow; exact, multiplies by 1000000000.
+pub fn secondsToNano(q:Quantity<Second>)->Result<Quantity<Nano>,UnitError> effects {} {return scaled<Second,Nano>(q,1000000000);}
+// @api milliFloorSeconds cost O(1); rounds toward negative infinity, so -1 ms is -1 s. There is no implicit narrowing.
+pub fn milliFloorSeconds(q:Quantity<Milli>)->Quantity<Second> effects {} {
+    var whole=q.value/1000;
+    if q.value%1000<0 {whole-=1;}
+    return Quantity<Second>(whole);
+}
+// @api nanoFloorMilli cost O(1); rounds toward negative infinity.
+pub fn nanoFloorMilli(q:Quantity<Nano>)->Quantity<Milli> effects {} {
+    var whole=q.value/1000000;
+    if q.value%1000000<0 {whole-=1;}
+    return Quantity<Milli>(whole);
+}
+
+// @api idOf failure Empty, TooLong, BadText; an opaque ID of kind K from 1..64 bytes without NUL.
+pub fn idOf<K:Share>(text:String)->Result<Id<K>,UnitError> effects {} {
+    if text=="" {return Err(UnitError("Empty"));}
+    if text.byteLen()>64 {return Err(UnitError("TooLong"));}
+    if stdTextFind(text,"\0")!=None {return Err(UnitError("BadText"));}
+    return Ok(Id<K>(text));
+}
+// @api text cost O(1); the raw string, for storage, serialization and legacy APIs.
+pub fn text<K:Share>(id:Id<K>)->String effects {} {return id.label;}
+// @api sameId cost O(bytes); compares two IDs of the same kind.
+pub fn sameId<K:Share>(a:Id<K>,b:Id<K>)->Bool effects {} {return a.label==b.label;}

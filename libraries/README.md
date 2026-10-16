@@ -28,6 +28,7 @@
 | lazy | create, isForced, peek, force, fork, clear | 明示的な遅延計算、成功snapshot、回復可能なErr、可変ownerの独立fork |
 | url | UrlError, Param, Url, encodeComponent, decodeComponent, parseQuery, formatQuery, parse, format, display, pathSegments, resolve | URL・query・percent encodingのpure helper。成分はencodedのまま保持し、decodeは一度だけ、queryは順序と重複を保持、displayはuserinfoを隠す、errorは入力値を含まない。上限は8192 byte・128 param |
 | issues | Issue, Report, Validated, IssueError, Collector, collector, add, addDetail, count, omittedCount, isEmpty, child, at, pathOf, fromValidation, finish, report, render | 複数の検証問題を上限付きで集める。上限（1..256）を超えた分は件数だけ数え、`Validated<T>`はValidかInvalidで部分値を保存へ流用できない。問題はpath・code・型記述だけで入力値を含まない。`std.schema`のerrorを取り込める |
+| units | UnitError, Second, Milli, Nano, Byte, Scalar, Grapheme, Quantity, Id, of, amount, add, sub, less, equal, secondsToMilli, milliToNano, secondsToNano, milliFloorSeconds, nanoFloorMilli, idOf, text, sameId | 単位と不透明IDの型付きwrapper。`Quantity<Second>`と`Quantity<Milli>`、`Id<UserTag>`と`Id<OrderTag>`は型検査で混ざらず、中身はprivate。拡大変換は桁あふれを検査、縮小は明示した負の無限大方向の丸め。実行時費用は元のIntと同じ |
 | guiField | new, render, dispatch, setError, clearError, text, error, cursor, anchor | 単一行入力のVM状態、renderはI/Oなし、scopeごとのid、caretとvalidation errorを保持、focusは呼び出し側 |
 
 

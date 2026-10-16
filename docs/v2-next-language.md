@@ -30,6 +30,8 @@ user ID、row ID、window ID、byte offsetを同じInt/Stringのaliasだけで�
 
 IDの生成、比較、serialization、DB mapping、Ord/Share、公開factoryを揃えます。秒/ms/ns、byte/scalar/grapheme、行位置と行identityを明示するSDK候補を洗い出します。すべての既存引数を一度に置換する破壊的変更にはしません。
 
+**実装済み（2026-10-16、library）：** `std.units`。空のmarker record（`Second`/`Milli`/`Nano`/`Byte`/`Scalar`/`Grapheme`、利用者のtag）を型引数にした`Quantity<U>`（Int）と`Id<K>`（String、1..64 byte）で、新構文なしに成立した。中身はprivateで`amount`/`text`が既存APIへの明示的な出口。時間単位の拡大変換は検査付き、縮小は`...Floor...`で丸めを名前に出す。誤用（msをsecondsへ、UserIdをOrderIdへ、privateな中身の直接参照）は[tests/units_misuse.rs](../tests/units_misuse.rs)が型検査で拒否することを確認。byte↔scalar↔graphemeの変換はtextが要るため提供せず、既存APIの引数の置換も行わない。
+
 **受入：** 異なるID/単位の誤用を型検査で拒否する例がある。内部表現と変換費用が説明できる。legacy APIとの変換を明示できる。
 
 ## LANG-04：generic collection helperの範囲

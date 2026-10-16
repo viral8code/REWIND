@@ -540,6 +540,36 @@ test fn issues_adapt_schema_errors_with_their_path() {
     match issues.finish(&longPath,0) {issues.Validated::Invalid(r)=>{assert(r.issues.get(0).code.byteLen()<=64);},_=>{panic("not invalid");}}
 }
 
+import units as units;
+record UserTag {}
+record OrderTag {}
+fn unitsOk<T>(r:Result<T,units.UnitError>)->T effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("units unexpected error");}}}
+test fn units_convert_exactly_and_check_overflow() {
+    let s=units.of<units.Second>(3);
+    assert_eq(units.amount(unitsOk(units.secondsToMilli(s))),3000);
+    assert_eq(units.amount(unitsOk(units.secondsToNano(s))),3000000000);
+    assert_eq(units.amount(unitsOk(units.milliToNano(units.of<units.Milli>(2)))),2000000);
+    match units.secondsToNano(units.of<units.Second>(9223372037)) {Err(e)=>{assert_eq(e.code,"Overflow");},Ok(_)=>{panic("overflow accepted");}}
+    assert_eq(units.amount(units.milliFloorSeconds(units.of<units.Milli>(1999))),1);
+    assert_eq(units.amount(units.milliFloorSeconds(units.of<units.Milli>(-1))),-1);
+    assert_eq(units.amount(units.milliFloorSeconds(units.of<units.Milli>(-1000))),-1);
+    assert_eq(units.amount(units.nanoFloorMilli(units.of<units.Nano>(-1))),-1);
+    let a=units.of<units.Byte>(9223372036854775807);
+    match units.add(a,units.of<units.Byte>(1)) {Err(e)=>{assert_eq(e.code,"Overflow");},Ok(_)=>{panic("add overflow accepted");}}
+    assert_eq(units.amount(unitsOk(units.sub(units.of<units.Scalar>(5),units.of<units.Scalar>(8)))),-3);
+    assert(units.less(units.of<units.Grapheme>(1),units.of<units.Grapheme>(2)));
+    assert(units.equal(units.of<units.Byte>(4),units.of<units.Byte>(4)));
+}
+test fn units_ids_are_opaque_and_bounded() {
+    let u=unitsOk(units.idOf<UserTag>("u-1"));
+    let again=unitsOk(units.idOf<UserTag>("u-1"));
+    assert(units.sameId(u,again));
+    assert_eq(units.text(u),"u-1");
+    match units.idOf<OrderTag>("") {Err(e)=>{assert_eq(e.code,"Empty");},Ok(_)=>{panic("empty id accepted");}}
+    var long="";var i=0;while i<65 {long=long+"x";i+=1;}
+    match units.idOf<OrderTag>(long) {Err(e)=>{assert_eq(e.code,"TooLong");},Ok(_)=>{panic("long id accepted");}}
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}
