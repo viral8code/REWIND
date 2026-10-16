@@ -30,6 +30,7 @@
 | issues | Issue, Report, Validated, IssueError, Collector, collector, add, addDetail, count, omittedCount, isEmpty, child, at, pathOf, fromValidation, finish, report, render | 複数の検証問題を上限付きで集める。上限（1..256）を超えた分は件数だけ数え、`Validated<T>`はValidかInvalidで部分値を保存へ流用できない。問題はpath・code・型記述だけで入力値を含まない。`std.schema`のerrorを取り込める |
 | units | UnitError, Second, Milli, Nano, Byte, Scalar, Grapheme, Quantity, Id, of, amount, add, sub, less, equal, secondsToMilli, milliToNano, secondsToNano, milliFloorSeconds, nanoFloorMilli, idOf, text, sameId | 単位と不透明IDの型付きwrapper。`Quantity<Second>`と`Quantity<Milli>`、`Id<UserTag>`と`Id<OrderTag>`は型検査で混ざらず、中身はprivate。拡大変換は桁あふれを検査、縮小は明示した負の無限大方向の丸め。実行時費用は元のIntと同じ |
 | httpHeaders | HeaderError, Header, Cookie, CookieSettings, lowerName, header, find, findAll, parseBlock, formatBlock, redacted, parseCookieHeader, setCookie | pureなheader/cookie helper。名前はtoken検査と小文字化、値はCR/LF/NULを拒否、繰返しheaderを保持、`redacted`はAuthorization/Cookie等の値を`***`にする。Set-Cookieの属性は検査（SameSite=NoneはSecure必須）。errorは入力値を含まない |
+| retry | RetryError, Policy, Decision, policy, delay, jitter, decide | 明示retry policyの判定だけを行うpure module（待機も送信もしない）。上限付きの回数・指数backoff・全体deadline、`NotSent`は再試行可、応答errorは`retryResponses`かつ一時的なときだけ、`Unknown`は冪等と宣言したときだけ（通常の書込みは再送しない）。jitterは記録済みの乱数drawから決定的に作る |
 | guiField | new, render, dispatch, setError, clearError, text, error, cursor, anchor | 単一行入力のVM状態、renderはI/Oなし、scopeごとのid、caretとvalidation errorを保持、focusは呼び出し側 |
 
 

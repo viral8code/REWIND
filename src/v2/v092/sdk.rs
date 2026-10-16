@@ -288,6 +288,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("url", include_str!("../../../libraries/std/url.rw")),
         ("issues", include_str!("../../../libraries/std/issues.rw")),
         ("units", include_str!("../../../libraries/std/units.rw")),
+        ("retry", include_str!("../../../libraries/std/retry.rw")),
         (
             "httpHeaders",
             include_str!("../../../libraries/std/httpHeaders.rw"),

@@ -607,6 +607,29 @@ test fn http_cookies_parse_and_set_with_checked_attributes() {
     assert_eq(hhCode(hh.setCookie("sid","abc",odd)),"BadSameSite");
 }
 
+import retry as retry;
+fn retryOk<T>(r:Result<T,retry.RetryError>)->T effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("retry unexpected error");}}}
+fn retryWait(d:retry.Decision)->Int effects {} {match d {retry.Decision::RetryAfter(ms)=>{return ms;},retry.Decision::Stop(_)=>{return -1;}}}
+fn retryStop(d:retry.Decision)->String effects {} {match d {retry.Decision::RetryAfter(_)=>{return "";},retry.Decision::Stop(why)=>{return why;}}}
+test fn retry_policy_is_bounded_and_never_repeats_unknown_writes() {
+    match retry.policy(0,10,100,1000,false,false) {Err(e)=>{assert_eq(e.code,"BadPolicy");},Ok(_)=>{panic("zero attempts accepted");}}
+    match retry.policy(3,100,50,1000,false,false) {Err(_)=>{},Ok(_)=>{panic("max below base accepted");}}
+    let write=retryOk(retry.policy(4,100,350,10000,false,false));
+    assert_eq(retry.delay(&write,1),100);assert_eq(retry.delay(&write,2),200);assert_eq(retry.delay(&write,3),350);assert_eq(retry.delay(&write,9),350);
+    assert_eq(retryWait(retry.decide(&write,1,0,"NotSent",false)),100);
+    assert_eq(retryStop(retry.decide(&write,1,0,"Unknown",false)),"UnknownOutcome");
+    assert_eq(retryStop(retry.decide(&write,1,0,"ResponseReceived",true)),"Response");
+    assert_eq(retryStop(retry.decide(&write,4,0,"NotSent",false)),"Attempts");
+    assert_eq(retryStop(retry.decide(&write,1,9950,"NotSent",false)),"Deadline");
+    assert_eq(retryStop(retry.decide(&write,1,0,"Elsewhere",false)),"NotRetryable");
+    assert_eq(retryStop(retry.decide(&write,0,0,"NotSent",false)),"Attempts");
+    let read=retryOk(retry.policy(3,100,1000,10000,true,true));
+    assert_eq(retryWait(retry.decide(&read,1,0,"Unknown",false)),100);
+    assert_eq(retryWait(retry.decide(&read,2,500,"ResponseReceived",true)),200);
+    assert_eq(retryStop(retry.decide(&read,2,500,"ResponseReceived",false)),"Response");
+    assert_eq(retry.jitter(1000,0),1000);assert_eq(retry.jitter(1000,999),501);assert_eq(retry.jitter(1000,-500),750);
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}

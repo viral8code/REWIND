@@ -30,6 +30,8 @@ body候補はform-urlencoded、multipartのbounded encoder/decoderです。bound
 
 送信前失敗、応答受信済み、送信後の結果不明を区別します。GETも副作用がないとは無条件に判断しません。POST/DB書込みのunknownは利用者の照合なしに再送しません。delay/jitterは既存time/randomと記録契約を確認して実装します。
 
+**実装済み（2026-10-16、判定のみ）：** `std.retry`。`policy`（最大16回・base/最大delay・全体deadline・冪等か・応答errorを再試行するか）と`decide(policy,attempt,elapsed,phase,transient)`が`RetryAfter(ms)`か`Stop(理由)`を返す。待機・送信・乱数取得は呼出し側で、モジュールはpure。`NotSent`は再試行、`ResponseReceived`は`retryResponses`かつtransientのときだけ、`Unknown`（送信後の結果不明）は冪等と宣言した政策だけ。`jitter`は記録済みdrawから決定的に遅延を50..100 %に散らす。自動retryは追加しない。
+
 **受入：** timeout/cancelで待機を終了し、retry stormを起こさない。replayは記録を読むだけで送信しない。fresh再試行だけが新しいphysical操作になる。
 
 ## SVC-01：routerの構成と入力schema

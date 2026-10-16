@@ -1,0 +1,47 @@
+// An explicit retry policy (NET-03). This module only decides; it never sleeps, sends or retries by itself.
+// The caller measures time, waits (for example with std.task or a clock effect) and starts a fresh operation.
+// `phase` is the DbError / HttpError phase of the failed attempt:
+//   NotSent            the request never left: safe to retry.
+//   ResponseReceived   the peer answered with an error: retry only when the caller says the error is transient.
+//   Unknown            the request was sent and the outcome is unknown: retried only for idempotent work,
+//                      never for a plain write, because the first attempt may have taken effect.
+pub record RetryError {code:String}
+pub record Policy {maxAttempts:Int,baseMillis:Int,maxDelayMillis:Int,totalMillis:Int,idempotent:Bool,retryResponses:Bool}
+pub enum Decision {RetryAfter(Int),Stop(String)}
+
+// @api policy failure BadPolicy; maxAttempts 1..16, baseMillis 1..60000, maxDelayMillis baseMillis..600000, totalMillis 1..3600000.
+// idempotent says repeating the operation is harmless (a read, or a write guarded by an idempotency key); retryResponses allows retrying after an error answer.
+pub fn policy(maxAttempts:Int,baseMillis:Int,maxDelayMillis:Int,totalMillis:Int,idempotent:Bool,retryResponses:Bool)->Result<Policy,RetryError> effects {} {
+    if maxAttempts<1 || maxAttempts>16 {return Err(RetryError("BadPolicy"));}
+    if baseMillis<1 || baseMillis>60000 {return Err(RetryError("BadPolicy"));}
+    if maxDelayMillis<baseMillis || maxDelayMillis>600000 {return Err(RetryError("BadPolicy"));}
+    if totalMillis<1 || totalMillis>3600000 {return Err(RetryError("BadPolicy"));}
+    return Ok(Policy(maxAttempts,baseMillis,maxDelayMillis,totalMillis,idempotent,retryResponses));
+}
+// @api delay cost O(attempt); the capped exponential delay before attempt number attempt+1 (attempt counts finished attempts, starting at 1): base * 2^(attempt-1), at most maxDelayMillis.
+pub fn delay(policy:&Policy,attempt:Int)->Int effects {} {
+    var value=policy.baseMillis;var i=1;
+    while i<attempt && value<policy.maxDelayMillis {
+        if value>policy.maxDelayMillis/2 {value=policy.maxDelayMillis;} else {value=value*2;}
+        i+=1;
+    }
+    if value>policy.maxDelayMillis {return policy.maxDelayMillis;}
+    return value;
+}
+// @api jitter cost O(1); a deterministic spread of a delay: keeps 50..100 % of it, chosen by draw (0..999, from a recorded random source). Zero draw keeps the full delay.
+pub fn jitter(delayMillis:Int,draw:Int)->Int effects {} {
+    var d=draw%1000;
+    if d<0 {d=-d;}
+    return delayMillis-(delayMillis/2)*d/1000;
+}
+// @api decide cost O(attempt); what to do after attempt number attempt (1-based) failed with phase after elapsedMillis since the first attempt started. Stop reasons: Attempts, Deadline, UnknownOutcome, Response, NotRetryable.
+pub fn decide(policy:&Policy,attempt:Int,elapsedMillis:Int,phase:String,transient:Bool)->Decision effects {} {
+    if attempt<1 {return Decision::Stop("Attempts");}
+    if phase=="Unknown" && !policy.idempotent {return Decision::Stop("UnknownOutcome");}
+    if phase=="ResponseReceived" && !(policy.retryResponses && transient) {return Decision::Stop("Response");}
+    if phase!="NotSent" && phase!="ResponseReceived" && phase!="Unknown" {return Decision::Stop("NotRetryable");}
+    if attempt>=policy.maxAttempts {return Decision::Stop("Attempts");}
+    let wait=delay(policy,attempt);
+    if elapsedMillis<0 || elapsedMillis+wait>policy.totalMillis {return Decision::Stop("Deadline");}
+    return Decision::RetryAfter(wait);
+}
