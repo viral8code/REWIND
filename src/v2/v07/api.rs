@@ -127,6 +127,7 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) {
         return Err(Error::InvalidOperation(
             "API snapshot requires language 0.7".into(),
@@ -316,6 +317,7 @@ fn document(root: &Path) -> Result<Json> {
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) {
         let source = fs::read_to_string(&p.root_origin)?;
         for line in source.lines() {

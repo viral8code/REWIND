@@ -210,6 +210,7 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
                 | "1.9.65"
                 | "2.0.0"
                 | "3.0.0"
+                | "3.1.0"
         ) {
             validate(&program, c)?;
         } else if c.language == "0.4" {
@@ -384,6 +385,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                 | "1.9.65"
                 | "2.0.0"
                 | "3.0.0"
+                | "3.1.0"
         )
     });
     let mut checked: BTreeMap<PathBuf, Program> = BTreeMap::new();
@@ -490,6 +492,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                 | "1.9.65"
                 | "2.0.0"
                 | "3.0.0"
+                | "3.1.0"
         )
     });
     let mut shutdown = false;

@@ -250,6 +250,7 @@ fn run_with_policy(
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
@@ -375,6 +376,7 @@ fn run_with_policy(
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) && (serde_json::to_value(program.structs.get("StdError")).ok()
         != serde_json::to_value(standard.structs.get("StdError")).ok()
         || program.enums.contains_key("StdError")
@@ -577,6 +579,7 @@ fn run_with_policy(
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) {
         for n in ["Json", "JsonError"] {
             if serde_json::to_value(program.structs.get(n)).ok()
@@ -696,6 +699,7 @@ fn run_with_policy(
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
         || serde_json::to_value(program.enums.get("WaitTarget")).ok()
@@ -831,6 +835,7 @@ fn run_with_policy(
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
@@ -938,6 +943,7 @@ fn run_with_policy(
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
     {
         return Err(invalid("Tuple is a reserved standard type"));
@@ -1111,6 +1117,7 @@ fn run_with_policy(
             | "1.9.65"
             | "2.0.0"
             | "3.0.0"
+            | "3.1.0"
     ) {
         v06::infer(&mut program)?;
     }
