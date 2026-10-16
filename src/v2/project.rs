@@ -285,6 +285,7 @@ impl Manifest {
                 | "3.0.0"
                 | "3.1.0"
                 | "3.2.0"
+                | "3.3.0"
         ) {
             return Err(Error::InvalidOperation(format!(
                 "unsupported language version {language}"
@@ -393,6 +394,7 @@ impl Manifest {
                     | "3.0.0"
                     | "3.1.0"
                     | "3.2.0"
+                    | "3.3.0"
             )
         {
             return Err(Error::InvalidOperation(
@@ -502,6 +504,7 @@ impl Manifest {
                     | "3.0.0"
                     | "3.1.0"
                     | "3.2.0"
+                    | "3.3.0"
             ) || !matches!(dependency_mode.as_str(), "production" | "development"))
         {
             return Err(Error::InvalidOperation(
@@ -639,6 +642,7 @@ impl ProjectConfig {
                 | "3.0.0"
                 | "3.1.0"
                 | "3.2.0"
+                | "3.3.0"
         ) {
             for (name, path) in &self.lock_imports {
                 if !name.is_empty()
@@ -876,6 +880,7 @@ impl ProjectConfig {
                 | "3.0.0"
                 | "3.1.0"
                 | "3.2.0"
+                | "3.3.0"
         ) && deps
             .values()
             .chain(registry.values())
@@ -1004,6 +1009,7 @@ impl ProjectConfig {
                     | "3.0.0"
                     | "3.1.0"
                     | "3.2.0"
+                    | "3.3.0"
             ) {
                 let mut inspected = BTreeSet::new();
                 loop {
@@ -1165,6 +1171,7 @@ impl ProjectConfig {
                 | "3.0.0"
                 | "3.1.0"
                 | "3.2.0"
+                | "3.3.0"
         ) && !include_dev
         {
             let mut reachable = runtime_roots;
@@ -1369,6 +1376,7 @@ impl ProjectConfig {
                 | "3.0.0"
                 | "3.1.0"
                 | "3.2.0"
+                | "3.3.0"
         ) {
             return self.secure_lock(root, update);
         }
@@ -1579,6 +1587,7 @@ impl ProjectConfig {
                     | "3.0.0"
                     | "3.1.0"
                     | "3.2.0"
+                    | "3.3.0"
             ) {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
@@ -1691,6 +1700,7 @@ impl ProjectConfig {
                     | "3.0.0"
                     | "3.1.0"
                     | "3.2.0"
+                    | "3.3.0"
             ) {
                 return Err(Error::InvalidOperation(
                     "assets require language 0.9.1".into(),
@@ -1836,6 +1846,7 @@ impl ProjectConfig {
                     | "3.0.0"
                     | "3.1.0"
                     | "3.2.0"
+                    | "3.3.0"
             ) {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()
