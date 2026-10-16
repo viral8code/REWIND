@@ -1,0 +1,981 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.4.0",
+  "symbols": {
+    "fn:apply": {
+      "async": false,
+      "cost": "Validates every old value first, then returns a new map. The input is never mutated; unrelated keys are preserved.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Map<String,T>",
+        "ChangeSet<T>",
+        "fn(T,T)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<Map<String,T>,ChangeError>"
+    },
+    "fn:compose": {
+      "async": false,
+      "cost": "Represents first followed by second. Overlapping keys require first.after == second.before.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "ChangeSet<T>",
+        "ChangeSet<T>",
+        "fn(T,T)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<ChangeSet<T>,ChangeError>"
+    },
+    "fn:diff": {
+      "async": false,
+      "cost": "Scans sorted key lists once, includes additions/removals/updates, and limits the resulting change count to 65536.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Map<String,T>",
+        "&Map<String,T>",
+        "fn(T,T)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<ChangeSet<T>,ChangeError>"
+    },
+    "fn:edits": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "ChangeSet<T>"
+      ],
+      "return": "Frozen<List<Change<T>>>"
+    },
+    "fn:fromChanges": {
+      "async": false,
+      "effects": [],
+      "failure": "Rejects duplicate keys and more than 65536 entries; drops no-op changes under the supplied equality.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&List<Change<T>>",
+        "fn(T,T)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<ChangeSet<T>,ChangeError>"
+    },
+    "fn:inverse": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "ChangeSet<T>"
+      ],
+      "return": "ChangeSet<T>"
+    },
+    "fn:length": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "ChangeSet<T>"
+      ],
+      "return": "Int"
+    },
+    "fn:merge": {
+      "async": false,
+      "effects": [],
+      "failure": "Three-way map merge. Independent edits and equal final values combine; conflicting edits return an error without changing inputs.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Map<String,T>",
+        "&Map<String,T>",
+        "&Map<String,T>",
+        "fn(T,T)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<Map<String,T>,ChangeError>"
+    },
+    "fn:previewRebase": {
+      "async": false,
+      "effects": [],
+      "failure": "Validates the original chain, then replays at most 1024 patches / 65536 edits onto a new base. Stops before the first conflicting step.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "&Map<String,T>",
+        "&Map<String,T>",
+        "&List<ChangeSet<T>>",
+        "fn(T,T)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<RebasePreview<T>,RebaseError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Change": {
+      "bounds": {
+        "T": "Share"
+      },
+      "constructor": true,
+      "fields": [
+        [
+          "key",
+          "String"
+        ],
+        [
+          "before",
+          "Option<T>"
+        ],
+        [
+          "after",
+          "Option<T>"
+        ]
+      ],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    },
+    "type:ChangeError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "key",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:ChangeSet": {
+      "bounds": {
+        "T": "Share"
+      },
+      "constructor": false,
+      "fields": [],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:RebaseConflict": {
+      "constructor": true,
+      "fields": [
+        [
+          "key",
+          "String"
+        ],
+        [
+          "step",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:RebaseError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "key",
+          "String"
+        ],
+        [
+          "step",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:RebasePreview": {
+      "bounds": {
+        "T": "Share"
+      },
+      "constructor": true,
+      "fields": [
+        [
+          "steps",
+          "Frozen<List<RebaseStep<T>>>"
+        ],
+        [
+          "value",
+          "Frozen<Map<String,T>>"
+        ],
+        [
+          "conflict",
+          "Option<RebaseConflict>"
+        ]
+      ],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    },
+    "type:RebaseStep": {
+      "bounds": {
+        "T": "Share"
+      },
+      "constructor": true,
+      "fields": [
+        [
+          "index",
+          "Int"
+        ],
+        [
+          "patch",
+          "ChangeSet<T>"
+        ],
+        [
+          "value",
+          "Frozen<Map<String,T>>"
+        ]
+      ],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

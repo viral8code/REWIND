@@ -85,11 +85,13 @@ fn quoted(text:String)->String effects {} {
     }
 }
 // @api field failure BadName (letters, digits, _ . - only, 1..64 bytes). secret=true always renders ***; names that look like credentials do too.
+// @api field cost O(bytes), name at most 64.
 pub fn field(name:String,value:String,secret:Bool)->Result<Field,LogError> effects {} {
     if !tokenName(name) {return Err(LogError("BadName"));}
     return Ok(Field(name,value,secret));
 }
 // @api entry failure BadLevel (debug, info, warn, error), TooManyFields (more than 32), BadMessage (empty). The message is escaped when rendered.
+// @api entry cost O(1); fields are shared, not copied.
 pub fn entry(level:String,message:String,fields:Frozen<List<Field>>)->Result<Entry,LogError> effects {} {
     if !okLevel(level) {return Err(LogError("BadLevel"));}
     if message=="" {return Err(LogError("BadMessage"));}
@@ -109,6 +111,7 @@ pub fn render(entry:Entry)->String effects {} {
     return out;
 }
 // @api queue failure BadCapacity (1..4096). A bounded FIFO of rendered lines: when it is full the new line is dropped and counted, never the old ones.
+// @api queue cost O(1).
 pub fn queue(capacity:Int)->Result<Queue,LogError> effects {} {
     if capacity<1 || capacity>4096 {return Err(LogError("BadCapacity"));}
     return Ok(Queue(List<String>(),capacity,0));

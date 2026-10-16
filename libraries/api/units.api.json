@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.3.0",
+  "language": "3.4.0",
   "symbols": {
     "dependency:integer.rw": {
       "fn:$import$integer$add": {
@@ -85,6 +85,7 @@
     },
     "fn:add": {
       "async": false,
+      "cost": "O(1); checked addition.",
       "effects": [],
       "failure": "Overflow; adds two amounts of the same unit with checked arithmetic.",
       "generics": [
@@ -132,6 +133,7 @@
     },
     "fn:idOf": {
       "async": false,
+      "cost": "O(bytes), at most 64.",
       "effects": [],
       "failure": "Empty, TooLong, BadText; an opaque ID of kind K from 1..64 bytes without NUL.",
       "generics": [
@@ -173,6 +175,7 @@
     },
     "fn:milliToNano": {
       "async": false,
+      "cost": "O(1).",
       "effects": [],
       "failure": "Overflow; exact, multiplies by 1000000.",
       "generics": [],
@@ -224,6 +227,7 @@
     },
     "fn:secondsToMilli": {
       "async": false,
+      "cost": "O(1).",
       "effects": [],
       "failure": "Overflow; exact, multiplies by 1000.",
       "generics": [],
@@ -234,6 +238,7 @@
     },
     "fn:secondsToNano": {
       "async": false,
+      "cost": "O(1).",
       "effects": [],
       "failure": "Overflow; exact, multiplies by 1000000000.",
       "generics": [],
@@ -277,6 +282,7 @@
     },
     "fn:sub": {
       "async": false,
+      "cost": "O(1); checked subtraction.",
       "effects": [],
       "failure": "Overflow; the difference of two amounts of the same unit.",
       "generics": [

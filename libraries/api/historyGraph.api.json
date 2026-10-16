@@ -1,0 +1,1226 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.4.0",
+  "symbols": {
+    "dependency:snapshot.rw": {
+      "fn:$import$snapshot$capture": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Send"
+          ]
+        ],
+        "parameters": [
+          "&T"
+        ],
+        "return": "$import$snapshot$Snapshot<T>"
+      },
+      "fn:$import$snapshot$fork": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Send"
+          ]
+        ],
+        "parameters": [
+          "$import$snapshot$Snapshot<T>"
+        ],
+        "return": "T"
+      },
+      "fn:$import$snapshot$read": {
+        "async": false,
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Send"
+          ]
+        ],
+        "parameters": [
+          "$import$snapshot$Snapshot<T>"
+        ],
+        "return": "Frozen<T>"
+      },
+      "type:$import$snapshot$Snapshot": {
+        "bounds": {
+          "T": "Send"
+        },
+        "fields": [],
+        "generics": [
+          "T"
+        ],
+        "immutable": true
+      }
+    },
+    "fn:add": {
+      "async": false,
+      "effects": [],
+      "failure": "Only existing distinct parents are accepted, so insertion cannot introduce cycles. Names are local to this graph.",
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&mut HistoryGraph<T>",
+        "String",
+        "&List<String>",
+        "&T"
+      ],
+      "return": "Result<Version<T>,GraphError>"
+    },
+    "fn:addSnapshot": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&mut HistoryGraph<T>",
+        "String",
+        "&List<String>",
+        "$import$snapshot$Snapshot<T>"
+      ],
+      "return": "Result<Version<T>,GraphError>"
+    },
+    "fn:ancestors": {
+      "async": false,
+      "effects": [],
+      "failure": "Returns the union of inclusive ancestors of explicit roots, in version-name order. Does not retain snapshots.",
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "&List<String>"
+      ],
+      "return": "Result<List<String>,GraphError>"
+    },
+    "fn:annotate": {
+      "async": false,
+      "cost": "Replaces metadata without recapturing data; description <=4096 and author <=128 Unicode scalars.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&mut HistoryGraph<T>",
+        "String",
+        "Annotation"
+      ],
+      "return": "Result<Unit,GraphError>"
+    },
+    "fn:annotation": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "String"
+      ],
+      "return": "Option<Annotation>"
+    },
+    "fn:branches": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>"
+      ],
+      "return": "List<String>"
+    },
+    "fn:create": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Result<HistoryGraph<T>,GraphError>"
+    },
+    "fn:dropHead": {
+      "async": false,
+      "cost": "Removes only the branch name. The graph and detached Version values retain their data roots.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&mut HistoryGraph<T>",
+        "String"
+      ],
+      "return": "Bool"
+    },
+    "fn:fork": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "Version<T>"
+      ],
+      "return": "T"
+    },
+    "fn:get": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "String"
+      ],
+      "return": "Option<Version<T>>"
+    },
+    "fn:head": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "String"
+      ],
+      "return": "Option<Version<T>>"
+    },
+    "fn:isAncestor": {
+      "async": false,
+      "cost": "Reflexive ancestry; visits each reachable version at most once, without recursive VM calls.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "String",
+        "String"
+      ],
+      "return": "Result<Bool,GraphError>"
+    },
+    "fn:length": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>"
+      ],
+      "return": "Int"
+    },
+    "fn:matching": {
+      "async": false,
+      "cost": "Evaluates a pure predicate on each saved root in version-name key order; returned Version values retain their snapshots.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "fn(Frozen<T>)->Bool!{}~{Send+Share}"
+      ],
+      "return": "List<Version<T>>"
+    },
+    "fn:mergeBases": {
+      "async": false,
+      "cost": "Returns every nearest common ancestor, in name order. Criss-cross histories may have multiple bases; unrelated histories return an empty list.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "String",
+        "String"
+      ],
+      "return": "Result<List<String>,GraphError>"
+    },
+    "fn:name": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "Version<T>"
+      ],
+      "return": "String"
+    },
+    "fn:parents": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "Version<T>"
+      ],
+      "return": "Frozen<List<String>>"
+    },
+    "fn:path": {
+      "async": false,
+      "cost": "Returns one shortest ancestry path, inclusive and ordered ancestor to descendant. Equal-length ties follow stored parent order.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "String",
+        "String"
+      ],
+      "return": "Result<Option<List<String>>,GraphError>"
+    },
+    "fn:pin": {
+      "async": false,
+      "effects": [],
+      "failure": "Protects a registered version and all its ancestors during explicit pruning. Does not change branch heads.",
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&mut HistoryGraph<T>",
+        "String"
+      ],
+      "return": "Result<Unit,GraphError>"
+    },
+    "fn:pins": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>"
+      ],
+      "return": "List<String>"
+    },
+    "fn:previewPrune": {
+      "async": false,
+      "cost": "Lists versions unreachable from current heads, pins and explicit keep roots; neither metadata nor graph is mutated.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>",
+        "&List<String>"
+      ],
+      "return": "Result<List<String>,GraphError>"
+    },
+    "fn:prune": {
+      "async": false,
+      "cost": "Recomputes protected reachability, builds retained registries, then replaces them. Detached Version/Snapshot values keep their data.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&mut HistoryGraph<T>",
+        "&List<String>"
+      ],
+      "return": "Result<List<String>,GraphError>"
+    },
+    "fn:read": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "Version<T>"
+      ],
+      "return": "Frozen<T>"
+    },
+    "fn:setHead": {
+      "async": false,
+      "cost": "Creating a version and moving a branch head are independent operations.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&mut HistoryGraph<T>",
+        "String",
+        "String"
+      ],
+      "return": "Result<Unit,GraphError>"
+    },
+    "fn:snapshotOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "Version<T>"
+      ],
+      "return": "$import$snapshot$Snapshot<T>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "fn:unpin": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&mut HistoryGraph<T>",
+        "String"
+      ],
+      "return": "Bool"
+    },
+    "fn:versions": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Send"
+        ]
+      ],
+      "parameters": [
+        "&HistoryGraph<T>"
+      ],
+      "return": "List<String>"
+    },
+    "type:Annotation": {
+      "constructor": true,
+      "fields": [
+        [
+          "description",
+          "String"
+        ],
+        [
+          "author",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "name",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistoryGraph": {
+      "bounds": {
+        "T": "Send"
+      },
+      "constructor": false,
+      "fields": [],
+      "generics": [
+        "T"
+      ],
+      "kind": "struct"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Version": {
+      "bounds": {
+        "T": "Send"
+      },
+      "constructor": false,
+      "fields": [],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    }
+  }
+}

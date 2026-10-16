@@ -68,6 +68,8 @@ generic特殊化、macro等を将来追加した場合のsource対応、generate
 
 syntax説明とAPI説明の重複を減らし、候補APIを現行referenceへ混ぜません。error codeから原因・関連位置・例・移行先へ辿れる索引を候補にします。HTMLはoffline検索・keyboard操作、PDFはTOC/リンクを維持します。
 
+**実装済み（2026-10-16、継続照合の仕組み）：** [tests/api_docs.rs](../tests/api_docs.rs)が`libraries/api/*.api.json`を読み、(1) 公開関数に`// @api <name> cost ...`が無いと失敗する。3.4以前から費用の説明が無い関数は[undocumented-cost.txt](../libraries/api/undocumented-cost.txt)（550件）に列挙し、この一覧は減る方向にしか変えられない（追加すると失敗、費用を書いたのに一覧に残っていても失敗）。(2) `libraries/std`のモジュールにはAPI baselineが必要（これまで無かった14モジュールのbaselineを追加し、`api-diff --deny-breaking`の対象にした）。error code索引、effect・所有権・単位・上限の必須化、bookへの接続は未実施。
+
 **受入：** 実装signatureと説明が一致する。例は期待結果と失敗条件を持つ。OS固有部分とfixture例に確認範囲が書かれている。
 
 ## 任意の後続候補

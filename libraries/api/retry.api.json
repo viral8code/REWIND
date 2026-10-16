@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.3.0",
+  "language": "3.4.0",
   "symbols": {
     "fn:decide": {
       "async": false,
@@ -41,6 +41,7 @@
     },
     "fn:policy": {
       "async": false,
+      "cost": "O(1).",
       "effects": [],
       "failure": "BadPolicy; maxAttempts 1..16, baseMillis 1..60000, maxDelayMillis baseMillis..600000, totalMillis 1..3600000.",
       "generics": [],

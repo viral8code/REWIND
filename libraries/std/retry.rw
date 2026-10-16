@@ -11,6 +11,7 @@ pub enum Decision {RetryAfter(Int),Stop(String)}
 
 // @api policy failure BadPolicy; maxAttempts 1..16, baseMillis 1..60000, maxDelayMillis baseMillis..600000, totalMillis 1..3600000.
 // idempotent says repeating the operation is harmless (a read, or a write guarded by an idempotency key); retryResponses allows retrying after an error answer.
+// @api policy cost O(1).
 pub fn policy(maxAttempts:Int,baseMillis:Int,maxDelayMillis:Int,totalMillis:Int,idempotent:Bool,retryResponses:Bool)->Result<Policy,RetryError> effects {} {
     if maxAttempts<1 || maxAttempts>16 {return Err(RetryError("BadPolicy"));}
     if baseMillis<1 || baseMillis>60000 {return Err(RetryError("BadPolicy"));}

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.3.0",
+  "language": "3.4.0",
   "symbols": {
     "fn:find": {
       "async": false,
@@ -37,6 +37,7 @@
     },
     "fn:header": {
       "async": false,
+      "cost": "O(bytes), at most 8192.",
       "effects": [],
       "failure": "BadName (not an RFC 9110 token, 1..256 bytes), BadValue (CR, LF, NUL or control byte, over 8192 bytes). The name is stored lower-case.",
       "generics": [],
@@ -90,6 +91,7 @@
     },
     "fn:setCookie": {
       "async": false,
+      "cost": "O(bytes) over the name, value and attributes.",
       "effects": [],
       "failure": "BadCookie (name not a token or value with ; , space quote or backslash), BadAttribute (Path/Domain with ; or control bytes), BadSameSite, SameSiteNeedsSecure, BadMaxAge. Builds one Set-Cookie value; encode the value with std.url.encodeComponent first if it can contain those bytes.",
       "generics": [],

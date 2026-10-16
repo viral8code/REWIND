@@ -1,0 +1,1171 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.4.0",
+  "symbols": {
+    "fn:andThen": {
+      "async": false,
+      "cost": "Chooses the next parser from a parsed value; private cursors prevent the callback from switching input ownership.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "U",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "fn(T)->Parser<U>!{}~{Send+Share}"
+      ],
+      "return": "Parser<U>"
+    },
+    "fn:binary": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Bytes",
+        "String",
+        "fn(T,T)->T!{}~{Send+Share}"
+      ],
+      "return": "Parser<BinaryOperator<T>>"
+    },
+    "fn:chainLeft": {
+      "async": false,
+      "cost": "Parses term (operator term)* with left association; stops at maximum without probing another operator.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "Parser<BinaryOperator<T>>",
+        "Int"
+      ],
+      "return": "Result<Parser<T>,ParseError>"
+    },
+    "fn:chainRight": {
+      "async": false,
+      "cost": "Collects at most maximum operators then folds right iteratively, avoiding recursion proportional to input length.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "Parser<BinaryOperator<T>>",
+        "Int"
+      ],
+      "return": "Result<Parser<T>,ParseError>"
+    },
+    "fn:complete": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "Bytes"
+      ],
+      "return": "Result<T,ParseError>"
+    },
+    "fn:cut": {
+      "async": false,
+      "effects": [],
+      "failure": "Commits grammar failure only; does not create a VM checkpoint or publish output.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>"
+      ],
+      "return": "Parser<T>"
+    },
+    "fn:end": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [],
+      "return": "Parser<Unit>"
+    },
+    "fn:fail": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Parser<T>"
+    },
+    "fn:literal": {
+      "async": false,
+      "cost": "Matches bytes exactly and reports the first differing byte; descriptions are caller-supplied labels.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Bytes",
+        "String"
+      ],
+      "return": "Parser<Bytes>"
+    },
+    "fn:lookAhead": {
+      "async": false,
+      "effects": [],
+      "failure": "Preserves the input cursor on success; failures, including cut, propagate unchanged.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>"
+      ],
+      "return": "Parser<T>"
+    },
+    "fn:map": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "U",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "fn(T)->U!{}~{Send+Share}"
+      ],
+      "return": "Parser<U>"
+    },
+    "fn:notFollowedBy": {
+      "async": false,
+      "effects": [],
+      "failure": "Succeeds without consumption on ordinary mismatch; cut failures still propagate.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "String"
+      ],
+      "return": "Parser<Unit>"
+    },
+    "fn:optional": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>"
+      ],
+      "return": "Parser<Option<T>>"
+    },
+    "fn:orElse": {
+      "async": false,
+      "effects": [],
+      "failure": "Retries second from the original cursor, unless first failed with cut. Equal farthest offsets merge at most 32 unique expectations.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "Parser<T>"
+      ],
+      "return": "Parser<T>"
+    },
+    "fn:pair": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ],
+        [
+          "U",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "Parser<U>"
+      ],
+      "return": "Parser<Tuple<T,U>>"
+    },
+    "fn:parse": {
+      "async": false,
+      "cost": "Input is limited to 1 MiB; positions are byte offsets. Returns the remaining cursor on success.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "Bytes"
+      ],
+      "return": "Result<Parsed<T>,ParseError>"
+    },
+    "fn:position": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Cursor"
+      ],
+      "return": "Int"
+    },
+    "fn:pure": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "Parser<T>"
+    },
+    "fn:remaining": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Cursor"
+      ],
+      "return": "Int"
+    },
+    "fn:repeat": {
+      "async": false,
+      "effects": [],
+      "failure": "Requires 0 <= minimum <= maximum <= 65536. Stops at maximum without a probe; zero-progress success is an error.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Parser<Frozen<List<T>>>,ParseError>"
+    },
+    "fn:satisfy": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "String",
+        "fn(Int)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Parser<Int>"
+    },
+    "fn:spanBytes": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Span"
+      ],
+      "return": "Bytes"
+    },
+    "fn:spanEnd": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Span"
+      ],
+      "return": "Int"
+    },
+    "fn:spanStart": {
+      "async": false,
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Span"
+      ],
+      "return": "Int"
+    },
+    "fn:spanned": {
+      "async": false,
+      "cost": "Keeps the exact original byte range of a successful parser. The span owns its input bytes.",
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>"
+      ],
+      "return": "Parser<Spanned<T>>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "fn:verify": {
+      "async": false,
+      "effects": [],
+      "failure": "Checks a parsed value with a pure predicate; rejection is an ordinary mismatch at the end of the parsed value.",
+      "generics": [
+        [
+          "T",
+          "Share"
+        ]
+      ],
+      "parameters": [
+        "Parser<T>",
+        "String",
+        "fn(T)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Parser<T>"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:BinaryOperator": {
+      "bounds": {
+        "T": "Share"
+      },
+      "constructor": true,
+      "fields": [
+        [
+          "apply",
+          "fn(T,T)->T!{}~{Send+Share}"
+        ]
+      ],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Cursor": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:ParseError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ],
+        [
+          "expected",
+          "Frozen<List<String>>"
+        ],
+        [
+          "committed",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Parsed": {
+      "bounds": {
+        "T": "Share"
+      },
+      "constructor": true,
+      "fields": [
+        [
+          "value",
+          "T"
+        ],
+        [
+          "next",
+          "Cursor"
+        ]
+      ],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    },
+    "type:Parser": {
+      "bounds": {
+        "T": "Share"
+      },
+      "constructor": false,
+      "fields": [],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Span": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Spanned": {
+      "bounds": {
+        "T": "Share"
+      },
+      "constructor": true,
+      "fields": [
+        [
+          "value",
+          "T"
+        ],
+        [
+          "span",
+          "Span"
+        ]
+      ],
+      "generics": [
+        "T"
+      ],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

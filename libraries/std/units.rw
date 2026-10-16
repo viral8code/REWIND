@@ -18,10 +18,12 @@ pub fn of<U:Share>(amount:Int)->Quantity<U> effects {} {return Quantity<U>(amoun
 // @api amount cost O(1); the raw Int, for legacy APIs that still take plain integers.
 pub fn amount<U:Share>(q:Quantity<U>)->Int effects {} {return q.value;}
 // @api add failure Overflow; adds two amounts of the same unit with checked arithmetic.
+// @api add cost O(1); checked addition.
 pub fn add<U:Share>(a:Quantity<U>,b:Quantity<U>)->Result<Quantity<U>,UnitError> effects {} {
     match integer.add(a.value,b.value) {Ok(sum)=>{return Ok(Quantity<U>(sum));},Err(_)=>{return Err(UnitError("Overflow"));}}
 }
 // @api sub failure Overflow; the difference of two amounts of the same unit.
+// @api sub cost O(1); checked subtraction.
 pub fn sub<U:Share>(a:Quantity<U>,b:Quantity<U>)->Result<Quantity<U>,UnitError> effects {} {
     if b.value==(-9223372036854775807-1) {
         if a.value>=0 {return Err(UnitError("Overflow"));}
@@ -38,10 +40,13 @@ fn scaled<A:Share,B:Share>(q:Quantity<A>,factor:Int)->Result<Quantity<B>,UnitErr
     match integer.multiply(q.value,factor) {Ok(product)=>{return Ok(Quantity<B>(product));},Err(_)=>{return Err(UnitError("Overflow"));}}
 }
 // @api secondsToMilli failure Overflow; exact, multiplies by 1000.
+// @api secondsToMilli cost O(1).
 pub fn secondsToMilli(q:Quantity<Second>)->Result<Quantity<Milli>,UnitError> effects {} {return scaled<Second,Milli>(q,1000);}
 // @api milliToNano failure Overflow; exact, multiplies by 1000000.
+// @api milliToNano cost O(1).
 pub fn milliToNano(q:Quantity<Milli>)->Result<Quantity<Nano>,UnitError> effects {} {return scaled<Milli,Nano>(q,1000000);}
 // @api secondsToNano failure Overflow; exact, multiplies by 1000000000.
+// @api secondsToNano cost O(1).
 pub fn secondsToNano(q:Quantity<Second>)->Result<Quantity<Nano>,UnitError> effects {} {return scaled<Second,Nano>(q,1000000000);}
 // @api milliFloorSeconds cost O(1); rounds toward negative infinity, so -1 ms is -1 s. There is no implicit narrowing.
 pub fn milliFloorSeconds(q:Quantity<Milli>)->Quantity<Second> effects {} {
@@ -57,6 +62,7 @@ pub fn nanoFloorMilli(q:Quantity<Nano>)->Quantity<Milli> effects {} {
 }
 
 // @api idOf failure Empty, TooLong, BadText; an opaque ID of kind K from 1..64 bytes without NUL.
+// @api idOf cost O(bytes), at most 64.
 pub fn idOf<K:Share>(text:String)->Result<Id<K>,UnitError> effects {} {
     if text=="" {return Err(UnitError("Empty"));}
     if text.byteLen()>64 {return Err(UnitError("TooLong"));}

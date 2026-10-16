@@ -62,6 +62,7 @@ pub fn lowerName(name:String)->String effects {} {
     }
 }
 // @api header failure BadName (not an RFC 9110 token, 1..256 bytes), BadValue (CR, LF, NUL or control byte, over 8192 bytes). The name is stored lower-case.
+// @api header cost O(bytes), at most 8192.
 pub fn header(name:String,value:String)->Result<Header,HeaderError> effects {} {
     if !isToken(name) {return Err(HeaderError("BadName",0));}
     if !plainValue(value,true) {return Err(HeaderError("BadValue",0));}
@@ -173,6 +174,7 @@ pub fn parseCookieHeader(value:String)->Result<List<Cookie>,HeaderError> effects
     }
 }
 // @api setCookie failure BadCookie (name not a token or value with ; , space quote or backslash), BadAttribute (Path/Domain with ; or control bytes), BadSameSite, SameSiteNeedsSecure, BadMaxAge. Builds one Set-Cookie value; encode the value with std.url.encodeComponent first if it can contain those bytes.
+// @api setCookie cost O(bytes) over the name, value and attributes.
 pub fn setCookie(name:String,value:String,settings:CookieSettings)->Result<String,HeaderError> effects {} {
     if !isToken(name) || !plainValue(value,false) {return Err(HeaderError("BadCookie",0));}
     var out=name+"="+value;

@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.3.0",
+  "language": "3.4.0",
   "symbols": {
     "fn:drain": {
       "async": false,
@@ -25,6 +25,7 @@
     },
     "fn:entry": {
       "async": false,
+      "cost": "O(1); fields are shared, not copied.",
       "effects": [],
       "failure": "BadLevel (debug, info, warn, error), TooManyFields (more than 32), BadMessage (empty). The message is escaped when rendered.",
       "generics": [],
@@ -37,6 +38,7 @@
     },
     "fn:field": {
       "async": false,
+      "cost": "O(bytes), name at most 64.",
       "effects": [],
       "failure": "BadName (letters, digits, _ . - only, 1..64 bytes). secret=true always renders ***; names that look like credentials do too.",
       "generics": [],
@@ -60,6 +62,7 @@
     },
     "fn:queue": {
       "async": false,
+      "cost": "O(1).",
       "effects": [],
       "failure": "BadCapacity (1..4096). A bounded FIFO of rendered lines: when it is full the new line is dropped and counted, never the old ones.",
       "generics": [],
