@@ -1,0 +1,356 @@
+// URL, query and percent-encoding helpers (NET-01). Everything here is pure: no network, no file access.
+// A Url keeps its components in the encoded form they were written in; decode a component explicitly,
+// exactly once, with decodeComponent. Errors carry a code and a byte offset, never the input text, so a
+// URL with a password cannot leak through a diagnostic.
+pub record UrlError {code:String,offset:Int}
+pub record Param {name:String,value:Option<String>}
+pub record Url {scheme:Option<String>,userinfo:Option<String>,host:Option<String>,port:Option<Int>,path:String,query:Option<String>,fragment:Option<String>}
+
+fn hexDigit(n:Int)->String effects {} {
+    let digits="0123456789ABCDEF";
+    match stdTextSlice(digits,n,n+1) {Ok(d)=>{return d;},Err(_)=>{return "0";}}
+}
+fn hexValue(byte:Int)->Int effects {} {
+    if byte>=48 && byte<=57 {return byte-48;}
+    if byte>=65 && byte<=70 {return byte-55;}
+    if byte>=97 && byte<=102 {return byte-87;}
+    return -1;
+}
+fn unreserved(byte:Int)->Bool effects {} {
+    if byte>=48 && byte<=57 {return true;}
+    if byte>=65 && byte<=90 {return true;}
+    if byte>=97 && byte<=122 {return true;}
+    return byte==45 || byte==46 || byte==95 || byte==126;
+}
+fn byteText(byte:Int)->String effects {} {
+    let single=oneByte(byte);
+    match stdBytesFromList(&single) {
+        Ok(bytes)=>{match stdDecode(bytes) {Ok(text)=>{return text;},Err(_)=>{return "";}}},
+        Err(_)=>{return "";}
+    }
+}
+fn oneByte(byte:Int)->List<Int> effects {} {let list=List<Int>();list.add(byte);return list;}
+
+// @api encodeComponent cost O(bytes); every byte except A-Z a-z 0-9 - . _ ~ becomes %XX (UTF-8 bytes of the text). At most 8192 input bytes.
+// @api encodeComponent failure TooLong.
+pub fn encodeComponent(text:String)->Result<String,UrlError> effects {} {
+    match stdEncode(text) {
+        Err(_)=>{return Err(UrlError("BadText",0));},
+        Ok(bytes)=>{
+            let length=stdBytesLength(bytes);
+            if length>8192 {return Err(UrlError("TooLong",length));}
+            var out="";var i=0;
+            while i<length {
+                match stdBytesGet(bytes,i) {
+                    Err(_)=>{return Err(UrlError("BadText",i));},
+                    Ok(byte)=>{
+                        if unreserved(byte) {out=out+byteText(byte);}
+                        else {out=out+"%"+hexDigit(byte/16)+hexDigit(byte%16);}
+                    }
+                }
+                i+=1;
+            }
+            return Ok(out);
+        }
+    }
+}
+
+// @api decodeComponent cost O(bytes); decodes %XX once (never re-decodes the result). With plusAsSpace a + becomes a space (form encoding). At most 8192 bytes.
+// @api decodeComponent failure BadEscape (offset of the %), BadUtf8, NonAscii, TooLong.
+pub fn decodeComponent(text:String,plusAsSpace:Bool)->Result<String,UrlError> effects {} {
+    match stdEncode(text) {
+        Err(_)=>{return Err(UrlError("BadText",0));},
+        Ok(bytes)=>{
+            let length=stdBytesLength(bytes);
+            if length>8192 {return Err(UrlError("TooLong",length));}
+            let out=List<Int>();var i=0;
+            while i<length {
+                match stdBytesGet(bytes,i) {
+                    Err(_)=>{return Err(UrlError("BadText",i));},
+                    Ok(byte)=>{
+                        if byte>=128 || byte<32 || byte==127 {return Err(UrlError("NonAscii",i));}
+                        if byte==37 {
+                            if i+2>=length {return Err(UrlError("BadEscape",i));}
+                            match stdBytesGet(bytes,i+1) {
+                                Err(_)=>{return Err(UrlError("BadEscape",i));},
+                                Ok(high)=>{
+                                    match stdBytesGet(bytes,i+2) {
+                                        Err(_)=>{return Err(UrlError("BadEscape",i));},
+                                        Ok(low)=>{
+                                            let a=hexValue(high);let b=hexValue(low);
+                                            if a<0 || b<0 {return Err(UrlError("BadEscape",i));}
+                                            out.add(a*16+b);i+=3;
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            if plusAsSpace && byte==43 {out.add(32);} else {out.add(byte);}
+                            i+=1;
+                        }
+                    }
+                }
+            }
+            match stdBytesFromList(&out) {
+                Err(_)=>{return Err(UrlError("BadText",0));},
+                Ok(decoded)=>{match stdDecode(decoded) {Ok(value)=>{return Ok(value);},Err(_)=>{return Err(UrlError("BadUtf8",0));}}}
+            }
+        }
+    }
+}
+
+fn charAt(text:String,i:Int)->String effects {} {
+    match stdTextSlice(text,i,i+1) {Ok(c)=>{return c;},Err(_)=>{return "";}}
+}
+fn sliceOf(text:String,start:Int,end:Int)->String effects {} {
+    match stdTextSlice(text,start,end) {Ok(c)=>{return c;},Err(_)=>{return "";}}
+}
+fn checkAscii(text:String)->Result<Unit,UrlError> effects {} {
+    match stdEncode(text) {
+        Err(_)=>{return Err(UrlError("BadText",0));},
+        Ok(bytes)=>{
+            let length=stdBytesLength(bytes);
+            if length>8192 {return Err(UrlError("TooLong",length));}
+            var i=0;
+            while i<length {
+                match stdBytesGet(bytes,i) {
+                    Err(_)=>{return Err(UrlError("BadText",i));},
+                    Ok(byte)=>{if byte>=127 || byte<=32 {return Err(UrlError("NonAscii",i));}}
+                }
+                i+=1;
+            }
+            return Ok(());
+        }
+    }
+}
+
+// @api parseQuery cost O(bytes); splits on &, keeps order and duplicate names, drops empty pairs. A pair without = has value None, "a=" has Some(""). Names and values are decoded once, + is a space. At most 128 pairs and 8192 bytes.
+// @api parseQuery failure BadEscape, BadUtf8, NonAscii, TooLong, TooManyParams.
+pub fn parseQuery(raw:String)->Result<List<Param>,UrlError> effects {} {
+    let pairs=List<Param>();
+    if raw=="" {return Ok(pairs);}
+    let length=raw.charLen();
+    if raw.byteLen()>8192 {return Err(UrlError("TooLong",raw.byteLen()));}
+    var start=0;var i=0;
+    while i<=length {
+        if i==length || charAt(raw,i)=="&" {
+            if i>start {
+                let piece=sliceOf(raw,start,i);
+                match stdTextFind(piece,"=") {
+                    None=>{pairs.add(Param(decodeComponent(piece,true)?,None));},
+                    Some(at)=>{
+                        let name=decodeComponent(sliceOf(piece,0,at),true)?;
+                        let value=decodeComponent(sliceOf(piece,at+1,piece.charLen()),true)?;
+                        pairs.add(Param(name,Some(value)));
+                    }
+                }
+                if pairs.len()>128 {return Err(UrlError("TooManyParams",pairs.len()));}
+            }
+            start=i+1;
+        }
+        i+=1;
+    }
+    return Ok(pairs);
+}
+
+// @api formatQuery cost O(bytes); encodes names and values with encodeComponent and joins them with &. At most 128 pairs.
+// @api formatQuery failure TooManyParams, TooLong.
+pub fn formatQuery(params:&List<Param>)->Result<String,UrlError> effects {} {
+    if params.len()>128 {return Err(UrlError("TooManyParams",params.len()));}
+    var out="";var i=0;
+    while i<params.len() {
+        let param=params.get(i);
+        if i>0 {out=out+"&";}
+        out=out+encodeComponent(param.name)?;
+        match param.value {None=>{},Some(value)=>{out=out+"="+encodeComponent(value)?;}}
+        i+=1;
+    }
+    if out.byteLen()>8192 {return Err(UrlError("TooLong",out.byteLen()));}
+    return Ok(out);
+}
+
+fn portOf(text:String,offset:Int)->Result<Int,UrlError> effects {} {
+    if text=="" || text.byteLen()>5 {return Err(UrlError("BadPort",offset));}
+    match stdParseInt(text,10) {
+        Err(_)=>{return Err(UrlError("BadPort",offset));},
+        Ok(port)=>{if port<0 || port>65535 || port.format()!=text {return Err(UrlError("BadPort",offset));}return Ok(port);}
+    }
+}
+
+// @api parse cost O(bytes); splits scheme://userinfo@host:port/path?query#fragment (every part optional, so relative references parse too). Components stay percent-encoded. Hosts are kept as written, IPv6 literals in brackets; no IDN or normalisation. At most 8192 ASCII bytes, no spaces or controls.
+// @api parse failure NonAscii, TooLong, BadScheme, BadPort, BadHost.
+pub fn parse(text:String)->Result<Url,UrlError> effects {} {
+    checkAscii(text)?;
+    var rest=text;
+    var fragment:Option<String>=None;
+    match stdTextFind(rest,"#") {None=>{},Some(at)=>{fragment=Some(sliceOf(rest,at+1,rest.charLen()));rest=sliceOf(rest,0,at);}}
+    var query:Option<String>=None;
+    match stdTextFind(rest,"?") {None=>{},Some(at)=>{query=Some(sliceOf(rest,at+1,rest.charLen()));rest=sliceOf(rest,0,at);}}
+    var scheme:Option<String>=None;
+    match stdTextFind(rest,":") {
+        None=>{},
+        Some(at)=>{
+            let candidate=sliceOf(rest,0,at);
+            if candidate!="" && stdTextFind(candidate,"/")==None {
+                var valid=true;var i=0;
+                while i<candidate.charLen() {
+                    let c=charAt(candidate,i);
+                    let ok=(c>="a" && c<="z") || (c>="A" && c<="Z") || (i>0 && ((c>="0" && c<="9") || c=="+" || c=="-" || c=="."));
+                    if !ok {valid=false;}
+                    i+=1;
+                }
+                if valid {scheme=Some(candidate);rest=sliceOf(rest,at+1,rest.charLen());}
+                else {if at>0 && stdTextFind(candidate,"/")==None && stdTextFind(candidate,"?")==None {return Err(UrlError("BadScheme",0));}}
+            }
+        }
+    }
+    var userinfo:Option<String>=None;var host:Option<String>=None;var port:Option<Int>=None;
+    if stdTextFind(rest,"//")==Some(0) {
+        let afterSlashes=sliceOf(rest,2,rest.charLen());
+        var authority=afterSlashes;var path="";
+        match stdTextFind(afterSlashes,"/") {None=>{},Some(at)=>{authority=sliceOf(afterSlashes,0,at);path=sliceOf(afterSlashes,at,afterSlashes.charLen());}}
+        var hostPort=authority;
+        match stdTextFind(authority,"@") {None=>{},Some(at)=>{userinfo=Some(sliceOf(authority,0,at));hostPort=sliceOf(authority,at+1,authority.charLen());}}
+        if hostPort=="" {return Err(UrlError("BadHost",0));}
+        if charAt(hostPort,0)=="[" {
+            match stdTextFind(hostPort,"]") {
+                None=>{return Err(UrlError("BadHost",0));},
+                Some(close)=>{
+                    host=Some(sliceOf(hostPort,0,close+1));
+                    let tail=sliceOf(hostPort,close+1,hostPort.charLen());
+                    if tail!="" {
+                        if charAt(tail,0)!=":" {return Err(UrlError("BadHost",close));}
+                        port=Some(portOf(sliceOf(tail,1,tail.charLen()),close+1)?);
+                    }
+                }
+            }
+        } else {
+            match stdTextFind(hostPort,":") {
+                None=>{host=Some(hostPort);},
+                Some(at)=>{
+                    host=Some(sliceOf(hostPort,0,at));
+                    port=Some(portOf(sliceOf(hostPort,at+1,hostPort.charLen()),at+1)?);
+                }
+            }
+            match host {Some(name)=>{if name=="" {return Err(UrlError("BadHost",0));}},None=>{}}
+        }
+        return Ok(Url(scheme,userinfo,host,port,path,query,fragment));
+    }
+    return Ok(Url(scheme,None,None,None,rest,query,fragment));
+}
+
+fn authorityOf(url:&Url)->String effects {} {
+    var out="";
+    match url.userinfo {None=>{},Some(info)=>{out=out+info+"@";}}
+    match url.host {None=>{},Some(name)=>{out=out+name;}}
+    match url.port {None=>{},Some(port)=>{out=out+":"+port.format();}}
+    return out;
+}
+fn assemble(url:&Url,showUserinfo:Bool)->String effects {} {
+    var out="";
+    match url.scheme {None=>{},Some(s)=>{out=out+s+":";}}
+    match url.host {
+        None=>{},
+        Some(name)=>{
+            out=out+"//";
+            if showUserinfo {out=out+authorityOf(url);}
+            else {
+                match url.userinfo {None=>{},Some(_)=>{out=out+"***@";}}
+                out=out+name;
+                match url.port {None=>{},Some(port)=>{out=out+":"+port.format();}}
+            }
+        }
+    }
+    out=out+url.path;
+    match url.query {None=>{},Some(q)=>{out=out+"?"+q;}}
+    match url.fragment {None=>{},Some(f)=>{out=out+"#"+f;}}
+    return out;
+}
+// @api format cost O(bytes); the exact text of the components, userinfo included. Use display for logs.
+pub fn format(url:&Url)->String effects {} {return assemble(url,true);}
+// @api display cost O(bytes); like format but userinfo (a possible password) is replaced by ***.
+pub fn display(url:&Url)->String effects {} {return assemble(url,false);}
+
+// @api pathSegments cost O(bytes); splits an encoded path on / and decodes each segment once, so %2F stays inside one segment. Empty segments are kept except the leading one of an absolute path.
+// @api pathSegments failure BadEscape, BadUtf8, NonAscii, TooLong.
+pub fn pathSegments(path:String)->Result<List<String>,UrlError> effects {} {
+    let out=List<String>();
+    if path=="" {return Ok(out);}
+    var rest=path;
+    if charAt(rest,0)=="/" {rest=sliceOf(rest,1,rest.charLen());}
+    var start=0;var i=0;
+    let length=rest.charLen();
+    while i<=length {
+        if i==length || charAt(rest,i)=="/" {
+            out.add(decodeComponent(sliceOf(rest,start,i),false)?);
+            if out.len()>256 {return Err(UrlError("TooManySegments",out.len()));}
+            start=i+1;
+        }
+        i+=1;
+    }
+    return Ok(out);
+}
+
+fn removeDots(path:String)->String effects {} {
+    let absolute=path!="" && charAt(path,0)=="/";
+    let kept=List<String>();
+    var rest=path;
+    if absolute {rest=sliceOf(path,1,path.charLen());}
+    var start=0;var i=0;
+    let length=rest.charLen();
+    var trailing=false;
+    while i<=length {
+        if i==length || charAt(rest,i)=="/" {
+            let piece=sliceOf(rest,start,i);
+            let last=i==length;
+            if piece=="." {if last {trailing=true;}}
+            else {
+                if piece==".." {
+                    if kept.len()>0 {kept.pop();}
+                    if last {trailing=true;}
+                } else {kept.add(piece);if last {trailing=false;}}
+            }
+            start=i+1;
+        }
+        i+=1;
+    }
+    var out="";
+    if absolute {out="/";}
+    var k=0;
+    while k<kept.len() {if k>0 {out=out+"/";}out=out+kept.get(k);k+=1;}
+    if trailing && kept.len()>0 {out=out+"/";}
+    return out;
+}
+fn mergePaths(base:&Url,reference:String)->String effects {} {
+    match base.host {
+        Some(_)=>{if base.path=="" {return "/"+reference;}},
+        None=>{}
+    }
+    var cut=-1;var i=0;
+    while i<base.path.charLen() {if charAt(base.path,i)=="/" {cut=i;}i+=1;}
+    if cut<0 {return reference;}
+    return sliceOf(base.path,0,cut+1)+reference;
+}
+
+// @api resolve cost O(bytes); RFC 3986 reference resolution with dot-segment removal. The base needs a scheme.
+// @api resolve failure BaseNotAbsolute plus the parse failures.
+pub fn resolve(base:&Url,reference:&Url)->Result<Url,UrlError> effects {} {
+    match base.scheme {None=>{return Err(UrlError("BaseNotAbsolute",0));},Some(_)=>{}}
+    match reference.scheme {
+        Some(_)=>{return Ok(Url(reference.scheme,reference.userinfo,reference.host,reference.port,removeDots(reference.path),reference.query,reference.fragment));},
+        None=>{}
+    }
+    match reference.host {
+        Some(_)=>{return Ok(Url(base.scheme,reference.userinfo,reference.host,reference.port,removeDots(reference.path),reference.query,reference.fragment));},
+        None=>{}
+    }
+    if reference.path=="" {
+        var query=base.query;
+        match reference.query {Some(q)=>{query=Some(q);},None=>{}}
+        return Ok(Url(base.scheme,base.userinfo,base.host,base.port,base.path,query,reference.fragment));
+    }
+    var path="";
+    if charAt(reference.path,0)=="/" {path=removeDots(reference.path);}
+    else {path=removeDots(mergePaths(base,reference.path));}
+    return Ok(Url(base.scheme,base.userinfo,base.host,base.port,path,reference.query,reference.fragment));
+}

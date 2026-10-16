@@ -285,6 +285,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("scanner", include_str!("../../../libraries/std/scanner.rw")),
         ("stream", include_str!("../../../libraries/std/stream.rw")),
         ("path", include_str!("../../../libraries/std/path.rw")),
+        ("url", include_str!("../../../libraries/std/url.rw")),
         ("tests", include_str!("../../../libraries/std/tests.rw")),
     ])
 }

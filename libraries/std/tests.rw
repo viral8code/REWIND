@@ -428,6 +428,80 @@ test fn table_remove_row_keeps_identity_and_drops_its_edits() {
  match guiTable.create(freeze(headers),freeze(cells),2){Err(_)=>{panic("legacy table");},Ok(legacy)=>{assert_eq(guiTable.removeRow(&mut legacy,"row:0"),Err(StdError("GuiTableLegacyIds",0)));}}
 }
 
+import url as url;
+fn urlOk<T>(r:Result<T,url.UrlError>)->T effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("url unexpected error");}}}
+fn urlCode<T>(r:Result<T,url.UrlError>)->String effects {} {match r {Ok(_)=>{return "ok";},Err(e)=>{return e.code;}}}
+test fn url_percent_encoding_round_trips_once() {
+    assert_eq(urlOk(url.encodeComponent("a b/c?é~")),"a%20b%2Fc%3F%C3%A9~");
+    assert_eq(urlOk(url.decodeComponent("a%20b%2Fc%3F%C3%A9~",false)),"a b/c?é~");
+    assert_eq(urlOk(url.decodeComponent("%2541",false)),"%41");
+    assert_eq(urlOk(url.decodeComponent("a+b",true)),"a b");
+    assert_eq(urlOk(url.decodeComponent("a+b",false)),"a+b");
+    assert_eq(urlCode(url.decodeComponent("%zz",false)),"BadEscape");
+    assert_eq(urlCode(url.decodeComponent("%4",false)),"BadEscape");
+    assert_eq(urlCode(url.decodeComponent("%FF",false)),"BadUtf8");
+    assert_eq(urlCode(url.decodeComponent("é",false)),"NonAscii");
+}
+test fn url_query_keeps_order_duplicates_and_empty_values() {
+    let pairs=urlOk(url.parseQuery("x=1&flag&y=a%20b&x=2&e=&&"));
+    assert_eq(pairs.len(),5);
+    assert_eq(pairs.get(0).name,"x");assert_eq(pairs.get(0).value,Some("1"));
+    assert_eq(pairs.get(1).name,"flag");assert_eq(pairs.get(1).value,None);
+    assert_eq(pairs.get(2).value,Some("a b"));
+    assert_eq(pairs.get(3).value,Some("2"));
+    assert_eq(pairs.get(4).value,Some(""));
+    assert_eq(urlOk(url.formatQuery(&pairs)),"x=1&flag&y=a%20b&x=2&e=");
+    assert_eq(urlOk(url.parseQuery("")).len(),0);
+    var long="";var i=0;while i<129 {long=long+"a&";i+=1;}
+    assert_eq(urlCode(url.parseQuery(long)),"TooManyParams");
+}
+test fn url_parse_format_and_display_hide_credentials() {
+    let u=urlOk(url.parse("https://user:pw@example.com:8443/a/b%2Fc?x=1#top"));
+    assert_eq(u.scheme,Some("https"));assert_eq(u.host,Some("example.com"));assert_eq(u.port,Some(8443));
+    assert_eq(u.userinfo,Some("user:pw"));assert_eq(u.path,"/a/b%2Fc");assert_eq(u.query,Some("x=1"));assert_eq(u.fragment,Some("top"));
+    assert_eq(url.format(&u),"https://user:pw@example.com:8443/a/b%2Fc?x=1#top");
+    assert_eq(url.display(&u),"https://***@example.com:8443/a/b%2Fc?x=1#top");
+    let v6=urlOk(url.parse("http://[::1]:80/"));
+    assert_eq(v6.host,Some("[::1]"));assert_eq(v6.port,Some(80));
+    let rel=urlOk(url.parse("../x?y#z"));
+    assert_eq(rel.scheme,None);assert_eq(rel.host,None);assert_eq(rel.path,"../x");
+    let segs=urlOk(url.pathSegments("/a/b%2Fc/"));
+    assert_eq(segs.len(),3);assert_eq(segs.get(1),"b/c");assert_eq(segs.get(2),"");
+    assert_eq(urlCode(url.parse("http://h:99999/")),"BadPort");
+    assert_eq(urlCode(url.parse("http://h:0x1/")),"BadPort");
+    assert_eq(urlCode(url.parse("http:///x")),"BadHost");
+    assert_eq(urlCode(url.parse("http://a b/")),"NonAscii");
+    match url.parse("http://u:secret@h:bad/") {Err(e)=>{assert_eq(e.code,"BadPort");},Ok(_)=>{panic("bad port accepted");}}
+}
+test fn url_resolve_follows_rfc3986_examples() {
+    let base=urlOk(url.parse("http://a/b/c/d;p?q"));
+    let cases=List<String>();
+    cases.add("g");cases.add("http://a/b/c/g");
+    cases.add("./g");cases.add("http://a/b/c/g");
+    cases.add("g/");cases.add("http://a/b/c/g/");
+    cases.add("/g");cases.add("http://a/g");
+    cases.add("//g");cases.add("http://g");
+    cases.add("?y");cases.add("http://a/b/c/d;p?y");
+    cases.add("g?y#s");cases.add("http://a/b/c/g?y#s");
+    cases.add("#s");cases.add("http://a/b/c/d;p?q#s");
+    cases.add("..");cases.add("http://a/b/");
+    cases.add("../g");cases.add("http://a/b/g");
+    cases.add("../../g");cases.add("http://a/g");
+    cases.add("../../../g");cases.add("http://a/g");
+    cases.add("g;x=1/../y");cases.add("http://a/b/c/y");
+    cases.add("https:h");cases.add("https:h");
+    var i=0;
+    while i<cases.len() {
+        let reference=urlOk(url.parse(cases.get(i)));
+        let resolved=urlOk(url.resolve(&base,&reference));
+        assert_eq(url.format(&resolved),cases.get(i+1));
+        i+=2;
+    }
+    let relativeBase=urlOk(url.parse("x/y"));
+    let reference=urlOk(url.parse("z"));
+    assert_eq(urlCode(url.resolve(&relativeBase,&reference)),"BaseNotAbsolute");
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}

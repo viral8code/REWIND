@@ -10,6 +10,8 @@ HTTP/HTTPS client、TCP、TLS付きHTTP server、routing、Secret credential、S
 
 encoding済み/未encodingを区別し、二重decodeを避けます。queryには同名parameterと空値を認める場合の順序を規定します。Unicode、IPv6、port、fragment、userinfo、不正escapeを検証します。URL中のcredentialは既定診断へ出しません。
 
+**実装済み（2026-10-16、library）：** `std.url`（`parse`/`format`/`display`/`resolve`/`pathSegments`/`parseQuery`/`formatQuery`/`encodeComponent`/`decodeComponent`）。pureで、成分はencodedのまま保持し、decodeは明示的に一度だけ行う（二重decodeしない）。queryは順序・重複・値なし（`a`）と空値（`a=`）を区別する。IDN・正規化・credentialの保存は扱わず、`display`はuserinfoを`***`に置換、errorは入力を含まない。RFC 3986 5.4のresolve例で検証。URL builderはnetworkへ送信しない。HTTP clientの既存URL解釈との統合は未実施。
+
 **受入：** parse/formatとresolveの標準例・境界例。route用pathとfilesystem用pathを混用しない。URL builderがnetwork送信を起こさない。
 
 ## NET-02：header・cookie・bodyのprotocol helper
