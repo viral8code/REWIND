@@ -150,7 +150,8 @@ fn better(a:&List<Int>,b:&List<Int>)->Bool effects {} {
 fn methodOk(wanted:String,have:String)->Bool effects {} {return have==wanted||have=="*";}
 // @api resolve cost O(routes * segments). Found(route, params) for the best match; MethodNotAllowed(methods) when the path matches only other methods (sorted, no duplicates); NotFound otherwise; BadPath when the path is not an absolute path within the limits. A path containing a bad %-escape in a parameter does not match that route.
 pub fn resolve(router:&Router,method:String,path:String)->Resolution effects {} {
-    let parts=match pathParts(path) {Ok(v)=>{v},Err(e)=>{return Resolution::BadPath(e.code);}};
+    var parts=List<String>();
+    match pathParts(path) {Ok(v)=>{parts=move v;},Err(e)=>{return Resolution::BadPath(e.code);}}
     var wanted=method;
     var attempt=0;
     while attempt<2 {
