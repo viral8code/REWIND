@@ -764,6 +764,72 @@ test fn failure_fixtures_have_the_real_error_shape_and_never_invent_results() {
     match failures.nextResult(&mut one) {Err(e)=>{assert_eq(e.code,"FixtureExhausted");},Ok(_)=>{panic("exhausted script invented a result");}}
 }
 
+import httpRouter as router;
+fn routerOk<T>(r:Result<T,router.RouterError>)->T effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("router unexpected error");}}}
+fn routerCode<T>(r:Result<T,router.RouterError>)->String effects {} {match r {Ok(_)=>{return "ok";},Err(e)=>{return e.code;}}}
+fn routerHandler(r:router.Resolution)->String effects {} {
+    match r {
+        router.Resolution::Found(route,params)=>{
+            var out=route.handler;var i=0;
+            while i<params.len() {out=out+" "+params.get(i).name+"="+params.get(i).value;i+=1;}
+            return out;
+        },
+        router.Resolution::MethodNotAllowed(methods)=>{
+            var out="405";var i=0;while i<methods.len() {out=out+" "+methods.get(i);i+=1;}
+            return out;
+        },
+        router.Resolution::NotFound=>{return "404";},
+        router.Resolution::BadPath(code)=>{return "bad:"+code;}
+    }
+}
+fn routeList()->List<router.Route> effects {} {
+    let routes=List<router.Route>();
+    routes.add(router.Route("GET","/users/{id}","show"));
+    routes.add(router.Route("GET","/users/me","me"));
+    routes.add(router.Route("POST","/users","create"));
+    routes.add(router.Route("PUT","/users/{id}","update"));
+    routes.add(router.Route("GET","/files/{*path}","file"));
+    routes.add(router.Route("*","/ping","ping"));
+    return routes;
+}
+test fn compiled_router_resolves_by_precedence_and_reports_405_and_404() {
+    let compiled=routerOk(router.compile(freeze(routeList())));
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/users/me")),"me");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/users/42")),"show id=42");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/users/a%2Fb")),"show id=a/b");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/files/a/b%20c")),"file path=a/b c");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/files/")),"file path=");
+    assert_eq(routerHandler(router.resolve(&compiled,"DELETE","/users/42")),"405 GET PUT");
+    assert_eq(routerHandler(router.resolve(&compiled,"HEAD","/users/42")),"show id=42");
+    assert_eq(routerHandler(router.resolve(&compiled,"OPTIONS","/users")),"405 POST");
+    assert_eq(routerHandler(router.resolve(&compiled,"PATCH","/ping")),"ping");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/users/")),"show id=");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/nope")),"404");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/users/42/extra")),"404");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","/users/%zz")),"404");
+    assert_eq(routerHandler(router.resolve(&compiled,"GET","users")),"bad:BadPath");
+}
+test fn compiled_router_rejects_ambiguous_and_malformed_routes_at_compile_time() {
+    let dup=List<router.Route>();
+    dup.add(router.Route("GET","/a/{x}","one"));dup.add(router.Route("GET","/a/{y}","two"));
+    assert_eq(routerCode(router.compile(freeze(dup))),"DuplicateRoute");
+    let both=List<router.Route>();
+    both.add(router.Route("GET","/a/{x}","one"));both.add(router.Route("POST","/a/{x}","two"));
+    assert_eq(routerCode(router.compile(freeze(both))),"ok");
+    let bad=List<router.Route>();bad.add(router.Route("GET","/a/{*rest}/b","x"));
+    assert_eq(routerCode(router.compile(freeze(bad))),"WildcardNotLast");
+    let twice=List<router.Route>();twice.add(router.Route("GET","/a/{x}/{x}","x"));
+    assert_eq(routerCode(router.compile(freeze(twice))),"DuplicateParam");
+    let half=List<router.Route>();half.add(router.Route("GET","/a/{x","x"));
+    assert_eq(routerCode(router.compile(freeze(half))),"BadPattern");
+    let name=List<router.Route>();name.add(router.Route("GET","/a/{bad name}","x"));
+    assert_eq(routerCode(router.compile(freeze(name))),"BadParamName");
+    let relative=List<router.Route>();relative.add(router.Route("GET","a","x"));
+    assert_eq(routerCode(router.compile(freeze(relative))),"BadPath");
+    let method=List<router.Route>();method.add(router.Route("","/a","x"));
+    assert_eq(routerCode(router.compile(freeze(method))),"BadMethod");
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}

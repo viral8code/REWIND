@@ -1,8 +1,158 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.25",
+  "language": "3.4.0",
   "symbols": {
+    "dependency:url.rw": {
+      "fn:$import$url$decodeComponent": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "Bool"
+        ],
+        "return": "Result<String,$import$url$UrlError>"
+      },
+      "fn:$import$url$display": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$url$Url"
+        ],
+        "return": "String"
+      },
+      "fn:$import$url$encodeComponent": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<String,$import$url$UrlError>"
+      },
+      "fn:$import$url$format": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$url$Url"
+        ],
+        "return": "String"
+      },
+      "fn:$import$url$formatQuery": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<$import$url$Param>"
+        ],
+        "return": "Result<String,$import$url$UrlError>"
+      },
+      "fn:$import$url$parse": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<$import$url$Url,$import$url$UrlError>"
+      },
+      "fn:$import$url$parseQuery": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<List<$import$url$Param>,$import$url$UrlError>"
+      },
+      "fn:$import$url$pathSegments": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<List<String>,$import$url$UrlError>"
+      },
+      "fn:$import$url$resolve": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$url$Url",
+          "&$import$url$Url"
+        ],
+        "return": "Result<$import$url$Url,$import$url$UrlError>"
+      },
+      "type:$import$url$Param": {
+        "bounds": {},
+        "fields": [
+          [
+            "name",
+            "String"
+          ],
+          [
+            "value",
+            "Option<String>"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$url$Url": {
+        "bounds": {},
+        "fields": [
+          [
+            "scheme",
+            "Option<String>"
+          ],
+          [
+            "userinfo",
+            "Option<String>"
+          ],
+          [
+            "host",
+            "Option<String>"
+          ],
+          [
+            "port",
+            "Option<Int>"
+          ],
+          [
+            "path",
+            "String"
+          ],
+          [
+            "query",
+            "Option<String>"
+          ],
+          [
+            "fragment",
+            "Option<String>"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$url$UrlError": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "offset",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      }
+    },
     "fn:allows": {
       "async": false,
       "cost": "O(route count * compared path bytes).",
@@ -14,6 +164,17 @@
         "String"
       ],
       "return": "Bool"
+    },
+    "fn:compile": {
+      "async": false,
+      "cost": "O(routes * segments); routes use pattern paths. At most 256 routes, 32 segments, 2048 bytes per pattern. Methods are upper-case tokens or '*'.",
+      "effects": [],
+      "failure": "BadPath, PathTooLong, TooManySegments, BadPattern, BadParamName, DuplicateParam, WildcardNotLast, DuplicateRoute (same method and shape), TooManyRoutes, BadMethod; the route field is the index of the offending route.",
+      "generics": [],
+      "parameters": [
+        "Frozen<List<Route>>"
+      ],
+      "return": "Result<Router,RouterError>"
     },
     "fn:find": {
       "async": false,
@@ -27,6 +188,51 @@
         "String"
       ],
       "return": "Option<Route>"
+    },
+    "fn:resolve": {
+      "async": false,
+      "cost": "O(routes * segments). Found(route, params) for the best match; MethodNotAllowed(methods) when the path matches only other methods (sorted, no duplicates); NotFound otherwise; BadPath when the path is not an absolute path within the limits. A path containing a bad %-escape in a parameter does not match that route.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Router",
+        "String",
+        "String"
+      ],
+      "return": "Resolution"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -214,7 +420,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -547,6 +771,50 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Param": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -570,11 +838,46 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
       "constructor": false,
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:Resolution": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "BadPath": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Found": [
+          [
+            "0",
+            "Route"
+          ],
+          [
+            "1",
+            "Frozen<List<Param>>"
+          ]
+        ],
+        "MethodNotAllowed": [
+          [
+            "0",
+            "Frozen<List<String>>"
+          ]
+        ],
+        "NotFound": []
+      }
     },
     "type:Route": {
       "constructor": true,
@@ -592,6 +895,39 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Router": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:RouterError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "route",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },
@@ -637,6 +973,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

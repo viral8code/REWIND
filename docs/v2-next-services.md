@@ -40,6 +40,8 @@ body候補はform-urlencoded、multipartのbounded encoder/decoderです。bound
 
 route登録時に重複・曖昧な優先順位を検出します。pathのdecode段階、slash、trailing slash、404/405、HEAD/OPTIONSの扱いを固定します。handlerをString名で識別する現行方式と、effect付きcallbackを持つ方式の成立性を確認します。認証やDB transactionをrouterが自動実行しません。
 
+**実装済み（2026-10-16、routing部分）：** `std.httpRouter`に`compile`/`resolve`を追加（既存の`find`は変更なし）。parameter付きpath（`{id}`は1 segment、末尾`{*rest}`は残り）を持つroute群をcompile時に検査し、同じmethodと形のrouteは`DuplicateRoute`、末尾以外のwildcard・重複parameter名・不正な`{`はerror。解決はsegmentごとに左から literal > `{name}` > `{*name}`、ties無し。parameterは該当segmentだけを一度decodeするので`%2F`は1 segment内に残る。404（`NotFound`）と405（許可methodを整列して返す`MethodNotAllowed`）を区別し、HEADはHEAD routeが無ければGET routeを使い、OPTIONSは自動応答しない。末尾slashは別のpath、要求は2048 byte・32 segment・256 routeまで。typed query/body変換（`std.url.parseQuery`と`std.schema`を呼出し側で組み合わせる）、handlerのeffect付きcallback、認証/DB transactionの自動実行は行わない。
+
 **受入：** 明示した優先順位で解決する。要求の数・長さ・深さに上限がある。LANG-06の検証結果から、機密値なしの入力errorを返せる。
 
 ## SVC-02：request scope・取消・graceful shutdown

@@ -10,3 +10,189 @@ pub fn find(routes:Frozen<List<Route>>,method:String,path:String)->Option<Route>
 pub fn allows(routes:Frozen<List<Route>>,path:String)->Bool effects {} {
  var i=0;while i<routes.len(){if routes.get(i).path==path{return true;}i+=1;}return false;
 }
+
+// ---- Compiled router (SVC-01) -------------------------------------------------------------------------------
+// A pattern is a path whose segments are literals, {name} (exactly one segment, decoded once) or a trailing {*name}
+// (the rest of the path, one string, segments still joined by "/" and decoded once). Literal segments are compared with
+// the request's encoded segments. Matching never decodes the whole path first, so %2F stays inside one segment.
+// Precedence is decided segment by segment from the left: literal beats {name} beats {*name}. Two routes with the
+// same method and the same shape are rejected when the router is compiled, so resolve has no ties. A trailing slash
+// is a different path; HEAD uses the GET route when no HEAD route exists; OPTIONS is never answered automatically.
+import url as url;
+pub record RouterError {code:String,route:Int}
+pub record Param {name:String,value:String}
+record Seg {kind:Int,text:String}
+record Compiled1 {route:Route,segments:Frozen<List<Seg>>}
+pub record Router {private routes:Frozen<List<Compiled1>>}
+pub enum Resolution {Found(Route,Frozen<List<Param>>),MethodNotAllowed(Frozen<List<String>>),NotFound,BadPath(String)}
+
+fn pathParts(path:String)->Result<List<String>,RouterError> effects {} {
+    let out=List<String>();
+    if path=="" || stdTextSlice(path,0,1)!=Ok("/") {return Err(RouterError("BadPath",0));}
+    if path.byteLen()>2048 {return Err(RouterError("PathTooLong",0));}
+    if path=="/" {return Ok(out);}
+    match stdTextSplit(stdSliceFrom(path,1),"/") {
+        Err(_)=>{return Err(RouterError("BadPath",0));},
+        Ok(parts)=>{
+            if parts.len()>32 {return Err(RouterError("TooManySegments",0));}
+            var i=0;while i<parts.len() {out.add(parts.get(i));i+=1;}
+            return Ok(out);
+        }
+    }
+}
+fn stdSliceFrom(text:String,start:Int)->String effects {} {
+    match stdTextSlice(text,start,text.charLen()) {Ok(t)=>{return t;},Err(_)=>{return "";}}
+}
+fn nameOk(name:String)->Bool effects {} {
+    if name=="" || name.byteLen()>32 {return false;}
+    match stdEncode(name) {
+        Err(_)=>{return false;},
+        Ok(b)=>{
+            var i=0;
+            while i<stdBytesLength(b) {
+                match stdBytesGet(b,i) {Ok(c)=>{if !((c>=97&&c<=122)||(c>=65&&c<=90)||(c>=48&&c<=57)||c==95) {return false;}},Err(_)=>{return false;}}
+                i+=1;
+            }
+            return true;
+        }
+    }
+}
+fn parsePattern(pattern:String,index:Int)->Result<List<Seg>,RouterError> effects {} {
+    let parts=match_parts(pathParts(pattern),index)?;
+    let out=List<Seg>();let seen=List<String>();var i=0;
+    while i<parts.len() {
+        let part=parts.get(i);
+        if part.charLen()>=2 && stdTextSlice(part,0,1)==Ok("{") && stdTextSlice(part,part.charLen()-1,part.charLen())==Ok("}") {
+            var inner=stdTextSlice(part,1,part.charLen()-1);
+            var kind=1;
+            var name=match_text(inner);
+            if name.charLen()>0 && stdTextSlice(name,0,1)==Ok("*") {
+                if i!=parts.len()-1 {return Err(RouterError("WildcardNotLast",index));}
+                kind=2;name=stdSliceFrom(name,1);
+            }
+            if !nameOk(name) {return Err(RouterError("BadParamName",index));}
+            var k=0;while k<seen.len() {if seen.get(k)==name {return Err(RouterError("DuplicateParam",index));}k+=1;}
+            seen.add(name);out.add(Seg(kind,name));
+        } else {
+            if stdTextFind(part,"{")!=None || stdTextFind(part,"}")!=None {return Err(RouterError("BadPattern",index));}
+            out.add(Seg(0,part));
+        }
+        i+=1;
+    }
+    return Ok(out);
+}
+fn match_parts(r:Result<List<String>,RouterError>,index:Int)->Result<List<String>,RouterError> effects {} {
+    match move r {Ok(v)=>{return Ok(move v);},Err(e)=>{return Err(RouterError(e.code,index));}}
+}
+fn match_text(r:Result<String,StdError>)->String effects {} {
+    match move r {Ok(v)=>{return move v;},Err(_)=>{return "";}}
+}
+fn shapeKey(method:String,segs:&List<Seg>)->String effects {} {
+    var key=method+" ";var i=0;
+    while i<segs.len() {
+        let s=segs.get(i);
+        if s.kind==0 {key=key+"/L:"+s.text;} else {if s.kind==1 {key=key+"/P";} else {key=key+"/W";}}
+        i+=1;
+    }
+    return key;
+}
+// @api compile cost O(routes * segments); routes use pattern paths. At most 256 routes, 32 segments, 2048 bytes per pattern. Methods are upper-case tokens or '*'.
+// @api compile failure BadPath, PathTooLong, TooManySegments, BadPattern, BadParamName, DuplicateParam, WildcardNotLast, DuplicateRoute (same method and shape), TooManyRoutes, BadMethod; the route field is the index of the offending route.
+pub fn compile(routes:Frozen<List<Route>>)->Result<Router,RouterError> effects {} {
+    if routes.len()>256 {return Err(RouterError("TooManyRoutes",0));}
+    let compiled=List<Compiled1>();let keys=List<String>();var i=0;
+    while i<routes.len() {
+        let route=routes.get(i);
+        if route.method=="" || route.method.byteLen()>16 {return Err(RouterError("BadMethod",i));}
+        let segs=parsePattern(route.path,i)?;
+        let key=shapeKey(route.method,&segs);
+        var k=0;while k<keys.len() {if keys.get(k)==key {return Err(RouterError("DuplicateRoute",i));}k+=1;}
+        keys.add(key);
+        compiled.add(Compiled1(Route(route.method,route.path,route.handler),freeze(segs)));
+        i+=1;
+    }
+    return Ok(Router(freeze(compiled)));
+}
+// Score of a match: literal=2, param=1, wildcard=0 per segment, compared from the left.
+fn matches(segs:Frozen<List<Seg>>,parts:&List<String>,params:&mut List<Param>,score:&mut List<Int>)->Bool effects {} {
+    var i=0;
+    while i<segs.len() {
+        let s=segs.get(i);
+        if s.kind==2 {
+            if parts.len()<i {return false;}
+            var joined="";var j=i;
+            while j<parts.len() {if j>i {joined=joined+"/";}joined=joined+parts.get(j);j+=1;}
+            match url.decodeComponent(joined,false) {Ok(v)=>{params.add(Param(s.text,v));},Err(_)=>{return false;}}
+            score.add(0);
+            return true;
+        }
+        if i>=parts.len() {return false;}
+        if s.kind==0 {
+            if s.text!=parts.get(i) {return false;}
+            score.add(2);
+        } else {
+            match url.decodeComponent(parts.get(i),false) {Ok(v)=>{params.add(Param(s.text,v));},Err(_)=>{return false;}}
+            score.add(1);
+        }
+        i+=1;
+    }
+    return segs.len()==parts.len();
+}
+fn better(a:&List<Int>,b:&List<Int>)->Bool effects {} {
+    var i=0;
+    while i<a.len() && i<b.len() {
+        if a.get(i)>b.get(i) {return true;}
+        if a.get(i)<b.get(i) {return false;}
+        i+=1;
+    }
+    return a.len()>b.len();
+}
+fn methodOk(wanted:String,have:String)->Bool effects {} {return have==wanted||have=="*";}
+// @api resolve cost O(routes * segments). Found(route, params) for the best match; MethodNotAllowed(methods) when the path matches only other methods (sorted, no duplicates); NotFound otherwise; BadPath when the path is not an absolute path within the limits. A path containing a bad %-escape in a parameter does not match that route.
+pub fn resolve(router:&Router,method:String,path:String)->Resolution effects {} {
+    let parts=match pathParts(path) {Ok(v)=>{v},Err(e)=>{return Resolution::BadPath(e.code);}};
+    var wanted=method;
+    var attempt=0;
+    while attempt<2 {
+        var bestIndex=-1;var bestScore=List<Int>();var bestParams=List<Param>();
+        let allowed=List<String>();
+        var i=0;
+        while i<router.routes.len() {
+            let c=router.routes.get(i);
+            let params=List<Param>();let score=List<Int>();
+            if matches(c.segments,&parts,&mut params,&mut score) {
+                if methodOk(wanted,c.route.method) {
+                    if bestIndex<0 || better(&score,&bestScore) {bestIndex=i;bestScore=move score;bestParams=move params;}
+                } else {
+                    var seen=false;var k=0;while k<allowed.len() {if allowed.get(k)==c.route.method {seen=true;}k+=1;}
+                    if !seen {allowed.add(c.route.method);}
+                }
+            }
+            i+=1;
+        }
+        if bestIndex>=0 {
+            let c=router.routes.get(bestIndex);
+            return Resolution::Found(Route(c.route.method,c.route.path,c.route.handler),freeze(move bestParams));
+        }
+        if wanted=="HEAD" && attempt==0 {wanted="GET";attempt=1;continue;}
+        if allowed.len()>0 {
+            let sorted=sortedStrings(move allowed);
+            return Resolution::MethodNotAllowed(freeze(move sorted));
+        }
+        return Resolution::NotFound;
+    }
+    return Resolution::NotFound;
+}
+fn sortedStrings(items:List<String>)->List<String> effects {} {
+    var out=List<String>();var i=0;
+    while i<items.len() {
+        var at=out.len();
+        while at>0 && out.get(at-1)>items.get(i) {at-=1;}
+        let next=List<String>();var j=0;
+        while j<out.len() {if j==at {next.add(items.get(i));}next.add(out.get(j));j+=1;}
+        if at>=out.len() {next.add(items.get(i));}
+        out=move next;
+        i+=1;
+    }
+    return out;
+}

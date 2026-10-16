@@ -48,7 +48,7 @@ compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection st
 | module | 公開 API | 契約 |
 |---|---|---|
 | httpServer | listen, configured, next, respond, close, closeRequest | Hyper HTTP/1.1、bounded listener / queue / body、recorded / live、affine handles、物理応答は非復元 |
-| httpRouter | Route, find, allows | pure な method / encoded URI path の完全一致、先勝ち、wildcard method |
+| httpRouter | Route, find, allows, RouterError, Param, Router, Resolution, compile, resolve | pure な method / encoded URI path の完全一致（`find`、先勝ち、wildcard method）と、`compile`/`resolve`によるparameter付きrouter。`{name}`は1 segment、末尾の`{*name}`は残り全部を一度だけdecodeし、左のsegmentから literal > `{name}` > `{*name}` の優先で決め、同じmethodと形のrouteは`compile`で拒否する。`Found`/`MethodNotAllowed`（許可methodを整列）/`NotFound`/`BadPath`を返し、HEADはGET routeに、OPTIONSは自動応答しない |
 | tcp | connect, connectTls, configuredTls, read, write, shutdownWrite, close | bounded raw TCP / verified TLS、binary chunk / EOF、recorded / live、非復元の接続寿命 |
 | autodiff | Tape, Node, Gradients, parameter/constant, binary/unary, matmul, transpose, reshape, broadcast, sum/mean, backward/gradient | native Float64 buffers、private graph handles、COW checkpoint、同期 reverse-mode |
 | optimize | sgd, Adam, adam, adamStep, steps | native moment、bias correction、typed error atomicity、checkpoint |
