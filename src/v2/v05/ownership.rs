@@ -161,6 +161,7 @@ impl Flow<'_> {
                 | "3.2.0"
                 | "3.3.0"
                 | "3.4.0"
+                | "3.5.0"
         ) {
             v06::captures::names(&self.checker(), params, body)
         } else {
@@ -271,6 +272,7 @@ impl Flow<'_> {
                 | "3.2.0"
                 | "3.3.0"
                 | "3.4.0"
+                | "3.5.0"
         ) {
             return false;
         }
@@ -393,6 +395,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) && self.program.structs.contains_key(base)
                 {
                     return args.iter().all(|arg| self.shareable(arg) || self.owned_call(arg) || matches!(&arg.kind, ExprKind::Name(n) if self.vars.get(n).is_some_and(|v| v.borrow.is_none()) && !self.borrowed(n)));
@@ -508,6 +511,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) && matches!(&callee.kind,ExprKind::Name(n) if matches!(n.as_str(),"Ok"|"Err"|"Some")) =>
             {
                 args.iter().all(|v| self.shareable(v))
@@ -640,6 +644,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) && matches!(&callee.kind,ExprKind::Name(n) if matches!(n.as_str(),"Ok"|"Err"|"Some")) =>
             {
                 args.iter().all(|v| self.sendable(v))
@@ -828,6 +833,7 @@ impl Flow<'_> {
                             | "3.2.0"
                             | "3.3.0"
                             | "3.4.0"
+                            | "3.5.0"
                     ) {
                         Self::overlaps(target, n)
                     } else {
@@ -943,6 +949,7 @@ impl Flow<'_> {
                 | "3.2.0"
                 | "3.3.0"
                 | "3.4.0"
+                | "3.5.0"
         ) {
             return self.use_place(n, at);
         }
@@ -1077,6 +1084,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) {
                     v06::captures::names(&self.checker(), params, body)
                 } else {
@@ -1250,6 +1258,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) {
                     if let Some(place) = Self::place(v).filter(|p| p.contains('.')) {
                         self.use_place(&place, &e.at)?;
@@ -1388,6 +1397,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) {
                     if let Some(place) = Self::place(v) {
                         self.use_place(&place, &e.at)?;
@@ -1544,6 +1554,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) && Self::place(e).is_some() =>
             {
                 self.use_place(&Self::place(e).unwrap(), &e.at)?
@@ -1660,6 +1671,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) {
                     if matches!(&target.kind,ExprKind::Unary(op,_) if op=="$capture:borrow") {
                         return Err(diagnostic(
@@ -1909,6 +1921,7 @@ impl Flow<'_> {
                         | "3.2.0"
                         | "3.3.0"
                         | "3.4.0"
+                        | "3.5.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         let imported = if let ExprKind::Name(n) = &base.kind {
@@ -1980,7 +1993,7 @@ impl Flow<'_> {
  | "1.9.53" | "1.9.54" | "1.9.55" | "1.9.56" | "1.9.57" | "1.9.58" | "1.9.59" | "1.9.60" | "1.9.61"
             | "1.9.62"
             | "1.9.63"
-            | "1.9.64" | "1.9.65" | "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0" | "3.3.0" | "3.4.0") && index == 0 && matches!(&target.kind, ExprKind::Name(n) if n == "stdBytesFromList")).then_some("&List<Int>"));
+            | "1.9.64" | "1.9.65" | "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0" | "3.3.0" | "3.4.0" | "3.5.0") && index == 0 && matches!(&target.kind, ExprKind::Name(n) if n == "stdBytesFromList")).then_some("&List<Int>"));
                     let borrowing = matches!(
                         self.program.language.as_str(),
                         "0.6"
@@ -2087,6 +2100,7 @@ impl Flow<'_> {
                             | "3.2.0"
                             | "3.3.0"
                             | "3.4.0"
+                            | "3.5.0"
                     ) && expected.is_some_and(|t| t.starts_with('&'));
                     if borrowing {
                         if asynchronous || send {
@@ -2296,7 +2310,7 @@ impl Flow<'_> {
  | "1.9.53" | "1.9.54" | "1.9.55" | "1.9.56" | "1.9.57" | "1.9.58" | "1.9.59" | "1.9.60" | "1.9.61"
             | "1.9.62"
             | "1.9.63"
-            | "1.9.64" | "1.9.65" | "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0" | "3.3.0" | "3.4.0") && (n=="secret"||n=="reveal")))
+            | "1.9.64" | "1.9.65" | "2.0.0" | "3.0.0" | "3.1.0" | "3.2.0" | "3.3.0" | "3.4.0" | "3.5.0") && (n=="secret"||n=="reveal")))
                         && !self.shareable(arg)
                         && matches!(&arg.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
                     {
@@ -2447,6 +2461,7 @@ impl Flow<'_> {
                             | "3.2.0"
                             | "3.3.0"
                             | "3.4.0"
+                            | "3.5.0"
                     ) && self
                         .vars
                         .get(&n)
@@ -2605,6 +2620,7 @@ impl Flow<'_> {
                                         | "3.2.0"
                                         | "3.3.0"
                                         | "3.4.0"
+                                        | "3.5.0"
                                 ) && !self.transfer_ty(&ty, true)
                                 {
                                     Self::place(v).map(|p| (p, false))
@@ -2741,6 +2757,7 @@ impl Flow<'_> {
                             | "3.2.0"
                             | "3.3.0"
                             | "3.4.0"
+                            | "3.5.0"
                     ) && self.checker().expr(v).is_ok_and(|t| t.starts_with('&'))
                     {
                         return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
@@ -2877,6 +2894,7 @@ impl Flow<'_> {
                             | "3.2.0"
                             | "3.3.0"
                             | "3.4.0"
+                            | "3.5.0"
                     ) {
                         match &s.kind {
                             StmtKind::Let(_, _, Some(annotation), _) => annotation.clone(),
@@ -2987,6 +3005,7 @@ impl Flow<'_> {
                                 | "3.2.0"
                                 | "3.3.0"
                                 | "3.4.0"
+                                | "3.5.0"
                         ) && self.transfer_ty(&ty, false));
                     let shareable = self.shareable(e)
                         || (matches!(
@@ -3090,6 +3109,7 @@ impl Flow<'_> {
                                 | "3.2.0"
                                 | "3.3.0"
                                 | "3.4.0"
+                                | "3.5.0"
                         ) && self.transfer_ty(&ty, true));
                     if let ExprKind::Name(name) = &e.kind {
                         if self.vars.get(name).is_some_and(|v| !v.shareable) {
@@ -3210,6 +3230,7 @@ impl Flow<'_> {
                                     | "3.2.0"
                                     | "3.3.0"
                                     | "3.4.0"
+                                    | "3.5.0"
                             ) {
                                 Self::place(v).map(|p| (p, op == "borrowMut"))
                             } else {
@@ -3353,6 +3374,7 @@ impl Flow<'_> {
                             | "3.2.0"
                             | "3.3.0"
                             | "3.4.0"
+                            | "3.5.0"
                     ) && borrow.is_none()
                         && !shareable
                         && !self.owned_call(e)
@@ -3555,6 +3577,7 @@ impl Flow<'_> {
                             | "3.2.0"
                             | "3.3.0"
                             | "3.4.0"
+                            | "3.5.0"
                     ) && !self.shareable(e)
                         && !self.owned_call(e)
                     {
@@ -3798,6 +3821,7 @@ impl Flow<'_> {
                                             | "3.2.0"
                                             | "3.3.0"
                                             | "3.4.0"
+                                            | "3.5.0"
                                     ) && !self.transfer_ty(&t, true)
                                     {
                                         Self::place(e).map(|p| (p, false))
@@ -3973,6 +3997,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                 | "3.2.0"
                 | "3.3.0"
                 | "3.4.0"
+                | "3.5.0"
         ) && f.ret.contains('&')
         {
             return Err(diagnostic(&f.at, "borrowed return types are not supported"));
@@ -4103,6 +4128,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                             | "3.2.0"
                             | "3.3.0"
                             | "3.4.0"
+                            | "3.5.0"
                     ) && ty.starts_with('&')
                     {
                         Some((format!("$parameter:{n}"), ty.starts_with("&mut ")))

@@ -113,6 +113,7 @@ pub(in crate::v2) fn doctest(root: &Path, path: &Path) -> Result<()> {
             | "3.2.0"
             | "3.3.0"
             | "3.4.0"
+            | "3.5.0"
     ) {
         return Err(Error::InvalidOperation(
             "doctest requires language 0.7".into(),
