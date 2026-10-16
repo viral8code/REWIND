@@ -1,22 +1,22 @@
-# REWIND 2.0.0を試す
+# REWIND 3.1.0を試す
 
-2.0.0はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
+3.1.0はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
 
 [詳しいHTMLの入門書・リファレンス](book/index.html) / [PDF版](book/REWIND-2.0.0-book.pdf)も利用できます。
 
 ## Linux SDKをダウンロードする
 
-[Release v2.0.0](https://github.com/viral8code/REWIND/releases/tag/v2.0.0)から次を同じdirectoryへ保存します。
+[Release v3.1.0](https://github.com/viral8code/REWIND/releases/tag/v3.1.0)から次を同じdirectoryへ保存します。
 
-- `rewind-2.0.0-linux-x86_64.tar.gz`：rewind/rewindc、86公開module、文書、例
-- `rewind-2.0.0-sdk.pub`：このreleaseの公開鍵
+- `rewind-3.1.0-linux-x86_64.tar.gz`：rewind/rewindc、86公開module、文書、例
+- `rewind-3.1.0-sdk.pub`：このreleaseの公開鍵
 - `SHA256SUMS`、`BUILD_INFO.json`：checksumと最低glibc等のbuild情報
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-tar -xzf rewind-2.0.0-linux-x86_64.tar.gz
-SDK="$(pwd)/rewind-2.0.0-linux-x86_64"
-PUBLIC_KEY="$(cat rewind-2.0.0-sdk.pub)"
+tar -xzf rewind-3.1.0-linux-x86_64.tar.gz
+SDK="$(pwd)/rewind-3.1.0-linux-x86_64"
+PUBLIC_KEY="$(cat rewind-3.1.0-sdk.pub)"
 "$SDK/bin/rewind" sdk-verify --sdk "$SDK" --public-key "$PUBLIC_KEY"
 export PATH="$SDK/bin:$PATH"
 rewind --version
@@ -26,10 +26,10 @@ SDK archiveと公開鍵の両方がchecksum検証でOKになることを確認�
 
 ## Windows SDKをダウンロードする
 
-[Release v2.0.0](https://github.com/viral8code/REWIND/releases/tag/v2.0.0)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
+[Release v3.1.0](https://github.com/viral8code/REWIND/releases/tag/v3.1.0)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
 
-- `rewind-2.0.0-windows-x86_64.zip`
-- `rewind-2.0.0-windows-x86_64-sdk.pub`
+- `rewind-3.1.0-windows-x86_64.zip`
+- `rewind-3.1.0-windows-x86_64-sdk.pub`
 - `SHA256SUMS.windows`、`BUILD_INFO.windows.json`
 
 PowerShellでchecksumを確認し、展開してPATHへ追加します。
@@ -40,14 +40,14 @@ Get-Content .\SHA256SUMS.windows | ForEach-Object {
     $hash, $name = $_ -split '  ', 2
     $expected[$name] = $hash
 }
-foreach ($name in @('rewind-2.0.0-windows-x86_64.zip', 'rewind-2.0.0-windows-x86_64-sdk.pub')) {
+foreach ($name in @('rewind-3.1.0-windows-x86_64.zip', 'rewind-3.1.0-windows-x86_64-sdk.pub')) {
     if ((Get-FileHash $name -Algorithm SHA256).Hash.ToLower() -ne $expected[$name]) {
         throw "Checksum mismatch: $name"
     }
 }
-Expand-Archive .\rewind-2.0.0-windows-x86_64.zip -DestinationPath .
-$sdk = Join-Path (Get-Location) 'rewind-2.0.0-windows-x86_64'
-$publicKey = (Get-Content .\rewind-2.0.0-windows-x86_64-sdk.pub -Raw).Trim()
+Expand-Archive .\rewind-3.1.0-windows-x86_64.zip -DestinationPath .
+$sdk = Join-Path (Get-Location) 'rewind-3.1.0-windows-x86_64'
+$publicKey = (Get-Content .\rewind-3.1.0-windows-x86_64-sdk.pub -Raw).Trim()
 & "$sdk\bin\rewind.exe" sdk-verify --sdk $sdk --public-key $publicKey
 $env:Path = "$sdk\bin;$env:Path"
 rewind --version
@@ -57,7 +57,7 @@ RustやJVMのインストールは不要です。このPATH変更は現在のPow
 
 ## sourceからビルドする
 
-`rewind-2.0.0-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
+`rewind-3.1.0-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
 
 ```sh
 cargo build --release --locked
@@ -147,7 +147,7 @@ rewind compile main.rw --allow-effects fileRead,fileWrite
 rewind run main.rwc --allow-effects fileRead,fileWrite
 ```
 
-成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effectsとlockを優先します。`.rwc`の実行ではsource / vendorを要求せず、assetは配布に含めます。source実行・compileでは依存graphも検証します。既存projectを新仕様に移す場合はlanguageを2.0.0へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
+成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effectsとlockを優先します。`.rwc`の実行ではsource / vendorを要求せず、assetは配布に含めます。source実行・compileでは依存graphも検証します。既存projectを新仕様に移す場合はlanguageを3.0.0（または3.1.0）へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
 
 ```sh
 rewind run main.rw --record trace.json
@@ -155,6 +155,10 @@ rewind replay trace.json --root .
 ```
 
 実行・履歴・stream/collectionには上限があります。`--steps N` / `--native-work N`で累積実行予算を指定します。初期履歴予算は `--history-memory 512MiB` / `--history-storage 8GiB` / `--spill-threshold 8MiB` で指定できます。byte 数と KiB / MiB / GiB に対応し、spill threshold は 0 も指定できます。replay は記録した初期予算を復元します。Linuxのプロセスaddress-spaceは既定2,048 MiBで、`--memory-mib N`で指定できます。上限超過によるOS/allocatorの終了は言語のResultとして回復できません。履歴予算は RSS 上限とは異なります。[1.9.4 の費用・予算契約](REWIND_v1.9.4.md)を参照してください。
+
+## 診断・デバッグ・profile
+
+`rewind <command> --help`で各commandの使い方を表示します。診断には関連位置（移動元など）が付き、`--diagnostic-format json`では`code`と`related`が得られます。記録した実行は`rewind dap`（stdio）からDAP対応エディタで逆実行を含めて調べられます（[debugger.md](debugger.md)）。`rewind profile main.rw`は関数ごとの仕事量（logical work、ミリ秒ではない）とcheckpointが保持する量を表示し、`--profile-format text`で読みやすい形にできます。
 
 ## エラーとエディタ
 
