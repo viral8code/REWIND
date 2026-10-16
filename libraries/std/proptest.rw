@@ -1,0 +1,94 @@
+// Seeded property checks with shrinking (QUAL-01). Everything is pure and deterministic: the same seed gives the
+// same cases, so a failure report (seed + case index + shrunk input) can be replayed as an ordinary test. The
+// generator is a 64-bit xorshift-multiply step in checked arithmetic; it is for tests, not for security.
+pub record PropertyError {code:String}
+pub record Failure {seed:Int,run:Int,original:Frozen<List<Int>>,shrunk:Frozen<List<Int>>,shrinkSteps:Int}
+pub enum Outcome {Passed(Int),Failed(Failure)}
+
+fn step(state:Int)->Int effects {} {
+    // A small 31-bit LCG (Park-Miller style constants) keeps every product within Int.
+    var x=state%2147483647;
+    if x<=0 {x+=2147483646;}
+    return (x*48271)%2147483647;
+}
+// @api draw cost O(1); the next generator state for a state (never 0); use amount = state % (high-low+1) + low.
+pub fn draw(state:Int)->Int effects {} {return step(state);}
+fn intIn(state:Int,low:Int,high:Int)->Int effects {} {
+    let span=high-low+1;
+    return low+state%span;
+}
+
+// Shrinks a failing input list: first by dropping elements (halves, then single elements), then by moving each
+// element toward zero. A candidate replaces the current input only if the property still fails.
+fn stillFails(holds:fn(Frozen<List<Int>>)->Bool effects {} captures {Send,Share},candidate:&List<Int>)->Bool effects {} {
+    let copy=List<Int>();var i=0;
+    while i<candidate.len() {copy.add(candidate.get(i));i+=1;}
+    return !holds(freeze(copy));
+}
+fn without(input:&List<Int>,start:Int,count:Int)->List<Int> effects {} {
+    let out=List<Int>();var i=0;
+    while i<input.len() {if i<start || i>=start+count {out.add(input.get(i));}i+=1;}
+    return out;
+}
+
+// @api check cost O(runs * size) property calls plus at most maxShrink more while shrinking. Cases are lists of 0..maxLen Ints in low..high built from seed; runs 1..1000, maxLen 0..64, maxShrink 0..2000, low<=high. Returns Passed(runs) or the first Failed case with its shrunk input.
+// @api check failure BadRange, BadRuns, BadLength, BadShrink.
+pub fn check(seed:Int,runs:Int,maxLen:Int,low:Int,high:Int,maxShrink:Int,holds:fn(Frozen<List<Int>>)->Bool effects {} captures {Send,Share})->Result<Outcome,PropertyError> effects {} {
+    if low>high || high-low<0 || high-low>2147483646 {return Err(PropertyError("BadRange"));}
+    if runs<1 || runs>1000 {return Err(PropertyError("BadRuns"));}
+    if maxLen<0 || maxLen>64 {return Err(PropertyError("BadLength"));}
+    if maxShrink<0 || maxShrink>2000 {return Err(PropertyError("BadShrink"));}
+    var state=step(seed);
+    var run=0;
+    while run<runs {
+        state=step(state);
+        let length=state%(maxLen+1);
+        let input=List<Int>();var k=0;
+        while k<length {state=step(state);input.add(intIn(state,low,high));k+=1;}
+        let copy=List<Int>();var c=0;
+        while c<input.len() {copy.add(input.get(c));c+=1;}
+        if !holds(freeze(copy)) {
+            let original=List<Int>();c=0;
+            while c<input.len() {original.add(input.get(c));c+=1;}
+            var current=move input;var steps=0;var progress=true;
+            while progress && steps<maxShrink {
+                progress=false;
+                // drop chunks, largest first
+                var chunk=current.len()/2;
+                while chunk>=1 && steps<maxShrink {
+                    var start=0;
+                    while start+chunk<=current.len() && steps<maxShrink {
+                        let candidate=without(&current,start,chunk);
+                        steps+=1;
+                        if stillFails(holds,&candidate) {current=move candidate;progress=true;} else {start+=1;}
+                    }
+                    chunk=chunk/2;
+                }
+                // single elements toward zero (or toward low when zero is outside the range)
+                var at=0;
+                while at<current.len() && steps<maxShrink {
+                    let value=current.get(at);
+                    var target=0;
+                    if target<low {target=low;}
+                    if target>high {target=high;}
+                    if value!=target {
+                        let next=List<Int>();var j=0;
+                        while j<current.len() {if j==at {next.add(target+(value-target)/2);} else {next.add(current.get(j));}j+=1;}
+                        steps+=1;
+                        if stillFails(holds,&next) {current=move next;progress=true;}
+                        else {
+                            let near=List<Int>();j=0;
+                            while j<current.len() {if j==at {if value>target {near.add(value-1);} else {near.add(value+1);}} else {near.add(current.get(j));}j+=1;}
+                            steps+=1;
+                            if stillFails(holds,&near) {current=move near;progress=true;}
+                        }
+                    }
+                    at+=1;
+                }
+            }
+            return Ok(Outcome::Failed(Failure(seed,run,freeze(original),freeze(current),steps)));
+        }
+        run+=1;
+    }
+    return Ok(Outcome::Passed(runs));
+}

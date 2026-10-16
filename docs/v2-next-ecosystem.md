@@ -34,6 +34,8 @@ assert/testは既存です。入力generator、seed、case数、縮小を明示�
 
 初期は整数、Bytes、短いListとoperation列に絞ります。縮小自体のsteps/native work/時間を制限します。VM状態やphysical入力を勝手にresetできるとは仮定せず、外部操作を含むpropertyは専用fixtureを使います。
 
+**実装済み（2026-10-16、整数listのみ）：** `std.proptest`（`property`は組込み名のためこの名前）。`check(seed,runs,maxLen,low,high,maxShrink,holds)`が決定的な31-bit LCGでIntのlistを作り、最初の失敗を、チャンク単位→要素単位の削除と0（range外ならrange端）への半減・±1の縮小で最小化して`Failure{seed,run,original,shrunk,shrinkSteps}`を返す。同じseedは同じ失敗と同じ縮小。縮小の呼出しは`maxShrink`（2000以下）で打ち切る。Bytes・Map・操作列と参照実装との比較、checkpoint/borrow違反の生成は未実施。
+
 **受入：** seedと最小失敗入力を保存して再現できる。List/Mapの操作列を単純な参照実装と比較できる。checkpoint/borrowの不正を生成した場合も意図した拒否とruntime不具合を区別する。
 
 ## QUAL-02：観測fixtureと失敗注入

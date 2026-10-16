@@ -31,6 +31,7 @@
 | units | UnitError, Second, Milli, Nano, Byte, Scalar, Grapheme, Quantity, Id, of, amount, add, sub, less, equal, secondsToMilli, milliToNano, secondsToNano, milliFloorSeconds, nanoFloorMilli, idOf, text, sameId | 単位と不透明IDの型付きwrapper。`Quantity<Second>`と`Quantity<Milli>`、`Id<UserTag>`と`Id<OrderTag>`は型検査で混ざらず、中身はprivate。拡大変換は桁あふれを検査、縮小は明示した負の無限大方向の丸め。実行時費用は元のIntと同じ |
 | httpHeaders | HeaderError, Header, Cookie, CookieSettings, lowerName, header, find, findAll, parseBlock, formatBlock, redacted, parseCookieHeader, setCookie | pureなheader/cookie helper。名前はtoken検査と小文字化、値はCR/LF/NULを拒否、繰返しheaderを保持、`redacted`はAuthorization/Cookie等の値を`***`にする。Set-Cookieの属性は検査（SameSite=NoneはSecure必須）。errorは入力値を含まない |
 | retry | RetryError, Policy, Decision, policy, delay, jitter, decide | 明示retry policyの判定だけを行うpure module（待機も送信もしない）。上限付きの回数・指数backoff・全体deadline、`NotSent`は再試行可、応答errorは`retryResponses`かつ一時的なときだけ、`Unknown`は冪等と宣言したときだけ（通常の書込みは再送しない）。jitterは記録済みの乱数drawから決定的に作る |
+| proptest | PropertyError, Failure, Outcome, draw, check | seed付きの決定的なproperty検査と縮小（pure）。`check`はseedから`Int`のlistを作り、失敗した最初の例を要素の削除と0（またはrange端）への縮小で小さくする。同じseedは同じ例と同じ結果。回数1..1000・長さ0..64・縮小0..2000。乱数はtest用でsecurity用ではない |
 | guiField | new, render, dispatch, setError, clearError, text, error, cursor, anchor | 単一行入力のVM状態、renderはI/Oなし、scopeごとのid、caretとvalidation errorを保持、focusは呼び出し側 |
 
 

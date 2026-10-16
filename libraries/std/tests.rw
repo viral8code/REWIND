@@ -630,6 +630,48 @@ test fn retry_policy_is_bounded_and_never_repeats_unknown_writes() {
     assert_eq(retry.jitter(1000,0),1000);assert_eq(retry.jitter(1000,999),501);assert_eq(retry.jitter(1000,-500),750);
 }
 
+import proptest as proptest;
+fn propSum(values:Frozen<List<Int>>)->Bool effects {} {
+    var total=0;var i=0;while i<values.len() {total+=values.get(i);i+=1;}
+    return total<100;
+}
+fn propSorted(values:Frozen<List<Int>>)->Bool effects {} {
+    return values.len()<5;
+}
+fn propAlways(values:Frozen<List<Int>>)->Bool effects {} {return values.len()>=0;}
+fn propOf(r:Result<proptest.Outcome,proptest.PropertyError>)->proptest.Outcome effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("property error");}}}
+test fn property_checks_are_deterministic_and_shrink() {
+    match propOf(proptest.check(7,50,10,0,50,500,propAlways)) {proptest.Outcome::Passed(n)=>{assert_eq(n,50);},proptest.Outcome::Failed(_)=>{panic("always-true failed");}}
+    var first=proptest.Outcome::Passed(0);
+    match propOf(proptest.check(7,200,10,0,50,500,propSum)) {
+        proptest.Outcome::Passed(_)=>{panic("sum property never failed");},
+        proptest.Outcome::Failed(f)=>{
+            var total=0;var i=0;while i<f.shrunk.len() {total+=f.shrunk.get(i);i+=1;}
+            assert(total>=100);
+            assert(f.shrunk.len()<=f.original.len());
+            var skipAt=0;
+            while skipAt<f.shrunk.len() {
+                var others=0;var j=0;
+                while j<f.shrunk.len() {if j!=skipAt {others+=f.shrunk.get(j);}j+=1;}
+                assert(others<100);
+                skipAt+=1;
+            }
+            first=proptest.Outcome::Failed(f);
+        }
+    }
+    match propOf(proptest.check(7,200,10,0,50,500,propSum)) {
+        proptest.Outcome::Failed(again)=>{match first {proptest.Outcome::Failed(f)=>{assert_eq(again.run,f.run);assert_eq(again.shrunk.len(),f.shrunk.len());},_=>{panic("lost first");}}},
+        _=>{panic("rerun passed");}
+    }
+    match propOf(proptest.check(3,100,12,-5,5,500,propSorted)) {
+        proptest.Outcome::Failed(f)=>{assert_eq(f.shrunk.len(),5);var i=0;while i<5 {assert_eq(f.shrunk.get(i),0);i+=1;}},
+        _=>{panic("length property passed");}
+    }
+    match proptest.check(1,0,4,0,9,10,propAlways) {Err(e)=>{assert_eq(e.code,"BadRuns");},Ok(_)=>{panic("zero runs accepted");}}
+    match proptest.check(1,5,65,0,9,10,propAlways) {Err(e)=>{assert_eq(e.code,"BadLength");},Ok(_)=>{panic("long case accepted");}}
+    match proptest.check(1,5,4,9,0,10,propAlways) {Err(e)=>{assert_eq(e.code,"BadRange");},Ok(_)=>{panic("inverted range accepted");}}
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}
