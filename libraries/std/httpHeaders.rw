@@ -130,7 +130,7 @@ pub fn formatBlock(headers:&List<Header>)->String effects {} {
     while i<headers.len() {let h=headers.get(i);out=out+h.name+": "+h.value+"\r\n";i+=1;}
     return out;
 }
-fn secret(name:String)->Bool effects {} {
+fn isCredentialHeader(name:String)->Bool effects {} {
     return name=="authorization" || name=="proxy-authorization" || name=="cookie" || name=="set-cookie" || name=="x-api-key" || name=="x-auth-token";
 }
 // @api redacted cost O(headers); a copy that is safe to log or record: the values of credential-bearing headers become ***.
@@ -138,7 +138,7 @@ pub fn redacted(headers:&List<Header>)->List<Header> effects {} {
     let out=List<Header>();var i=0;
     while i<headers.len() {
         let h=headers.get(i);
-        if secret(lowerName(h.name)) {out.add(Header(h.name,"***"));} else {out.add(h);}
+        if isCredentialHeader(lowerName(h.name)) {out.add(Header(h.name,"***"));} else {out.add(h);}
         i+=1;
     }
     return out;

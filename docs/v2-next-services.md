@@ -20,6 +20,8 @@ header名の大小文字、複数値、禁止改行、Content-Type、Cookie/Set-
 
 body候補はform-urlencoded、multipartのbounded encoder/decoderです。boundary分割、stream途中のdelimiter、総容量/field数/各field容量を扱います。upload filenameをそのままFile pathに使いません。圧縮は展開量上限とnative work会計を設計できる場合だけ別単位で追加します。
 
+**実装済み（2026-10-16、header/cookieのみ）：** `std.httpHeaders`（pure）。header名はRFC 9110のtoken検査と小文字化、値はCR・LF・NUL・制御byteと8192 byte超を拒否、繰返しheaderは結合せず順序を保持、折返し行は拒否、128件まで。`redacted`はAuthorization・Cookie・Set-Cookie・X-Api-Key等の値を`***`にし、errorはcodeと行番号だけで値を含まない。Cookie headerは重複を保持して64件まで、`setCookie`はPath・Domain・Max-Age・SameSite・Secure・HttpOnlyを検査して一つのSet-Cookie値を作る。form-urlencodedは`std.url.parseQuery`で足りる。multipartと圧縮、既存native HTTPの`HttpHeader`への接続は未実施。
+
 **受入：** 小chunkでも境界を正しく処理し、巨大fieldを拒否する。parser失敗で接続資源を漏らさない。認証header/cookieをtraceやerrorへ平文で残さない。
 
 ## NET-03：明示retry policy
