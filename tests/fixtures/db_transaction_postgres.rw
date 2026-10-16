@@ -1,0 +1,81 @@
+import std.db as db;
+import std.dbTransaction as tx;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+fn one(v:Int)->Frozen<List<DbValue>> effects {} {
+    let items=List<DbValue>();items.add(DbValue::Int(v));return freeze(items);
+}
+var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+match Env.getSecret("REWIND_PG_DSN") {
+    None=>{panic("supply REWIND_PG_DSN as a secret environment value");},
+    Some(connectionString)=>{
+        let ca=take(File.readBytes("ca.der"));
+        external {take(db.credentials("database",move connectionString,move ca));opening=Some(db.postgres("database",5000));}
+    }
+}
+match opening {None=>{panic("open");},Some(task)=>{
+    let connection=take(take(await task));
+    var step:Option<Task<Result<Int,DbError>>>=None;
+    external {step=Some(db.execute(&mut connection,"DROP SCHEMA IF EXISTS rewind_tx_test CASCADE",freeze(List<DbValue>()),5000));}
+    match step {None=>{panic("drop");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut connection,"CREATE SCHEMA rewind_tx_test",freeze(List<DbValue>()),5000));}
+    match step {None=>{panic("schema");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut connection,"SET search_path TO rewind_tx_test",freeze(List<DbValue>()),5000));}
+    match step {None=>{panic("path");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut connection,"CREATE TABLE t(v BIGINT)",freeze(List<DbValue>()),5000));}
+    match step {None=>{panic("create");},Some(t)=>{take(take(await t));}}
+
+    // 1. commit
+    var opened:Option<Task<Result<Unit,DbError>>>=None;
+    external {opened=Some(db.beginTransaction(&mut connection,5000));}
+    match opened {None=>{panic("begin");},Some(t)=>{take(take(await t));}}
+    let committed=tx.begun();
+    external {step=Some(db.execute(&mut connection,"INSERT INTO t VALUES ($1)",one(1),5000));}
+    match step {None=>{panic("insert");},Some(t)=>{take(take(await t));}}
+    take(tx.requestCommit(&mut committed));
+    var finish:Option<Task<Result<Unit,DbError>>>=None;
+    external {finish=Some(db.commitTransaction(&mut connection,5000));}
+    match finish {None=>{panic("commit");},Some(t)=>{take(tx.completeCommit(&mut committed,take(await t)));}}
+    match tx.requestCommit(&mut committed) {Err(_)=>{Out.println("second commit rejected");},Ok(_)=>{panic("second commit accepted");}}
+    var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+    external {querying=Some(db.query(&mut connection,"SELECT count(*) FROM t",freeze(List<DbValue>()),5000));}
+    match querying {None=>{panic("query");},Some(q)=>{
+        let cursor=take(take(await q));
+        var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+        external {reading=Some(db.next(&mut cursor,8,1048576,5000));}
+        match reading {None=>{panic("read");},Some(r)=>{
+            let batch=take(take(await r));
+            Out.println(take(db.integer(batch.rows.get(0),0)));
+        }}
+    }}
+
+    // 2. rollback
+    external {opened=Some(db.beginTransaction(&mut connection,5000));}
+    match opened {None=>{panic("begin2");},Some(t)=>{take(take(await t));}}
+    let undone=tx.begun();
+    external {step=Some(db.execute(&mut connection,"INSERT INTO t VALUES ($1)",one(2),5000));}
+    match step {None=>{panic("insert2");},Some(t)=>{take(take(await t));}}
+    take(tx.requestRollback(&mut undone));
+    external {finish=Some(db.rollbackTransaction(&mut connection,5000));}
+    match finish {None=>{panic("rollback");},Some(t)=>{take(tx.completeRollback(&mut undone,take(await t)));}}
+    var querying2:Option<Task<Result<DbCursor,DbError>>>=None;
+    external {querying2=Some(db.query(&mut connection,"SELECT count(*) FROM t",freeze(List<DbValue>()),5000));}
+    match querying2 {None=>{panic("query");},Some(q)=>{
+        let cursor2=take(take(await q));
+        var reading2:Option<Task<Result<DbBatch,DbError>>>=None;
+        external {reading2=Some(db.next(&mut cursor2,8,1048576,5000));}
+        match reading2 {None=>{panic("read");},Some(r)=>{
+            let batch=take(take(await r));
+            Out.println(take(db.integer(batch.rows.get(0),0)));
+        }}
+    }}
+
+    // 3. a finished physical transaction is not revived by completing it twice
+    match tx.completeRollback(&mut undone,Ok(())) {Err(_)=>{Out.println("stale completion rejected");},Ok(_)=>{panic("stale completion accepted");}}
+    Out.println(tx.connectionReusable(&undone));
+    external {step=Some(db.execute(&mut connection,"DROP SCHEMA rewind_tx_test CASCADE",freeze(List<DbValue>()),5000));}
+    match step {None=>{panic("cleanup");},Some(t)=>{take(take(await t));}}
+}}
+publish;
