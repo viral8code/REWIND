@@ -219,6 +219,33 @@ pub fn changes(table:&Table)->Frozen<List<CellEdit>> effects {} {
 pub fn clearEdits(table:&mut Table)->Unit effects {} {
  table.editedCells=List<CellEdit>();table.editIndex=Map<String,Int>();table.editBytes=0;if table.filterQuery!=""{refreshFilter(table);}
 }
+// @api removeRow cost O(rows * columns) frozen reads (each read of a frozen list is charged its length, so keep tables small); needs caller-supplied row IDs. Staged edits and an open draft of the row are dropped, the selection follows the other rows by identity, sort order and filter are kept.
+// @api removeRow failure LegacyIds/UnknownRow; failures leave the table unchanged.
+pub fn removeRow(table:&mut Table,id:String)->Result<Unit,TableError> effects {} {
+ if !table.customIds{return Err(StdError("GuiTableLegacyIds",0));}
+ if id.byteLen()>64{return Err(StdError("GuiTableUnknownRow",0));}
+ var target=-1;
+ match baseIndex(table,id){None=>{return Err(StdError("GuiTableUnknownRow",0));},Some(row)=>{target=row;}}
+ let count=rows(table);let width=columns(table);
+ let ids=List<String>();let cells=List<String>();let indices=Map<String,Int>();
+ var row=0;
+ while row<count{
+  if row!=target{
+   let rid=table.rowIds.get(row);indices.set(rid,ids.len());ids.add(rid);
+   var column=0;while column<width{cells.add(table.cells.get(row*width+column));column+=1;}
+  }
+  row+=1;
+ }
+ let order=List<Int>();var i=0;
+ while i<table.rowOrder.len(){let base=table.rowOrder.get(i);if base>target{order.add(base-1);}else{if base!=target{order.add(base);}}i+=1;}
+ var selected=table.selected;if selected==target{selected=-1;}else{if selected>target{selected-=1;}}
+ let kept=List<CellEdit>();let keptIndex=Map<String,Int>();var bytes=0;i=0;
+ while i<table.editedCells.len(){let edit=table.editedCells.get(i);if edit.rowId!=id{keptIndex.set(editKey(edit.rowId,edit.column),kept.len());kept.add(CellEdit(edit.rowId,edit.column,edit.value));bytes+=edit.value.byteLen();}i+=1;}
+ if table.editing && table.editRowId==id{clearDraft(table);}
+ table.rowIds=freeze(ids);table.cells=freeze(cells);table.rowIndices=move indices;table.rowOrder=move order;table.selected=selected;
+ table.editedCells=move kept;table.editIndex=move keptIndex;table.editBytes=bytes;
+ refreshFilter(table);return Ok(());
+}
 // @api filterByText cost O(rows + scanned cell bytes); case-sensitive substring match in the current full sort order. Empty query clears filtering. Non-empty query is limited to 8192 source rows and 256 UTF-8 bytes.
 // @api filterByText failure Range/FilterRows/FilterQuery; failures leave view and selection unchanged.
 pub fn filterByText(table:&mut Table,column:Int,query:String)->Result<Unit,TableError> effects {} {

@@ -88,7 +88,7 @@ sortByTextは全source row、filterByTextはfilter列を全走査します。fil
 - 整数overflow、空値、必須、field間矛盾、無効timestampを診断できる。
 - row ID、column ID、初期値の不正を公開前に検証する。
 
-**部分実装（2026-10-14）：** `guiTable`にセル編集の流れを追加。draftのセルを`prefix:edit`のtextboxで描き、`dispatch`がtext/keyを`setDraft`へ反映、Enterで確定、Escapeで取消、F2で開始。Action `EditStarted/EditCommitted/EditCancelled/EditRejected`は行IDと列を持つ。確定失敗は`EditRejected`でdraftを保持。複数行は拒否（`GuiSingleLine`）。IME preeditはnative層が処理。行削除は未対応（tableはimmutable）。`EditRejected`の経路は未テスト：確定が失敗するのは編集overlayが4 MiBを超える場合だけで、そのtableを作る（約1000 cell）と`Frozen<List>.get`の全長計上のため既定の`--native-work`を超え、標準ライブラリtestに入れられない（2026-10-16に確認）。
+**部分実装（2026-10-14）：** `guiTable`にセル編集の流れを追加。draftのセルを`prefix:edit`のtextboxで描き、`dispatch`がtext/keyを`setDraft`へ反映、Enterで確定、Escapeで取消、F2で開始。Action `EditStarted/EditCommitted/EditCancelled/EditRejected`は行IDと列を持つ。確定失敗は`EditRejected`でdraftを保持。複数行は拒否（`GuiSingleLine`）。IME preeditはnative層が処理。行削除は`removeRow(table,id)`で追加（2026-10-16）：caller-supplied row IDのtableだけ、行・その編集overlay・開いているdraftを落とし、選択はIDで追従、sort順とfilterは保持する。費用はO(rows×columns)のfrozen読取りで、各読取りが全長を計上するため小さいtable向け。`LegacyIds`/`UnknownRow`は失敗しtableを変えない。GUI上の削除操作（キー等）は未提供。`EditRejected`の経路は未テスト：確定が失敗するのは編集overlayが4 MiBを超える場合だけで、そのtableを作る（約1000 cell）と`Frozen<List>.get`の全長計上のため既定の`--native-work`を超え、標準ライブラリtestに入れられない（2026-10-16に確認）。
 
 ## VIS-01：小規模なplot library
 
@@ -133,7 +133,7 @@ cursorを全件materializeする便利関数を既定にしません。1行ず�
 
 **実装済み（2026-10-14）：** `std.dbTransaction`は、物理的なBEGIN / COMMIT / ROLLBACKを`std.db`のtaskに任せたまま、要求と応答の状態だけを追跡します。`Transaction`は通常のVM値で、`requestCommit` / `requestRollback`で`Committing` / `RollingBack`へ移り、`completeCommit` / `completeRollback`にtaskの結果を渡して`Committed` / `RolledBack`へ進みます。完了待ちの二重要求、終了後の再要求、要求の無い完了通知は`TxError`で拒否し、状態を変えません。失敗は`DbError.phase`で分けます：`NotSent`は元の状態へ戻し、`Unknown`は`Unknown`（再試行もrollbackも許可しない）、それ以外は`Failed`（rollbackは可）。`close`は未完了のhandleを`NotFinished`として報告します。`finished`は業務失敗とcleanup失敗を別々に保持します。dropによる自動commitはありません。`connectionReusable`は終了が確定した状態だけ真です。
 
-PostgreSQL（CIの固定環境、Linuxで確認）：[tests/db_postgres_flows.rs](../tests/db_postgres_flows.rs)が専用schemaで、transaction helperのcommit・rollback・古い完了通知の拒否と、migrationの適用・再実行0件・編集検出・失敗したmigrationのDDL rollback（PostgreSQLのDDLはtransaction内）を確認する。cancel・接続断・commit結果不明の実backend再現は未完了。
+PostgreSQL（CIの固定環境、LinuxとWindowsで確認）：[tests/db_postgres_flows.rs](../tests/db_postgres_flows.rs)が専用schemaで、transaction helperのcommit・rollback・古い完了通知の拒否と、migrationの適用・再実行0件・編集検出・失敗したmigrationのDDL rollback（PostgreSQLのDDLはtransaction内）を確認する。cancel・接続断・commit結果不明の実backend再現は未完了。
 
 確認：状態遷移の標準ライブラリtest3件と、実際のSQLiteでcommit・rollback・二重要求・古い完了通知を確認する[tests/db_row_mapping.rs](../tests/db_row_mapping.rs)。**未完了：** PostgreSQLでの確認、cancel・接続断・commit結果不明を実backendで再現する確認、`defer`でのrollback（非同期完了の待機）。callbackで全操作を隠す形は、所有権とeffectの契約を先に設計するため作っていません。VM revert後は古い`Transaction`値が残り得ますが、終了済みの物理transactionは復活せず、次のcommit / rollbackはbackendのエラーとして`Failed`になります。
 

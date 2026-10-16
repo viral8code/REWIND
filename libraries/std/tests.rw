@@ -390,6 +390,30 @@ test fn table_cell_edit_lifecycle() {
  assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Escape",0,0)),Some(guiTable.Action::EditCancelled("a",1)));
 }
 
+test fn table_remove_row_keeps_identity_and_drops_its_edits() {
+ var table=editFixture();
+ assert_eq(guiTable.selectId(&mut table,"b"),Ok(()));
+ assert_eq(guiTable.editCellId(&mut table,"a",1,"10"),Ok(()));
+ assert_eq(guiTable.editCellId(&mut table,"b",1,"20"),Ok(()));
+ assert_eq(guiTable.beginEdit(&mut table,0,0),Ok(()));
+ assert_eq(guiTable.removeRow(&mut table,"zz"),Err(StdError("GuiTableUnknownRow",0)));
+ assert_eq(guiTable.rows(&table),2);
+ assert_eq(guiTable.removeRow(&mut table,"a"),Ok(()));
+ assert_eq(guiTable.rows(&table),1);
+ assert_eq(guiTable.rowId(&table,0),Ok("b"));
+ assert_eq(guiTable.rowIndex(&table,"a"),None);
+ assert_eq(guiTable.selectionId(&table),Some("b"));
+ assert_eq(guiTable.cell(&table,0,1),Ok("20"));
+ assert_eq(guiTable.changes(&table).len(),1);
+ match guiTable.draft(&table){None=>{},Some(_)=>{panic("draft of the removed row kept");}}
+ assert_eq(guiTable.removeRow(&mut table,"b"),Ok(()));
+ assert_eq(guiTable.rows(&table),0);
+ assert_eq(guiTable.selectionId(&table),None);
+ assert(!guiTable.hasEdits(&table));
+ let headers=List<String>();headers.add("N");let cells=List<String>();cells.add("x");
+ match guiTable.create(freeze(headers),freeze(cells),2){Err(_)=>{panic("legacy table");},Ok(legacy)=>{assert_eq(guiTable.removeRow(&mut legacy,"row:0"),Err(StdError("GuiTableLegacyIds",0)));}}
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}
