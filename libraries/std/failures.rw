@@ -1,0 +1,42 @@
+// Failure fixtures for application tests (QUAL-02). These build the same error VALUES the real backends return
+// (same type, code and phase), so branches such as "retry only when nothing was sent" or "never repeat an unknown
+// write" can be tested without a server. Nothing here connects, opens a task or touches the network, and a Script
+// that runs out of canned results reports FixtureExhausted instead of falling back to anything real.
+// Use it from test functions; the names say "fixture" on purpose so production code does not call it by accident.
+pub record FixtureError {code:String}
+pub struct Script<T:Share,E:Share> {private results:List<Result<T,E>>,private next:Int}
+
+// @api fixtureDbNotSent cost O(1); a DbError whose request never left the client (phase NotSent): safe to retry.
+pub fn fixtureDbNotSent()->DbError effects {} {return DbError("DbClosed","NotSent",None,None);}
+// @api fixtureDbDeadline cost O(1); a deadline after the request was sent (phase Unknown): the outcome is not known.
+pub fn fixtureDbDeadline()->DbError effects {} {return DbError("DbDeadline","Unknown",None,None);}
+// @api fixtureDbDisconnected cost O(1); a connection lost while waiting for the answer (phase Unknown).
+pub fn fixtureDbDisconnected()->DbError effects {} {return DbError("DbDisconnected","Unknown",None,None);}
+// @api fixtureDbRejected cost O(1); the server answered with an error (phase ResponseReceived), e.g. a constraint violation.
+pub fn fixtureDbRejected()->DbError effects {} {return DbError("DbSql","ResponseReceived",None,None);}
+// @api fixtureDbCleanup cost O(1); a rollback or close that failed after the work was already decided.
+pub fn fixtureDbCleanup()->DbError effects {} {return DbError("DbCleanup","ResponseReceived",None,None);}
+// @api fixtureHttpNotSent cost O(1); an HttpError raised before any byte was sent (name resolution, local limit).
+pub fn fixtureHttpNotSent()->HttpError effects {} {return HttpError("HttpResolve","NotSent",0);}
+// @api fixtureHttpDeadline cost O(1); a deadline after the request was sent (phase Unknown, no status).
+pub fn fixtureHttpDeadline()->HttpError effects {} {return HttpError("HttpDeadline","Unknown",0);}
+// @api fixtureHttpStatus cost O(1); the peer answered with an error status (phase ResponseReceived).
+pub fn fixtureHttpStatus(status:Int)->HttpError effects {} {return HttpError("HttpStatus","ResponseReceived",status);}
+// @api fixtureHttpTruncated cost O(1); the response ended before its declared length (phase ResponseReceived, status as sent).
+pub fn fixtureHttpTruncated(status:Int)->HttpError effects {} {return HttpError("HttpBody","ResponseReceived",status);}
+
+// @api script failure TooMany (more than 64 results), Empty. The results are returned in order, once each.
+pub fn script<T:Share,E:Share>(results:List<Result<T,E>>)->Result<Script<T,E>,FixtureError> effects {} {
+    if results.len()==0 {return Err(FixtureError("Empty"));}
+    if results.len()>64 {return Err(FixtureError("TooMany"));}
+    return Ok(Script<T,E>(results,0));
+}
+// @api nextResult failure FixtureExhausted when every canned result was used; it never invents a result.
+pub fn nextResult<T:Share,E:Share>(script:&mut Script<T,E>)->Result<Result<T,E>,FixtureError> effects {} {
+    if script.next>=script.results.len() {return Err(FixtureError("FixtureExhausted"));}
+    let item=script.results.get(script.next);
+    script.next+=1;
+    return Ok(item);
+}
+// @api remaining cost O(1); canned results not used yet.
+pub fn remaining<T:Share,E:Share>(script:&Script<T,E>)->Int effects {} {return script.results.len()-script.next;}

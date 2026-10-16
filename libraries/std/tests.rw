@@ -706,6 +706,64 @@ test fn logfmt_queue_is_bounded_and_reports_drops() {
     assert(logfmt.push(&mut q,"again"));
 }
 
+import failures as failures;
+// An application function under test: retry a save while the policy allows it.
+fn saveWith(script:&mut failures.Script<Int,DbError>,policy:&retry.Policy)->String effects {} {
+    var attempt=1;
+    while attempt<=16 {
+        match failures.nextResult(script) {
+            Err(_)=>{return "exhausted";},
+            Ok(outcome)=>{
+                match outcome {
+                    Ok(_)=>{return "saved";},
+                    Err(error)=>{
+                        match retry.decide(policy,attempt,0,error.phase,false) {
+                            retry.Decision::RetryAfter(_)=>{attempt+=1;},
+                            retry.Decision::Stop(reason)=>{return "stopped:"+reason;}
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return "gave up";
+}
+fn cannedList(first:Result<Int,DbError>,second:Result<Int,DbError>)->List<Result<Int,DbError>> effects {} {
+    let list=List<Result<Int,DbError>>();list.add(first);list.add(second);return list;
+}
+test fn failure_fixtures_drive_the_retry_branches_without_a_server() {
+    let writePolicy=retryOk(retry.policy(3,10,100,1000,false,false));
+    var a=match_fixture(failures.script(cannedList(Err(failures.fixtureDbNotSent()),Ok(1))));
+    assert_eq(saveWith(&mut a,&writePolicy),"saved");
+    var b=match_fixture(failures.script(cannedList(Err(failures.fixtureDbDeadline()),Ok(1))));
+    assert_eq(saveWith(&mut b,&writePolicy),"stopped:UnknownOutcome");
+    assert_eq(failures.remaining(&b),1);
+    var c=match_fixture(failures.script(cannedList(Err(failures.fixtureDbRejected()),Ok(1))));
+    assert_eq(saveWith(&mut c,&writePolicy),"stopped:Response");
+    let readPolicy=retryOk(retry.policy(3,10,100,1000,true,false));
+    var d=match_fixture(failures.script(cannedList(Err(failures.fixtureDbDisconnected()),Ok(1))));
+    assert_eq(saveWith(&mut d,&readPolicy),"saved");
+    var e=match_fixture(failures.script(cannedList(Err(failures.fixtureDbNotSent()),Err(failures.fixtureDbNotSent()))));
+    assert_eq(saveWith(&mut e,&writePolicy),"exhausted");
+}
+fn match_fixture<T:Share,E:Share>(r:Result<failures.Script<T,E>,failures.FixtureError>)->failures.Script<T,E> effects {} {
+    match move r {Ok(v)=>{return move v;},Err(_)=>{panic("fixture error");}}
+}
+test fn failure_fixtures_have_the_real_error_shape_and_never_invent_results() {
+    assert_eq(failures.fixtureDbNotSent().phase,"NotSent");
+    assert_eq(failures.fixtureDbDeadline().phase,"Unknown");
+    assert_eq(failures.fixtureDbCleanup().code,"DbCleanup");
+    assert_eq(failures.fixtureHttpNotSent().phase,"NotSent");
+    assert_eq(failures.fixtureHttpDeadline().status,0);
+    assert_eq(failures.fixtureHttpStatus(503).status,503);
+    assert_eq(failures.fixtureHttpTruncated(200).phase,"ResponseReceived");
+    match failures.script(List<Result<Int,DbError>>()) {Err(e)=>{assert_eq(e.code,"Empty");},Ok(_)=>{panic("empty script accepted");}}
+    var one=match_fixture(failures.script(cannedList(Ok(5),Ok(6))));
+    match failures.nextResult(&mut one) {Ok(Ok(v))=>{assert_eq(v,5);},_=>{panic("first result");}}
+    match failures.nextResult(&mut one) {Ok(Ok(v))=>{assert_eq(v,6);},_=>{panic("second result");}}
+    match failures.nextResult(&mut one) {Err(e)=>{assert_eq(e.code,"FixtureExhausted");},Ok(_)=>{panic("exhausted script invented a result");}}
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}

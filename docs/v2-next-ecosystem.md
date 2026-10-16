@@ -46,6 +46,8 @@ HTTP/DB/GUIのfixtureは既存の仕組みを再利用します。送信前失�
 
 fixture APIはphysical backendと型・error contractを揃え、現実の失敗を模した範囲を記載します。native接続を成功したふりで生成する公開APIにはしません。recordにcredentialを入れず、fixture dataにも機密値を保存しません。
 
+**実装済み（2026-10-16、値のfixture）：** `std.failures`。DbError/HttpErrorを実backendと同じcode・phaseで作る`fixtureDbNotSent`（送信前）・`fixtureDbDeadline`/`fixtureDbDisconnected`（結果不明）・`fixtureDbRejected`（応答error）・`fixtureDbCleanup`（cleanup失敗）、`fixtureHttpNotSent`/`fixtureHttpDeadline`/`fixtureHttpStatus`/`fixtureHttpTruncated`と、用意した結果を順に返す`Script<T,E>`（使い切ると`FixtureExhausted`）。接続やnetworkを生成せず、成功したふりをする公開接続も作らない。`std.retry`と組み合わせて「送信前だけ再試行」「結果不明の書込みは再送しない」分岐を試験する例を標準ライブラリtestに置いた。GUI fixtureと実際のphysical失敗の再現（PostgreSQLの[実backend test](../tests/db_postgres_flows.rs)）は別で、HTTP/DBのphysical層をfaultにする注入は未実施。
+
 **受入：** SVC-02/DB-02/STATE-02の分岐を試験できる。fixtureから実networkへfallbackしない。利用者が本番設定と取り違えにくい明示選択にする。
 
 ## QUAL-03：coverageとtest failureの調査

@@ -289,6 +289,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ("issues", include_str!("../../../libraries/std/issues.rw")),
         ("units", include_str!("../../../libraries/std/units.rw")),
         ("retry", include_str!("../../../libraries/std/retry.rw")),
+        (
+            "failures",
+            include_str!("../../../libraries/std/failures.rw"),
+        ),
         ("logfmt", include_str!("../../../libraries/std/logfmt.rw")),
         (
             "proptest",
