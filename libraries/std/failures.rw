@@ -25,12 +25,14 @@ pub fn fixtureHttpStatus(status:Int)->HttpError effects {} {return HttpError("Ht
 // @api fixtureHttpTruncated cost O(1); the response ended before its declared length (phase ResponseReceived, status as sent).
 pub fn fixtureHttpTruncated(status:Int)->HttpError effects {} {return HttpError("HttpBody","ResponseReceived",status);}
 
+// @api script cost O(results), at most 64.
 // @api script failure TooMany (more than 64 results), Empty. The results are returned in order, once each.
 pub fn script<T:Share,E:Share>(results:List<Result<T,E>>)->Result<Script<T,E>,FixtureError> effects {} {
     if results.len()==0 {return Err(FixtureError("Empty"));}
     if results.len()>64 {return Err(FixtureError("TooMany"));}
     return Ok(Script<T,E>(results,0));
 }
+// @api nextResult cost O(1).
 // @api nextResult failure FixtureExhausted when every canned result was used; it never invents a result.
 pub fn nextResult<T:Share,E:Share>(script:&mut Script<T,E>)->Result<Result<T,E>,FixtureError> effects {} {
     if script.next>=script.results.len() {return Err(FixtureError("FixtureExhausted"));}

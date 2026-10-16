@@ -81,6 +81,7 @@
     },
     "fn:nextResult": {
       "async": false,
+      "cost": "O(1).",
       "effects": [],
       "failure": "FixtureExhausted when every canned result was used; it never invents a result.",
       "generics": [
@@ -119,6 +120,7 @@
     },
     "fn:script": {
       "async": false,
+      "cost": "O(results), at most 64.",
       "effects": [],
       "failure": "TooMany (more than 64 results), Empty. The results are returned in order, once each.",
       "generics": [
