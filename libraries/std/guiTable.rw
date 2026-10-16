@@ -6,8 +6,8 @@ pub struct CellDraft {rowId:String,column:Int,original:String,value:String}
 pub enum RowMapError<E:Share> {UnknownRow(String),Conversion(String,E)}
 record SortKey {value:String,row:Int,descending:Bool}
 pub struct Table {private headers:Frozen<List<String>>,private columnWeights:List<Int>,private rowIds:Frozen<List<String>>,private rowIndices:Map<String,Int>,private customIds:Bool,private cells:Frozen<List<String>>,private editedCells:List<CellEdit>,private editIndex:Map<String,Int>,private editBytes:Int,private rowOrder:List<Int>,private displayOrder:List<Int>,private rowPositions:List<Int>,private filterColumn:Int,private filterQuery:String,private editing:Bool,private editRowId:String,private editColumn:Int,private editOriginal:String,private editValue:String,private visible:Int,private first:Int,private selected:Int,private draftCursor:Int,private draftAnchor:Int,private focusColumn:Int}
-// Edit actions carry the stable row ID and column, so they stay valid after sort or filter changes. DeleteRequested (Delete key on the selected row, never while a draft is open) only reports the row ID; the application calls removeRow when it accepts the deletion.
-pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close,EditStarted(String,Int),EditCommitted(String,Int),EditCancelled(String,Int),EditRejected(String,Int),DeleteRequested(String)}
+// Edit actions carry the stable row ID and column, so they stay valid after sort or filter changes.
+pub enum Action {Selected(Int),Scrolled(Int),Resize(Int,Int),Close,EditStarted(String,Int),EditCommitted(String,Int),EditCancelled(String,Int),EditRejected(String,Int)}
 fn valid(text:String)->Bool effects {} {return text.byteLen()<=4096 && stdTextFind(text,"\0")==None;}
 fn createInternal(headers:Frozen<List<String>>,rowIds:Frozen<List<String>>,cells:Frozen<List<String>>,visibleRows:Int,customIds:Bool)->Result<Table,TableError> effects {} {
  let columns=headers.len();if columns<1 || columns>16 || cells.len()>1048576 || cells.len()%columns!=0 || cells.len()/columns>65536 || visibleRows<1 || visibleRows>64{return Err(StdError("GuiTableShape",0));}
@@ -219,6 +219,11 @@ pub fn changes(table:&Table)->Frozen<List<CellEdit>> effects {} {
 pub fn clearEdits(table:&mut Table)->Unit effects {} {
  table.editedCells=List<CellEdit>();table.editIndex=Map<String,Int>();table.editBytes=0;if table.filterQuery!=""{refreshFilter(table);}
 }
+// @api deleteRequest cost O(1); reports the selected row's stable ID when the event is the Delete key and no draft is open. It never deletes: call it before dispatch, and call removeRow when the application accepts the deletion.
+pub fn deleteRequest(table:&Table,event:gui.Event)->Option<String> effects {} {
+ if table.editing || event.kind!="key" || event.key!="Delete" || table.selected<0{return None;}
+ return selectionId(table);
+}
 // @api removeRow cost O(rows * columns) frozen reads (each read of a frozen list is charged its length, so keep tables small); needs caller-supplied row IDs. Staged edits and an open draft of the row are dropped, the selection follows the other rows by identity, sort order and filter are kept.
 // @api removeRow failure LegacyIds/UnknownRow; failures leave the table unchanged.
 pub fn removeRow(table:&mut Table,id:String)->Result<Unit,TableError> effects {} {
@@ -318,12 +323,6 @@ pub fn dispatch(table:&mut Table,view:&mut gui.View,event:gui.Event,prefix:Strin
    if table.selected<0{return Ok(None);}
    let position=displayRow(table,table.selected);if position<0{return Ok(None);}
    let id=rowId(table,position)?;beginEdit(table,position,table.focusColumn)?;return Ok(Some(Action::EditStarted(id,table.focusColumn)));
-  }
-  if event.key=="Delete"{
-   // The table never deletes by itself: the application decides, then calls removeRow.
-   if table.selected<0{return Ok(None);}
-   let position=displayRow(table,table.selected);if position<0{return Ok(None);}
-   return Ok(Some(Action::DeleteRequested(rowId(table,position)?)));
   }
   if event.key=="Left"{if table.focusColumn>0{table.focusColumn-=1;}return Ok(None);}
   if event.key=="Right"{if table.focusColumn<columns(table)-1{table.focusColumn+=1;}return Ok(None);}

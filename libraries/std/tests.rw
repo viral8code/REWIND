@@ -392,15 +392,14 @@ test fn table_cell_edit_lifecycle() {
 
 test fn table_delete_key_requests_deletion_without_deleting() {
  var table=editFixture();
- var view=renderEdit(&table);
- assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Delete",0,0)),None);
+ let del=gui.Event("key",0,0,"Delete",0,0);
+ assert_eq(guiTable.deleteRequest(&table,del),None);
  assert_eq(guiTable.select(&mut table,1),Ok(()));
- assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Delete",0,0)),Some(guiTable.Action::DeleteRequested("b")));
+ assert_eq(guiTable.deleteRequest(&table,del),Some("b"));
+ assert_eq(guiTable.deleteRequest(&table,gui.Event("key",0,0,"Enter",0,0)),None);
  assert_eq(guiTable.rows(&table),2);
  assert_eq(guiTable.beginEdit(&mut table,1,0),Ok(()));
- view=renderEdit(&table);
- assert_eq(sendEdit(&mut table,&mut view,gui.Event("key",0,0,"Delete",0,0)),None);
- assert_eq(guiTable.rows(&table),2);
+ assert_eq(guiTable.deleteRequest(&table,del),None);
  assert(guiTable.cancelEdit(&mut table));
  assert_eq(guiTable.removeRow(&mut table,"b"),Ok(()));
  assert_eq(guiTable.rows(&table),1);
