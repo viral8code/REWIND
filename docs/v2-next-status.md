@@ -13,6 +13,10 @@
 
 過去の「公開後mainへ統合」という一般方針は、今回の「codex/developだけ」という指示で上書きされています。将来の実装時も、当時の最新指示を確認してから公開を扱います。
 
+## 2026-10-16の検証状況
+
+履歴・変更操作などの標準module（`changes` `history` `historyGraph` `lazy` `lens` `memo` `orderedMap` `parser` `persistentSet` `schema` `snapshot` `textEdit` `textIndex` `timeline`）は、このstatusの時点ではsource実装のみでした。現在は標準ライブラリの全test（`rewind test libraries/std/tests.rw`）がLinuxとWindowsのCIで通り、公開APIのbaselineを追加して`api-diff --deny-breaking`の対象にしました。公開CI/CDの指示は、最新のユーザー指示（版を上げて公開してよい）で上書きされており、v3.1.0〜v3.4.0を公開しています。
+
 ## 継続作業の方針
 
 ユーザーから実行検証を省略して草案の実装を進める指示を受けた。環境復旧を実装の開始条件にしない。[履歴・変更操作library](v2-next-data-tools-implementation.md)へ進め、source実装と検証済みを区別して記録する。
