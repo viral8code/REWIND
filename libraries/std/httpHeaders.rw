@@ -1,0 +1,193 @@
+// Pure header and cookie helpers (NET-02). No network, no I/O. Errors carry a code and an index, never the text,
+// so an Authorization or Cookie value cannot reach a diagnostic. `redacted` is the form to log or record.
+pub record HeaderError {code:String,index:Int}
+pub record Header {name:String,value:String}
+pub record Cookie {name:String,value:String}
+pub record CookieSettings {path:Option<String>,domain:Option<String>,maxAge:Option<Int>,secure:Bool,httpOnly:Bool,sameSite:Option<String>}
+
+fn tokenByte(byte:Int)->Bool effects {} {
+    if byte>=48 && byte<=57 {return true;}
+    if byte>=65 && byte<=90 {return true;}
+    if byte>=97 && byte<=122 {return true;}
+    return byte==33 || byte==35 || byte==36 || byte==37 || byte==38 || byte==39 || byte==42 || byte==43 || byte==45 || byte==46 || byte==94 || byte==95 || byte==96 || byte==124 || byte==126;
+}
+fn isToken(text:String)->Bool effects {} {
+    if text=="" || text.byteLen()>256 {return false;}
+    match stdEncode(text) {
+        Err(_)=>{return false;},
+        Ok(bytes)=>{
+            var i=0;
+            while i<stdBytesLength(bytes) {
+                match stdBytesGet(bytes,i) {Ok(byte)=>{if !tokenByte(byte) {return false;}},Err(_)=>{return false;}}
+                i+=1;
+            }
+            return true;
+        }
+    }
+}
+fn plainValue(text:String,allowSpace:Bool)->Bool effects {} {
+    if text.byteLen()>8192 {return false;}
+    match stdEncode(text) {
+        Err(_)=>{return false;},
+        Ok(bytes)=>{
+            var i=0;
+            while i<stdBytesLength(bytes) {
+                match stdBytesGet(bytes,i) {
+                    Ok(byte)=>{
+                        if byte==0 || byte==10 || byte==13 {return false;}
+                        if byte<32 && byte!=9 {return false;}
+                        if byte==127 {return false;}
+                        if !allowSpace && (byte==32 || byte==9 || byte==59 || byte==44 || byte==34 || byte==92) {return false;}
+                    },
+                    Err(_)=>{return false;}
+                }
+                i+=1;
+            }
+            return true;
+        }
+    }
+}
+// @api lowerName cost O(bytes); ASCII lower-case, the form used to compare header names.
+pub fn lowerName(name:String)->String effects {} {
+    match stdEncode(name) {
+        Err(_)=>{return name;},
+        Ok(bytes)=>{
+            let out=List<Int>();var i=0;
+            while i<stdBytesLength(bytes) {
+                match stdBytesGet(bytes,i) {Ok(byte)=>{if byte>=65 && byte<=90 {out.add(byte+32);} else {out.add(byte);}},Err(_)=>{}}
+                i+=1;
+            }
+            match stdBytesFromList(&out) {Ok(b)=>{match stdDecode(b) {Ok(t)=>{return t;},Err(_)=>{return name;}}},Err(_)=>{return name;}}
+        }
+    }
+}
+// @api header failure BadName (not an RFC 9110 token, 1..256 bytes), BadValue (CR, LF, NUL or control byte, over 8192 bytes). The name is stored lower-case.
+pub fn header(name:String,value:String)->Result<Header,HeaderError> effects {} {
+    if !isToken(name) {return Err(HeaderError("BadName",0));}
+    if !plainValue(value,true) {return Err(HeaderError("BadValue",0));}
+    return Ok(Header(lowerName(name),value));
+}
+// @api find cost O(headers); the first value of a header, compared case-insensitively.
+pub fn find(headers:&List<Header>,name:String)->Option<String> effects {} {
+    let wanted=lowerName(name);var i=0;
+    while i<headers.len() {let h=headers.get(i);if h.name==wanted {return Some(h.value);}i+=1;}
+    return None;
+}
+// @api findAll cost O(headers); every value of a header in order (repeated headers are not merged).
+pub fn findAll(headers:&List<Header>,name:String)->List<String> effects {} {
+    let wanted=lowerName(name);let out=List<String>();var i=0;
+    while i<headers.len() {let h=headers.get(i);if h.name==wanted {out.add(h.value);}i+=1;}
+    return out;
+}
+// @api parseBlock cost O(bytes); parses "Name: value" lines separated by CRLF or LF. Obsolete line folding is rejected. At most 128 headers.
+// @api parseBlock failure BadLine (index of the line), BadName, BadValue, Folded, TooMany.
+pub fn parseBlock(text:String)->Result<List<Header>,HeaderError> effects {} {
+    let out=List<Header>();
+    if text=="" {return Ok(out);}
+    match stdTextSplit(text,"\n") {
+        Err(_)=>{return Err(HeaderError("BadLine",0));},
+        Ok(lines)=>{
+            var i=0;
+            while i<lines.len() {
+                var line=lines.get(i);
+                if line.byteLen()>0 && line.charLen()>0 {
+                    match stdTextSlice(line,line.charLen()-1,line.charLen()) {Ok(last)=>{if last=="\r" {line=match_slice(line,0,line.charLen()-1);}},Err(_)=>{}}
+                }
+                if line=="" {i+=1;continue;}
+                if line.byteLen()>0 {
+                    match stdTextSlice(line,0,1) {Ok(first)=>{if first==" " || first=="\t" {return Err(HeaderError("Folded",i));}},Err(_)=>{}}
+                }
+                match stdTextFind(line,":") {
+                    None=>{return Err(HeaderError("BadLine",i));},
+                    Some(at)=>{
+                        let name=match_slice(line,0,at);
+                        let value=trimSpaces(match_slice(line,at+1,line.charLen()));
+                        match header(name,value) {
+                            Err(e)=>{return Err(HeaderError(e.code,i));},
+                            Ok(h)=>{out.add(h);}
+                        }
+                        if out.len()>128 {return Err(HeaderError("TooMany",i));}
+                    }
+                }
+                i+=1;
+            }
+            return Ok(out);
+        }
+    }
+}
+fn match_slice(text:String,start:Int,end:Int)->String effects {} {
+    match stdTextSlice(text,start,end) {Ok(t)=>{return t;},Err(_)=>{return "";}}
+}
+fn trimSpaces(text:String)->String effects {} {
+    var start=0;var end=text.charLen();
+    while start<end && (match_slice(text,start,start+1)==" " || match_slice(text,start,start+1)=="\t") {start+=1;}
+    while end>start && (match_slice(text,end-1,end)==" " || match_slice(text,end-1,end)=="\t") {end-=1;}
+    return match_slice(text,start,end);
+}
+// @api formatBlock cost O(headers); "name: value\r\n" per header.
+pub fn formatBlock(headers:&List<Header>)->String effects {} {
+    var out="";var i=0;
+    while i<headers.len() {let h=headers.get(i);out=out+h.name+": "+h.value+"\r\n";i+=1;}
+    return out;
+}
+fn secret(name:String)->Bool effects {} {
+    return name=="authorization" || name=="proxy-authorization" || name=="cookie" || name=="set-cookie" || name=="x-api-key" || name=="x-auth-token";
+}
+// @api redacted cost O(headers); a copy that is safe to log or record: the values of credential-bearing headers become ***.
+pub fn redacted(headers:&List<Header>)->List<Header> effects {} {
+    let out=List<Header>();var i=0;
+    while i<headers.len() {
+        let h=headers.get(i);
+        if secret(lowerName(h.name)) {out.add(Header(h.name,"***"));} else {out.add(h);}
+        i+=1;
+    }
+    return out;
+}
+// @api parseCookieHeader cost O(bytes); parses the value of a Cookie header ("a=b; c=d") into ordered pairs, keeping duplicates. At most 64 cookies.
+// @api parseCookieHeader failure BadCookie (index of the pair), TooMany.
+pub fn parseCookieHeader(value:String)->Result<List<Cookie>,HeaderError> effects {} {
+    let out=List<Cookie>();
+    if value=="" {return Ok(out);}
+    if !plainValue(value,true) {return Err(HeaderError("BadValue",0));}
+    match stdTextSplit(value,";") {
+        Err(_)=>{return Err(HeaderError("BadCookie",0));},
+        Ok(parts)=>{
+            var i=0;
+            while i<parts.len() {
+                let part=trimSpaces(parts.get(i));
+                if part!="" {
+                    match stdTextFind(part,"=") {
+                        None=>{return Err(HeaderError("BadCookie",i));},
+                        Some(at)=>{
+                            let name=match_slice(part,0,at);let cookieValue=match_slice(part,at+1,part.charLen());
+                            if !isToken(name) || !plainValue(cookieValue,false) {return Err(HeaderError("BadCookie",i));}
+                            out.add(Cookie(name,cookieValue));
+                            if out.len()>64 {return Err(HeaderError("TooMany",i));}
+                        }
+                    }
+                }
+                i+=1;
+            }
+            return Ok(out);
+        }
+    }
+}
+// @api setCookie failure BadCookie (name not a token or value with ; , space quote or backslash), BadAttribute (Path/Domain with ; or control bytes), BadSameSite, SameSiteNeedsSecure, BadMaxAge. Builds one Set-Cookie value; encode the value with std.url.encodeComponent first if it can contain those bytes.
+pub fn setCookie(name:String,value:String,settings:CookieSettings)->Result<String,HeaderError> effects {} {
+    if !isToken(name) || !plainValue(value,false) {return Err(HeaderError("BadCookie",0));}
+    var out=name+"="+value;
+    match settings.path {None=>{},Some(p)=>{if !plainValue(p,false) {return Err(HeaderError("BadAttribute",0));}out=out+"; Path="+p;}}
+    match settings.domain {None=>{},Some(d)=>{if !plainValue(d,false) {return Err(HeaderError("BadAttribute",1));}out=out+"; Domain="+d;}}
+    match settings.maxAge {None=>{},Some(age)=>{if age<-1 || age>31536000 {return Err(HeaderError("BadMaxAge",0));}out=out+"; Max-Age="+age.format();}}
+    match settings.sameSite {
+        None=>{},
+        Some(mode)=>{
+            if mode!="Strict" && mode!="Lax" && mode!="None" {return Err(HeaderError("BadSameSite",0));}
+            if mode=="None" && !settings.secure {return Err(HeaderError("SameSiteNeedsSecure",0));}
+            out=out+"; SameSite="+mode;
+        }
+    }
+    if settings.secure {out=out+"; Secure";}
+    if settings.httpOnly {out=out+"; HttpOnly";}
+    return Ok(out);
+}

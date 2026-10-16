@@ -570,6 +570,43 @@ test fn units_ids_are_opaque_and_bounded() {
     match units.idOf<OrderTag>(long) {Err(e)=>{assert_eq(e.code,"TooLong");},Ok(_)=>{panic("long id accepted");}}
 }
 
+import httpHeaders as hh;
+fn hhOk<T>(r:Result<T,hh.HeaderError>)->T effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("headers unexpected error");}}}
+fn hhCode<T>(r:Result<T,hh.HeaderError>)->String effects {} {match r {Ok(_)=>{return "ok";},Err(e)=>{return e.code;}}}
+test fn http_headers_parse_normalize_and_redact() {
+    let headers=hhOk(hh.parseBlock("Host: example.com\r\nAuthorization:   Bearer abc  \r\nX-A: 1\nx-a: 2\r\n\r\n"));
+    assert_eq(headers.len(),4);
+    assert_eq(hh.find(&headers,"AUTHORIZATION"),Some("Bearer abc"));
+    let both=hh.findAll(&headers,"X-A");
+    assert_eq(both.len(),2);assert_eq(both.get(0),"1");assert_eq(both.get(1),"2");
+    let safe=hh.redacted(&headers);
+    assert_eq(hh.find(&safe,"authorization"),Some("***"));
+    assert_eq(hh.find(&safe,"host"),Some("example.com"));
+    assert_eq(hh.find(&headers,"authorization"),Some("Bearer abc"));
+    assert_eq(hh.formatBlock(&safe),"host: example.com\r\nauthorization: ***\r\nx-a: 1\r\nx-a: 2\r\n");
+    assert_eq(hhCode(hh.header("Bad Name","x")),"BadName");
+    assert_eq(hhCode(hh.header("X","a\r\nInjected: 1")),"BadValue");
+    assert_eq(hhCode(hh.parseBlock("A: 1\n folded")),"Folded");
+    assert_eq(hhCode(hh.parseBlock("no colon")),"BadLine");
+    match hh.parseBlock("A: 1\nB: x\u{0}y") {Err(e)=>{assert_eq(e.code,"BadValue");assert_eq(e.index,1);},Ok(_)=>{panic("nul accepted");}}
+}
+test fn http_cookies_parse_and_set_with_checked_attributes() {
+    let cookies=hhOk(hh.parseCookieHeader("a=1; b=two;c=3"));
+    assert_eq(cookies.len(),3);assert_eq(cookies.get(1).name,"b");assert_eq(cookies.get(1).value,"two");
+    assert_eq(hhCode(hh.parseCookieHeader("a=1; broken")),"BadCookie");
+    assert_eq(hhCode(hh.parseCookieHeader("a=1 2")),"BadCookie");
+    let settings=hh.CookieSettings(Some("/"),None,Some(3600),true,true,Some("Lax"));
+    assert_eq(hhOk(hh.setCookie("sid","abc",settings)),"sid=abc; Path=/; Max-Age=3600; SameSite=Lax; Secure; HttpOnly");
+    let none=hh.CookieSettings(None,None,None,false,false,Some("None"));
+    assert_eq(hhCode(hh.setCookie("sid","abc",none)),"SameSiteNeedsSecure");
+    assert_eq(hhCode(hh.setCookie("sid","a;b",settings)),"BadCookie");
+    assert_eq(hhCode(hh.setCookie("bad name","x",settings)),"BadCookie");
+    let longLived=hh.CookieSettings(None,None,Some(99999999999),false,false,None);
+    assert_eq(hhCode(hh.setCookie("sid","abc",longLived)),"BadMaxAge");
+    let odd=hh.CookieSettings(None,None,None,false,false,Some("Sometimes"));
+    assert_eq(hhCode(hh.setCookie("sid","abc",odd)),"BadSameSite");
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}
