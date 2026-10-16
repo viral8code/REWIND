@@ -1,0 +1,25 @@
+import std.db as db;
+
+fn noParams()->Frozen<List<DbValue>> effects {} {return freeze(List<DbValue>());}
+var o1:Option<Task<Result<DbConnection,DbError>>>=None;
+var o2:Option<Task<Result<DbConnection,DbError>>>=None;
+external {o1=Some(db.sqlite("shared.db",false,5000));}
+match o1 {None=>{panic("open1");},Some(t1)=>{
+    match await t1 {
+        Ok(Ok(a))=>{
+            // A second runner cannot open the same database file in this process.
+            external {o2=Some(db.sqlite("shared.db",false,200));}
+            match o2 {None=>{panic("open2");},Some(t2)=>{
+                match await t2 {Ok(Ok(_))=>{panic("second runner opened the same file");},_=>{Out.println("second runner refused");}}
+            }}
+            // The first connection keeps working.
+            var step:Option<Task<Result<Int,DbError>>>=None;
+            external {step=Some(db.execute(&mut a,"CREATE TABLE applied(id TEXT)",noParams(),5000));}
+            match step {None=>{panic("create");},Some(s)=>{
+                match await s {Ok(Ok(_))=>{Out.println("first runner still works");},_=>{panic("first runner broken");}}
+            }}
+        },
+        _=>{panic("open1 failed");}
+    }
+}}
+publish;

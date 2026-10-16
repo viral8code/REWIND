@@ -147,3 +147,14 @@ fn run_fixture(fixture: &str, prefix: &str, expected: &str) {
     );
     assert_eq!(String::from_utf8_lossy(&out.stdout), expected);
 }
+
+/// DB-03: within one process a second connection to the same SQLite file is
+/// refused, so two migration runners cannot interleave; the first keeps working.
+#[test]
+fn sqlite_second_runner_on_the_same_file_is_refused() {
+    run_fixture(
+        "db_two_runners.rw",
+        "rewind-db-two-runners",
+        "second runner refused\nfirst runner still works\n",
+    );
+}
