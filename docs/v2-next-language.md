@@ -40,6 +40,8 @@ IDの生成、比較、serialization、DB mapping、Ord/Share、公開factoryを
 
 候補は型契約を満たすgeneric helper、Resultを返すmap/filter/fold、bounded collectです。snapshot Iteratorの保証を保ちます。borrowed iteratorを検討する場合は、checkpoint、owner変更、capture、taskへの逃避を別の契約として設計し、既存iterの意味を変更しません。
 
+**実装済み（2026-10-16、`std.collections`への追加）：** `tryMap`・`tryFold`（Resultを返すcallback、最初のErrで短絡して入力は借用のまま消費しない、途中の出力/累積は捨てる）、`partition`（順序を保って`Split{matching,rest}`）、`collectUpTo`（上限までの複製と`truncated`）。callbackはpure（effectなし）なので失敗で外部作用は残らない。affine値の扱い、利用者定義Ordキーのgeneric helper、borrowed iteratorは未実施。
+
 **受入：** key型ごとの順序・比較費用を記載する。affine値を複製しない。短絡、callback failure、容量超過で何が消費済みかを示す。
 
 ## LANG-05：消費するResult/Optionの操作

@@ -24,3 +24,43 @@ pub fn find<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {
 pub fn count<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {Send,Share})->Int effects {} {
     var result=0;var i=0;while i<values.len(){if predicate(values.get(i)){result+=1;}i+=1;}return result;
 }
+
+// ---- Fallible helpers (LANG-04) ---------------------------------------------------------------------------
+// The input list is only borrowed, never consumed. The first Err short-circuits: elements after it are not visited,
+// and what was produced before it is dropped (tryMap) or returned inside no value at all (tryFold). The callbacks are
+// pure ({} effects), so a failure cannot leave a partial external effect behind.
+// @api tryMap cost O(n) callback calls, fewer after the first Err; allocates the output list.
+// @api tryMap failure The first Err from transform, unchanged; nothing else is returned.
+pub fn tryMap<T:Share,U:Share,E:Share>(values:&List<T>,transform:fn(T)->Result<U,E> effects {} captures {Send,Share})->Result<List<U>,E> effects {} {
+    let output=List<U>();var i=0;
+    while i<values.len() {
+        match transform(values.get(i)) {Ok(item)=>{output.add(item);},Err(error)=>{return Err(error);}}
+        i+=1;
+    }
+    return Ok(output);
+}
+// @api tryFold cost O(n) callback calls, fewer after the first Err.
+// @api tryFold failure The first Err from combine, unchanged; the accumulator so far is discarded.
+pub fn tryFold<T:Share,U:Share,E:Share>(values:&List<T>,initial:U,combine:fn(U,T)->Result<U,E> effects {} captures {Send,Share})->Result<U,E> effects {} {
+    var result=initial;var i=0;
+    while i<values.len() {
+        match combine(result,values.get(i)) {Ok(next)=>{result=next;},Err(error)=>{return Err(error);}}
+        i+=1;
+    }
+    return Ok(result);
+}
+pub record Split<T:Share> {matching:Frozen<List<T>>,rest:Frozen<List<T>>}
+// @api partition cost O(n) predicate calls; both lists keep the input order, every element lands in exactly one.
+pub fn partition<T:Share>(values:&List<T>,predicate:fn(T)->Bool effects {} captures {Send,Share})->Split<T> effects {} {
+    let yes=List<T>();let no=List<T>();var i=0;
+    while i<values.len() {let value=values.get(i);if predicate(value) {yes.add(value);} else {no.add(value);}i+=1;}
+    return Split<T>(freeze(yes),freeze(no));
+}
+// @api collectUpTo cost O(min(n, limit)); copies at most limit elements, and reports whether more existed.
+pub record Bounded<T:Share> {items:Frozen<List<T>>,truncated:Bool}
+pub fn collectUpTo<T:Share>(values:&List<T>,limit:Int)->Bounded<T> effects {} {
+    let out=List<T>();var i=0;var cap=limit;
+    if cap<0 {cap=0;}
+    while i<values.len() && i<cap {out.add(values.get(i));i+=1;}
+    return Bounded<T>(freeze(out),values.len()>cap);
+}

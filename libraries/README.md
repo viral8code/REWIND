@@ -65,7 +65,7 @@ compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection st
 | json | parse, parseBytes, stringify, get, keys, kind, integer, floating, text, boolean, array | 不変 Json AST、pure、1 MiB/深さ64/65,536 node |
 | config | Field, ConfigError, resolve | arguments > environment > file > fallback、schema 検証、128 field |
 | args | ArgError, parse | `--name VALUE`、未知/重複/欠落拒否、256 token/128 name |
-| collections | filter, map, any, all, fold, find, count | borrowed List、Share 要素、同期 pure Send+Share callback、入力順 |
+| collections | filter, map, any, all, fold, find, count, tryMap, tryFold, partition, Split, collectUpTo, Bounded | borrowed List、Share 要素、同期 pure Send+Share callback、入力順。`tryMap`/`tryFold`は最初のErrで止まり入力を消費しない（途中の出力は捨てる）、`partition`は順序を保って二つに分ける、`collectUpTo`は上限までだけ複製して切詰めの有無を返す |
 | math | min, max, clamp, mulMod | signed Int、clamp 範囲検査、mulMod は正の modulus と i128 中間積 |
 | option | valueOr, map | Share 値、pure callback |
 | result | valueOr, map, mapError | Share の成功/失敗値、pure callback、未選択分岐を維持 |

@@ -830,6 +830,30 @@ test fn compiled_router_rejects_ambiguous_and_malformed_routes_at_compile_time()
     assert_eq(routerCode(router.compile(freeze(method))),"BadMethod");
 }
 
+import collections as coll;
+fn evenOrErr(n:Int)->Result<Int,String> effects {} {if n%2==0 {return Ok(n/2);}return Err("odd "+n.format());}
+fn addSmall(total:Int,n:Int)->Result<Int,String> effects {} {if total+n>10 {return Err("too big");}return Ok(total+n);}
+fn isBig(n:Int)->Bool effects {} {return n>=3;}
+test fn collections_fallible_helpers_short_circuit_without_consuming_input() {
+    let items=List<Int>();items.add(2);items.add(4);items.add(5);items.add(6);
+    match coll.tryMap(&items,evenOrErr) {Err(e)=>{assert_eq(e,"odd 5");},Ok(_)=>{panic("odd value accepted");}}
+    assert_eq(items.len(),4);
+    let good=List<Int>();good.add(2);good.add(4);
+    match coll.tryMap(&good,evenOrErr) {Ok(out)=>{assert_eq(out.len(),2);assert_eq(out.get(1),2);},Err(_)=>{panic("good list failed");}}
+    match coll.tryFold(&good,0,addSmall) {Ok(v)=>{assert_eq(v,6);},Err(_)=>{panic("fold failed");}}
+    let big=List<Int>();big.add(6);big.add(6);big.add(1);
+    match coll.tryFold(&big,0,addSmall) {Err(e)=>{assert_eq(e,"too big");},Ok(_)=>{panic("fold overflow accepted");}}
+    let numbers=List<Int>();numbers.add(1);numbers.add(5);numbers.add(2);numbers.add(9);
+    let split=coll.partition(&numbers,isBig);
+    assert_eq(split.matching.len(),2);assert_eq(split.matching.get(0),5);assert_eq(split.matching.get(1),9);
+    assert_eq(split.rest.len(),2);assert_eq(split.rest.get(0),1);assert_eq(split.rest.get(1),2);
+    let few=coll.collectUpTo(&numbers,3);
+    assert_eq(few.items.len(),3);assert(few.truncated);
+    let all=coll.collectUpTo(&numbers,4);
+    assert_eq(all.items.len(),4);assert(!all.truncated);
+    assert_eq(coll.collectUpTo(&numbers,-1).items.len(),0);
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}
