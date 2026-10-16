@@ -137,6 +137,42 @@ fn main()->Int {
     var flow:Option<Task<Result<Unit,DbError>>>=None;
     var querying:Option<Task<Result<DbCursor,DbError>>>=None;
     var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+    // 3b. COMMIT is sent but not answered in time (a deferred trigger sleeps): the outcome is Unknown.
+    external {flow=Some(db.waitForCleanup(5000));}
+    match flow {None=>{panic("cleanup wait b");},Some(f)=>{match await f {_=>{}}}}
+    let slow=take(take(await dsnConnection()));
+    external {step=Some(db.execute(&mut slow,"SET search_path TO rewind_txf_test",noParams(),5000));}
+    match step {None=>{panic("path3b");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut slow,"CREATE TABLE slow_t(v BIGINT)",noParams(),5000));}
+    match step {None=>{panic("slow table");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut slow,"CREATE FUNCTION slow_commit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_sleep(2); RETURN NULL; END $$",noParams(),5000));}
+    match step {None=>{panic("slow function");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut slow,"CREATE CONSTRAINT TRIGGER slow_commit AFTER INSERT ON slow_t DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION slow_commit()",noParams(),5000));}
+    match step {None=>{panic("slow trigger");},Some(t)=>{take(take(await t));}}
+    external {flow=Some(db.beginTransaction(&mut slow,5000));}
+    match flow {None=>{panic("begin3b");},Some(f)=>{take(take(await f));}}
+    let waiting=tx.begun();
+    external {step=Some(db.execute(&mut slow,"INSERT INTO slow_t VALUES (1)",noParams(),5000));}
+    match step {None=>{panic("insert3b");},Some(t)=>{take(take(await t));}}
+    take(tx.requestCommit(&mut waiting));
+    external {flow=Some(db.commitTransaction(&mut slow,100));}
+    match flow {None=>{panic("commit3b");},Some(f)=>{
+        match await f {
+            Ok(outcome)=>{
+                match tx.completeCommit(&mut waiting,outcome) {Ok(_)=>{Out.println("slow commit succeeded");},Err(_)=>{Out.println("slow commit not answered");}}
+            },
+            Err(_)=>{Out.println("slow commit task failed");}
+        }
+    }}
+    Out.println(stateName(&waiting));
+    match tx.requestRollback(&mut waiting) {Err(_)=>{Out.println("no rollback of an unknown outcome");},Ok(_)=>{panic("rollback of unknown outcome accepted");}}
+    Out.println(tx.connectionReusable(&waiting));
+    }
+    {
+    var step:Option<Task<Result<Int,DbError>>>=None;
+    var flow:Option<Task<Result<Unit,DbError>>>=None;
+    var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+    var reading:Option<Task<Result<DbBatch,DbError>>>=None;
     // 4. A fresh connection sees none of the three uncommitted inserts, then removes the schema.
     external {flow=Some(db.waitForCleanup(5000));}
     match flow {None=>{panic("cleanup wait");},Some(f)=>{match await f {_=>{}}}}

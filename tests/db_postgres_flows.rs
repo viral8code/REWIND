@@ -65,6 +65,6 @@ fn postgres_transaction_failures_cancel_and_lost_connection_never_commit() {
     run_fixture(
         "db_tx_failures_postgres.rw",
         "rewind-pg-tx-failures",
-        "business failure\nRolledBack\ndeadline: DbDeadline\nrollback after cancel failed\nFailed\nconnection lost\ncommit not confirmed\nfalse\nno second commit\n0\n",
+        "business failure\nRolledBack\ndeadline: DbDeadline\nrollback after cancel failed\nFailed\nconnection lost\ncommit not confirmed\nfalse\nno second commit\nslow commit not answered\nUnknown\nno rollback of an unknown outcome\nfalse\n0\n",
     );
 }
