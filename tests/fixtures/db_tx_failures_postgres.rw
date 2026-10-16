@@ -1,0 +1,156 @@
+import std.db as db;
+import std.dbTransaction as tx;
+
+fn take<T,E>(value:Result<T,E>)->T effects {} {
+    match move value {Ok(item)=>{return move item;},Err(_)=>{panic("database operation failed");}}
+}
+fn noParams()->Frozen<List<DbValue>> effects {} {return freeze(List<DbValue>());}
+fn stateName(t:&tx.Transaction)->String effects {} {
+    match tx.state(t) {
+        tx.TxState::Active=>{return "Active";},
+        tx.TxState::Committing=>{return "Committing";},
+        tx.TxState::RollingBack=>{return "RollingBack";},
+        tx.TxState::Committed=>{return "Committed";},
+        tx.TxState::RolledBack=>{return "RolledBack";},
+        tx.TxState::Failed=>{return "Failed";},
+        tx.TxState::Unknown=>{return "Unknown";},
+        tx.TxState::Closed=>{return "Closed";}
+    }
+}
+
+fn dsnConnection()->Task<Result<DbConnection,DbError>> effects {db,tasks,external,env,fileRead} {
+    var opening:Option<Task<Result<DbConnection,DbError>>>=None;
+    match Env.getSecret("REWIND_PG_DSN") {
+        None=>{panic("supply REWIND_PG_DSN as a secret environment value");},
+        Some(connectionString)=>{
+            let ca=take(File.readBytes("ca.der"));
+            external {take(db.credentials("database",move connectionString,move ca));opening=Some(db.postgres("database",5000));}
+        }
+    }
+    match opening {None=>{panic("open");},Some(task)=>{return task;}}
+}
+fn main()->Int {
+    {
+    var step:Option<Task<Result<Int,DbError>>>=None;
+    var flow:Option<Task<Result<Unit,DbError>>>=None;
+    var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+    var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+    let connection=take(take(await dsnConnection()));
+    external {step=Some(db.execute(&mut connection,"DROP SCHEMA IF EXISTS rewind_txf_test CASCADE",noParams(),5000));}
+    match step {None=>{panic("drop");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut connection,"CREATE SCHEMA rewind_txf_test",noParams(),5000));}
+    match step {None=>{panic("schema");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut connection,"SET search_path TO rewind_txf_test",noParams(),5000));}
+    match step {None=>{panic("path");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut connection,"CREATE TABLE t(v BIGINT PRIMARY KEY)",noParams(),5000));}
+    match step {None=>{panic("table");},Some(t)=>{take(take(await t));}}
+
+    // 1. A business failure inside the transaction is rolled back.
+    external {flow=Some(db.beginTransaction(&mut connection,5000));}
+    match flow {None=>{panic("begin1");},Some(f)=>{take(take(await f));}}
+    let one=tx.begun();
+    external {step=Some(db.execute(&mut connection,"INSERT INTO t VALUES (1)",noParams(),5000));}
+    match step {None=>{panic("insert1");},Some(t)=>{take(take(await t));}}
+    external {step=Some(db.execute(&mut connection,"INSERT INTO t VALUES (1)",noParams(),5000));}
+    match step {None=>{panic("dup");},Some(t)=>{match await t {Ok(Ok(_))=>{panic("duplicate key accepted");},_=>{Out.println("business failure");}}}}
+    take(tx.requestRollback(&mut one));
+    external {flow=Some(db.rollbackTransaction(&mut connection,5000));}
+    match flow {None=>{panic("rollback1");},Some(f)=>{take(tx.completeRollback(&mut one,take(await f)));}}
+    Out.println(stateName(&one));
+
+    // 2. A statement that outlives its deadline is cancelled; the transaction can still be rolled back.
+    external {flow=Some(db.beginTransaction(&mut connection,5000));}
+    match flow {None=>{panic("begin2");},Some(f)=>{take(take(await f));}}
+    let two=tx.begun();
+    external {step=Some(db.execute(&mut connection,"INSERT INTO t VALUES (2)",noParams(),5000));}
+    match step {None=>{panic("insert2");},Some(t)=>{take(take(await t));}}
+    external {querying=Some(db.query(&mut connection,"SELECT pg_sleep(5)::text",noParams(),5000));}
+    match querying {None=>{panic("sleep");},Some(q)=>{
+        let sleeper=take(take(await q));
+        external {reading=Some(db.next(&mut sleeper,8,1048576,100));}
+        match reading {None=>{panic("sleep read");},Some(r)=>{
+            match await r {
+                Ok(Ok(_))=>{panic("sleep finished");},
+                Ok(Err(e))=>{Out.println("deadline: "+e.code);},
+                Err(_)=>{Out.println("deadline: task failed");}
+            }
+        }}
+    }}
+    take(tx.requestRollback(&mut two));
+    external {flow=Some(db.rollbackTransaction(&mut connection,5000));}
+    match flow {None=>{panic("rollback2");},Some(f)=>{
+        match await f {
+            Ok(outcome)=>{
+                match tx.completeRollback(&mut two,outcome) {Ok(_)=>{Out.println("rolled back after cancel");},Err(_)=>{Out.println("rollback after cancel failed");}}
+            },
+            Err(_)=>{Out.println("rollback task failed");}
+        }
+    }}
+    Out.println(stateName(&two));
+
+    }
+    {
+    var step:Option<Task<Result<Int,DbError>>>=None;
+    var flow:Option<Task<Result<Unit,DbError>>>=None;
+    var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+    var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+    // 3. The backend connection disappears before COMMIT: the outcome is reported, never retried.
+    // The deadline above closed the first connection, so scenario 3 uses a fresh one.
+    external {flow=Some(db.waitForCleanup(5000));}
+    match flow {None=>{panic("cleanup wait");},Some(f)=>{match await f {_=>{}}}}
+    let second=take(take(await dsnConnection()));
+    external {step=Some(db.execute(&mut second,"SET search_path TO rewind_txf_test",noParams(),5000));}
+    match step {None=>{panic("path3");},Some(t)=>{take(take(await t));}}
+    external {flow=Some(db.beginTransaction(&mut second,5000));}
+    match flow {None=>{panic("begin3");},Some(f)=>{take(take(await f));}}
+    let three=tx.begun();
+    external {step=Some(db.execute(&mut second,"INSERT INTO t VALUES (3)",noParams(),5000));}
+    match step {None=>{panic("insert3");},Some(t)=>{take(take(await t));}}
+    external {querying=Some(db.query(&mut second,"SELECT pg_terminate_backend(pg_backend_pid())::text",noParams(),5000));}
+    match querying {None=>{panic("terminate");},Some(q)=>{
+        let killer=take(take(await q));
+        external {reading=Some(db.next(&mut killer,8,1048576,5000));}
+        match reading {None=>{panic("terminate read");},Some(r)=>{
+            match await r {
+                Ok(Ok(_))=>{Out.println("terminate answered");},
+                Ok(Err(_))=>{Out.println("connection lost");},
+                Err(_)=>{Out.println("connection lost");}
+            }
+        }}
+    }}
+    take(tx.requestCommit(&mut three));
+    external {flow=Some(db.commitTransaction(&mut second,5000));}
+    match flow {None=>{panic("commit3");},Some(f)=>{
+        match await f {
+            Ok(outcome)=>{
+                match tx.completeCommit(&mut three,outcome) {Ok(_)=>{Out.println("commit succeeded");},Err(_)=>{Out.println("commit not confirmed");}}
+            },
+            Err(_)=>{Out.println("commit task failed");}
+        }
+    }}
+    Out.println(tx.connectionReusable(&three));
+    match tx.requestCommit(&mut three) {Err(_)=>{Out.println("no second commit");},Ok(_)=>{panic("second commit accepted");}}
+
+    }
+    {
+    var step:Option<Task<Result<Int,DbError>>>=None;
+    var flow:Option<Task<Result<Unit,DbError>>>=None;
+    var querying:Option<Task<Result<DbCursor,DbError>>>=None;
+    var reading:Option<Task<Result<DbBatch,DbError>>>=None;
+    // 4. A fresh connection sees none of the three uncommitted inserts, then removes the schema.
+    external {flow=Some(db.waitForCleanup(5000));}
+    match flow {None=>{panic("cleanup wait");},Some(f)=>{match await f {_=>{}}}}
+    let checker=take(take(await dsnConnection()));
+    external {step=Some(db.execute(&mut checker,"SET search_path TO rewind_txf_test",noParams(),5000));}
+    match step {None=>{panic("path4");},Some(t)=>{take(take(await t));}}
+    external {querying=Some(db.query(&mut checker,"SELECT count(*) FROM t",noParams(),5000));}
+    match querying {None=>{panic("count");},Some(q)=>{
+        let cursor=take(take(await q));
+        external {reading=Some(db.next(&mut cursor,8,1048576,5000));}
+        match reading {None=>{panic("count read");},Some(r)=>{let batch=take(take(await r));Out.println(take(db.integer(batch.rows.get(0),0)));}}
+    }}
+    external {step=Some(db.execute(&mut checker,"DROP SCHEMA rewind_txf_test CASCADE",noParams(),5000));}
+    match step {None=>{panic("cleanup");},Some(t)=>{take(take(await t));}}
+    }
+    return 0;
+}

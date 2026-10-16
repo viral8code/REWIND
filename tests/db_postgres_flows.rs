@@ -57,3 +57,14 @@ fn postgres_migrations_apply_once_detect_edits_and_roll_back_ddl() {
         "2\n0\n2\nchecksum mismatch 001_users\nbroken command failed\nrolled back table is gone\n",
     );
 }
+
+/// Business failure, deadline cancel and a lost connection end the transaction
+/// without a commit; none of the three inserts is visible to a fresh connection.
+#[test]
+fn postgres_transaction_failures_cancel_and_lost_connection_never_commit() {
+    run_fixture(
+        "db_tx_failures_postgres.rw",
+        "rewind-pg-tx-failures",
+        "business failure\nRolledBack\ndeadline: DbDeadline\nrollback after cancel failed\nFailed\nconnection lost\ncommit not confirmed\nfalse\nno second commit\n0\n",
+    );
+}

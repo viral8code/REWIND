@@ -16,7 +16,7 @@
 //   Committing   waiting for the backend; a second request is rejected
 //   RollingBack  waiting for the backend; a second request is rejected
 //   Committed / RolledBack   finished; commit and rollback are rejected
-//   Failed       the backend reported an error; roll back, do not reuse the connection yet
+//   Failed       the backend reported an error, or the connection was closed under the transaction (deadline, cancel); do not reuse the connection
 //   Unknown      the outcome is not known (connection lost, cancelled); never retried automatically
 //   Closed       resources released; every request is rejected
 pub enum TxState {Active,Committing,RollingBack,Committed,RolledBack,Failed,Unknown,Closed}
@@ -59,6 +59,8 @@ pub fn requestRollback(tx:&mut Transaction)->Result<Unit,TxError> effects {} {
 }
 // The backend's phase decides what a failed request means for the transaction.
 fn afterFailure(error:&DbError,previous:TxState)->TxState effects {} {
+    // A closed connection (deadline, cancel, drop) ends the physical transaction on the server: nothing is left to commit.
+    if error.code=="DbClosed" {return TxState::Failed;}
     if error.phase=="NotSent" {return previous;}
     if error.phase=="Unknown" {return TxState::Unknown;}
     return TxState::Failed;
