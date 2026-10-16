@@ -30,7 +30,7 @@ fn ok(out: &Output) {
 }
 #[test]
 fn v2_defaults_combine_traits_diagnostics_large_pages_and_published_revert_source_free() {
-    assert_eq!(env!("CARGO_PKG_VERSION"), "3.1.0");
+    assert_eq!(env!("CARGO_PKG_VERSION"), "3.2.0");
     let root = root();
     fs::write(root.join("main.rw"),r#"import std.numeric as n;import std.taskError as failures;import std.unicode as unicode;
 struct Item{value:Int}trait Read{fn read(self:&Self)->Int effects {};}impl Read for Item{fn read(self:&Item)->Int effects {} {return self.value;}}

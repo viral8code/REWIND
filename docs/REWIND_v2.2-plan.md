@@ -184,6 +184,8 @@ DDLのtransaction性はSQLite/PostgreSQLで異なるため、各commandの成功
 
 **部分実装（2026-10-14）：** [examples/notes-sqlite](../examples/notes-sqlite/README.md)がSQLite memory DBで、migration（`std.dbMigration`）の適用、入力検証（タイトルが空なら保存しない）、`std.dbTransaction`で2件を1つのtransactionにまとめた保存、`mapBatch`での一覧、2件目が失敗した保存のrollbackと件数の確認までを実行します。出力は[tests/db_row_mapping.rs](../tests/db_row_mapping.rs)で固定しています。この例はコンソール版で、GUIと保存結果不明時の表示、window終了時のcleanup、PostgreSQL差分は含みません（いずれも未完了）。
 
+**GUI版の位置づけ（2026-10-16）：** GUI・HTTP・DB（SQLite / PostgreSQL）の統合は[examples/gui-data](../examples/gui-data/README.md)が、Undo（VM revertとDB確定の区別）、保存結果不明時にretryしない扱い、window終了とcleanupまで含めて既に示している。入力・一覧・保存の最小例はコンソール版の[notes-sqlite](../examples/notes-sqlite/README.md)。両者を一つのGUIに統合した例は作らない。
+
 例では、編集取消のVM revert、入力検証、明示transaction、保存成功後の画面更新、保存結果不明時の表示、window終了とcleanupを扱います。network、DB、native入力がVM revertで巻き戻るような説明やUIを作りません。
 
 API文書と入門書は実装済みsignatureから更新し、計画上の候補APIを現行referenceへ混ぜません。

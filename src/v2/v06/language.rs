@@ -399,6 +399,7 @@ pub(in crate::v2) fn prepare(program: &mut Program) -> Result<()> {
             | "2.0.0"
             | "3.0.0"
             | "3.1.0"
+            | "3.2.0"
     ) {
         if !program.aliases.is_empty() || uses_defaults {
             return Err(Error::InvalidOperation(
