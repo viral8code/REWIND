@@ -90,11 +90,19 @@ fn retention_report_separates_shared_from_exclusive() {
     let o = rewind(&d, &["profile", "p.rw"]);
     let v: serde_json::Value = serde_json::from_slice(&o.stderr).unwrap();
     let r = &v["retention"];
-    assert!(r["heap_unique_bytes"].as_u64().unwrap() <= r["heap_references_total_bytes"].as_u64().unwrap());
+    assert!(
+        r["heap_unique_bytes"].as_u64().unwrap()
+            <= r["heap_references_total_bytes"].as_u64().unwrap()
+    );
     let roots = r["roots"].as_array().unwrap();
     assert!(roots.iter().any(|x| x["root"] == "current"));
     assert!(roots
         .iter()
-        .any(|x| x["root"] == "checkpoint:a" && !x["heap_shared_with"].as_array().unwrap().is_empty()));
-    assert!(r["notes"].as_array().unwrap().iter().any(|n| n.as_str().unwrap().contains("RSS")));
+        .any(|x| x["root"] == "checkpoint:a"
+            && !x["heap_shared_with"].as_array().unwrap().is_empty()));
+    assert!(r["notes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n.as_str().unwrap().contains("RSS")));
 }

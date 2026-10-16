@@ -13218,7 +13218,10 @@ impl<R: BufRead> Engine<R> {
     // Validate and admit the complete snapshot before allocating its contents.
     // Historical frames retain the Map-key limit; ordinary snapshots use VM budgets.
     fn collection_snapshot(&mut self, value: &Value, at: &Tok) -> Exec<Value> {
-        if !matches!(self.program.language.as_str(), "1.9.65" | "2.0.0" | "3.0.0" | "3.1.0") {
+        if !matches!(
+            self.program.language.as_str(),
+            "1.9.65" | "2.0.0" | "3.0.0" | "3.1.0"
+        ) {
             return self.ordered_key(value, at);
         }
         fn plan<R: BufRead>(
@@ -13855,13 +13858,15 @@ impl<R: BufRead> Engine<R> {
         {
             if method == "iter" {
                 let value = self.collection_snapshot(&target, at)?;
-                if let Some(iterator) =
-                    if matches!(self.program.language.as_str(), "1.9.65" | "2.0.0" | "3.0.0" | "3.1.0") {
-                        v05::new_budgeted_iterator(&mut self.runtime, &value)
-                    } else {
-                        v05::new_iterator(&mut self.runtime, &value)
-                    }
-                    .map_err(Flow::Error)?
+                if let Some(iterator) = if matches!(
+                    self.program.language.as_str(),
+                    "1.9.65" | "2.0.0" | "3.0.0" | "3.1.0"
+                ) {
+                    v05::new_budgeted_iterator(&mut self.runtime, &value)
+                } else {
+                    v05::new_iterator(&mut self.runtime, &value)
+                }
+                .map_err(Flow::Error)?
                 {
                     return Ok(iterator);
                 }
