@@ -32,6 +32,7 @@
 | httpHeaders | HeaderError, Header, Cookie, CookieSettings, lowerName, header, find, findAll, parseBlock, formatBlock, redacted, parseCookieHeader, setCookie | pureなheader/cookie helper。名前はtoken検査と小文字化、値はCR/LF/NULを拒否、繰返しheaderを保持、`redacted`はAuthorization/Cookie等の値を`***`にする。Set-Cookieの属性は検査（SameSite=NoneはSecure必須）。errorは入力値を含まない |
 | retry | RetryError, Policy, Decision, policy, delay, jitter, decide | 明示retry policyの判定だけを行うpure module（待機も送信もしない）。上限付きの回数・指数backoff・全体deadline、`NotSent`は再試行可、応答errorは`retryResponses`かつ一時的なときだけ、`Unknown`は冪等と宣言したときだけ（通常の書込みは再送しない）。jitterは記録済みの乱数drawから決定的に作る |
 | proptest | PropertyError, Failure, Outcome, draw, check | seed付きの決定的なproperty検査と縮小（pure）。`check`はseedから`Int`のlistを作り、失敗した最初の例を要素の削除と0（またはrange端）への縮小で小さくする。同じseedは同じ例と同じ結果。回数1..1000・長さ0..64・縮小0..2000。乱数はtest用でsecurity用ではない |
+| logfmt | LogError, Field, Entry, Queue, field, entry, render, queue, push, dropped, drain | 構造化ログ行のpureな生成と上限付きqueue。1 entryは必ず1行（改行・制御文字・引用符を逃がす）、値は256 byteで切り、secret指定や認証情報らしい名前（password/token/authorization/cookie等）は`***`。queueは満杯なら新しい行を捨てて件数を数え、drainが`logs dropped`行で報告する。出力先への書込みは呼出し側 |
 | guiField | new, render, dispatch, setError, clearError, text, error, cursor, anchor | 単一行入力のVM状態、renderはI/Oなし、scopeごとのid、caretとvalidation errorを保持、focusは呼び出し側 |
 
 

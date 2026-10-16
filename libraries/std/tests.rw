@@ -672,6 +672,40 @@ test fn property_checks_are_deterministic_and_shrink() {
     match proptest.check(1,5,4,9,0,10,propAlways) {Err(e)=>{assert_eq(e.code,"BadRange");},Ok(_)=>{panic("inverted range accepted");}}
 }
 
+import logfmt as logfmt;
+fn logOk<T>(r:Result<T,logfmt.LogError>)->T effects {} {match move r {Ok(v)=>{return move v;},Err(_)=>{panic("logfmt unexpected error");}}}
+test fn logfmt_renders_one_escaped_line_and_redacts_credentials() {
+    let fields=List<logfmt.Field>();
+    fields.add(logOk(logfmt.field("user","ann",false)));
+    fields.add(logOk(logfmt.field("Authorization","Bearer abc",false)));
+    fields.add(logOk(logfmt.field("note","a \"b\"\nline2\\",false)));
+    fields.add(logOk(logfmt.field("pin","1234",true)));
+    let e=logOk(logfmt.entry("info","saved",freeze(fields)));
+    assert_eq(logfmt.render(e),"level=info msg=\"saved\" user=\"ann\" Authorization=*** note=\"a \\\"b\\\"\\nline2\\\\\" pin=***");
+    let none=List<logfmt.Field>();
+    var long="";var i=0;while i<300 {long=long+"x";i+=1;}
+    let big=logOk(logfmt.entry("warn",long,freeze(none)));
+    assert(logfmt.render(big).byteLen()<200);
+    match logfmt.field("bad name","x",false) {Err(e)=>{assert_eq(e.code,"BadName");},Ok(_)=>{panic("bad field name accepted");}}
+    match logfmt.entry("loud","x",freeze(List<logfmt.Field>())) {Err(e)=>{assert_eq(e.code,"BadLevel");},Ok(_)=>{panic("bad level accepted");}}
+    match logfmt.entry("info","",freeze(List<logfmt.Field>())) {Err(e)=>{assert_eq(e.code,"BadMessage");},Ok(_)=>{panic("empty message accepted");}}
+    let many=List<logfmt.Field>();var k=0;while k<33 {many.add(logOk(logfmt.field("f","v",false)));k+=1;}
+    match logfmt.entry("info","m",freeze(many)) {Err(e)=>{assert_eq(e.code,"TooManyFields");},Ok(_)=>{panic("33 fields accepted");}}
+}
+test fn logfmt_queue_is_bounded_and_reports_drops() {
+    match logfmt.queue(0) {Err(e)=>{assert_eq(e.code,"BadCapacity");},Ok(_)=>{panic("zero capacity accepted");}}
+    let q=logOk(logfmt.queue(2));
+    assert(logfmt.push(&mut q,"one"));assert(logfmt.push(&mut q,"two"));
+    assert(!logfmt.push(&mut q,"three"));assert(!logfmt.push(&mut q,"four"));
+    assert_eq(logfmt.dropped(&q),2);
+    let lines=logfmt.drain(&mut q);
+    assert_eq(lines.len(),3);assert_eq(lines.get(0),"one");assert_eq(lines.get(1),"two");
+    assert_eq(lines.get(2),"level=warn msg=\"logs dropped\" count=2");
+    assert_eq(logfmt.dropped(&q),0);
+    assert_eq(logfmt.drain(&mut q).len(),0);
+    assert(logfmt.push(&mut q,"again"));
+}
+
 import fft as fft;
 import sparse as sparse;
 fn transformTake<T,E>(result:Result<T,E>)->T effects {} {match move result {Ok(value)=>{return move value;},Err(_)=>{panic("numeric contract");}}}

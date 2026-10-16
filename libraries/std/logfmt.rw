@@ -1,0 +1,132 @@
+// Structured log lines with redaction and a bounded queue (SVC-03). Pure: building and rendering a line does
+// not write anywhere; the caller decides when to publish the drained lines. Values are cut at 256 bytes,
+// control characters and line breaks are escaped so one entry is always one line, and fields whose name
+// looks like a credential (or that were added as secret) render as ***.
+pub record LogError {code:String}
+pub record Field {name:String,value:String,secret:Bool}
+pub record Entry {level:String,message:String,fields:Frozen<List<Field>>}
+pub struct Queue {private lines:List<String>,private capacity:Int,private dropped:Int}
+
+fn okLevel(level:String)->Bool effects {} {return level=="debug" || level=="info" || level=="warn" || level=="error";}
+fn tokenName(name:String)->Bool effects {} {
+    if name=="" || name.byteLen()>64 {return false;}
+    match stdEncode(name) {
+        Err(_)=>{return false;},
+        Ok(bytes)=>{
+            var i=0;
+            while i<stdBytesLength(bytes) {
+                match stdBytesGet(bytes,i) {
+                    Ok(byte)=>{
+                        let letter=(byte>=97 && byte<=122) || (byte>=65 && byte<=90);
+                        let digit=byte>=48 && byte<=57;
+                        if !(letter || digit || byte==95 || byte==46 || byte==45) {return false;}
+                    },
+                    Err(_)=>{return false;}
+                }
+                i+=1;
+            }
+            return true;
+        }
+    }
+}
+fn lower(text:String)->String effects {} {
+    match stdEncode(text) {
+        Err(_)=>{return text;},
+        Ok(bytes)=>{
+            let out=List<Int>();var i=0;
+            while i<stdBytesLength(bytes) {
+                match stdBytesGet(bytes,i) {Ok(b)=>{if b>=65 && b<=90 {out.add(b+32);} else {out.add(b);}},Err(_)=>{}}
+                i+=1;
+            }
+            match stdBytesFromList(&out) {Ok(b)=>{match stdDecode(b) {Ok(t)=>{return t;},Err(_)=>{return text;}}},Err(_)=>{return text;}}
+        }
+    }
+}
+fn credentialName(name:String)->Bool effects {} {
+    let n=lower(name);
+    let words=List<String>();
+    words.add("password");words.add("passwd");words.add("secret");words.add("token");words.add("authorization");words.add("cookie");words.add("apikey");words.add("api_key");words.add("api-key");words.add("credential");
+    var i=0;
+    while i<words.len() {if stdTextFind(n,words.get(i))!=None {return true;}i+=1;}
+    return false;
+}
+// Escapes quotes, backslashes and control characters; cuts at 256 bytes with an ellipsis marker.
+fn quoted(text:String)->String effects {} {
+    var source=text;
+    var cut=false;
+    if source.byteLen()>256 {
+        match stdTextSlice(source,0,128) {Ok(head)=>{source=head;cut=true;},Err(_)=>{}}
+    }
+    match stdEncode(source) {
+        Err(_)=>{return "\"\"";},
+        Ok(bytes)=>{
+            let out=List<Int>();
+            out.add(34);
+            var i=0;
+            while i<stdBytesLength(bytes) {
+                match stdBytesGet(bytes,i) {
+                    Ok(b)=>{
+                        if b==34 || b==92 {out.add(92);out.add(b);}
+                        else {
+                            if b==10 {out.add(92);out.add(110);}
+                            else {if b==13 {out.add(92);out.add(114);}
+                            else {if b==9 {out.add(92);out.add(116);}
+                            else {if b<32 || b==127 {out.add(63);} else {out.add(b);}}}}
+                        }
+                    },
+                    Err(_)=>{}
+                }
+                i+=1;
+            }
+            if cut {out.add(46);out.add(46);out.add(46);}
+            out.add(34);
+            match stdBytesFromList(&out) {Ok(b)=>{match stdDecode(b) {Ok(t)=>{return t;},Err(_)=>{return "\"\"";}}},Err(_)=>{return "\"\"";}}
+        }
+    }
+}
+// @api field failure BadName (letters, digits, _ . - only, 1..64 bytes). secret=true always renders ***; names that look like credentials do too.
+pub fn field(name:String,value:String,secret:Bool)->Result<Field,LogError> effects {} {
+    if !tokenName(name) {return Err(LogError("BadName"));}
+    return Ok(Field(name,value,secret));
+}
+// @api entry failure BadLevel (debug, info, warn, error), TooManyFields (more than 32), BadMessage (empty). The message is escaped when rendered.
+pub fn entry(level:String,message:String,fields:Frozen<List<Field>>)->Result<Entry,LogError> effects {} {
+    if !okLevel(level) {return Err(LogError("BadLevel"));}
+    if message=="" {return Err(LogError("BadMessage"));}
+    if fields.len()>32 {return Err(LogError("TooManyFields"));}
+    return Ok(Entry(level,message,fields));
+}
+// @api render cost O(fields * 256); one line: level=info msg="..." name=value ..., values quoted and escaped, credential-looking or secret fields shown as ***.
+pub fn render(entry:Entry)->String effects {} {
+    var out="level="+entry.level+" msg="+quoted(entry.message);
+    var i=0;
+    while i<entry.fields.len() {
+        let f=entry.fields.get(i);
+        if f.secret || credentialName(f.name) {out=out+" "+f.name+"=***";}
+        else {out=out+" "+f.name+"="+quoted(f.value);}
+        i+=1;
+    }
+    return out;
+}
+// @api queue failure BadCapacity (1..4096). A bounded FIFO of rendered lines: when it is full the new line is dropped and counted, never the old ones.
+pub fn queue(capacity:Int)->Result<Queue,LogError> effects {} {
+    if capacity<1 || capacity>4096 {return Err(LogError("BadCapacity"));}
+    return Ok(Queue(List<String>(),capacity,0));
+}
+// @api push cost O(1); false when the queue was full and the line was dropped.
+pub fn push(q:&mut Queue,line:String)->Bool effects {} {
+    if q.lines.len()>=q.capacity {q.dropped+=1;return false;}
+    q.lines.add(line);
+    return true;
+}
+// @api dropped cost O(1); lines dropped since the last drain.
+pub fn dropped(q:&Queue)->Int effects {} {return q.dropped;}
+// @api drain cost O(lines); the queued lines in order, plus one "logs dropped: N" line when some were dropped; the queue is empty afterwards.
+pub fn drain(q:&mut Queue)->List<String> effects {} {
+    let out=List<String>();var i=0;
+    while i<q.lines.len() {out.add(q.lines.get(i));i+=1;}
+    if q.dropped>0 {out.add("level=warn msg=\"logs dropped\" count="+q.dropped.format());}
+    while q.lines.len()>0 {q.lines.pop();}
+    q.dropped=0;
+    return out;
+}

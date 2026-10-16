@@ -58,6 +58,8 @@ logをVM内bufferへ追加するのか、external領域で運転logを出すの�
 
 統計はcounter/gauge/histogramを少数のlabelで扱う案です。任意入力をlabelにして無制限にseriesを作りません。profile counterと業務統計を二重課金・混同しない設計にします。
 
+**実装済み（2026-10-16、生成と整形のみ）：** `std.logfmt`。`field`/`entry`（level debug・info・warn・error、32 field以内）→ `render`で`level=info msg="..." name="value"`の1行を作る。値は256 byteで切り、改行・引用符・制御文字を逃がして1 entry=1行を保証。secret指定または名前がpassword・token・authorization・cookie等に見えるfieldは`***`。`queue(capacity)`は満杯なら古い行を残して新しい行を捨て件数を数え、`drain`が`logs dropped`行を付ける。出力先（stdout・file・network）への書込み、統計/metrics、request scopeとの接続は未実施。
+
 **受入：** 高頻度eventでも容量制限を守る。replay中に運転logを再送しない。機密値と高cardinalityの入力を既定で保持しない。
 
 ## SVC-04：credential更新と接続再利用
