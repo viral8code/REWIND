@@ -52,6 +52,7 @@ fn every_subcommand_has_help_that_reads_no_source_and_creates_nothing() {
         "sdk-install",
         "sdk-verify",
         "api-snapshot",
+        "compat",
         "api-diff",
         "migrate",
         "debug-session",

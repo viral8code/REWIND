@@ -578,6 +578,46 @@ fn process_memory_limit(mib: usize) -> Result<()> {
     }
 }
 
+/// DIST-03: every versioned format is reported on its own axis. A version number alone never means "compatible":
+/// each row says what is read and what happens on a mismatch.
+fn compat_report(json: bool) -> String {
+    let compiler = env!("CARGO_PKG_VERSION");
+    let rows: Vec<(&str, String, &str, &str)> = vec![
+        ("compiler", compiler.to_string(), "the running binary", "artifacts, traces, sessions, SDK manifests and locks must name exactly this compiler"),
+        ("language", format!("0.2 .. {compiler}"), "manifest `language`, or the compiler version for a standalone file", "a language newer than the compiler is rejected; older languages keep their own rules"),
+        ("artifact", "format 2".into(), "format 2 written by this compiler only", "rejected as `unsupported format/compiler`; recompile the source"),
+        ("trace", "format 1".into(), "format 1 written by this compiler only", "rejected; record again with this compiler (replay verifies against the recorded compiler)"),
+        ("session", "format 1".into(), "format 1 written by this compiler only", "rejected; the transcript is not converted"),
+        ("lock", "format 2".into(), "format 2 with this compiler and the project language", "rejected; run `rewind update` to write a new lock"),
+        ("api document", "format 2".into(), "baselines of any earlier language", "`rewind api-diff` classifies added, changed and removed symbols; `--deny-breaking` fails on breaking ones"),
+        ("sdk manifest", "format 1".into(), "format 1 of this compiler", "`rewind sdk-verify` rejects other formats and any signature mismatch"),
+        ("release record", "format 1".into(), "format 1", "rejected; not converted"),
+        ("inspection bundle", "format 1".into(), "format 1 with its source compiler recorded", "rejected when the format differs"),
+        ("timeline export", "rewind-timeline/v1".into(), "schema v1", "rejected when the schema differs"),
+        ("debug index", "format 1".into(), "format 1 inside a debug trace", "compact traces have none; other formats are rejected"),
+    ];
+    if json {
+        let axes: Vec<serde_json::Value> = rows
+            .iter()
+            .map(|(axis, current, reads, mismatch)| {
+                serde_json::json!({"axis": axis, "current": current, "reads": reads, "on_mismatch": mismatch})
+            })
+            .collect();
+        let document = serde_json::json!({"format": 1, "kind": "rewind-compatibility", "compiler": compiler, "axes": axes, "note": "no format is converted silently; a version number alone does not imply compatibility"});
+        return serde_json::to_string_pretty(&document).unwrap_or_default() + "\n";
+    }
+    let mut out = format!("REWIND {compiler} compatibility (each axis is checked on its own)\n");
+    for (axis, current, reads, mismatch) in rows {
+        out.push_str(&format!(
+            "- {axis}: {current}\n    reads: {reads}\n    on mismatch: {mismatch}\n"
+        ));
+    }
+    out.push_str(
+        "No format is converted silently; a version number alone does not imply compatibility.\n",
+    );
+    out
+}
+
 fn command_help(command: &str) -> Option<&'static str> {
     Some(match command {
         "run" => "rewind run FILE.rw|FILE.rwc [--root DIR] [--allow-effects EFFECTS] [--record TRACE.json] [--record-mode debug|compact] [--gui-events EVENTS.json] [--gui-window-events EVENTS.json] [--steps N] [--native-work N] [--task-steps N] [--history-memory SIZE] [--history-storage SIZE] [--spill-threshold SIZE] [-- ARGS...]\nRuns a source file or compiled artifact. Pending output requires publish;.",
@@ -597,6 +637,7 @@ fn command_help(command: &str) -> Option<&'static str> {
         "sdk-build" => "rewind sdk-build --output DIR --key SEED\nBuilds a signed SDK directory (documentation, API snapshots, standard library).",
         "sdk-install" => "rewind sdk-install --root DIR --sdk SDK --public-key KEY\nInstalls the standard library of a verified SDK into a project.",
         "sdk-verify" => "rewind sdk-verify --sdk SDK --public-key KEY\nVerifies the signature and contents of an SDK directory.",
+        "compat" => "rewind compat [--json]\nPrints every versioned format on its own axis (compiler, language, artifact, trace, session, lock, API document, SDK manifest, ...): what is read and what happens on a mismatch.",
         "api-snapshot" => "rewind api-snapshot [--root DIR] [--output FILE]\nWrites the public API snapshot of the project entry.",
         "api-diff" => "rewind api-diff BEFORE AFTER [--deny-breaking]\nCompares two API snapshots; --deny-breaking fails on a breaking change.",
         "migrate" => "rewind migrate [--root DIR] [--write]\nPreviews language migration of a project; --write applies it.",
@@ -1091,6 +1132,17 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             &output.ok_or_else(|| Error::InvalidOperation("missing --output".into()))?,
             key.as_deref(),
         );
+    }
+    if script == "compat" {
+        let mut json = false;
+        while let Some(option) = args.next() {
+            match option.as_str() {
+                "--json" => json = true,
+                _ => return Err(Error::InvalidOperation("unknown compat option".into())),
+            }
+        }
+        print!("{}", compat_report(json));
+        return Ok(());
     }
     if script == "api-snapshot" {
         let mut root = env::current_dir()?;

@@ -26,6 +26,8 @@ language、artifact、trace、SDK signature、model format、native依存のvers
 
 候補は公開API差分の自動報告です。field/type/effects/generic bounds/error code/default/parameter名を分類し、互換性判断は人が確認します。source修正が必要な変更と、artifact再compileが必要な変更を区別します。
 
+**実装済み（2026-10-16、軸の一覧と拒否の確認）：** `rewind compat [--json]`がcompiler・language・artifact・trace・session・lock・API document・SDK manifest・release record・inspection bundle・timeline・debug indexを別々の軸として、現行versionと「何を読むか」「不一致のとき何が起きるか」を表示する。version番号だけで互換とは言わず、黙って変換しない。[tests/compat.rs](../tests/compat.rs)が、別compiler・別formatのartifactとtraceが明示的に拒否されること、現行のものは読めることを確認する。API差分の分類は既存の`api-diff`（`--deny-breaking`）、[tests/api_docs.rs](../tests/api_docs.rs)がbaseline欠落を検出する。parameter名・default・error codeの差分分類と、旧版fixtureの収集は未実施。
+
 **受入：** 意図したAPI変更が報告される。旧artifact/traceの既知fixtureを読むか、明示的に拒否する。古い形式を黙って現行形式へ読み替えない。
 
 ## QUAL-01：property testと縮小する失敗例
