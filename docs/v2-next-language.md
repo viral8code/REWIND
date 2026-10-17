@@ -52,6 +52,8 @@ Share制約付きのmap/helperは既存です。connectionやnative ownerを含�
 
 **受入：** DB接続の生成結果を安全に次操作へ渡す最小例。二重利用・borrow逃避を拒否。失敗/取消/早期returnでcleanupが一度だけ成立する。
 
+**実装済み（2026-10-17、library）：** 現行genericのままで成立することを確認し、compilerは変更していません。`std.result.mapOwned/thenOwned/mapErrorOwned`と`std.option.mapOwned/thenOwned`は入力を`move`で消費し、非Shareのowner（List等）を複製せずcallbackへ一度だけ渡します。Errの側はそのまま移動し、callbackがErr/Noneを返せばownerはそこで破棄されます。[tests/owned_result.rs](../tests/owned_result.rs)が消費後の再利用と`move`の省略を拒否することを確認します。fallible callbackが資源を取り出した後に失敗した場合の再取得（pool返却等）は、callbackがownerを返す設計に任せます。
+
 ## LANG-06：複数errorを集める検証
 
 最初のErrで停止する`?`と、form/設定の複数誤りを一度に返す検証を区別します。recordやenumでpath、code、関連fieldを持つ結果を設計し、検証自体はpureにします。

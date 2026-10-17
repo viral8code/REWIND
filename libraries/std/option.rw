@@ -4,3 +4,11 @@ pub fn valueOr<T:Share>(value:Option<T>,fallback:T)->T effects {} {
 pub fn map<T:Share,U:Share>(value:Option<T>,transform:fn(T)->U effects {} captures {Send,Share})->Option<U> effects {} {
     match value {Some(v)=>{return Some(transform(v));},None=>{return None;}}
 }
+// @api mapOwned cost O(1) plus the callback. Consumes the Option: Some(owner) is moved into transform exactly once. Works for non-Share owners.
+pub fn mapOwned<T,U>(value:Option<T>,transform:fn(T)->U effects {} captures {Send,Share})->Option<U> effects {} {
+    match move value {Some(v)=>{return Some(transform(move v));},None=>{return None;}}
+}
+// @api thenOwned cost O(1) plus the callback. Consumes the Option; next may return None to drop the owner.
+pub fn thenOwned<T,U>(value:Option<T>,next:fn(T)->Option<U> effects {} captures {Send,Share})->Option<U> effects {} {
+    match move value {Some(v)=>{return next(move v);},None=>{return None;}}
+}

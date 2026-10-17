@@ -68,7 +68,7 @@ compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection st
 | collections | filter, map, any, all, fold, find, count, tryMap, tryFold, partition, Split, collectUpTo, Bounded | borrowed List、Share 要素、同期 pure Send+Share callback、入力順。`tryMap`/`tryFold`は最初のErrで止まり入力を消費しない（途中の出力は捨てる）、`partition`は順序を保って二つに分ける、`collectUpTo`は上限までだけ複製して切詰めの有無を返す |
 | math | min, max, clamp, mulMod | signed Int、clamp 範囲検査、mulMod は正の modulus と i128 中間積 |
 | option | valueOr, map | Share 値、pure callback |
-| result | valueOr, map, mapError | Share の成功/失敗値、pure callback、未選択分岐を維持 |
+| result | valueOr, map, mapError, mapOwned, thenOwned, mapErrorOwned | valueOr/map/mapError は Share の値用。`*Owned` は Result を消費し、非Share の owner（List、接続など）を複製せず一度だけ次へ渡す |
 | map | getOr, contains | borrowed Map、Ord key、Share value、key equality は既存 Map と同じ |
 | text | length, trim, split, tokens, slice, find | Unicode scalar index、slice は半開区間、split は空要素保持、tokens は ASCII whitespace |
 | bytes | length, encode, decode, get, slice | UTF-8 codec、byte index、get は0..255、slice は半開区間 |

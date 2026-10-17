@@ -2530,3 +2530,36 @@ test fn field_render_keeps_caret() {
  assert_eq(items.get(1).anchor,anchor);
  assert_eq(again.get(1).cursor,cursor);
 }
+
+fn fillOwner(owner:List<Int>)->Result<List<Int>,String> effects {} {
+    owner.add(7);
+    return Ok(move owner);
+}
+fn rejectOwner(owner:List<Int>)->Result<List<Int>,String> effects {} {
+    return Err("rejected");
+}
+test fn result_owned_moves_a_mutable_owner_without_copying() {
+    let start:Result<List<Int>,String>=Ok(List<Int>());
+    let filled=result.thenOwned(move start,fillOwner);
+    let sized=result.mapOwned(move filled,|owner:List<Int>|->Int{return owner.len();});
+    assert_eq(sized,Ok(1));
+    let failing:Result<List<Int>,String>=Ok(List<Int>());
+    let dropped=result.thenOwned(move failing,rejectOwner);
+    assert_eq(result.mapOwned(move dropped,|owner:List<Int>|->Int{return owner.len();}),Err("rejected"));
+    let already:Result<List<Int>,String>=Err("early");
+    let stillErr=result.mapErrorOwned(move already,|e:String|->Int{return e.byteLen();});
+    assert_eq(result.mapOwned(move stillErr,|owner:List<Int>|->Int{return owner.len();}),Err(5));
+    let fine:Result<List<Int>,String>=Ok(List<Int>());
+    let kept=result.mapErrorOwned(move fine,|e:String|->Int{return 0;});
+    assert_eq(result.mapOwned(move kept,|owner:List<Int>|->Int{return owner.len();}),Ok(0));
+}
+test fn option_owned_consumes_the_owner_once() {
+    let some:Option<List<Int>>=Some(List<Int>());
+    let sized=option.mapOwned(move some,|owner:List<Int>|->Int{owner.add(1);return owner.len();});
+    assert_eq(sized,Some(1));
+    let none:Option<List<Int>>=None;
+    assert_eq(option.mapOwned(move none,|owner:List<Int>|->Int{return 1;}),None);
+    let kept:Option<List<Int>>=Some(List<Int>());
+    let gone=option.thenOwned(move kept,|owner:List<Int>|->Option<Int>{return None;});
+    assert_eq(gone,None);
+}

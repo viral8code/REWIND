@@ -7,3 +7,15 @@ pub fn map<T:Share,U:Share,E:Share>(value:Result<T,E>,transform:fn(T)->U effects
 pub fn mapError<T:Share,E:Share,F:Share>(value:Result<T,E>,transform:fn(E)->F effects {} captures {Send,Share})->Result<T,F> effects {} {
     match value {Ok(v)=>{return Ok(v);},Err(e)=>{return Err(transform(e));}}
 }
+// @api mapOwned cost O(1) plus the callback. Consumes the Result: Ok(owner) is moved into transform exactly once, Err(e) is moved to the result; neither side is cloned, so the owner is used or dropped exactly once. Works for non-Share owners.
+pub fn mapOwned<T,U,E>(value:Result<T,E>,transform:fn(T)->U effects {} captures {Send,Share})->Result<U,E> effects {} {
+    match move value {Ok(v)=>{return Ok(transform(move v));},Err(e)=>{return Err(move e);}}
+}
+// @api thenOwned cost O(1) plus the callback. Like mapOwned for a fallible step: the owner goes into next; next decides whether it comes back (Ok) or is dropped (Err).
+pub fn thenOwned<T,U,E>(value:Result<T,E>,next:fn(T)->Result<U,E> effects {} captures {Send,Share})->Result<U,E> effects {} {
+    match move value {Ok(v)=>{return next(move v);},Err(e)=>{return Err(move e);}}
+}
+// @api mapErrorOwned cost O(1) plus the callback. Consumes the Result; an Ok owner passes through untouched.
+pub fn mapErrorOwned<T,E,F>(value:Result<T,E>,transform:fn(E)->F effects {} captures {Send,Share})->Result<T,F> effects {} {
+    match move value {Ok(v)=>{return Ok(move v);},Err(e)=>{return Err(transform(move e));}}
+}
