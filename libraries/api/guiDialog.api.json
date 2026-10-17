@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.60",
+  "language": "3.5.0",
   "symbols": {
     "fn:openFile": {
       "async": false,
       "cost": "Nonblocking Task over a bounded native request and response. Revert reuses the recorded operation; replay opens no OS dialog. Returned paths grant no file capability and the API never reads file content.",
+      "defaults": [],
       "effects": [
         "external",
         "gui",
@@ -13,6 +14,10 @@
       ],
       "failure": "Requires explicit external region and gui/external/tasks permissions; application task only. One native dialog per process. GuiDialogBusy/Unavailable/Thread/Title/Path/PathLimit/PathEncoding are typed. Cancellation by the user returns None; task cancellation closes the native request. Linux uses system GTK 3; Windows uses Win32 common dialogs.",
       "generics": [],
+      "names": [
+        "title",
+        "initial"
+      ],
       "parameters": [
         "String",
         "String"
@@ -22,6 +27,7 @@
     "fn:saveFile": {
       "async": false,
       "cost": "At most 256 UTF-8 title bytes and 4096 path bytes; native UI state and physical worker lifetime are not checkpointed. external live retains only the task/checkpoint-owned result, without complete record/replay support.",
+      "defaults": [],
       "effects": [
         "external",
         "gui",
@@ -29,11 +35,57 @@
       ],
       "failure": "Same boundary and lifetime as openFile. Selecting a destination does not create or truncate it. Native overwrite confirmation asks about the selected name; applications still perform and publish their own file operation.",
       "generics": [],
+      "names": [
+        "title",
+        "initial"
+      ],
       "parameters": [
         "String",
         "String"
       ],
       "return": "Task<Result<Option<String>,StdError>>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -690,6 +742,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

@@ -1,10 +1,11 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.8",
+  "language": "3.5.0",
   "symbols": {
     "fn:create": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Capacity requires 1..1048576 nodes including the root; insert prevalidates capacity before mutation.",
       "generics": [
@@ -13,6 +14,9 @@
           "Share"
         ]
       ],
+      "names": [
+        "capacity"
+      ],
       "parameters": [
         "Int"
       ],
@@ -20,12 +24,16 @@
     },
     "fn:createText": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "capacity"
       ],
       "parameters": [
         "Int"
@@ -34,12 +42,17 @@
     },
     "fn:get": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "key"
       ],
       "parameters": [
         "&BytesTrie<V>",
@@ -50,12 +63,18 @@
     "fn:insert": {
       "async": false,
       "cost": "O(key bytes * log(node capacity)) map/list accesses; existing value is returned. Keys are at most 1048576 bytes.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "key",
+        "value"
       ],
       "parameters": [
         "&mut BytesTrie<V>",
@@ -66,12 +85,16 @@
     },
     "fn:nodes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree"
       ],
       "parameters": [
         "&BytesTrie<V>"
@@ -80,12 +103,17 @@
     },
     "fn:prefixCount": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "prefix"
       ],
       "parameters": [
         "&BytesTrie<V>",
@@ -96,12 +124,17 @@
     "fn:remove": {
       "async": false,
       "cost": "O(key bytes * log(node capacity)); prunes zero-count branches and recycles their node IDs.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "key"
       ],
       "parameters": [
         "&mut BytesTrie<V>",
@@ -111,26 +144,77 @@
     },
     "fn:size": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree"
       ],
       "parameters": [
         "&BytesTrie<V>"
       ],
       "return": "Int"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:textGet": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "key"
       ],
       "parameters": [
         "&TextTrie<V>",
@@ -140,12 +224,18 @@
     },
     "fn:textInsert": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "key",
+        "value"
       ],
       "parameters": [
         "&mut TextTrie<V>",
@@ -156,12 +246,16 @@
     },
     "fn:textNodes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree"
       ],
       "parameters": [
         "&TextTrie<V>"
@@ -170,12 +264,17 @@
     },
     "fn:textPrefixCount": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "prefix"
       ],
       "parameters": [
         "&TextTrie<V>",
@@ -185,12 +284,17 @@
     },
     "fn:textRemove": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "key"
       ],
       "parameters": [
         "&mut TextTrie<V>",
@@ -200,12 +304,16 @@
     },
     "fn:textSize": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "V",
           "Share"
         ]
+      ],
+      "names": [
+        "tree"
       ],
       "parameters": [
         "&TextTrie<V>"
@@ -409,7 +517,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -489,6 +615,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -673,6 +868,35 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -696,7 +920,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -714,6 +956,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },

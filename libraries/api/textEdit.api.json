@@ -1,13 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:textIndex.rw": {
       "fn:$import$textIndex$byteAt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "source",
+          "offset"
+        ],
         "parameters": [
           "$import$textIndex$Source",
           "Int"
@@ -16,8 +21,12 @@
       },
       "fn:$import$textIndex$byteLength": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "source"
+        ],
         "parameters": [
           "$import$textIndex$Source"
         ],
@@ -25,8 +34,12 @@
       },
       "fn:$import$textIndex$byteSource": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$ByteOffset"
         ],
@@ -34,8 +47,12 @@
       },
       "fn:$import$textIndex$byteToGrapheme": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$ByteOffset"
         ],
@@ -43,8 +60,12 @@
       },
       "fn:$import$textIndex$byteToScalar": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$ByteOffset"
         ],
@@ -52,8 +73,12 @@
       },
       "fn:$import$textIndex$byteValue": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$ByteOffset"
         ],
@@ -61,8 +86,12 @@
       },
       "fn:$import$textIndex$bytes": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "source"
+        ],
         "parameters": [
           "$import$textIndex$Source"
         ],
@@ -70,8 +99,12 @@
       },
       "fn:$import$textIndex$create": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "text"
+        ],
         "parameters": [
           "String"
         ],
@@ -79,8 +112,13 @@
       },
       "fn:$import$textIndex$graphemeAt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "source",
+          "index"
+        ],
         "parameters": [
           "$import$textIndex$Source",
           "Int"
@@ -89,8 +127,12 @@
       },
       "fn:$import$textIndex$graphemeLength": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "source"
+        ],
         "parameters": [
           "$import$textIndex$Source"
         ],
@@ -98,8 +140,12 @@
       },
       "fn:$import$textIndex$graphemeSource": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$GraphemeIndex"
         ],
@@ -107,8 +153,12 @@
       },
       "fn:$import$textIndex$graphemeToByte": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$GraphemeIndex"
         ],
@@ -116,8 +166,12 @@
       },
       "fn:$import$textIndex$graphemeValue": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$GraphemeIndex"
         ],
@@ -125,8 +179,13 @@
       },
       "fn:$import$textIndex$scalarAt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "source",
+          "index"
+        ],
         "parameters": [
           "$import$textIndex$Source",
           "Int"
@@ -135,8 +194,12 @@
       },
       "fn:$import$textIndex$scalarLength": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "source"
+        ],
         "parameters": [
           "$import$textIndex$Source"
         ],
@@ -144,8 +207,12 @@
       },
       "fn:$import$textIndex$scalarSource": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$ScalarIndex"
         ],
@@ -153,8 +220,12 @@
       },
       "fn:$import$textIndex$scalarToByte": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$ScalarIndex"
         ],
@@ -162,8 +233,12 @@
       },
       "fn:$import$textIndex$scalarValue": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "position"
+        ],
         "parameters": [
           "$import$textIndex$ScalarIndex"
         ],
@@ -171,8 +246,13 @@
       },
       "fn:$import$textIndex$sliceBytes": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "start",
+          "end"
+        ],
         "parameters": [
           "$import$textIndex$ByteOffset",
           "$import$textIndex$ByteOffset"
@@ -181,8 +261,13 @@
       },
       "fn:$import$textIndex$sliceGraphemes": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "start",
+          "end"
+        ],
         "parameters": [
           "$import$textIndex$GraphemeIndex",
           "$import$textIndex$GraphemeIndex"
@@ -191,8 +276,13 @@
       },
       "fn:$import$textIndex$sliceScalars": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "start",
+          "end"
+        ],
         "parameters": [
           "$import$textIndex$ScalarIndex",
           "$import$textIndex$ScalarIndex"
@@ -201,8 +291,12 @@
       },
       "fn:$import$textIndex$text": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "source"
+        ],
         "parameters": [
           "$import$textIndex$Source"
         ],
@@ -251,8 +345,13 @@
     "fn:chain": {
       "async": false,
       "cost": "Checks that at most 1024 edits connect by exact text content. Keeps the entire sequence and its source versions.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source",
+        "edits"
+      ],
       "parameters": [
         "$import$textIndex$Source",
         "&List<Edit>"
@@ -261,8 +360,12 @@
     },
     "fn:chainLength": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "mapping"
+      ],
       "parameters": [
         "Chain"
       ],
@@ -270,8 +373,12 @@
     },
     "fn:chainResult": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "mapping"
+      ],
       "parameters": [
         "Chain"
       ],
@@ -279,8 +386,12 @@
     },
     "fn:chainSource": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "mapping"
+      ],
       "parameters": [
         "Chain"
       ],
@@ -288,8 +399,12 @@
     },
     "fn:end": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "edit"
+      ],
       "parameters": [
         "Edit"
       ],
@@ -297,8 +412,12 @@
     },
     "fn:insertedBytes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "edit"
+      ],
       "parameters": [
         "Edit"
       ],
@@ -306,9 +425,13 @@
     },
     "fn:inverse": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Restores the previous text version; does not make a deleted interior position bijectively recoverable.",
       "generics": [],
+      "names": [
+        "edit"
+      ],
       "parameters": [
         "Edit"
       ],
@@ -316,8 +439,12 @@
     },
     "fn:inverseChain": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "mapping"
+      ],
       "parameters": [
         "Chain"
       ],
@@ -325,8 +452,12 @@
     },
     "fn:isIdentity": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "edit"
+      ],
       "parameters": [
         "Edit"
       ],
@@ -334,9 +465,15 @@
     },
     "fn:mapByte": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Maps positions outside edits exactly. Interior/insertion positions require explicit affinity or return a typed error.",
       "generics": [],
+      "names": [
+        "edit",
+        "position",
+        "policy"
+      ],
       "parameters": [
         "Edit",
         "$import$textIndex$ByteOffset",
@@ -346,9 +483,15 @@
     },
     "fn:mapChainByte": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Verifies the initial source once, then maps offsets through the already-validated sequence. Failure identifies the first failing step.",
       "generics": [],
+      "names": [
+        "mapping",
+        "position",
+        "policy"
+      ],
       "parameters": [
         "Chain",
         "$import$textIndex$ByteOffset",
@@ -359,8 +502,14 @@
     "fn:mapChainGrapheme": {
       "async": false,
       "cost": "Checks the final grapheme boundary; intermediate versions may temporarily lose that boundary.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "mapping",
+        "position",
+        "policy"
+      ],
       "parameters": [
         "Chain",
         "$import$textIndex$GraphemeIndex",
@@ -370,8 +519,14 @@
     },
     "fn:mapChainScalar": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "mapping",
+        "position",
+        "policy"
+      ],
       "parameters": [
         "Chain",
         "$import$textIndex$ScalarIndex",
@@ -382,8 +537,14 @@
     "fn:mapGrapheme": {
       "async": false,
       "cost": "Rechecks segmentation after editing; a former boundary can disappear when combining characters or CRLF join.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "edit",
+        "position",
+        "policy"
+      ],
       "parameters": [
         "Edit",
         "$import$textIndex$GraphemeIndex",
@@ -393,8 +554,14 @@
     },
     "fn:mapScalar": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "edit",
+        "position",
+        "policy"
+      ],
       "parameters": [
         "Edit",
         "$import$textIndex$ScalarIndex",
@@ -405,8 +572,14 @@
     "fn:replace": {
       "async": false,
       "cost": "Replaces a scalar-aligned range, preserving all other text verbatim. Same-content replacement retains the existing Source.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "start",
+        "end",
+        "replacement"
+      ],
       "parameters": [
         "$import$textIndex$ScalarIndex",
         "$import$textIndex$ScalarIndex",
@@ -416,8 +589,14 @@
     },
     "fn:replaceBytes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "start",
+        "end",
+        "replacement"
+      ],
       "parameters": [
         "$import$textIndex$ByteOffset",
         "$import$textIndex$ByteOffset",
@@ -427,8 +606,14 @@
     },
     "fn:replaceGraphemes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "start",
+        "end",
+        "replacement"
+      ],
       "parameters": [
         "$import$textIndex$GraphemeIndex",
         "$import$textIndex$GraphemeIndex",
@@ -438,8 +623,12 @@
     },
     "fn:result": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "edit"
+      ],
       "parameters": [
         "Edit"
       ],
@@ -447,8 +636,12 @@
     },
     "fn:source": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "edit"
+      ],
       "parameters": [
         "Edit"
       ],
@@ -456,8 +649,12 @@
     },
     "fn:start": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "edit"
+      ],
       "parameters": [
         "Edit"
       ],
@@ -465,12 +662,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -479,6 +680,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -489,6 +691,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

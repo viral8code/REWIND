@@ -1,14 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.16",
+  "language": "3.5.0",
   "symbols": {
     "fn:create": {
       "async": false,
       "cost": "O(parameters + elements) finite validation, shared native pages; <=128 names, each 1..128 UTF-8 bytes, encoded model <=32 MiB.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericSize/Domain/Type/NonFinite; sorted names, no NUL; fatal work/memory budgets apply. No per-cell VM objects.",
       "generics": [],
+      "names": [
+        "weights"
+      ],
       "parameters": [
         "Map<String,FloatArray>"
       ],
@@ -16,9 +20,13 @@
     },
     "fn:decode": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "NumericSize/Domain/Shape/NonFinite; validates complete container, lengths, shapes, names, values and checksum before creating numeric pages. No code execution or external I/O.",
       "generics": [],
+      "names": [
+        "bytes"
+      ],
       "parameters": [
         "Bytes"
       ],
@@ -27,9 +35,13 @@
     "fn:encode": {
       "async": false,
       "cost": "O(elements + bytes) native serialization; dimensions and exact finite IEEE bits, canonical names, versioned format with SHA-256 integrity (not an authenticity signature).",
+      "defaults": [],
       "effects": [],
       "failure": "NumericSize/Domain/NonFinite; fatal memory/work budgets apply. Serialization materializes a bounded Bytes value, not a streaming container.",
       "generics": [],
+      "names": [
+        "model"
+      ],
       "parameters": [
         "&Model"
       ],
@@ -37,8 +49,13 @@
     },
     "fn:get": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "model",
+        "name"
+      ],
       "parameters": [
         "&Model",
         "String"
@@ -47,11 +64,15 @@
     },
     "fn:load": {
       "async": false,
+      "defaults": [],
       "effects": [
         "fileRead"
       ],
       "failure": "File:<code> or codec errors; observed file bytes follow existing journal/replay contract, work/history/file budgets apply.",
       "generics": [],
+      "names": [
+        "path"
+      ],
       "parameters": [
         "String"
       ],
@@ -59,22 +80,73 @@
     },
     "fn:save": {
       "async": false,
+      "defaults": [],
       "effects": [
         "fileWrite"
       ],
       "failure": "numeric codec errors; file writes and publish use existing fatal VM failures; deferred VM file write, physically visible only after publish, then not undone by revert.",
       "generics": [],
+      "names": [
+        "model",
+        "path"
+      ],
       "parameters": [
         "&Model",
         "String"
       ],
       "return": "Result<Unit,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:weights": {
       "async": false,
       "cost": "O(parameters) metadata; COW numeric storage versions are shared.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "model"
+      ],
       "parameters": [
         "&Model"
       ],
@@ -266,7 +338,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -346,6 +436,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -530,11 +689,40 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Model": {
       "constructor": false,
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
     },
     "type:QrResult": {
       "constructor": true,
@@ -559,7 +747,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -577,6 +783,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

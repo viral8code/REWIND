@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.57",
+  "language": "3.5.0",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
@@ -19,6 +20,10 @@
             null
           ]
         ],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "Task<A>",
           "Task<B>"
@@ -27,10 +32,12 @@
       },
       "fn:$import$task$yieldNow": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       }
@@ -38,25 +45,77 @@
     "fn:reshapeLogical": {
       "async": true,
       "cost": "O(rank) for an already-contiguous input; otherwise at most 4096 raw logical cells per step, shared inputs and bounded page writes, yields between steps.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Index/ReadOnly/Domain; preserves raw NaN payloads and signed zero without arithmetic finite checks, no partial output on failure/cancel. Fatal budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "shape"
+      ],
       "parameters": [
         "FloatArray",
         "List<Int>"
       ],
       "return": "Result<FloatArray,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:sumToShape": {
       "async": true,
       "cost": "At most 4096 input/final-output cells per step, Neumaier order per output cell, two shared native page accumulators, fixed-size page-footprint admission and task handoff.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Index/ReadOnly/Domain/NonFinite/Overflow; same broadcast contraction and empty/scalar result as synchronous SumToShape, no partial result on failure/cancel. Fatal budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "shape"
+      ],
       "parameters": [
         "FloatArray",
         "List<Int>"
@@ -718,6 +777,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

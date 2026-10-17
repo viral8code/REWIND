@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.0.0",
+  "language": "3.5.0",
   "symbols": {
     "alias:FormError": {
       "generics": [],
@@ -10,8 +10,13 @@
     "dependency:datetime.rw": {
       "fn:$import$datetime$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "delta"
+        ],
         "parameters": [
           "&Instant",
           "&Duration"
@@ -20,8 +25,13 @@
       },
       "fn:$import$datetime$addDurations": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Duration",
           "&Duration"
@@ -30,8 +40,13 @@
       },
       "fn:$import$datetime$calendar": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "zone"
+        ],
         "parameters": [
           "&Instant",
           "String"
@@ -40,8 +55,13 @@
       },
       "fn:$import$datetime$calendarOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "&Instant",
           "Int"
@@ -50,15 +70,22 @@
       },
       "fn:$import$datetime$databaseVersion": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<String,StdError>"
       },
       "fn:$import$datetime$difference": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Instant",
           "&Instant"
@@ -67,8 +94,13 @@
       },
       "fn:$import$datetime$duration": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "seconds",
+          "nanoseconds"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -77,8 +109,12 @@
       },
       "fn:$import$datetime$durationFromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -86,8 +122,12 @@
       },
       "fn:$import$datetime$durationNanoseconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -95,8 +135,12 @@
       },
       "fn:$import$datetime$durationSeconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -104,8 +148,12 @@
       },
       "fn:$import$datetime$durationToJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -113,8 +161,12 @@
       },
       "fn:$import$datetime$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -122,8 +174,13 @@
       },
       "fn:$import$datetime$formatOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "&Instant",
           "Int"
@@ -132,8 +189,12 @@
       },
       "fn:$import$datetime$fromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -141,8 +202,13 @@
       },
       "fn:$import$datetime$instant": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "seconds",
+          "nanoseconds"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -151,8 +217,12 @@
       },
       "fn:$import$datetime$nanoseconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -160,8 +230,12 @@
       },
       "fn:$import$datetime$negateDuration": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -169,8 +243,12 @@
       },
       "fn:$import$datetime$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "text"
+        ],
         "parameters": [
           "String"
         ],
@@ -178,8 +256,14 @@
       },
       "fn:$import$datetime$resolve": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "zone",
+          "ambiguity"
+        ],
         "parameters": [
           "$import$datetime$Calendar",
           "String",
@@ -189,8 +273,13 @@
       },
       "fn:$import$datetime$resolveOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "$import$datetime$Calendar",
           "Int"
@@ -199,8 +288,12 @@
       },
       "fn:$import$datetime$seconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -208,8 +301,13 @@
       },
       "fn:$import$datetime$subtractDurations": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Duration",
           "&Duration"
@@ -218,8 +316,12 @@
       },
       "fn:$import$datetime$toJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -295,8 +397,15 @@
     "dependency:decimal.rw": {
       "fn:$import$decimal$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -307,8 +416,12 @@
       },
       "fn:$import$decimal$coefficient": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -316,8 +429,13 @@
       },
       "fn:$import$decimal$compare": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal"
@@ -326,8 +444,16 @@
       },
       "fn:$import$decimal$divide": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "scale",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -339,8 +465,12 @@
       },
       "fn:$import$decimal$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -348,8 +478,13 @@
       },
       "fn:$import$decimal$fromCoefficient": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "scale"
+        ],
         "parameters": [
           "&BigInt",
           "Int"
@@ -358,8 +493,12 @@
       },
       "fn:$import$decimal$fromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -367,8 +506,15 @@
       },
       "fn:$import$decimal$multiply": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -379,8 +525,12 @@
       },
       "fn:$import$decimal$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "String"
         ],
@@ -388,8 +538,15 @@
       },
       "fn:$import$decimal$quantize": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "scale",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "Int",
@@ -400,8 +557,12 @@
       },
       "fn:$import$decimal$representation": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -409,8 +570,12 @@
       },
       "fn:$import$decimal$scale": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -418,8 +583,15 @@
       },
       "fn:$import$decimal$subtract": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -430,8 +602,12 @@
       },
       "fn:$import$decimal$toJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -445,8 +621,14 @@
       },
       "fn:$import$gui$applyLayout": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "layout",
+          "bounds"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&$import$gui$Layout",
@@ -456,8 +638,16 @@
       },
       "fn:$import$gui$arrange": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "columns",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -469,8 +659,16 @@
       },
       "fn:$import$gui$arrangeColumn": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -482,8 +680,16 @@
       },
       "fn:$import$gui$arrangeRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -495,8 +701,13 @@
       },
       "fn:$import$gui$background": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Int"
@@ -505,8 +716,12 @@
       },
       "fn:$import$gui$bounds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -514,8 +729,18 @@
       },
       "fn:$import$gui$button": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -529,8 +754,19 @@
       },
       "fn:$import$gui$checkbox": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "checked",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -545,8 +781,13 @@
       },
       "fn:$import$gui$checked": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -555,17 +796,24 @@
       },
       "fn:$import$gui$close": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<Unit,StdError>"
       },
       "fn:$import$gui$column": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children",
+          "gap"
+        ],
         "parameters": [
           "&List<$import$gui$WeightedLayout>",
           "Int"
@@ -574,8 +822,13 @@
       },
       "fn:$import$gui$componentId": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope",
+          "local"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope",
           "String"
@@ -584,8 +837,13 @@
       },
       "fn:$import$gui$componentLocalId": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope",
+          "widgetId"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope",
           "String"
@@ -594,8 +852,12 @@
       },
       "fn:$import$gui$componentPrefix": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope"
         ],
@@ -603,8 +865,12 @@
       },
       "fn:$import$gui$componentScope": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "name"
+        ],
         "parameters": [
           "String"
         ],
@@ -612,17 +878,25 @@
       },
       "fn:$import$gui$continueInput": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       },
       "fn:$import$gui$crossSized": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "child",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$gui$WeightedLayout",
           "Int",
@@ -632,8 +906,13 @@
       },
       "fn:$import$gui$dispatch": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "event"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "$import$gui$Event"
@@ -642,8 +921,14 @@
       },
       "fn:$import$gui$edit": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "event"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -653,8 +938,13 @@
       },
       "fn:$import$gui$focus": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String"
@@ -663,8 +953,12 @@
       },
       "fn:$import$gui$focused": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -672,8 +966,13 @@
       },
       "fn:$import$gui$graphemeEditing": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "enabled"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Bool"
@@ -682,8 +981,12 @@
       },
       "fn:$import$gui$graphemeMode": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -691,8 +994,18 @@
       },
       "fn:$import$gui$label": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -706,8 +1019,12 @@
       },
       "fn:$import$gui$leaf": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "id"
+        ],
         "parameters": [
           "String"
         ],
@@ -715,8 +1032,18 @@
       },
       "fn:$import$gui$line": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "x1",
+          "y1",
+          "x2",
+          "y2",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -730,17 +1057,24 @@
       },
       "fn:$import$gui$nextEvent": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<$import$gui$Event,StdError>"
       },
       "fn:$import$gui$overlay": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "base",
+          "layer"
+        ],
         "parameters": [
           "&$import$gui$View",
           "&$import$gui$View"
@@ -749,8 +1083,12 @@
       },
       "fn:$import$gui$overlayLayout": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children"
+        ],
         "parameters": [
           "&List<$import$gui$Layout>"
         ],
@@ -758,8 +1096,16 @@
       },
       "fn:$import$gui$padded": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int",
@@ -771,19 +1117,25 @@
       },
       "fn:$import$gui$pollEvent": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<Option<$import$gui$Event>,StdError>"
       },
       "fn:$import$gui$present": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -791,8 +1143,18 @@
       },
       "fn:$import$gui$rectangle": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "x",
+          "y",
+          "width",
+          "height",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -806,8 +1168,13 @@
       },
       "fn:$import$gui$remove": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String"
@@ -816,8 +1183,14 @@
       },
       "fn:$import$gui$resize": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Int",
@@ -827,8 +1200,13 @@
       },
       "fn:$import$gui$row": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children",
+          "gap"
+        ],
         "parameters": [
           "&List<$import$gui$WeightedLayout>",
           "Int"
@@ -837,8 +1215,12 @@
       },
       "fn:$import$gui$scene": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -846,8 +1228,13 @@
       },
       "fn:$import$gui$scrollPosition": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -856,8 +1243,13 @@
       },
       "fn:$import$gui$selection": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -866,8 +1258,14 @@
       },
       "fn:$import$gui$setChecked": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "checked"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -877,8 +1275,14 @@
       },
       "fn:$import$gui$setEnabled": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "enabled"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -888,8 +1292,14 @@
       },
       "fn:$import$gui$setScrollPosition": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "line"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -899,8 +1309,15 @@
       },
       "fn:$import$gui$setSelection": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "cursor",
+          "anchor"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -911,8 +1328,14 @@
       },
       "fn:$import$gui$setText": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -922,8 +1345,15 @@
       },
       "fn:$import$gui$sized": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "weight",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int",
@@ -934,8 +1364,14 @@
       },
       "fn:$import$gui$splitColumn": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "$import$gui$Rect",
           "&List<Int>",
@@ -945,8 +1381,14 @@
       },
       "fn:$import$gui$splitRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "$import$gui$Rect",
           "&List<Int>",
@@ -956,8 +1398,15 @@
       },
       "fn:$import$gui$style": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "foreground",
+          "background"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -968,8 +1417,13 @@
       },
       "fn:$import$gui$text": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -978,8 +1432,18 @@
       },
       "fn:$import$gui$textArea": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -993,8 +1457,18 @@
       },
       "fn:$import$gui$textBox": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -1008,8 +1482,13 @@
       },
       "fn:$import$gui$weighted": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "weight"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int"
@@ -1018,8 +1497,14 @@
       },
       "fn:$import$gui$window": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "title",
+          "width",
+          "height"
+        ],
         "parameters": [
           "String",
           "Int",
@@ -1151,15 +1636,23 @@
     "dependency:schema.rw": {
       "fn:$import$schema$any": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$array": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "item",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "Int",
@@ -1169,15 +1662,24 @@
       },
       "fn:$import$schema$boolean": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$csvRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema",
+          "headers",
+          "row",
+          "nullToken"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "&List<String>",
@@ -1188,13 +1690,16 @@
       },
       "fn:$import$schema$decimal": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$decode": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -1206,6 +1711,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "decoder",
+          "value"
+        ],
         "parameters": [
           "$import$schema$Decoder<T,E>",
           "Json"
@@ -1214,8 +1723,15 @@
       },
       "fn:$import$schema$field": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "name",
+          "schema",
+          "required",
+          "fallback"
+        ],
         "parameters": [
           "String",
           "$import$schema$Schema",
@@ -1226,8 +1742,13 @@
       },
       "fn:$import$schema$integer": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -1236,6 +1757,7 @@
       },
       "fn:$import$schema$mapped": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -1247,6 +1769,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "schema",
+          "convert"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "fn(Json)->Result<T,E>!{}~{Send+Share}"
@@ -1255,8 +1781,12 @@
       },
       "fn:$import$schema$nullable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema"
+        ],
         "parameters": [
           "$import$schema$Schema"
         ],
@@ -1264,15 +1794,22 @@
       },
       "fn:$import$schema$number": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$object": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "fields",
+          "policy"
+        ],
         "parameters": [
           "&List<$import$schema$Field>",
           "$import$schema$Unknown"
@@ -1281,8 +1818,13 @@
       },
       "fn:$import$schema$text": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -1291,15 +1833,22 @@
       },
       "fn:$import$schema$timestamp": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$validate": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema",
+          "value"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "Json"
@@ -1420,9 +1969,14 @@
     "fn:create": {
       "async": false,
       "cost": "O(fields + schema bytes); at most 64 fields, 1..32 visible rows, maxBytes 1..4096 per value.",
+      "defaults": [],
       "effects": [],
       "failure": "Schema/Id/Text; initial numeric input can be incomplete until validate.",
       "generics": [],
+      "names": [
+        "fields",
+        "visibleRows"
+      ],
       "parameters": [
         "&List<Field>",
         "Int"
@@ -1432,8 +1986,14 @@
     "fn:createWithRules": {
       "async": false,
       "cost": "O(fields + rules + schema bytes); at most 128 typed relations, validates referenced field kinds.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "fields",
+        "rules",
+        "visibleRows"
+      ],
       "parameters": [
         "&List<Field>",
         "&List<Relation>",
@@ -1443,9 +2003,16 @@
     },
     "fn:dispatch": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "InvalidText; rejected over-limit edits restore the view text and selection. Submit validates all fields.",
       "generics": [],
+      "names": [
+        "form",
+        "panel",
+        "event",
+        "prefix"
+      ],
       "parameters": [
         "&mut Form",
         "&mut $import$gui$View",
@@ -1456,8 +2023,13 @@
     },
     "fn:error": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "form",
+        "id"
+      ],
       "parameters": [
         "&Form",
         "String"
@@ -1466,8 +2038,12 @@
     },
     "fn:position": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "form"
+      ],
       "parameters": [
         "&Form"
       ],
@@ -1476,9 +2052,18 @@
     "fn:render": {
       "async": false,
       "cost": "O(visible fields); new logical view only, preserves model selection/focus and shows validation errors.",
+      "defaults": [],
       "effects": [],
       "failure": "Bounds/Id; rowHeight 64..128, caller chooses enough height and publishes the returned view.",
       "generics": [],
+      "names": [
+        "form",
+        "title",
+        "width",
+        "height",
+        "rowHeight",
+        "prefix"
+      ],
       "parameters": [
         "&Form",
         "String",
@@ -1491,8 +2076,12 @@
     },
     "fn:reset": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "form"
+      ],
       "parameters": [
         "&mut Form"
       ],
@@ -1500,8 +2089,13 @@
     },
     "fn:scroll": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "form",
+        "delta"
+      ],
       "parameters": [
         "&mut Form",
         "Int"
@@ -1510,9 +2104,15 @@
     },
     "fn:setValue": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "UnknownId/Text; validates input bounds before mutation, not its final typed value.",
       "generics": [],
+      "names": [
+        "form",
+        "id",
+        "value"
+      ],
       "parameters": [
         "&mut Form",
         "String",
@@ -1522,12 +2122,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -1536,6 +2140,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -1547,6 +2152,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -1555,9 +2164,13 @@
     },
     "fn:toJson": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Required/Integer/Real/Range/Timestamp/Relation; readonly, returns typed values or the first error with field index.",
       "generics": [],
+      "names": [
+        "form"
+      ],
       "parameters": [
         "&Form"
       ],
@@ -1566,6 +2179,7 @@
     "fn:toSchemaValue": {
       "async": false,
       "cost": "validates form fields, then a shared schema, then calls one pure typed mapper. It never mutates the form.",
+      "defaults": [],
       "effects": [],
       "failure": "SchemaSubmitError::Form(StdError), ::Schema(ValidationError), or ::Conversion(E); mapper runs only after both validations succeed.",
       "generics": [
@@ -1578,6 +2192,11 @@
           "Share"
         ]
       ],
+      "names": [
+        "form",
+        "rule",
+        "convert"
+      ],
       "parameters": [
         "&Form",
         "$import$schema$Schema",
@@ -1588,6 +2207,7 @@
     "fn:toValue": {
       "async": false,
       "cost": "runs form validation before one pure, explicit typed mapper; it separates validation and conversion failures.",
+      "defaults": [],
       "effects": [],
       "failure": "SubmitError::Form(Required/Integer/Real/Range/Timestamp/Relation) or SubmitError::Conversion(E); mapper runs only after form validation succeeds.",
       "generics": [
@@ -1600,6 +2220,10 @@
           "Share"
         ]
       ],
+      "names": [
+        "form",
+        "convert"
+      ],
       "parameters": [
         "&Form",
         "fn(Json)->Result<T,E>!{}~{Send+Share}"
@@ -1609,8 +2233,12 @@
     "fn:validate": {
       "async": false,
       "cost": "O(fields + relations + value bytes); stores field and relation errors without changing edited text.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "form"
+      ],
       "parameters": [
         "&mut Form"
       ],
@@ -1618,8 +2246,13 @@
     },
     "fn:value": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "form",
+        "id"
+      ],
       "parameters": [
         "&Form",
         "String"

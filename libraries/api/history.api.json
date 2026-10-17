@@ -1,17 +1,21 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:snapshot.rw": {
       "fn:$import$snapshot$capture": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Send"
           ]
+        ],
+        "names": [
+          "value"
         ],
         "parameters": [
           "&T"
@@ -20,12 +24,16 @@
       },
       "fn:$import$snapshot$fork": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Send"
           ]
+        ],
+        "names": [
+          "saved"
         ],
         "parameters": [
           "$import$snapshot$Snapshot<T>"
@@ -34,12 +42,16 @@
       },
       "fn:$import$snapshot$read": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Send"
           ]
+        ],
+        "names": [
+          "saved"
         ],
         "parameters": [
           "$import$snapshot$Snapshot<T>"
@@ -60,12 +72,16 @@
     "fn:clear": {
       "async": false,
       "cost": "Drops this registry's entries. Live snapshot values and execution checkpoints keep their own roots.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "history"
       ],
       "parameters": [
         "&mut History<T>"
@@ -74,12 +90,17 @@
     },
     "fn:contains": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "history",
+        "name"
       ],
       "parameters": [
         "&History<T>",
@@ -89,6 +110,7 @@
     },
     "fn:create": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Requires 1 <= capacity <= 65536; capacity bounds registered names, not retained bytes.",
       "generics": [
@@ -97,6 +119,9 @@
           "Send"
         ]
       ],
+      "names": [
+        "capacity"
+      ],
       "parameters": [
         "Int"
       ],
@@ -104,6 +129,7 @@
     },
     "fn:get": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Returns an independently retained snapshot root; later removal or name reuse does not retarget it.",
       "generics": [
@@ -111,6 +137,10 @@
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "history",
+        "name"
       ],
       "parameters": [
         "&History<T>",
@@ -120,12 +150,16 @@
     },
     "fn:length": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "history"
       ],
       "parameters": [
         "&History<T>"
@@ -135,12 +169,16 @@
     "fn:names": {
       "async": false,
       "cost": "Returns an owned list in the underlying String Map key order.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "history"
       ],
       "parameters": [
         "&History<T>"
@@ -150,12 +188,17 @@
     "fn:remove": {
       "async": false,
       "cost": "Unregisters one name and returns its snapshot. Other holders and VM checkpoints may still retain its data.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "history",
+        "name"
       ],
       "parameters": [
         "&mut History<T>",
@@ -165,6 +208,7 @@
     },
     "fn:save": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Checks name, duplicate, and capacity before capture. Names contain 1..128 Unicode scalars. Runtime budget/capture failures remain VM failures.",
       "generics": [
@@ -172,6 +216,11 @@
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "history",
+        "name",
+        "value"
       ],
       "parameters": [
         "&mut History<T>",
@@ -182,12 +231,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -196,6 +249,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -206,6 +260,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

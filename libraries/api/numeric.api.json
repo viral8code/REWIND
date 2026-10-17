@@ -1,14 +1,19 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.16",
+  "language": "3.5.0",
   "symbols": {
     "fn:activation": {
       "async": false,
       "cost": "O(elements) native work/storage; relu and stable sigmoid, no per-cell callbacks.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericDomain/Type/NonFinite; fatal work/memory budgets apply.",
       "generics": [],
+      "names": [
+        "operation",
+        "array"
+      ],
       "parameters": [
         "String",
         "&FloatArray"
@@ -18,9 +23,15 @@
     "fn:affine": {
       "async": false,
       "cost": "O(elements) native work/storage; shape preserved, two finite scalars, no fused rounding guarantee.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericType/NonFinite/Overflow; fatal work/memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "scale",
+        "offset"
+      ],
       "parameters": [
         "&FloatArray",
         "Float",
@@ -31,9 +42,14 @@
     "fn:broadcastFloat": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "shape"
+      ],
       "parameters": [
         "&FloatArray",
         "&List<Int>"
@@ -43,9 +59,14 @@
     "fn:broadcastInt": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "shape"
+      ],
       "parameters": [
         "&IntArray",
         "&List<Int>"
@@ -55,9 +76,14 @@
     "fn:correlation": {
       "async": false,
       "cost": "O(n); constant inputs fail with NumericDomain",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&FloatArray",
         "&FloatArray"
@@ -67,9 +93,15 @@
     "fn:covariance": {
       "async": false,
       "cost": "O(n); paired online moments with explicit ddof",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right",
+        "ddof"
+      ],
       "parameters": [
         "&FloatArray",
         "&FloatArray",
@@ -80,9 +112,14 @@
     "fn:dot": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&FloatArray",
         "&FloatArray"
@@ -92,9 +129,15 @@
     "fn:eigenSymmetric": {
       "async": false,
       "cost": "O(maxSweeps*n^3); bounded cyclic Jacobi, sorted eigenvalues",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "matrix",
+        "tolerance",
+        "maxSweeps"
+      ],
       "parameters": [
         "&FloatArray",
         "Float",
@@ -105,9 +148,14 @@
     "fn:fromFloat": {
       "async": false,
       "cost": "O(elements); typed pages, without per-element VM objects",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "shape",
+        "values"
+      ],
       "parameters": [
         "&List<Int>",
         "&List<Float>"
@@ -117,9 +165,14 @@
     "fn:fromInt": {
       "async": false,
       "cost": "O(elements); typed pages, without per-element VM objects",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "shape",
+        "values"
+      ],
       "parameters": [
         "&List<Int>",
         "&List<Int>"
@@ -129,9 +182,14 @@
     "fn:getFloat": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "indices"
+      ],
       "parameters": [
         "&FloatArray",
         "&List<Int>"
@@ -141,9 +199,14 @@
     "fn:getInt": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "indices"
+      ],
       "parameters": [
         "&IntArray",
         "&List<Int>"
@@ -153,9 +216,14 @@
     "fn:histogram": {
       "async": false,
       "cost": "O(n log edges + edges); outlier counts are explicit",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "edges"
+      ],
       "parameters": [
         "&FloatArray",
         "&FloatArray"
@@ -165,9 +233,15 @@
     "fn:leastSquares": {
       "async": false,
       "cost": "O(m*n^2); requires m >= n and full column rank",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "matrix",
+        "right",
+        "tolerance"
+      ],
       "parameters": [
         "&FloatArray",
         "&FloatArray",
@@ -178,9 +252,14 @@
     "fn:mapFloat": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "operation",
+        "array"
+      ],
       "parameters": [
         "String",
         "&FloatArray"
@@ -190,9 +269,13 @@
     "fn:materializeFloat": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&FloatArray"
       ],
@@ -201,9 +284,13 @@
     "fn:materializeInt": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&IntArray"
       ],
@@ -212,9 +299,14 @@
     "fn:math": {
       "async": false,
       "cost": "O(1); bounded native scalar math",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "operation",
+        "value"
+      ],
       "parameters": [
         "String",
         "Float"
@@ -224,9 +316,14 @@
     "fn:matmul": {
       "async": false,
       "cost": "O(m*n*k*log pages); native kernel, without VM callbacks",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&FloatArray",
         "&FloatArray"
@@ -236,9 +333,13 @@
     "fn:mean": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&FloatArray"
       ],
@@ -247,9 +348,14 @@
     "fn:mergeMoments": {
       "async": false,
       "cost": "O(1); combines independent owners without retaining their samples.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericSize/NonFinite; fatal VM execution and allocation budgets apply.",
       "generics": [],
+      "names": [
+        "target",
+        "source"
+      ],
       "parameters": [
         "&mut OnlineMoments",
         "&OnlineMoments"
@@ -259,9 +365,13 @@
     "fn:norm2": {
       "async": false,
       "cost": "O(elements) native work / O(rank) iterator state; scaled Euclidean accumulation avoids intermediate square overflow and underflow.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericType/NonFinite/Overflow; Float64 array, empty norm is zero, nonrepresentable final norm fails. Fatal budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&FloatArray"
       ],
@@ -270,9 +380,13 @@
     "fn:onlineCount": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "failure": "No recoverable errors; fatal VM execution budget applies.",
       "generics": [],
+      "names": [
+        "moments"
+      ],
       "parameters": [
         "&OnlineMoments"
       ],
@@ -281,9 +395,13 @@
     "fn:onlineMean": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericEmpty; fatal VM execution budget applies.",
       "generics": [],
+      "names": [
+        "moments"
+      ],
       "parameters": [
         "&OnlineMoments"
       ],
@@ -292,18 +410,25 @@
     "fn:onlineMoments": {
       "async": false,
       "cost": "O(1); checkpointed mutable owner with no retained sample list.",
+      "defaults": [],
       "effects": [],
       "failure": "Fatal VM allocation budget only.",
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "OnlineMoments"
     },
     "fn:onlineVariance": {
       "async": false,
       "cost": "O(1); divisor is count - ddof.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericDomain/Empty; fatal VM execution budget applies.",
       "generics": [],
+      "names": [
+        "moments",
+        "ddof"
+      ],
       "parameters": [
         "&OnlineMoments",
         "Int"
@@ -313,9 +438,14 @@
     "fn:pushMoment": {
       "async": false,
       "cost": "O(1); count bounded to 2^53, errors leave previous statistics unchanged.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericSize/NonFinite; fatal VM execution and allocation budgets apply.",
       "generics": [],
+      "names": [
+        "moments",
+        "value"
+      ],
       "parameters": [
         "&mut OnlineMoments",
         "Float"
@@ -325,9 +455,14 @@
     "fn:qr": {
       "async": false,
       "cost": "O(m*n*min(m,n)); column-pivoted economy Householder QR",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "tolerance"
+      ],
       "parameters": [
         "&FloatArray",
         "Float"
@@ -337,9 +472,14 @@
     "fn:quantile": {
       "async": false,
       "cost": "O(n log n); explicit sorted copy and linear interpolation",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Domain/NonFinite/Overflow/Empty/Singular/Convergence; fatal work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "probability"
+      ],
       "parameters": [
         "&FloatArray",
         "Float"
@@ -349,9 +489,14 @@
     "fn:reshapeFloat": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "shape"
+      ],
       "parameters": [
         "&FloatArray",
         "&List<Int>"
@@ -361,9 +506,14 @@
     "fn:reshapeInt": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "shape"
+      ],
       "parameters": [
         "&IntArray",
         "&List<Int>"
@@ -373,9 +523,14 @@
     "fn:scale": {
       "async": false,
       "cost": "O(elements) native work / output storage; preserves array shape, no per-cell VM objects.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericType/NonFinite/Overflow; finite scalar and Float64 array, fatal work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "factor"
+      ],
       "parameters": [
         "&FloatArray",
         "Float"
@@ -385,9 +540,13 @@
     "fn:shapeFloat": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&FloatArray"
       ],
@@ -396,9 +555,13 @@
     "fn:shapeInt": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&IntArray"
       ],
@@ -407,9 +570,17 @@
     "fn:sliceFloat": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "axis",
+        "start",
+        "length",
+        "step"
+      ],
       "parameters": [
         "&FloatArray",
         "Int",
@@ -422,9 +593,17 @@
     "fn:sliceInt": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "axis",
+        "start",
+        "length",
+        "step"
+      ],
       "parameters": [
         "&IntArray",
         "Int",
@@ -437,9 +616,15 @@
     "fn:solve": {
       "async": false,
       "cost": "O(n^3); pivoted LU with O(n^2) temporary storage",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "matrix",
+        "right",
+        "tolerance"
+      ],
       "parameters": [
         "&FloatArray",
         "&FloatArray",
@@ -447,12 +632,58 @@
       ],
       "return": "Result<FloatArray,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:stridesFloat": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&FloatArray"
       ],
@@ -461,9 +692,13 @@
     "fn:stridesInt": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&IntArray"
       ],
@@ -472,9 +707,13 @@
     "fn:sum": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&FloatArray"
       ],
@@ -483,9 +722,14 @@
     "fn:sumToShape": {
       "async": false,
       "cost": "O(elements * rank + output elements), O(output elements) native scratch; Neumaier accumulation, scalar/singleton dimensions retained as requested.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericShape/Size/Type/NonFinite/Overflow; target must broadcast to input shape; empty reductions are zero, fatal budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "shape"
+      ],
       "parameters": [
         "&FloatArray",
         "&List<Int>"
@@ -495,9 +739,14 @@
     "fn:transposeFloat": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "axes"
+      ],
       "parameters": [
         "&FloatArray",
         "&List<Int>"
@@ -507,9 +756,14 @@
     "fn:transposeInt": {
       "async": false,
       "cost": "O(rank + log pages); views share the storage version",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "axes"
+      ],
       "parameters": [
         "&IntArray",
         "&List<Int>"
@@ -519,9 +773,13 @@
     "fn:valuesFloat": {
       "async": false,
       "cost": "O(elements times 64); explicit VM List allocation",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&FloatArray"
       ],
@@ -530,9 +788,13 @@
     "fn:valuesInt": {
       "async": false,
       "cost": "O(elements times 64); explicit VM List allocation",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&IntArray"
       ],
@@ -541,9 +803,14 @@
     "fn:variance": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "ddof"
+      ],
       "parameters": [
         "&FloatArray",
         "Int"
@@ -553,9 +820,15 @@
     "fn:withFloat": {
       "async": false,
       "cost": "O(256 + log pages); copies one numeric page and its tree path",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "indices",
+        "value"
+      ],
       "parameters": [
         "&FloatArray",
         "&List<Int>",
@@ -566,9 +839,15 @@
     "fn:withInt": {
       "async": false,
       "cost": "O(256 + log pages); copies one numeric page and its tree path",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "indices",
+        "value"
+      ],
       "parameters": [
         "&IntArray",
         "&List<Int>",
@@ -579,9 +858,13 @@
     "fn:zerosFloat": {
       "async": false,
       "cost": "O(elements); typed pages, without per-element VM objects",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "shape"
+      ],
       "parameters": [
         "&List<Int>"
       ],
@@ -590,9 +873,13 @@
     "fn:zerosInt": {
       "async": false,
       "cost": "O(elements); typed pages, without per-element VM objects",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "shape"
+      ],
       "parameters": [
         "&List<Int>"
       ],
@@ -601,9 +888,15 @@
     "fn:zipFloat": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "operation",
+        "left",
+        "right"
+      ],
       "parameters": [
         "String",
         "&FloatArray",
@@ -614,9 +907,15 @@
     "fn:zipInt": {
       "async": false,
       "cost": "O(elements times rank and log pages)",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericShape/Index/Size/Type/Overflow/NonFinite/Domain/Singular/Empty/ReadOnly; fatal execution and memory budgets apply.",
       "generics": [],
+      "names": [
+        "operation",
+        "left",
+        "right"
+      ],
       "parameters": [
         "String",
         "&IntArray",
@@ -810,7 +1109,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -890,6 +1207,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -1074,11 +1460,40 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:OnlineMoments": {
       "constructor": false,
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
     },
     "type:QrResult": {
       "constructor": true,
@@ -1103,7 +1518,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -1121,6 +1554,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

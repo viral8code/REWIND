@@ -1,13 +1,17 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.0.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:checksum": {
       "async": false,
       "cost": "Deterministic sum over the id, backend and every command (including boundaries).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "m"
+      ],
       "parameters": [
         "&Migration"
       ],
@@ -16,16 +20,24 @@
     "fn:createTableSql": {
       "async": false,
       "cost": "Creates the version table if needed; safe to run every time.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "String"
     },
     "fn:migration": {
       "async": false,
       "cost": "Validates the id, the backend name and 1..256 non-empty commands of at most 65536 bytes each, then returns an immutable migration.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "id",
+        "backend",
+        "commands"
+      ],
       "parameters": [
         "String",
         "String",
@@ -36,8 +48,14 @@
     "fn:plan": {
       "async": false,
       "cost": "Checks the migration list and the applied rows, then returns the pending suffix.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "backend",
+        "migrations",
+        "applied"
+      ],
       "parameters": [
         "String",
         "&List<Migration>",
@@ -48,8 +66,12 @@
     "fn:recordSql": {
       "async": false,
       "cost": "Records one applied migration; bind id and checksum as the two Text parameters.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "backend"
+      ],
       "parameters": [
         "String"
       ],
@@ -58,19 +80,25 @@
     "fn:selectAppliedSql": {
       "async": false,
       "cost": "Lists applied migrations in id order (the order plan expects).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "String"
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -79,6 +107,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -89,6 +118,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

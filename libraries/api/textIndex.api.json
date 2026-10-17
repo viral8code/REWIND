@@ -1,12 +1,17 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:byteAt": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source",
+        "offset"
+      ],
       "parameters": [
         "Source",
         "Int"
@@ -15,8 +20,12 @@
     },
     "fn:byteLength": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source"
+      ],
       "parameters": [
         "Source"
       ],
@@ -24,8 +33,12 @@
     },
     "fn:byteSource": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "ByteOffset"
       ],
@@ -33,9 +46,13 @@
     },
     "fn:byteToGrapheme": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Rejects positions inside a grapheme, including between combining scalars or CR and LF.",
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "ByteOffset"
       ],
@@ -43,9 +60,13 @@
     },
     "fn:byteToScalar": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Rejects byte positions inside a UTF-8 scalar; the terminal position is valid.",
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "ByteOffset"
       ],
@@ -53,8 +74,12 @@
     },
     "fn:byteValue": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "ByteOffset"
       ],
@@ -62,8 +87,12 @@
     },
     "fn:bytes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source"
+      ],
       "parameters": [
         "Source"
       ],
@@ -72,8 +101,12 @@
     "fn:create": {
       "async": false,
       "cost": "Indexes valid String data, at most 1 MiB and 65535 scalars. Uses the existing Unicode grapheme implementation.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "text"
+      ],
       "parameters": [
         "String"
       ],
@@ -81,8 +114,13 @@
     },
     "fn:graphemeAt": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source",
+        "index"
+      ],
       "parameters": [
         "Source",
         "Int"
@@ -91,8 +129,12 @@
     },
     "fn:graphemeLength": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source"
+      ],
       "parameters": [
         "Source"
       ],
@@ -100,8 +142,12 @@
     },
     "fn:graphemeSource": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "GraphemeIndex"
       ],
@@ -109,8 +155,12 @@
     },
     "fn:graphemeToByte": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "GraphemeIndex"
       ],
@@ -118,8 +168,12 @@
     },
     "fn:graphemeValue": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "GraphemeIndex"
       ],
@@ -127,8 +181,13 @@
     },
     "fn:scalarAt": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source",
+        "index"
+      ],
       "parameters": [
         "Source",
         "Int"
@@ -137,8 +196,12 @@
     },
     "fn:scalarLength": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source"
+      ],
       "parameters": [
         "Source"
       ],
@@ -146,8 +209,12 @@
     },
     "fn:scalarSource": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "ScalarIndex"
       ],
@@ -155,8 +222,12 @@
     },
     "fn:scalarToByte": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "ScalarIndex"
       ],
@@ -164,8 +235,12 @@
     },
     "fn:scalarValue": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "position"
+      ],
       "parameters": [
         "ScalarIndex"
       ],
@@ -174,8 +249,13 @@
     "fn:sliceBytes": {
       "async": false,
       "cost": "Requires equal original text content and an ordered half-open range. Numeric offsets are never applied to different text implicitly.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "start",
+        "end"
+      ],
       "parameters": [
         "ByteOffset",
         "ByteOffset"
@@ -184,8 +264,13 @@
     },
     "fn:sliceGraphemes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "start",
+        "end"
+      ],
       "parameters": [
         "GraphemeIndex",
         "GraphemeIndex"
@@ -194,8 +279,13 @@
     },
     "fn:sliceScalars": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "start",
+        "end"
+      ],
       "parameters": [
         "ScalarIndex",
         "ScalarIndex"
@@ -204,12 +294,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -218,6 +312,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -229,6 +324,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -237,8 +336,12 @@
     },
     "fn:text": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "source"
+      ],
       "parameters": [
         "Source"
       ],

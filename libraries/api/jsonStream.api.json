@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.0.0",
+  "language": "3.5.0",
   "symbols": {
     "alias:Event": {
       "generics": [],
@@ -10,8 +10,13 @@
     "dependency:bigint.rw": {
       "fn:$import$bigint$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -20,8 +25,13 @@
       },
       "fn:$import$bigint$bitAnd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -30,8 +40,12 @@
       },
       "fn:$import$bigint$bitNot": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -39,8 +53,13 @@
       },
       "fn:$import$bigint$bitOr": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -49,8 +68,13 @@
       },
       "fn:$import$bigint$bitXor": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -59,8 +83,12 @@
       },
       "fn:$import$bigint$bits": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -68,8 +96,13 @@
       },
       "fn:$import$bigint$compare": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -78,8 +111,13 @@
       },
       "fn:$import$bigint$divide": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -88,8 +126,13 @@
       },
       "fn:$import$bigint$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "radix"
+        ],
         "parameters": [
           "&BigInt",
           "Int"
@@ -98,8 +141,12 @@
       },
       "fn:$import$bigint$fromInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Int"
         ],
@@ -107,8 +154,12 @@
       },
       "fn:$import$bigint$fromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -116,8 +167,13 @@
       },
       "fn:$import$bigint$gcd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -126,8 +182,14 @@
       },
       "fn:$import$bigint$modPow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "exponent",
+          "modulus"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt",
@@ -137,8 +199,13 @@
       },
       "fn:$import$bigint$modulo": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -147,8 +214,13 @@
       },
       "fn:$import$bigint$multiply": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -157,8 +229,12 @@
       },
       "fn:$import$bigint$negate": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -166,8 +242,13 @@
       },
       "fn:$import$bigint$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "radix"
+        ],
         "parameters": [
           "String",
           "Int"
@@ -176,8 +257,13 @@
       },
       "fn:$import$bigint$pow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "exponent"
+        ],
         "parameters": [
           "&BigInt",
           "Int"
@@ -186,8 +272,13 @@
       },
       "fn:$import$bigint$remainder": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -196,8 +287,14 @@
       },
       "fn:$import$bigint$shift": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "left",
+          "count"
+        ],
         "parameters": [
           "&BigInt",
           "Bool",
@@ -207,8 +304,13 @@
       },
       "fn:$import$bigint$subtract": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -217,8 +319,12 @@
       },
       "fn:$import$bigint$toInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -226,8 +332,12 @@
       },
       "fn:$import$bigint$toJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -237,8 +347,13 @@
     "dependency:datetime.rw": {
       "fn:$import$datetime$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "delta"
+        ],
         "parameters": [
           "&Instant",
           "&Duration"
@@ -247,8 +362,13 @@
       },
       "fn:$import$datetime$addDurations": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Duration",
           "&Duration"
@@ -257,8 +377,13 @@
       },
       "fn:$import$datetime$calendar": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "zone"
+        ],
         "parameters": [
           "&Instant",
           "String"
@@ -267,8 +392,13 @@
       },
       "fn:$import$datetime$calendarOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "&Instant",
           "Int"
@@ -277,15 +407,22 @@
       },
       "fn:$import$datetime$databaseVersion": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<String,StdError>"
       },
       "fn:$import$datetime$difference": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Instant",
           "&Instant"
@@ -294,8 +431,13 @@
       },
       "fn:$import$datetime$duration": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "seconds",
+          "nanoseconds"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -304,8 +446,12 @@
       },
       "fn:$import$datetime$durationFromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -313,8 +459,12 @@
       },
       "fn:$import$datetime$durationNanoseconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -322,8 +472,12 @@
       },
       "fn:$import$datetime$durationSeconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -331,8 +485,12 @@
       },
       "fn:$import$datetime$durationToJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -340,8 +498,12 @@
       },
       "fn:$import$datetime$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -349,8 +511,13 @@
       },
       "fn:$import$datetime$formatOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "&Instant",
           "Int"
@@ -359,8 +526,12 @@
       },
       "fn:$import$datetime$fromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -368,8 +539,13 @@
       },
       "fn:$import$datetime$instant": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "seconds",
+          "nanoseconds"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -378,8 +554,12 @@
       },
       "fn:$import$datetime$nanoseconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -387,8 +567,12 @@
       },
       "fn:$import$datetime$negateDuration": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -396,8 +580,12 @@
       },
       "fn:$import$datetime$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "text"
+        ],
         "parameters": [
           "String"
         ],
@@ -405,8 +593,14 @@
       },
       "fn:$import$datetime$resolve": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "zone",
+          "ambiguity"
+        ],
         "parameters": [
           "$import$datetime$Calendar",
           "String",
@@ -416,8 +610,13 @@
       },
       "fn:$import$datetime$resolveOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "$import$datetime$Calendar",
           "Int"
@@ -426,8 +625,12 @@
       },
       "fn:$import$datetime$seconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -435,8 +638,13 @@
       },
       "fn:$import$datetime$subtractDurations": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Duration",
           "&Duration"
@@ -445,8 +653,12 @@
       },
       "fn:$import$datetime$toJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -522,8 +734,15 @@
     "dependency:decimal.rw": {
       "fn:$import$decimal$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -534,8 +753,12 @@
       },
       "fn:$import$decimal$coefficient": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -543,8 +766,13 @@
       },
       "fn:$import$decimal$compare": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal"
@@ -553,8 +781,16 @@
       },
       "fn:$import$decimal$divide": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "scale",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -566,8 +802,12 @@
       },
       "fn:$import$decimal$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -575,8 +815,13 @@
       },
       "fn:$import$decimal$fromCoefficient": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "scale"
+        ],
         "parameters": [
           "&BigInt",
           "Int"
@@ -585,8 +830,12 @@
       },
       "fn:$import$decimal$fromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -594,8 +843,15 @@
       },
       "fn:$import$decimal$multiply": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -606,8 +862,12 @@
       },
       "fn:$import$decimal$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "String"
         ],
@@ -615,8 +875,15 @@
       },
       "fn:$import$decimal$quantize": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "scale",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "Int",
@@ -627,8 +894,12 @@
       },
       "fn:$import$decimal$representation": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -636,8 +907,12 @@
       },
       "fn:$import$decimal$scale": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -645,8 +920,15 @@
       },
       "fn:$import$decimal$subtract": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -657,8 +939,12 @@
       },
       "fn:$import$decimal$toJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -668,8 +954,12 @@
     "dependency:json.rw": {
       "fn:$import$json$array": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -677,8 +967,12 @@
       },
       "fn:$import$json$boolean": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -686,8 +980,12 @@
       },
       "fn:$import$json$floating": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -695,8 +993,13 @@
       },
       "fn:$import$json$get": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "key"
+        ],
         "parameters": [
           "Json",
           "String"
@@ -705,8 +1008,12 @@
       },
       "fn:$import$json$integer": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -714,8 +1021,12 @@
       },
       "fn:$import$json$keys": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -723,8 +1034,12 @@
       },
       "fn:$import$json$kind": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -732,8 +1047,12 @@
       },
       "fn:$import$json$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "text"
+        ],
         "parameters": [
           "String"
         ],
@@ -741,8 +1060,12 @@
       },
       "fn:$import$json$parseBytes": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "bytes"
+        ],
         "parameters": [
           "Bytes"
         ],
@@ -750,8 +1073,12 @@
       },
       "fn:$import$json$stringify": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -759,8 +1086,12 @@
       },
       "fn:$import$json$text": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -770,15 +1101,23 @@
     "dependency:schema.rw": {
       "fn:$import$schema$any": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$array": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "item",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "Int",
@@ -788,15 +1127,24 @@
       },
       "fn:$import$schema$boolean": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$csvRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema",
+          "headers",
+          "row",
+          "nullToken"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "&List<String>",
@@ -807,13 +1155,16 @@
       },
       "fn:$import$schema$decimal": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$decode": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -825,6 +1176,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "decoder",
+          "value"
+        ],
         "parameters": [
           "$import$schema$Decoder<T,E>",
           "Json"
@@ -833,8 +1188,15 @@
       },
       "fn:$import$schema$field": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "name",
+          "schema",
+          "required",
+          "fallback"
+        ],
         "parameters": [
           "String",
           "$import$schema$Schema",
@@ -845,8 +1207,13 @@
       },
       "fn:$import$schema$integer": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -855,6 +1222,7 @@
       },
       "fn:$import$schema$mapped": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -866,6 +1234,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "schema",
+          "convert"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "fn(Json)->Result<T,E>!{}~{Send+Share}"
@@ -874,8 +1246,12 @@
       },
       "fn:$import$schema$nullable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema"
+        ],
         "parameters": [
           "$import$schema$Schema"
         ],
@@ -883,15 +1259,22 @@
       },
       "fn:$import$schema$number": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$object": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "fields",
+          "policy"
+        ],
         "parameters": [
           "&List<$import$schema$Field>",
           "$import$schema$Unknown"
@@ -900,8 +1283,13 @@
       },
       "fn:$import$schema$text": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -910,15 +1298,22 @@
       },
       "fn:$import$schema$timestamp": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$validate": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema",
+          "value"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "Json"
@@ -1038,8 +1433,12 @@
     },
     "fn:cancel": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "reader"
+      ],
       "parameters": [
         "&mut Reader"
       ],
@@ -1047,8 +1446,14 @@
     },
     "fn:feed": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "reader",
+        "chunk",
+        "finish"
+      ],
       "parameters": [
         "&mut Reader",
         "Bytes",
@@ -1058,8 +1463,12 @@
     },
     "fn:finish": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "reader"
+      ],
       "parameters": [
         "&mut Reader"
       ],
@@ -1067,8 +1476,12 @@
     },
     "fn:next": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "reader"
+      ],
       "parameters": [
         "&mut Reader"
       ],
@@ -1076,9 +1489,13 @@
     },
     "fn:nextBigInt": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "parses an exact base-10 integer token before advancing; a non-number or failed conversion remains queued.",
       "generics": [],
+      "names": [
+        "reader"
+      ],
       "parameters": [
         "&mut Reader"
       ],
@@ -1086,9 +1503,13 @@
     },
     "fn:nextDecimal": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "parses a JSON number token as exact base-10 Decimal before advancing; a wrong event kind or parse failure remains queued.",
       "generics": [],
+      "names": [
+        "reader"
+      ],
       "parameters": [
         "&mut Reader"
       ],
@@ -1096,9 +1517,13 @@
     },
     "fn:nextJson": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "consumes one complete JSON value only after it has been materialized; incomplete input and failures preserve the queued events.",
       "generics": [],
+      "names": [
+        "reader"
+      ],
       "parameters": [
         "&mut Reader"
       ],
@@ -1106,9 +1531,14 @@
     },
     "fn:nextValidated": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "consumes one complete value only after parsing and schema validation succeed; incomplete input and failures preserve the queued events.",
       "generics": [],
+      "names": [
+        "reader",
+        "rule"
+      ],
       "parameters": [
         "&mut Reader",
         "$import$schema$Schema"
@@ -1117,8 +1547,12 @@
     },
     "fn:peek": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "reader"
+      ],
       "parameters": [
         "&Reader"
       ],
@@ -1126,8 +1560,12 @@
     },
     "fn:position": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "reader"
+      ],
       "parameters": [
         "&Reader"
       ],
@@ -1135,19 +1573,25 @@
     },
     "fn:reader": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Result<Reader,StdError>"
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -1156,6 +1600,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -1166,6 +1611,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

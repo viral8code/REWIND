@@ -1,16 +1,20 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:clear": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&mut OrderedMap<T>"
@@ -19,12 +23,17 @@
     },
     "fn:contains": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map",
+        "key"
       ],
       "parameters": [
         "&OrderedMap<T>",
@@ -34,12 +43,16 @@
     },
     "fn:create": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "capacity"
       ],
       "parameters": [
         "Int"
@@ -48,12 +61,16 @@
     },
     "fn:entries": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&OrderedMap<T>"
@@ -63,12 +80,16 @@
     "fn:first": {
       "async": false,
       "cost": "Reads the oldest insertion position without enumerating the map.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&OrderedMap<T>"
@@ -77,12 +98,17 @@
     },
     "fn:get": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map",
+        "key"
       ],
       "parameters": [
         "&OrderedMap<T>",
@@ -92,12 +118,16 @@
     },
     "fn:keys": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&OrderedMap<T>"
@@ -106,12 +136,16 @@
     },
     "fn:last": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&OrderedMap<T>"
@@ -120,12 +154,16 @@
     },
     "fn:length": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&OrderedMap<T>"
@@ -134,12 +172,16 @@
     },
     "fn:popFirst": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&mut OrderedMap<T>"
@@ -148,12 +190,16 @@
     },
     "fn:popLast": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&mut OrderedMap<T>"
@@ -163,12 +209,18 @@
     "fn:put": {
       "async": false,
       "cost": "Existing keys retain their position; removing and reinserting a key appends it.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map",
+        "key",
+        "value"
       ],
       "parameters": [
         "&mut OrderedMap<T>",
@@ -179,6 +231,7 @@
     },
     "fn:remove": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Unlinks by key without shifting later entries. Missing keys do not change the order.",
       "generics": [
@@ -186,6 +239,10 @@
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map",
+        "key"
       ],
       "parameters": [
         "&mut OrderedMap<T>",
@@ -195,12 +252,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -209,6 +270,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -220,6 +282,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -228,6 +294,7 @@
     },
     "fn:touch": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Moves an existing key to the end using a bounded number of link updates; does not change its value or consume capacity.",
       "generics": [
@@ -235,6 +302,10 @@
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map",
+        "key"
       ],
       "parameters": [
         "&mut OrderedMap<T>",
@@ -244,12 +315,16 @@
     },
     "fn:values": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "map"
       ],
       "parameters": [
         "&OrderedMap<T>"

@@ -1,14 +1,24 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.3.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:check": {
       "async": false,
       "cost": "O(runs * size) property calls plus at most maxShrink more while shrinking. Cases are lists of 0..maxLen Ints in low..high built from seed; runs 1..1000, maxLen 0..64, maxShrink 0..2000, low<=high. Returns Passed(runs) or the first Failed case with its shrunk input.",
+      "defaults": [],
       "effects": [],
       "failure": "BadRange, BadRuns, BadLength, BadShrink.",
       "generics": [],
+      "names": [
+        "seed",
+        "runs",
+        "maxLen",
+        "low",
+        "high",
+        "maxShrink",
+        "holds"
+      ],
       "parameters": [
         "Int",
         "Int",
@@ -23,8 +33,12 @@
     "fn:draw": {
       "async": false,
       "cost": "O(1); the next generator state for a state (never 0); use amount = state % (high-low+1) + low.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "state"
+      ],
       "parameters": [
         "Int"
       ],
@@ -32,12 +46,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -46,6 +64,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -56,6 +75,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

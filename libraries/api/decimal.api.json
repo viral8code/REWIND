@@ -1,14 +1,21 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.8.3",
+  "language": "3.5.0",
   "symbols": {
     "fn:add": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right",
+        "precision",
+        "rounding"
+      ],
       "parameters": [
         "&Decimal",
         "&Decimal",
@@ -20,9 +27,13 @@
     "fn:coefficient": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Decimal"
       ],
@@ -31,9 +42,14 @@
     "fn:compare": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&Decimal",
         "&Decimal"
@@ -43,9 +59,17 @@
     "fn:divide": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right",
+        "scale",
+        "precision",
+        "rounding"
+      ],
       "parameters": [
         "&Decimal",
         "&Decimal",
@@ -58,9 +82,13 @@
     "fn:format": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Decimal"
       ],
@@ -69,9 +97,14 @@
     "fn:fromCoefficient": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value",
+        "scale"
+      ],
       "parameters": [
         "&BigInt",
         "Int"
@@ -81,9 +114,13 @@
     "fn:fromJson": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "Json"
       ],
@@ -92,9 +129,16 @@
     "fn:multiply": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right",
+        "precision",
+        "rounding"
+      ],
       "parameters": [
         "&Decimal",
         "&Decimal",
@@ -106,9 +150,13 @@
     "fn:parse": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "String"
       ],
@@ -117,9 +165,16 @@
     "fn:quantize": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value",
+        "scale",
+        "precision",
+        "rounding"
+      ],
       "parameters": [
         "&Decimal",
         "Int",
@@ -131,9 +186,13 @@
     "fn:representation": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Decimal"
       ],
@@ -142,20 +201,73 @@
     "fn:scale": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Decimal"
       ],
       "return": "Result<Int,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:subtract": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right",
+        "precision",
+        "rounding"
+      ],
       "parameters": [
         "&Decimal",
         "&Decimal",
@@ -167,15 +279,25 @@
     "fn:toJson": {
       "async": false,
       "cost": "native work and scratch precharged from coefficient, scale and output size.",
+      "defaults": [],
       "effects": [],
       "failure": "typed StdError/DbError; no implicit Float conversion; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Decimal"
       ],
       "return": "Result<Json,StdError>"
     },
     "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -330,6 +452,12 @@
         "TowardZero": []
       }
     },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:EigenResult": {
       "constructor": true,
       "fields": [
@@ -349,7 +477,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -442,6 +588,75 @@
       "generics": [],
       "kind": "record"
     },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:HttpUpload": {
       "constructor": true,
       "fields": [
@@ -450,6 +665,12 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },
@@ -525,6 +746,117 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -548,6 +880,30 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -560,6 +916,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

@@ -1,14 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.8",
+  "language": "3.5.0",
   "symbols": {
     "fn:build": {
       "async": false,
       "cost": "O(n log n) native radix doubling, linear LCP; O(n) scratch, two paged IntArray results sharing across checkpoints.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericSize for inputs above 1048576 bytes; fatal VM memory/work budgets preflight the kernel.",
       "generics": [],
+      "names": [
+        "input"
+      ],
       "parameters": [
         "Bytes"
       ],
@@ -17,8 +21,13 @@
     "fn:find": {
       "async": false,
       "cost": "O(pattern bytes * log n) comparisons; half-open interval in suffix order. Empty pattern matches n nonempty suffixes, empty input has none.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "index",
+        "pattern"
+      ],
       "parameters": [
         "&SuffixIndex",
         "Bytes"
@@ -28,8 +37,12 @@
     "fn:lcp": {
       "async": false,
       "cost": "O(1) shared handle; element 0 is zero, element i compares order[i-1] and order[i].",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "index"
+      ],
       "parameters": [
         "&SuffixIndex"
       ],
@@ -37,8 +50,12 @@
     },
     "fn:length": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "index"
+      ],
       "parameters": [
         "&SuffixIndex"
       ],
@@ -46,12 +63,58 @@
     },
     "fn:order": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "index"
+      ],
       "parameters": [
         "&SuffixIndex"
       ],
       "return": "IntArray"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -239,7 +302,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -319,6 +400,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -503,6 +653,35 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -526,7 +705,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -552,6 +749,42 @@
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
     }
   }
 }

@@ -1480,6 +1480,7 @@ impl Compiler {
                         asynchronous: false,
                         effects: None,
                         params: params.clone(),
+                        defaults: BTreeMap::new(),
                         ret: ret.clone(),
                         body: body.clone(),
                         at: e.at.clone(),

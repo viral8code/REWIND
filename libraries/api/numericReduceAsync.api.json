@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.55",
+  "language": "3.5.0",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
@@ -19,6 +20,10 @@
             null
           ]
         ],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "Task<A>",
           "Task<B>"
@@ -27,10 +32,12 @@
       },
       "fn:$import$task$yieldNow": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       }
@@ -38,24 +45,74 @@
     "fn:mean": {
       "async": true,
       "cost": "At most 4096 logical values per native step, Welford order as numeric.mean; shared strided/broadcast inputs, constant scalar state, task handoff.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericType/Empty/NonFinite/Overflow; same finite mean-and-variance checks as numeric.mean; no partial result on failure/cancel, fatal budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "FloatArray"
       ],
       "return": "Result<Float,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:sum": {
       "async": true,
       "cost": "At most 4096 logical values per native step, shared input pages and constant scalar state; yields between steps, same Neumaier order as numeric.sum.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericType/NonFinite/Overflow; empty input sums to 0, arbitrary rank/views, no partial result on typed failure or cancellation. Fatal memory/work budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "FloatArray"
       ],
@@ -64,11 +121,16 @@
     "fn:variance": {
       "async": true,
       "cost": "At most 4096 logical values per native step, same Welford order and count-ddof divisor as numeric.variance; shared input and constant scalar state.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericIndex for negative ddof, NumericEmpty for count <= ddof, NumericType/NonFinite/Overflow; no partial result on failure/cancel, fatal budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "ddof"
+      ],
       "parameters": [
         "FloatArray",
         "Int"
@@ -274,6 +336,12 @@
       "kind": "record"
     },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -724,6 +792,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

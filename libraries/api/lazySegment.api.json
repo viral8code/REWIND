@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.8",
+  "language": "3.5.0",
   "symbols": {
     "fn:build": {
       "async": false,
       "cost": "O(n) combine calls and O(n) storage; n <= 1048576. Callback laws are caller obligations.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -16,6 +17,11 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "input",
+        "identity",
+        "combine"
       ],
       "parameters": [
         "&List<T>",
@@ -26,6 +32,7 @@
     },
     "fn:length": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -36,6 +43,9 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "tree"
       ],
       "parameters": [
         "&LazySegment<T,U>"
@@ -45,6 +55,7 @@
     "fn:query": {
       "async": false,
       "cost": "O(log n) callbacks; maintains left-to-right combine order and pushes pending tags, so requires a mutable borrow.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -55,6 +66,14 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "start",
+        "end",
+        "combine",
+        "apply",
+        "compose"
       ],
       "parameters": [
         "&mut LazySegment<T,U>",
@@ -66,9 +85,52 @@
       ],
       "return": "Result<T,String>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:update": {
       "async": false,
       "cost": "O(log n) callback evaluations; persistent List page accesses add their own lookup cost.",
+      "defaults": [],
       "effects": [],
       "failure": "Range is checked before mutation; callback panic or fatal budget does not roll back partial mutation. Use checkpoints when recovery is required.",
       "generics": [
@@ -80,6 +142,15 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "tree",
+        "start",
+        "end",
+        "value",
+        "combine",
+        "apply",
+        "compose"
       ],
       "parameters": [
         "&mut LazySegment<T,U>",
@@ -278,7 +349,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -358,6 +447,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -555,6 +713,35 @@
       ],
       "kind": "struct"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -578,7 +765,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -596,6 +801,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

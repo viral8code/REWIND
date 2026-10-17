@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.0.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:gui.rw": {
       "alias:$import$gui$GuiError": {
@@ -10,8 +10,14 @@
       },
       "fn:$import$gui$applyLayout": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "layout",
+          "bounds"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&$import$gui$Layout",
@@ -21,8 +27,16 @@
       },
       "fn:$import$gui$arrange": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "columns",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -34,8 +48,16 @@
       },
       "fn:$import$gui$arrangeColumn": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -47,8 +69,16 @@
       },
       "fn:$import$gui$arrangeRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -60,8 +90,13 @@
       },
       "fn:$import$gui$background": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Int"
@@ -70,8 +105,12 @@
       },
       "fn:$import$gui$bounds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -79,8 +118,18 @@
       },
       "fn:$import$gui$button": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -94,8 +143,19 @@
       },
       "fn:$import$gui$checkbox": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "checked",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -110,8 +170,13 @@
       },
       "fn:$import$gui$checked": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -120,17 +185,24 @@
       },
       "fn:$import$gui$close": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<Unit,StdError>"
       },
       "fn:$import$gui$column": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children",
+          "gap"
+        ],
         "parameters": [
           "&List<$import$gui$WeightedLayout>",
           "Int"
@@ -139,8 +211,13 @@
       },
       "fn:$import$gui$componentId": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope",
+          "local"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope",
           "String"
@@ -149,8 +226,13 @@
       },
       "fn:$import$gui$componentLocalId": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope",
+          "widgetId"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope",
           "String"
@@ -159,8 +241,12 @@
       },
       "fn:$import$gui$componentPrefix": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope"
         ],
@@ -168,8 +254,12 @@
       },
       "fn:$import$gui$componentScope": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "name"
+        ],
         "parameters": [
           "String"
         ],
@@ -177,17 +267,25 @@
       },
       "fn:$import$gui$continueInput": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       },
       "fn:$import$gui$crossSized": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "child",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$gui$WeightedLayout",
           "Int",
@@ -197,8 +295,13 @@
       },
       "fn:$import$gui$dispatch": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "event"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "$import$gui$Event"
@@ -207,8 +310,14 @@
       },
       "fn:$import$gui$edit": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "event"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -218,8 +327,13 @@
       },
       "fn:$import$gui$focus": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String"
@@ -228,8 +342,12 @@
       },
       "fn:$import$gui$focused": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -237,8 +355,13 @@
       },
       "fn:$import$gui$graphemeEditing": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "enabled"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Bool"
@@ -247,8 +370,12 @@
       },
       "fn:$import$gui$graphemeMode": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -256,8 +383,18 @@
       },
       "fn:$import$gui$label": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -271,8 +408,12 @@
       },
       "fn:$import$gui$leaf": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "id"
+        ],
         "parameters": [
           "String"
         ],
@@ -280,8 +421,18 @@
       },
       "fn:$import$gui$line": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "x1",
+          "y1",
+          "x2",
+          "y2",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -295,17 +446,24 @@
       },
       "fn:$import$gui$nextEvent": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<$import$gui$Event,StdError>"
       },
       "fn:$import$gui$overlay": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "base",
+          "layer"
+        ],
         "parameters": [
           "&$import$gui$View",
           "&$import$gui$View"
@@ -314,8 +472,12 @@
       },
       "fn:$import$gui$overlayLayout": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children"
+        ],
         "parameters": [
           "&List<$import$gui$Layout>"
         ],
@@ -323,8 +485,16 @@
       },
       "fn:$import$gui$padded": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int",
@@ -336,19 +506,25 @@
       },
       "fn:$import$gui$pollEvent": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<Option<$import$gui$Event>,StdError>"
       },
       "fn:$import$gui$present": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -356,8 +532,18 @@
       },
       "fn:$import$gui$rectangle": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "x",
+          "y",
+          "width",
+          "height",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -371,8 +557,13 @@
       },
       "fn:$import$gui$remove": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String"
@@ -381,8 +572,14 @@
       },
       "fn:$import$gui$resize": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Int",
@@ -392,8 +589,13 @@
       },
       "fn:$import$gui$row": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children",
+          "gap"
+        ],
         "parameters": [
           "&List<$import$gui$WeightedLayout>",
           "Int"
@@ -402,8 +604,12 @@
       },
       "fn:$import$gui$scene": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -411,8 +617,13 @@
       },
       "fn:$import$gui$scrollPosition": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -421,8 +632,13 @@
       },
       "fn:$import$gui$selection": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -431,8 +647,14 @@
       },
       "fn:$import$gui$setChecked": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "checked"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -442,8 +664,14 @@
       },
       "fn:$import$gui$setEnabled": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "enabled"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -453,8 +681,14 @@
       },
       "fn:$import$gui$setScrollPosition": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "line"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -464,8 +698,15 @@
       },
       "fn:$import$gui$setSelection": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "cursor",
+          "anchor"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -476,8 +717,14 @@
       },
       "fn:$import$gui$setText": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -487,8 +734,15 @@
       },
       "fn:$import$gui$sized": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "weight",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int",
@@ -499,8 +753,14 @@
       },
       "fn:$import$gui$splitColumn": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "$import$gui$Rect",
           "&List<Int>",
@@ -510,8 +770,14 @@
       },
       "fn:$import$gui$splitRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "$import$gui$Rect",
           "&List<Int>",
@@ -521,8 +787,15 @@
       },
       "fn:$import$gui$style": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "foreground",
+          "background"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -533,8 +806,13 @@
       },
       "fn:$import$gui$text": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -543,8 +821,18 @@
       },
       "fn:$import$gui$textArea": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -558,8 +846,18 @@
       },
       "fn:$import$gui$textBox": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -573,8 +871,13 @@
       },
       "fn:$import$gui$weighted": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "weight"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int"
@@ -583,8 +886,14 @@
       },
       "fn:$import$gui$window": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "title",
+          "width",
+          "height"
+        ],
         "parameters": [
           "String",
           "Int",
@@ -716,8 +1025,12 @@
     "fn:axisOf": {
       "async": false,
       "cost": "O(n); scans every value once. A single repeated value v gives [-1,1] when v is 0, otherwise [v-|v|/2,v+|v|/2].",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "values"
+      ],
       "parameters": [
         "&Frozen<List<Float>>"
       ],
@@ -725,9 +1038,20 @@
     },
     "fn:chart": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "InvalidSize; width and height are 64..4096, margins are 0..4096 and the plot area is at least 2 by 2.",
       "generics": [],
+      "names": [
+        "width",
+        "height",
+        "left",
+        "top",
+        "right",
+        "bottom",
+        "x",
+        "y"
+      ],
       "parameters": [
         "Int",
         "Int",
@@ -742,9 +1066,15 @@
     },
     "fn:polyline": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "InvalidLimit for maxSegments outside 1..2000; TooManyPoints when the segments cannot fit the limit even after widening the columns to the plot width.",
       "generics": [],
+      "names": [
+        "c",
+        "s",
+        "maxSegments"
+      ],
       "parameters": [
         "&Chart",
         "&Series",
@@ -754,9 +1084,15 @@
     },
     "fn:project": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Overflow for non-finite values, an unusable axis (zero or negative span) or a result outside the safe integer range.",
       "generics": [],
+      "names": [
+        "c",
+        "x",
+        "y"
+      ],
       "parameters": [
         "&Chart",
         "Float",
@@ -766,9 +1102,16 @@
     },
     "fn:render": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Adds each segment as a 1px gui line named prefix:index and stops at the first GUI error.",
       "generics": [],
+      "names": [
+        "view",
+        "prefix",
+        "segments",
+        "color"
+      ],
       "parameters": [
         "&mut $import$gui$View",
         "String",
@@ -779,9 +1122,15 @@
     },
     "fn:scatter": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "InvalidLimit for maxPoints outside 1..2000; TooManyPoints(count) when more distinct pixels are inside the plot area than allowed.",
       "generics": [],
+      "names": [
+        "c",
+        "s",
+        "maxPoints"
+      ],
       "parameters": [
         "&Chart",
         "&Series",
@@ -792,8 +1141,13 @@
     "fn:series": {
       "async": false,
       "cost": "O(n); checks length, 1..1048576 points and finiteness, then copies both lists into frozen storage.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "xs",
+        "ys"
+      ],
       "parameters": [
         "&List<Float>",
         "&List<Float>"
@@ -802,12 +1156,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -816,6 +1174,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -827,6 +1186,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -835,9 +1198,15 @@
     },
     "fn:svg": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Same as polyline. The frame and lines are built from the same segments that render draws.",
       "generics": [],
+      "names": [
+        "c",
+        "s",
+        "maxSegments"
+      ],
       "parameters": [
         "&Chart",
         "&Series",

@@ -1,12 +1,17 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.8.4",
+  "language": "3.5.0",
   "symbols": {
     "fn:add": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value",
+        "delta"
+      ],
       "parameters": [
         "&Instant",
         "&Duration"
@@ -15,8 +20,13 @@
     },
     "fn:addDurations": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&Duration",
         "&Duration"
@@ -26,8 +36,13 @@
     "fn:calendar": {
       "async": false,
       "cost": "bounded IANA lookup; weekday Monday=1..Sunday=7, dayOfYear=1..366; historical offsets retain seconds.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value",
+        "zone"
+      ],
       "parameters": [
         "&Instant",
         "String"
@@ -36,8 +51,13 @@
     },
     "fn:calendarOffset": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value",
+        "offsetSeconds"
+      ],
       "parameters": [
         "&Instant",
         "Int"
@@ -46,15 +66,22 @@
     },
     "fn:databaseVersion": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Result<String,StdError>"
     },
     "fn:difference": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&Instant",
         "&Instant"
@@ -63,9 +90,14 @@
     },
     "fn:duration": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "DateTimeRange; normalizes signed nanoseconds with checked overflow.",
       "generics": [],
+      "names": [
+        "seconds",
+        "nanoseconds"
+      ],
       "parameters": [
         "Int",
         "Int"
@@ -74,8 +106,12 @@
     },
     "fn:durationFromJson": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "Json"
       ],
@@ -83,8 +119,12 @@
     },
     "fn:durationNanoseconds": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Duration"
       ],
@@ -92,8 +132,12 @@
     },
     "fn:durationSeconds": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Duration"
       ],
@@ -101,8 +145,12 @@
     },
     "fn:durationToJson": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Duration"
       ],
@@ -110,8 +158,12 @@
     },
     "fn:format": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Instant"
       ],
@@ -119,9 +171,14 @@
     },
     "fn:formatOffset": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "DateTimeOffset/Range; RFC3339 requires a whole-minute offset strictly inside +/-24 hours.",
       "generics": [],
+      "names": [
+        "value",
+        "offsetSeconds"
+      ],
       "parameters": [
         "&Instant",
         "Int"
@@ -130,8 +187,12 @@
     },
     "fn:fromJson": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "Json"
       ],
@@ -139,9 +200,14 @@
     },
     "fn:instant": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "DateTimeRange; UTC calendar years 1..9999, nanoseconds 0..999999999.",
       "generics": [],
+      "names": [
+        "seconds",
+        "nanoseconds"
+      ],
       "parameters": [
         "Int",
         "Int"
@@ -150,8 +216,12 @@
     },
     "fn:nanoseconds": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Instant"
       ],
@@ -159,8 +229,12 @@
     },
     "fn:negateDuration": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Duration"
       ],
@@ -168,9 +242,13 @@
     },
     "fn:parse": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "DateTimeSyntax/Calendar/Range; explicit RFC3339 offset, up to nine fractional digits, no leap seconds.",
       "generics": [],
+      "names": [
+        "text"
+      ],
       "parameters": [
         "String"
       ],
@@ -178,9 +256,15 @@
     },
     "fn:resolve": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "DateTimeCalendar/Zone/Ambiguous/Gap/Range; gaps always fail, overlaps require an explicit policy.",
       "generics": [],
+      "names": [
+        "value",
+        "zone",
+        "ambiguity"
+      ],
       "parameters": [
         "Calendar",
         "String",
@@ -190,8 +274,13 @@
     },
     "fn:resolveOffset": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value",
+        "offsetSeconds"
+      ],
       "parameters": [
         "Calendar",
         "Int"
@@ -200,17 +289,68 @@
     },
     "fn:seconds": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Instant"
       ],
       "return": "Result<Int,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:subtractDurations": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&Duration",
         "&Duration"
@@ -219,8 +359,12 @@
     },
     "fn:toJson": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Instant"
       ],
@@ -275,6 +419,12 @@
       ],
       "generics": [],
       "kind": "struct"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
     },
     "type:DbBatch": {
       "constructor": true,
@@ -450,7 +600,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -530,6 +698,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -632,6 +869,94 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:LocalTime": {
       "constructor": true,
       "fields": [
@@ -654,6 +979,29 @@
       ],
       "generics": [],
       "kind": "struct"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
     },
     "type:QrResult": {
       "constructor": true,
@@ -678,6 +1026,30 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -690,6 +1062,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

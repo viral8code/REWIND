@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.0.0",
+  "language": "3.5.0",
   "symbols": {
     "alias:GuiError": {
       "generics": [],
@@ -10,8 +10,14 @@
     "fn:applyLayout": {
       "async": false,
       "cost": "walks at most 1024 nodes and validates every placement before updating the view.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "layout",
+        "bounds"
+      ],
       "parameters": [
         "&mut View",
         "&Layout",
@@ -22,8 +28,16 @@
     "fn:arrange": {
       "async": false,
       "cost": "O(ids); prevalidates geometry and IDs before mutating the view.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "ids",
+        "bounds",
+        "columns",
+        "gap"
+      ],
       "parameters": [
         "&mut View",
         "&List<String>",
@@ -36,8 +50,16 @@
     "fn:arrangeColumn": {
       "async": false,
       "cost": "validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "ids",
+        "bounds",
+        "weights",
+        "gap"
+      ],
       "parameters": [
         "&mut View",
         "&List<String>",
@@ -50,8 +72,16 @@
     "fn:arrangeRow": {
       "async": false,
       "cost": "validates all IDs and rectangles before changing any widget; existing focus and edit state remain attached to widget IDs.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "ids",
+        "bounds",
+        "weights",
+        "gap"
+      ],
       "parameters": [
         "&mut View",
         "&List<String>",
@@ -63,8 +93,13 @@
     },
     "fn:background": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "color"
+      ],
       "parameters": [
         "&mut View",
         "Int"
@@ -74,8 +109,12 @@
     "fn:bounds": {
       "async": false,
       "cost": "O(1); client area geometry for composing bounded overlays.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view"
+      ],
       "parameters": [
         "&View"
       ],
@@ -83,8 +122,18 @@
     },
     "fn:button": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "caption",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -98,8 +147,19 @@
     },
     "fn:checkbox": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "caption",
+        "checked",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -114,8 +174,13 @@
     },
     "fn:checked": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id"
+      ],
       "parameters": [
         "&View",
         "String"
@@ -124,17 +189,24 @@
     },
     "fn:close": {
       "async": false,
+      "defaults": [],
       "effects": [
         "gui"
       ],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Result<Unit,StdError>"
     },
     "fn:column": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "children",
+        "gap"
+      ],
       "parameters": [
         "&List<WeightedLayout>",
         "Int"
@@ -144,8 +216,13 @@
     "fn:componentId": {
       "async": false,
       "cost": "O(scope bytes + local bytes); local id is 1..64 UTF-8 bytes; distinct scope/local pairs encode uniquely.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "scope",
+        "local"
+      ],
       "parameters": [
         "&ComponentScope",
         "String"
@@ -155,8 +232,13 @@
     "fn:componentLocalId": {
       "async": false,
       "cost": "O(scope bytes + widget ID bytes); returns None for another scope or invalid local IDs.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "scope",
+        "widgetId"
+      ],
       "parameters": [
         "&ComponentScope",
         "String"
@@ -166,8 +248,12 @@
     "fn:componentPrefix": {
       "async": false,
       "cost": "O(name bytes); stable length-prefixed prefix, at most 27 bytes and valid as guiForm render prefix.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "scope"
+      ],
       "parameters": [
         "&ComponentScope"
       ],
@@ -176,8 +262,12 @@
     "fn:componentScope": {
       "async": false,
       "cost": "O(name bytes); names are case-sensitive UTF-8, 1..24 bytes, and contain no NUL.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "name"
+      ],
       "parameters": [
         "String"
       ],
@@ -185,19 +275,27 @@
     },
     "fn:continueInput": {
       "async": false,
+      "defaults": [],
       "effects": [
         "gui"
       ],
       "failure": "After revert, skips only events already delivered in this execution, including during replay.",
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Unit"
     },
     "fn:crossSized": {
       "async": false,
       "cost": "bounds the cross axis: height in a row and width in a column; content stays at the leading edge.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "child",
+        "minimum",
+        "maximum"
+      ],
       "parameters": [
         "WeightedLayout",
         "Int",
@@ -208,8 +306,13 @@
     "fn:dispatch": {
       "async": false,
       "cost": "Pointer scans in reverse draw order, at most 2048 widgets; Tab traverses controls.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "event"
+      ],
       "parameters": [
         "&mut View",
         "Event"
@@ -218,8 +321,14 @@
     },
     "fn:edit": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "event"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -229,9 +338,14 @@
     },
     "fn:focus": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "UnknownId/NotInteractive; retains the widget selection and scroll.",
       "generics": [],
+      "names": [
+        "view",
+        "id"
+      ],
       "parameters": [
         "&mut View",
         "String"
@@ -241,8 +355,12 @@
     "fn:focused": {
       "async": false,
       "cost": "O(1); disabled or removed controls have no focus.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view"
+      ],
       "parameters": [
         "&View"
       ],
@@ -250,9 +368,14 @@
     },
     "fn:graphemeEditing": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Enables cluster editing; existing scalar positions round forward to a boundary. Default is false.",
       "generics": [],
+      "names": [
+        "view",
+        "enabled"
+      ],
       "parameters": [
         "&mut View",
         "Bool"
@@ -261,8 +384,12 @@
     },
     "fn:graphemeMode": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view"
+      ],
       "parameters": [
         "&View"
       ],
@@ -270,8 +397,18 @@
     },
     "fn:label": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "caption",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -285,8 +422,12 @@
     },
     "fn:leaf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "id"
+      ],
       "parameters": [
         "String"
       ],
@@ -294,8 +435,18 @@
     },
     "fn:line": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "color"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -309,20 +460,27 @@
     },
     "fn:nextEvent": {
       "async": false,
+      "defaults": [],
       "effects": [
         "gui"
       ],
       "failure": "GUI must be published first; input is journaled, blocking, and replayable.",
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Result<Event,StdError>"
     },
     "fn:overlay": {
       "async": false,
       "cost": "O(combined widget count); at most 2048 controls. Copies bounded VM metadata; captions remain shared.",
+      "defaults": [],
       "effects": [],
       "failure": "GuiInvalidSize/EditingModeMismatch/WidgetLimit/DuplicateId; input views remain unchanged. Layer controls draw above base controls and take focus when the layer has focus.",
       "generics": [],
+      "names": [
+        "base",
+        "layer"
+      ],
       "parameters": [
         "&View",
         "&View"
@@ -332,8 +490,12 @@
     "fn:overlayLayout": {
       "async": false,
       "cost": "places every child over the same bounds; View insertion order controls z-order.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "children"
+      ],
       "parameters": [
         "&List<Layout>"
       ],
@@ -342,8 +504,16 @@
     "fn:padded": {
       "async": false,
       "cost": "wraps one layout in bounded insets; the child receives the remaining inner rectangle.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "layout",
+        "left",
+        "top",
+        "right",
+        "bottom"
+      ],
       "parameters": [
         "Layout",
         "Int",
@@ -355,20 +525,26 @@
     },
     "fn:pollEvent": {
       "async": false,
+      "defaults": [],
       "effects": [
         "gui"
       ],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Result<Option<Event>,StdError>"
     },
     "fn:present": {
       "async": false,
+      "defaults": [],
       "effects": [
         "gui"
       ],
       "failure": "Queues a scene; publish may fail with GuiUnavailable or PublishPartiallyApplied.",
       "generics": [],
+      "names": [
+        "view"
+      ],
       "parameters": [
         "&View"
       ],
@@ -376,8 +552,18 @@
     },
     "fn:rectangle": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "x",
+        "y",
+        "width",
+        "height",
+        "color"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -392,9 +578,14 @@
     "fn:remove": {
       "async": false,
       "cost": "O(widgets); rebuilds indices and preserves remaining selection, scroll and focus.",
+      "defaults": [],
       "effects": [],
       "failure": "UnknownId; unknown input leaves the view unchanged.",
       "generics": [],
+      "names": [
+        "view",
+        "id"
+      ],
       "parameters": [
         "&mut View",
         "String"
@@ -403,8 +594,14 @@
     },
     "fn:resize": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "width",
+        "height"
+      ],
       "parameters": [
         "&mut View",
         "Int",
@@ -414,8 +611,13 @@
     },
     "fn:row": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "children",
+        "gap"
+      ],
       "parameters": [
         "&List<WeightedLayout>",
         "Int"
@@ -425,8 +627,12 @@
     "fn:scene": {
       "async": false,
       "cost": "O(widget count + caption bytes); serialized scene at most 1 MiB.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view"
+      ],
       "parameters": [
         "&View"
       ],
@@ -434,9 +640,14 @@
     },
     "fn:scrollPosition": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "UnknownId/NotTextArea; logical first visible line.",
       "generics": [],
+      "names": [
+        "view",
+        "id"
+      ],
       "parameters": [
         "&View",
         "String"
@@ -445,8 +656,13 @@
     },
     "fn:selection": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id"
+      ],
       "parameters": [
         "&View",
         "String"
@@ -455,9 +671,15 @@
     },
     "fn:setChecked": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "UnknownId/NotCheckbox; updates only the logical view.",
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "checked"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -467,8 +689,14 @@
     },
     "fn:setEnabled": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "enabled"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -478,9 +706,15 @@
     },
     "fn:setScrollPosition": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "UnknownId/NotTextArea/InvalidScroll; prevalidates without changing focus or text.",
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "line"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -490,8 +724,15 @@
     },
     "fn:setSelection": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "cursor",
+        "anchor"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -502,8 +743,14 @@
     },
     "fn:setText": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "caption"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -514,8 +761,15 @@
     "fn:sized": {
       "async": false,
       "cost": "constrains the child's main axis; minimum == maximum requests a fixed size.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "layout",
+        "weight",
+        "minimum",
+        "maximum"
+      ],
       "parameters": [
         "Layout",
         "Int",
@@ -527,9 +781,15 @@
     "fn:splitColumn": {
       "async": false,
       "cost": "O(children), max 256; distributes integer remainder pixels from top to bottom.",
+      "defaults": [],
       "effects": [],
       "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; no input is changed.",
       "generics": [],
+      "names": [
+        "bounds",
+        "weights",
+        "gap"
+      ],
       "parameters": [
         "Rect",
         "&List<Int>",
@@ -540,9 +800,15 @@
     "fn:splitRow": {
       "async": false,
       "cost": "O(children), max 256; distributes integer remainder pixels from left to right.",
+      "defaults": [],
       "effects": [],
       "failure": "GuiLayoutChildren/Gap/Bounds/Weight/InsufficientSpace; no input is changed.",
       "generics": [],
+      "names": [
+        "bounds",
+        "weights",
+        "gap"
+      ],
       "parameters": [
         "Rect",
         "&List<Int>",
@@ -552,12 +818,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -566,6 +836,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -577,6 +848,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -585,9 +860,16 @@
     },
     "fn:style": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "UnknownId/InvalidColor; retains every other widget property.",
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "foreground",
+        "background"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -598,8 +880,13 @@
     },
     "fn:text": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id"
+      ],
       "parameters": [
         "&View",
         "String"
@@ -608,8 +895,18 @@
     },
     "fn:textArea": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "caption",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -623,9 +920,19 @@
     },
     "fn:textBox": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Single-line editing with Unicode-scalar selection; 4096 UTF-8 bytes.",
       "generics": [],
+      "names": [
+        "view",
+        "id",
+        "caption",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
       "parameters": [
         "&mut View",
         "String",
@@ -640,8 +947,13 @@
     "fn:weighted": {
       "async": false,
       "cost": "uses the default main-axis range 0..4096.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "layout",
+        "weight"
+      ],
       "parameters": [
         "Layout",
         "Int"
@@ -650,9 +962,15 @@
     },
     "fn:window": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "InvalidSize/InvalidTitle; 64..4096 client pixels per axis.",
       "generics": [],
+      "names": [
+        "title",
+        "width",
+        "height"
+      ],
       "parameters": [
         "String",
         "Int",

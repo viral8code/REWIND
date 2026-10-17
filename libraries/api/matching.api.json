@@ -1,13 +1,20 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.5",
+  "language": "3.5.0",
   "symbols": {
     "dependency:flow.rw": {
       "fn:$import$flow$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "network",
+          "from",
+          "to",
+          "capacity"
+        ],
         "parameters": [
           "&mut $import$flow$Network",
           "Int",
@@ -18,8 +25,15 @@
       },
       "fn:$import$flow$augment": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "network",
+          "source",
+          "sink",
+          "limit"
+        ],
         "parameters": [
           "&mut $import$flow$Network",
           "Int",
@@ -30,8 +44,13 @@
       },
       "fn:$import$flow$create": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "vertices",
+          "capacity"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -40,8 +59,13 @@
       },
       "fn:$import$flow$edge": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "network",
+          "id"
+        ],
         "parameters": [
           "&$import$flow$Network",
           "Int"
@@ -50,8 +74,12 @@
       },
       "fn:$import$flow$edges": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "network"
+        ],
         "parameters": [
           "&$import$flow$Network"
         ],
@@ -59,8 +87,13 @@
       },
       "fn:$import$flow$reachable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "network",
+          "source"
+        ],
         "parameters": [
           "&$import$flow$Network",
           "Int"
@@ -69,8 +102,12 @@
       },
       "fn:$import$flow$vertices": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "network"
+        ],
         "parameters": [
           "&$import$flow$Network"
         ],
@@ -109,15 +146,63 @@
     "fn:maximum": {
       "async": false,
       "cost": "Dinic O(V^2 E log pages) upper bound; O(V + E) VM cells.",
+      "defaults": [],
       "effects": [],
       "failure": "Capacity/Range; input is borrowed and never mutated. Fatal work/history budgets apply.",
       "generics": [],
+      "names": [
+        "leftVertices",
+        "rightVertices",
+        "pairs"
+      ],
       "parameters": [
         "Int",
         "Int",
         "&List<Tuple<Int,Int>>"
       ],
       "return": "Result<Matching,String>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -305,7 +390,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -385,6 +488,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -569,6 +741,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Matching": {
       "constructor": true,
       "fields": [
@@ -596,6 +774,29 @@
       "generics": [],
       "kind": "struct"
     },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -619,7 +820,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -637,6 +856,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

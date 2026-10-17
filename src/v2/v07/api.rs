@@ -174,7 +174,7 @@ fn document(root: &Path) -> Result<Json> {
     let mut symbols = BTreeMap::new();
     for (n, f) in &p.functions {
         if f.public && f.origin == p.root_origin {
-            symbols.insert(format!("fn:{n}"),json!({"async":f.asynchronous,"generics":f.type_params,"parameters":f.params.iter().map(|(_,t)|t).collect::<Vec<_>>(),"return":f.ret,"effects":f.effects}));
+            symbols.insert(format!("fn:{n}"),json!({"async":f.asynchronous,"generics":f.type_params,"parameters":f.params.iter().map(|(_,t)|t).collect::<Vec<_>>(),"names":f.params.iter().map(|(n,_)|n).collect::<Vec<_>>(),"defaults":f.defaults.keys().collect::<Vec<_>>(),"return":f.ret,"effects":f.effects}));
         }
     }
     for (n, d) in &p.structs {
@@ -389,7 +389,7 @@ fn document(root: &Path) -> Result<Json> {
             let mut exports = BTreeMap::new();
             for (n, f) in &p.functions {
                 if f.public && &f.origin == origin {
-                    exports.insert(format!("fn:{n}"),json!({"generics":f.type_params,"async":f.asynchronous,"parameters":f.params.iter().map(|(_,t)|t).collect::<Vec<_>>(),"return":f.ret,"effects":f.effects}));
+                    exports.insert(format!("fn:{n}"),json!({"generics":f.type_params,"async":f.asynchronous,"parameters":f.params.iter().map(|(_,t)|t).collect::<Vec<_>>(),"names":f.params.iter().map(|(n,_)|n).collect::<Vec<_>>(),"defaults":f.defaults.keys().collect::<Vec<_>>(),"return":f.ret,"effects":f.effects}));
                 }
             }
             for (n, d) in &p.structs {

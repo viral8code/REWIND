@@ -1,20 +1,68 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.49",
+  "language": "3.5.0",
   "symbols": {
     "fn:integers": {
       "async": false,
       "cost": "O(length) native page construction without per-element VM objects.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericSize/Index/Overflow; length 0..16777216, checked Int64 endpoints; VM work/memory budgets apply.",
       "generics": [],
+      "names": [
+        "start",
+        "step",
+        "length"
+      ],
       "parameters": [
         "Int",
         "Int",
         "Int"
       ],
       "return": "Result<IntArray,StdError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -215,6 +263,12 @@
       "kind": "record"
     },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -665,6 +719,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

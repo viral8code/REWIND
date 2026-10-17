@@ -1,13 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:integer.rw": {
       "fn:$import$integer$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -16,8 +21,13 @@
       },
       "fn:$import$integer$combination": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "n",
+          "k"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -26,8 +36,13 @@
       },
       "fn:$import$integer$extendedGcd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -36,8 +51,12 @@
       },
       "fn:$import$integer$factors": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "n"
+        ],
         "parameters": [
           "Int"
         ],
@@ -45,8 +64,13 @@
       },
       "fn:$import$integer$gcd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -55,8 +79,13 @@
       },
       "fn:$import$integer$lcm": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -65,8 +94,13 @@
       },
       "fn:$import$integer$multiply": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -75,8 +109,12 @@
       },
       "fn:$import$integer$primes": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "limit"
+        ],
         "parameters": [
           "Int"
         ],
@@ -86,6 +124,7 @@
     "fn:add": {
       "async": false,
       "cost": "O(1); checked addition.",
+      "defaults": [],
       "effects": [],
       "failure": "Overflow; adds two amounts of the same unit with checked arithmetic.",
       "generics": [
@@ -93,6 +132,10 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "a",
+        "b"
       ],
       "parameters": [
         "Quantity<U>",
@@ -103,12 +146,16 @@
     "fn:amount": {
       "async": false,
       "cost": "O(1); the raw Int, for legacy APIs that still take plain integers.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "q"
       ],
       "parameters": [
         "Quantity<U>"
@@ -118,12 +165,17 @@
     "fn:equal": {
       "async": false,
       "cost": "O(1); compares two amounts of the same unit.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "a",
+        "b"
       ],
       "parameters": [
         "Quantity<U>",
@@ -134,6 +186,7 @@
     "fn:idOf": {
       "async": false,
       "cost": "O(bytes), at most 64.",
+      "defaults": [],
       "effects": [],
       "failure": "Empty, TooLong, BadText; an opaque ID of kind K from 1..64 bytes without NUL.",
       "generics": [
@@ -141,6 +194,9 @@
           "K",
           "Share"
         ]
+      ],
+      "names": [
+        "text"
       ],
       "parameters": [
         "String"
@@ -150,12 +206,17 @@
     "fn:less": {
       "async": false,
       "cost": "O(1); compares two amounts of the same unit.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "a",
+        "b"
       ],
       "parameters": [
         "Quantity<U>",
@@ -166,8 +227,12 @@
     "fn:milliFloorSeconds": {
       "async": false,
       "cost": "O(1); rounds toward negative infinity, so -1 ms is -1 s. There is no implicit narrowing.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "q"
+      ],
       "parameters": [
         "Quantity<Milli>"
       ],
@@ -176,9 +241,13 @@
     "fn:milliToNano": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "failure": "Overflow; exact, multiplies by 1000000.",
       "generics": [],
+      "names": [
+        "q"
+      ],
       "parameters": [
         "Quantity<Milli>"
       ],
@@ -187,8 +256,12 @@
     "fn:nanoFloorMilli": {
       "async": false,
       "cost": "O(1); rounds toward negative infinity.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "q"
+      ],
       "parameters": [
         "Quantity<Nano>"
       ],
@@ -197,12 +270,16 @@
     "fn:of": {
       "async": false,
       "cost": "O(1); wraps an Int in the unit U (any Int, including negative ones for differences).",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "amount"
       ],
       "parameters": [
         "Int"
@@ -212,12 +289,17 @@
     "fn:sameId": {
       "async": false,
       "cost": "O(bytes); compares two IDs of the same kind.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "K",
           "Share"
         ]
+      ],
+      "names": [
+        "a",
+        "b"
       ],
       "parameters": [
         "Id<K>",
@@ -228,9 +310,13 @@
     "fn:secondsToMilli": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "failure": "Overflow; exact, multiplies by 1000.",
       "generics": [],
+      "names": [
+        "q"
+      ],
       "parameters": [
         "Quantity<Second>"
       ],
@@ -239,9 +325,13 @@
     "fn:secondsToNano": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "failure": "Overflow; exact, multiplies by 1000000000.",
       "generics": [],
+      "names": [
+        "q"
+      ],
       "parameters": [
         "Quantity<Second>"
       ],
@@ -249,12 +339,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -263,6 +357,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -274,6 +369,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -283,6 +382,7 @@
     "fn:sub": {
       "async": false,
       "cost": "O(1); checked subtraction.",
+      "defaults": [],
       "effects": [],
       "failure": "Overflow; the difference of two amounts of the same unit.",
       "generics": [
@@ -290,6 +390,10 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "a",
+        "b"
       ],
       "parameters": [
         "Quantity<U>",
@@ -300,12 +404,16 @@
     "fn:text": {
       "async": false,
       "cost": "O(1); the raw string, for storage, serialization and legacy APIs.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "K",
           "Share"
         ]
+      ],
+      "names": [
+        "id"
       ],
       "parameters": [
         "Id<K>"

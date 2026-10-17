@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:andThen": {
       "async": false,
       "cost": "Chooses the next parser from a parsed value; private cursors prevent the callback from switching input ownership.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -17,6 +18,10 @@
           "Share"
         ]
       ],
+      "names": [
+        "parser",
+        "choose"
+      ],
       "parameters": [
         "Parser<T>",
         "fn(T)->Parser<U>!{}~{Send+Share}"
@@ -25,12 +30,18 @@
     },
     "fn:binary": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "token",
+        "description",
+        "combine"
       ],
       "parameters": [
         "Bytes",
@@ -42,12 +53,18 @@
     "fn:chainLeft": {
       "async": false,
       "cost": "Parses term (operator term)* with left association; stops at maximum without probing another operator.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "term",
+        "operator",
+        "maximum"
       ],
       "parameters": [
         "Parser<T>",
@@ -59,12 +76,18 @@
     "fn:chainRight": {
       "async": false,
       "cost": "Collects at most maximum operators then folds right iteratively, avoiding recursion proportional to input length.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "term",
+        "operator",
+        "maximum"
       ],
       "parameters": [
         "Parser<T>",
@@ -75,12 +98,17 @@
     },
     "fn:complete": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "parser",
+        "input"
       ],
       "parameters": [
         "Parser<T>",
@@ -90,6 +118,7 @@
     },
     "fn:cut": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Commits grammar failure only; does not create a VM checkpoint or publish output.",
       "generics": [
@@ -98,6 +127,9 @@
           "Share"
         ]
       ],
+      "names": [
+        "parser"
+      ],
       "parameters": [
         "Parser<T>"
       ],
@@ -105,19 +137,25 @@
     },
     "fn:end": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Parser<Unit>"
     },
     "fn:fail": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "description"
       ],
       "parameters": [
         "String"
@@ -127,8 +165,13 @@
     "fn:literal": {
       "async": false,
       "cost": "Matches bytes exactly and reports the first differing byte; descriptions are caller-supplied labels.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value",
+        "description"
+      ],
       "parameters": [
         "Bytes",
         "String"
@@ -137,6 +180,7 @@
     },
     "fn:lookAhead": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Preserves the input cursor on success; failures, including cut, propagate unchanged.",
       "generics": [
@@ -145,6 +189,9 @@
           "Share"
         ]
       ],
+      "names": [
+        "parser"
+      ],
       "parameters": [
         "Parser<T>"
       ],
@@ -152,6 +199,7 @@
     },
     "fn:map": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -162,6 +210,10 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "parser",
+        "transform"
       ],
       "parameters": [
         "Parser<T>",
@@ -171,6 +223,7 @@
     },
     "fn:notFollowedBy": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Succeeds without consumption on ordinary mismatch; cut failures still propagate.",
       "generics": [
@@ -178,6 +231,10 @@
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "parser",
+        "description"
       ],
       "parameters": [
         "Parser<T>",
@@ -187,12 +244,16 @@
     },
     "fn:optional": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "parser"
       ],
       "parameters": [
         "Parser<T>"
@@ -201,6 +262,7 @@
     },
     "fn:orElse": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Retries second from the original cursor, unless first failed with cut. Equal farthest offsets merge at most 32 unique expectations.",
       "generics": [
@@ -208,6 +270,10 @@
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "first",
+        "second"
       ],
       "parameters": [
         "Parser<T>",
@@ -217,6 +283,7 @@
     },
     "fn:pair": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -227,6 +294,10 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "first",
+        "second"
       ],
       "parameters": [
         "Parser<T>",
@@ -237,12 +308,17 @@
     "fn:parse": {
       "async": false,
       "cost": "Input is limited to 1 MiB; positions are byte offsets. Returns the remaining cursor on success.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "parser",
+        "input"
       ],
       "parameters": [
         "Parser<T>",
@@ -252,8 +328,12 @@
     },
     "fn:position": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "cursor"
+      ],
       "parameters": [
         "Cursor"
       ],
@@ -261,12 +341,16 @@
     },
     "fn:pure": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "value"
       ],
       "parameters": [
         "T"
@@ -275,8 +359,12 @@
     },
     "fn:remaining": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "cursor"
+      ],
       "parameters": [
         "Cursor"
       ],
@@ -284,6 +372,7 @@
     },
     "fn:repeat": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Requires 0 <= minimum <= maximum <= 65536. Stops at maximum without a probe; zero-progress success is an error.",
       "generics": [
@@ -291,6 +380,11 @@
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "parser",
+        "minimum",
+        "maximum"
       ],
       "parameters": [
         "Parser<T>",
@@ -301,8 +395,13 @@
     },
     "fn:satisfy": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "description",
+        "predicate"
+      ],
       "parameters": [
         "String",
         "fn(Int)->Bool!{}~{Send+Share}"
@@ -311,8 +410,12 @@
     },
     "fn:spanBytes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "span"
+      ],
       "parameters": [
         "Span"
       ],
@@ -320,8 +423,12 @@
     },
     "fn:spanEnd": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "span"
+      ],
       "parameters": [
         "Span"
       ],
@@ -329,8 +436,12 @@
     },
     "fn:spanStart": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "span"
+      ],
       "parameters": [
         "Span"
       ],
@@ -339,12 +450,16 @@
     "fn:spanned": {
       "async": false,
       "cost": "Keeps the exact original byte range of a successful parser. The span owns its input bytes.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "parser"
       ],
       "parameters": [
         "Parser<T>"
@@ -353,12 +468,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -367,6 +486,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -378,6 +498,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -386,6 +510,7 @@
     },
     "fn:verify": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Checks a parsed value with a pure predicate; rejection is an ordinary mismatch at the end of the parsed value.",
       "generics": [
@@ -393,6 +518,11 @@
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "parser",
+        "description",
+        "predicate"
       ],
       "parameters": [
         "Parser<T>",

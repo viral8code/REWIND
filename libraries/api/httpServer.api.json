@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.30",
+  "language": "3.5.0",
   "symbols": {
     "fn:bearerCredential": {
       "async": false,
       "cost": "O(token bytes); at most 16 immutable aliases, 16KiB reserved per configuration.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -13,6 +14,10 @@
       ],
       "failure": "HttpServerError; external boundary and Secret<String> required; 16..4096 ASCII graphic bytes, never included in operation records.",
       "generics": [],
+      "names": [
+        "alias",
+        "token"
+      ],
       "parameters": [
         "String",
         "Secret<String>"
@@ -22,6 +27,7 @@
     "fn:close": {
       "async": false,
       "cost": "O(active connections and requests); aborts all physical connections and releases pending requests.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -29,6 +35,10 @@
       ],
       "failure": "HttpServerError; neither explicit close nor scope exit can be undone by revert.",
       "generics": [],
+      "names": [
+        "server",
+        "deadlineMillis"
+      ],
       "parameters": [
         "&mut HttpServer",
         "Int"
@@ -38,6 +48,7 @@
     "fn:closeRequest": {
       "async": false,
       "cost": "O(1); releases a request without an application reply; an active peer receives 503.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -45,6 +56,10 @@
       ],
       "failure": "HttpServerError; a consumed/disconnected request cannot be replied to again.",
       "generics": [],
+      "names": [
+        "request",
+        "deadlineMillis"
+      ],
       "parameters": [
         "&mut HttpServerRequest",
         "Int"
@@ -54,6 +69,7 @@
     "fn:configured": {
       "async": false,
       "cost": "O(maxBodyBytes * maxConnections); bounded request/response bodies, headers and queue.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -61,6 +77,14 @@
       ],
       "failure": "HttpServerError; body 1..1048576 bytes, connections 1..8, whole connection lifetime 1..120000 ms, deadline 1..120000 ms.",
       "generics": [],
+      "names": [
+        "address",
+        "port",
+        "maxBodyBytes",
+        "maxConnections",
+        "lifetimeMillis",
+        "deadlineMillis"
+      ],
       "parameters": [
         "String",
         "Int",
@@ -74,6 +98,7 @@
     "fn:configuredTls": {
       "async": false,
       "cost": "O(maxBodyBytes * maxConnections); adds 4MiB TLS memory reservation per connection.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -81,6 +106,15 @@
       ],
       "failure": "HttpServerError; registered alias required, TLS 1.2/1.3 HTTP/1.1; lifetime includes the handshake. Limits match configured.",
       "generics": [],
+      "names": [
+        "alias",
+        "address",
+        "port",
+        "maxBodyBytes",
+        "maxConnections",
+        "lifetimeMillis",
+        "deadlineMillis"
+      ],
       "parameters": [
         "String",
         "String",
@@ -95,6 +129,7 @@
     "fn:configuredTlsAuthenticated": {
       "async": false,
       "cost": "O(configured connection capacity); includes TLS memory reservations; authentication is checked before VM input capture.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -102,6 +137,16 @@
       ],
       "failure": "HttpServerError; requires TLS and bearer aliases. Missing/wrong/duplicate authorization receives 401 and closes; accepted authorization is removed from recorded requests.",
       "generics": [],
+      "names": [
+        "tlsAlias",
+        "authAlias",
+        "address",
+        "port",
+        "maxBodyBytes",
+        "maxConnections",
+        "lifetimeMillis",
+        "deadlineMillis"
+      ],
       "parameters": [
         "String",
         "String",
@@ -117,6 +162,7 @@
     "fn:listen": {
       "async": false,
       "cost": "O(configured connection capacity); reserves buffers before binding, at most four listeners.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -124,6 +170,11 @@
       ],
       "failure": "HttpServerError; numeric bind address, port 0 chooses a free port. Plain HTTP/1.1; physical connections cannot be restored.",
       "generics": [],
+      "names": [
+        "address",
+        "port",
+        "deadlineMillis"
+      ],
       "parameters": [
         "String",
         "Int",
@@ -134,6 +185,7 @@
     "fn:next": {
       "async": false,
       "cost": "O(request bytes); one outstanding wait per server. Request path/query retain URI encoding.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -141,6 +193,10 @@
       ],
       "failure": "HttpServerError; cancellation ends this wait, leaving the listener available; closing the listener cancels pending waits.",
       "generics": [],
+      "names": [
+        "server",
+        "deadlineMillis"
+      ],
       "parameters": [
         "&mut HttpServer",
         "Int"
@@ -150,6 +206,7 @@
     "fn:respond": {
       "async": false,
       "cost": "O(header bytes); body storage is shared with the transport; each request accepts one response.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -157,6 +214,13 @@
       ],
       "failure": "HttpServerError; success means queued, not peer processing. No automatic retry; restored task receipts never resend. Framing headers are managed by Hyper.",
       "generics": [],
+      "names": [
+        "request",
+        "status",
+        "headers",
+        "body",
+        "deadlineMillis"
+      ],
       "parameters": [
         "&mut HttpServerRequest",
         "Int",
@@ -166,9 +230,52 @@
       ],
       "return": "Task<Result<Unit,HttpServerError>>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:tlsCredential": {
       "async": false,
       "cost": "O(PEM bytes); at most 16 immutable private configurations, 512KiB reserved per alias.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -176,6 +283,11 @@
       ],
       "failure": "HttpServerError; external boundary required, PEM certificate/key each at most 64KiB. Only the alias enters operation records.",
       "generics": [],
+      "names": [
+        "alias",
+        "certificate",
+        "key"
+      ],
       "parameters": [
         "String",
         "Bytes",
@@ -369,6 +481,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FftWork": {
       "constructor": false,
       "fields": [],
@@ -376,6 +494,12 @@
       "kind": "record"
     },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -708,6 +832,35 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -731,7 +884,19 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -785,6 +950,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

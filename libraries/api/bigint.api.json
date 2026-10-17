@@ -1,14 +1,19 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.8.2",
+  "language": "3.5.0",
   "symbols": {
     "fn:add": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -18,9 +23,14 @@
     "fn:bitAnd": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -30,9 +40,13 @@
     "fn:bitNot": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&BigInt"
       ],
@@ -41,9 +55,14 @@
     "fn:bitOr": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -53,9 +72,14 @@
     "fn:bitXor": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -65,9 +89,13 @@
     "fn:bits": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&BigInt"
       ],
@@ -76,9 +104,14 @@
     "fn:compare": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -88,9 +121,14 @@
     "fn:divide": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -100,9 +138,14 @@
     "fn:format": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value",
+        "radix"
+      ],
       "parameters": [
         "&BigInt",
         "Int"
@@ -112,9 +155,13 @@
     "fn:fromInt": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "Int"
       ],
@@ -123,9 +170,13 @@
     "fn:fromJson": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "Json"
       ],
@@ -134,9 +185,14 @@
     "fn:gcd": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -146,9 +202,15 @@
     "fn:modPow": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value",
+        "exponent",
+        "modulus"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt",
@@ -159,9 +221,14 @@
     "fn:modulo": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -171,9 +238,14 @@
     "fn:multiply": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -183,9 +255,13 @@
     "fn:negate": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&BigInt"
       ],
@@ -194,9 +270,14 @@
     "fn:parse": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value",
+        "radix"
+      ],
       "parameters": [
         "String",
         "Int"
@@ -206,9 +287,14 @@
     "fn:pow": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value",
+        "exponent"
+      ],
       "parameters": [
         "&BigInt",
         "Int"
@@ -218,9 +304,14 @@
     "fn:remainder": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -230,9 +321,15 @@
     "fn:shift": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value",
+        "left",
+        "count"
+      ],
       "parameters": [
         "&BigInt",
         "Bool",
@@ -240,12 +337,59 @@
       ],
       "return": "Result<BigInt,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:subtract": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "&BigInt",
         "&BigInt"
@@ -255,9 +399,13 @@
     "fn:toInt": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&BigInt"
       ],
@@ -266,15 +414,25 @@
     "fn:toJson": {
       "async": false,
       "cost": "native work is precharged from input/output size; quadratic kernels and powers have additional work.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError BigIntSyntax/Radix/Size/Domain/Overflow/DivisionByZero/JsonType; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&BigInt"
       ],
       "return": "Result<Json,StdError>"
     },
     "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -409,6 +567,32 @@
         ]
       }
     },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:EigenResult": {
       "constructor": true,
       "fields": [
@@ -428,7 +612,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -521,6 +723,75 @@
       "generics": [],
       "kind": "record"
     },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:HttpUpload": {
       "constructor": true,
       "fields": [
@@ -529,6 +800,12 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },
@@ -604,6 +881,117 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -627,6 +1015,30 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -639,6 +1051,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

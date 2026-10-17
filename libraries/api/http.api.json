@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.36",
+  "language": "3.5.0",
   "symbols": {
     "fn:close": {
       "async": false,
       "cost": "O(pending reads); physical connection never resurrects after revert.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -13,6 +14,9 @@
       ],
       "failure": "HttpError; cancels pending reads and releases the resource.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&mut HttpDownload"
       ],
@@ -21,6 +25,7 @@
     "fn:closeUpload": {
       "async": false,
       "cost": "O(pending operations); cancels the driver and queued writes.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -28,6 +33,9 @@
       ],
       "failure": "HttpError; scope exit closes the resource automatically.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&mut HttpUpload"
       ],
@@ -36,9 +44,13 @@
     "fn:component": {
       "async": false,
       "cost": "O(UTF-8 bytes); percent-encodes a query value or path component.",
+      "defaults": [],
       "effects": [],
       "failure": "Limit when the encoded component would exceed 1 MiB; does not encode an entire URL.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "String"
       ],
@@ -47,6 +59,7 @@
     "fn:configured": {
       "async": false,
       "cost": "O(request bytes + response bytes); bounded 16 origin/CA client cache, native lease allowance and cold-client setup; same-origin connections are reused.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -54,6 +67,15 @@
       ],
       "failure": "HttpError after awaiting; nonempty PEM certificates add trust, hostname/chain verification remains enabled. Client admission can return HttpMemoryLimit/NotSent before physical submission.",
       "generics": [],
+      "names": [
+        "method",
+        "url",
+        "body",
+        "deadlineMillis",
+        "maxBytes",
+        "headers",
+        "ca"
+      ],
       "parameters": [
         "String",
         "String",
@@ -68,6 +90,7 @@
     "fn:credential": {
       "async": false,
       "cost": "O(secret bytes); retains at most 64 immutable credential aliases.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -75,6 +98,10 @@
       ],
       "failure": "HttpCredential/HttpCredentialImmutable/HttpCredentialLimit; accepts Secret<String>, never journals the private value.",
       "generics": [],
+      "names": [
+        "alias",
+        "value"
+      ],
       "parameters": [
         "String",
         "Secret<String>"
@@ -84,6 +111,7 @@
     "fn:download": {
       "async": false,
       "cost": "O(headers); body is consumed incrementally by read, total limit up to 1 GiB.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -91,6 +119,9 @@
       ],
       "failure": "HttpError; scope-owned connection, deadline includes all subsequent reads.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "Request"
       ],
@@ -99,6 +130,7 @@
     "fn:finish": {
       "async": false,
       "cost": "O(response bytes); ends the request body and awaits the bounded response.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -106,6 +138,9 @@
       ],
       "failure": "HttpError; closing or cancellation does not undo bytes already sent.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&mut HttpUpload"
       ],
@@ -114,6 +149,7 @@
     "fn:get": {
       "async": false,
       "cost": "O(response bytes), with bounded origin/CA client caching and cold-client memory admission; returns a Task.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -121,6 +157,11 @@
       ],
       "failure": "HttpError after awaiting; no automatic redirect or retry.",
       "generics": [],
+      "names": [
+        "url",
+        "deadlineMillis",
+        "maxBytes"
+      ],
       "parameters": [
         "String",
         "Int",
@@ -131,6 +172,7 @@
     "fn:read": {
       "async": false,
       "cost": "O(chunk bytes); retains a bounded transport buffer, chunks of 1..65536 bytes.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -138,6 +180,10 @@
       ],
       "failure": "HttpError; one outstanding read per connection, EOF returns None.",
       "generics": [],
+      "names": [
+        "value",
+        "maxBytes"
+      ],
       "parameters": [
         "&mut HttpDownload",
         "Int"
@@ -147,6 +193,7 @@
     "fn:request": {
       "async": false,
       "cost": "O(request bytes + response bytes); at most eight native operations run concurrently.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -154,6 +201,13 @@
       ],
       "failure": "HttpError after awaiting; requires external region, deadline 1..120000 ms and body limit 1..4194304 bytes.",
       "generics": [],
+      "names": [
+        "method",
+        "url",
+        "body",
+        "deadlineMillis",
+        "maxBytes"
+      ],
       "parameters": [
         "String",
         "String",
@@ -166,6 +220,7 @@
     "fn:send": {
       "async": false,
       "cost": "O(request bytes + response bytes); public request uses a credential alias.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -173,14 +228,60 @@
       ],
       "failure": "HttpError after awaiting; fingerprint contains the public credential alias, never the private value.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "Request"
       ],
       "return": "Task<Result<HttpResponse,HttpError>>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:upload": {
       "async": false,
       "cost": "O(headers); bounded producer queue, total upload up to 1 GiB.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -188,6 +289,10 @@
       ],
       "failure": "HttpError; starts a request without holding the complete request body.",
       "generics": [],
+      "names": [
+        "value",
+        "maxUploadBytes"
+      ],
       "parameters": [
         "Request",
         "Int"
@@ -197,6 +302,7 @@
     "fn:write": {
       "async": false,
       "cost": "O(chunk bytes); queues at most one chunk, each at most 65536 bytes.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -204,6 +310,10 @@
       ],
       "failure": "HttpError; acknowledgement means queued, remote application remains Unknown.",
       "generics": [],
+      "names": [
+        "value",
+        "body"
+      ],
       "parameters": [
         "&mut HttpUpload",
         "Bytes"
@@ -396,6 +506,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FftWork": {
       "constructor": false,
       "fields": [],
@@ -403,6 +519,12 @@
       "kind": "record"
     },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -735,6 +857,35 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -755,6 +906,12 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },
@@ -857,6 +1014,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

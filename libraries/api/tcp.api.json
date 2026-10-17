@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.24",
+  "language": "3.5.0",
   "symbols": {
     "fn:close": {
       "async": false,
       "cost": "O(pending operations); closes both halves and cancels pending operations.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -13,6 +14,10 @@
       ],
       "failure": "TcpError; scope exit also closes the socket. A restored VM handle does not recreate the connection.",
       "generics": [],
+      "names": [
+        "socket",
+        "deadlineMillis"
+      ],
       "parameters": [
         "&mut TcpSocket",
         "Int"
@@ -22,6 +27,7 @@
     "fn:configuredTls": {
       "async": false,
       "cost": "O(host bytes + PEM trust roots); a nonempty PEM bundle supplies explicit trust roots, up to 65536 bytes.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -29,6 +35,12 @@
       ],
       "failure": "TcpError; no hostname/certificate bypass. Empty PEM uses system roots. Client certificate authentication is not provided.",
       "generics": [],
+      "names": [
+        "host",
+        "port",
+        "ca",
+        "deadlineMillis"
+      ],
       "parameters": [
         "String",
         "Int",
@@ -40,6 +52,7 @@
     "fn:connect": {
       "async": false,
       "cost": "O(host bytes); at most eight sockets and eight pending operations.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -47,6 +60,11 @@
       ],
       "failure": "TcpError; plain TCP, no automatic application retry, deadline 1..120000 ms.",
       "generics": [],
+      "names": [
+        "host",
+        "port",
+        "deadlineMillis"
+      ],
       "parameters": [
         "String",
         "Int",
@@ -57,6 +75,7 @@
     "fn:connectTls": {
       "async": false,
       "cost": "O(host bytes + trust roots); verifies hostname and certificate with the system trust store.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -64,6 +83,11 @@
       ],
       "failure": "TcpError; TLS 1.2/1.3, one deadline includes connect and handshake, no automatic application retry.",
       "generics": [],
+      "names": [
+        "host",
+        "port",
+        "deadlineMillis"
+      ],
       "parameters": [
         "String",
         "Int",
@@ -74,6 +98,7 @@
     "fn:read": {
       "async": false,
       "cost": "O(chunk bytes); one outstanding read, 1..65536 bytes, EOF returns None.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -81,6 +106,11 @@
       ],
       "failure": "TcpError; timeout/cancellation closes the physical socket; a checkpoint retains completed receipts.",
       "generics": [],
+      "names": [
+        "socket",
+        "maxBytes",
+        "deadlineMillis"
+      ],
       "parameters": [
         "&mut TcpSocket",
         "Int",
@@ -91,6 +121,7 @@
     "fn:shutdownWrite": {
       "async": false,
       "cost": "O(1); sends EOF while keeping the read half available.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -98,15 +129,62 @@
       ],
       "failure": "TcpError; physical half-close cannot be undone by revert.",
       "generics": [],
+      "names": [
+        "socket",
+        "deadlineMillis"
+      ],
       "parameters": [
         "&mut TcpSocket",
         "Int"
       ],
       "return": "Task<Result<Unit,TcpError>>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:write": {
       "async": false,
       "cost": "O(body bytes); one outstanding write, at most 65536 bytes per operation.",
+      "defaults": [],
       "effects": [
         "external",
         "network",
@@ -114,6 +192,11 @@
       ],
       "failure": "TcpError; acceptedBytes counts locally accepted bytes, not peer processing. Unknown phase can include additional in-flight bytes.",
       "generics": [],
+      "names": [
+        "socket",
+        "body",
+        "deadlineMillis"
+      ],
       "parameters": [
         "&mut TcpSocket",
         "Bytes",
@@ -307,7 +390,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -387,6 +488,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -571,6 +741,35 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
     "type:QrResult": {
       "constructor": true,
       "fields": [
@@ -594,7 +793,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -642,6 +859,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

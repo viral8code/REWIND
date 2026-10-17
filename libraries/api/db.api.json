@@ -1,13 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.0.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:datetime.rw": {
       "fn:$import$datetime$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "delta"
+        ],
         "parameters": [
           "&Instant",
           "&Duration"
@@ -16,8 +21,13 @@
       },
       "fn:$import$datetime$addDurations": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Duration",
           "&Duration"
@@ -26,8 +36,13 @@
       },
       "fn:$import$datetime$calendar": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "zone"
+        ],
         "parameters": [
           "&Instant",
           "String"
@@ -36,8 +51,13 @@
       },
       "fn:$import$datetime$calendarOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "&Instant",
           "Int"
@@ -46,15 +66,22 @@
       },
       "fn:$import$datetime$databaseVersion": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<String,StdError>"
       },
       "fn:$import$datetime$difference": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Instant",
           "&Instant"
@@ -63,8 +90,13 @@
       },
       "fn:$import$datetime$duration": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "seconds",
+          "nanoseconds"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -73,8 +105,12 @@
       },
       "fn:$import$datetime$durationFromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -82,8 +118,12 @@
       },
       "fn:$import$datetime$durationNanoseconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -91,8 +131,12 @@
       },
       "fn:$import$datetime$durationSeconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -100,8 +144,12 @@
       },
       "fn:$import$datetime$durationToJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -109,8 +157,12 @@
       },
       "fn:$import$datetime$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -118,8 +170,13 @@
       },
       "fn:$import$datetime$formatOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "&Instant",
           "Int"
@@ -128,8 +185,12 @@
       },
       "fn:$import$datetime$fromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -137,8 +198,13 @@
       },
       "fn:$import$datetime$instant": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "seconds",
+          "nanoseconds"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -147,8 +213,12 @@
       },
       "fn:$import$datetime$nanoseconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -156,8 +226,12 @@
       },
       "fn:$import$datetime$negateDuration": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Duration"
         ],
@@ -165,8 +239,12 @@
       },
       "fn:$import$datetime$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "text"
+        ],
         "parameters": [
           "String"
         ],
@@ -174,8 +252,14 @@
       },
       "fn:$import$datetime$resolve": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "zone",
+          "ambiguity"
+        ],
         "parameters": [
           "$import$datetime$Calendar",
           "String",
@@ -185,8 +269,13 @@
       },
       "fn:$import$datetime$resolveOffset": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
         "parameters": [
           "$import$datetime$Calendar",
           "Int"
@@ -195,8 +284,12 @@
       },
       "fn:$import$datetime$seconds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -204,8 +297,13 @@
       },
       "fn:$import$datetime$subtractDurations": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Duration",
           "&Duration"
@@ -214,8 +312,12 @@
       },
       "fn:$import$datetime$toJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Instant"
         ],
@@ -291,8 +393,15 @@
     "dependency:decimal.rw": {
       "fn:$import$decimal$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -303,8 +412,12 @@
       },
       "fn:$import$decimal$coefficient": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -312,8 +425,13 @@
       },
       "fn:$import$decimal$compare": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal"
@@ -322,8 +440,16 @@
       },
       "fn:$import$decimal$divide": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "scale",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -335,8 +461,12 @@
       },
       "fn:$import$decimal$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -344,8 +474,13 @@
       },
       "fn:$import$decimal$fromCoefficient": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "scale"
+        ],
         "parameters": [
           "&BigInt",
           "Int"
@@ -354,8 +489,12 @@
       },
       "fn:$import$decimal$fromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -363,8 +502,15 @@
       },
       "fn:$import$decimal$multiply": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -375,8 +521,12 @@
       },
       "fn:$import$decimal$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "String"
         ],
@@ -384,8 +534,15 @@
       },
       "fn:$import$decimal$quantize": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "scale",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "Int",
@@ -396,8 +553,12 @@
       },
       "fn:$import$decimal$representation": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -405,8 +566,12 @@
       },
       "fn:$import$decimal$scale": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -414,8 +579,15 @@
       },
       "fn:$import$decimal$subtract": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
         "parameters": [
           "&Decimal",
           "&Decimal",
@@ -426,8 +598,12 @@
       },
       "fn:$import$decimal$toJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&Decimal"
         ],
@@ -437,15 +613,23 @@
     "dependency:schema.rw": {
       "fn:$import$schema$any": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$array": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "item",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "Int",
@@ -455,15 +639,24 @@
       },
       "fn:$import$schema$boolean": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$csvRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema",
+          "headers",
+          "row",
+          "nullToken"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "&List<String>",
@@ -474,13 +667,16 @@
       },
       "fn:$import$schema$decimal": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$decode": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -492,6 +688,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "decoder",
+          "value"
+        ],
         "parameters": [
           "$import$schema$Decoder<T,E>",
           "Json"
@@ -500,8 +700,15 @@
       },
       "fn:$import$schema$field": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "name",
+          "schema",
+          "required",
+          "fallback"
+        ],
         "parameters": [
           "String",
           "$import$schema$Schema",
@@ -512,8 +719,13 @@
       },
       "fn:$import$schema$integer": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -522,6 +734,7 @@
       },
       "fn:$import$schema$mapped": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -533,6 +746,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "schema",
+          "convert"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "fn(Json)->Result<T,E>!{}~{Send+Share}"
@@ -541,8 +758,12 @@
       },
       "fn:$import$schema$nullable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema"
+        ],
         "parameters": [
           "$import$schema$Schema"
         ],
@@ -550,15 +771,22 @@
       },
       "fn:$import$schema$number": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$object": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "fields",
+          "policy"
+        ],
         "parameters": [
           "&List<$import$schema$Field>",
           "$import$schema$Unknown"
@@ -567,8 +795,13 @@
       },
       "fn:$import$schema$text": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -577,15 +810,22 @@
       },
       "fn:$import$schema$timestamp": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$schema$Schema"
       },
       "fn:$import$schema$validate": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "schema",
+          "value"
+        ],
         "parameters": [
           "$import$schema$Schema",
           "Json"
@@ -706,12 +946,17 @@
     "fn:beginTransaction": {
       "async": false,
       "cost": "O(DB transaction setup); independent of VM commit labels.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "connection",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbConnection",
         "Int"
@@ -721,8 +966,13 @@
     "fn:boolean": {
       "async": false,
       "cost": "O(1); SQLite integer 0/1 is converted explicitly, other integers return DbType.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "row",
+        "index"
+      ],
       "parameters": [
         "Frozen<DbRow>",
         "Int"
@@ -732,8 +982,13 @@
     "fn:bytes": {
       "async": false,
       "cost": "O(1) shared bytes; requires a Bytes cell.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "row",
+        "index"
+      ],
       "parameters": [
         "Frozen<DbRow>",
         "Int"
@@ -743,8 +998,13 @@
     "fn:cell": {
       "async": false,
       "cost": "O(value bytes); bounds failure is DbColumnRange, SQL NULL is DbValue::Null.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "row",
+        "index"
+      ],
       "parameters": [
         "Frozen<DbRow>",
         "Int"
@@ -754,8 +1014,14 @@
     "fn:cellByName": {
       "async": false,
       "cost": "O(column names + value bytes); use a cursor's immutable column metadata.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "row",
+        "columns",
+        "name"
+      ],
       "parameters": [
         "Frozen<DbRow>",
         "Frozen<List<String>>",
@@ -766,12 +1032,17 @@
     "fn:close": {
       "async": false,
       "cost": "O(DB cleanup); awaits rollback and connection close, preserving SQL failure codes.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "connection",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbConnection",
         "Int"
@@ -781,12 +1052,17 @@
     "fn:closeCursor": {
       "async": false,
       "cost": "O(statement cleanup); explicit close leaves the parent connection reusable.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "cursor",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbCursor",
         "Int"
@@ -796,12 +1072,17 @@
     "fn:closeStatement": {
       "async": false,
       "cost": "O(1); invalidates the affine handle, cache capacity remains bounded.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "statement",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbStatement",
         "Int"
@@ -811,8 +1092,13 @@
     "fn:column": {
       "async": false,
       "cost": "O(column names); rejects absent or duplicated names instead of guessing.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "columns",
+        "name"
+      ],
       "parameters": [
         "Frozen<List<String>>",
         "String"
@@ -822,8 +1108,13 @@
     "fn:columnNumber": {
       "async": false,
       "cost": "O(log column count); missing names return DbColumnMissing.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "columns",
+        "name"
+      ],
       "parameters": [
         "&ColumnMap",
         "String"
@@ -833,12 +1124,17 @@
     "fn:commitTransaction": {
       "async": false,
       "cost": "O(DB commit); missing acknowledgement leaves outcome Unknown.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "connection",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbConnection",
         "Int"
@@ -848,6 +1144,7 @@
     "fn:credentials": {
       "async": false,
       "cost": "O(connection-string and certificate bytes); immutable alias outside VM checkpoints.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -855,6 +1152,11 @@
       ],
       "failure": "DbError; remote connections require verified TLS; certificate is DER, empty Bytes uses OS roots.",
       "generics": [],
+      "names": [
+        "alias",
+        "connectionString",
+        "caCertificate"
+      ],
       "parameters": [
         "String",
         "Secret<String>",
@@ -865,6 +1167,7 @@
     "fn:execute": {
       "async": false,
       "cost": "O(SQL work + parameter bytes); binds values without SQL interpolation.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -872,6 +1175,12 @@
       ],
       "failure": "DbError; DB writes are external effects and are not undone by VM revert.",
       "generics": [],
+      "names": [
+        "connection",
+        "sql",
+        "parameters",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbConnection",
         "String",
@@ -883,6 +1192,7 @@
     "fn:executeMany": {
       "async": false,
       "cost": "O(SQL work + parameter bytes); prepares once for at most 1024 bounded parameter rows.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -890,6 +1200,12 @@
       ],
       "failure": "DbError; does not create an implicit transaction, earlier rows may have been applied.",
       "generics": [],
+      "names": [
+        "connection",
+        "sql",
+        "parameters",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbConnection",
         "String",
@@ -901,12 +1217,18 @@
     "fn:executeStatement": {
       "async": false,
       "cost": "O(SQL work + parameter bytes); statement belongs to its original connection.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "statement",
+        "parameters",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbStatement",
         "Frozen<List<DbValue>>",
@@ -917,8 +1239,13 @@
     "fn:floating": {
       "async": false,
       "cost": "O(1); requires a Float cell, does not silently coerce strings or integers.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "row",
+        "index"
+      ],
       "parameters": [
         "Frozen<DbRow>",
         "Int"
@@ -928,8 +1255,12 @@
     "fn:indexColumns": {
       "async": false,
       "cost": "O(column count * ordered-map insertion); returns an immutable name index.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "columns"
+      ],
       "parameters": [
         "Frozen<List<String>>"
       ],
@@ -938,8 +1269,13 @@
     "fn:integer": {
       "async": false,
       "cost": "O(1); requires an Int cell, NULL and other types return DbType.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "row",
+        "index"
+      ],
       "parameters": [
         "Frozen<DbRow>",
         "Int"
@@ -948,6 +1284,7 @@
     },
     "fn:mapBatch": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "is pure, maps at most 64 rows, and does not read or advance the cursor. The borrowed DbBatch remains available after failure.",
       "generics": [
@@ -960,6 +1297,11 @@
           "Share"
         ]
       ],
+      "names": [
+        "batch",
+        "columns",
+        "mapper"
+      ],
       "parameters": [
         "&DbBatch",
         "&ColumnMap",
@@ -970,6 +1312,7 @@
     "fn:next": {
       "async": false,
       "cost": "O(batch bytes + SQL work); at most 64 rows and 4 MiB per batch.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -977,6 +1320,12 @@
       ],
       "failure": "DbError; maxBytes is 1048576..4194304, deadline also respects the original query deadline.",
       "generics": [],
+      "names": [
+        "cursor",
+        "maxRows",
+        "maxBytes",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbCursor",
         "Int",
@@ -988,6 +1337,7 @@
     "fn:postgres": {
       "async": false,
       "cost": "O(DNS + one TLS connection); no reconnect, failover or write retry.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -995,6 +1345,10 @@
       ],
       "failure": "DbError; uses a registered opaque alias, never stores a connection string in trace fingerprints.",
       "generics": [],
+      "names": [
+        "alias",
+        "timeoutMillis"
+      ],
       "parameters": [
         "String",
         "Int"
@@ -1004,12 +1358,18 @@
     "fn:prepare": {
       "async": false,
       "cost": "O(SQL preparation); reuses a bounded per-connection statement cache.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "connection",
+        "sql",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbConnection",
         "String",
@@ -1020,6 +1380,7 @@
     "fn:privateParameter": {
       "async": false,
       "cost": "O(value bytes); immutable opaque alias outside VM checkpoints.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -1027,6 +1388,10 @@
       ],
       "failure": "DbError; values are bound privately and never included in request fingerprints.",
       "generics": [],
+      "names": [
+        "alias",
+        "value"
+      ],
       "parameters": [
         "String",
         "Secret<DbValue>"
@@ -1036,6 +1401,7 @@
     "fn:query": {
       "async": false,
       "cost": "O(SQL prepare); rows are read only by next.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -1043,6 +1409,12 @@
       ],
       "failure": "DbError; one active cursor per SQLite connection.",
       "generics": [],
+      "names": [
+        "connection",
+        "sql",
+        "parameters",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbConnection",
         "String",
@@ -1054,12 +1426,18 @@
     "fn:queryStatement": {
       "async": false,
       "cost": "O(SQL preparation); rows remain lazy until next.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "statement",
+        "parameters",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbStatement",
         "Frozen<List<DbValue>>",
@@ -1070,12 +1448,17 @@
     "fn:rollbackTransaction": {
       "async": false,
       "cost": "O(DB rollback); no VM state is reverted.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
         "tasks"
       ],
       "generics": [],
+      "names": [
+        "connection",
+        "timeoutMillis"
+      ],
       "parameters": [
         "&mut DbConnection",
         "Int"
@@ -1085,6 +1468,7 @@
     "fn:sqlite": {
       "async": false,
       "cost": "O(connection setup); at most eight native connections.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -1092,6 +1476,11 @@
       ],
       "failure": "DbError; path is relative to root, :memory: is an isolated in-memory database.",
       "generics": [],
+      "names": [
+        "path",
+        "readOnly",
+        "timeoutMillis"
+      ],
       "parameters": [
         "String",
         "Bool",
@@ -1101,12 +1490,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -1115,6 +1508,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -1126,6 +1520,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -1135,8 +1533,13 @@
     "fn:text": {
       "async": false,
       "cost": "O(UTF-8 bytes); requires a Text cell.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "row",
+        "index"
+      ],
       "parameters": [
         "Frozen<DbRow>",
         "Int"
@@ -1146,8 +1549,14 @@
     "fn:validateBatch": {
       "async": false,
       "cost": "validates at most 64 rows, checking column names once and preserving batch order and done state.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "rule",
+        "columns",
+        "batch"
+      ],
       "parameters": [
         "$import$schema$Schema",
         "Frozen<List<String>>",
@@ -1158,8 +1567,14 @@
     "fn:validateRow": {
       "async": false,
       "cost": "O(columns + cells + schema visits); at most 256 columns; no cell value is copied into errors.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "rule",
+        "columns",
+        "row"
+      ],
       "parameters": [
         "$import$schema$Schema",
         "Frozen<List<String>>",
@@ -1170,6 +1585,7 @@
     "fn:waitForCleanup": {
       "async": false,
       "cost": "O(closed resources); waits without blocking the VM on native cleanup.",
+      "defaults": [],
       "effects": [
         "db",
         "external",
@@ -1177,6 +1593,9 @@
       ],
       "failure": "DbError; preserves rollback/close failures from scope-owned resources.",
       "generics": [],
+      "names": [
+        "timeoutMillis"
+      ],
       "parameters": [
         "Int"
       ],

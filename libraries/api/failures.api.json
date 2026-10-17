@@ -1,69 +1,87 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:fixtureDbCleanup": {
       "async": false,
       "cost": "O(1); a rollback or close that failed after the work was already decided.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "DbError"
     },
     "fn:fixtureDbDeadline": {
       "async": false,
       "cost": "O(1); a deadline after the request was sent (phase Unknown): the outcome is not known.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "DbError"
     },
     "fn:fixtureDbDisconnected": {
       "async": false,
       "cost": "O(1); a connection lost while waiting for the answer (phase Unknown).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "DbError"
     },
     "fn:fixtureDbNotSent": {
       "async": false,
       "cost": "O(1); a DbError whose request never left the client (phase NotSent): safe to retry.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "DbError"
     },
     "fn:fixtureDbRejected": {
       "async": false,
       "cost": "O(1); the server answered with an error (phase ResponseReceived), e.g. a constraint violation.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "DbError"
     },
     "fn:fixtureHttpDeadline": {
       "async": false,
       "cost": "O(1); a deadline after the request was sent (phase Unknown, no status).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "HttpError"
     },
     "fn:fixtureHttpNotSent": {
       "async": false,
       "cost": "O(1); an HttpError raised before any byte was sent (name resolution, local limit).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "HttpError"
     },
     "fn:fixtureHttpStatus": {
       "async": false,
       "cost": "O(1); the peer answered with an error status (phase ResponseReceived).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "status"
+      ],
       "parameters": [
         "Int"
       ],
@@ -72,8 +90,12 @@
     "fn:fixtureHttpTruncated": {
       "async": false,
       "cost": "O(1); the response ended before its declared length (phase ResponseReceived, status as sent).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "status"
+      ],
       "parameters": [
         "Int"
       ],
@@ -82,6 +104,7 @@
     "fn:nextResult": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "failure": "FixtureExhausted when every canned result was used; it never invents a result.",
       "generics": [
@@ -94,6 +117,9 @@
           "Share"
         ]
       ],
+      "names": [
+        "script"
+      ],
       "parameters": [
         "&mut Script<T,E>"
       ],
@@ -102,6 +128,7 @@
     "fn:remaining": {
       "async": false,
       "cost": "O(1); canned results not used yet.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -113,6 +140,9 @@
           "Share"
         ]
       ],
+      "names": [
+        "script"
+      ],
       "parameters": [
         "&Script<T,E>"
       ],
@@ -121,6 +151,7 @@
     "fn:script": {
       "async": false,
       "cost": "O(results), at most 64.",
+      "defaults": [],
       "effects": [],
       "failure": "TooMany (more than 64 results), Empty. The results are returned in order, once each.",
       "generics": [
@@ -133,6 +164,9 @@
           "Share"
         ]
       ],
+      "names": [
+        "results"
+      ],
       "parameters": [
         "List<Result<T,E>>"
       ],
@@ -140,12 +174,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -154,6 +192,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -164,6 +203,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

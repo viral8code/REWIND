@@ -1,13 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:find": {
       "async": false,
       "cost": "O(headers); the first value of a header, compared case-insensitively.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "headers",
+        "name"
+      ],
       "parameters": [
         "&List<Header>",
         "String"
@@ -17,8 +22,13 @@
     "fn:findAll": {
       "async": false,
       "cost": "O(headers); every value of a header in order (repeated headers are not merged).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "headers",
+        "name"
+      ],
       "parameters": [
         "&List<Header>",
         "String"
@@ -28,8 +38,12 @@
     "fn:formatBlock": {
       "async": false,
       "cost": "O(headers); \"name: value\\r\\n\" per header.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "headers"
+      ],
       "parameters": [
         "&List<Header>"
       ],
@@ -38,9 +52,14 @@
     "fn:header": {
       "async": false,
       "cost": "O(bytes), at most 8192.",
+      "defaults": [],
       "effects": [],
       "failure": "BadName (not an RFC 9110 token, 1..256 bytes), BadValue (CR, LF, NUL or control byte, over 8192 bytes). The name is stored lower-case.",
       "generics": [],
+      "names": [
+        "name",
+        "value"
+      ],
       "parameters": [
         "String",
         "String"
@@ -50,8 +69,12 @@
     "fn:lowerName": {
       "async": false,
       "cost": "O(bytes); ASCII lower-case, the form used to compare header names.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "name"
+      ],
       "parameters": [
         "String"
       ],
@@ -60,9 +83,13 @@
     "fn:parseBlock": {
       "async": false,
       "cost": "O(bytes); parses \"Name: value\" lines separated by CRLF or LF. Obsolete line folding is rejected. At most 128 headers.",
+      "defaults": [],
       "effects": [],
       "failure": "BadLine (index of the line), BadName, BadValue, Folded, TooMany.",
       "generics": [],
+      "names": [
+        "text"
+      ],
       "parameters": [
         "String"
       ],
@@ -71,9 +98,13 @@
     "fn:parseCookieHeader": {
       "async": false,
       "cost": "O(bytes); parses the value of a Cookie header (\"a=b; c=d\") into ordered pairs, keeping duplicates. At most 64 cookies.",
+      "defaults": [],
       "effects": [],
       "failure": "BadCookie (index of the pair), TooMany.",
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "String"
       ],
@@ -82,8 +113,12 @@
     "fn:redacted": {
       "async": false,
       "cost": "O(headers); a copy that is safe to log or record: the values of credential-bearing headers become ***.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "headers"
+      ],
       "parameters": [
         "&List<Header>"
       ],
@@ -92,9 +127,15 @@
     "fn:setCookie": {
       "async": false,
       "cost": "O(bytes) over the name, value and attributes.",
+      "defaults": [],
       "effects": [],
       "failure": "BadCookie (name not a token or value with ; , space quote or backslash), BadAttribute (Path/Domain with ; or control bytes), BadSameSite, SameSiteNeedsSecure, BadMaxAge. Builds one Set-Cookie value; encode the value with std.url.encodeComponent first if it can contain those bytes.",
       "generics": [],
+      "names": [
+        "name",
+        "value",
+        "settings"
+      ],
       "parameters": [
         "String",
         "String",
@@ -104,12 +145,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -118,6 +163,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -128,6 +174,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

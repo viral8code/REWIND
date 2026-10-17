@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
+mod call_args;
 mod effects;
 mod interpolate;
 mod namespacing;
@@ -785,6 +786,9 @@ struct Function {
     effects: Option<BTreeSet<String>>,
     type_params: Vec<(String, Option<String>)>,
     params: Vec<(String, String)>,
+    /// Literal default arguments by parameter name (language 3.6.0).
+    #[serde(default)]
+    defaults: BTreeMap<String, Expr>,
     ret: String,
     body: Vec<Stmt>,
     at: Tok,
@@ -1316,6 +1320,7 @@ impl Parser {
                                     .or_else(|| Some(BTreeSet::new())),
                                 type_params: Vec::new(),
                                 params,
+                                defaults: BTreeMap::new(),
                                 ret: ret.clone(),
                                 body,
                                 at,
@@ -1421,6 +1426,7 @@ impl Parser {
                             asynchronous: false,
                             effects,
                             params,
+                            defaults: BTreeMap::new(),
                             ret,
                             body,
                             at,
@@ -1508,11 +1514,35 @@ impl Parser {
                 let mut type_params = self.type_params()?;
                 self.need("(")?;
                 let mut params = Vec::new();
+                let mut defaults = BTreeMap::new();
                 if !self.eat(")") {
                     loop {
                         let arg = self.name()?;
                         self.need(":")?;
                         let ty = self.ty()?;
+                        if self.eat("=") {
+                            let value = self.expr(0)?;
+                            let literal = match &value.kind {
+                                ExprKind::Value(_) => true,
+                                ExprKind::Name(n) => n == "None",
+                                ExprKind::Unary(op, inner) => {
+                                    op == "-" && matches!(inner.kind, ExprKind::Value(_))
+                                }
+                                _ => false,
+                            };
+                            if !literal {
+                                return Err(diagnostic(
+                                    &value.at,
+                                    "default argument must be a literal or None",
+                                ));
+                            }
+                            defaults.insert(arg.clone(), value);
+                        } else if !defaults.is_empty() {
+                            return Err(diagnostic(
+                                self.current(),
+                                "a parameter without a default cannot follow one with a default",
+                            ));
+                        }
                         params.push((arg, ty));
                         if self.eat(")") {
                             break;
@@ -1557,6 +1587,7 @@ impl Parser {
                             asynchronous,
                             effects,
                             params,
+                            defaults,
                             ret,
                             body,
                             at,
@@ -2854,7 +2885,35 @@ impl Parser {
                 let mut args = Vec::new();
                 if !self.eat(")") {
                     loop {
-                        args.push(self.expr(0)?);
+                        let label = self.current().clone();
+                        let named = self.toks.get(self.pos + 1).is_some_and(|t| t.text == ":")
+                            && label
+                                .text
+                                .chars()
+                                .next()
+                                .is_some_and(|c| c.is_alphabetic() || c == '_');
+                        if named {
+                            self.pos += 2;
+                            let value = self.expr(0)?;
+                            args.push(Expr {
+                                kind: ExprKind::Call(
+                                    Box::new(Expr {
+                                        kind: ExprKind::Name(call_args::NAMED.into()),
+                                        at: label.clone(),
+                                    }),
+                                    vec![
+                                        Expr {
+                                            kind: ExprKind::Name(label.text.clone()),
+                                            at: label.clone(),
+                                        },
+                                        value,
+                                    ],
+                                ),
+                                at: label,
+                            });
+                        } else {
+                            args.push(self.expr(0)?);
+                        }
                         if self.eat(")") {
                             break;
                         }
@@ -3925,6 +3984,7 @@ fn load_program_overlay(
     }
     program.stmts.extend(own.stmts);
     program.stmt_origins.extend(own.stmt_origins);
+    call_args::resolve(&mut program, &full)?;
     visiting.remove(&full);
     loaded.insert(full, program.clone());
     Ok(program)

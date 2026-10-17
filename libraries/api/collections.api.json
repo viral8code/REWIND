@@ -1,16 +1,21 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:all": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "predicate"
       ],
       "parameters": [
         "&List<T>",
@@ -20,12 +25,17 @@
     },
     "fn:any": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "predicate"
       ],
       "parameters": [
         "&List<T>",
@@ -36,12 +46,17 @@
     "fn:collectUpTo": {
       "async": false,
       "cost": "O(min(n, limit)); copies at most limit elements, and reports whether more existed.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "limit"
       ],
       "parameters": [
         "&List<T>",
@@ -51,12 +66,17 @@
     },
     "fn:count": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "predicate"
       ],
       "parameters": [
         "&List<T>",
@@ -66,12 +86,17 @@
     },
     "fn:filter": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "predicate"
       ],
       "parameters": [
         "&List<T>",
@@ -81,12 +106,17 @@
     },
     "fn:find": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "predicate"
       ],
       "parameters": [
         "&List<T>",
@@ -96,6 +126,7 @@
     },
     "fn:fold": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -106,6 +137,11 @@
           "U",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "initial",
+        "combine"
       ],
       "parameters": [
         "&List<T>",
@@ -116,6 +152,7 @@
     },
     "fn:map": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -127,6 +164,10 @@
           "Share"
         ]
       ],
+      "names": [
+        "values",
+        "transform"
+      ],
       "parameters": [
         "&List<T>",
         "fn(T)->U!{}~{Send+Share}"
@@ -136,12 +177,17 @@
     "fn:partition": {
       "async": false,
       "cost": "O(n) predicate calls; both lists keep the input order, every element lands in exactly one.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "predicate"
       ],
       "parameters": [
         "&List<T>",
@@ -151,12 +197,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -165,6 +215,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -176,6 +227,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -185,6 +240,7 @@
     "fn:tryFold": {
       "async": false,
       "cost": "O(n) callback calls, fewer after the first Err.",
+      "defaults": [],
       "effects": [],
       "failure": "The first Err from combine, unchanged; the accumulator so far is discarded.",
       "generics": [
@@ -201,6 +257,11 @@
           "Share"
         ]
       ],
+      "names": [
+        "values",
+        "initial",
+        "combine"
+      ],
       "parameters": [
         "&List<T>",
         "U",
@@ -211,6 +272,7 @@
     "fn:tryMap": {
       "async": false,
       "cost": "O(n) callback calls, fewer after the first Err; allocates the output list.",
+      "defaults": [],
       "effects": [],
       "failure": "The first Err from transform, unchanged; nothing else is returned.",
       "generics": [
@@ -226,6 +288,10 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "values",
+        "transform"
       ],
       "parameters": [
         "&List<T>",

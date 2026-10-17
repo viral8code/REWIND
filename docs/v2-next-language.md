@@ -16,6 +16,8 @@
 
 **受入：** 間違えやすい既存呼出しを改善できる。move/borrowと評価順を変えず、複数の候補へ曖昧に解決しない。設定recordで十分なら新構文を保留する。
 
+**実装済み（2026-10-17、言語3.6.0の構文）：** 関数呼出しに`name: value`の名前付き引数、関数宣言に`param: T = literal`のdefault引数を追加しました。設定recordで足りない例として、`std.httpServer.configuredTlsAuthenticated`（8引数）のように同じ型（Int）の引数が並ぶ21個のstd関数があるためです。規則：(1) 名前付き引数は位置引数の後にだけ置ける。(2) 重複・未知名・不足を呼出し位置で拒否する。(3) defaultは`Int/Float/String/Bool`のliteral、負数、`None`だけで、後ろに寄せる（defaultの後ろにdefaultなしを置けない）。式やmutable stateを捕捉しない。(4) 呼出しは構文解析後・型検査前に位置引数へ書き換えるので、型検査・所有権検査・VMはこの構文を見ない。generic推論・move/borrowは通常の位置引数と同じ。(5) **評価順は書いた順ではなくparameter順**。(6) 対象は宣言済みの関数とmodule関数（`alias.fn`）。method呼出し、closure、関数値は対象外で、名前付き引数を渡すと拒否する。(7) `rewind api`/SDK baselineの各関数に`names`と`defaults`（default付きparameter名）を記録するので、parameter名の変更はAPIの変更として検出される。既存std関数へdefaultを付ける変更は未実施です。[tests/call_args.rs](../tests/call_args.rs)で確認します。
+
 ## LANG-02：異なるerror型の明示変換
 
 現行`?`は失敗型を合わせる必要があります。入力、DB、通信のerrorをapplication enumへまとめる反復記述を減らす案です。先に既存`std.result.mapError`を使う例を整備します。
@@ -23,6 +25,8 @@
 追加候補は明示変換traitに基づく伝播です。任意の型同士の暗黙変換やString化は導入しません。変換の一意性、effect、元cause、Secret redaction、送信状態の保持を検査します。ownershipを持つerrorも、Share専用helperでは処理できないことを考慮します。
 
 **受入：** Error enumへ分類とcauseを残せる。曖昧変換を拒否し、元のerror位置を診断できる。予算超過/panicを通常Resultへ自動捕捉しない。
+
+**判断（2026-10-17、構文は保留）：** `?`の暗黙の変換は導入しません。LANG-05の`std.result.mapErrorOwned`（非Shareのerrorも消費して変換）で、`mapErrorOwned(call(), toAppError)?`と1行で書けます。3つ以上の呼出しで同じ変換を繰り返す実例が出て、`mapErrorOwned`では読みにくいと示せるまで、traitに基づく伝播は作りません。理由は、(a) 現行`?`は失敗型の不一致を戻り値の検査で拒否し、変換を足すと診断位置の説明が複雑になる、(b) 暗黙変換は元のerror位置・Secret redaction・送信状態の保持を目で追えなくする、ためです。
 
 ## LANG-03：型付き不透明ID・単位
 

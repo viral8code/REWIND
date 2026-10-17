@@ -1,14 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.65",
+  "language": "3.5.0",
   "symbols": {
     "fn:asStd": {
       "async": false,
       "cost": "O(1) projection; returns the original diagnostic code and line or a classified task/budget code.",
+      "defaults": [],
       "effects": [],
       "failure": "Does not retain the full diagnostic tree; use describe before projecting when messages, source, causes or typed budget details are required. No partial calculation result is returned.",
       "generics": [],
+      "names": [
+        "error"
+      ],
       "parameters": [
         "TaskError"
       ],
@@ -17,13 +21,59 @@
     "fn:describe": {
       "async": false,
       "cost": "O(1) envelope creation; diagnostic causes and wait-graph storage remain shared with the original task error.",
+      "defaults": [],
       "effects": [],
       "failure": "Pure conversion, no external effects, retries or recovery of a cancelled task; preserves Failed diagnostics and typed budget/deadlock details.",
       "generics": [],
+      "names": [
+        "error"
+      ],
       "parameters": [
         "TaskError"
       ],
       "return": "Failure"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,

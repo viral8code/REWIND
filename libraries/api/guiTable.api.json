@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.0.0",
+  "language": "3.5.0",
   "symbols": {
     "alias:TableError": {
       "generics": [],
@@ -14,8 +14,14 @@
       },
       "fn:$import$gui$applyLayout": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "layout",
+          "bounds"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&$import$gui$Layout",
@@ -25,8 +31,16 @@
       },
       "fn:$import$gui$arrange": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "columns",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -38,8 +52,16 @@
       },
       "fn:$import$gui$arrangeColumn": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -51,8 +73,16 @@
       },
       "fn:$import$gui$arrangeRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "&List<String>",
@@ -64,8 +94,13 @@
       },
       "fn:$import$gui$background": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Int"
@@ -74,8 +109,12 @@
       },
       "fn:$import$gui$bounds": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -83,8 +122,18 @@
       },
       "fn:$import$gui$button": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -98,8 +147,19 @@
       },
       "fn:$import$gui$checkbox": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "checked",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -114,8 +174,13 @@
       },
       "fn:$import$gui$checked": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -124,17 +189,24 @@
       },
       "fn:$import$gui$close": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<Unit,StdError>"
       },
       "fn:$import$gui$column": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children",
+          "gap"
+        ],
         "parameters": [
           "&List<$import$gui$WeightedLayout>",
           "Int"
@@ -143,8 +215,13 @@
       },
       "fn:$import$gui$componentId": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope",
+          "local"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope",
           "String"
@@ -153,8 +230,13 @@
       },
       "fn:$import$gui$componentLocalId": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope",
+          "widgetId"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope",
           "String"
@@ -163,8 +245,12 @@
       },
       "fn:$import$gui$componentPrefix": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "scope"
+        ],
         "parameters": [
           "&$import$gui$ComponentScope"
         ],
@@ -172,8 +258,12 @@
       },
       "fn:$import$gui$componentScope": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "name"
+        ],
         "parameters": [
           "String"
         ],
@@ -181,17 +271,25 @@
       },
       "fn:$import$gui$continueInput": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       },
       "fn:$import$gui$crossSized": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "child",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$gui$WeightedLayout",
           "Int",
@@ -201,8 +299,13 @@
       },
       "fn:$import$gui$dispatch": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "event"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "$import$gui$Event"
@@ -211,8 +314,14 @@
       },
       "fn:$import$gui$edit": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "event"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -222,8 +331,13 @@
       },
       "fn:$import$gui$focus": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String"
@@ -232,8 +346,12 @@
       },
       "fn:$import$gui$focused": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -241,8 +359,13 @@
       },
       "fn:$import$gui$graphemeEditing": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "enabled"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Bool"
@@ -251,8 +374,12 @@
       },
       "fn:$import$gui$graphemeMode": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -260,8 +387,18 @@
       },
       "fn:$import$gui$label": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -275,8 +412,12 @@
       },
       "fn:$import$gui$leaf": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "id"
+        ],
         "parameters": [
           "String"
         ],
@@ -284,8 +425,18 @@
       },
       "fn:$import$gui$line": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "x1",
+          "y1",
+          "x2",
+          "y2",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -299,17 +450,24 @@
       },
       "fn:$import$gui$nextEvent": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<$import$gui$Event,StdError>"
       },
       "fn:$import$gui$overlay": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "base",
+          "layer"
+        ],
         "parameters": [
           "&$import$gui$View",
           "&$import$gui$View"
@@ -318,8 +476,12 @@
       },
       "fn:$import$gui$overlayLayout": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children"
+        ],
         "parameters": [
           "&List<$import$gui$Layout>"
         ],
@@ -327,8 +489,16 @@
       },
       "fn:$import$gui$padded": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int",
@@ -340,19 +510,25 @@
       },
       "fn:$import$gui$pollEvent": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Result<Option<$import$gui$Event>,StdError>"
       },
       "fn:$import$gui$present": {
         "async": false,
+        "defaults": [],
         "effects": [
           "gui"
         ],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -360,8 +536,18 @@
       },
       "fn:$import$gui$rectangle": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "x",
+          "y",
+          "width",
+          "height",
+          "color"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -375,8 +561,13 @@
       },
       "fn:$import$gui$remove": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String"
@@ -385,8 +576,14 @@
       },
       "fn:$import$gui$resize": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "Int",
@@ -396,8 +593,13 @@
       },
       "fn:$import$gui$row": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "children",
+          "gap"
+        ],
         "parameters": [
           "&List<$import$gui$WeightedLayout>",
           "Int"
@@ -406,8 +608,12 @@
       },
       "fn:$import$gui$scene": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view"
+        ],
         "parameters": [
           "&$import$gui$View"
         ],
@@ -415,8 +621,13 @@
       },
       "fn:$import$gui$scrollPosition": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -425,8 +636,13 @@
       },
       "fn:$import$gui$selection": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -435,8 +651,14 @@
       },
       "fn:$import$gui$setChecked": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "checked"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -446,8 +668,14 @@
       },
       "fn:$import$gui$setEnabled": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "enabled"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -457,8 +685,14 @@
       },
       "fn:$import$gui$setScrollPosition": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "line"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -468,8 +702,15 @@
       },
       "fn:$import$gui$setSelection": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "cursor",
+          "anchor"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -480,8 +721,14 @@
       },
       "fn:$import$gui$setText": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -491,8 +738,15 @@
       },
       "fn:$import$gui$sized": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "weight",
+          "minimum",
+          "maximum"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int",
@@ -503,8 +757,14 @@
       },
       "fn:$import$gui$splitColumn": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "$import$gui$Rect",
           "&List<Int>",
@@ -514,8 +774,14 @@
       },
       "fn:$import$gui$splitRow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "bounds",
+          "weights",
+          "gap"
+        ],
         "parameters": [
           "$import$gui$Rect",
           "&List<Int>",
@@ -525,8 +791,15 @@
       },
       "fn:$import$gui$style": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "foreground",
+          "background"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -537,8 +810,13 @@
       },
       "fn:$import$gui$text": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
         "parameters": [
           "&$import$gui$View",
           "String"
@@ -547,8 +825,18 @@
       },
       "fn:$import$gui$textArea": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -562,8 +850,18 @@
       },
       "fn:$import$gui$textBox": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
         "parameters": [
           "&mut $import$gui$View",
           "String",
@@ -577,8 +875,13 @@
       },
       "fn:$import$gui$weighted": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "layout",
+          "weight"
+        ],
         "parameters": [
           "$import$gui$Layout",
           "Int"
@@ -587,8 +890,14 @@
       },
       "fn:$import$gui$window": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "title",
+          "width",
+          "height"
+        ],
         "parameters": [
           "String",
           "Int",
@@ -720,12 +1029,17 @@
     "dependency:sort.rw": {
       "fn:$import$sort$inPlace": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "input",
+          "compare"
         ],
         "parameters": [
           "&mut List<T>",
@@ -735,8 +1049,12 @@
       },
       "fn:$import$sort$integers": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "input"
+        ],
         "parameters": [
           "&List<Int>"
         ],
@@ -744,12 +1062,17 @@
       },
       "fn:$import$sort$stable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "input",
+          "compare"
         ],
         "parameters": [
           "&List<T>",
@@ -759,6 +1082,7 @@
       },
       "fn:$import$sort$tryStable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -770,6 +1094,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "input",
+          "compare"
+        ],
         "parameters": [
           "&List<T>",
           "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
@@ -780,8 +1108,14 @@
     "fn:beginEdit": {
       "async": false,
       "cost": "starts one row/column draft using the current effective cell value and stable row ID.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table",
+        "row",
+        "column"
+      ],
       "parameters": [
         "&mut Table",
         "Int",
@@ -792,8 +1126,12 @@
     "fn:cancelEdit": {
       "async": false,
       "cost": "discards only the active draft and returns false when nothing was active.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&mut Table"
       ],
@@ -802,8 +1140,14 @@
     "fn:cell": {
       "async": false,
       "cost": "O(1) overlay lookup plus frozen base access; staged values are visible to render.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table",
+        "row",
+        "column"
+      ],
       "parameters": [
         "&Table",
         "Int",
@@ -814,8 +1158,12 @@
     "fn:changes": {
       "async": false,
       "cost": "O(edits), at most 4096 entries; preserves first-edit order in a frozen snapshot.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -824,8 +1172,12 @@
     "fn:clearEdits": {
       "async": false,
       "cost": "O(edits), plus O(rows) to refresh an active filter.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&mut Table"
       ],
@@ -834,8 +1186,12 @@
     "fn:clearFilter": {
       "async": false,
       "cost": "restores every source row in the current full sort order; O(rows) index rebuild.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&mut Table"
       ],
@@ -843,8 +1199,12 @@
     },
     "fn:columns": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -852,9 +1212,13 @@
     },
     "fn:commitEdit": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "stages the draft; capacity failures keep it active for correction or cancellation.",
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&mut Table"
       ],
@@ -863,8 +1227,14 @@
     "fn:create": {
       "async": false,
       "cost": "O(cells); frozen row-major data is shared, not materialized in the scene. Legacy row IDs are positional.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "headers",
+        "cells",
+        "visibleRows"
+      ],
       "parameters": [
         "Frozen<List<String>>",
         "Frozen<List<String>>",
@@ -875,9 +1245,16 @@
     "fn:createWithIds": {
       "async": false,
       "cost": "O(rows + cells + row ID bytes); validates unique bounded IDs and keeps frozen cell data shared.",
+      "defaults": [],
       "effects": [],
       "failure": "Shape/Capacity/Text/RowId/DuplicateRowId; IDs are 1..64 UTF-8 bytes, at most 65536 rows and 1048576 cells.",
       "generics": [],
+      "names": [
+        "headers",
+        "rowIds",
+        "cells",
+        "visibleRows"
+      ],
       "parameters": [
         "Frozen<List<String>>",
         "Frozen<List<String>>",
@@ -886,12 +1263,35 @@
       ],
       "return": "Result<Table,StdError>"
     },
+    "fn:deleteRequest": {
+      "async": false,
+      "cost": "O(1); reports the selected row's stable ID when the event is the Delete key and no draft is open. It never deletes: call it before dispatch, and call removeRow when the application accepts the deletion.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "table",
+        "event"
+      ],
+      "parameters": [
+        "&Table",
+        "$import$gui$Event"
+      ],
+      "return": "Option<String>"
+    },
     "fn:dispatch": {
       "async": false,
       "cost": "edit failure EditRejected keeps the draft open when commit fails; text input is ignored when prefix:edit is not rendered.",
+      "defaults": [],
       "effects": [],
       "failure": "Range/Id/Text; wheel and Up/Down/Home/End move the selected row or viewport. F2 starts a draft on the selected row at the focused column (Left/Right); while a draft is open, Enter commits, Escape cancels, and key/text input edits prefix:edit (Up/Down are ignored). Callers re-render after Edit* actions.",
       "generics": [],
+      "names": [
+        "table",
+        "view",
+        "event",
+        "prefix"
+      ],
       "parameters": [
         "&mut Table",
         "&mut $import$gui$View",
@@ -903,8 +1303,12 @@
     "fn:draft": {
       "async": false,
       "cost": "returns the active uncommitted cell edit; render shows it in the textbox prefix:edit, and cell/changes/toValue still see only committed values.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -913,9 +1317,16 @@
     "fn:editCell": {
       "async": false,
       "cost": "O(1), except bounded edit removal or active-filter refresh over at most 8192 rows; max 4096 staged cells and 4 MiB of value bytes.",
+      "defaults": [],
       "effects": [],
       "failure": "Range/Text/EditLimit/EditCapacity/EditActive.",
       "generics": [],
+      "names": [
+        "table",
+        "row",
+        "column",
+        "value"
+      ],
       "parameters": [
         "&mut Table",
         "Int",
@@ -927,9 +1338,16 @@
     "fn:editCellId": {
       "async": false,
       "cost": "resolves stable row IDs in O(1), including filtered-out rows; an active filter refresh scans at most 8192 rows.",
+      "defaults": [],
       "effects": [],
       "failure": "UnknownRow/Range/Text/EditLimit/EditCapacity/EditActive.",
       "generics": [],
+      "names": [
+        "table",
+        "id",
+        "column",
+        "value"
+      ],
       "parameters": [
         "&mut Table",
         "String",
@@ -941,9 +1359,15 @@
     "fn:filterByText": {
       "async": false,
       "cost": "O(rows + scanned cell bytes); case-sensitive substring match in the current full sort order. Empty query clears filtering. Non-empty query is limited to 8192 source rows and 256 UTF-8 bytes.",
+      "defaults": [],
       "effects": [],
       "failure": "Range/FilterRows/FilterQuery; failures leave view and selection unchanged.",
       "generics": [],
+      "names": [
+        "table",
+        "column",
+        "query"
+      ],
       "parameters": [
         "&mut Table",
         "Int",
@@ -953,8 +1377,12 @@
     },
     "fn:hasEdits": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -962,19 +1390,49 @@
     },
     "fn:position": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],
       "return": "Int"
     },
+    "fn:removeRow": {
+      "async": false,
+      "cost": "O(rows * columns) frozen reads (each read of a frozen list is charged its length, so keep tables small); needs caller-supplied row IDs. Staged edits and an open draft of the row are dropped, the selection follows the other rows by identity, sort order and filter are kept.",
+      "defaults": [],
+      "effects": [],
+      "failure": "LegacyIds/UnknownRow; failures leave the table unchanged.",
+      "generics": [],
+      "names": [
+        "table",
+        "id"
+      ],
+      "parameters": [
+        "&mut Table",
+        "String"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
     "fn:render": {
       "async": false,
       "cost": "O(columns + visible rows * columns); relative column weights consume the full inner width, with at least one pixel per column. New view keeps failures away from the caller's published scene.",
+      "defaults": [],
       "effects": [],
       "failure": "Bounds/Id; weighted column widths have a 1-pixel minimum, row height 16..128, caller publishes the returned view. An open draft in the viewport renders as a focused textbox prefix:edit with the saved caret.",
       "generics": [],
+      "names": [
+        "table",
+        "title",
+        "width",
+        "height",
+        "rowHeight",
+        "prefix"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -987,8 +1445,13 @@
     },
     "fn:rowId": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table",
+        "row"
+      ],
       "parameters": [
         "&Table",
         "Int"
@@ -998,8 +1461,13 @@
     "fn:rowIndex": {
       "async": false,
       "cost": "returns the current display position; None means unknown or filtered out. Cost O(1) with caller IDs, O(id bytes) for legacy positional IDs.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table",
+        "id"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -1009,8 +1477,12 @@
     "fn:rows": {
       "async": false,
       "cost": "returns total source rows, independent of the active filter.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -1019,8 +1491,13 @@
     "fn:scroll": {
       "async": false,
       "cost": "O(1); clamps arbitrary signed deltas before adding them.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table",
+        "delta"
+      ],
       "parameters": [
         "&mut Table",
         "Int"
@@ -1029,8 +1506,13 @@
     },
     "fn:select": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table",
+        "row"
+      ],
       "parameters": [
         "&mut Table",
         "Int"
@@ -1039,8 +1521,13 @@
     },
     "fn:selectId": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table",
+        "id"
+      ],
       "parameters": [
         "&mut Table",
         "String"
@@ -1050,8 +1537,12 @@
     "fn:selection": {
       "async": false,
       "cost": "returns the selected row's current display position; use selectionId for stable identity.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -1059,8 +1550,12 @@
     },
     "fn:selectionId": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -1068,9 +1563,14 @@
     },
     "fn:setColumnWeights": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "accepts one positive relative weight per column; maximum 65535. A failed call leaves the previous configuration unchanged.",
       "generics": [],
+      "names": [
+        "table",
+        "weights"
+      ],
       "parameters": [
         "&mut Table",
         "&List<Int>"
@@ -1079,9 +1579,14 @@
     },
     "fn:setDraft": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "accepts at most 4096 valid single-line UTF-8 bytes; failures preserve the existing draft. The caret moves to the end.",
       "generics": [],
+      "names": [
+        "table",
+        "value"
+      ],
       "parameters": [
         "&mut Table",
         "String"
@@ -1091,9 +1596,15 @@
     "fn:sortByText": {
       "async": false,
       "cost": "descending=false is ascending, true is descending. Stable ties retain current full sort order; cost O(n log n) comparisons plus bounded indexes. Limits: 8192 source rows and 256 UTF-8 bytes per key.",
+      "defaults": [],
       "effects": [],
       "failure": "Range/SortRows/SortKey; any failure leaves order, filter, selection, viewport, and staged edits unchanged.",
       "generics": [],
+      "names": [
+        "table",
+        "column",
+        "descending"
+      ],
       "parameters": [
         "&mut Table",
         "Int",
@@ -1103,12 +1614,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -1117,6 +1632,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -1128,6 +1644,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -1137,6 +1657,7 @@
     "fn:toValue": {
       "async": false,
       "cost": "maps one row by stable ID in O(columns), including staged edits and filtered-out rows.",
+      "defaults": [],
       "effects": [],
       "failure": "UnknownRow for a missing ID; Conversion includes the row ID and mapper error. The table is not mutated.",
       "generics": [
@@ -1149,6 +1670,11 @@
           "Share"
         ]
       ],
+      "names": [
+        "table",
+        "id",
+        "convert"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1159,8 +1685,12 @@
     "fn:visibleRows": {
       "async": false,
       "cost": "returns the number of rows in the current filtered view in O(1).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "table"
+      ],
       "parameters": [
         "&Table"
       ],

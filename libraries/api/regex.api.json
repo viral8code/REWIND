@@ -1,12 +1,17 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.8.6",
+  "language": "3.5.0",
   "symbols": {
     "fn:bytes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "input",
+        "span"
+      ],
       "parameters": [
         "Bytes",
         "Span"
@@ -15,8 +20,12 @@
     },
     "fn:compile": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern"
+      ],
       "parameters": [
         "String"
       ],
@@ -24,8 +33,12 @@
     },
     "fn:compileBytes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern"
+      ],
       "parameters": [
         "String"
       ],
@@ -33,8 +46,13 @@
     },
     "fn:compileBytesOptions": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern",
+        "options"
+      ],
       "parameters": [
         "String",
         "Options"
@@ -43,8 +61,13 @@
     },
     "fn:compileOptions": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern",
+        "options"
+      ],
       "parameters": [
         "String",
         "Options"
@@ -53,15 +76,22 @@
     },
     "fn:engineVersion": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "String"
     },
     "fn:find": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern",
+        "input"
+      ],
       "parameters": [
         "&Regex",
         "&String"
@@ -70,8 +100,13 @@
     },
     "fn:findBytes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern",
+        "input"
+      ],
       "parameters": [
         "&Regex",
         "Bytes"
@@ -80,8 +115,14 @@
     },
     "fn:findBytesFrom": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern",
+        "input",
+        "start"
+      ],
       "parameters": [
         "&Regex",
         "Bytes",
@@ -91,9 +132,15 @@
     },
     "fn:findFrom": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "RegexIndex on non-boundary text offset; preserves anchors and word-boundary context before start.",
       "generics": [],
+      "names": [
+        "pattern",
+        "input",
+        "start"
+      ],
       "parameters": [
         "&Regex",
         "&String",
@@ -103,8 +150,12 @@
     },
     "fn:fromJson": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "Json"
       ],
@@ -112,8 +163,13 @@
     },
     "fn:group": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value",
+        "index"
+      ],
       "parameters": [
         "&Match",
         "Int"
@@ -122,8 +178,12 @@
     },
     "fn:groupCount": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Match"
       ],
@@ -131,8 +191,12 @@
     },
     "fn:groupNames": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern"
+      ],
       "parameters": [
         "&Regex"
       ],
@@ -140,8 +204,13 @@
     },
     "fn:isMatch": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern",
+        "input"
+      ],
       "parameters": [
         "&Regex",
         "&String"
@@ -150,8 +219,13 @@
     },
     "fn:isMatchBytes": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern",
+        "input"
+      ],
       "parameters": [
         "&Regex",
         "Bytes"
@@ -160,8 +234,12 @@
     },
     "fn:isText": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern"
+      ],
       "parameters": [
         "&Regex"
       ],
@@ -169,8 +247,12 @@
     },
     "fn:next": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Match"
       ],
@@ -178,8 +260,12 @@
     },
     "fn:options": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern"
+      ],
       "parameters": [
         "&Regex"
       ],
@@ -187,8 +273,12 @@
     },
     "fn:source": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern"
+      ],
       "parameters": [
         "&Regex"
       ],
@@ -196,17 +286,68 @@
     },
     "fn:span": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "value"
+      ],
       "parameters": [
         "&Match"
       ],
       "return": "Span"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:text": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "input",
+        "span"
+      ],
       "parameters": [
         "&String",
         "Span"
@@ -215,14 +356,24 @@
     },
     "fn:toJson": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "pattern"
+      ],
       "parameters": [
         "&Regex"
       ],
       "return": "Result<Json,StdError>"
     },
     "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -402,7 +553,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -482,6 +651,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -584,6 +822,94 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Match": {
       "constructor": false,
       "fields": [],
@@ -604,6 +930,29 @@
         [
           "dotAll",
           "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
         ]
       ],
       "generics": [],
@@ -632,7 +981,19 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -653,6 +1014,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:StdError": {
       "constructor": true,
       "fields": [
@@ -665,6 +1032,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

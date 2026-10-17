@@ -1,10 +1,11 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:after": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -19,6 +20,9 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "change"
       ],
       "parameters": [
         "Change<R,V,E>"
@@ -27,6 +31,7 @@
     },
     "fn:apply": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -41,6 +46,11 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "change",
+        "root",
+        "same"
       ],
       "parameters": [
         "Change<R,V,E>",
@@ -51,6 +61,7 @@
     },
     "fn:asOptional": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -65,6 +76,9 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "path"
       ],
       "parameters": [
         "Lens<R,V,E>"
@@ -73,6 +87,7 @@
     },
     "fn:before": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -88,6 +103,9 @@
           "Share"
         ]
       ],
+      "names": [
+        "change"
+      ],
       "parameters": [
         "Change<R,V,E>"
       ],
@@ -95,6 +113,7 @@
     },
     "fn:checkLaws": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Checks get-put, put-get and put-put on the supplied sample only; does not prove laws for every root or accepted value.",
       "generics": [
@@ -111,6 +130,14 @@
           "Share"
         ]
       ],
+      "names": [
+        "path",
+        "root",
+        "first",
+        "second",
+        "sameRoot",
+        "sameValue"
+      ],
       "parameters": [
         "Lens<R,V,E>",
         "R",
@@ -123,6 +150,7 @@
     },
     "fn:compose": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Reads the outer focus once for each get/set; inner rejection prevents the outer setter from running.",
       "generics": [
@@ -143,6 +171,10 @@
           "Share"
         ]
       ],
+      "names": [
+        "outer",
+        "inner"
+      ],
       "parameters": [
         "Lens<R,M,E>",
         "Lens<M,V,E>"
@@ -151,6 +183,7 @@
     },
     "fn:composeOptional": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -170,6 +203,10 @@
           "Share"
         ]
       ],
+      "names": [
+        "outer",
+        "inner"
+      ],
       "parameters": [
         "OptionalLens<R,M,E>",
         "OptionalLens<M,V,E>"
@@ -178,6 +215,7 @@
     },
     "fn:create": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -192,6 +230,10 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "read",
+        "write"
       ],
       "parameters": [
         "fn(R)->V!{}~{Send+Share}",
@@ -201,6 +243,7 @@
     },
     "fn:get": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -215,6 +258,10 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "path",
+        "root"
       ],
       "parameters": [
         "Lens<R,V,E>",
@@ -224,6 +271,7 @@
     },
     "fn:inverse": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -238,6 +286,9 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "change"
       ],
       "parameters": [
         "Change<R,V,E>"
@@ -246,6 +297,7 @@
     },
     "fn:modify": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -260,6 +312,11 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "path",
+        "root",
+        "transform"
       ],
       "parameters": [
         "Lens<R,V,E>",
@@ -270,6 +327,7 @@
     },
     "fn:modifyIfPresent": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -284,6 +342,11 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "path",
+        "root",
+        "transform"
       ],
       "parameters": [
         "OptionalLens<R,V,E>",
@@ -294,6 +357,7 @@
     },
     "fn:optional": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -309,6 +373,10 @@
           "Share"
         ]
       ],
+      "names": [
+        "read",
+        "write"
+      ],
       "parameters": [
         "fn(R)->Option<V>!{}~{Send+Share}",
         "fn(R,V)->Result<Option<R>,E>!{}~{Send+Share}"
@@ -317,6 +385,7 @@
     },
     "fn:plan": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Captures only the focused before/after values and path; unrelated root fields are not preconditions.",
       "generics": [
@@ -333,6 +402,11 @@
           "Share"
         ]
       ],
+      "names": [
+        "path",
+        "root",
+        "value"
+      ],
       "parameters": [
         "Lens<R,V,E>",
         "R",
@@ -342,6 +416,7 @@
     },
     "fn:preview": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -356,6 +431,10 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "path",
+        "root"
       ],
       "parameters": [
         "OptionalLens<R,V,E>",
@@ -365,6 +444,7 @@
     },
     "fn:set": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -379,6 +459,11 @@
           "E",
           "Share"
         ]
+      ],
+      "names": [
+        "path",
+        "root",
+        "value"
       ],
       "parameters": [
         "Lens<R,V,E>",
@@ -389,6 +474,7 @@
     },
     "fn:setIfPresent": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Does not call the setter for a missing focus and never automatically creates an intermediate value.",
       "generics": [
@@ -405,6 +491,11 @@
           "Share"
         ]
       ],
+      "names": [
+        "path",
+        "root",
+        "value"
+      ],
       "parameters": [
         "OptionalLens<R,V,E>",
         "R",
@@ -414,12 +505,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -428,6 +523,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -438,6 +534,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

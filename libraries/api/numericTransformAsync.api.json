@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.53",
+  "language": "3.5.0",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
@@ -19,6 +20,10 @@
             null
           ]
         ],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "Task<A>",
           "Task<B>"
@@ -27,10 +32,12 @@
       },
       "fn:$import$task$yieldNow": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       }
@@ -38,11 +45,16 @@
     "fn:activation": {
       "async": true,
       "cost": "At most 4096 values per step, bounded scratch and task handoff; strided/broadcast input without full materialization.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "relu/reluGrad/sigmoid/sigmoidGrad/tanhGrad/reciprocal with the existing tensor activation contract. Grad operations consume forward outputs. No partial result on failure/cancel.",
       "generics": [],
+      "names": [
+        "operation",
+        "array"
+      ],
       "parameters": [
         "String",
         "FloatArray"
@@ -52,16 +64,63 @@
     "fn:mapFloat": {
       "async": true,
       "cost": "At most 4096 logical values per native step; shared inputs, logarithmic zero initialization, page-range COW output, handoff between steps.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "Same operations/domain/finite/rounding contract as numeric.mapFloat; no partial result on typed failure or cancellation. Fatal memory/work budgets apply.",
       "generics": [],
+      "names": [
+        "operation",
+        "array"
+      ],
       "parameters": [
         "String",
         "FloatArray"
       ],
       "return": "Result<FloatArray,StdError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -262,6 +321,12 @@
       "kind": "record"
     },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -712,6 +777,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

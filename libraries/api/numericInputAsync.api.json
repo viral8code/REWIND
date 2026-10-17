@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.64",
+  "language": "3.5.0",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
@@ -19,6 +20,10 @@
             null
           ]
         ],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "Task<A>",
           "Task<B>"
@@ -27,10 +32,12 @@
       },
       "fn:$import$task$yieldNow": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       }
@@ -38,11 +45,16 @@
     "fn:fromFloat": {
       "async": true,
       "cost": "O(elements times log pages), at most 4096 raw cells per step; input List pages shared, bounded output COW and handoff between chunks.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Index/ReadOnly/Size; preserves raw float bits including NaN and signed zero like synchronous numeric.fromFloat; no partial result on cancellation, fatal budgets apply. Existing synchronous API is unchanged.",
       "generics": [],
+      "names": [
+        "shape",
+        "values"
+      ],
       "parameters": [
         "List<Int>",
         "List<Float>"
@@ -52,16 +64,63 @@
     "fn:fromInt": {
       "async": true,
       "cost": "O(elements times log pages), at most 4096 raw cells per step; shared input pages and bounded COW output, yields between steps.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Index/ReadOnly/Size; exact Int bits and synchronous result, no partial result on cancellation, retained checkpoints keep independent work versions, fatal budgets apply.",
       "generics": [],
+      "names": [
+        "shape",
+        "values"
+      ],
       "parameters": [
         "List<Int>",
         "List<Int>"
       ],
       "return": "Result<IntArray,StdError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,

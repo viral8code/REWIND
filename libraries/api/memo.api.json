@@ -1,17 +1,21 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:orderedMap.rw": {
       "fn:$import$orderedMap$clear": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&mut $import$orderedMap$OrderedMap<T>"
@@ -20,12 +24,17 @@
       },
       "fn:$import$orderedMap$contains": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map",
+          "key"
         ],
         "parameters": [
           "&$import$orderedMap$OrderedMap<T>",
@@ -35,12 +44,16 @@
       },
       "fn:$import$orderedMap$create": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "capacity"
         ],
         "parameters": [
           "Int"
@@ -49,12 +62,16 @@
       },
       "fn:$import$orderedMap$entries": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&$import$orderedMap$OrderedMap<T>"
@@ -63,12 +80,16 @@
       },
       "fn:$import$orderedMap$first": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&$import$orderedMap$OrderedMap<T>"
@@ -77,12 +98,17 @@
       },
       "fn:$import$orderedMap$get": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map",
+          "key"
         ],
         "parameters": [
           "&$import$orderedMap$OrderedMap<T>",
@@ -92,12 +118,16 @@
       },
       "fn:$import$orderedMap$keys": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&$import$orderedMap$OrderedMap<T>"
@@ -106,12 +136,16 @@
       },
       "fn:$import$orderedMap$last": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&$import$orderedMap$OrderedMap<T>"
@@ -120,12 +154,16 @@
       },
       "fn:$import$orderedMap$length": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&$import$orderedMap$OrderedMap<T>"
@@ -134,12 +172,16 @@
       },
       "fn:$import$orderedMap$popFirst": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&mut $import$orderedMap$OrderedMap<T>"
@@ -148,12 +190,16 @@
       },
       "fn:$import$orderedMap$popLast": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&mut $import$orderedMap$OrderedMap<T>"
@@ -162,12 +208,18 @@
       },
       "fn:$import$orderedMap$put": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map",
+          "key",
+          "value"
         ],
         "parameters": [
           "&mut $import$orderedMap$OrderedMap<T>",
@@ -178,12 +230,17 @@
       },
       "fn:$import$orderedMap$remove": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map",
+          "key"
         ],
         "parameters": [
           "&mut $import$orderedMap$OrderedMap<T>",
@@ -193,12 +250,17 @@
       },
       "fn:$import$orderedMap$touch": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map",
+          "key"
         ],
         "parameters": [
           "&mut $import$orderedMap$OrderedMap<T>",
@@ -208,12 +270,16 @@
       },
       "fn:$import$orderedMap$values": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "map"
         ],
         "parameters": [
           "&$import$orderedMap$OrderedMap<T>"
@@ -240,12 +306,16 @@
     },
     "fn:clear": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache"
       ],
       "parameters": [
         "&mut Cache<T>"
@@ -254,6 +324,7 @@
     },
     "fn:create": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Bounds entry count to 1..65536 and total caller-assigned positive weight. Weight is not a measurement of physical bytes.",
       "generics": [
@@ -261,6 +332,10 @@
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "capacity",
+        "weightLimit"
       ],
       "parameters": [
         "Int",
@@ -270,8 +345,12 @@
     },
     "fn:domain": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "key"
+      ],
       "parameters": [
         "Key"
       ],
@@ -280,12 +359,17 @@
     "fn:get": {
       "async": false,
       "cost": "A hit moves the entry to most-recent position; peek leaves recency unchanged.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache",
+        "key"
       ],
       "parameters": [
         "&mut Cache<T>",
@@ -295,8 +379,12 @@
     },
     "fn:input": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "key"
+      ],
       "parameters": [
         "Key"
       ],
@@ -305,12 +393,17 @@
     "fn:invalidate": {
       "async": false,
       "cost": "Selects matching keys with a pure predicate before removing entries. Existing returned values retain their own lifetime.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache",
+        "predicate"
       ],
       "parameters": [
         "&mut Cache<T>",
@@ -321,8 +414,14 @@
     "fn:key": {
       "async": false,
       "cost": "Separates domain, code revision and caller-chosen input identity. JSON tuple encoding avoids delimiter collisions.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "domain",
+        "revision",
+        "input"
+      ],
       "parameters": [
         "String",
         "String",
@@ -333,12 +432,16 @@
     "fn:keys": {
       "async": false,
       "cost": "Returns keys from least to most recently used, without exposing cached payloads.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache"
       ],
       "parameters": [
         "&Cache<T>"
@@ -347,12 +450,16 @@
     },
     "fn:length": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache"
       ],
       "parameters": [
         "&Cache<T>"
@@ -361,12 +468,17 @@
     },
     "fn:peek": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache",
+        "key"
       ],
       "parameters": [
         "&Cache<T>",
@@ -377,12 +489,19 @@
     "fn:put": {
       "async": false,
       "cost": "Validates weight before mutation, replaces an existing key, then evicts least-recent entries until both bounds permit insertion.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache",
+        "key",
+        "value",
+        "weight"
       ],
       "parameters": [
         "&mut Cache<T>",
@@ -394,12 +513,17 @@
     },
     "fn:remove": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache",
+        "key"
       ],
       "parameters": [
         "&mut Cache<T>",
@@ -409,6 +533,7 @@
     },
     "fn:resolve": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Computes only on a miss. Pure Result values may be cached as T; callback panic or fatal budget failure is not cached.",
       "generics": [
@@ -416,6 +541,12 @@
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache",
+        "key",
+        "weight",
+        "compute"
       ],
       "parameters": [
         "&mut Cache<T>",
@@ -427,8 +558,12 @@
     },
     "fn:revision": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "key"
+      ],
       "parameters": [
         "Key"
       ],
@@ -436,12 +571,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -450,6 +589,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -461,6 +601,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -469,12 +613,16 @@
     },
     "fn:weight": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Share"
         ]
+      ],
+      "names": [
+        "cache"
       ],
       "parameters": [
         "&Cache<T>"

@@ -104,6 +104,17 @@ fn api_snapshot_detects_effect_ownership_and_default_changes() {
         }
         command.output().unwrap()
     };
+    // Since named arguments (3.6.0) a parameter name is part of the call contract.
+    let renamed = diff(true);
+    assert!(!renamed.status.success());
+    let renamed: serde_json::Value = serde_json::from_slice(&renamed.stdout).unwrap();
+    assert_eq!(renamed["changes"].as_array().unwrap().len(), 1);
+    fs::write(root.join("main.rw"),"pub fn answer(n:&Int)->Int effects {}{return 1;}pub trait Read{fn read(self:&Self)->Int effects {}{return 1;}}").unwrap();
+    success(&cmd(
+        "api-snapshot",
+        &root,
+        &["--output", after.to_str().unwrap()],
+    ));
     success(&diff(true));
     fs::write(root.join("main.rw"),"pub fn answer(value:Int)->Int effects {}{return value;}pub trait Read{fn read(self:&Self)->Int effects {}{return 2;}}").unwrap();
     success(&cmd(

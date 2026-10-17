@@ -1,14 +1,19 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.3.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:decodeComponent": {
       "async": false,
       "cost": "O(bytes); decodes %XX once (never re-decodes the result). With plusAsSpace a + becomes a space (form encoding). At most 8192 bytes.",
+      "defaults": [],
       "effects": [],
       "failure": "BadEscape (offset of the %), BadUtf8, NonAscii, TooLong.",
       "generics": [],
+      "names": [
+        "text",
+        "plusAsSpace"
+      ],
       "parameters": [
         "String",
         "Bool"
@@ -18,8 +23,12 @@
     "fn:display": {
       "async": false,
       "cost": "O(bytes); like format but userinfo (a possible password) is replaced by ***.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "url"
+      ],
       "parameters": [
         "&Url"
       ],
@@ -28,9 +37,13 @@
     "fn:encodeComponent": {
       "async": false,
       "cost": "O(bytes); every byte except A-Z a-z 0-9 - . _ ~ becomes %XX (UTF-8 bytes of the text). At most 8192 input bytes.",
+      "defaults": [],
       "effects": [],
       "failure": "TooLong.",
       "generics": [],
+      "names": [
+        "text"
+      ],
       "parameters": [
         "String"
       ],
@@ -39,8 +52,12 @@
     "fn:format": {
       "async": false,
       "cost": "O(bytes); the exact text of the components, userinfo included. Use display for logs.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "url"
+      ],
       "parameters": [
         "&Url"
       ],
@@ -49,9 +66,13 @@
     "fn:formatQuery": {
       "async": false,
       "cost": "O(bytes); encodes names and values with encodeComponent and joins them with &. At most 128 pairs.",
+      "defaults": [],
       "effects": [],
       "failure": "TooManyParams, TooLong.",
       "generics": [],
+      "names": [
+        "params"
+      ],
       "parameters": [
         "&List<Param>"
       ],
@@ -60,9 +81,13 @@
     "fn:parse": {
       "async": false,
       "cost": "O(bytes); splits scheme://userinfo@host:port/path?query#fragment (every part optional, so relative references parse too). Components stay percent-encoded. Hosts are kept as written, IPv6 literals in brackets; no IDN or normalisation. At most 8192 ASCII bytes, no spaces or controls.",
+      "defaults": [],
       "effects": [],
       "failure": "NonAscii, TooLong, BadScheme, BadPort, BadHost.",
       "generics": [],
+      "names": [
+        "text"
+      ],
       "parameters": [
         "String"
       ],
@@ -71,9 +96,13 @@
     "fn:parseQuery": {
       "async": false,
       "cost": "O(bytes); splits on &, keeps order and duplicate names, drops empty pairs. A pair without = has value None, \"a=\" has Some(\"\"). Names and values are decoded once, + is a space. At most 128 pairs and 8192 bytes.",
+      "defaults": [],
       "effects": [],
       "failure": "BadEscape, BadUtf8, NonAscii, TooLong, TooManyParams.",
       "generics": [],
+      "names": [
+        "raw"
+      ],
       "parameters": [
         "String"
       ],
@@ -82,9 +111,13 @@
     "fn:pathSegments": {
       "async": false,
       "cost": "O(bytes); splits an encoded path on / and decodes each segment once, so %2F stays inside one segment. Empty segments are kept except the leading one of an absolute path.",
+      "defaults": [],
       "effects": [],
       "failure": "BadEscape, BadUtf8, NonAscii, TooLong.",
       "generics": [],
+      "names": [
+        "path"
+      ],
       "parameters": [
         "String"
       ],
@@ -93,9 +126,14 @@
     "fn:resolve": {
       "async": false,
       "cost": "O(bytes); RFC 3986 reference resolution with dot-segment removal. The base needs a scheme.",
+      "defaults": [],
       "effects": [],
       "failure": "BaseNotAbsolute plus the parse failures.",
       "generics": [],
+      "names": [
+        "base",
+        "reference"
+      ],
       "parameters": [
         "&Url",
         "&Url"
@@ -104,12 +142,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -118,6 +160,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -128,6 +171,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

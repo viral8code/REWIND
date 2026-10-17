@@ -1,13 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:numericIndex.rw": {
       "fn:$import$numericIndex$getFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "index"
+        ],
         "parameters": [
           "&FloatArray",
           "Int"
@@ -16,8 +21,13 @@
       },
       "fn:$import$numericIndex$getInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "index"
+        ],
         "parameters": [
           "&IntArray",
           "Int"
@@ -26,8 +36,12 @@
       },
       "fn:$import$numericIndex$lengthFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -35,8 +49,12 @@
       },
       "fn:$import$numericIndex$lengthInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -44,8 +62,14 @@
       },
       "fn:$import$numericIndex$withFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "index",
+          "value"
+        ],
         "parameters": [
           "&FloatArray",
           "Int",
@@ -55,8 +79,14 @@
       },
       "fn:$import$numericIndex$withInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "index",
+          "value"
+        ],
         "parameters": [
           "&IntArray",
           "Int",
@@ -68,8 +98,14 @@
     "dependency:numericRange.rw": {
       "fn:$import$numericRange$integers": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "start",
+          "step",
+          "length"
+        ],
         "parameters": [
           "Int",
           "Int",
@@ -80,8 +116,12 @@
     },
     "fn:components": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "set"
+      ],
       "parameters": [
         "PersistentSet"
       ],
@@ -90,8 +130,12 @@
     "fn:create": {
       "async": false,
       "cost": "Builds native parent/size pages for 0..1048576 elements, without one VM object per element.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "count"
+      ],
       "parameters": [
         "Int"
       ],
@@ -99,8 +143,12 @@
     },
     "fn:length": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "set"
+      ],
       "parameters": [
         "PersistentSet"
       ],
@@ -108,9 +156,14 @@
     },
     "fn:root": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Read-only union-by-size traversal; does not perform path compression or change a saved version.",
       "generics": [],
+      "names": [
+        "set",
+        "index"
+      ],
       "parameters": [
         "PersistentSet",
         "Int"
@@ -119,8 +172,14 @@
     },
     "fn:same": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "set",
+        "a",
+        "b"
+      ],
       "parameters": [
         "PersistentSet",
         "Int",
@@ -130,8 +189,13 @@
     },
     "fn:size": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "set",
+        "index"
+      ],
       "parameters": [
         "PersistentSet",
         "Int"
@@ -140,12 +204,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -154,6 +222,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -165,6 +234,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -174,8 +247,14 @@
     "fn:unite": {
       "async": false,
       "cost": "Returns a new immutable version. Copies only native pages/tree paths for one parent and one size; equal-size ties choose the smaller representative.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "set",
+        "a",
+        "b"
+      ],
       "parameters": [
         "PersistentSet",
         "Int",
@@ -185,9 +264,14 @@
     },
     "fn:uniteMany": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Applies at most 65536 pairs to a local version; errors leave the input version unchanged.",
       "generics": [],
+      "names": [
+        "set",
+        "pairs"
+      ],
       "parameters": [
         "PersistentSet",
         "&List<Tuple<Int,Int>>"

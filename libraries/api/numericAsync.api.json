@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.53",
+  "language": "3.5.0",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
@@ -19,6 +20,10 @@
             null
           ]
         ],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "Task<A>",
           "Task<B>"
@@ -27,10 +32,12 @@
       },
       "fn:$import$task$yieldNow": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       }
@@ -38,11 +45,16 @@
     "fn:dot": {
       "async": true,
       "cost": "Native chunks of at most 4096 products, preserving Neumaier ordering; yields between chunks. Inputs share native storage.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/NonFinite/Overflow; task cancellation and fatal budgets apply. No host worker is started.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "FloatArray",
         "FloatArray"
@@ -52,11 +64,17 @@
     "fn:eigenSymmetric": {
       "async": true,
       "cost": "Cyclic Jacobi bounded to maxSweeps; copy, symmetry check, scans, rotations, stable sorting and outputs execute at most 4096 scalar units per step with shared-page COW work, cached storage digests and bounded page-range rotation buffers.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Convergence/Size; finite symmetric square Float64 matrix, finite nonnegative tolerance and maxSweeps 0..10000. Same rotation/arithmetic order and stable eigenvalue order as numeric.eigenSymmetric, no partial result on error/cancel; fatal memory/work budgets apply.",
       "generics": [],
+      "names": [
+        "matrix",
+        "tolerance",
+        "maxSweeps"
+      ],
       "parameters": [
         "FloatArray",
         "Float",
@@ -67,11 +85,17 @@
     "fn:leastSquares": {
       "async": true,
       "cost": "Full-column-rank QR O(m*n^2); bounded rhs validation, QR, compensated projection, upper substitution and permutation, with at most 4096 scalar units per step. Inputs and private numeric pages are shared; no full rhs/Q/R materialization or second factorization.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Singular/Size; m>=n, rank-one rhs and finite nonnegative relative rank tolerance. Same arithmetic order as numeric.leastSquares. No partial output on error/cancel; fatal work/memory budgets apply.",
       "generics": [],
+      "names": [
+        "matrix",
+        "right",
+        "tolerance"
+      ],
       "parameters": [
         "FloatArray",
         "FloatArray",
@@ -82,11 +106,16 @@
     "fn:matmul": {
       "async": true,
       "cost": "Native chunks of at most 4096 products and page-range COW writes; yields between chunks. Output initialization shares logarithmic zero storage.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Size/NonFinite/Overflow; task cancellation and fatal budgets apply. No partial output escapes a failed task.",
       "generics": [],
+      "names": [
+        "left",
+        "right"
+      ],
       "parameters": [
         "FloatArray",
         "FloatArray"
@@ -96,11 +125,15 @@
     "fn:norm2": {
       "async": true,
       "cost": "At most 4096 values per native step; scaled accumulation preserves logical order without materializing input or squaring large magnitudes.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and views; same scaled result as numeric.norm2, task cancellation and fatal budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "FloatArray"
       ],
@@ -109,11 +142,16 @@
     "fn:qr": {
       "async": true,
       "cost": "Column-pivoted Householder O(m*n*min(m,n)); bounded native steps of at most 4096 scalar units, private shared-page COW work and task handoff between steps.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Domain/NonFinite/Overflow/Size; economy Q and R, permutation as native IntArray; same arithmetic order as numeric.qr. No partial result on failure or cancellation, fatal work/memory budgets apply.",
       "generics": [],
+      "names": [
+        "matrix",
+        "tolerance"
+      ],
       "parameters": [
         "FloatArray",
         "Float"
@@ -123,11 +161,16 @@
     "fn:scale": {
       "async": true,
       "cost": "Shared logarithmic zero initialization; at most 4096 values per native step, bounded scratch and page-range COW writes.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericType/NonFinite/Overflow; arbitrary ranks and strided input; finite factor, no partial result on failure or cancellation.",
       "generics": [],
+      "names": [
+        "array",
+        "factor"
+      ],
       "parameters": [
         "FloatArray",
         "Float"
@@ -137,11 +180,17 @@
     "fn:solve": {
       "async": true,
       "cost": "Partial-pivot LU O(n^3) arithmetic with O(n^2) shared-page COW private storage; at most 4096 copies, pivot checks, swap pairs or update products per native step, including input initialization and back substitution.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/NonFinite/Singular/Size; square Float64 matrix, rank-one rhs, finite nonnegative relative pivot tolerance. Same arithmetic order as numeric.solve, no partial output on error/cancel. Fatal work/memory budgets apply; conservative per-step COW admission remains.",
       "generics": [],
+      "names": [
+        "matrix",
+        "right",
+        "tolerance"
+      ],
       "parameters": [
         "FloatArray",
         "FloatArray",
@@ -149,14 +198,62 @@
       ],
       "return": "Result<FloatArray,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:zipFloat": {
       "async": true,
       "cost": "At most 4096 element pairs per native step; shared inputs and logarithmic zero initialization, bounded scratch and page-range COW output.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericShape/Type/Domain/NonFinite; add/sub/mul/div and matching shapes; division by zero fails. No partial result escapes.",
       "generics": [],
+      "names": [
+        "operation",
+        "left",
+        "right"
+      ],
       "parameters": [
         "String",
         "FloatArray",
@@ -363,6 +460,12 @@
       "kind": "record"
     },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -813,6 +916,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

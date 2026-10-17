@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.65",
+  "language": "3.5.0",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
@@ -19,6 +20,10 @@
             null
           ]
         ],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "Task<A>",
           "Task<B>"
@@ -27,10 +32,12 @@
       },
       "fn:$import$task$yieldNow": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       }
@@ -38,8 +45,12 @@
     "dependency:taskError.rw": {
       "fn:$import$taskError$asStd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "error"
+        ],
         "parameters": [
           "TaskError"
         ],
@@ -47,8 +58,12 @@
       },
       "fn:$import$taskError$describe": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "error"
+        ],
         "parameters": [
           "TaskError"
         ],
@@ -81,11 +96,15 @@
     "fn:checkFinite": {
       "async": true,
       "cost": "at most 4096 logical cells per native call, no prefix scan or copied pages; yields between chunks.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericType/NonFinite; cancellation exposes no partial validation result, fatal work/memory limits apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "FloatArray"
       ],
@@ -94,11 +113,19 @@
     "fn:key": {
       "async": true,
       "cost": "O(backing storage cells + rank + tag bytes), bounded prepare chunks followed by O(rank + tag bytes) key finalization; identity matches synchronous stdNumericTensorKey, including entire backing storage of a view.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericDomain for tag >256 bytes, negative index or parent keys other than 0/32 bytes; child diagnostic/budget codes are preserved, cancellation and fatal limits apply.",
       "generics": [],
+      "names": [
+        "array",
+        "tag",
+        "index",
+        "left",
+        "right"
+      ],
       "parameters": [
         "FloatArray",
         "String",
@@ -111,15 +138,61 @@
     "fn:prepare": {
       "async": true,
       "cost": "bounded postorder chunks of at most 4096 scalar/node units with O(log(storage pages)) traversal state and shared input pages; cache-independent handoff points.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericType; owned opaque work survives checkpoints, cancellation releases the unretained work. No external observations or host worker.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "FloatArray"
       ],
       "return": "Result<TensorIdentityWork,StdError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,

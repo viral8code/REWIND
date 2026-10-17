@@ -1,11 +1,12 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.56",
+  "language": "3.5.0",
   "symbols": {
     "dependency:task.rw": {
       "fn:$import$task$selectReady": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
@@ -19,6 +20,10 @@
             null
           ]
         ],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "Task<A>",
           "Task<B>"
@@ -27,10 +32,12 @@
       },
       "fn:$import$task$yieldNow": {
         "async": false,
+        "defaults": [],
         "effects": [
           "tasks"
         ],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "Unit"
       }
@@ -38,11 +45,18 @@
     "fn:bfs": {
       "async": true,
       "cost": "Owns shared immutable edge snapshots; validates/builds/traverses/converts distances in steps of at most 4096 units, yielding between steps. Up to 1048576 vertices/edges; page COW and queue storage are charged to VM budgets.",
+      "defaults": [],
       "effects": [
         "tasks"
       ],
       "failure": "NumericType/Shape/Size/Index/Domain; validates all endpoints before building adjacency. Returns shortest directed distances, -1 unreachable; no partial result after typed failure or cancellation. Fatal work/memory budgets apply.",
       "generics": [],
+      "names": [
+        "vertices",
+        "froms",
+        "tos",
+        "source"
+      ],
       "parameters": [
         "Int",
         "IntArray",
@@ -50,6 +64,48 @@
         "Int"
       ],
       "return": "Result<IntArray,StdError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -706,6 +762,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

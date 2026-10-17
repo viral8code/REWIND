@@ -6,8 +6,13 @@
     "dependency:integer.rw": {
       "fn:$import$integer$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -16,8 +21,13 @@
       },
       "fn:$import$integer$combination": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "n",
+          "k"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -26,8 +36,13 @@
       },
       "fn:$import$integer$extendedGcd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -36,8 +51,12 @@
       },
       "fn:$import$integer$factors": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "n"
+        ],
         "parameters": [
           "Int"
         ],
@@ -45,8 +64,13 @@
       },
       "fn:$import$integer$gcd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -55,8 +79,13 @@
       },
       "fn:$import$integer$lcm": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -65,8 +94,13 @@
       },
       "fn:$import$integer$multiply": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -75,8 +109,12 @@
       },
       "fn:$import$integer$primes": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "limit"
+        ],
         "parameters": [
           "Int"
         ],
@@ -86,8 +124,12 @@
     "dependency:number.rw": {
       "fn:$import$number$decimal": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "String"
         ],
@@ -95,8 +137,12 @@
       },
       "fn:$import$number$floating": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "String"
         ],
@@ -104,8 +150,12 @@
       },
       "fn:$import$number$formatFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Float"
         ],
@@ -113,8 +163,13 @@
       },
       "fn:$import$number$formatInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "radix"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -123,8 +178,13 @@
       },
       "fn:$import$number$integer": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "radix"
+        ],
         "parameters": [
           "String",
           "Int"
@@ -135,8 +195,13 @@
     "dependency:numeric.rw": {
       "fn:$import$numeric$activation": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "array"
+        ],
         "parameters": [
           "String",
           "&FloatArray"
@@ -145,8 +210,14 @@
       },
       "fn:$import$numeric$affine": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "scale",
+          "offset"
+        ],
         "parameters": [
           "&FloatArray",
           "Float",
@@ -156,8 +227,13 @@
       },
       "fn:$import$numeric$broadcastFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -166,8 +242,13 @@
       },
       "fn:$import$numeric$broadcastInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>"
@@ -176,8 +257,13 @@
       },
       "fn:$import$numeric$correlation": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray"
@@ -186,8 +272,14 @@
       },
       "fn:$import$numeric$covariance": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "ddof"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray",
@@ -197,8 +289,13 @@
       },
       "fn:$import$numeric$dot": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray"
@@ -207,8 +304,14 @@
       },
       "fn:$import$numeric$eigenSymmetric": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "matrix",
+          "tolerance",
+          "maxSweeps"
+        ],
         "parameters": [
           "&FloatArray",
           "Float",
@@ -218,8 +321,13 @@
       },
       "fn:$import$numeric$fromFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "shape",
+          "values"
+        ],
         "parameters": [
           "&List<Int>",
           "&List<Float>"
@@ -228,8 +336,13 @@
       },
       "fn:$import$numeric$fromInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "shape",
+          "values"
+        ],
         "parameters": [
           "&List<Int>",
           "&List<Int>"
@@ -238,8 +351,13 @@
       },
       "fn:$import$numeric$getFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "indices"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -248,8 +366,13 @@
       },
       "fn:$import$numeric$getInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "indices"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>"
@@ -258,8 +381,13 @@
       },
       "fn:$import$numeric$histogram": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "edges"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray"
@@ -268,8 +396,14 @@
       },
       "fn:$import$numeric$leastSquares": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "matrix",
+          "right",
+          "tolerance"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray",
@@ -279,8 +413,13 @@
       },
       "fn:$import$numeric$mapFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "array"
+        ],
         "parameters": [
           "String",
           "&FloatArray"
@@ -289,8 +428,12 @@
       },
       "fn:$import$numeric$materializeFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -298,8 +441,12 @@
       },
       "fn:$import$numeric$materializeInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -307,8 +454,13 @@
       },
       "fn:$import$numeric$math": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "value"
+        ],
         "parameters": [
           "String",
           "Float"
@@ -317,8 +469,13 @@
       },
       "fn:$import$numeric$matmul": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray"
@@ -327,8 +484,12 @@
       },
       "fn:$import$numeric$mean": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -336,8 +497,13 @@
       },
       "fn:$import$numeric$mergeMoments": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "target",
+          "source"
+        ],
         "parameters": [
           "&mut $import$numeric$OnlineMoments",
           "&$import$numeric$OnlineMoments"
@@ -346,8 +512,12 @@
       },
       "fn:$import$numeric$norm2": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -355,8 +525,12 @@
       },
       "fn:$import$numeric$onlineCount": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "moments"
+        ],
         "parameters": [
           "&$import$numeric$OnlineMoments"
         ],
@@ -364,8 +538,12 @@
       },
       "fn:$import$numeric$onlineMean": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "moments"
+        ],
         "parameters": [
           "&$import$numeric$OnlineMoments"
         ],
@@ -373,15 +551,22 @@
       },
       "fn:$import$numeric$onlineMoments": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$numeric$OnlineMoments"
       },
       "fn:$import$numeric$onlineVariance": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "moments",
+          "ddof"
+        ],
         "parameters": [
           "&$import$numeric$OnlineMoments",
           "Int"
@@ -390,8 +575,13 @@
       },
       "fn:$import$numeric$pushMoment": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "moments",
+          "value"
+        ],
         "parameters": [
           "&mut $import$numeric$OnlineMoments",
           "Float"
@@ -400,8 +590,13 @@
       },
       "fn:$import$numeric$qr": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "tolerance"
+        ],
         "parameters": [
           "&FloatArray",
           "Float"
@@ -410,8 +605,13 @@
       },
       "fn:$import$numeric$quantile": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "probability"
+        ],
         "parameters": [
           "&FloatArray",
           "Float"
@@ -420,8 +620,13 @@
       },
       "fn:$import$numeric$reshapeFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -430,8 +635,13 @@
       },
       "fn:$import$numeric$reshapeInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>"
@@ -440,8 +650,13 @@
       },
       "fn:$import$numeric$scale": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "factor"
+        ],
         "parameters": [
           "&FloatArray",
           "Float"
@@ -450,8 +665,12 @@
       },
       "fn:$import$numeric$shapeFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -459,8 +678,12 @@
       },
       "fn:$import$numeric$shapeInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -468,8 +691,16 @@
       },
       "fn:$import$numeric$sliceFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "axis",
+          "start",
+          "length",
+          "step"
+        ],
         "parameters": [
           "&FloatArray",
           "Int",
@@ -481,8 +712,16 @@
       },
       "fn:$import$numeric$sliceInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "axis",
+          "start",
+          "length",
+          "step"
+        ],
         "parameters": [
           "&IntArray",
           "Int",
@@ -494,8 +733,14 @@
       },
       "fn:$import$numeric$solve": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "matrix",
+          "right",
+          "tolerance"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray",
@@ -505,8 +750,12 @@
       },
       "fn:$import$numeric$stridesFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -514,8 +763,12 @@
       },
       "fn:$import$numeric$stridesInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -523,8 +776,12 @@
       },
       "fn:$import$numeric$sum": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -532,8 +789,13 @@
       },
       "fn:$import$numeric$sumToShape": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -542,8 +804,13 @@
       },
       "fn:$import$numeric$transposeFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "axes"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -552,8 +819,13 @@
       },
       "fn:$import$numeric$transposeInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "axes"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>"
@@ -562,8 +834,12 @@
       },
       "fn:$import$numeric$valuesFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -571,8 +847,12 @@
       },
       "fn:$import$numeric$valuesInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -580,8 +860,13 @@
       },
       "fn:$import$numeric$variance": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "ddof"
+        ],
         "parameters": [
           "&FloatArray",
           "Int"
@@ -590,8 +875,14 @@
       },
       "fn:$import$numeric$withFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "indices",
+          "value"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>",
@@ -601,8 +892,14 @@
       },
       "fn:$import$numeric$withInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "indices",
+          "value"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>",
@@ -612,8 +909,12 @@
       },
       "fn:$import$numeric$zerosFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "shape"
+        ],
         "parameters": [
           "&List<Int>"
         ],
@@ -621,8 +922,12 @@
       },
       "fn:$import$numeric$zerosInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "shape"
+        ],
         "parameters": [
           "&List<Int>"
         ],
@@ -630,8 +935,14 @@
       },
       "fn:$import$numeric$zipFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "left",
+          "right"
+        ],
         "parameters": [
           "String",
           "&FloatArray",
@@ -641,8 +952,14 @@
       },
       "fn:$import$numeric$zipInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "left",
+          "right"
+        ],
         "parameters": [
           "String",
           "&IntArray",
@@ -660,8 +977,14 @@
     "fn:addBools": {
       "async": false,
       "cost": "O(rows). Like addInts for Bool.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&mut Builder",
         "String",
@@ -672,8 +995,14 @@
     "fn:addFloats": {
       "async": false,
       "cost": "O(rows). Like addInts for Float.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&mut Builder",
         "String",
@@ -684,8 +1013,14 @@
     "fn:addInts": {
       "async": false,
       "cost": "O(rows). Appends a column without NULLs; the first column fixes the row count.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&mut Builder",
         "String",
@@ -696,8 +1031,14 @@
     "fn:addNullableBools": {
       "async": false,
       "cost": "O(rows). Like addNullableInts for Bool.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&mut Builder",
         "String",
@@ -708,8 +1049,14 @@
     "fn:addNullableFloats": {
       "async": false,
       "cost": "O(rows). Like addNullableInts for Float.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&mut Builder",
         "String",
@@ -720,8 +1067,14 @@
     "fn:addNullableInts": {
       "async": false,
       "cost": "O(rows). None becomes NULL; the stored filler under a NULL is never readable.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&mut Builder",
         "String",
@@ -732,8 +1085,14 @@
     "fn:addNullableTexts": {
       "async": false,
       "cost": "O(rows). Like addNullableInts for Text.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&mut Builder",
         "String",
@@ -744,8 +1103,14 @@
     "fn:addTexts": {
       "async": false,
       "cost": "O(rows). Like addInts for Text.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&mut Builder",
         "String",
@@ -756,8 +1121,14 @@
     "fn:aggregate": {
       "async": false,
       "cost": "O(rows * (1 + aggregates)) plus O(groups) output. Groups the rows by the key column and computes each aggregate; the result has the key column (one row per group, first appearance order) followed by the aggregate columns in the order given. At most 64 aggregates; the output column names must be unique.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "key",
+        "specs"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -768,8 +1139,14 @@
     "fn:batch": {
       "async": false,
       "cost": "O(max * columns). The batch starting at row offset; an empty table is returned past the end, so a loop stops when rowCount of the batch is 0.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "offset",
+        "max"
+      ],
       "parameters": [
         "&Table",
         "Int",
@@ -780,8 +1157,13 @@
     "fn:bools": {
       "async": false,
       "cost": "O(rows). Like ints for Bool.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -791,8 +1173,12 @@
     "fn:build": {
       "async": false,
       "cost": "O(columns). Freezes the columns; a builder without columns gives an empty table with zero rows.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "b"
+      ],
       "parameters": [
         "Builder"
       ],
@@ -801,16 +1187,25 @@
     "fn:builder": {
       "async": false,
       "cost": "O(1). An empty builder; columns are added with the add* functions and fixed by build.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Builder"
     },
     "fn:cast": {
       "async": false,
       "cost": "O(rows). An explicit, exact conversion into the column `into`: Int<->Float only when the value is represented exactly, Text parses decimal Int/Float and \"true\"/\"false\", Int 0/1 <-> Bool. Any cell that does not convert fails the whole cast with BadCast (the message never contains the cell); NULL stays NULL. Float<->Bool is not defined.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "from",
+        "into",
+        "to"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -822,8 +1217,14 @@
     "fn:cell": {
       "async": false,
       "cost": "O(columns). The Cell is Null for a NULL; the row must be inside 0..rowCount.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "row",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "Int",
@@ -834,8 +1235,12 @@
     "fn:columnCount": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -844,8 +1249,12 @@
     "fn:columnNames": {
       "async": false,
       "cost": "O(columns).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -854,8 +1263,13 @@
     "fn:dropColumns": {
       "async": false,
       "cost": "O(columns * dropped names). Removes the listed columns and shares the others.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "names"
+      ],
       "parameters": [
         "&Table",
         "&List<String>"
@@ -865,8 +1279,13 @@
     "fn:floatArray": {
       "async": false,
       "cost": "O(rows). Hands a dense Float column to the numeric kernels as a one-dimensional FloatArray (the cells are copied into the array once). NULLs are refused with NullValue; an empty table fails with NumericError.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -876,8 +1295,13 @@
     "fn:floats": {
       "async": false,
       "cost": "O(rows). Like ints for Float.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -887,8 +1311,13 @@
     "fn:hasColumn": {
       "async": false,
       "cost": "O(1) after the name index lookup.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -898,8 +1327,13 @@
     "fn:head": {
       "async": false,
       "cost": "O(count * columns). The first rows; same as slice from 0.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "count"
+      ],
       "parameters": [
         "&Table",
         "Int"
@@ -909,8 +1343,13 @@
     "fn:intArray": {
       "async": false,
       "cost": "O(rows). Like floatArray for Int.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -920,8 +1359,13 @@
     "fn:ints": {
       "async": false,
       "cost": "O(rows). Fails with NullValue when the column holds a NULL, and with TypeMismatch for another kind.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -931,8 +1375,13 @@
     "fn:isNull": {
       "async": false,
       "cost": "O(rows). Mask that is true where the column holds NULL.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -942,8 +1391,17 @@
     "fn:join": {
       "async": false,
       "cost": "O(left rows + right rows + output rows) expected; the output may be at most maxRows (1..1,000,000) rows or the join fails with JoinTooLarge before building it. Inner keeps left rows that have at least one match, Left keeps every left row (right cells are NULL when nothing matches). A NULL key never matches, not even another NULL. Left row order is kept; matches of one left row come in right row order. The result has all left columns, then the right columns except the right key; a name that appears twice fails with DuplicateName (rename first).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "left",
+        "right",
+        "leftKey",
+        "rightKey",
+        "kind",
+        "maxRows"
+      ],
       "parameters": [
         "&Table",
         "&Table",
@@ -957,8 +1415,13 @@
     "fn:kindOf": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -968,8 +1431,15 @@
     "fn:mapFloats": {
       "async": false,
       "cost": "O(rows) calls of transform. Like mapInts for Float.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "from",
+        "into",
+        "transform"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -981,8 +1451,15 @@
     "fn:mapInts": {
       "async": false,
       "cost": "O(rows) calls of transform. Writes into column `into`; NULL stays NULL and transform never sees a NULL.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "from",
+        "into",
+        "transform"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -994,8 +1471,15 @@
     "fn:mapTexts": {
       "async": false,
       "cost": "O(rows) calls of transform. Like mapInts for Text.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "from",
+        "into",
+        "transform"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1007,8 +1491,14 @@
     "fn:maskBools": {
       "async": false,
       "cost": "O(rows) calls of test. Like maskInts for Bool.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "test"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1019,8 +1509,14 @@
     "fn:maskFloats": {
       "async": false,
       "cost": "O(rows) calls of test. Like maskInts for Float.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "test"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1031,8 +1527,14 @@
     "fn:maskInts": {
       "async": false,
       "cost": "O(rows) calls of test. NULL rows give false, so a filter never keeps a NULL by accident.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "test"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1043,8 +1545,14 @@
     "fn:maskTexts": {
       "async": false,
       "cost": "O(rows) calls of test. Like maskInts for Text.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "test"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1055,8 +1563,13 @@
     "fn:nullCount": {
       "async": false,
       "cost": "O(rows).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -1066,8 +1579,14 @@
     "fn:rename": {
       "async": false,
       "cost": "O(columns). Shares all column data; the new name must be unused.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "from",
+        "to"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1078,8 +1597,12 @@
     "fn:rowCount": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t"
+      ],
       "parameters": [
         "&Table"
       ],
@@ -1088,8 +1611,13 @@
     "fn:select": {
       "async": false,
       "cost": "O(selected columns * columns). Keeps the listed columns in the listed order and shares their data.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "names"
+      ],
       "parameters": [
         "&Table",
         "&List<String>"
@@ -1099,8 +1627,14 @@
     "fn:slice": {
       "async": false,
       "cost": "O(length * columns). start+length is clamped to the table; negative start or length fails with OutOfRange.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "start",
+        "length"
+      ],
       "parameters": [
         "&Table",
         "Int",
@@ -1110,12 +1644,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -1124,6 +1662,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -1135,6 +1674,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -1144,8 +1687,13 @@
     "fn:takeRows": {
       "async": false,
       "cost": "O(rows kept * columns). Rows may repeat and may be reordered; an index outside 0..rowCount fails with OutOfRange.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "rows"
+      ],
       "parameters": [
         "&Table",
         "&List<Int>"
@@ -1155,8 +1703,13 @@
     "fn:texts": {
       "async": false,
       "cost": "O(rows). Like ints for Text.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name"
+      ],
       "parameters": [
         "&Table",
         "String"
@@ -1166,8 +1719,13 @@
     "fn:where": {
       "async": false,
       "cost": "O(rows * columns). Keeps the rows whose mask entry is true; the mask length must equal rowCount.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "mask"
+      ],
       "parameters": [
         "&Table",
         "&List<Bool>"
@@ -1177,8 +1735,14 @@
     "fn:withBools": {
       "async": false,
       "cost": "O(rows + columns). Like withInts for Bool.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1189,8 +1753,14 @@
     "fn:withFloatArray": {
       "async": false,
       "cost": "O(rows). Adds or replaces a Float column from a one-dimensional array of exactly rowCount elements.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "array"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1201,8 +1771,14 @@
     "fn:withFloats": {
       "async": false,
       "cost": "O(rows + columns). Like withInts for Float.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1213,8 +1789,14 @@
     "fn:withInts": {
       "async": false,
       "cost": "O(rows + columns). Adds the column, or replaces the one with that name; the length must equal rowCount.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&Table",
         "String",
@@ -1225,8 +1807,14 @@
     "fn:withTexts": {
       "async": false,
       "cost": "O(rows + columns). Like withInts for Text.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "t",
+        "name",
+        "values"
+      ],
       "parameters": [
         "&Table",
         "String",

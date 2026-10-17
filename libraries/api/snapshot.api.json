@@ -1,17 +1,21 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:capture": {
       "async": false,
       "cost": "Uses freeze(value): graph validation/materialization and allocation are charged by the VM. No constant-time guarantee.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "value"
       ],
       "parameters": [
         "&T"
@@ -21,12 +25,16 @@
     "fn:fork": {
       "async": false,
       "cost": "Uses thaw: returns an independent mutable owner for mutable T; cost follows the existing thaw implementation.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "saved"
       ],
       "parameters": [
         "Snapshot<T>"
@@ -35,6 +43,7 @@
     },
     "fn:read": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Retains the existing immutable root. Does not restore model bindings or run user callbacks.",
       "generics": [
@@ -43,6 +52,9 @@
           "Send"
         ]
       ],
+      "names": [
+        "saved"
+      ],
       "parameters": [
         "Snapshot<T>"
       ],
@@ -50,12 +62,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -64,6 +80,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -74,6 +91,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

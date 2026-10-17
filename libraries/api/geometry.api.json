@@ -1,13 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.8",
+  "language": "3.5.0",
   "symbols": {
     "dependency:bigint.rw": {
       "fn:$import$bigint$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -16,8 +21,13 @@
       },
       "fn:$import$bigint$bitAnd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -26,8 +36,12 @@
       },
       "fn:$import$bigint$bitNot": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -35,8 +49,13 @@
       },
       "fn:$import$bigint$bitOr": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -45,8 +64,13 @@
       },
       "fn:$import$bigint$bitXor": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -55,8 +79,12 @@
       },
       "fn:$import$bigint$bits": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -64,8 +92,13 @@
       },
       "fn:$import$bigint$compare": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -74,8 +107,13 @@
       },
       "fn:$import$bigint$divide": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -84,8 +122,13 @@
       },
       "fn:$import$bigint$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "radix"
+        ],
         "parameters": [
           "&BigInt",
           "Int"
@@ -94,8 +137,12 @@
       },
       "fn:$import$bigint$fromInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Int"
         ],
@@ -103,8 +150,12 @@
       },
       "fn:$import$bigint$fromJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "Json"
         ],
@@ -112,8 +163,13 @@
       },
       "fn:$import$bigint$gcd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -122,8 +178,14 @@
       },
       "fn:$import$bigint$modPow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "exponent",
+          "modulus"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt",
@@ -133,8 +195,13 @@
       },
       "fn:$import$bigint$modulo": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -143,8 +210,13 @@
       },
       "fn:$import$bigint$multiply": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -153,8 +225,12 @@
       },
       "fn:$import$bigint$negate": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -162,8 +238,13 @@
       },
       "fn:$import$bigint$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "radix"
+        ],
         "parameters": [
           "String",
           "Int"
@@ -172,8 +253,13 @@
       },
       "fn:$import$bigint$pow": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "exponent"
+        ],
         "parameters": [
           "&BigInt",
           "Int"
@@ -182,8 +268,13 @@
       },
       "fn:$import$bigint$remainder": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -192,8 +283,14 @@
       },
       "fn:$import$bigint$shift": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value",
+          "left",
+          "count"
+        ],
         "parameters": [
           "&BigInt",
           "Bool",
@@ -203,8 +300,13 @@
       },
       "fn:$import$bigint$subtract": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&BigInt",
           "&BigInt"
@@ -213,8 +315,12 @@
       },
       "fn:$import$bigint$toInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -222,8 +328,12 @@
       },
       "fn:$import$bigint$toJson": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "value"
+        ],
         "parameters": [
           "&BigInt"
         ],
@@ -233,12 +343,17 @@
     "dependency:sort.rw": {
       "fn:$import$sort$inPlace": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "input",
+          "compare"
         ],
         "parameters": [
           "&mut List<T>",
@@ -248,8 +363,12 @@
       },
       "fn:$import$sort$integers": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "input"
+        ],
         "parameters": [
           "&List<Int>"
         ],
@@ -257,12 +376,17 @@
       },
       "fn:$import$sort$stable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "input",
+          "compare"
         ],
         "parameters": [
           "&List<T>",
@@ -272,6 +396,7 @@
       },
       "fn:$import$sort$tryStable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -283,6 +408,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "input",
+          "compare"
+        ],
         "parameters": [
           "&List<T>",
           "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
@@ -293,9 +422,14 @@
     "fn:convexHull": {
       "async": false,
       "cost": "O(n log n) comparisons and O(n) bounded exact predicates, n <=1048576; outputs distinct points counterclockwise, no repeated first point.",
+      "defaults": [],
       "effects": [],
       "failure": "NumericSize; keepCollinear includes boundary points, and an entirely collinear input returns sorted distinct points.",
       "generics": [],
+      "names": [
+        "input",
+        "keepCollinear"
+      ],
       "parameters": [
         "&List<Point>",
         "Bool"
@@ -304,8 +438,13 @@
     },
     "fn:cross": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "a",
+        "b"
+      ],
       "parameters": [
         "Vector",
         "Vector"
@@ -314,8 +453,13 @@
     },
     "fn:dot": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "a",
+        "b"
+      ],
       "parameters": [
         "Vector",
         "Vector"
@@ -324,8 +468,15 @@
     },
     "fn:intersects": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
       "parameters": [
         "Point",
         "Point",
@@ -336,8 +487,14 @@
     },
     "fn:onSegment": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "point",
+        "a",
+        "b"
+      ],
       "parameters": [
         "Point",
         "Point",
@@ -348,8 +505,14 @@
     "fn:orientation": {
       "async": false,
       "cost": "Fixed-size BigInt intermediates cover the full Int coordinate domain, including a signed determinant wider than 128 bits.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "a",
+        "b",
+        "c"
+      ],
       "parameters": [
         "Point",
         "Point",
@@ -359,9 +522,16 @@
     },
     "fn:orientationFloat": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "NonFinite intermediates are rejected; negative tolerance returns NumericDomain. tolerance is absolute in determinant (area) units.",
       "generics": [],
+      "names": [
+        "a",
+        "b",
+        "c",
+        "tolerance"
+      ],
       "parameters": [
         "Vector",
         "Vector",
@@ -369,6 +539,48 @@
         "Float"
       ],
       "return": "Result<Int,StdError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
     },
     "type:BigInt": {
       "constructor": false,
@@ -556,7 +768,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -636,6 +866,75 @@
         [
           "status",
           "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
         ],
         [
           "headers",
@@ -820,6 +1119,12 @@
       "generics": [],
       "kind": "record"
     },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Point": {
       "constructor": true,
       "fields": [
@@ -829,6 +1134,29 @@
         ],
         [
           "y",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
           "Int"
         ]
       ],
@@ -858,7 +1186,25 @@
       "generics": [],
       "kind": "record"
     },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
     "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -876,6 +1222,42 @@
           "Int"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     },

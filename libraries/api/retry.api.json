@@ -1,13 +1,21 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:decide": {
       "async": false,
       "cost": "O(attempt); what to do after attempt number attempt (1-based) failed with phase after elapsedMillis since the first attempt started. Stop reasons: Attempts, Deadline, UnknownOutcome, Response, NotRetryable.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "policy",
+        "attempt",
+        "elapsedMillis",
+        "phase",
+        "transient"
+      ],
       "parameters": [
         "&Policy",
         "Int",
@@ -20,8 +28,13 @@
     "fn:delay": {
       "async": false,
       "cost": "O(attempt); the capped exponential delay before attempt number attempt+1 (attempt counts finished attempts, starting at 1): base * 2^(attempt-1), at most maxDelayMillis.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "policy",
+        "attempt"
+      ],
       "parameters": [
         "&Policy",
         "Int"
@@ -31,8 +44,13 @@
     "fn:jitter": {
       "async": false,
       "cost": "O(1); a deterministic spread of a delay: keeps 50..100 % of it, chosen by draw (0..999, from a recorded random source). Zero draw keeps the full delay.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "delayMillis",
+        "draw"
+      ],
       "parameters": [
         "Int",
         "Int"
@@ -42,9 +60,18 @@
     "fn:policy": {
       "async": false,
       "cost": "O(1).",
+      "defaults": [],
       "effects": [],
       "failure": "BadPolicy; maxAttempts 1..16, baseMillis 1..60000, maxDelayMillis baseMillis..600000, totalMillis 1..3600000.",
       "generics": [],
+      "names": [
+        "maxAttempts",
+        "baseMillis",
+        "maxDelayMillis",
+        "totalMillis",
+        "idempotent",
+        "retryResponses"
+      ],
       "parameters": [
         "Int",
         "Int",
@@ -57,12 +84,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -71,6 +102,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -81,6 +113,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

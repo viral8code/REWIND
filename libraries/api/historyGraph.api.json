@@ -1,17 +1,21 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:snapshot.rw": {
       "fn:$import$snapshot$capture": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Send"
           ]
+        ],
+        "names": [
+          "value"
         ],
         "parameters": [
           "&T"
@@ -20,12 +24,16 @@
       },
       "fn:$import$snapshot$fork": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Send"
           ]
+        ],
+        "names": [
+          "saved"
         ],
         "parameters": [
           "$import$snapshot$Snapshot<T>"
@@ -34,12 +42,16 @@
       },
       "fn:$import$snapshot$read": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Send"
           ]
+        ],
+        "names": [
+          "saved"
         ],
         "parameters": [
           "$import$snapshot$Snapshot<T>"
@@ -59,6 +71,7 @@
     },
     "fn:add": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Only existing distinct parents are accepted, so insertion cannot introduce cycles. Names are local to this graph.",
       "generics": [
@@ -66,6 +79,12 @@
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "name",
+        "parents",
+        "value"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -77,12 +96,19 @@
     },
     "fn:addSnapshot": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "name",
+        "parents",
+        "saved"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -94,6 +120,7 @@
     },
     "fn:ancestors": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Returns the union of inclusive ancestors of explicit roots, in version-name order. Does not retain snapshots.",
       "generics": [
@@ -101,6 +128,10 @@
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "roots"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -111,12 +142,18 @@
     "fn:annotate": {
       "async": false,
       "cost": "Replaces metadata without recapturing data; description <=4096 and author <=128 Unicode scalars.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "version",
+        "note"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -127,12 +164,17 @@
     },
     "fn:annotation": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "version"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -142,12 +184,16 @@
     },
     "fn:branches": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph"
       ],
       "parameters": [
         "&HistoryGraph<T>"
@@ -156,12 +202,16 @@
     },
     "fn:create": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "capacity"
       ],
       "parameters": [
         "Int"
@@ -171,12 +221,17 @@
     "fn:dropHead": {
       "async": false,
       "cost": "Removes only the branch name. The graph and detached Version values retain their data roots.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "branch"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -186,12 +241,16 @@
     },
     "fn:fork": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "version"
       ],
       "parameters": [
         "Version<T>"
@@ -200,12 +259,17 @@
     },
     "fn:get": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "name"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -215,12 +279,17 @@
     },
     "fn:head": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "branch"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -231,12 +300,18 @@
     "fn:isAncestor": {
       "async": false,
       "cost": "Reflexive ancestry; visits each reachable version at most once, without recursive VM calls.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "ancestor",
+        "descendant"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -247,12 +322,16 @@
     },
     "fn:length": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph"
       ],
       "parameters": [
         "&HistoryGraph<T>"
@@ -262,12 +341,17 @@
     "fn:matching": {
       "async": false,
       "cost": "Evaluates a pure predicate on each saved root in version-name key order; returned Version values retain their snapshots.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "predicate"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -278,12 +362,18 @@
     "fn:mergeBases": {
       "async": false,
       "cost": "Returns every nearest common ancestor, in name order. Criss-cross histories may have multiple bases; unrelated histories return an empty list.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "left",
+        "right"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -294,12 +384,16 @@
     },
     "fn:name": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "version"
       ],
       "parameters": [
         "Version<T>"
@@ -308,12 +402,16 @@
     },
     "fn:parents": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "version"
       ],
       "parameters": [
         "Version<T>"
@@ -323,12 +421,18 @@
     "fn:path": {
       "async": false,
       "cost": "Returns one shortest ancestry path, inclusive and ordered ancestor to descendant. Equal-length ties follow stored parent order.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "ancestor",
+        "descendant"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -339,6 +443,7 @@
     },
     "fn:pin": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Protects a registered version and all its ancestors during explicit pruning. Does not change branch heads.",
       "generics": [
@@ -346,6 +451,10 @@
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "version"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -355,12 +464,16 @@
     },
     "fn:pins": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph"
       ],
       "parameters": [
         "&HistoryGraph<T>"
@@ -370,12 +483,17 @@
     "fn:previewPrune": {
       "async": false,
       "cost": "Lists versions unreachable from current heads, pins and explicit keep roots; neither metadata nor graph is mutated.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "keep"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -386,12 +504,17 @@
     "fn:prune": {
       "async": false,
       "cost": "Recomputes protected reachability, builds retained registries, then replaces them. Detached Version/Snapshot values keep their data.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "keep"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -401,12 +524,16 @@
     },
     "fn:read": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "version"
       ],
       "parameters": [
         "Version<T>"
@@ -416,12 +543,18 @@
     "fn:setHead": {
       "async": false,
       "cost": "Creating a version and moving a branch head are independent operations.",
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "branch",
+        "version"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -432,12 +565,16 @@
     },
     "fn:snapshotOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "version"
       ],
       "parameters": [
         "Version<T>"
@@ -446,12 +583,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -460,6 +601,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -471,6 +613,10 @@
           null
         ]
       ],
+      "names": [
+        "key",
+        "value"
+      ],
       "parameters": [
         "K",
         "V"
@@ -479,12 +625,17 @@
     },
     "fn:unpin": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph",
+        "version"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -494,12 +645,16 @@
     },
     "fn:versions": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           "Send"
         ]
+      ],
+      "names": [
+        "graph"
       ],
       "parameters": [
         "&HistoryGraph<T>"

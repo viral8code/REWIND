@@ -1,14 +1,19 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.48",
+  "language": "3.5.0",
   "symbols": {
     "fn:getFloat": {
       "async": false,
       "cost": "O(rank + log pages); no coordinate List.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericIndex; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "index"
+      ],
       "parameters": [
         "&FloatArray",
         "Int"
@@ -18,9 +23,14 @@
     "fn:getInt": {
       "async": false,
       "cost": "O(rank + log pages); no coordinate List.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericIndex; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "index"
+      ],
       "parameters": [
         "&IntArray",
         "Int"
@@ -30,9 +40,13 @@
     "fn:lengthFloat": {
       "async": false,
       "cost": "O(rank); no coordinate List or payload copy.",
+      "defaults": [],
       "effects": [],
       "failure": "Fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&FloatArray"
       ],
@@ -41,20 +55,72 @@
     "fn:lengthInt": {
       "async": false,
       "cost": "O(rank); no coordinate List or payload copy.",
+      "defaults": [],
       "effects": [],
       "failure": "Fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array"
+      ],
       "parameters": [
         "&IntArray"
       ],
       "return": "Result<Int,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:withFloat": {
       "async": false,
       "cost": "O(rank + 256 + log pages); COW copies one 256-element page and tree path.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericIndex/ReadOnly; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "index",
+        "value"
+      ],
       "parameters": [
         "&FloatArray",
         "Int",
@@ -65,9 +131,15 @@
     "fn:withInt": {
       "async": false,
       "cost": "O(rank + 256 + log pages); COW copies one 256-element page and tree path.",
+      "defaults": [],
       "effects": [],
       "failure": "StdError NumericIndex/ReadOnly; fatal VM work and memory budgets apply.",
       "generics": [],
+      "names": [
+        "array",
+        "index",
+        "value"
+      ],
       "parameters": [
         "&IntArray",
         "Int",
@@ -274,6 +346,12 @@
       "kind": "record"
     },
     "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
       "constructor": false,
       "fields": [],
       "generics": [],
@@ -724,6 +802,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

@@ -1,13 +1,17 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.49",
+  "language": "3.5.0",
   "symbols": {
     "dependency:disjointSet.rw": {
       "fn:$import$disjointSet$create": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "count"
+        ],
         "parameters": [
           "Int"
         ],
@@ -15,8 +19,13 @@
       },
       "fn:$import$disjointSet$root": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "d",
+          "index"
+        ],
         "parameters": [
           "&mut $import$disjointSet$DisjointSet",
           "Int"
@@ -25,8 +34,14 @@
       },
       "fn:$import$disjointSet$same": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "d",
+          "a",
+          "b"
+        ],
         "parameters": [
           "&mut $import$disjointSet$DisjointSet",
           "Int",
@@ -36,8 +51,13 @@
       },
       "fn:$import$disjointSet$size": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "d",
+          "index"
+        ],
         "parameters": [
           "&mut $import$disjointSet$DisjointSet",
           "Int"
@@ -46,8 +66,14 @@
       },
       "fn:$import$disjointSet$unite": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "d",
+          "a",
+          "b"
+        ],
         "parameters": [
           "&mut $import$disjointSet$DisjointSet",
           "Int",
@@ -65,12 +91,16 @@
     "dependency:heap.rw": {
       "fn:$import$heap$peek": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "values"
         ],
         "parameters": [
           "&List<T>"
@@ -79,12 +109,17 @@
       },
       "fn:$import$heap$pop": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "values",
+          "compare"
         ],
         "parameters": [
           "&mut List<T>",
@@ -94,12 +129,19 @@
       },
       "fn:$import$heap$push": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "values",
+          "value",
+          "capacity",
+          "compare"
         ],
         "parameters": [
           "&mut List<T>",
@@ -113,8 +155,13 @@
     "dependency:integer.rw": {
       "fn:$import$integer$add": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -123,8 +170,13 @@
       },
       "fn:$import$integer$combination": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "n",
+          "k"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -133,8 +185,13 @@
       },
       "fn:$import$integer$extendedGcd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -143,8 +200,12 @@
       },
       "fn:$import$integer$factors": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "n"
+        ],
         "parameters": [
           "Int"
         ],
@@ -152,8 +213,13 @@
       },
       "fn:$import$integer$gcd": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -162,8 +228,13 @@
       },
       "fn:$import$integer$lcm": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -172,8 +243,13 @@
       },
       "fn:$import$integer$multiply": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
         "parameters": [
           "Int",
           "Int"
@@ -182,8 +258,12 @@
       },
       "fn:$import$integer$primes": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "limit"
+        ],
         "parameters": [
           "Int"
         ],
@@ -193,12 +273,17 @@
     "dependency:sort.rw": {
       "fn:$import$sort$inPlace": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "input",
+          "compare"
         ],
         "parameters": [
           "&mut List<T>",
@@ -208,8 +293,12 @@
       },
       "fn:$import$sort$integers": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "input"
+        ],
         "parameters": [
           "&List<Int>"
         ],
@@ -217,12 +306,17 @@
       },
       "fn:$import$sort$stable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
             "T",
             "Share"
           ]
+        ],
+        "names": [
+          "input",
+          "compare"
         ],
         "parameters": [
           "&List<T>",
@@ -232,6 +326,7 @@
       },
       "fn:$import$sort$tryStable": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [
           [
@@ -243,6 +338,10 @@
             "Share"
           ]
         ],
+        "names": [
+          "input",
+          "compare"
+        ],
         "parameters": [
           "&List<T>",
           "fn(T,T)->Result<Int,E>!{}~{Send+Share}"
@@ -253,8 +352,15 @@
     "fn:add": {
       "async": false,
       "cost": "Four COW point updates; bulk construction is preferred for large edge sets.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph",
+        "from",
+        "to",
+        "weight"
+      ],
       "parameters": [
         "&mut Graph",
         "Int",
@@ -265,8 +371,13 @@
     },
     "fn:ancestors": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph",
+        "root"
+      ],
       "parameters": [
         "&Graph",
         "Int"
@@ -275,8 +386,13 @@
     },
     "fn:bellmanFord": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph",
+        "source"
+      ],
       "parameters": [
         "&Graph",
         "Int"
@@ -286,8 +402,13 @@
     "fn:bfs": {
       "async": false,
       "cost": "O(vertices + edges) bounded native traversal, times page lookup; returns native IntArray, -1 for unreachable vertices.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph",
+        "source"
+      ],
       "parameters": [
         "&Graph",
         "Int"
@@ -296,8 +417,12 @@
     },
     "fn:components": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph"
+      ],
       "parameters": [
         "&Graph"
       ],
@@ -306,8 +431,13 @@
     "fn:create": {
       "async": false,
       "cost": "O(1) virtual-zero storage; pages are admitted as touched. Capacity is at most 1048576.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "vertices",
+        "capacity"
+      ],
       "parameters": [
         "Int",
         "Int"
@@ -316,8 +446,13 @@
     },
     "fn:dfs": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph",
+        "source"
+      ],
       "parameters": [
         "&Graph",
         "Int"
@@ -326,8 +461,13 @@
     },
     "fn:dijkstra": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph",
+        "source"
+      ],
       "parameters": [
         "&Graph",
         "Int"
@@ -336,8 +476,12 @@
     },
     "fn:edges": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph"
+      ],
       "parameters": [
         "&Graph"
       ],
@@ -346,9 +490,16 @@
     "fn:fromEdges": {
       "async": false,
       "cost": "O(edges log pages); native bulk adjacency builder, no per-edge VM callback or coordinate List.",
+      "defaults": [],
       "effects": [],
       "failure": "Capacity/Shape or NumericIndex; input arrays are rank-one, equal length and retained immutable views.",
       "generics": [],
+      "names": [
+        "vertices",
+        "froms",
+        "tos",
+        "weights"
+      ],
       "parameters": [
         "Int",
         "&IntArray",
@@ -359,8 +510,14 @@
     },
     "fn:lca": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tree",
+        "a",
+        "b"
+      ],
       "parameters": [
         "&Ancestors",
         "Int",
@@ -370,17 +527,67 @@
     },
     "fn:minimumForest": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph"
+      ],
       "parameters": [
         "&Graph"
       ],
       "return": "Result<Forest,String>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:topological": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph"
+      ],
       "parameters": [
         "&Graph"
       ],
@@ -388,8 +595,12 @@
     },
     "fn:vertices": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "graph"
+      ],
       "parameters": [
         "&Graph"
       ],
@@ -633,6 +844,12 @@
       "fields": [],
       "generics": [],
       "kind": "struct"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
     },
     "type:HistogramResult": {
       "constructor": true,
@@ -1079,6 +1296,12 @@
           "String"
         ]
       ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
       "generics": [],
       "kind": "record"
     }

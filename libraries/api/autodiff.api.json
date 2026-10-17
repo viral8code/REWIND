@@ -1,13 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "1.9.62",
+  "language": "3.5.0",
   "symbols": {
     "dependency:numeric.rw": {
       "fn:$import$numeric$activation": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "array"
+        ],
         "parameters": [
           "String",
           "&FloatArray"
@@ -16,8 +21,14 @@
       },
       "fn:$import$numeric$affine": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "scale",
+          "offset"
+        ],
         "parameters": [
           "&FloatArray",
           "Float",
@@ -27,8 +38,13 @@
       },
       "fn:$import$numeric$broadcastFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -37,8 +53,13 @@
       },
       "fn:$import$numeric$broadcastInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>"
@@ -47,8 +68,13 @@
       },
       "fn:$import$numeric$correlation": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray"
@@ -57,8 +83,14 @@
       },
       "fn:$import$numeric$covariance": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right",
+          "ddof"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray",
@@ -68,8 +100,13 @@
       },
       "fn:$import$numeric$dot": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray"
@@ -78,8 +115,14 @@
       },
       "fn:$import$numeric$eigenSymmetric": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "matrix",
+          "tolerance",
+          "maxSweeps"
+        ],
         "parameters": [
           "&FloatArray",
           "Float",
@@ -89,8 +132,13 @@
       },
       "fn:$import$numeric$fromFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "shape",
+          "values"
+        ],
         "parameters": [
           "&List<Int>",
           "&List<Float>"
@@ -99,8 +147,13 @@
       },
       "fn:$import$numeric$fromInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "shape",
+          "values"
+        ],
         "parameters": [
           "&List<Int>",
           "&List<Int>"
@@ -109,8 +162,13 @@
       },
       "fn:$import$numeric$getFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "indices"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -119,8 +177,13 @@
       },
       "fn:$import$numeric$getInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "indices"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>"
@@ -129,8 +192,13 @@
       },
       "fn:$import$numeric$histogram": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "edges"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray"
@@ -139,8 +207,14 @@
       },
       "fn:$import$numeric$leastSquares": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "matrix",
+          "right",
+          "tolerance"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray",
@@ -150,8 +224,13 @@
       },
       "fn:$import$numeric$mapFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "array"
+        ],
         "parameters": [
           "String",
           "&FloatArray"
@@ -160,8 +239,12 @@
       },
       "fn:$import$numeric$materializeFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -169,8 +252,12 @@
       },
       "fn:$import$numeric$materializeInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -178,8 +265,13 @@
       },
       "fn:$import$numeric$math": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "value"
+        ],
         "parameters": [
           "String",
           "Float"
@@ -188,8 +280,13 @@
       },
       "fn:$import$numeric$matmul": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray"
@@ -198,8 +295,12 @@
       },
       "fn:$import$numeric$mean": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -207,8 +308,13 @@
       },
       "fn:$import$numeric$mergeMoments": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "target",
+          "source"
+        ],
         "parameters": [
           "&mut $import$numeric$OnlineMoments",
           "&$import$numeric$OnlineMoments"
@@ -217,8 +323,12 @@
       },
       "fn:$import$numeric$norm2": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -226,8 +336,12 @@
       },
       "fn:$import$numeric$onlineCount": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "moments"
+        ],
         "parameters": [
           "&$import$numeric$OnlineMoments"
         ],
@@ -235,8 +349,12 @@
       },
       "fn:$import$numeric$onlineMean": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "moments"
+        ],
         "parameters": [
           "&$import$numeric$OnlineMoments"
         ],
@@ -244,15 +362,22 @@
       },
       "fn:$import$numeric$onlineMoments": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [],
         "parameters": [],
         "return": "$import$numeric$OnlineMoments"
       },
       "fn:$import$numeric$onlineVariance": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "moments",
+          "ddof"
+        ],
         "parameters": [
           "&$import$numeric$OnlineMoments",
           "Int"
@@ -261,8 +386,13 @@
       },
       "fn:$import$numeric$pushMoment": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "moments",
+          "value"
+        ],
         "parameters": [
           "&mut $import$numeric$OnlineMoments",
           "Float"
@@ -271,8 +401,13 @@
       },
       "fn:$import$numeric$qr": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "tolerance"
+        ],
         "parameters": [
           "&FloatArray",
           "Float"
@@ -281,8 +416,13 @@
       },
       "fn:$import$numeric$quantile": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "probability"
+        ],
         "parameters": [
           "&FloatArray",
           "Float"
@@ -291,8 +431,13 @@
       },
       "fn:$import$numeric$reshapeFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -301,8 +446,13 @@
       },
       "fn:$import$numeric$reshapeInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>"
@@ -311,8 +461,13 @@
       },
       "fn:$import$numeric$scale": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "factor"
+        ],
         "parameters": [
           "&FloatArray",
           "Float"
@@ -321,8 +476,12 @@
       },
       "fn:$import$numeric$shapeFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -330,8 +489,12 @@
       },
       "fn:$import$numeric$shapeInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -339,8 +502,16 @@
       },
       "fn:$import$numeric$sliceFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "axis",
+          "start",
+          "length",
+          "step"
+        ],
         "parameters": [
           "&FloatArray",
           "Int",
@@ -352,8 +523,16 @@
       },
       "fn:$import$numeric$sliceInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "axis",
+          "start",
+          "length",
+          "step"
+        ],
         "parameters": [
           "&IntArray",
           "Int",
@@ -365,8 +544,14 @@
       },
       "fn:$import$numeric$solve": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "matrix",
+          "right",
+          "tolerance"
+        ],
         "parameters": [
           "&FloatArray",
           "&FloatArray",
@@ -376,8 +561,12 @@
       },
       "fn:$import$numeric$stridesFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -385,8 +574,12 @@
       },
       "fn:$import$numeric$stridesInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -394,8 +587,12 @@
       },
       "fn:$import$numeric$sum": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -403,8 +600,13 @@
       },
       "fn:$import$numeric$sumToShape": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "shape"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -413,8 +615,13 @@
       },
       "fn:$import$numeric$transposeFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "axes"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>"
@@ -423,8 +630,13 @@
       },
       "fn:$import$numeric$transposeInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "axes"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>"
@@ -433,8 +645,12 @@
       },
       "fn:$import$numeric$valuesFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&FloatArray"
         ],
@@ -442,8 +658,12 @@
       },
       "fn:$import$numeric$valuesInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array"
+        ],
         "parameters": [
           "&IntArray"
         ],
@@ -451,8 +671,13 @@
       },
       "fn:$import$numeric$variance": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "ddof"
+        ],
         "parameters": [
           "&FloatArray",
           "Int"
@@ -461,8 +686,14 @@
       },
       "fn:$import$numeric$withFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "indices",
+          "value"
+        ],
         "parameters": [
           "&FloatArray",
           "&List<Int>",
@@ -472,8 +703,14 @@
       },
       "fn:$import$numeric$withInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "array",
+          "indices",
+          "value"
+        ],
         "parameters": [
           "&IntArray",
           "&List<Int>",
@@ -483,8 +720,12 @@
       },
       "fn:$import$numeric$zerosFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "shape"
+        ],
         "parameters": [
           "&List<Int>"
         ],
@@ -492,8 +733,12 @@
       },
       "fn:$import$numeric$zerosInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "shape"
+        ],
         "parameters": [
           "&List<Int>"
         ],
@@ -501,8 +746,14 @@
       },
       "fn:$import$numeric$zipFloat": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "left",
+          "right"
+        ],
         "parameters": [
           "String",
           "&FloatArray",
@@ -512,8 +763,14 @@
       },
       "fn:$import$numeric$zipInt": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "operation",
+          "left",
+          "right"
+        ],
         "parameters": [
           "String",
           "&IntArray",
@@ -531,9 +788,14 @@
     "fn:backward": {
       "async": false,
       "cost": "sum of the forward/backward native kernel costs; O(nodes + retained intermediate gradients) storage. Synchronous, individual kernels are not preemptible.",
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffNode/Loss, NumericShape/Domain/NonFinite/Overflow; requires a one-element loss, no mutation of tape; fatal work/memory budgets apply. Gradients retains intermediate native arrays until dropped.",
       "generics": [],
+      "names": [
+        "tape",
+        "loss"
+      ],
       "parameters": [
         "&Tape",
         "Node"
@@ -542,9 +804,14 @@
     },
     "fn:backwardAccumulated": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffState/Node; constants return None and must not receive allocated gradients.",
       "generics": [],
+      "names": [
+        "work",
+        "index"
+      ],
       "parameters": [
         "&BackwardWork",
         "Int"
@@ -553,8 +820,12 @@
     },
     "fn:backwardDone": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "work"
+      ],
       "parameters": [
         "&BackwardWork"
       ],
@@ -563,9 +834,14 @@
     "fn:backwardWork": {
       "async": false,
       "cost": "O(rank) validation and empty metadata allocation; consumes tape, no full metadata freeze.",
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffNode/Loss; requires a one-element loss. Existing Node storage keys are preserved.",
       "generics": [],
+      "names": [
+        "tape",
+        "loss"
+      ],
       "parameters": [
         "Tape",
         "Node"
@@ -574,9 +850,16 @@
     },
     "fn:binary": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "NumericDomain/Shape/NonFinite/Overflow, AutodiffNode/Size; add/sub/mul only, shapes must match, broadcasting is explicit.",
       "generics": [],
+      "names": [
+        "tape",
+        "operation",
+        "left",
+        "right"
+      ],
       "parameters": [
         "&mut Tape",
         "String",
@@ -587,8 +870,14 @@
     },
     "fn:broadcast": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tape",
+        "input",
+        "dimensions"
+      ],
       "parameters": [
         "&mut Tape",
         "Node",
@@ -598,8 +887,13 @@
     },
     "fn:constant": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tape",
+        "array"
+      ],
       "parameters": [
         "&mut Tape",
         "FloatArray"
@@ -609,16 +903,22 @@
     "fn:create": {
       "async": false,
       "cost": "O(1); VM-owned tape, checkpoint/revert uses COW metadata and shared native pages.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Tape"
     },
     "fn:finishBackward": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffState until traversal completes; consumes work and releases tape metadata, returns existing Gradients.",
       "generics": [],
+      "names": [
+        "work"
+      ],
       "parameters": [
         "BackwardWork"
       ],
@@ -627,9 +927,14 @@
     "fn:finishForward": {
       "async": false,
       "cost": "append's existing conservative full-storage identity admission; actual identity is cached when the async companion prepared output first. Bridge callers supply a fully computed validated output.",
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffSize, NumericType/Domain; consumes work and returns tape/node only after successful append, never accepts a caller-supplied node key.",
       "generics": [],
+      "names": [
+        "work",
+        "output"
+      ],
       "parameters": [
         "ForwardWork",
         "FloatArray"
@@ -638,8 +943,12 @@
     },
     "fn:forwardInputs": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "work"
+      ],
       "parameters": [
         "&ForwardWork"
       ],
@@ -648,9 +957,18 @@
     "fn:forwardWork": {
       "async": false,
       "cost": "bounded metadata validation and shared input descriptors, no numeric payload scan; consumes tape.",
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffName/Node/Size, NumericDomain; parameter/constant, binary:add/sub/mul, unary:relu/sigmoid/tanh/exp/log/square, matmul, reshape/transpose/broadcast/sum/mean.",
       "generics": [],
+      "names": [
+        "tape",
+        "kind",
+        "left",
+        "right",
+        "name",
+        "array"
+      ],
       "parameters": [
         "Tape",
         "String",
@@ -663,9 +981,14 @@
     },
     "fn:gradient": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffNode; None means constant or unreachable from the selected loss, not an allocated zero array.",
       "generics": [],
+      "names": [
+        "gradients",
+        "node"
+      ],
       "parameters": [
         "&Gradients",
         "Node"
@@ -674,8 +997,14 @@
     },
     "fn:matmul": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tape",
+        "left",
+        "right"
+      ],
       "parameters": [
         "&mut Tape",
         "Node",
@@ -685,8 +1014,13 @@
     },
     "fn:mean": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tape",
+        "input"
+      ],
       "parameters": [
         "&mut Tape",
         "Node"
@@ -695,9 +1029,13 @@
     },
     "fn:nextBackward": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffState before preparation or after completion; returns immutable views, no tensor computation.",
       "generics": [],
+      "names": [
+        "work"
+      ],
       "parameters": [
         "&mut BackwardWork"
       ],
@@ -706,9 +1044,15 @@
     "fn:parameter": {
       "async": false,
       "cost": "O(elements) finite validation, no copy of numeric pages; name bounded to 128 UTF-8 bytes, at most 100000 operations per tape.",
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffName/Size, NumericNonFinite; fatal work/memory budgets apply. Tape changes only on success.",
       "generics": [],
+      "names": [
+        "tape",
+        "name",
+        "array"
+      ],
       "parameters": [
         "&mut Tape",
         "String",
@@ -719,8 +1063,12 @@
     "fn:prepareBackward": {
       "async": false,
       "cost": "At most 64 metadata entries per call; scalar loss seed only after complete initialization.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "work"
+      ],
       "parameters": [
         "&mut BackwardWork"
       ],
@@ -728,8 +1076,14 @@
     },
     "fn:reshape": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tape",
+        "input",
+        "dimensions"
+      ],
       "parameters": [
         "&mut Tape",
         "Node",
@@ -737,11 +1091,59 @@
       ],
       "return": "Result<Node,StdError>"
     },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
     "fn:storeBackward": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffState/Node, NumericShape; accepts a fully computed gradient for a needed parent.",
       "generics": [],
+      "names": [
+        "work",
+        "index",
+        "incoming"
+      ],
       "parameters": [
         "&mut BackwardWork",
         "Int",
@@ -751,8 +1153,13 @@
     },
     "fn:sum": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tape",
+        "input"
+      ],
       "parameters": [
         "&mut Tape",
         "Node"
@@ -761,8 +1168,13 @@
     },
     "fn:transpose": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tape",
+        "input"
+      ],
       "parameters": [
         "&mut Tape",
         "Node"
@@ -771,9 +1183,15 @@
     },
     "fn:unary": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "NumericDomain/NonFinite/Overflow, AutodiffNode/Size; relu/sigmoid/tanh/exp/log/square, relu derivative at zero is zero.",
       "generics": [],
+      "names": [
+        "tape",
+        "operation",
+        "input"
+      ],
       "parameters": [
         "&mut Tape",
         "String",
@@ -783,9 +1201,14 @@
     },
     "fn:value": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "AutodiffNode for a foreign or replaced node; structurally identical graphs are interchangeable.",
       "generics": [],
+      "names": [
+        "tape",
+        "node"
+      ],
       "parameters": [
         "&Tape",
         "Node"

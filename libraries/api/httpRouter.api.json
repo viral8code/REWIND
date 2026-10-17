@@ -1,13 +1,18 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.4.0",
+  "language": "3.5.0",
   "symbols": {
     "dependency:url.rw": {
       "fn:$import$url$decodeComponent": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "text",
+          "plusAsSpace"
+        ],
         "parameters": [
           "String",
           "Bool"
@@ -16,8 +21,12 @@
       },
       "fn:$import$url$display": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "url"
+        ],
         "parameters": [
           "&$import$url$Url"
         ],
@@ -25,8 +34,12 @@
       },
       "fn:$import$url$encodeComponent": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "text"
+        ],
         "parameters": [
           "String"
         ],
@@ -34,8 +47,12 @@
       },
       "fn:$import$url$format": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "url"
+        ],
         "parameters": [
           "&$import$url$Url"
         ],
@@ -43,8 +60,12 @@
       },
       "fn:$import$url$formatQuery": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "params"
+        ],
         "parameters": [
           "&List<$import$url$Param>"
         ],
@@ -52,8 +73,12 @@
       },
       "fn:$import$url$parse": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "text"
+        ],
         "parameters": [
           "String"
         ],
@@ -61,8 +86,12 @@
       },
       "fn:$import$url$parseQuery": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "raw"
+        ],
         "parameters": [
           "String"
         ],
@@ -70,8 +99,12 @@
       },
       "fn:$import$url$pathSegments": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "path"
+        ],
         "parameters": [
           "String"
         ],
@@ -79,8 +112,13 @@
       },
       "fn:$import$url$resolve": {
         "async": false,
+        "defaults": [],
         "effects": [],
         "generics": [],
+        "names": [
+          "base",
+          "reference"
+        ],
         "parameters": [
           "&$import$url$Url",
           "&$import$url$Url"
@@ -156,9 +194,14 @@
     "fn:allows": {
       "async": false,
       "cost": "O(route count * compared path bytes).",
+      "defaults": [],
       "effects": [],
       "failure": "false when the path has no route; useful to distinguish missing paths from unsupported methods.",
       "generics": [],
+      "names": [
+        "routes",
+        "path"
+      ],
       "parameters": [
         "Frozen<List<Route>>",
         "String"
@@ -168,9 +211,13 @@
     "fn:compile": {
       "async": false,
       "cost": "O(routes * segments); routes use pattern paths. At most 256 routes, 32 segments, 2048 bytes per pattern. Methods are upper-case tokens or '*'.",
+      "defaults": [],
       "effects": [],
       "failure": "BadPath, PathTooLong, TooManySegments, BadPattern, BadParamName, DuplicateParam, WildcardNotLast, DuplicateRoute (same method and shape), TooManyRoutes, BadMethod; the route field is the index of the offending route.",
       "generics": [],
+      "names": [
+        "routes"
+      ],
       "parameters": [
         "Frozen<List<Route>>"
       ],
@@ -179,9 +226,15 @@
     "fn:find": {
       "async": false,
       "cost": "O(route count * compared text bytes); first matching route wins.",
+      "defaults": [],
       "effects": [],
       "failure": "None when no exact match; method '*' accepts every method. Paths retain percent encoding; no implicit decoding, prefix match or regex.",
       "generics": [],
+      "names": [
+        "routes",
+        "method",
+        "path"
+      ],
       "parameters": [
         "Frozen<List<Route>>",
         "String",
@@ -192,8 +245,14 @@
     "fn:resolve": {
       "async": false,
       "cost": "O(routes * segments). Found(route, params) for the best match; MethodNotAllowed(methods) when the path matches only other methods (sorted, no duplicates); NotFound otherwise; BadPath when the path is not an absolute path within the limits. A path containing a bad %-escape in a parameter does not match that route.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "router",
+        "method",
+        "path"
+      ],
       "parameters": [
         "&Router",
         "String",
@@ -203,12 +262,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -217,6 +280,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -227,6 +291,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",

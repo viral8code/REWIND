@@ -1,21 +1,27 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.0.0",
+  "language": "3.5.0",
   "symbols": {
     "fn:begun": {
       "async": false,
       "cost": "Starts tracking after db.beginTransaction returned Ok.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [],
       "parameters": [],
       "return": "Transaction"
     },
     "fn:close": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Releases the handle. Pending or active transactions are reported, not closed silently.",
       "generics": [],
+      "names": [
+        "tx"
+      ],
       "parameters": [
         "&mut Transaction"
       ],
@@ -23,9 +29,14 @@
     },
     "fn:completeCommit": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Committing -> Committed on Ok. A failure that never reached the backend returns to Active; an unknown outcome becomes Unknown; other failures become Failed.",
       "generics": [],
+      "names": [
+        "tx",
+        "outcome"
+      ],
       "parameters": [
         "&mut Transaction",
         "Result<Unit,DbError>"
@@ -34,9 +45,14 @@
     },
     "fn:completeRollback": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "RollingBack -> RolledBack on Ok. A failure that never reached the backend returns to the previous state; an unknown outcome becomes Unknown; other failures become Failed.",
       "generics": [],
+      "names": [
+        "tx",
+        "outcome"
+      ],
       "parameters": [
         "&mut Transaction",
         "Result<Unit,DbError>"
@@ -45,9 +61,13 @@
     },
     "fn:connectionReusable": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "False while the outcome is pending, failed or unknown; true once the transaction is over cleanly.",
       "generics": [],
+      "names": [
+        "tx"
+      ],
       "parameters": [
         "&Transaction"
       ],
@@ -55,9 +75,15 @@
     },
     "fn:finished": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Summarises the end of a unit of work: the business failure (if any) next to the cleanup failure (if any).",
       "generics": [],
+      "names": [
+        "tx",
+        "business",
+        "cleanup"
+      ],
       "parameters": [
         "&Transaction",
         "Option<String>",
@@ -68,8 +94,12 @@
     "fn:isActive": {
       "async": false,
       "cost": "True while queries and a commit or rollback request are allowed.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tx"
+      ],
       "parameters": [
         "&Transaction"
       ],
@@ -77,9 +107,13 @@
     },
     "fn:requestCommit": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Active -> Committing. Any other state is rejected and left unchanged.",
       "generics": [],
+      "names": [
+        "tx"
+      ],
       "parameters": [
         "&mut Transaction"
       ],
@@ -87,9 +121,13 @@
     },
     "fn:requestRollback": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "failure": "Active or Failed -> RollingBack. Unknown, finished and pending states are rejected.",
       "generics": [],
+      "names": [
+        "tx"
+      ],
       "parameters": [
         "&mut Transaction"
       ],
@@ -98,8 +136,12 @@
     "fn:state": {
       "async": false,
       "cost": "Reads the tracked state.",
+      "defaults": [],
       "effects": [],
       "generics": [],
+      "names": [
+        "tx"
+      ],
       "parameters": [
         "&Transaction"
       ],
@@ -107,12 +149,16 @@
     },
     "fn:stdListOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
           "T",
           null
         ]
+      ],
+      "names": [
+        "first"
       ],
       "parameters": [
         "T"
@@ -121,6 +167,7 @@
     },
     "fn:stdMapOf": {
       "async": false,
+      "defaults": [],
       "effects": [],
       "generics": [
         [
@@ -131,6 +178,10 @@
           "V",
           null
         ]
+      ],
+      "names": [
+        "key",
+        "value"
       ],
       "parameters": [
         "K",
