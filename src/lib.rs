@@ -705,6 +705,35 @@ pub enum FileMode {
     ReadWrite,
 }
 
+/// Pointer-identity set used by `enforce_budget`, which runs on almost every VM operation.
+/// The first entries live inline so the usual single-state case never touches the allocator.
+#[derive(Default)]
+struct PtrSet {
+    inline: [usize; 24],
+    len: usize,
+    spill: Option<HashSet<usize>>,
+}
+impl PtrSet {
+    /// Returns true when `value` was not present.
+    fn insert(&mut self, value: usize) -> bool {
+        if let Some(spill) = &mut self.spill {
+            return spill.insert(value);
+        }
+        if self.inline[..self.len].contains(&value) {
+            return false;
+        }
+        if self.len < self.inline.len() {
+            self.inline[self.len] = value;
+            self.len += 1;
+            return true;
+        }
+        let mut spill: HashSet<usize> = self.inline.iter().copied().collect();
+        spill.insert(value);
+        self.spill = Some(spill);
+        true
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ResourceBudget {
     pub history_memory: usize,
@@ -2058,8 +2087,8 @@ impl Runtime {
     }
     fn enforce_budget(&self) -> Result<()> {
         let mut segments = Vec::new();
-        let mut seen_segments = HashSet::new();
-        let mut seen_compute = HashSet::new();
+        let mut seen_segments = PtrSet::default();
+        let mut seen_compute = PtrSet::default();
         let mut compute_memory = self.byte_input.len().saturating_mul(32);
         if self.allocation_accounting {
             compute_memory =
@@ -2318,7 +2347,7 @@ impl Runtime {
         compute_memory = compute_memory
             .saturating_add(self.gui_window_observation_bytes)
             .saturating_add(self.gui_window_scripted_bytes);
-        let mut gui_roots = HashSet::new();
+        let mut gui_roots = PtrSet::default();
         for state in std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
             .chain(branch_roots.iter().map(AsRef::as_ref))
@@ -2446,10 +2475,11 @@ impl Runtime {
         Ok(())
     }
     pub fn push_stack(&mut self, value: Value) -> Result<()> {
-        let previous = self.state.stack.clone();
+        // Undo by popping instead of holding a second Arc: a retained clone would force
+        // `make_mut` to copy the whole stack on every push.
         Arc::make_mut(&mut self.state.stack).push(value);
         if let Err(error) = self.enforce_budget() {
-            self.state.stack = previous;
+            Arc::make_mut(&mut self.state.stack).pop();
             return Err(error);
         }
         Ok(())
@@ -2460,13 +2490,12 @@ impl Runtime {
             .ok_or_else(|| Error::InvalidOperation("stack underflow".into()))
     }
     pub fn push_frame(&mut self, return_pc: usize) -> Result<()> {
-        let previous = self.state.call_frames.clone();
         Arc::make_mut(&mut self.state.call_frames).push(CallFrame {
             return_pc,
             locals: BTreeMap::new(),
         });
         if let Err(error) = self.enforce_budget() {
-            self.state.call_frames = previous;
+            Arc::make_mut(&mut self.state.call_frames).pop();
             return Err(error);
         }
         Ok(())
@@ -2477,13 +2506,26 @@ impl Runtime {
             .ok_or_else(|| Error::InvalidOperation("call stack underflow".into()))
     }
     pub fn set_local(&mut self, name: impl Into<String>, value: Value) -> Result<()> {
-        let previous = self.state.call_frames.clone();
+        let name = name.into();
         let frame = Arc::make_mut(&mut self.state.call_frames)
             .last_mut()
             .ok_or_else(|| Error::InvalidOperation("no active call frame".into()))?;
-        frame.locals.insert(name.into(), value);
+        // Updating an existing local needs no key copy; only a new local clones its name for undo.
+        let replaced = match frame.locals.get_mut(&name) {
+            Some(slot) => Some(std::mem::replace(slot, value)),
+            None => {
+                frame.locals.insert(name.clone(), value);
+                None
+            }
+        };
         if let Err(error) = self.enforce_budget() {
-            self.state.call_frames = previous;
+            let frame = Arc::make_mut(&mut self.state.call_frames)
+                .last_mut()
+                .expect("frame checked above");
+            match replaced {
+                Some(old) => frame.locals.insert(name, old),
+                None => frame.locals.remove(&name),
+            };
             return Err(error);
         }
         Ok(())
@@ -2499,10 +2541,14 @@ impl Runtime {
         Ok(())
     }
     pub fn set_global(&mut self, name: impl Into<String>, value: Value) -> Result<()> {
-        let previous = self.state.globals.clone();
-        Arc::make_mut(&mut self.state.globals).insert(name.into(), value);
+        let name = name.into();
+        let replaced = Arc::make_mut(&mut self.state.globals).insert(name.clone(), value);
         if let Err(error) = self.enforce_budget() {
-            self.state.globals = previous;
+            let globals = Arc::make_mut(&mut self.state.globals);
+            match replaced {
+                Some(old) => globals.insert(name, old),
+                None => globals.remove(&name),
+            };
             return Err(error);
         }
         Ok(())

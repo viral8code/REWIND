@@ -64,7 +64,8 @@ enum Op {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Inst {
     op: Op,
-    at: Tok,
+    // Shared so the per-step instruction clone does not copy the location strings.
+    at: std::sync::Arc<Tok>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 struct FunctionChunk {
@@ -451,7 +452,10 @@ impl Compiler {
     }
     fn emit(&mut self, op: Op, at: &Tok) -> usize {
         let pos = self.code.len();
-        self.code.push(Inst { op, at: at.clone() });
+        self.code.push(Inst {
+            op,
+            at: std::sync::Arc::new(at.clone()),
+        });
         pos
     }
     fn patch(&mut self, index: usize, target: usize) {
@@ -3279,7 +3283,7 @@ impl<R: BufRead> Vm<R> {
                     let at = self
                         .code
                         .get(self.pc.saturating_sub(1))
-                        .map(|i| i.at.clone())
+                        .map(|i| (*i.at).clone())
                         .unwrap_or(Tok {
                             source: String::new(),
                             text: "<task>".into(),
@@ -3556,7 +3560,7 @@ impl<R: BufRead> Vm<R> {
             let at = self
                 .code
                 .get(self.pc.saturating_sub(1))
-                .map(|i| i.at.clone())
+                .map(|i| (*i.at).clone())
                 .unwrap_or(Tok {
                     source: String::new(),
                     text: "<task>".into(),
@@ -3572,7 +3576,7 @@ impl<R: BufRead> Vm<R> {
                     let at = self
                         .code
                         .get(self.pc.saturating_sub(1))
-                        .map(|i| i.at.clone())
+                        .map(|i| (*i.at).clone())
                         .unwrap_or(Tok {
                             source: String::new(),
                             text: "<cleanup>".into(),
@@ -3588,7 +3592,7 @@ impl<R: BufRead> Vm<R> {
             let at = self
                 .code
                 .get(self.pc.saturating_sub(1))
-                .map(|i| i.at.clone())
+                .map(|i| (*i.at).clone())
                 .unwrap_or(Tok {
                     source: String::new(),
                     text: "<cleanup>".into(),
@@ -4303,7 +4307,7 @@ impl<R: BufRead> Vm<R> {
             let at = self
                 .current_pc
                 .and_then(|pc| self.code.get(pc))
-                .map(|i| i.at.clone())
+                .map(|i| (*i.at).clone())
                 .unwrap_or(Tok {
                     source: String::new(),
                     text: String::new(),
@@ -4471,7 +4475,9 @@ impl<R: BufRead> Vm<R> {
                     | "3.5.0"
                     | "3.6.0"
             ) {
-                self.expire_timeouts(&self.code[self.pc].at.clone())?;
+                if self.scheduler.has_timeouts() {
+                    self.expire_timeouts(&self.code[self.pc].at.clone())?;
+                }
             }
             if self.cancellation_requested() {
                 return Err(self.error(&self.code[self.pc].at, "TaskCancelled"));

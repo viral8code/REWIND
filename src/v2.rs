@@ -285,7 +285,37 @@ pub fn standalone_effects() -> BTreeSet<String> {
         .map(str::to_string)
         .collect()
 }
+/// `MAJOR.MINOR.PATCH` of plain decimal components, or `None` for anything else (pre-release,
+/// build metadata, leading zeros, overflow), which the caller hands to the full semver parser.
+fn plain_version(text: &str) -> Option<(u64, u64, u64)> {
+    let mut parts = [0u64; 3];
+    let mut index = 0;
+    let mut digits = 0;
+    for byte in text.bytes() {
+        match byte {
+            b'0'..=b'9' => {
+                // Leading zeros are invalid semver; more than 18 digits could overflow.
+                if digits == 18 || (digits == 1 && parts[index] == 0) {
+                    return None;
+                }
+                parts[index] = parts[index] * 10 + u64::from(byte - b'0');
+                digits += 1;
+            }
+            b'.' if digits > 0 && index < 2 => {
+                index += 1;
+                digits = 0;
+            }
+            _ => return None,
+        }
+    }
+    (index == 2 && digits > 0).then_some((parts[0], parts[1], parts[2]))
+}
+
 fn language_at_least(actual: &str, minimum: &str) -> bool {
+    // Called on every VM step; avoid two full semver parses for the usual plain versions.
+    if let (Some(actual), Some(minimum)) = (plain_version(actual), plain_version(minimum)) {
+        return actual >= minimum;
+    }
     semver::Version::parse(actual)
         .is_ok_and(|v| v >= semver::Version::parse(minimum).expect("valid minimum language"))
 }
@@ -16785,5 +16815,30 @@ pub fn render_diagnostic(error: &Error) -> String {
 pub fn enrich_diagnostic(error: &mut Error) {
     if let Error::Diagnostic(d) = error {
         v11::enrich(d);
+    }
+}
+
+#[cfg(test)]
+mod language_version_tests {
+    use super::{language_at_least, plain_version};
+
+    #[test]
+    fn plain_versions_match_semver_ordering() {
+        let versions = [
+            "0.6", "0.6.0", "1.0.0", "1.9.3", "1.9.20", "1.9.65", "2.0.0", "3.0.0", "3.6.0", "10.0.0",
+            "01.0.0", "1.0", "1.0.0.0", "1.0.0-rc.1", "1.0.0+build", "", "a.b.c", "1..0", ".1.0", "1.0.", "99999999999999999999.0.0",
+        ];
+        for actual in versions {
+            for minimum in ["1.9.3", "1.9.20", "2.0.0", "3.0.0", "3.6.0"] {
+                let expected = semver::Version::parse(actual)
+                    .is_ok_and(|v| v >= semver::Version::parse(minimum).unwrap());
+                assert_eq!(language_at_least(actual, minimum), expected, "{actual} >= {minimum}");
+            }
+        }
+        assert_eq!(plain_version("3.6.0"), Some((3, 6, 0)));
+        assert_eq!(plain_version("1.9.65"), Some((1, 9, 65)));
+        assert_eq!(plain_version("0.0.0"), Some((0, 0, 0)));
+        assert_eq!(plain_version("01.0.0"), None);
+        assert_eq!(plain_version("1.0"), None);
     }
 }

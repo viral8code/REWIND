@@ -112,6 +112,11 @@ impl Default for Scheduler {
     }
 }
 impl Scheduler {
+    pub(super) fn has_timeouts(&self) -> bool {
+        self.tasks
+            .values()
+            .any(|t| matches!(t.body, TaskBody::Timeout(_, _, Some(_))))
+    }
     pub(super) fn host_operations(&self) -> BTreeSet<usize> {
         self.tasks
             .values()
