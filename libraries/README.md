@@ -14,6 +14,7 @@
 | parser | literal, satisfy, map, pair, orElse, cut, repeat, lookAhead, verify, andThen, spanned, chainLeft/Right | finite Bytes、原文範囲、pure callback、結合方向と上限 |
 | orderedMap | create, put, get, remove, first/last, popFirst/Last, touch, keys, clear | 挿入順、既存key更新は位置保持、再挿入は末尾 |
 | table | builder, addInts/Floats/Texts/Bools (+Nullable), build, select, dropColumns, rename, head, slice, batch, where, takeRows, mask*, isNull, with*, map*, cast, floatArray, intArray, withFloatArray, cell, ints/floats/texts/bools, nullCount, aggregate, join | 型付き列（Int/Float/Text/Bool）とNULL maskを持つ不変table。最大100万行・256列。列の選択/改名/削除はデータを共有し、行操作は残す行×列を一度copyする。numeric kernelへはfloatArray/intArrayで渡す。aggregateは初出順のgroup（NULL keyも1 group）、joinは出力上限つきhash join（NULL keyは不一致） |
+| layout | builder, add, finish, pack, unpack, read, offsetOf, size, alignment, width, fieldNames | 明示的なbinary layout。整数7種（U8 I8 U16 I16 U32 I32 I64）・配列・little/big endian・C規則のpadding/packed。最大1 MiB・256 field。Pythonのstructと一致することを`tests/layout_native.rs`で確認。浮動小数点・U64・union・bitfieldは未対応 |
 | textIndex | Source, ByteOffset, ScalarIndex, GraphemeIndex, create, byteAt/scalarAt/graphemeAt, sliceBytes/Scalars/Graphemes | 原文と境界表の保持、明示的な位置変換、別原文の範囲を拒否 |
 | lens | create, get, set, modify, compose, optional, plan, apply, inverse, checkLaws | Share値のtyped path、検査付き更新、欠損保持、有限例の法則確認 |
 | persistentSet | create, root, same, size, components, unite, uniteMany | 複数の不変版、union-by-size、既存native配列の共有page |

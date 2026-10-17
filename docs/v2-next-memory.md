@@ -33,6 +33,8 @@ byte offset、alignment、padding、endianness、pointer width、platform ABIを
 
 **受入：** 独立したnative testのsizeof/offsetと照合する。Windows/LinuxのABI差を明示する。異なるlayoutのsegmentアクセスと未初期化値の読取りを検出する。
 
+**実装済み（2026-10-17、library部分のみ）：** `std.layout`。`builder(endian,packed)`/`add(name,kind,count)`/`finish`でoffset・padding・size・alignmentを明示し、`pack`/`unpack`/`read`はBytesだけを読み書きします（外部memoryに触れない）。kindは`U8 I8 U16 I16 U32 I32 I64`で、REWINDのIntは符号付き64bitのためU64は提供しません。checked算術と範囲検査で、範囲外の値は`OutOfRange`、長さ違いは`WrongSize`、`unpack(strict=true)`は0でないpaddingを`DirtyPadding`として検出します。[tests/layout_native.rs](../tests/layout_native.rs)がPythonの`struct`（`@`はプラットフォームのC ABI、`<`/`>`はpacked）とsize・bytesを照合します。このテストはLinux上のx86_64 ABIでの確認で、Windowsは同じテストがCIで走りますが、32bit環境と他のABIは未確認です。浮動小数点（F32/F64にはbit変換のnative関数が必要）、union、bitfield、MemorySegment/Arena（MEM-01）、未初期化値の読取り検出は未実装です。
+
 ## MEM-03：明示freeze/copyによる境界越え
 
 外部mutable segmentから、checkpointで保持できるBytes/native配列のsnapshotへ変換する案です。snapshotの取得は外部観測として扱い、得た値の保持はVM内にします。

@@ -1,0 +1,157 @@
+// Explicit binary layouts (MEM-02). A Layout describes where each integer field sits in a Bytes value:
+// size, alignment, padding and endianness are all stated, never inferred from how REWIND stores a record.
+// Kinds: U8 I8 U16 I16 U32 I32 I64 (a U64 does not fit REWIND's signed 64-bit Int, so it is not offered).
+// A field may be an array of 1..4096 elements. Aligned layouts put every field on a multiple of its size and
+// pad the end to the largest alignment (the C rule); packed layouts have no padding at all.
+// Layouts and the bytes they describe are values: nothing here reads or writes memory outside the Bytes you pass.
+// Total size is limited to 1 MiB and 256 fields.
+pub enum Endian {Little,Big}
+pub enum Kind {U8,I8,U16,I16,U32,I32,I64}
+pub record LayoutError {code:String,name:String}
+pub record Field {name:String,kind:Kind,offset:Int,count:Int}
+pub record Layout {private fields:Frozen<List<Field>>,private index:Frozen<Map<String,Int>>,private size:Int,private alignment:Int,private endian:Endian,private packed:Bool}
+pub struct Builder {private fields:List<Field>,private seen:Map<String,Bool>,private offset:Int,private alignment:Int,private endian:Endian,private packed:Bool}
+
+// @api width cost O(1). Bytes per element of the kind.
+pub fn width(kind:Kind)->Int effects {} {
+    match kind {Kind::U8=>{return 1;},Kind::I8=>{return 1;},Kind::U16=>{return 2;},Kind::I16=>{return 2;},Kind::U32=>{return 4;},Kind::I32=>{return 4;},Kind::I64=>{return 8;}}
+}
+fn signed(kind:Kind)->Bool effects {} {
+    match kind {Kind::I8=>{return true;},Kind::I16=>{return true;},Kind::I32=>{return true;},Kind::I64=>{return true;},_=>{return false;}}
+}
+// @api builder cost O(1). packed=true removes all padding; alignment is then 1.
+pub fn builder(endian:Endian,packed:Bool)->Builder effects {} {return Builder(List<Field>(),Map<String,Bool>(),0,1,endian,packed);}
+fn roundUp(value:Int,to:Int)->Int effects {} {
+    let rest=value%to;
+    if rest==0 {return value;}
+    return value+(to-rest);
+}
+// @api add cost O(1). Appends a field (or an array of count elements); the offset is the next free byte rounded up to the kind's width unless the layout is packed.
+pub fn add(b:&mut Builder,name:String,kind:Kind,count:Int)->Result<Unit,LayoutError> effects {} {
+    if name.byteLen()<1 || name.byteLen()>64 {return Err(LayoutError("BadName",name));}
+    if count<1 || count>4096 {return Err(LayoutError("BadCount",name));}
+    if b.fields.len()>=256 {return Err(LayoutError("TooManyFields",name));}
+    match b.seen.get(name) {Some(_)=>{return Err(LayoutError("DuplicateName",name));},None=>{}}
+    let w=width(kind);
+    let offset=if b.packed {b.offset} else {roundUp(b.offset,w)};
+    let end=offset+w*count;
+    if end>1048576 {return Err(LayoutError("TooLarge",name));}
+    b.seen.set(name,true);
+    b.fields.add(Field(name,kind,offset,count));
+    b.offset=end;
+    if !b.packed && w>b.alignment {b.alignment=w;}
+    return Ok(());
+}
+// @api finish cost O(fields). The size is the end of the last field, padded to the largest alignment unless packed.
+pub fn finish(b:Builder)->Layout effects {} {
+    let size=if b.packed {b.offset} else {roundUp(b.offset,b.alignment)};
+    let index=Map<String,Int>();
+    for i in 0..b.fields.len() {index.set(b.fields.get(i).name,i);}
+    return Layout(freeze(move b.fields),freeze(move index),size,b.alignment,b.endian,b.packed);
+}
+// @api size cost O(1). Total size in bytes, including padding.
+pub fn size(l:&Layout)->Int effects {} {return l.size;}
+// @api alignment cost O(1). Largest field alignment (1 when packed).
+pub fn alignment(l:&Layout)->Int effects {} {return l.alignment;}
+fn find(l:&Layout,name:String)->Option<Field> effects {} {
+    match thaw(l.index.get(name)) {Some(i)=>{return Some(thaw(l.fields.get(i)));},None=>{return None;}}
+}
+// @api offsetOf cost O(1).
+pub fn offsetOf(l:&Layout,name:String)->Result<Int,LayoutError> effects {} {
+    match find(l,name) {Some(f)=>{return Ok(f.offset);},None=>{return Err(LayoutError("UnknownField",name));}}
+}
+// @api fieldNames cost O(fields).
+pub fn fieldNames(l:&Layout)->List<String> effects {} {
+    let out=List<String>();
+    for i in 0..l.fields.len() {out.add(thaw(l.fields.get(i)).name);}
+    return out;
+}
+fn lowest(kind:Kind)->Int effects {} {
+    match kind {Kind::I8=>{return -128;},Kind::I16=>{return -32768;},Kind::I32=>{return -2147483648;},Kind::I64=>{return -9223372036854775807-1;},_=>{return 0;}}
+}
+fn highest(kind:Kind)->Int effects {} {
+    match kind {Kind::U8=>{return 255;},Kind::I8=>{return 127;},Kind::U16=>{return 65535;},Kind::I16=>{return 32767;},Kind::U32=>{return 4294967295;},Kind::I32=>{return 2147483647;},Kind::I64=>{return 9223372036854775807;}}
+}
+// Writes value as w bytes starting at position in the byte list.
+fn put(bytes:&mut List<Int>,position:Int,w:Int,value:Int,endian:Endian) effects {} {
+    var rest=value;
+    // two's complement, least significant byte first
+    var shift=0;
+    var littleFirst=List<Int>();
+    for k in 0..w {
+        var low=rest%256;
+        if low<0 {low+=256;}
+        littleFirst.add(low);
+        rest=(rest-low)/256;
+    }
+    match endian {
+        Endian::Little=>{for k in 0..w {bytes.set(position+k,littleFirst.get(k));}},
+        Endian::Big=>{for k in 0..w {bytes.set(position+k,littleFirst.get(w-1-k));}}
+    }
+}
+// @api pack cost O(size). Every field must be present in values with exactly count elements, every element inside the kind's range (else OutOfRange). Padding bytes are zero.
+pub fn pack(l:&Layout,values:&Map<String,List<Int>>)->Result<Bytes,LayoutError> effects {} {
+    let bytes=List<Int>();
+    for i in 0..l.size {bytes.add(0);}
+    for i in 0..l.fields.len() {
+        let f=thaw(l.fields.get(i));
+        match values.get(f.name) {
+            None=>{return Err(LayoutError("MissingField",f.name));},
+            Some(list)=>{
+                if list.len()!=f.count {return Err(LayoutError("BadCount",f.name));}
+                let w=width(f.kind);
+                for k in 0..f.count {
+                    let v=list.get(k);
+                    if v<lowest(f.kind) || v>highest(f.kind) {return Err(LayoutError("OutOfRange",f.name));}
+                    put(&mut bytes,f.offset+k*w,w,v,l.endian);
+                }
+            }
+        }
+    }
+    match stdBytesFromList(&bytes) {Ok(b)=>{return Ok(b);},Err(_)=>{return Err(LayoutError("Internal",""));}}
+}
+fn fetch(data:Bytes,position:Int,w:Int,kind:Kind,endian:Endian)->Result<Int,LayoutError> effects {} {
+    // Most significant byte first; for signed kinds the top byte carries the sign, so two's complement accumulates without overflow.
+    var acc=0;
+    for k in 0..w {
+        let index=match endian {Endian::Little=>{position+w-1-k},Endian::Big=>{position+k}};
+        match stdBytesGet(data,index) {
+            Ok(b)=>{
+                if k==0 && signed(kind) && b>=128 {acc=b-256;} else {acc=acc*256+b;}
+            },
+            Err(_)=>{return Err(LayoutError("Truncated",""));}
+        }
+    }
+    return Ok(acc);
+}
+// @api read cost O(count). All elements of one field; the Bytes must be exactly size bytes long (else WrongSize).
+pub fn read(l:&Layout,data:Bytes,name:String)->Result<List<Int>,LayoutError> effects {} {
+    if stdBytesLength(data)!=l.size {return Err(LayoutError("WrongSize",name));}
+    match find(l,name) {
+        None=>{return Err(LayoutError("UnknownField",name));},
+        Some(f)=>{
+            let w=width(f.kind);let out=List<Int>();
+            for k in 0..f.count {out.add(fetch(data,f.offset+k*w,w,f.kind,l.endian)?);}
+            return Ok(out);
+        }
+    }
+}
+// @api unpack cost O(size). Every field as a list. With strict=true any non-zero padding byte fails with DirtyPadding, so bytes that did not come from this layout are noticed.
+pub fn unpack(l:&Layout,data:Bytes,strict:Bool)->Result<Map<String,List<Int>>,LayoutError> effects {} {
+    if stdBytesLength(data)!=l.size {return Err(LayoutError("WrongSize",""));}
+    let out=Map<String,List<Int>>();
+    let covered=List<Bool>();for i in 0..l.size {covered.add(false);}
+    for i in 0..l.fields.len() {
+        let f=thaw(l.fields.get(i));
+        out.set(f.name,read(l,data,f.name)?);
+        for k in 0..width(f.kind)*f.count {covered.set(f.offset+k,true);}
+    }
+    if strict {
+        for i in 0..l.size {
+            if !covered.get(i) {
+                match stdBytesGet(data,i) {Ok(b)=>{if b!=0 {return Err(LayoutError("DirtyPadding",""));}},Err(_)=>{return Err(LayoutError("Truncated",""));}}
+            }
+        }
+    }
+    return Ok(out);
+}

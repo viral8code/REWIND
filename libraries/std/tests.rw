@@ -14,6 +14,7 @@ import collections as collections;
 import math as math;
 import option as option;
 import table as table;
+import layout as layout;
 import json as json;
 import jsonStream as jsonStream;
 import config as config;
@@ -2786,4 +2787,89 @@ test fn table_join_matches_keys_fans_out_and_fills_null_for_left() {
     assert_eq(tblCode(table.join(&o,&c,"who","zzz",table.JoinKind::Inner,100)),"UnknownColumn");
     let clash=tblTable(table.rename(&c,"city","amount"));
     assert_eq(tblCode(table.join(&o,&clash,"who","id",table.JoinKind::Inner,100)),"DuplicateName");
+}
+
+fn lyCode<T>(r:Result<T,layout.LayoutError>)->String effects {} {
+    match r {Ok(_)=>{return "ok";},Err(e)=>{return e.code;}}
+}
+fn lyBytes(r:Result<Bytes,layout.LayoutError>)->Bytes effects {} {
+    match r {Ok(b)=>{return b;},Err(e)=>{panic(e.code);}}
+}
+fn lyAt(r:Result<List<Int>,layout.LayoutError>,index:Int)->Int effects {} {
+    match r {Ok(v)=>{return v.get(index);},Err(e)=>{panic(e.code);}}
+}
+fn lyOne(value:Int)->List<Int> effects {} {let out=List<Int>();out.add(value);return out;}
+fn lyHeader(endian:layout.Endian,packed:Bool)->layout.Layout effects {} {
+    var b=layout.builder(endian,packed);
+    let _a=layout.add(&mut b,"tag",layout.Kind::I8,1);
+    let _b=layout.add(&mut b,"id",layout.Kind::I32,1);
+    let _c=layout.add(&mut b,"big",layout.Kind::I64,1);
+    let _d=layout.add(&mut b,"flags",layout.Kind::U16,2);
+    return layout.finish(move b);
+}
+test fn layout_follows_the_c_rule_for_offsets_padding_and_size() {
+    let l=lyHeader(layout.Endian::Little,false);
+    assert_eq(layout.offsetOf(&l,"tag"),Ok(0));assert_eq(layout.offsetOf(&l,"id"),Ok(4));
+    assert_eq(layout.offsetOf(&l,"big"),Ok(8));assert_eq(layout.offsetOf(&l,"flags"),Ok(16));
+    assert_eq(layout.size(&l),24);assert_eq(layout.alignment(&l),8);
+    let packed=lyHeader(layout.Endian::Little,true);
+    assert_eq(layout.offsetOf(&packed,"id"),Ok(1));assert_eq(layout.offsetOf(&packed,"flags"),Ok(13));
+    assert_eq(layout.size(&packed),17);assert_eq(layout.alignment(&packed),1);
+    assert_eq(layout.width(layout.Kind::U32),4);
+}
+test fn layout_pack_unpack_roundtrips_both_endians() {
+    let values=Map<String,List<Int>>();
+    values.set("tag",lyOne(-2));values.set("id",lyOne(305419896));values.set("big",lyOne(-9223372036854775807-1));
+    let flags=List<Int>();flags.add(65535);flags.add(1);values.set("flags",flags);
+    let little=lyHeader(layout.Endian::Little,false);
+    let lb=lyBytes(layout.pack(&little,&values));
+    assert_eq(stdBytesLength(lb),24);
+    assert_eq(stdBytesGet(lb,0),Ok(254));assert_eq(stdBytesGet(lb,4),Ok(120));assert_eq(stdBytesGet(lb,7),Ok(18));
+    assert_eq(stdBytesGet(lb,1),Ok(0));assert_eq(stdBytesGet(lb,15),Ok(128));
+    assert_eq(lyAt(layout.read(&little,lb,"id"),0),305419896);
+    assert_eq(lyAt(layout.read(&little,lb,"big"),0),-9223372036854775807-1);
+    assert_eq(lyAt(layout.read(&little,lb,"tag"),0),-2);
+    assert_eq(lyAt(layout.read(&little,lb,"flags"),0),65535);assert_eq(lyAt(layout.read(&little,lb,"flags"),1),1);
+    assert_eq(lyCode(layout.unpack(&little,lb,true)),"ok");
+    let bigEndian=lyHeader(layout.Endian::Big,false);
+    let bb=lyBytes(layout.pack(&bigEndian,&values));
+    assert_eq(stdBytesGet(bb,4),Ok(18));assert_eq(stdBytesGet(bb,7),Ok(120));assert_eq(stdBytesGet(bb,8),Ok(128));
+    assert_eq(lyAt(layout.read(&bigEndian,bb,"id"),0),305419896);
+    assert_eq(lyAt(layout.read(&bigEndian,bb,"big"),0),-9223372036854775807-1);
+    // reading with the wrong byte order gives a different number, never an error
+    assert(lyAt(layout.read(&little,bb,"id"),0)!=305419896);
+}
+test fn layout_rejects_bad_values_sizes_and_dirty_padding() {
+    let l=lyHeader(layout.Endian::Little,false);
+    let values=Map<String,List<Int>>();
+    values.set("tag",lyOne(128));values.set("id",lyOne(0));values.set("big",lyOne(0));
+    let flags=List<Int>();flags.add(0);flags.add(0);values.set("flags",flags);
+    assert_eq(lyCode(layout.pack(&l,&values)),"OutOfRange");
+    values.set("tag",lyOne(127));
+    values.set("flags",lyOne(0));
+    assert_eq(lyCode(layout.pack(&l,&values)),"BadCount");
+    values.set("flags",flags);
+    let good=lyBytes(layout.pack(&l,&values));
+    assert_eq(lyCode(layout.read(&l,good,"nope")),"UnknownField");
+    let short=match stdBytesSlice(good,0,23) {Ok(b)=>{b},Err(_)=>{panic("slice");}};
+    assert_eq(lyCode(layout.read(&l,short,"tag")),"WrongSize");
+    assert_eq(lyCode(layout.unpack(&l,short,false)),"WrongSize");
+    // a non-zero padding byte (offset 1) passes the lax read and fails the strict one
+    let raw=List<Int>();for i in 0..24 {raw.add(0);}raw.set(1,9);
+    let dirty=match stdBytesFromList(&raw) {Ok(b)=>{b},Err(_)=>{panic("bytes");}};
+    assert_eq(lyCode(layout.unpack(&l,dirty,false)),"ok");
+    assert_eq(lyCode(layout.unpack(&l,dirty,true)),"DirtyPadding");
+    values.remove("tag");
+    assert_eq(lyCode(layout.pack(&l,&values)),"MissingField");
+}
+test fn layout_builder_limits_names_counts_and_size() {
+    var b=layout.builder(layout.Endian::Little,false);
+    assert_eq(lyCode(layout.add(&mut b,"",layout.Kind::U8,1)),"BadName");
+    assert_eq(lyCode(layout.add(&mut b,"a",layout.Kind::U8,0)),"BadCount");
+    assert_eq(lyCode(layout.add(&mut b,"a",layout.Kind::U8,4097)),"BadCount");
+    assert_eq(lyCode(layout.add(&mut b,"a",layout.Kind::U8,1)),"ok");
+    assert_eq(lyCode(layout.add(&mut b,"a",layout.Kind::U8,1)),"DuplicateName");
+    assert_eq(lyCode(layout.add(&mut b,"huge",layout.Kind::I64,4096)),"ok");
+    for i in 0..31 {let _=layout.add(&mut b,"x"+result.valueOr(number.formatInt(i,10),"?"),layout.Kind::I64,4096);}
+    assert_eq(lyCode(layout.add(&mut b,"over",layout.Kind::I64,4096)),"TooLarge");
 }
