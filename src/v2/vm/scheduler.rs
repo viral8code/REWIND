@@ -305,6 +305,22 @@ impl<R: BufRead> Vm<R> {
     fn shared_task_quota(&self) -> bool {
         language_at_least(&self.engine.program.language, "1.9.20")
     }
+    /// The scheduling decisions are only read by traces, profiles, schedule exploration and
+    /// schedule replay. A plain run would otherwise keep two entries per task switch forever.
+    fn schedule_log_wanted(&self) -> bool {
+        let o = &self.options;
+        o.record.is_some()
+            || o.replay.is_some()
+            || o.trace_json
+            || o.inspect
+            || o.profile
+            || o.profile_text
+            || o.explore > 0
+            || !o.choices.is_empty()
+            || o.recorded_test.is_some()
+            || o.pause_after.is_some()
+            || self.profile.is_some()
+    }
     pub(super) fn task_instruction_count(&self, id: u64) -> usize {
         if self.shared_task_quota() {
             self.scheduler
@@ -3631,8 +3647,10 @@ impl<R: BufRead> Vm<R> {
             if choice >= candidates.len() {
                 return Err(self.error(at, "ScheduleMismatch: choice is not runnable"));
             }
-            self.choice_widths.push(candidates.len());
-            self.choices_used.push(choice);
+            if self.schedule_log_wanted() {
+                self.choice_widths.push(candidates.len());
+                self.choices_used.push(choice);
+            }
             Some(candidates[choice].1)
         };
         let Some(id) = next else {

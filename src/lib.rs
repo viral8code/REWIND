@@ -621,6 +621,24 @@ impl PagedFile {
 }
 
 #[cfg(test)]
+mod ptr_set_tests {
+    use super::PtrSet;
+    #[test]
+    fn reports_first_insertion_inline_and_after_spilling() {
+        let mut set = PtrSet::default();
+        // 24 stay inline; the next ones move to the hash set. Aligned, pointer-like keys.
+        for round in 0..2 {
+            for i in 0..500usize {
+                let key = 0x7ff6_0000_0000 + i * 64;
+                assert_eq!(set.insert(key), round == 0, "key {i} round {round}");
+            }
+        }
+        assert!(set.insert(0));
+        assert!(!set.insert(0));
+    }
+}
+
+#[cfg(test)]
 mod page_tests {
     use super::*;
     #[test]
@@ -711,7 +729,26 @@ pub enum FileMode {
 struct PtrSet {
     inline: [usize; 24],
     len: usize,
-    spill: Option<HashSet<usize>>,
+    spill: Option<HashSet<usize, std::hash::BuildHasherDefault<PtrHasher>>>,
+}
+/// Cheap hasher for pointer addresses. SipHash dominated `enforce_budget` once a program had
+/// retained thousands of journal segments (for example long loops of `external` operations).
+#[derive(Default)]
+struct PtrHasher(u64);
+impl std::hash::Hasher for PtrHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.0 = (self.0.rotate_left(5) ^ u64::from(byte)).wrapping_mul(0x517c_c1b7_2722_0a95);
+        }
+    }
+    fn write_usize(&mut self, value: usize) {
+        // Addresses have zero low bits; fold the well-mixed high half back down.
+        let mixed = (value as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        self.0 = mixed ^ (mixed >> 32);
+    }
 }
 impl PtrSet {
     /// Returns true when `value` was not present.
@@ -727,7 +764,8 @@ impl PtrSet {
             self.len += 1;
             return true;
         }
-        let mut spill: HashSet<usize> = self.inline.iter().copied().collect();
+        let mut spill: HashSet<usize, std::hash::BuildHasherDefault<PtrHasher>> =
+            self.inline.iter().copied().collect();
         spill.insert(value);
         self.spill = Some(spill);
         true
