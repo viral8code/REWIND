@@ -16825,14 +16825,37 @@ mod language_version_tests {
     #[test]
     fn plain_versions_match_semver_ordering() {
         let versions = [
-            "0.6", "0.6.0", "1.0.0", "1.9.3", "1.9.20", "1.9.65", "2.0.0", "3.0.0", "3.6.0", "10.0.0",
-            "01.0.0", "1.0", "1.0.0.0", "1.0.0-rc.1", "1.0.0+build", "", "a.b.c", "1..0", ".1.0", "1.0.", "99999999999999999999.0.0",
+            "0.6",
+            "0.6.0",
+            "1.0.0",
+            "1.9.3",
+            "1.9.20",
+            "1.9.65",
+            "2.0.0",
+            "3.0.0",
+            "3.6.0",
+            "10.0.0",
+            "01.0.0",
+            "1.0",
+            "1.0.0.0",
+            "1.0.0-rc.1",
+            "1.0.0+build",
+            "",
+            "a.b.c",
+            "1..0",
+            ".1.0",
+            "1.0.",
+            "99999999999999999999.0.0",
         ];
         for actual in versions {
             for minimum in ["1.9.3", "1.9.20", "2.0.0", "3.0.0", "3.6.0"] {
                 let expected = semver::Version::parse(actual)
                     .is_ok_and(|v| v >= semver::Version::parse(minimum).unwrap());
-                assert_eq!(language_at_least(actual, minimum), expected, "{actual} >= {minimum}");
+                assert_eq!(
+                    language_at_least(actual, minimum),
+                    expected,
+                    "{actual} >= {minimum}"
+                );
             }
         }
         assert_eq!(plain_version("3.6.0"), Some((3, 6, 0)));

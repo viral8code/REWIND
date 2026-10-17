@@ -1595,8 +1595,16 @@ mod tests {
             .reshape(vec![8, 16, 8])
             .unwrap();
         let moved = cube.transpose(&[2, 0, 1]).unwrap();
-        let flipped = cube.slice(1, 15, 16, -1).unwrap().slice(2, 0, 4, 2).unwrap();
-        let repeated = cube.slice(0, 2, 1, 1).unwrap().broadcast(vec![5, 16, 8]).unwrap();
+        let flipped = cube
+            .slice(1, 15, 16, -1)
+            .unwrap()
+            .slice(2, 0, 4, 2)
+            .unwrap();
+        let repeated = cube
+            .slice(0, 2, 1, 1)
+            .unwrap()
+            .broadcast(vec![5, 16, 8])
+            .unwrap();
         for view in [&moved, &flipped, &repeated] {
             let expected = (0..view.len())
                 .map(|i| view.buffer.get(view.flat_index(i)))
