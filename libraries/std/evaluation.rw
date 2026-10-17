@@ -1,0 +1,160 @@
+// Reproducible data splitting and evaluation helpers (NUM-03). Everything here is pure and
+// deterministic: the same (n, seed) always gives the same order on every platform, so a run can be
+// repeated from its recorded seed. The generator is a 31-bit linear congruential generator, which
+// is adequate for shuffling training data and is NOT suitable for cryptography or statistics.
+// Limits: at most 1,000,000 samples.
+pub record EvalError {code:String}
+pub record Split {train:Frozen<List<Int>>,validation:Frozen<List<Int>>}
+pub record Confusion {truePositive:Int,falsePositive:Int,trueNegative:Int,falseNegative:Int}
+pub record Stopper {patience:Int,epoch:Int,best:Float,bestEpoch:Int}
+
+fn next(state:Int)->Int effects {} {return (state*1103515245+12345)%2147483648;}
+fn seeded(seed:Int)->Int effects {} {var s=seed%2147483648;if s<0{s+=2147483648;}return next(s);}
+
+// @api shuffled cost O(n) time and memory. Fisher-Yates over 0..n-1 driven by a fixed 31-bit LCG, so (n, seed) fully determines the result.
+// @api shuffled failure EvalError Size when n is negative or above 1,000,000.
+pub fn shuffled(n:Int,seed:Int)->Result<List<Int>,EvalError> effects {} {
+    if n<0 || n>1000000 {return Err(EvalError("Size"));}
+    var order=List<Int>();
+    for i in 0..n {order.push(i);}
+    var state=seeded(seed);
+    var i=n-1;
+    while i>0 {
+        state=next(state);
+        let j=(state/65536)%(i+1);
+        let held=order.get(i);
+        order.set(i,order.get(j));
+        order.set(j,held);
+        i-=1;
+    }
+    return Ok(order);
+}
+
+// @api split cost O(n) like shuffled. The shuffled indices are cut so train and validation are disjoint and together cover 0..n-1 exactly once.
+// @api split failure EvalError Size for n outside 0..1,000,000; Percent unless validationPercent is within 0..100. The validation share is rounded down to whole samples.
+pub fn split(n:Int,validationPercent:Int,seed:Int)->Result<Split,EvalError> effects {} {
+    if validationPercent<0 || validationPercent>100 {return Err(EvalError("Percent"));}
+    let order=shuffled(n,seed)?;
+    let validationCount=n*validationPercent/100;
+    var train=List<Int>();
+    var validation=List<Int>();
+    for i in 0..n {
+        if i<validationCount {validation.push(order.get(i));} else {train.push(order.get(i));}
+    }
+    return Ok(Split(freeze(move train),freeze(move validation)));
+}
+
+// @api batchCount cost O(1). Number of batches needed to cover n samples; the last batch may be shorter.
+// @api batchCount failure EvalError Size when n is negative or size is not positive.
+pub fn batchCount(n:Int,size:Int)->Result<Int,EvalError> effects {} {
+    if n<0 || size<=0 {return Err(EvalError("Size"));}
+    return Ok((n+size-1)/size);
+}
+
+// @api batch cost O(size). Copies the indices of batch number index (0-based) out of order.
+// @api batch failure EvalError Size when size is not positive; Index when the batch lies beyond order.
+pub fn batch(order:&List<Int>,index:Int,size:Int)->Result<List<Int>,EvalError> effects {} {
+    if size<=0 {return Err(EvalError("Size"));}
+    if index<0 || index>(order.len()-1)/size && order.len()>0 || order.len()==0 {return Err(EvalError("Index"));}
+    var out=List<Int>();
+    var i=index*size;
+    let stop=if i+size<order.len() {i+size} else {order.len()};
+    while i<stop {out.push(order.get(i));i+=1;}
+    return Ok(out);
+}
+
+// @api accuracy cost O(n). Fraction of positions where predicted equals actual.
+// @api accuracy failure EvalError Length when the lists differ in length; Empty when there are no samples.
+pub fn accuracy(predicted:&List<Int>,actual:&List<Int>)->Result<Float,EvalError> effects {} {
+    if predicted.len()!=actual.len() {return Err(EvalError("Length"));}
+    if predicted.len()==0 {return Err(EvalError("Empty"));}
+    var hits=0;
+    for i in 0..predicted.len() {if predicted.get(i)==actual.get(i) {hits+=1;}}
+    return Ok(fl(hits)/fl(predicted.len()));
+}
+
+// Counts are far below 2^53, so the conversion is always exact; 0.0 is unreachable.
+fn fl(n:Int)->Float effects {} {match n.toFloatChecked() {Ok(f)=>{return f;},Err(_)=>{return 0.0;}}}
+fn finite(x:Float)->Bool effects {} {return x==x && x-x==0.0;}
+
+// @api meanSquaredError cost O(n). Mean of squared differences.
+// @api meanSquaredError failure EvalError Length, Empty, or NotFinite when any input or the result is NaN/Infinity.
+pub fn meanSquaredError(predicted:&List<Float>,actual:&List<Float>)->Result<Float,EvalError> effects {} {
+    if predicted.len()!=actual.len() {return Err(EvalError("Length"));}
+    if predicted.len()==0 {return Err(EvalError("Empty"));}
+    var sum=0.0;
+    for i in 0..predicted.len() {
+        let d=predicted.get(i)-actual.get(i);
+        sum+=d*d;
+    }
+    let mean=sum/fl(predicted.len());
+    if !finite(mean) {return Err(EvalError("NotFinite"));}
+    return Ok(mean);
+}
+
+// @api meanAbsoluteError cost O(n). Mean of absolute differences.
+// @api meanAbsoluteError failure EvalError Length, Empty, or NotFinite when any input or the result is NaN/Infinity.
+pub fn meanAbsoluteError(predicted:&List<Float>,actual:&List<Float>)->Result<Float,EvalError> effects {} {
+    if predicted.len()!=actual.len() {return Err(EvalError("Length"));}
+    if predicted.len()==0 {return Err(EvalError("Empty"));}
+    var sum=0.0;
+    for i in 0..predicted.len() {
+        var d=predicted.get(i)-actual.get(i);
+        if d<0.0 {d=0.0-d;}
+        sum+=d;
+    }
+    let mean=sum/fl(predicted.len());
+    if !finite(mean) {return Err(EvalError("NotFinite"));}
+    return Ok(mean);
+}
+
+// @api confusion cost O(n). Counts of a binary classification; any label other than 0 or 1 is rejected.
+// @api confusion failure EvalError Length, Empty, or Label when a value is not 0 or 1.
+pub fn confusion(predicted:&List<Int>,actual:&List<Int>)->Result<Confusion,EvalError> effects {} {
+    if predicted.len()!=actual.len() {return Err(EvalError("Length"));}
+    if predicted.len()==0 {return Err(EvalError("Empty"));}
+    var tp=0;var fp=0;var tn=0;var fn_=0;
+    for i in 0..predicted.len() {
+        let p=predicted.get(i);let a=actual.get(i);
+        if (p!=0 && p!=1) || (a!=0 && a!=1) {return Err(EvalError("Label"));}
+        if p==1 && a==1 {tp+=1;} else if p==1 {fp+=1;} else if a==1 {fn_+=1;} else {tn+=1;}
+    }
+    return Ok(Confusion(tp,fp,tn,fn_));
+}
+
+// @api precision cost O(1). truePositive / (truePositive + falsePositive).
+// @api precision failure EvalError Undefined when nothing was predicted positive; a missing value is reported, never 0 or NaN.
+pub fn precision(c:Confusion)->Result<Float,EvalError> effects {} {
+    let total=c.truePositive+c.falsePositive;
+    if total==0 {return Err(EvalError("Undefined"));}
+    return Ok(fl(c.truePositive)/fl(total));
+}
+
+// @api recall cost O(1). truePositive / (truePositive + falseNegative).
+// @api recall failure EvalError Undefined when there are no actual positives.
+pub fn recall(c:Confusion)->Result<Float,EvalError> effects {} {
+    let total=c.truePositive+c.falseNegative;
+    if total==0 {return Err(EvalError("Undefined"));}
+    return Ok(fl(c.truePositive)/fl(total));
+}
+
+// @api stopper cost O(1). Early-stopping state: stop after patience consecutive epochs without a lower loss.
+// @api stopper failure EvalError Patience unless patience is at least 1.
+pub fn stopper(patience:Int)->Result<Stopper,EvalError> effects {} {
+    if patience<1 {return Err(EvalError("Patience"));}
+    return Ok(Stopper(patience,0,0.0,-1));
+}
+
+// @api observe cost O(1). Records one epoch's validation loss and returns the new state; strictly lower than the best so far counts as improvement.
+// @api observe failure EvalError NotFinite when loss is NaN or Infinity; the state is unchanged (it is a value).
+pub fn observe(s:Stopper,loss:Float)->Result<Stopper,EvalError> effects {} {
+    if !finite(loss) {return Err(EvalError("NotFinite"));}
+    if s.bestEpoch<0 || loss<s.best {return Ok(Stopper(s.patience,s.epoch+1,loss,s.epoch));}
+    return Ok(Stopper(s.patience,s.epoch+1,s.best,s.bestEpoch));
+}
+
+// @api shouldStop cost O(1). True once patience epochs have passed since the best epoch.
+pub fn shouldStop(s:Stopper)->Bool effects {} {return s.bestEpoch>=0 && s.epoch-1-s.bestEpoch>=s.patience;}
+
+// @api bestEpoch cost O(1). Zero-based epoch with the lowest loss, or None before the first observation.
+pub fn bestEpoch(s:Stopper)->Option<Int> effects {} {if s.bestEpoch<0 {return None;}return Some(s.bestEpoch);}
