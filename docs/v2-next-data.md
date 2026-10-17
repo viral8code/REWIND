@@ -22,7 +22,7 @@ JSON/CSV/DB/formに散在するfield検証を共通schemaへ寄せる案です�
 
 **受入：** column長不一致、重複名、NULLを検出する。不要なper-cell object化を避ける。小規模入力の開始費用と大入力のmemoryを記録する。
 
-**実装済み（2026-10-17、`std.table`）：** 型付き列（Int/Float/Text/Bool）と別持ちのNULL mask、最大100万行・256列の不変table。`builder`/`add*`/`addNullable*`/`build`、`select`/`dropColumns`/`rename`（列dataは共有）、`head`/`slice`/`batch`/`where`/`takeRows`、`mask*`と`isNull`（NULLは常にfalse）、`with*`/`map*`、厳密な`cast`（Int↔Floatは正確に表せる値のみ、Text↔数値/Bool、Int 0/1↔Bool。失敗は`BadCast`で値を含めない）、`floatArray`/`intArray`/`withFloatArray`によるnumeric kernelとの受け渡し。cell単位のobject化はなく、列は`Frozen<List<..>>`です。数値列がnative page配列を直接共有する形（zero-copy）にはしていません。floatArrayはcopyです。group/aggregate/join（DATA-03）、列の型変換のDecimal/日時、可変table、非ASCII列名の正規化は未実装です。起動費用と大入力のmemoryの測定値は取っていません（PERF計画側）。
+**実装済み（2026-10-17、`std.table`）：** 型付き列（Int/Float/Text/Bool）と別持ちのNULL mask、最大100万行・256列の不変table。`builder`/`add*`/`addNullable*`/`build`、`select`/`dropColumns`/`rename`（列dataは共有）、`head`/`slice`/`batch`/`where`/`takeRows`、`mask*`と`isNull`（NULLは常にfalse）、`with*`/`map*`、厳密な`cast`（Int↔Floatは正確に表せる値のみ、Text↔数値/Bool、Int 0/1↔Bool。失敗は`BadCast`で値を含めない）、`floatArray`/`intArray`/`withFloatArray`によるnumeric kernelとの受け渡し。cell単位のobject化はなく、列は`Frozen<List<..>>`です。数値列がnative page配列を直接共有する形（zero-copy）にはしていません。floatArrayはcopyです。列の型変換のDecimal/日時、可変table、非ASCII列名の正規化は未実装です。起動費用と大入力のmemoryの測定値は取っていません（PERF計画側）。
 
 ## DATA-03：group/aggregate/join
 
@@ -31,6 +31,8 @@ DATA-02の後続候補です。group keyの型、NULL同士の対応、行順序
 最初はhash/order方式を決める前に、既存MapのOrd契約と比較費用を調べます。sum/mean/varianceには既存checked算術とonline momentsを再利用します。暗黙のFloat変換でDecimalの精度を落としません。
 
 **受入：** 小入力の単純な参照実装と照合する。重複key、NULL、偏ったkey、空入力、出力上限を確認する。algorithmとscratch費用をAPIへ記載する。
+
+**実装済み（2026-10-17、`std.table`内）：** `aggregate(t,key,specs)`は`CountRows/Count/Sum/Min/Max/Mean`を最大64個、keyはInt/Text/Boolの列（Floatは`KeyKind`で拒否）。NULL keyは1つのgroupになり、groupは初出順で安定。集計はNULL cellを無視し、非NULLが無いgroupのSum/Min/Max/MeanはNULL。Int合計は`Overflow`、Mean用のInt→Floatが不正確なら`Inexact`で失敗します。`join(left,right,leftKey,rightKey,Inner|Left,maxRows)`はhash（Map）方式で、出力はmaxRows（1..100万）を超えると構築前に`JoinTooLarge`、NULL keyは一致せず、右の重複keyは展開されます。列名が重なると`DuplicateName`（先にrename）。参照実装との照合は手で数えた小さな表で行い、乱数との照合や偏ったkeyの大規模測定は未実施です。Decimal合計、複数列key、outer/right join、sort/orderByは未実装です。
 
 ## DATA-04：streamから表へのpipeline
 

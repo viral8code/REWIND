@@ -6,6 +6,7 @@
 // Row operations (head, slice, where, takeRows) copy the kept cells once per column: O(rows kept * columns).
 import number as number;
 import numeric as numeric;
+import integer as integer;
 pub enum Kind {Int,Float,Text,Bool}
 pub enum Cell {Null,Int(Int),Float(Float),Text(String),Bool(Bool)}
 pub record TableError {code:String,name:String}
@@ -243,17 +244,19 @@ pub fn rename(t:&Table,from:String,to:String)->Result<Table,TableError> effects 
 }
 
 fn takeData(data:Data,valid:Option<Frozen<List<Bool>>>,rows:&List<Int>)->Column effects {} {
+    // A negative row index produces a NULL cell (used by left joins); other indexes copy the cell and its validity.
     let mask=List<Bool>();var any=false;
-    match valid {
-        Some(m)=>{for i in 0..rows.len() {let ok=m.get(rows.get(i));mask.add(ok);if !ok {any=true;}}},
-        None=>{}
+    for i in 0..rows.len() {
+        let row=rows.get(i);var ok=row>=0;
+        if ok {match valid {Some(m)=>{ok=m.get(row);},None=>{}}}
+        mask.add(ok);if !ok {any=true;}
     }
     let keep:Option<Frozen<List<Bool>>>=if any {Some(freeze(move mask))} else {None};
     match data {
-        Data::Ints(v)=>{let out=List<Int>();for i in 0..rows.len() {out.add(v.get(rows.get(i)));}return Column("",Data::Ints(freeze(move out)),keep);},
-        Data::Floats(v)=>{let out=List<Float>();for i in 0..rows.len() {out.add(v.get(rows.get(i)));}return Column("",Data::Floats(freeze(move out)),keep);},
-        Data::Texts(v)=>{let out=List<String>();for i in 0..rows.len() {out.add(v.get(rows.get(i)));}return Column("",Data::Texts(freeze(move out)),keep);},
-        Data::Bools(v)=>{let out=List<Bool>();for i in 0..rows.len() {out.add(v.get(rows.get(i)));}return Column("",Data::Bools(freeze(move out)),keep);}
+        Data::Ints(v)=>{let out=List<Int>();for i in 0..rows.len() {if rows.get(i)>=0 {out.add(v.get(rows.get(i)));} else {out.add(0);}}return Column("",Data::Ints(freeze(move out)),keep);},
+        Data::Floats(v)=>{let out=List<Float>();for i in 0..rows.len() {if rows.get(i)>=0 {out.add(v.get(rows.get(i)));} else {out.add(0.0);}}return Column("",Data::Floats(freeze(move out)),keep);},
+        Data::Texts(v)=>{let out=List<String>();for i in 0..rows.len() {if rows.get(i)>=0 {out.add(v.get(rows.get(i)));} else {out.add("");}}return Column("",Data::Texts(freeze(move out)),keep);},
+        Data::Bools(v)=>{let out=List<Bool>();for i in 0..rows.len() {if rows.get(i)>=0 {out.add(v.get(rows.get(i)));} else {out.add(false);}}return Column("",Data::Bools(freeze(move out)),keep);}
     }
 }
 // @api takeRows cost O(rows kept * columns). Rows may repeat and may be reordered; an index outside 0..rowCount fails with OutOfRange.
@@ -469,4 +472,206 @@ pub fn withFloatArray(t:&Table,name:String,array:&FloatArray)->Result<Table,Tabl
         Ok(values)=>{return withFloats(t,name,&values);},
         Err(_)=>{return Err(TableError("NumericError",name));}
     }
+}
+
+// ---- group, aggregate and join (DATA-03) ----
+// Group keys: Int, Text or Bool columns (a Float key is refused with KeyKind: NaN and -0.0 have no single identity).
+// All NULL keys form one group; groups come out in order of first appearance, so the result is stable.
+// Aggregates ignore NULL cells; Sum/Min/Max/Mean of a group with no non-NULL cell is NULL. Int sums fail with Overflow,
+// Int->Float conversion for Mean fails with Inexact when a value is not exactly representable. Float Min/Max with NaN compare as false.
+pub enum Op {CountRows,Count,Sum,Min,Max,Mean}
+pub record Aggregate {column:String,op:Op,into:String}
+pub enum JoinKind {Inner,Left}
+
+fn keyText(c:Column,row:Int)->String effects {} {
+    if !isValid(c,row) {return "n";}
+    match c.data {
+        Data::Ints(v)=>{match number.formatInt(v.get(row),10) {Ok(s)=>{return "i"+s;},Err(_)=>{return "i?";}}},
+        Data::Texts(v)=>{return "t"+v.get(row);},
+        Data::Bools(v)=>{if v.get(row) {return "b1";}return "b0";},
+        Data::Floats(_)=>{return "f";}
+    }
+}
+fn keyColumn(t:&Table,name:String)->Result<Column,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {Data::Floats(_)=>{return Err(TableError("KeyKind",name));},_=>{}}
+    return Ok(c);
+}
+fn zerosInt(n:Int)->List<Int> effects {} {let out=List<Int>();for i in 0..n {out.add(0);}return out;}
+fn falses(n:Int)->List<Bool> effects {} {let out=List<Bool>();for i in 0..n {out.add(false);}return out;}
+fn maskOf(seen:&List<Bool>)->Option<Frozen<List<Bool>>> effects {} {
+    var all=true;let out=List<Bool>();
+    for i in 0..seen.len() {out.add(seen.get(i));if !seen.get(i) {all=false;}}
+    if all {return None;}
+    return Some(freeze(move out));
+}
+// Group id per row and the first row of every group, in order of first appearance.
+fn groupIds(t:&Table,c:Column)->Tuple<List<Int>,List<Int>> effects {} {
+    let index=Map<String,Int>();let ids=List<Int>();let firsts=List<Int>();
+    for r in 0..t.rows {
+        let key=keyText(c,r);
+        match index.get(key) {
+            Some(g)=>{ids.add(g);},
+            None=>{let g=firsts.len();index.set(key,g);firsts.add(r);ids.add(g);}
+        }
+    }
+    return (move ids,move firsts);
+}
+fn aggregateColumn(c:Column,rows:Int,spec:Aggregate,ids:&List<Int>,groups:Int)->Result<Column,TableError> effects {} {
+    let seen=falses(groups);
+    match spec.op {
+        Op::CountRows=>{
+            let counts=zerosInt(groups);
+            for r in 0..rows {let g=ids.get(r);counts.set(g,counts.get(g)+1);}
+            return Ok(Column(spec.into,Data::Ints(freeze(move counts)),None));
+        },
+        Op::Count=>{
+            let counts=zerosInt(groups);
+            for r in 0..rows {if isValid(c,r) {let g=ids.get(r);counts.set(g,counts.get(g)+1);}}
+            return Ok(Column(spec.into,Data::Ints(freeze(move counts)),None));
+        },
+        Op::Sum=>{
+            match c.data {
+                Data::Ints(v)=>{
+                    let sums=zerosInt(groups);
+                    for r in 0..rows {
+                        if isValid(c,r) {
+                            let g=ids.get(r);
+                            match integer.add(sums.get(g),v.get(r)) {Ok(n)=>{sums.set(g,n);},Err(_)=>{return Err(TableError("Overflow",c.name));}}
+                            seen.set(g,true);
+                        }
+                    }
+                    return Ok(Column(spec.into,Data::Ints(freeze(move sums)),maskOf(&seen)));
+                },
+                Data::Floats(v)=>{
+                    let sums=List<Float>();for g in 0..groups {sums.add(0.0);}
+                    for r in 0..rows {if isValid(c,r) {let g=ids.get(r);sums.set(g,sums.get(g)+v.get(r));seen.set(g,true);}}
+                    return Ok(Column(spec.into,Data::Floats(freeze(move sums)),maskOf(&seen)));
+                },
+                _=>{return Err(TableError("TypeMismatch",c.name));}
+            }
+        },
+        Op::Mean=>{
+            let counts=zerosInt(groups);let sums=List<Float>();for g in 0..groups {sums.add(0.0);}
+            for r in 0..rows {
+                if isValid(c,r) {
+                    let g=ids.get(r);
+                    match c.data {
+                        Data::Ints(v)=>{match v.get(r).toFloatChecked() {Ok(f)=>{sums.set(g,sums.get(g)+f);},Err(_)=>{return Err(TableError("Inexact",c.name));}}},
+                        Data::Floats(v)=>{sums.set(g,sums.get(g)+v.get(r));},
+                        _=>{return Err(TableError("TypeMismatch",c.name));}
+                    }
+                    counts.set(g,counts.get(g)+1);seen.set(g,true);
+                }
+            }
+            let means=List<Float>();
+            for g in 0..groups {
+                if counts.get(g)>0 {
+                    match counts.get(g).toFloatChecked() {Ok(n)=>{means.add(sums.get(g)/n);},Err(_)=>{return Err(TableError("Inexact",c.name));}}
+                } else {means.add(0.0);}
+            }
+            return Ok(Column(spec.into,Data::Floats(freeze(move means)),maskOf(&seen)));
+        },
+        _=>{
+            let wantMin=match spec.op {Op::Min=>{true},_=>{false}};
+            match c.data {
+                Data::Ints(v)=>{
+                    let best=zerosInt(groups);
+                    for r in 0..rows {if isValid(c,r) {let g=ids.get(r);let x=v.get(r);if !seen.get(g) || (wantMin && x<best.get(g)) || (!wantMin && x>best.get(g)) {best.set(g,x);}seen.set(g,true);}}
+                    return Ok(Column(spec.into,Data::Ints(freeze(move best)),maskOf(&seen)));
+                },
+                Data::Floats(v)=>{
+                    let best=List<Float>();for g in 0..groups {best.add(0.0);}
+                    for r in 0..rows {if isValid(c,r) {let g=ids.get(r);let x=v.get(r);if !seen.get(g) || (wantMin && x<best.get(g)) || (!wantMin && x>best.get(g)) {best.set(g,x);}seen.set(g,true);}}
+                    return Ok(Column(spec.into,Data::Floats(freeze(move best)),maskOf(&seen)));
+                },
+                Data::Texts(v)=>{
+                    let best=List<String>();for g in 0..groups {best.add("");}
+                    for r in 0..rows {if isValid(c,r) {let g=ids.get(r);let x=v.get(r);if !seen.get(g) || (wantMin && x<best.get(g)) || (!wantMin && x>best.get(g)) {best.set(g,x);}seen.set(g,true);}}
+                    return Ok(Column(spec.into,Data::Texts(freeze(move best)),maskOf(&seen)));
+                },
+                Data::Bools(_)=>{return Err(TableError("TypeMismatch",c.name));}
+            }
+        }
+    }
+}
+// @api aggregate cost O(rows * (1 + aggregates)) plus O(groups) output. Groups the rows by the key column and computes each aggregate; the result has the key column (one row per group, first appearance order) followed by the aggregate columns in the order given. At most 64 aggregates; the output column names must be unique.
+pub fn aggregate(t:&Table,key:String,specs:&List<Aggregate>)->Result<Table,TableError> effects {} {
+    if specs.len()>64 {return Err(TableError("TooManyColumns",key));}
+    let keyCol=keyColumn(t,key)?;
+    let grouped=groupIds(t,keyCol);
+    let ids=grouped.0;let firsts=grouped.1;
+    let out=List<Column>();
+    let keyTaken=takeData(keyCol.data,keyCol.valid,&firsts);
+    out.add(Column(key,keyTaken.data,keyTaken.valid));
+    let names=Map<String,Bool>();names.set(key,true);
+    for i in 0..specs.len() {
+        let spec=specs.get(i);
+        match names.get(spec.into) {Some(_)=>{return Err(TableError("DuplicateName",spec.into));},None=>{}}
+        names.set(spec.into,true);
+        let source=match spec.op {
+            Op::CountRows=>{keyCol},
+            _=>{lookup(t,spec.column)?}
+        };
+        out.add(aggregateColumn(source,t.rows,spec,&ids,firsts.len())?);
+    }
+    return Ok(fromColumns(move out,firsts.len()));
+}
+// @api join cost O(left rows + right rows + output rows) expected; the output may be at most maxRows (1..1,000,000) rows or the join fails with JoinTooLarge before building it. Inner keeps left rows that have at least one match, Left keeps every left row (right cells are NULL when nothing matches). A NULL key never matches, not even another NULL. Left row order is kept; matches of one left row come in right row order. The result has all left columns, then the right columns except the right key; a name that appears twice fails with DuplicateName (rename first).
+pub fn join(left:&Table,right:&Table,leftKey:String,rightKey:String,kind:JoinKind,maxRows:Int)->Result<Table,TableError> effects {} {
+    if maxRows<1 || maxRows>1000000 {return Err(TableError("OutOfRange",""));}
+    let lc=keyColumn(left,leftKey)?;let rc=keyColumn(right,rightKey)?;
+    var sameKind=false;
+    match lc.data {
+        Data::Ints(_)=>{match rc.data {Data::Ints(_)=>{sameKind=true;},_=>{}}},
+        Data::Texts(_)=>{match rc.data {Data::Texts(_)=>{sameKind=true;},_=>{}}},
+        Data::Bools(_)=>{match rc.data {Data::Bools(_)=>{sameKind=true;},_=>{}}},
+        Data::Floats(_)=>{}
+    }
+    if !sameKind {return Err(TableError("TypeMismatch",leftKey));}
+    let byKey=Map<String,List<Int>>();
+    for r in 0..right.rows {
+        if isValid(rc,r) {
+            let key=keyText(rc,r);
+            match byKey.get(key) {Some(rows)=>{rows.add(r);},None=>{let rows=List<Int>();rows.add(r);byKey.set(key,rows);}}
+        }
+    }
+    let leftRows=List<Int>();let rightRows=List<Int>();
+    for r in 0..left.rows {
+        var matched=false;
+        if isValid(lc,r) {
+            match byKey.get(keyText(lc,r)) {
+                Some(rows)=>{
+                    for k in 0..rows.len() {
+                        if leftRows.len()>=maxRows {return Err(TableError("JoinTooLarge",leftKey));}
+                        leftRows.add(r);rightRows.add(rows.get(k));matched=true;
+                    }
+                },
+                None=>{}
+            }
+        }
+        if !matched {
+            match kind {
+                JoinKind::Left=>{
+                    if leftRows.len()>=maxRows {return Err(TableError("JoinTooLarge",leftKey));}
+                    leftRows.add(r);rightRows.add(-1);
+                },
+                JoinKind::Inner=>{}
+            }
+        }
+    }
+    let out=List<Column>();let names=Map<String,Bool>();
+    for i in 0..left.columns.len() {
+        let c=column(left,i);names.set(c.name,true);
+        let taken=takeData(c.data,c.valid,&leftRows);out.add(Column(c.name,taken.data,taken.valid));
+    }
+    for i in 0..right.columns.len() {
+        let c=column(right,i);
+        if c.name!=rightKey {
+            match names.get(c.name) {Some(_)=>{return Err(TableError("DuplicateName",c.name));},None=>{}}
+            names.set(c.name,true);
+            let taken=takeData(c.data,c.valid,&rightRows);out.add(Column(c.name,taken.data,taken.valid));
+        }
+    }
+    return Ok(fromColumns(move out,leftRows.len()));
 }

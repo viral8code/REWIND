@@ -3,6 +3,86 @@
   "kind": "rewind-api",
   "language": "3.5.0",
   "symbols": {
+    "dependency:integer.rw": {
+      "fn:$import$integer$add": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$combination": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$extendedGcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Tuple<Int,Int,Int>,String>"
+      },
+      "fn:$import$integer$factors": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      },
+      "fn:$import$integer$gcd": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$lcm": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$multiply": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Int,String>"
+      },
+      "fn:$import$integer$primes": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<List<Int>,String>"
+      }
+    },
     "dependency:number.rw": {
       "fn:$import$number$decimal": {
         "async": false,
@@ -673,6 +753,18 @@
       ],
       "return": "Result<Unit,TableError>"
     },
+    "fn:aggregate": {
+      "async": false,
+      "cost": "O(rows * (1 + aggregates)) plus O(groups) output. Groups the rows by the key column and computes each aggregate; the result has the key column (one row per group, first appearance order) followed by the aggregate columns in the order given. At most 64 aggregates; the output column names must be unique.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "&List<Aggregate>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
     "fn:batch": {
       "async": false,
       "cost": "O(max * columns). The batch starting at row offset; an empty table is returned past the end, so a loop stops when rowCount of the batch is 0.",
@@ -846,6 +938,21 @@
         "String"
       ],
       "return": "Result<List<Bool>,TableError>"
+    },
+    "fn:join": {
+      "async": false,
+      "cost": "O(left rows + right rows + output rows) expected; the output may be at most maxRows (1..1,000,000) rows or the join fails with JoinTooLarge before building it. Inner keeps left rows that have at least one match, Left keeps every left row (right cells are NULL when nothing matches). A NULL key never matches, not even another NULL. Left row order is kept; matches of one left row come in right row order. The result has all left columns, then the right columns except the right key; a name that appears twice fails with DuplicateName (rename first).",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "&Table",
+        "String",
+        "String",
+        "JoinKind",
+        "Int"
+      ],
+      "return": "Result<Table,TableError>"
     },
     "fn:kindOf": {
       "async": false,
@@ -1126,6 +1233,25 @@
         "&List<String>"
       ],
       "return": "Result<Table,TableError>"
+    },
+    "type:Aggregate": {
+      "constructor": true,
+      "fields": [
+        [
+          "column",
+          "String"
+        ],
+        [
+          "op",
+          "Op"
+        ],
+        [
+          "into",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
     },
     "type:BigInt": {
       "constructor": false,
@@ -1553,6 +1679,14 @@
       "generics": [],
       "kind": "record"
     },
+    "type:JoinKind": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Inner": [],
+        "Left": []
+      }
+    },
     "type:Json": {
       "generics": [],
       "kind": "enum",
@@ -1716,6 +1850,18 @@
       "fields": [],
       "generics": [],
       "kind": "record"
+    },
+    "type:Op": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Count": [],
+        "CountRows": [],
+        "Max": [],
+        "Mean": [],
+        "Min": [],
+        "Sum": []
+      }
     },
     "type:QrArrayResult": {
       "constructor": true,

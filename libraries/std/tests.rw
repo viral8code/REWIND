@@ -2704,3 +2704,86 @@ test fn table_limits_columns() {
     let t=table.build(move b);
     assert_eq(table.columnCount(&t),256);
 }
+
+fn tblOrders()->table.Table effects {} {
+    var b=table.builder();
+    let who=List<Option<String>>();who.add(Some("a"));who.add(Some("b"));who.add(Some("a"));who.add(None);who.add(Some("b"));who.add(Some("a"));who.add(Some("c"));
+    let amount=List<Option<Int>>();amount.add(Some(10));amount.add(Some(20));amount.add(Some(30));amount.add(Some(5));amount.add(None);amount.add(Some(40));amount.add(None);
+    let _a=table.addNullableTexts(&mut b,"who",&who);
+    let _b=table.addNullableInts(&mut b,"amount",&amount);
+    return table.build(move b);
+}
+fn tblNear(cell:Result<table.Cell,table.TableError>,expected:Float)->Bool effects {} {
+    match cell {Ok(table.Cell::Float(f))=>{let d=f-expected;return d<0.000001 && d>-0.000001;},_=>{return false;}}
+}
+test fn table_aggregate_groups_in_first_appearance_order_and_ignores_null_cells() {
+    let t=tblOrders();
+    let specs=List<table.Aggregate>();
+    specs.add(table.Aggregate("",table.Op::CountRows,"rows"));
+    specs.add(table.Aggregate("amount",table.Op::Count,"seen"));
+    specs.add(table.Aggregate("amount",table.Op::Sum,"total"));
+    specs.add(table.Aggregate("amount",table.Op::Min,"low"));
+    specs.add(table.Aggregate("amount",table.Op::Max,"high"));
+    specs.add(table.Aggregate("amount",table.Op::Mean,"mean"));
+    let g=tblTable(table.aggregate(&t,"who",&specs));
+    assert_eq(table.rowCount(&g),4);
+    assert_eq(table.cell(&g,0,"who"),Ok(table.Cell::Text("a")));
+    assert_eq(table.cell(&g,1,"who"),Ok(table.Cell::Text("b")));
+    assert_eq(table.cell(&g,2,"who"),Ok(table.Cell::Null));
+    assert_eq(table.cell(&g,3,"who"),Ok(table.Cell::Text("c")));
+    assert_eq(table.cell(&g,0,"rows"),Ok(table.Cell::Int(3)));
+    assert_eq(table.cell(&g,1,"rows"),Ok(table.Cell::Int(2)));
+    assert_eq(table.cell(&g,1,"seen"),Ok(table.Cell::Int(1)));
+    assert_eq(table.cell(&g,0,"total"),Ok(table.Cell::Int(80)));
+    assert_eq(table.cell(&g,2,"total"),Ok(table.Cell::Int(5)));
+    assert_eq(table.cell(&g,0,"low"),Ok(table.Cell::Int(10)));assert_eq(table.cell(&g,0,"high"),Ok(table.Cell::Int(40)));
+    assert(tblNear(table.cell(&g,0,"mean"),26.666666666666668));
+    assert_eq(table.cell(&g,3,"total"),Ok(table.Cell::Null));
+    assert_eq(table.cell(&g,3,"mean"),Ok(table.Cell::Null));
+    assert_eq(table.cell(&g,3,"seen"),Ok(table.Cell::Int(0)));
+}
+test fn table_aggregate_refuses_float_keys_overflow_and_duplicate_outputs() {
+    let t=tblPeople();
+    let none=List<table.Aggregate>();
+    assert_eq(tblCode(table.aggregate(&t,"score",&none)),"KeyKind");
+    assert_eq(tblCode(table.aggregate(&t,"missing",&none)),"UnknownColumn");
+    var b=table.builder();
+    let k=List<Int>();k.add(1);k.add(1);
+    let v=List<Int>();v.add(9223372036854775807);v.add(1);
+    let _a=table.addInts(&mut b,"k",&k);let _b=table.addInts(&mut b,"v",&v);
+    let big=table.build(move b);
+    let sum=List<table.Aggregate>();sum.add(table.Aggregate("v",table.Op::Sum,"s"));
+    assert_eq(tblCode(table.aggregate(&big,"k",&sum)),"Overflow");
+    let twice=List<table.Aggregate>();
+    twice.add(table.Aggregate("v",table.Op::Min,"x"));twice.add(table.Aggregate("v",table.Op::Max,"x"));
+    assert_eq(tblCode(table.aggregate(&big,"k",&twice)),"DuplicateName");
+    let onText=List<table.Aggregate>();onText.add(table.Aggregate("k",table.Op::Mean,"m"));
+    let g=tblTable(table.aggregate(&big,"k",&onText));
+    assert_eq(table.rowCount(&g),1);
+    let empty=table.build(table.builder());
+    assert_eq(tblCode(table.aggregate(&empty,"k",&none)),"UnknownColumn");
+}
+fn tblCities()->table.Table effects {} {
+    var b=table.builder();
+    let key=List<Option<String>>();key.add(Some("a"));key.add(Some("b"));key.add(Some("a"));key.add(None);
+    let city=List<String>();city.add("Oslo");city.add("Rome");city.add("Bern");city.add("Nowhere");
+    let _a=table.addNullableTexts(&mut b,"id",&key);let _b=table.addTexts(&mut b,"city",&city);
+    return table.build(move b);
+}
+test fn table_join_matches_keys_fans_out_and_fills_null_for_left() {
+    let o=tblOrders();let c=tblCities();
+    let inner=tblTable(table.join(&o,&c,"who","id",table.JoinKind::Inner,100));
+    // a x3 matches two cities each (6), b x2 one each (2); NULL and c never match.
+    assert_eq(table.rowCount(&inner),8);
+    assert_eq(table.cell(&inner,0,"city"),Ok(table.Cell::Text("Oslo")));assert_eq(table.cell(&inner,1,"city"),Ok(table.Cell::Text("Bern")));
+    assert_eq(table.hasColumn(&inner,"id"),false);
+    let left=tblTable(table.join(&o,&c,"who","id",table.JoinKind::Left,100));
+    assert_eq(table.rowCount(&left),10);
+    assert_eq(table.nullCount(&left,"city"),Ok(2));
+    assert_eq(tblCode(table.join(&o,&c,"who","id",table.JoinKind::Left,9)),"JoinTooLarge");
+    assert_eq(tblCode(table.join(&o,&c,"who","id",table.JoinKind::Inner,0)),"OutOfRange");
+    assert_eq(tblCode(table.join(&o,&c,"amount","id",table.JoinKind::Inner,100)),"TypeMismatch");
+    assert_eq(tblCode(table.join(&o,&c,"who","zzz",table.JoinKind::Inner,100)),"UnknownColumn");
+    let clash=tblTable(table.rename(&c,"city","amount"));
+    assert_eq(tblCode(table.join(&o,&clash,"who","id",table.JoinKind::Inner,100)),"DuplicateName");
+}
