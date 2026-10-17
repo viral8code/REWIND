@@ -1673,6 +1673,59 @@ impl WorkProfile {
     }
 }
 
+impl<R: BufRead> Vm<R> {
+    /// Line coverage derived from the opt-in work profile: a line is covered when at least one
+    /// of its instructions ran. Lines without instructions (comments, braces) are not counted,
+    /// and neither branch nor condition coverage is reported.
+    fn coverage_report(&self, work: &WorkProfile) -> serde_json::Value {
+        const MAX_UNCOVERED: usize = 256;
+        let mut executable: BTreeMap<&str, BTreeSet<usize>> = BTreeMap::new();
+        for (index, inst) in self.code.iter().enumerate() {
+            // The implicit `return null` appended to every function sits on the header line and
+            // is not a statement of its own; a bare `return;` is skipped by the same rule.
+            let implicit_return = matches!(inst.op, Op::Push(Value::Null))
+                && self.code.get(index + 1).is_some_and(|next| {
+                    matches!(next.op, Op::Return) && next.at.line == inst.at.line
+                });
+            let after_push = index > 0
+                && matches!(inst.op, Op::Return)
+                && matches!(self.code[index - 1].op, Op::Push(Value::Null))
+                && self.code[index - 1].at.line == inst.at.line;
+            if !implicit_return
+                && !after_push
+                && inst.at.line > 0
+                && !inst.at.source.is_empty()
+                && !inst.at.source.contains("std-")
+            {
+                executable
+                    .entry(inst.at.source.as_str())
+                    .or_default()
+                    .insert(inst.at.line);
+            }
+        }
+        let mut sources = Vec::new();
+        for (source, lines) in executable {
+            let uncovered: Vec<usize> = lines
+                .iter()
+                .copied()
+                .filter(|line| !work.lines.contains_key(&(source.to_string(), *line)))
+                .collect();
+            sources.push(serde_json::json!({
+                "source":source,
+                "executable_lines":lines.len(),
+                "covered_lines":lines.len() - uncovered.len(),
+                "uncovered":uncovered.iter().take(MAX_UNCOVERED).collect::<Vec<_>>(),
+                "uncovered_truncated":uncovered.len() > MAX_UNCOVERED,
+            }));
+        }
+        serde_json::json!({
+            "unit":"lines that carry at least one VM instruction; not branch coverage and not a statement of correctness",
+            "complete":!work.truncated,
+            "sources":sources,
+        })
+    }
+}
+
 struct Vm<R: BufRead> {
     engine: Engine<R>,
     code: Vec<Inst>,
@@ -4092,6 +4145,7 @@ impl<R: BufRead> Vm<R> {
             }
             if let Some(work) = &self.profile {
                 profile["attribution"] = work.report(self.engine.runtime.native_work_by_scope());
+                profile["coverage"] = self.coverage_report(work);
                 profile["retention"] = self.engine.runtime.retention_report();
                 profile["retention"]["scheduler_storage_bytes"] =
                     serde_json::json!(self.scheduler.accounted_storage_bytes(&self.engine.runtime));
@@ -4103,6 +4157,19 @@ impl<R: BufRead> Vm<R> {
                     .flatten()
                 {
                     eprintln!("{}", line.as_str().unwrap_or(""));
+                }
+                for source in profile["coverage"]["sources"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                {
+                    eprintln!(
+                        "coverage {}: {}/{} lines (uncovered: {})",
+                        source["source"].as_str().unwrap_or(""),
+                        source["covered_lines"],
+                        source["executable_lines"],
+                        source["uncovered"]
+                    );
                 }
             } else {
                 eprintln!("{}", profile);

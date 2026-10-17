@@ -58,6 +58,8 @@ generic特殊化、macro等を将来追加した場合のsource対応、generate
 
 **受入：** 手で数えられる小さなsourceの実行位置と一致する。無効時の費用を増やさない。CLI/JSON/HTMLの失敗codeと位置が一致する。
 
+**実装済み（2026-10-17、line coverageのみ）：** `rewind profile`の出力へ`coverage`を追加しました（JSONは`coverage.sources[]`、textは`coverage FILE: 4/6 lines (uncovered: [...])`）。既存のopt-inなwork profileが記録する「命令が1つ以上実行された行」を、コンパイル済み命令を持つ行の集合と照合します。コメント・括弧・関数headerのみの行（暗黙の`return`だけの行を含む）は数えません。標準ライブラリの行は除きます。profileが上限（4096行）で打ち切られたときは`complete:false`です。[tests/profile_coverage.rs](../tests/profile_coverage.rs)が手で数えた6行中4行と未実行の行番号に一致することを確認します。profileを使わない実行の費用は変わりません。function/branch coverage、HTML report、DAPへの失敗記録は未実装で、百分率を正しさの保証として扱いません。
+
 ## EXT-01：native library拡張の契約
 
 汎用FFIは後順位の調査候補です。まず追加codec/solver等を組込みadapterとして提供する範囲を明確にします。任意pointerやREWIND callbackを外部threadへ渡す仕組みを先に公開しません。
