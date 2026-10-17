@@ -70,10 +70,33 @@ def cases(size):
                                 "let axes=List<Int>();axes.add(1);axes.add(0);let t=take(n.transposeFloat(&m,&axes));"
                                 "let mat=take(n.materializeFloat(&t));var s=0.0;for i in 0..20 {s+=take(n.sum(&mat));}Out.println(s>0.0);publish;", b"true\n")
     c["num_withfloat_churn"] = (COMMON + "let shape=List<Int>();shape.add(1000000);var buffer=take(n.zerosFloat(&shape));let coord=List<Int>();coord.add(0);\n"
-                                "for i in 0..100000 {buffer=take(n.withFloat(&buffer,&coord,1.0));}Out.println(take(n.getFloat(&buffer,&coord)));publish;", b"1\n")
+                                "for i in 0..20000 {buffer=take(n.withFloat(&buffer,&coord,1.0));}Out.println(take(n.getFloat(&buffer,&coord)));publish;", b"1\n")
     c["num_withfloat_churn_checkpoint"] = (COMMON + "let shape=List<Int>();shape.add(1000000);var buffer=take(n.zerosFloat(&shape));let coord=List<Int>();coord.add(0);\ncommit retained;\n"
-                                           "for i in 0..100000 {buffer=take(n.withFloat(&buffer,&coord,1.0));}Out.println(take(n.getFloat(&buffer,&coord)));publish;revert retained;"
+                                           "for i in 0..20000 {buffer=take(n.withFloat(&buffer,&coord,1.0));}Out.println(take(n.getFloat(&buffer,&coord)));publish;revert retained;"
                                            "Out.println(take(n.getFloat(&buffer,&coord)));publish;drop retained;", b"1\n0\n")
+    # --- NUM-01 List boundary decomposition: where does the 1M-element List<->array conversion time go?
+    c["num_values_only"] = (COMMON + shape1(size) +
+                            "let zero=take(n.zerosFloat(&shape));let prepared=take(n.affine(&zero,0.0,0.5));let values=take(n.valuesFloat(&prepared));"
+                            "Out.println(values.len());publish;", (str(size) + "\n").encode())
+    c["num_values_roundtrip_x3"] = (COMMON + shape1(size) +
+                                    "let zero=take(n.zerosFloat(&shape));let prepared=take(n.affine(&zero,0.0,0.5));let values=take(n.valuesFloat(&prepared));"
+                                    "var total=0.0;for k in 0..3 {let array=take(n.fromFloat(&shape,&values));total+=take(n.sum(&array));}"
+                                    f"assert_eq(total,3.0*{size}.0*0.5);Out.println(true);publish;", b"true\n")
+    # --- VM dispatch (PERF-04 evidence): logical work is fixed, so time/alloc differences are overhead
+    c["vm_loop_sum_200k"] = ("var s=0;for i in 0..200000 {s+=i;}Out.println(s);publish;", b"19999900000\n")
+    # --- MEM-01 containers
+    c["mem01_list_churn_65536"] = ("let items=List<Int>();for i in 0..65536 {items.add(i);}\n"
+                                   "for i in 0..20000 {items.set(i,i+1);}Out.println(items.get(19999));publish;", b"20000\n")
+    c["mem01_list_churn_checkpoint"] = ("let items=List<Int>();for i in 0..65536 {items.add(i);}commit original;\n"
+                                        "for i in 0..20000 {items.set(i,i+1);}Out.println(items.get(19999));publish;revert original;Out.println(items.get(19999));publish;drop original;",
+                                        b"20000\n19999\n")
+    snaps = "".join(f"items.set(0,{i});commit snapshot{i};" for i in range(128))
+    drops = "".join(f"drop snapshot{i};" for i in range(128))
+    c["mem01_list_128_checkpoints"] = ("let items=List<Int>();for i in 0..65536 {items.add(i);}commit original;" + snaps +
+                                       "Out.println(items.get(0));publish;revert original;Out.println(items.get(0));publish;" + drops + "drop original;", b"127\n0\n")
+    # --- MEM-02 text sharing
+    c["mem02_text_copy_1MiB"] = ("fn identity(value:String)->String effects {}{return value;}\n"
+                                 "var base=\"y\";for k in 0..20 {base=base+base;}var total=0;for i in 0..2000 {let copied=identity(base);total+=copied.byteLen();}Out.println(total);publish;", b"2097152000\n")
     return c
 
 

@@ -37,14 +37,29 @@ def _ft(f):
     return ((f.dwHighDateTime << 32) | f.dwLowDateTime) / 1e7
 
 
-def run(cmd, cwd=None, stdout=None, stderr=None, timeout=600):
-    """Run cmd; return dict(returncode, wall_seconds, cpu_seconds, peak_ws_kib, peak_commit_kib)."""
+_k32.GetProcessHandleCount.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+
+
+def run(cmd, cwd=None, stdout=None, stderr=None, timeout=600, poll_seconds=None):
+    """Run cmd; return dict(returncode, wall_seconds, cpu_seconds, peak_ws_kib, peak_commit_kib).
+
+    With poll_seconds, also returns `series`: [(elapsed, working_set_kib, commit_kib, handles)] sampled while the
+    child runs, so growth over time inside one run is visible (a leak shows as a slope, not just a peak)."""
     start = time.perf_counter()
     p = subprocess.Popen(cmd, cwd=cwd, stdout=stdout, stderr=stderr)
     h = _k32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, p.pid)
     if not h:
         h = _k32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, p.pid)
+    series = []
     try:
+        if poll_seconds:
+            while p.poll() is None and time.perf_counter() - start < timeout:
+                c = _Counters()
+                c.cb = ctypes.sizeof(c)
+                hc = wintypes.DWORD(0)
+                if _psapi.GetProcessMemoryInfo(h, ctypes.byref(c), c.cb) and _k32.GetProcessHandleCount(h, ctypes.byref(hc)):
+                    series.append((round(time.perf_counter() - start, 3), c.WorkingSetSize // 1024, c.PagefileUsage // 1024, hc.value))
+                time.sleep(poll_seconds)
         p.wait(timeout=timeout)
         wall = time.perf_counter() - start
         c = _Counters()
@@ -52,9 +67,12 @@ def run(cmd, cwd=None, stdout=None, stderr=None, timeout=600):
         ok = _psapi.GetProcessMemoryInfo(h, ctypes.byref(c), c.cb)
         cr, ex, kr, us = (wintypes.FILETIME() for _ in range(4))
         _k32.GetProcessTimes(h, ctypes.byref(cr), ctypes.byref(ex), ctypes.byref(kr), ctypes.byref(us))
-        return {"returncode": p.returncode, "wall_seconds": wall, "cpu_seconds": _ft(kr) + _ft(us),
-                "peak_ws_kib": c.PeakWorkingSetSize // 1024 if ok else None,
-                "peak_commit_kib": c.PeakPagefileUsage // 1024 if ok else None}
+        result = {"returncode": p.returncode, "wall_seconds": wall, "cpu_seconds": _ft(kr) + _ft(us),
+                  "peak_ws_kib": c.PeakWorkingSetSize // 1024 if ok else None,
+                  "peak_commit_kib": c.PeakPagefileUsage // 1024 if ok else None}
+        if poll_seconds:
+            result["series"] = series
+        return result
     except subprocess.TimeoutExpired:
         p.kill()
         raise

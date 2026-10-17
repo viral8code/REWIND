@@ -489,33 +489,92 @@ impl Iterator for BufferRange<'_> {
     }
 }
 impl ExactSizeIterator for BufferRange<'_> {}
+// Row-major walk of a non-contiguous view. The coordinate counter advances by strides (no
+// per-element division) and the current leaf page is kept, so a unit-ish stride descends the
+// tree once per page instead of once per element. Offsets were validated at construction.
+struct StridedRange<'a> {
+    array: &'a Array,
+    remaining: usize,
+    index: Vec<usize>,
+    offset: isize,
+    page: usize,
+    bits: &'a [u64],
+}
+impl<'a> StridedRange<'a> {
+    /// Logical elements `start..end` of `array`, which must be a valid sub-range of its length.
+    fn new(array: &'a Array, start: usize, end: usize) -> Self {
+        let mut index = vec![0; array.shape.len()];
+        let offset = if start < array.len() {
+            let mut rest = start;
+            for axis in (0..index.len()).rev() {
+                index[axis] = rest % array.shape[axis];
+                rest /= array.shape[axis];
+            }
+            array.flat_index(start)
+        } else {
+            // Empty window: nothing is read; keep a harmless in-range offset.
+            array.offset as usize
+        } as isize;
+        Self {
+            array,
+            remaining: end - start,
+            index,
+            offset,
+            page: usize::MAX,
+            bits: &[],
+        }
+    }
+}
+impl Iterator for StridedRange<'_> {
+    type Item = u64;
+    fn next(&mut self) -> Option<u64> {
+        if self.remaining == 0 {
+            return None;
+        }
+        let at = self.offset as usize;
+        if at / PAGE != self.page {
+            let NodeKind::Leaf(bits) = &self.array.buffer.leaf(at).kind else {
+                unreachable!()
+            };
+            self.bits = bits;
+            self.page = at / PAGE;
+        }
+        let value = self.bits[at % PAGE];
+        self.remaining -= 1;
+        if self.remaining > 0 {
+            let (shape, strides) = (&self.array.shape, &self.array.strides);
+            for axis in (0..shape.len()).rev() {
+                self.index[axis] += 1;
+                self.offset += strides[axis];
+                if self.index[axis] < shape[axis] {
+                    break;
+                }
+                self.offset -= strides[axis] * shape[axis] as isize;
+                self.index[axis] = 0;
+            }
+        }
+        Some(value)
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
 enum ArrayBits<'a> {
     Contiguous(BufferRange<'a>),
-    Strided {
-        array: &'a Array,
-        next: usize,
-        end: usize,
-    },
+    Strided(StridedRange<'a>),
 }
 impl Iterator for ArrayBits<'_> {
     type Item = u64;
     fn next(&mut self) -> Option<u64> {
         match self {
             Self::Contiguous(range) => range.next(),
-            Self::Strided { array, next, end } => {
-                if *next == *end {
-                    return None;
-                }
-                let value = array.buffer.get(array.flat_index(*next));
-                *next += 1;
-                Some(value)
-            }
+            Self::Strided(range) => range.next(),
         }
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         let n = match self {
             Self::Contiguous(range) => range.len(),
-            Self::Strided { next, end, .. } => end - next,
+            Self::Strided(range) => range.remaining,
         };
         (n, Some(n))
     }
@@ -618,11 +677,7 @@ impl Array {
                 pending: &[],
             })
         } else {
-            ArrayBits::Strided {
-                array: self,
-                next: 0,
-                end: len,
-            }
+            ArrayBits::Strided(StridedRange::new(self, 0, len))
         }
     }
 }
@@ -1532,6 +1587,22 @@ mod tests {
                     .map(|b| f64::from_bits(*b) + 1.0)
                     .collect::<Vec<_>>()
             );
+        }
+        // Rank-3 view with a negative stride, a skipped axis and a repeated (stride 0) axis.
+        let cube = original
+            .slice(0, 0, PAGE * 4, 1)
+            .unwrap()
+            .reshape(vec![8, 16, 8])
+            .unwrap();
+        let moved = cube.transpose(&[2, 0, 1]).unwrap();
+        let flipped = cube.slice(1, 15, 16, -1).unwrap().slice(2, 0, 4, 2).unwrap();
+        let repeated = cube.slice(0, 2, 1, 1).unwrap().broadcast(vec![5, 16, 8]).unwrap();
+        for view in [&moved, &flipped, &repeated] {
+            let expected = (0..view.len())
+                .map(|i| view.buffer.get(view.flat_index(i)))
+                .collect::<Vec<_>>();
+            assert_eq!(view.bits().collect::<Vec<_>>(), expected);
+            assert_eq!(view.bits().len(), view.len());
         }
         let empty = original.slice(0, values.len(), 0, 1).unwrap();
         assert_eq!(empty.bits().len(), 0);
