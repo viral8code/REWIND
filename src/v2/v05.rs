@@ -149,6 +149,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "3.3.0"
             | "3.4.0"
             | "3.5.0"
+            | "3.6.0"
     ) {
         return Ok(());
     }
@@ -289,6 +290,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "3.3.0"
             | "3.4.0"
             | "3.5.0"
+            | "3.6.0"
     ) && ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
         .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
@@ -464,6 +466,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             | "3.3.0"
             | "3.4.0"
             | "3.5.0"
+            | "3.6.0"
     ) {
         program
             .enums
@@ -795,6 +798,7 @@ pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Re
             | "3.3.0"
             | "3.4.0"
             | "3.5.0"
+            | "3.6.0"
     ) {
         return v06::validate(program, config);
     }
@@ -1342,6 +1346,7 @@ fn transfer_type_with_bounds(
                 | "3.3.0"
                 | "3.4.0"
                 | "3.5.0"
+                | "3.6.0"
         )
     {
         return true;
@@ -1451,6 +1456,7 @@ fn transfer_type_with_bounds(
             | "3.3.0"
             | "3.4.0"
             | "3.5.0"
+            | "3.6.0"
     ) {
         if let Some((base, inner)) = ty.split_once('<') {
             if matches!(base, "Option" | "Result") {
@@ -1568,6 +1574,7 @@ fn transfer_type_with_bounds(
                 | "3.3.0"
                 | "3.4.0"
                 | "3.5.0"
+                | "3.6.0"
         ) {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
         } else {
@@ -1690,6 +1697,7 @@ fn transfer_type_with_bounds(
             | "3.3.0"
             | "3.4.0"
             | "3.5.0"
+            | "3.6.0"
     ) {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
@@ -2118,6 +2126,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     | "3.3.0"
                     | "3.4.0"
                     | "3.5.0"
+                    | "3.6.0"
             ) {
                 let checker = Checker {
                     program,
