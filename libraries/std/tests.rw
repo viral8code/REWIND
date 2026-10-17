@@ -2895,7 +2895,7 @@ test fn evaluation_split_is_disjoint_and_covers_every_sample() {
             assert_eq(validation.len(),3);assert_eq(train.len(),7);
             var seen=Map<Int,Bool>();
             for i in 0..train.len() {seen.set(train.get(i),true);}
-            for i in 0..validation.len() {assert_eq(seen.contains(validation.get(i)),false);seen.set(validation.get(i),true);}
+            for i in 0..validation.len() {match seen.get(validation.get(i)) {Some(_)=>{panic("overlap");},None=>{}}seen.set(validation.get(i),true);}
             assert_eq(seen.len(),10);
         },
         Err(_)=>{panic("split");}
