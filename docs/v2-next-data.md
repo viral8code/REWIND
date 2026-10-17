@@ -70,6 +70,8 @@ seed、データ順、model format、optimizer state、checkpoint保持数を記
 
 **受入：** 同じ設定で再現できる範囲を説明する。training/validationの混入を防ぐ。取消・保存失敗からの再開条件を示す。iteration後にgraphが不要に残らない。
 
+**実装状況：** `std.evaluation`（seed付きshuffle・重複しないtrain/validation分割・batch・accuracy/MSE/MAE/混同行列・early stopping）を追加済み（未公開、次のminorで公開予定）。optimizer state・model保存との統合とcheckpoint保持数の方針は、実際の学習例が出るまで追加しません。NUM-02は既存solverで足りない具体例が出ていないため、新solverは追加していません。
+
 ## LIB-01：一般libraryの使い勝手の監査
 
 追加algorithmの前に、既存`sort/search/graph/flow/matching/geometry/sequence`等の容量、重み型、negative値、overflow、generic制約を実例で確認します。
