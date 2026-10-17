@@ -1,0 +1,1863 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.5.0",
+  "symbols": {
+    "dependency:number.rw": {
+      "fn:$import$number$decimal": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$number$floating": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$number$formatFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Float"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$number$formatInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$number$integer": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "Int"
+        ],
+        "return": "Result<Int,StdError>"
+      }
+    },
+    "dependency:numeric.rw": {
+      "fn:$import$numeric$activation": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "&FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$affine": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "Float",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$broadcastFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&List<Int>"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$broadcastInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray",
+          "&List<Int>"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "fn:$import$numeric$correlation": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$covariance": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&FloatArray",
+          "Int"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$dot": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$eigenSymmetric": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "Float",
+          "Int"
+        ],
+        "return": "Result<EigenResult,StdError>"
+      },
+      "fn:$import$numeric$fromFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>",
+          "&List<Float>"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$fromInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>",
+          "&List<Int>"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "fn:$import$numeric$getFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&List<Int>"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$getInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray",
+          "&List<Int>"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$numeric$histogram": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&FloatArray"
+        ],
+        "return": "Result<HistogramResult,StdError>"
+      },
+      "fn:$import$numeric$leastSquares": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&FloatArray",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$mapFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "&FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$materializeFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$materializeInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "fn:$import$numeric$math": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "Float"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$matmul": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$mean": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$mergeMoments": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$numeric$OnlineMoments",
+          "&$import$numeric$OnlineMoments"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$numeric$norm2": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$onlineCount": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$numeric$OnlineMoments"
+        ],
+        "return": "Int"
+      },
+      "fn:$import$numeric$onlineMean": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$numeric$OnlineMoments"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$onlineMoments": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [],
+        "return": "$import$numeric$OnlineMoments"
+      },
+      "fn:$import$numeric$onlineVariance": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&$import$numeric$OnlineMoments",
+          "Int"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$pushMoment": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&mut $import$numeric$OnlineMoments",
+          "Float"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$numeric$qr": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "Float"
+        ],
+        "return": "Result<QrResult,StdError>"
+      },
+      "fn:$import$numeric$quantile": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "Float"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$reshapeFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&List<Int>"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$reshapeInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray",
+          "&List<Int>"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "fn:$import$numeric$scale": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$shapeFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray"
+        ],
+        "return": "Result<List<Int>,StdError>"
+      },
+      "fn:$import$numeric$shapeInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray"
+        ],
+        "return": "Result<List<Int>,StdError>"
+      },
+      "fn:$import$numeric$sliceFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$sliceInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "fn:$import$numeric$solve": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&FloatArray",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$stridesFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray"
+        ],
+        "return": "Result<List<Int>,StdError>"
+      },
+      "fn:$import$numeric$stridesInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray"
+        ],
+        "return": "Result<List<Int>,StdError>"
+      },
+      "fn:$import$numeric$sum": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$sumToShape": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&List<Int>"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$transposeFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&List<Int>"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$transposeInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray",
+          "&List<Int>"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "fn:$import$numeric$valuesFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray"
+        ],
+        "return": "Result<List<Float>,StdError>"
+      },
+      "fn:$import$numeric$valuesInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray"
+        ],
+        "return": "Result<List<Int>,StdError>"
+      },
+      "fn:$import$numeric$variance": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "Int"
+        ],
+        "return": "Result<Float,StdError>"
+      },
+      "fn:$import$numeric$withFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&FloatArray",
+          "&List<Int>",
+          "Float"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$withInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&IntArray",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "fn:$import$numeric$zerosFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$zerosInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "&List<Int>"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "fn:$import$numeric$zipFloat": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "&FloatArray",
+          "&FloatArray"
+        ],
+        "return": "Result<FloatArray,StdError>"
+      },
+      "fn:$import$numeric$zipInt": {
+        "async": false,
+        "effects": [],
+        "generics": [],
+        "parameters": [
+          "String",
+          "&IntArray",
+          "&IntArray"
+        ],
+        "return": "Result<IntArray,StdError>"
+      },
+      "type:$import$numeric$OnlineMoments": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      }
+    },
+    "fn:addBools": {
+      "async": false,
+      "cost": "O(rows). Like addInts for Bool.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Builder",
+        "String",
+        "&List<Bool>"
+      ],
+      "return": "Result<Unit,TableError>"
+    },
+    "fn:addFloats": {
+      "async": false,
+      "cost": "O(rows). Like addInts for Float.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Builder",
+        "String",
+        "&List<Float>"
+      ],
+      "return": "Result<Unit,TableError>"
+    },
+    "fn:addInts": {
+      "async": false,
+      "cost": "O(rows). Appends a column without NULLs; the first column fixes the row count.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Builder",
+        "String",
+        "&List<Int>"
+      ],
+      "return": "Result<Unit,TableError>"
+    },
+    "fn:addNullableBools": {
+      "async": false,
+      "cost": "O(rows). Like addNullableInts for Bool.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Builder",
+        "String",
+        "&List<Option<Bool>>"
+      ],
+      "return": "Result<Unit,TableError>"
+    },
+    "fn:addNullableFloats": {
+      "async": false,
+      "cost": "O(rows). Like addNullableInts for Float.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Builder",
+        "String",
+        "&List<Option<Float>>"
+      ],
+      "return": "Result<Unit,TableError>"
+    },
+    "fn:addNullableInts": {
+      "async": false,
+      "cost": "O(rows). None becomes NULL; the stored filler under a NULL is never readable.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Builder",
+        "String",
+        "&List<Option<Int>>"
+      ],
+      "return": "Result<Unit,TableError>"
+    },
+    "fn:addNullableTexts": {
+      "async": false,
+      "cost": "O(rows). Like addNullableInts for Text.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Builder",
+        "String",
+        "&List<Option<String>>"
+      ],
+      "return": "Result<Unit,TableError>"
+    },
+    "fn:addTexts": {
+      "async": false,
+      "cost": "O(rows). Like addInts for Text.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&mut Builder",
+        "String",
+        "&List<String>"
+      ],
+      "return": "Result<Unit,TableError>"
+    },
+    "fn:batch": {
+      "async": false,
+      "cost": "O(max * columns). The batch starting at row offset; an empty table is returned past the end, so a loop stops when rowCount of the batch is 0.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:bools": {
+      "async": false,
+      "cost": "O(rows). Like ints for Bool.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<List<Bool>,TableError>"
+    },
+    "fn:build": {
+      "async": false,
+      "cost": "O(columns). Freezes the columns; a builder without columns gives an empty table with zero rows.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "Builder"
+      ],
+      "return": "Table"
+    },
+    "fn:builder": {
+      "async": false,
+      "cost": "O(1). An empty builder; columns are added with the add* functions and fixed by build.",
+      "effects": [],
+      "generics": [],
+      "parameters": [],
+      "return": "Builder"
+    },
+    "fn:cast": {
+      "async": false,
+      "cost": "O(rows). An explicit, exact conversion into the column `into`: Int<->Float only when the value is represented exactly, Text parses decimal Int/Float and \"true\"/\"false\", Int 0/1 <-> Bool. Any cell that does not convert fails the whole cast with BadCast (the message never contains the cell); NULL stays NULL. Float<->Bool is not defined.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "String",
+        "Kind"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:cell": {
+      "async": false,
+      "cost": "O(columns). The Cell is Null for a NULL; the row must be inside 0..rowCount.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "Int",
+        "String"
+      ],
+      "return": "Result<Cell,TableError>"
+    },
+    "fn:columnCount": {
+      "async": false,
+      "cost": "O(1).",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Int"
+    },
+    "fn:columnNames": {
+      "async": false,
+      "cost": "O(columns).",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "List<String>"
+    },
+    "fn:dropColumns": {
+      "async": false,
+      "cost": "O(columns * dropped names). Removes the listed columns and shares the others.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "&List<String>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:floatArray": {
+      "async": false,
+      "cost": "O(rows). Hands a dense Float column to the numeric kernels as a one-dimensional FloatArray (the cells are copied into the array once). NULLs are refused with NullValue; an empty table fails with NumericError.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<FloatArray,TableError>"
+    },
+    "fn:floats": {
+      "async": false,
+      "cost": "O(rows). Like ints for Float.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<List<Float>,TableError>"
+    },
+    "fn:hasColumn": {
+      "async": false,
+      "cost": "O(1) after the name index lookup.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Bool"
+    },
+    "fn:head": {
+      "async": false,
+      "cost": "O(count * columns). The first rows; same as slice from 0.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "Int"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:intArray": {
+      "async": false,
+      "cost": "O(rows). Like floatArray for Int.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<IntArray,TableError>"
+    },
+    "fn:ints": {
+      "async": false,
+      "cost": "O(rows). Fails with NullValue when the column holds a NULL, and with TypeMismatch for another kind.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<List<Int>,TableError>"
+    },
+    "fn:isNull": {
+      "async": false,
+      "cost": "O(rows). Mask that is true where the column holds NULL.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<List<Bool>,TableError>"
+    },
+    "fn:kindOf": {
+      "async": false,
+      "cost": "O(1).",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<Kind,TableError>"
+    },
+    "fn:mapFloats": {
+      "async": false,
+      "cost": "O(rows) calls of transform. Like mapInts for Float.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "String",
+        "fn(Float)->Float!{}~{Send+Share}"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:mapInts": {
+      "async": false,
+      "cost": "O(rows) calls of transform. Writes into column `into`; NULL stays NULL and transform never sees a NULL.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "String",
+        "fn(Int)->Int!{}~{Send+Share}"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:mapTexts": {
+      "async": false,
+      "cost": "O(rows) calls of transform. Like mapInts for Text.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "String",
+        "fn(String)->String!{}~{Send+Share}"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:maskBools": {
+      "async": false,
+      "cost": "O(rows) calls of test. Like maskInts for Bool.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "fn(Bool)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<List<Bool>,TableError>"
+    },
+    "fn:maskFloats": {
+      "async": false,
+      "cost": "O(rows) calls of test. Like maskInts for Float.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "fn(Float)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<List<Bool>,TableError>"
+    },
+    "fn:maskInts": {
+      "async": false,
+      "cost": "O(rows) calls of test. NULL rows give false, so a filter never keeps a NULL by accident.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "fn(Int)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<List<Bool>,TableError>"
+    },
+    "fn:maskTexts": {
+      "async": false,
+      "cost": "O(rows) calls of test. Like maskInts for Text.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "fn(String)->Bool!{}~{Send+Share}"
+      ],
+      "return": "Result<List<Bool>,TableError>"
+    },
+    "fn:nullCount": {
+      "async": false,
+      "cost": "O(rows).",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<Int,TableError>"
+    },
+    "fn:rename": {
+      "async": false,
+      "cost": "O(columns). Shares all column data; the new name must be unused.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "String"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:rowCount": {
+      "async": false,
+      "cost": "O(1).",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table"
+      ],
+      "return": "Int"
+    },
+    "fn:select": {
+      "async": false,
+      "cost": "O(selected columns * columns). Keeps the listed columns in the listed order and shares their data.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "&List<String>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:slice": {
+      "async": false,
+      "cost": "O(length * columns). start+length is clamped to the table; negative start or length fails with OutOfRange.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "fn:takeRows": {
+      "async": false,
+      "cost": "O(rows kept * columns). Rows may repeat and may be reordered; an index outside 0..rowCount fails with OutOfRange.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "&List<Int>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:texts": {
+      "async": false,
+      "cost": "O(rows). Like ints for Text.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String"
+      ],
+      "return": "Result<List<String>,TableError>"
+    },
+    "fn:where": {
+      "async": false,
+      "cost": "O(rows * columns). Keeps the rows whose mask entry is true; the mask length must equal rowCount.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "&List<Bool>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:withBools": {
+      "async": false,
+      "cost": "O(rows + columns). Like withInts for Bool.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "&List<Bool>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:withFloatArray": {
+      "async": false,
+      "cost": "O(rows). Adds or replaces a Float column from a one-dimensional array of exactly rowCount elements.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "&FloatArray"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:withFloats": {
+      "async": false,
+      "cost": "O(rows + columns). Like withInts for Float.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "&List<Float>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:withInts": {
+      "async": false,
+      "cost": "O(rows + columns). Adds the column, or replaces the one with that name; the length must equal rowCount.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "&List<Int>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "fn:withTexts": {
+      "async": false,
+      "cost": "O(rows + columns). Like withInts for Text.",
+      "effects": [],
+      "generics": [],
+      "parameters": [
+        "&Table",
+        "String",
+        "&List<String>"
+      ],
+      "return": "Result<Table,TableError>"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Builder": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "struct"
+    },
+    "type:Cell": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Kind": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [],
+        "Float": [],
+        "Int": [],
+        "Text": []
+      }
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Table": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TableError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "name",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

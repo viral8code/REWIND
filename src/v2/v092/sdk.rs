@@ -57,6 +57,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "orderedMap",
             include_str!("../../../libraries/std/orderedMap.rw"),
         ),
+        ("table", include_str!("../../../libraries/std/table.rw")),
         ("parser", include_str!("../../../libraries/std/parser.rw")),
         (
             "historyGraph",

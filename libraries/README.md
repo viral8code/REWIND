@@ -13,6 +13,7 @@
 | historyGraph | add, setHead, pin, previewPrune, prune, ancestors, mergeBases, path, matching | 有限DAG、親関係を保つ明示整理、複数merge base、通常VM model |
 | parser | literal, satisfy, map, pair, orElse, cut, repeat, lookAhead, verify, andThen, spanned, chainLeft/Right | finite Bytes、原文範囲、pure callback、結合方向と上限 |
 | orderedMap | create, put, get, remove, first/last, popFirst/Last, touch, keys, clear | 挿入順、既存key更新は位置保持、再挿入は末尾 |
+| table | builder, addInts/Floats/Texts/Bools (+Nullable), build, select, dropColumns, rename, head, slice, batch, where, takeRows, mask*, isNull, with*, map*, cast, floatArray, intArray, withFloatArray, cell, ints/floats/texts/bools, nullCount | 型付き列（Int/Float/Text/Bool）とNULL maskを持つ不変table。最大100万行・256列。列の選択/改名/削除はデータを共有し、行操作は残す行×列を一度copyする。numeric kernelへはfloatArray/intArrayで渡す |
 | textIndex | Source, ByteOffset, ScalarIndex, GraphemeIndex, create, byteAt/scalarAt/graphemeAt, sliceBytes/Scalars/Graphemes | 原文と境界表の保持、明示的な位置変換、別原文の範囲を拒否 |
 | lens | create, get, set, modify, compose, optional, plan, apply, inverse, checkLaws | Share値のtyped path、検査付き更新、欠損保持、有限例の法則確認 |
 | persistentSet | create, root, same, size, components, unite, uniteMany | 複数の不変版、union-by-size、既存native配列の共有page |

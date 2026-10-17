@@ -1,0 +1,472 @@
+// A small columnar table (DATA-02). Values are immutable: every operation returns a new Table and
+// never edits one in place. Columns are typed (Int, Float, Text, Bool), may hold NULL (kept in a
+// separate validity mask, so a NULL is never confused with 0, 0.0, "" or false), and are stored as
+// frozen lists, so selecting, renaming or dropping columns shares the column data instead of copying it.
+// Limits: 1,000,000 rows, 256 columns, column names of 1..128 bytes (unique, case sensitive).
+// Row operations (head, slice, where, takeRows) copy the kept cells once per column: O(rows kept * columns).
+import number as number;
+import numeric as numeric;
+pub enum Kind {Int,Float,Text,Bool}
+pub enum Cell {Null,Int(Int),Float(Float),Text(String),Bool(Bool)}
+pub record TableError {code:String,name:String}
+enum Data {Ints(Frozen<List<Int>>),Floats(Frozen<List<Float>>),Texts(Frozen<List<String>>),Bools(Frozen<List<Bool>>)}
+record Column {name:String,data:Data,valid:Option<Frozen<List<Bool>>>}
+pub record Table {private columns:Frozen<List<Column>>,private index:Frozen<Map<String,Int>>,private rows:Int}
+pub struct Builder {private columns:List<Column>,private seen:Map<String,Bool>,private rows:Int}
+
+fn fail<T:Share>(code:String,name:String)->Result<T,TableError> effects {} {return Err(TableError(code,name));}
+
+fn fromColumns(columns:List<Column>,rows:Int)->Table effects {} {
+    let index=Map<String,Int>();
+    for i in 0..columns.len() {index.set(columns.get(i).name,i);}
+    return Table(freeze(move columns),freeze(move index),rows);
+}
+// @api builder cost O(1). An empty builder; columns are added with the add* functions and fixed by build.
+pub fn builder()->Builder effects {} {return Builder(List<Column>(),Map<String,Bool>(),-1);}
+
+fn dataLength(data:Data)->Int effects {} {
+    match data {
+        Data::Ints(v)=>{return v.len();},
+        Data::Floats(v)=>{return v.len();},
+        Data::Texts(v)=>{return v.len();},
+        Data::Bools(v)=>{return v.len();}
+    }
+}
+fn push(builder:&mut Builder,name:String,data:Data,valid:Option<Frozen<List<Bool>>>)->Result<Unit,TableError> effects {} {
+    if name.byteLen()<1 || name.byteLen()>128 {return Err(TableError("BadName",name));}
+    if builder.columns.len()>=256 {return Err(TableError("TooManyColumns",name));}
+    let length=dataLength(data);
+    if length>1000000 {return Err(TableError("TooManyRows",name));}
+    match builder.seen.get(name) {Some(_)=>{return Err(TableError("DuplicateName",name));},None=>{}}
+    if builder.rows>=0 && builder.rows!=length {return Err(TableError("LengthMismatch",name));}
+    builder.rows=length;
+    builder.seen.set(name,true);
+    builder.columns.add(Column(name,data,valid));
+    return Ok(());
+}
+fn validOf<T:Share>(values:&List<Option<T>>)->Option<Frozen<List<Bool>>> effects {} {
+    let mask=List<Bool>();var any=false;
+    for i in 0..values.len() {
+        match values.get(i) {Some(_)=>{mask.add(true);},None=>{mask.add(false);any=true;}}
+    }
+    if any {return Some(freeze(move mask));}
+    return None;
+}
+// @api addInts cost O(rows). Appends a column without NULLs; the first column fixes the row count.
+pub fn addInts(b:&mut Builder,name:String,values:&List<Int>)->Result<Unit,TableError> effects {} {
+    let copy=List<Int>();for i in 0..values.len() {copy.add(values.get(i));}
+    return push(b,name,Data::Ints(freeze(move copy)),None);
+}
+// @api addFloats cost O(rows). Like addInts for Float.
+pub fn addFloats(b:&mut Builder,name:String,values:&List<Float>)->Result<Unit,TableError> effects {} {
+    let copy=List<Float>();for i in 0..values.len() {copy.add(values.get(i));}
+    return push(b,name,Data::Floats(freeze(move copy)),None);
+}
+// @api addTexts cost O(rows). Like addInts for Text.
+pub fn addTexts(b:&mut Builder,name:String,values:&List<String>)->Result<Unit,TableError> effects {} {
+    let copy=List<String>();for i in 0..values.len() {copy.add(values.get(i));}
+    return push(b,name,Data::Texts(freeze(move copy)),None);
+}
+// @api addBools cost O(rows). Like addInts for Bool.
+pub fn addBools(b:&mut Builder,name:String,values:&List<Bool>)->Result<Unit,TableError> effects {} {
+    let copy=List<Bool>();for i in 0..values.len() {copy.add(values.get(i));}
+    return push(b,name,Data::Bools(freeze(move copy)),None);
+}
+// @api addNullableInts cost O(rows). None becomes NULL; the stored filler under a NULL is never readable.
+pub fn addNullableInts(b:&mut Builder,name:String,values:&List<Option<Int>>)->Result<Unit,TableError> effects {} {
+    let copy=List<Int>();
+    for i in 0..values.len() {match values.get(i) {Some(v)=>{copy.add(v);},None=>{copy.add(0);}}}
+    return push(b,name,Data::Ints(freeze(move copy)),validOf(values));
+}
+// @api addNullableFloats cost O(rows). Like addNullableInts for Float.
+pub fn addNullableFloats(b:&mut Builder,name:String,values:&List<Option<Float>>)->Result<Unit,TableError> effects {} {
+    let copy=List<Float>();
+    for i in 0..values.len() {match values.get(i) {Some(v)=>{copy.add(v);},None=>{copy.add(0.0);}}}
+    return push(b,name,Data::Floats(freeze(move copy)),validOf(values));
+}
+// @api addNullableTexts cost O(rows). Like addNullableInts for Text.
+pub fn addNullableTexts(b:&mut Builder,name:String,values:&List<Option<String>>)->Result<Unit,TableError> effects {} {
+    let copy=List<String>();
+    for i in 0..values.len() {match values.get(i) {Some(v)=>{copy.add(v);},None=>{copy.add("");}}}
+    return push(b,name,Data::Texts(freeze(move copy)),validOf(values));
+}
+// @api addNullableBools cost O(rows). Like addNullableInts for Bool.
+pub fn addNullableBools(b:&mut Builder,name:String,values:&List<Option<Bool>>)->Result<Unit,TableError> effects {} {
+    let copy=List<Bool>();
+    for i in 0..values.len() {match values.get(i) {Some(v)=>{copy.add(v);},None=>{copy.add(false);}}}
+    return push(b,name,Data::Bools(freeze(move copy)),validOf(values));
+}
+// @api build cost O(columns). Freezes the columns; a builder without columns gives an empty table with zero rows.
+pub fn build(b:Builder)->Table effects {} {
+    let rows=if b.rows<0 {0} else {b.rows};
+    return fromColumns(move b.columns,rows);
+}
+
+// @api rowCount cost O(1).
+pub fn rowCount(t:&Table)->Int effects {} {return t.rows;}
+// @api columnCount cost O(1).
+pub fn columnCount(t:&Table)->Int effects {} {return t.columns.len();}
+fn column(t:&Table,i:Int)->Column effects {} {return thaw(t.columns.get(i));}
+// @api columnNames cost O(columns).
+pub fn columnNames(t:&Table)->List<String> effects {} {
+    let names=List<String>();
+    for i in 0..t.columns.len() {names.add(column(t,i).name);}
+    return names;
+}
+fn find(t:&Table,name:String)->Option<Int> effects {} {
+    match thaw(t.index.get(name)) {Some(i)=>{return Some(i);},None=>{return None;}}
+}
+fn lookup(t:&Table,name:String)->Result<Column,TableError> effects {} {
+    match find(t,name) {Some(i)=>{return Ok(column(t,i));},None=>{return Err(TableError("UnknownColumn",name));}}
+}
+// @api hasColumn cost O(1) after the name index lookup.
+pub fn hasColumn(t:&Table,name:String)->Bool effects {} {
+    match find(t,name) {Some(_)=>{return true;},None=>{return false;}}
+}
+// @api kindOf cost O(1).
+pub fn kindOf(t:&Table,name:String)->Result<Kind,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Ints(_)=>{return Ok(Kind::Int);},
+        Data::Floats(_)=>{return Ok(Kind::Float);},
+        Data::Texts(_)=>{return Ok(Kind::Text);},
+        Data::Bools(_)=>{return Ok(Kind::Bool);}
+    }
+}
+fn isValid(c:Column,row:Int)->Bool effects {} {
+    match c.valid {Some(mask)=>{return mask.get(row);},None=>{return true;}}
+}
+// @api nullCount cost O(rows).
+pub fn nullCount(t:&Table,name:String)->Result<Int,TableError> effects {} {
+    let c=lookup(t,name)?;
+    var count=0;
+    for i in 0..t.rows {if !isValid(c,i) {count+=1;}}
+    return Ok(count);
+}
+// @api cell cost O(columns). The Cell is Null for a NULL; the row must be inside 0..rowCount.
+pub fn cell(t:&Table,row:Int,name:String)->Result<Cell,TableError> effects {} {
+    let c=lookup(t,name)?;
+    if row<0 || row>=t.rows {return Err(TableError("OutOfRange",name));}
+    if !isValid(c,row) {return Ok(Cell::Null);}
+    match c.data {
+        Data::Ints(v)=>{return Ok(Cell::Int(v.get(row)));},
+        Data::Floats(v)=>{return Ok(Cell::Float(v.get(row)));},
+        Data::Texts(v)=>{return Ok(Cell::Text(v.get(row)));},
+        Data::Bools(v)=>{return Ok(Cell::Bool(v.get(row)));}
+    }
+}
+fn requireDense(c:Column,rows:Int)->Result<Unit,TableError> effects {} {
+    for i in 0..rows {if !isValid(c,i) {return Err(TableError("NullValue",c.name));}}
+    return Ok(());
+}
+// @api ints cost O(rows). Fails with NullValue when the column holds a NULL, and with TypeMismatch for another kind.
+pub fn ints(t:&Table,name:String)->Result<List<Int>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Ints(v)=>{
+            requireDense(c,t.rows)?;
+            let out=List<Int>();for i in 0..v.len() {out.add(v.get(i));}
+            return Ok(out);
+        },
+        _=>{return Err(TableError("TypeMismatch",name));}
+    }
+}
+// @api floats cost O(rows). Like ints for Float.
+pub fn floats(t:&Table,name:String)->Result<List<Float>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Floats(v)=>{
+            requireDense(c,t.rows)?;
+            let out=List<Float>();for i in 0..v.len() {out.add(v.get(i));}
+            return Ok(out);
+        },
+        _=>{return Err(TableError("TypeMismatch",name));}
+    }
+}
+// @api texts cost O(rows). Like ints for Text.
+pub fn texts(t:&Table,name:String)->Result<List<String>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Texts(v)=>{
+            requireDense(c,t.rows)?;
+            let out=List<String>();for i in 0..v.len() {out.add(v.get(i));}
+            return Ok(out);
+        },
+        _=>{return Err(TableError("TypeMismatch",name));}
+    }
+}
+// @api bools cost O(rows). Like ints for Bool.
+pub fn bools(t:&Table,name:String)->Result<List<Bool>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Bools(v)=>{
+            requireDense(c,t.rows)?;
+            let out=List<Bool>();for i in 0..v.len() {out.add(v.get(i));}
+            return Ok(out);
+        },
+        _=>{return Err(TableError("TypeMismatch",name));}
+    }
+}
+
+// @api select cost O(selected columns * columns). Keeps the listed columns in the listed order and shares their data.
+pub fn select(t:&Table,names:&List<String>)->Result<Table,TableError> effects {} {
+    let out=List<Column>();
+    for i in 0..names.len() {
+        let name=names.get(i);
+        for k in 0..out.len() {if out.get(k).name==name {return Err(TableError("DuplicateName",name));}}
+        out.add(lookup(t,name)?);
+    }
+    return Ok(fromColumns(move out,t.rows));
+}
+// @api dropColumns cost O(columns * dropped names). Removes the listed columns and shares the others.
+pub fn dropColumns(t:&Table,names:&List<String>)->Result<Table,TableError> effects {} {
+    for i in 0..names.len() {let _=lookup(t,names.get(i))?;}
+    let out=List<Column>();
+    for i in 0..t.columns.len() {
+        let c=column(t,i);var dropped=false;
+        for k in 0..names.len() {if names.get(k)==c.name {dropped=true;}}
+        if !dropped {out.add(c);}
+    }
+    return Ok(fromColumns(move out,t.rows));
+}
+// @api rename cost O(columns). Shares all column data; the new name must be unused.
+pub fn rename(t:&Table,from:String,to:String)->Result<Table,TableError> effects {} {
+    if to.byteLen()<1 || to.byteLen()>128 {return Err(TableError("BadName",to));}
+    let _=lookup(t,from)?;
+    if from!=to && hasColumn(t,to) {return Err(TableError("DuplicateName",to));}
+    let out=List<Column>();
+    for i in 0..t.columns.len() {
+        let c=column(t,i);
+        if c.name==from {out.add(Column(to,c.data,c.valid));} else {out.add(c);}
+    }
+    return Ok(fromColumns(move out,t.rows));
+}
+
+fn takeData(data:Data,valid:Option<Frozen<List<Bool>>>,rows:&List<Int>)->Column effects {} {
+    let mask=List<Bool>();var any=false;
+    match valid {
+        Some(m)=>{for i in 0..rows.len() {let ok=m.get(rows.get(i));mask.add(ok);if !ok {any=true;}}},
+        None=>{}
+    }
+    let keep:Option<Frozen<List<Bool>>>=if any {Some(freeze(move mask))} else {None};
+    match data {
+        Data::Ints(v)=>{let out=List<Int>();for i in 0..rows.len() {out.add(v.get(rows.get(i)));}return Column("",Data::Ints(freeze(move out)),keep);},
+        Data::Floats(v)=>{let out=List<Float>();for i in 0..rows.len() {out.add(v.get(rows.get(i)));}return Column("",Data::Floats(freeze(move out)),keep);},
+        Data::Texts(v)=>{let out=List<String>();for i in 0..rows.len() {out.add(v.get(rows.get(i)));}return Column("",Data::Texts(freeze(move out)),keep);},
+        Data::Bools(v)=>{let out=List<Bool>();for i in 0..rows.len() {out.add(v.get(rows.get(i)));}return Column("",Data::Bools(freeze(move out)),keep);}
+    }
+}
+// @api takeRows cost O(rows kept * columns). Rows may repeat and may be reordered; an index outside 0..rowCount fails with OutOfRange.
+pub fn takeRows(t:&Table,rows:&List<Int>)->Result<Table,TableError> effects {} {
+    if rows.len()>1000000 {return Err(TableError("TooManyRows",""));}
+    for i in 0..rows.len() {if rows.get(i)<0 || rows.get(i)>=t.rows {return Err(TableError("OutOfRange",""));}}
+    let out=List<Column>();
+    for i in 0..t.columns.len() {
+        let c=column(t,i);let taken=takeData(c.data,c.valid,rows);
+        out.add(Column(c.name,taken.data,taken.valid));
+    }
+    return Ok(fromColumns(move out,rows.len()));
+}
+// @api slice cost O(length * columns). start+length is clamped to the table; negative start or length fails with OutOfRange.
+pub fn slice(t:&Table,start:Int,length:Int)->Result<Table,TableError> effects {} {
+    if start<0 || length<0 {return Err(TableError("OutOfRange",""));}
+    let rows=List<Int>();var i=start;
+    while i<t.rows && rows.len()<length {rows.add(i);i+=1;}
+    return takeRows(t,&rows);
+}
+// @api head cost O(count * columns). The first rows; same as slice from 0.
+pub fn head(t:&Table,count:Int)->Result<Table,TableError> effects {} {return slice(t,0,count);}
+// @api batch cost O(max * columns). The batch starting at row offset; an empty table is returned past the end, so a loop stops when rowCount of the batch is 0.
+pub fn batch(t:&Table,offset:Int,max:Int)->Result<Table,TableError> effects {} {
+    if max<1 || max>100000 {return Err(TableError("OutOfRange",""));}
+    return slice(t,offset,max);
+}
+// @api where cost O(rows * columns). Keeps the rows whose mask entry is true; the mask length must equal rowCount.
+pub fn where(t:&Table,mask:&List<Bool>)->Result<Table,TableError> effects {} {
+    if mask.len()!=t.rows {return Err(TableError("LengthMismatch",""));}
+    let rows=List<Int>();
+    for i in 0..mask.len() {if mask.get(i) {rows.add(i);}}
+    return takeRows(t,&rows);
+}
+// @api maskInts cost O(rows) calls of test. NULL rows give false, so a filter never keeps a NULL by accident.
+pub fn maskInts(t:&Table,name:String,test:fn(Int)->Bool effects {} captures {Send,Share})->Result<List<Bool>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Ints(v)=>{let out=List<Bool>();for i in 0..t.rows {out.add(isValid(c,i) && test(v.get(i)));}return Ok(out);},
+        _=>{return Err(TableError("TypeMismatch",name));}
+    }
+}
+// @api maskFloats cost O(rows) calls of test. Like maskInts for Float.
+pub fn maskFloats(t:&Table,name:String,test:fn(Float)->Bool effects {} captures {Send,Share})->Result<List<Bool>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Floats(v)=>{let out=List<Bool>();for i in 0..t.rows {out.add(isValid(c,i) && test(v.get(i)));}return Ok(out);},
+        _=>{return Err(TableError("TypeMismatch",name));}
+    }
+}
+// @api maskTexts cost O(rows) calls of test. Like maskInts for Text.
+pub fn maskTexts(t:&Table,name:String,test:fn(String)->Bool effects {} captures {Send,Share})->Result<List<Bool>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Texts(v)=>{let out=List<Bool>();for i in 0..t.rows {out.add(isValid(c,i) && test(v.get(i)));}return Ok(out);},
+        _=>{return Err(TableError("TypeMismatch",name));}
+    }
+}
+// @api maskBools cost O(rows) calls of test. Like maskInts for Bool.
+pub fn maskBools(t:&Table,name:String,test:fn(Bool)->Bool effects {} captures {Send,Share})->Result<List<Bool>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    match c.data {
+        Data::Bools(v)=>{let out=List<Bool>();for i in 0..t.rows {out.add(isValid(c,i) && test(v.get(i)));}return Ok(out);},
+        _=>{return Err(TableError("TypeMismatch",name));}
+    }
+}
+// @api isNull cost O(rows). Mask that is true where the column holds NULL.
+pub fn isNull(t:&Table,name:String)->Result<List<Bool>,TableError> effects {} {
+    let c=lookup(t,name)?;
+    let out=List<Bool>();for i in 0..t.rows {out.add(!isValid(c,i));}
+    return Ok(out);
+}
+
+fn withColumn(t:&Table,c:Column)->Result<Table,TableError> effects {} {
+    if c.name.byteLen()<1 || c.name.byteLen()>128 {return Err(TableError("BadName",c.name));}
+    if dataLength(c.data)!=t.rows {return Err(TableError("LengthMismatch",c.name));}
+    let out=List<Column>();var replaced=false;
+    for i in 0..t.columns.len() {
+        let old=column(t,i);
+        if old.name==c.name {out.add(c);replaced=true;} else {out.add(old);}
+    }
+    if !replaced {
+        if out.len()>=256 {return Err(TableError("TooManyColumns",c.name));}
+        out.add(c);
+    }
+    return Ok(fromColumns(move out,t.rows));
+}
+fn copyInts(values:&List<Int>)->Frozen<List<Int>> effects {} {let c=List<Int>();for i in 0..values.len() {c.add(values.get(i));}return freeze(move c);}
+fn copyFloats(values:&List<Float>)->Frozen<List<Float>> effects {} {let c=List<Float>();for i in 0..values.len() {c.add(values.get(i));}return freeze(move c);}
+fn copyTexts(values:&List<String>)->Frozen<List<String>> effects {} {let c=List<String>();for i in 0..values.len() {c.add(values.get(i));}return freeze(move c);}
+fn copyBools(values:&List<Bool>)->Frozen<List<Bool>> effects {} {let c=List<Bool>();for i in 0..values.len() {c.add(values.get(i));}return freeze(move c);}
+// @api withInts cost O(rows + columns). Adds the column, or replaces the one with that name; the length must equal rowCount.
+pub fn withInts(t:&Table,name:String,values:&List<Int>)->Result<Table,TableError> effects {} {return withColumn(t,Column(name,Data::Ints(copyInts(values)),None));}
+// @api withFloats cost O(rows + columns). Like withInts for Float.
+pub fn withFloats(t:&Table,name:String,values:&List<Float>)->Result<Table,TableError> effects {} {return withColumn(t,Column(name,Data::Floats(copyFloats(values)),None));}
+// @api withTexts cost O(rows + columns). Like withInts for Text.
+pub fn withTexts(t:&Table,name:String,values:&List<String>)->Result<Table,TableError> effects {} {return withColumn(t,Column(name,Data::Texts(copyTexts(values)),None));}
+// @api withBools cost O(rows + columns). Like withInts for Bool.
+pub fn withBools(t:&Table,name:String,values:&List<Bool>)->Result<Table,TableError> effects {} {return withColumn(t,Column(name,Data::Bools(copyBools(values)),None));}
+// @api mapInts cost O(rows) calls of transform. Writes into column `into`; NULL stays NULL and transform never sees a NULL.
+pub fn mapInts(t:&Table,from:String,into:String,transform:fn(Int)->Int effects {} captures {Send,Share})->Result<Table,TableError> effects {} {
+    let c=lookup(t,from)?;
+    match c.data {
+        Data::Ints(v)=>{
+            let out=List<Int>();for i in 0..t.rows {if isValid(c,i) {out.add(transform(v.get(i)));} else {out.add(0);}}
+            return withColumn(t,Column(into,Data::Ints(freeze(move out)),c.valid));
+        },
+        _=>{return Err(TableError("TypeMismatch",from));}
+    }
+}
+// @api mapFloats cost O(rows) calls of transform. Like mapInts for Float.
+pub fn mapFloats(t:&Table,from:String,into:String,transform:fn(Float)->Float effects {} captures {Send,Share})->Result<Table,TableError> effects {} {
+    let c=lookup(t,from)?;
+    match c.data {
+        Data::Floats(v)=>{
+            let out=List<Float>();for i in 0..t.rows {if isValid(c,i) {out.add(transform(v.get(i)));} else {out.add(0.0);}}
+            return withColumn(t,Column(into,Data::Floats(freeze(move out)),c.valid));
+        },
+        _=>{return Err(TableError("TypeMismatch",from));}
+    }
+}
+// @api mapTexts cost O(rows) calls of transform. Like mapInts for Text.
+pub fn mapTexts(t:&Table,from:String,into:String,transform:fn(String)->String effects {} captures {Send,Share})->Result<Table,TableError> effects {} {
+    let c=lookup(t,from)?;
+    match c.data {
+        Data::Texts(v)=>{
+            let out=List<String>();for i in 0..t.rows {if isValid(c,i) {out.add(transform(v.get(i)));} else {out.add("");}}
+            return withColumn(t,Column(into,Data::Texts(freeze(move out)),c.valid));
+        },
+        _=>{return Err(TableError("TypeMismatch",from));}
+    }
+}
+
+fn convert(cell:Cell,to:Kind)->Option<Cell> effects {} {
+    match cell {
+        Cell::Null=>{return Some(Cell::Null);},
+        Cell::Int(n)=>{
+            match to {
+                Kind::Int=>{return Some(cell);},
+                Kind::Float=>{match n.toFloatChecked() {Ok(f)=>{return Some(Cell::Float(f));},Err(_)=>{return None;}}},
+                Kind::Text=>{match number.formatInt(n,10) {Ok(s)=>{return Some(Cell::Text(s));},Err(_)=>{return None;}}},
+                Kind::Bool=>{if n==0 {return Some(Cell::Bool(false));}if n==1 {return Some(Cell::Bool(true));}return None;}
+            }
+        },
+        Cell::Float(f)=>{
+            match to {
+                Kind::Float=>{return Some(cell);},
+                Kind::Int=>{match f.toIntChecked() {Ok(n)=>{return Some(Cell::Int(n));},Err(_)=>{return None;}}},
+                Kind::Text=>{match number.formatFloat(f) {Ok(s)=>{return Some(Cell::Text(s));},Err(_)=>{return None;}}},
+                Kind::Bool=>{return None;}
+            }
+        },
+        Cell::Text(s)=>{
+            match to {
+                Kind::Text=>{return Some(cell);},
+                Kind::Int=>{match number.decimal(s) {Ok(n)=>{return Some(Cell::Int(n));},Err(_)=>{return None;}}},
+                Kind::Float=>{match number.floating(s) {Ok(f)=>{return Some(Cell::Float(f));},Err(_)=>{return None;}}},
+                Kind::Bool=>{if s=="true" {return Some(Cell::Bool(true));}if s=="false" {return Some(Cell::Bool(false));}return None;}
+            }
+        },
+        Cell::Bool(b)=>{
+            match to {
+                Kind::Bool=>{return Some(cell);},
+                Kind::Int=>{return Some(Cell::Int(if b {1} else {0}));},
+                Kind::Text=>{return Some(Cell::Text(if b {"true"} else {"false"}));},
+                Kind::Float=>{return None;}
+            }
+        }
+    }
+}
+// @api cast cost O(rows). An explicit, exact conversion into the column `into`: Int<->Float only when the value is represented exactly, Text parses decimal Int/Float and "true"/"false", Int 0/1 <-> Bool. Any cell that does not convert fails the whole cast with BadCast (the message never contains the cell); NULL stays NULL. Float<->Bool is not defined.
+pub fn cast(t:&Table,from:String,into:String,to:Kind)->Result<Table,TableError> effects {} {
+    let c=lookup(t,from)?;
+    let ints=List<Int>();let floats=List<Float>();let texts=List<String>();let bools=List<Bool>();
+    for row in 0..t.rows {
+        let source=match cell(t,row,from)? {Cell::Null=>{Cell::Null},other=>{other}};
+        match convert(source,to) {
+            None=>{return Err(TableError("BadCast",from));},
+            Some(converted)=>{
+                match converted {
+                    Cell::Null=>{ints.add(0);floats.add(0.0);texts.add("");bools.add(false);},
+                    Cell::Int(n)=>{ints.add(n);},
+                    Cell::Float(f)=>{floats.add(f);},
+                    Cell::Text(s)=>{texts.add(s);},
+                    Cell::Bool(b)=>{bools.add(b);}
+                }
+            }
+        }
+    }
+    match to {
+        Kind::Int=>{return withColumn(t,Column(into,Data::Ints(freeze(move ints)),c.valid));},
+        Kind::Float=>{return withColumn(t,Column(into,Data::Floats(freeze(move floats)),c.valid));},
+        Kind::Text=>{return withColumn(t,Column(into,Data::Texts(freeze(move texts)),c.valid));},
+        Kind::Bool=>{return withColumn(t,Column(into,Data::Bools(freeze(move bools)),c.valid));}
+    }
+}
+
+// @api floatArray cost O(rows). Hands a dense Float column to the numeric kernels as a one-dimensional FloatArray (the cells are copied into the array once). NULLs are refused with NullValue; an empty table fails with NumericError.
+pub fn floatArray(t:&Table,name:String)->Result<FloatArray,TableError> effects {} {
+    let values=floats(t,name)?;
+    let shape=List<Int>();shape.add(t.rows);
+    match numeric.fromFloat(&shape,&values) {Ok(a)=>{return Ok(a);},Err(_)=>{return Err(TableError("NumericError",name));}}
+}
+// @api intArray cost O(rows). Like floatArray for Int.
+pub fn intArray(t:&Table,name:String)->Result<IntArray,TableError> effects {} {
+    let values=ints(t,name)?;
+    let shape=List<Int>();shape.add(t.rows);
+    match numeric.fromInt(&shape,&values) {Ok(a)=>{return Ok(a);},Err(_)=>{return Err(TableError("NumericError",name));}}
+}
+// @api withFloatArray cost O(rows). Adds or replaces a Float column from a one-dimensional array of exactly rowCount elements.
+pub fn withFloatArray(t:&Table,name:String,array:&FloatArray)->Result<Table,TableError> effects {} {
+    match numeric.valuesFloat(array) {
+        Ok(values)=>{return withFloats(t,name,&values);},
+        Err(_)=>{return Err(TableError("NumericError",name));}
+    }
+}

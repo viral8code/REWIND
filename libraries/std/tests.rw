@@ -13,6 +13,7 @@ import stream as stream;
 import collections as collections;
 import math as math;
 import option as option;
+import table as table;
 import json as json;
 import jsonStream as jsonStream;
 import config as config;
@@ -2562,4 +2563,144 @@ test fn option_owned_consumes_the_owner_once() {
     let kept:Option<List<Int>>=Some(List<Int>());
     let gone=option.thenOwned(move kept,|owner:List<Int>|->Option<Int>{return None;});
     assert_eq(gone,None);
+}
+
+
+fn tblPeople()->table.Table effects {} {
+    var b=table.builder();
+    let ids=List<Int>();ids.add(1);ids.add(2);ids.add(3);ids.add(4);
+    let names=List<Option<String>>();names.add(Some("ann"));names.add(None);names.add(Some("cy"));names.add(Some("di"));
+    let ages=List<Option<Int>>();ages.add(Some(30));ages.add(Some(25));ages.add(None);ages.add(Some(41));
+    let score=List<Float>();score.add(1.5);score.add(2.5);score.add(3.5);score.add(4.5);
+    let _a=table.addInts(&mut b,"id",&ids);
+    let _b=table.addNullableTexts(&mut b,"name",&names);
+    let _c=table.addNullableInts(&mut b,"age",&ages);
+    let _d=table.addFloats(&mut b,"score",&score);
+    return table.build(move b);
+}
+fn tblTake<T>(r:Result<List<T>,table.TableError>)->List<T> effects {} {
+    match move r {Ok(v)=>{return move v;},Err(e)=>{panic(e.code);}}
+}
+fn tblTable(r:Result<table.Table,table.TableError>)->table.Table effects {} {
+    match r {Ok(v)=>{return v;},Err(e)=>{panic(e.code);}}
+}
+fn tblRows(r:Result<table.Table,table.TableError>)->Int effects {} {match r {Ok(t)=>{return table.rowCount(&t);},Err(e)=>{panic(e.code);}}}
+fn tblSum(values:List<Int>)->Int effects {} {var n=0;for i in 0..values.len() {n+=values.get(i);}return n;}
+fn tblCode<T>(r:Result<T,table.TableError>)->String effects {} {
+    match r {Ok(_)=>{return "ok";},Err(e)=>{return e.code;}}
+}
+test fn table_builds_and_reads_cells_with_null_kept_apart() {
+    let t=tblPeople();
+    assert_eq(table.rowCount(&t),4);assert_eq(table.columnCount(&t),4);
+    assert_eq(table.columnNames(&t).len(),4);
+    assert_eq(table.cell(&t,0,"name"),Ok(table.Cell::Text("ann")));
+    assert_eq(table.cell(&t,1,"name"),Ok(table.Cell::Null));
+    assert_eq(table.cell(&t,2,"age"),Ok(table.Cell::Null));
+    assert_eq(table.cell(&t,3,"age"),Ok(table.Cell::Int(41)));
+    assert_eq(table.nullCount(&t,"age"),Ok(1));assert_eq(table.nullCount(&t,"id"),Ok(0));
+    assert_eq(tblSum(tblTake(table.ints(&t,"id"))),10);
+    assert_eq(tblCode(table.ints(&t,"age")),"NullValue");
+    assert_eq(tblCode(table.ints(&t,"name")),"TypeMismatch");
+}
+
+test fn table_rejects_bad_shapes_and_names() {
+    var b=table.builder();
+    let two=List<Int>();two.add(1);two.add(2);let one=List<Int>();one.add(1);
+    assert_eq(tblCode(table.addInts(&mut b,"a",&two)),"ok");
+    assert_eq(tblCode(table.addInts(&mut b,"b",&one)),"LengthMismatch");
+    assert_eq(tblCode(table.addInts(&mut b,"a",&two)),"DuplicateName");
+    assert_eq(tblCode(table.addInts(&mut b,"",&two)),"BadName");
+    let t=table.build(move b);
+    assert_eq(table.columnCount(&t),1);
+    assert_eq(tblCode(table.cell(&t,2,"a")),"OutOfRange");
+    assert_eq(tblCode(table.cell(&t,0,"zzz")),"UnknownColumn");
+    assert_eq(table.hasColumn(&t,"a"),true);
+    let empty=table.build(table.builder());
+    assert_eq(table.rowCount(&empty),0);
+}
+test fn table_select_drop_rename_share_the_data() {
+    let t=tblPeople();
+    let names=List<String>();names.add("score");names.add("id");
+    let s=tblTable(table.select(&t,&names));
+    assert_eq(table.columnCount(&s),2);assert_eq(table.rowCount(&s),4);
+    assert_eq(table.cell(&s,0,"id"),Ok(table.Cell::Int(1)));
+    let dup=List<String>();dup.add("id");dup.add("id");
+    assert_eq(tblCode(table.select(&t,&dup)),"DuplicateName");
+    let gone=List<String>();gone.add("name");gone.add("age");
+    let d=tblTable(table.dropColumns(&t,&gone));assert_eq(table.columnCount(&d),2);
+    let missing=List<String>();missing.add("nope");
+    assert_eq(tblCode(table.dropColumns(&t,&missing)),"UnknownColumn");
+    let r=tblTable(table.rename(&t,"id","key"));
+    assert_eq(table.hasColumn(&r,"key"),true);assert_eq(table.hasColumn(&r,"id"),false);
+    assert_eq(tblCode(table.rename(&t,"id","age")),"DuplicateName");
+}
+test fn table_rows_head_slice_where_and_batches() {
+    let t=tblPeople();
+    assert_eq(tblRows(table.head(&t,2)),2);
+    assert_eq(tblRows(table.slice(&t,3,10)),1);
+    assert_eq(tblRows(table.slice(&t,9,10)),0);
+    assert_eq(tblCode(table.slice(&t,-1,2)),"OutOfRange");
+    let big=tblTake(table.maskInts(&t,"id",|n:Int|->Bool{return n>=2;}));
+    let kept=tblTable(table.where(&t,&big));
+    assert_eq(table.rowCount(&kept),3);assert_eq(table.cell(&kept,0,"id"),Ok(table.Cell::Int(2)));
+    assert_eq(table.cell(&kept,0,"name"),Ok(table.Cell::Null));
+    let old=tblTake(table.maskInts(&t,"age",|n:Int|->Bool{return n>=0;}));
+    assert_eq(tblRows(table.where(&t,&old)),3);
+    let short=List<Bool>();short.add(true);
+    assert_eq(tblCode(table.where(&t,&short)),"LengthMismatch");
+    let nulls=tblTake(table.isNull(&t,"name"));assert_eq(tblRows(table.where(&t,&nulls)),1);
+    let order=List<Int>();order.add(3);order.add(0);order.add(0);
+    let picked=tblTable(table.takeRows(&t,&order));
+    assert_eq(table.cell(&picked,1,"id"),Ok(table.Cell::Int(1)));assert_eq(table.rowCount(&picked),3);
+    let bad=List<Int>();bad.add(4);
+    assert_eq(tblCode(table.takeRows(&t,&bad)),"OutOfRange");
+    var offset=0;var seen=0;
+    while true {
+        let page=tblTable(table.batch(&t,offset,3));
+        if table.rowCount(&page)==0 {break;}
+        seen+=table.rowCount(&page);offset+=3;
+    }
+    assert_eq(seen,4);
+}
+test fn table_with_columns_map_and_cast() {
+    let t=tblPeople();
+    let doubled=tblTable(table.mapInts(&t,"age","age2",|n:Int|->Int{return n*2;}));
+    assert_eq(table.cell(&doubled,0,"age2"),Ok(table.Cell::Int(60)));
+    assert_eq(table.cell(&doubled,2,"age2"),Ok(table.Cell::Null));
+    assert_eq(tblCode(table.mapInts(&t,"name","x",|n:Int|->Int{return n;})),"TypeMismatch");
+    let replaced=tblTable(table.mapFloats(&t,"score","score",|f:Float|->Float{return f+1.0;}));
+    assert_eq(table.cell(&replaced,0,"score"),Ok(table.Cell::Float(2.5)));assert_eq(table.columnCount(&replaced),4);
+    let wrong=List<Int>();wrong.add(1);
+    assert_eq(tblCode(table.withInts(&t,"w",&wrong)),"LengthMismatch");
+    let asFloat=tblTable(table.cast(&t,"age","ageF",table.Kind::Float));
+    assert_eq(table.cell(&asFloat,0,"ageF"),Ok(table.Cell::Float(30.0)));assert_eq(table.cell(&asFloat,2,"ageF"),Ok(table.Cell::Null));
+    let asText=tblTable(table.cast(&t,"id","idT",table.Kind::Text));
+    assert_eq(table.cell(&asText,3,"idT"),Ok(table.Cell::Text("4")));
+    let back=tblTable(table.cast(&asText,"idT","idN",table.Kind::Int));
+    assert_eq(table.cell(&back,3,"idN"),Ok(table.Cell::Int(4)));
+    assert_eq(tblCode(table.cast(&t,"name","nameI",table.Kind::Int)),"BadCast");
+    assert_eq(tblCode(table.cast(&t,"score","scoreI",table.Kind::Int)),"BadCast");
+    assert_eq(tblCode(table.cast(&t,"score","scoreB",table.Kind::Bool)),"BadCast");
+}
+test fn table_float_column_feeds_the_numeric_kernels() {
+    let t=tblPeople();
+    let array=match table.floatArray(&t,"score") {Ok(a)=>{a},Err(e)=>{panic(e.code);}};
+    assert_eq(numeric.sum(&array),Ok(12.0));
+    let bigger=match numeric.scale(&array,2.0) {Ok(a)=>{a},Err(_)=>{panic("scale");}};
+    let t2=tblTable(table.withFloatArray(&t,"double",&bigger));
+    assert_eq(table.cell(&t2,1,"double"),Ok(table.Cell::Float(5.0)));
+    assert_eq(tblCode(table.floatArray(&t,"id")),"TypeMismatch");
+}
+test fn table_limits_columns() {
+    var b=table.builder();
+    let one=List<Int>();one.add(1);
+    var made=0;
+    for i in 0..256 {
+        let name=number.formatInt(i,10);
+        match name {Ok(n)=>{let _=table.addInts(&mut b,n,&one);made+=1;},Err(_)=>{}}
+    }
+    assert_eq(made,256);
+    assert_eq(tblCode(table.addInts(&mut b,"extra",&one)),"TooManyColumns");
+    let t=table.build(move b);
+    assert_eq(table.columnCount(&t),256);
 }

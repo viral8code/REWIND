@@ -22,6 +22,8 @@ JSON/CSV/DB/formに散在するfield検証を共通schemaへ寄せる案です�
 
 **受入：** column長不一致、重複名、NULLを検出する。不要なper-cell object化を避ける。小規模入力の開始費用と大入力のmemoryを記録する。
 
+**実装済み（2026-10-17、`std.table`）：** 型付き列（Int/Float/Text/Bool）と別持ちのNULL mask、最大100万行・256列の不変table。`builder`/`add*`/`addNullable*`/`build`、`select`/`dropColumns`/`rename`（列dataは共有）、`head`/`slice`/`batch`/`where`/`takeRows`、`mask*`と`isNull`（NULLは常にfalse）、`with*`/`map*`、厳密な`cast`（Int↔Floatは正確に表せる値のみ、Text↔数値/Bool、Int 0/1↔Bool。失敗は`BadCast`で値を含めない）、`floatArray`/`intArray`/`withFloatArray`によるnumeric kernelとの受け渡し。cell単位のobject化はなく、列は`Frozen<List<..>>`です。数値列がnative page配列を直接共有する形（zero-copy）にはしていません。floatArrayはcopyです。group/aggregate/join（DATA-03）、列の型変換のDecimal/日時、可変table、非ASCII列名の正規化は未実装です。起動費用と大入力のmemoryの測定値は取っていません（PERF計画側）。
+
 ## DATA-03：group/aggregate/join
 
 DATA-02の後続候補です。group keyの型、NULL同士の対応、行順序、安定性、aggregateの空入力、overflowを規定します。joinの多対多による出力増大には明示上限を設けます。
