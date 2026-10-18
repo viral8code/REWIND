@@ -223,27 +223,102 @@ fn text_slice_scalar_boundaries_and_task_failure_metadata() {
 }
 #[test]
 fn language_reference_examples_execute_as_documented() {
-    let reference = include_str!("../docs/language-reference.md").replace("\r\n", "\n");
-    assert_eq!(reference.matches("```rewind\n").count(), 17);
-    for (index, part) in reference.split("```rewind\n").skip(1).enumerate() {
-        let source = part.split("```").next().unwrap();
+    let reference = include_str!("../docs/language-reference.md").replace(
+        "
+", "
+",
+    );
+    let mut blocks: Vec<(String, String)> = Vec::new();
+    let mut current: Option<(String, Vec<&str>)> = None;
+    for line in reference.lines() {
+        match current.take() {
+            None => {
+                if let Some(tag) = line.strip_prefix("```") {
+                    current = Some((tag.trim().to_string(), Vec::new()));
+                }
+            }
+            Some((tag, body)) => {
+                if line.trim_end() == "```" {
+                    blocks.push((
+                        tag,
+                        body.join(
+                            "
+",
+                        ) + "
+",
+                    ));
+                } else {
+                    let mut body = body;
+                    body.push(line);
+                    current = Some((tag, body));
+                }
+            }
+        }
+    }
+    let mut ran = 0;
+    for (index, (tag, source)) in blocks.iter().enumerate() {
+        if !tag.starts_with("rewind") {
+            continue;
+        }
+        ran += 1;
         let path = root();
         fs::write(path.join("main.rw"), source).unwrap();
         let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
             .arg("run")
             .arg(path.join("main.rw"))
-            .args(["--allow-effects", "fileRead,fileWrite"])
+            .args(["--allow-effects", "fileRead,fileWrite,clock,external"])
+            .current_dir(&path)
             .output()
             .unwrap();
-        assert!(
-            output.status.success(),
-            "Reference example {} failed:\n{}\n{}",
-            index + 1,
-            source,
-            String::from_utf8_lossy(&output.stderr)
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout).replace(
+            "
+", "
+",
         );
+        if tag == "rewind" {
+            assert!(
+                output.status.success(),
+                "Reference example {ran} failed:
+{source}
+{stderr}"
+            );
+        } else if let Some(token) = tag.strip_prefix("rewind-error") {
+            assert!(
+                !output.status.success(),
+                "Reference example {ran} should fail:
+{source}"
+            );
+            assert!(
+                stderr.contains(token.trim()),
+                "Reference example {ran} lacks {token}:
+{stderr}"
+            );
+            fs::remove_dir_all(path).unwrap();
+            continue;
+        } else if let Some(code) = tag.strip_prefix("rewind-exit") {
+            let code: i32 = code.trim().parse().unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(code),
+                "Reference example {ran}:
+{source}
+{stderr}"
+            );
+        }
+        if let Some((next, expected)) = blocks.get(index + 1) {
+            if next == "text" {
+                assert_eq!(
+                    stdout.trim_end(),
+                    expected.trim_end(),
+                    "Reference example {ran} output:
+{source}"
+                );
+            }
+        }
         fs::remove_dir_all(path).unwrap();
     }
+    assert!(ran >= 60, "only {ran} runnable examples in the reference");
 }
 #[test]
 fn stack_is_bounded_failure_replay_matches_and_secrets_remain_masked() {

@@ -399,3 +399,24 @@ fn explicit_publish_still_publishes_early() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "one\ntwo\n");
 }
+
+#[test]
+fn const_is_a_declaration_and_usable_from_functions() {
+    let out = run(
+        "const LIMIT: Int = 6 * 7;\nconst NAME: String = \"n\";\nfn twice()->Int effects {} { return LIMIT * 2; }\nfn main()->Int effects {output} { Out.println(LIMIT); Out.println(twice()); Out.println(NAME); return 0; }\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "42\n84\nn\n");
+    // A plain `let` at the top level is still rejected.
+    let out = run("let x = 1;\nfn main()->Int effects {} { return 0; }\n");
+    assert!(stderr(&out).contains("top-level"), "{}", stderr(&out));
+}
+
+#[test]
+fn map_keys_can_be_iterated_with_for() {
+    let out = run(
+        "fn main()->Int effects {output} {\n    let typed = Map<String,Int>();\n    typed.set(\"b\", 2);\n    typed.set(\"a\", 1);\n    for k in typed.keys() { Out.println(k); }\n    let literal = {\"x\": 1, \"y\": 2};\n    for k in literal.keys() { Out.println(k); }\n    let ids = Map<Int,String>();\n    ids.set(7, \"seven\");\n    for k in ids.keys() { Out.println(k + 1); }\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "a\nb\nx\ny\n8\n");
+}

@@ -14418,17 +14418,30 @@ impl<R: BufRead> Engine<R> {
                         .ok_or_else(|| self.fail(at, "unsupported Map key type"))?;
                     Ok(Value::Option(map.get(&key).cloned().map(Box::new)))
                 }
-                ("keys", []) => Ok(Value::List(map.keys().map(MapKey::value).collect())),
+                // A typed list can be iterated with `for`; an untyped one cannot. The key type of
+                // an untyped map is taken from its first key.
+                ("keys", []) => {
+                    let keys: Vec<Value> = map.keys().map(MapKey::value).collect();
+                    Ok(match keys.first() {
+                        Some(first) => {
+                            Value::TypedList(value_type(first, &self.runtime), keys.into())
+                        }
+                        None => Value::List(keys),
+                    })
+                }
                 ("len", []) => Ok(Value::Int(map.len() as i64)),
                 _ => Err(self.fail(at, "unsupported immutable Map method")),
             },
-            Value::TypedMap(_, _, map) => match (method, args.as_slice()) {
+            Value::TypedMap(key_type, _, map) => match (method, args.as_slice()) {
                 ("get", [key]) => {
                     let key = MapKey::from_value(key)
                         .ok_or_else(|| self.fail(at, "unsupported Map key type"))?;
                     Ok(Value::Option(map.get(&key).cloned().map(Box::new)))
                 }
-                ("keys", []) => Ok(Value::List(map.keys().map(MapKey::value).collect())),
+                ("keys", []) => Ok(Value::TypedList(
+                    key_type,
+                    map.keys().map(MapKey::value).collect::<Vec<_>>().into(),
+                )),
                 ("len", []) => Ok(Value::Int(map.len() as i64)),
                 _ => Err(self.fail(at, "unsupported immutable Map method")),
             },
@@ -14720,7 +14733,10 @@ impl<R: BufRead> Engine<R> {
                                 .heap_set(id, Value::TypedMap(key_ty, value_ty, map))?;
                             Ok(unit)
                         }
-                        ("keys", []) => Ok(Value::List(map.keys().map(MapKey::value).collect())),
+                        ("keys", []) => Ok(Value::TypedList(
+                            key_ty,
+                            map.keys().map(MapKey::value).collect::<Vec<_>>().into(),
+                        )),
                         ("len", []) => Ok(Value::Int(map.len() as i64)),
                         _ => Err(self.fail(at, "unsupported Map method")),
                     },
@@ -14764,7 +14780,15 @@ impl<R: BufRead> Engine<R> {
                             self.runtime.heap_set(id, Value::Map(map))?;
                             Ok(unit)
                         }
-                        ("keys", []) => Ok(Value::List(map.keys().map(MapKey::value).collect())),
+                        ("keys", []) => {
+                            let keys: Vec<Value> = map.keys().map(MapKey::value).collect();
+                            Ok(match keys.first() {
+                                Some(first) => {
+                                    Value::TypedList(value_type(first, &self.runtime), keys.into())
+                                }
+                                None => Value::List(keys),
+                            })
+                        }
                         ("len", []) => Ok(Value::Int(map.len() as i64)),
                         _ => Err(self.fail(at, "unsupported Map method")),
                     },
