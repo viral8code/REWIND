@@ -17,6 +17,7 @@ import table as table;
 import layout as layout;
 import evaluation as evaluation;
 import compress as compress;
+import image as imageLib;
 import json as json;
 import jsonStream as jsonStream;
 import config as config;
@@ -2975,6 +2976,88 @@ test fn lib_audit_overflow_and_range_are_reported_not_wrapped() {
     assert_eq(sequence.rotate(&v,-9223372036854775807-1).len(),3);
     let pairs=List<Tuple<Int,Int>>();pairs.add((0,0));pairs.add((5,0));
     assert(auditFailed(matching.maximum(2,2,&pairs)));assert(auditFailed(matching.maximum(-1,2,&pairs)));
+}
+fn imgFixturePng()->Bytes effects {} {
+    let l=List<Int>();
+    l.add(137);l.add(80);l.add(78);l.add(71);l.add(13);l.add(10);l.add(26);l.add(10);l.add(0);l.add(0);l.add(0);l.add(13);l.add(73);l.add(72);l.add(68);l.add(82);l.add(0);l.add(0);l.add(0);l.add(4);
+    l.add(0);l.add(0);l.add(0);l.add(5);l.add(8);l.add(2);l.add(0);l.add(0);l.add(0);l.add(237);l.add(207);l.add(218);l.add(140);l.add(0);l.add(0);l.add(0);l.add(10);l.add(116);l.add(69);l.add(88);
+    l.add(116);l.add(67);l.add(111);l.add(109);l.add(109);l.add(101);l.add(110);l.add(116);l.add(0);l.add(104);l.add(105);l.add(162);l.add(162);l.add(88);l.add(102);l.add(0);l.add(0);l.add(0);l.add(46);l.add(73);
+    l.add(68);l.add(65);l.add(84);l.add(120);l.add(156);l.add(99);l.add(96);l.add(224);l.add(149);l.add(82);l.add(53);l.add(178);l.add(247);l.add(10);l.add(79);l.add(201);l.add(175);l.add(233);l.add(100);l.add(140);
+    l.add(206);l.add(40);l.add(85);l.add(133);l.add(1);l.add(166);l.add(104);l.add(36);l.add(192);l.add(188);l.add(109);l.add(239);l.add(225);l.add(3);l.add(7);l.add(14);l.add(56);l.add(128);l.add(1);l.add(11);
+    l.add(80);l.add(0);l.add(174);l.add(12);l.add(0);l.add(70);l.add(68);l.add(18);l.add(94);l.add(74);l.add(42);l.add(109);l.add(221);l.add(0);l.add(0);l.add(0);l.add(0);l.add(73);l.add(69);l.add(78);
+    l.add(68);l.add(174);l.add(66);l.add(96);l.add(130);
+    match stdBytesFromList(&l){Ok(b)=>{return b;},Err(_)=>{panic("fixture");}}
+}
+fn imgFixturePixels()->Bytes effects {} {
+    let l=List<Int>();
+    l.add(0);l.add(13);l.add(26);l.add(37);l.add(50);l.add(63);l.add(74);l.add(87);l.add(100);l.add(111);l.add(124);l.add(137);l.add(91);l.add(104);l.add(117);l.add(128);l.add(141);l.add(154);l.add(165);l.add(178);
+    l.add(191);l.add(202);l.add(215);l.add(228);l.add(182);l.add(195);l.add(208);l.add(219);l.add(232);l.add(245);l.add(0);l.add(13);l.add(26);l.add(37);l.add(50);l.add(63);l.add(17);l.add(30);l.add(43);l.add(54);
+    l.add(67);l.add(80);l.add(91);l.add(104);l.add(117);l.add(128);l.add(141);l.add(154);l.add(108);l.add(121);l.add(134);l.add(145);l.add(158);l.add(171);l.add(182);l.add(195);l.add(208);l.add(219);l.add(232);l.add(245);
+    
+    match stdBytesFromList(&l){Ok(b)=>{return b;},Err(_)=>{panic("fixture");}}
+}
+fn imgTake<T>(r:Result<T,StdError>)->T effects {} {
+    match move r {Ok(v)=>{return move v;},Err(_)=>{panic("image step failed");}}
+}
+fn imgCode<T>(r:Result<T,StdError>)->String effects {} {
+    match move r {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn imgFlip(data:Bytes,at:Int)->Bytes effects {} {
+    let l=List<Int>();
+    for i in 0..bytes.length(data) {
+        let v=imgTake(bytes.get(data,i));
+        if i==at {l.add((v+85)%256);} else {l.add(v);}
+    }
+    match stdBytesFromList(&l){Ok(b)=>{return b;},Err(_)=>{panic("flip");}}
+}
+fn imgPixel(image:&imageLib.Image,x:Int,y:Int)->List<Int> effects {} {
+    match imageLib.pixel(image,x,y) {Ok(v)=>{return v;},Err(_)=>{panic("pixel");}}
+}
+test fn image_decodes_an_independently_written_png_with_every_row_filter() {
+    let decoded=imgTake(imageLib.decodePng(imgFixturePng(),1000));
+    assert_eq(decoded.width,4);assert_eq(decoded.height,5);assert_eq(decoded.channels,3);
+    assert_eq(decoded.pixels,imgFixturePixels());
+    let first=imgPixel(&decoded,0,0);
+    assert_eq(first.len(),3);assert_eq(first.get(0),0);assert_eq(first.get(1),13);assert_eq(first.get(2),26);
+    let last=imgPixel(&decoded,3,4);
+    assert_eq(last.get(0),imgTake(bytes.get(imgFixturePixels(),(4*4+3)*3)));
+}
+test fn image_encode_then_decode_returns_the_same_pixels_for_every_channel_count() {
+    for channels in 1..5 {
+        let list=List<Int>();
+        for i in 0..(6*5*channels) {list.add((i*11+i/7)%256);}
+        let pixels=match stdBytesFromList(&list){Ok(b)=>b,Err(_)=>{panic("pixels");}};
+        let source=imgTake(imageLib.fromPixels(6,5,channels,pixels));
+        let png=imgTake(imageLib.encodePng(&source));
+        assert_eq(imageLib.encodePng(&source),Ok(png));
+        let back=imgTake(imageLib.decodePng(png,30));
+        assert_eq(back.width,6);assert_eq(back.height,5);assert_eq(back.channels,channels);
+        assert_eq(back.pixels,pixels);
+    }
+}
+test fn image_refuses_oversized_truncated_and_damaged_input() {
+    let png=imgFixturePng();
+    assert_eq(imgCode(imageLib.decodePng(png,19)),"Limit");
+    assert_eq(imgCode(imageLib.decodePng(png,20)),"Ok");
+    assert_eq(imgCode(imageLib.decodePng(png,-1)),"Range");
+    assert_eq(imgCode(imageLib.decodePng(png,1048577)),"Range");
+    let n=bytes.length(png);
+    assert_eq(imgCode(imageLib.decodePng(imgTake(bytes.slice(png,0,n-5)),1000)),"Truncated");
+    assert_eq(imgCode(imageLib.decodePng(imgTake(bytes.slice(png,0,4)),1000)),"Truncated");
+    assert_eq(imgCode(imageLib.decodePng(imgFlip(png,60),1000)),"Corrupt");
+    assert_eq(imgCode(imageLib.decodePng(imgFlip(png,n-2),1000)),"Corrupt");
+    assert_eq(imgCode(imageLib.decodePng(Bytes("not a png"),1000)),"Corrupt");
+}
+test fn image_constructors_and_accessors_check_their_bounds() {
+    let three=imgFixturePixels();
+    assert_eq(imgCode(imageLib.fromPixels(4,5,3,three)),"Ok");
+    assert_eq(imgCode(imageLib.fromPixels(4,5,2,three)),"Range");
+    assert_eq(imgCode(imageLib.fromPixels(0,5,3,three)),"Range");
+    assert_eq(imgCode(imageLib.fromPixels(4,5,5,three)),"Range");
+    assert_eq(imgCode(imageLib.fromPixels(16385,1,1,three)),"Limit");
+    let ok=imgTake(imageLib.fromPixels(4,5,3,three));
+    assert_eq(imgCode(imageLib.pixel(&ok,4,0)),"Range");
+    assert_eq(imgCode(imageLib.pixel(&ok,0,-1)),"Range");
 }
 test fn evaluation_shuffle_is_a_reproducible_permutation() {
     let a=evOrder(50,7);let b=evOrder(50,7);let c=evOrder(50,8);

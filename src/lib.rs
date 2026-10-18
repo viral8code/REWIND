@@ -22,6 +22,7 @@ pub mod json_stream;
 pub mod native_resources;
 pub mod network;
 pub mod numeric;
+pub mod png;
 pub mod regular;
 mod replay;
 mod resolver;

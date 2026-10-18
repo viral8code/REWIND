@@ -279,6 +279,8 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdZlibDecompress",
         "stdCrc32",
         "stdAdler32",
+        "stdPngDecode",
+        "stdPngEncode",
         "stdParseInt",
         "stdParseFloat",
         "stdFormatInt",
@@ -763,6 +765,24 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
         "stdCrc32" | "stdAdler32" => match args {
             [Value::Bytes(bytes)] => bytes.len().saturating_mul(2).saturating_add(16),
             _ => 16,
+        },
+        // Decoding is bounded by the pixel limit the caller passes and by the input size (a PNG
+        // cannot inflate to more than ~1032 times its data); encoding filters five ways per row.
+        "stdPngDecode" => match args {
+            [Value::Bytes(bytes), Value::Int(max)] => bytes
+                .len()
+                .saturating_mul(4)
+                .saturating_add(
+                    ((*max).clamp(0, LIMIT as i64) as usize)
+                        .min(bytes.len().saturating_mul(344))
+                        .saturating_mul(8),
+                )
+                .saturating_add(256),
+            _ => 256,
+        },
+        "stdPngEncode" => match args {
+            [Value::Bytes(bytes), ..] => bytes.len().saturating_mul(24).saturating_add(256),
+            _ => 256,
         },
         "stdFormatInt" | "stdFormatFloat" => 128,
         _ => args.iter().map(length).fold(1usize, usize::saturating_add),
@@ -1372,6 +1392,8 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdDeflate" | "stdZlibCompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
         "stdInflate" | "stdZlibDecompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
         "stdCrc32" | "stdAdler32" => (&["Bytes"], "Int"),
+        "stdPngDecode" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdPngEncode" => (&["Bytes", "Int", "Int", "Int"], "Result<Bytes,StdError>"),
         "stdParseInt" => (&["String", "Int"], "Result<Int,StdError>"),
         "stdParseFloat" => (&["String"], "Result<Float,StdError>"),
         "stdFormatInt" => (&["Int", "Int"], "Result<String,StdError>"),
@@ -1391,6 +1413,16 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         ));
     }
     Ok(Some(ret.into()))
+}
+fn png_error(error: rewind::png::PngError) -> (&'static str, usize) {
+    use rewind::png::PngError;
+    match error {
+        PngError::Range => ("Range", 0),
+        PngError::Limit => ("Limit", 0),
+        PngError::Unsupported => ("Unsupported", 0),
+        PngError::Truncated(offset) => ("Truncated", offset),
+        PngError::Corrupt(offset) => ("Corrupt", offset),
+    }
 }
 fn err(code: &str, offset: usize) -> Value {
     Value::Struct(
@@ -1956,6 +1988,46 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                                 Err(("Truncated", e.output.len()))
                             }
                             Err(e) => Err(("Corrupt", e.output.len())),
+                        }
+                    }
+                }
+                "stdPngDecode" => {
+                    let data = bytes(0)?;
+                    let max_pixels = int(1)?;
+                    if max_pixels < 0 || max_pixels as usize > LIMIT {
+                        Err(("Range", 0))
+                    } else if data.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        match rewind::png::decode(data, max_pixels as usize, LIMIT) {
+                            Ok(image) => {
+                                // 9-byte header (width u32 LE, height u32 LE, channels u8), then pixels.
+                                let mut out = Vec::with_capacity(9 + image.pixels.len());
+                                out.extend_from_slice(&(image.width as u32).to_le_bytes());
+                                out.extend_from_slice(&(image.height as u32).to_le_bytes());
+                                out.push(image.channels as u8);
+                                out.extend_from_slice(&image.pixels);
+                                Ok(Value::Bytes(out.into()))
+                            }
+                            Err(e) => Err(png_error(e)),
+                        }
+                    }
+                }
+                "stdPngEncode" => {
+                    let (width, height, channels) = (int(1)?, int(2)?, int(3)?);
+                    if width < 1 || height < 1 || !(1..=4).contains(&channels) {
+                        Err(("Range", 0))
+                    } else {
+                        match rewind::png::encode(
+                            bytes(0)?,
+                            width as usize,
+                            height as usize,
+                            channels as usize,
+                            LIMIT,
+                        ) {
+                            Ok(out) if out.len() > LIMIT => Err(("Limit", 0)),
+                            Ok(out) => Ok(Value::Bytes(out.into())),
+                            Err(e) => Err(png_error(e)),
                         }
                     }
                 }

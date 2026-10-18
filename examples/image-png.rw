@@ -1,0 +1,23 @@
+// Expected output (checked): 4, 3, 3, 12, true on separate lines.
+import std.image as image;
+import std.bytes as bytes;
+fn take<T>(r:Result<T,StdError>)->T effects {} {
+    match move r {Ok(value)=>{return move value;},Err(_)=>{panic("image step failed");}}
+}
+fn main()->Int {
+    // A 4x3 RGB gradient built from bytes, encoded to PNG and decoded again with an explicit
+    // limit on the number of pixels the caller is willing to accept.
+    let list=List<Int>();
+    for i in 0..36 {list.add((i*7)%256);}
+    let pixels=take(stdBytesFromList(&list));
+    let source=take(image.fromPixels(4,3,3,pixels));
+    let png=take(image.encodePng(&source));
+    let decoded=take(image.decodePng(png,12));
+    Out.println(decoded.width);
+    Out.println(decoded.height);
+    Out.println(decoded.channels);
+    Out.println(decoded.width*decoded.height);
+    Out.println(decoded.pixels==pixels);
+    publish;
+    return 0;
+}
