@@ -551,11 +551,10 @@ impl Runtime {
             self.external_entries
                 .try_reserve(1)
                 .map_err(|_| invalid("ExternalAllocation"))?;
-            let mut buffer = Vec::new();
-            buffer
-                .try_reserve_exact(max_result)
-                .map_err(|_| invalid("ExternalAllocation"))?;
-            self.external_buffers.insert(cursor, buffer);
+            // `max_result` is accounted in `external_memory_bytes`; the buffer itself grows with the
+            // serialised result. Committing the whole limit up front (8 MiB for `db.next`) and shrinking
+            // it later left the Windows heap growing by tens of KiB per call.
+            self.external_buffers.insert(cursor, Vec::new());
             self.external_entries.push(Entry {
                 fingerprint,
                 outcome: None,

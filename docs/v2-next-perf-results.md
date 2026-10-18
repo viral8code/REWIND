@@ -119,9 +119,9 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 10,000 cycleは完走させていません（上の傾向では数十分かかる）。原因を切り分けた結果:
 
 1. **時間が回数の約1.6〜2乗**（1000 → 2000回で3.9倍）。`external`操作の結果（journal segment）は`external_entries`として実行中ずっと保持され（`src/external.rs`、上限100万件）、予算確認が全segmentを毎回走査するためです（INSERTだけのloopでも1000 → 2000回で3.2倍）。軽量hashで約1.5〜1.9倍速くなりましたが、O(件数)の走査は残っています。
-2. **peak commitが約20 KiB/cycle増える**。`db.next`を呼ぶ場合だけ増え、`execute`・`query`・`closeCursor`だけでは増えません（`next`を呼ばない変種は約28 MiBで一定）。`closeCursor`の有無・`next`の最大byte指定（1 MiB〜4 MiB）にも依存しません。VM ledger（heap/shared/task）は一定で、**Rustのglobal allocator経由の確保は終了時にほぼ全部解放されている**（確保元の追跡で残存1件）ため、Rust側の生存データではなく、allocatorの断片化かSQLite/CRT側の確保が疑わしい状態です。原因は未特定。
+2. **peak commitが約20 KiB/cycle増える（原因特定・修正済み）**。`db.next`だけで増えたのは、非同期external開始時（`begin_async_external`、`src/external.rs`）に`max_result`分のバッファを`try_reserve_exact`で実確保していたためです。`db.next`の予約は8 MiBで、完了時に`shrink_to_fit`で縮めます。この8 MiBの確保・縮小の繰り返しでWindowsのheapが回ごとに伸びていました（他のdb操作は64 KiB予約なので目立たない）。切り分け: SQLite worker単体（`Command::Execute`/`Query`/`Next`/`CloseCursor`を4,000回、`next`有り・無し）はpeak commit 2.1 MiBで一定だったため、SQLite/CRT側ではありません。予約は`external_memory_bytes`の会計に残し、バッファ自体は結果に応じて伸ばす形にしました（`Vec::new()`）。結果上限は書き込み側の`Bounded`が従来どおり守ります。修正後の`sqlite_cycle`のpeak commitは250 / 500 / 1000回で29.3 / 29.2 / 29.1 MiBの一定（修正前37.1 / 42.9 / 53.5 MiB）。同じ予約の実確保が同期・live経路（`begin_live_external`、`src/external.rs`の2か所）にも残っていますが、今回は測定していません。
 
-どちらも今回は直していません（次の作業を参照）。`external_entries`は`revert`/replayのために必要な台帳で、走査を減らす変更はreplay契約に触れるため、別の設計確認が必要です。
+項目1は今回直していません（次の作業を参照）。`external_entries`は`revert`/replayのために必要な台帳で、走査を減らす変更はreplay契約に触れるため、別の設計確認が必要です。
 
 ## 未実施・未確認
 
@@ -132,6 +132,6 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 ## 次の作業（候補）
 
 1. **external台帳の走査（PERF-05）**：予算確認で全journal segmentを毎回走査しない。追加専用の台帳の合計をキャッシュし、spill時だけ全走査にする案。replay契約とsegmentの重複計上を確認してから。
-2. **`db.next`のnative側の増加**：SQLite/CRT側かallocator断片化かを、`next`を呼ぶ最小のRust単体で切り分ける。
+2. **同期・live経路の予約バッファ**：`src/external.rs`の同じ`try_reserve_exact`を、会計だけ残す形にするか検討する。
 3. **VM命令あたりの費用**：現在も空loopで約6 µs/反復。残りは`enforce_budget`の全状態走査が中心（globals・heap・stack・frameを毎回集計）。増分化には予算の失敗原子性の設計確認が必要。
 4. **`valuesFloat`**：要素ごとのメタデータ計算を、型付きscalar listではまとめて行う。
