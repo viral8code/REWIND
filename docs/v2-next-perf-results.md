@@ -183,3 +183,9 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 
 VM命令あたりの費用は、現在も空ループで約8 µs/反復（変更前の約27 µs）です。sampling profile（約3.8万sample）は、予算確認の全状態集計（約30%）、確保・解放（約20%）、命令dispatch本体（約15%）に分散していて、単独で大きい箇所は残っていません。これ以上の短縮は (a) 予算確認の結果の増分化、(b) 永続heapの一意所有時の破壊的更新、(c) `Op`の文字列のArc化、のいずれかが必要です。(a)(b)は「失敗時に更新前へ戻る」「checkpointと構造共有しても過去の状態を壊さない」「台帳の登録がnode単位」という既存契約に触れ、全テストで検出できない順序依存を作り得るため、今回は入れていません。(c)は確保を数%減らすだけです。
 
+### debug記録のメモリ内訳（調査のみ・未変更）
+
+1,500 eventの時点で、確保元を追跡してlive分を数えると約7.7 MB（約5 KB/event）で、ほぼ全部が(1) eventごとの`serde_json::json!`のObject（`task`・`pc`・`operation`・`source`・`line`・`column`）と、(2) `index_state`が積む差分（`debug_deltas`）でした。保存したJSONは約400 B/eventなので、`Value`の木（BTreeMapのnodeと文字列確保）が約12倍に膨らんでいます。実測のpeak working set（約18 KB/event）は、これに`inspection()`が毎event作る全状態JSONの一時領域とallocatorの保持が加わった値です。
+
+変更しなかった理由：eventは再生時に`replay["events"][i]`と`Value`で比較され、差分は`mask_debug_json`が`Value`木全体でsecretを伏せてから出力されるため、直列化済み文字列で保持するには比較・伏せ字処理・trace組立ての3箇所を作り替える必要があります（`serde_json`の`raw_value`機能で埋め込む案）。16 MiBのindex上限で頭打ちになるdebug専用の経路なので、効果に対して回帰の危険が大きいと判断しました。
+
