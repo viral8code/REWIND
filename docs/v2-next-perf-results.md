@@ -155,3 +155,23 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 
 保持checkpoint 100個で空ループ10万回が約8秒（0個で1秒）だった原因は2つでした。(1) VMの1命令ごとに、全snapshotのscheduler保持量（16 MiB上限の確認）を再計算していた。snapshotは保存後に変更されないので、snapshotごとに1回だけ計算して保持。(2) 予算確認が各checkpointのstateについて5つのArcをhash集合へ入れ直していた。直前のcheckpointと同じ参照なら集合を引かない。結果は同一で、100個の場合 4.7 秒 → 2.4 秒（スカラー補正の前は8.2秒）。117本のテストが通過。
 
+## Linux（WSL2 Ubuntu 24.04）での確認
+
+同じmachine上のWSL2（ext4上のclone、`cargo build --release`、rustc 1.98.1）で、変更前（`a56c22f`）と現在のHEADを、既存の`scripts/benchmark-*.py`（`REWIND_STANDALONE_LANGUAGE=auto`）で各5〜7回測りました。中央値、RSSは`wait4`のru_maxrss。WSL2は仮想化されたLinuxで、実機Linuxの値ではありません。
+
+| script / case | 前 s | 後 s | RSS KiB（前→後） |
+|---|---|---|---|
+| numeric-memory churn（2万更新） | 1.208 | 0.685 | 19296 → 19440 |
+| numeric-memory churn_with_checkpoint | 1.356 | 0.704 | 19276 → 19584 |
+| container-admission small_history | 0.103 | 0.061 | 16948 → 16788 |
+| container-admission larger_history | 0.218 | 0.140 | 21764 → 21768 |
+| text-storage short / large / mixed | 0.409 / 0.059 / 0.131 | 0.225 / 0.039 / 0.072 | 14956 / 15360 / 15400 → 15008 / 15276 / 15320 |
+| bytes-admission aliases / ephemeral / longer | 0.426 / 0.058 / 0.199 | 0.313 / 0.040 / 0.129 | 98200 / 98312 / 98312 → 98300 / 98412 / 98412 |
+| gc-pressure（512 KiB×200） | 0.163 | 0.153 | 21784 → 22024 |
+| recording compact | 0.0181 | 0.0128 | 14532 → 14516 |
+| recording debug | 0.521 | 0.526 | 174000 → 174020 |
+
+- Windowsと同じく、時間は約1.3〜1.8倍短縮、RSSは同等です。
+- **task増加の修正もLinuxで確認**：`await`するtaskを2万・4万・8万回回すと、変更前のRSSは15.4 / 15.6 / 17.0 MiB相当（15412 / 15576 / 16984 KiB）と増え、変更後は14932 / 15020 / 15124 KiBでほぼ一定。時間は1.36 / 2.84 / 5.66 秒 → 0.80 / 1.73 / 3.27 秒。
+- `recording debug`だけ変わりません。1000回のloopで0.5秒・174 MB使うのは、debug記録が1命令ごとに情報を残す設計のためで、今回の変更の対象外です（REC-01の課題）。
+
