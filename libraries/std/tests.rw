@@ -3087,6 +3087,21 @@ test fn compress_gunzip_refuses_limit_truncation_damage_and_foreign_formats() {
     assert_eq(cmpCode(compress.gunzip(cmpWith(z,2,7),256)),"Unsupported");
     assert_eq(cmpCode(compress.gunzip(Bytes("plain text, not gzip"),256)),"Corrupt");
 }
+fn auditSum(out:&List<Int>)->Int effects {} {var sum=0;for i in 0..out.len() {sum+=out.get(i);}return sum;}
+test fn lib_audit_sort_and_search_terminate_and_keep_every_element_with_inconsistent_comparators() {
+    let v=List<Int>();var total=0;
+    for i in 0..120 {let x=(i*37)%101;v.add(x);total+=x;}
+    let always=sort.stable(&v,|x:Int,y:Int|->Int{return -1;});
+    let never=sort.stable(&v,|x:Int,y:Int|->Int{return 1;});
+    let huge=sort.stable(&v,|x:Int,y:Int|->Int{if x<y{return -4611686018427387904;}return 4611686018427387904;});
+    assert_eq(auditSum(&always),total);assert_eq(auditSum(&never),total);assert_eq(auditSum(&huge),total);
+    let pairs=List<Int>();for i in 0..60 {pairs.add(i%5*1000+i);}
+    let stable=sort.stable(&pairs,|x:Int,y:Int|->Int{let kx=x/1000;let ky=y/1000;if kx<ky{return -1;}if kx>ky{return 1;}return 0;});
+    for i in 1..60 {let p=stable.get(i-1);let q=stable.get(i);assert(p/1000<q/1000 || p<q);}
+    let empty=List<Int>();
+    assert_eq(search.lowerBound(&empty,1,|x:Int,y:Int|->Int{return 0;}),0);
+    assert_eq(search.upperBound(&empty,1,|x:Int,y:Int|->Int{return 0;}),0);
+}
 test fn evaluation_shuffle_is_a_reproducible_permutation() {
     let a=evOrder(50,7);let b=evOrder(50,7);let c=evOrder(50,8);
     assert_eq(a.len(),50);

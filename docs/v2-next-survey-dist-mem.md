@@ -26,9 +26,9 @@ CIはWindows Server 2022で、回帰テストと配布物の署名・展開・�
 |---|---|
 | zip展開だけで`rewind.exe`が動く | CIで確認済み |
 | source / `.rwc` / record・replay | CIで確認済み |
-| 空白・Unicode path | テストにfixtureあり（実機の対話環境は未確認） |
-| 長いpath（260文字超） | 未確認 |
-| console encoding（CP932など） | 未確認 |
+| 空白・Unicode path | 実Windows（11、2026-10-18）で`C:\Users\...\Temp\rw dist テスト\`のcompile・run（source/`.rwc`）・record・replayを確認。出力はUTF-8のbyte列（`E6 97 A5 E6 9C AC E8 AA 9E`）|
+| 長いpath（260文字超） | 実Windowsで343文字のdirectory（50文字×6階層）のcompileとrun（`\\?\`付きと無しの両方）を確認 |
+| console encoding（CP932など） | stdoutをfileへ回すとconsole codepageによらずUTF-8で出る点は確認。対話consoleでの表示（CP932の文字化け有無）は未確認 |
 | GUI（Win32） | CIでfixtureのみ。実デスクトップ表示は未確認 |
 | HTTPS/TLS証明書、PostgreSQL | 実Windowsでの接続は未確認 |
 
