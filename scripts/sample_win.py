@@ -80,6 +80,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, default=30)
     ap.add_argument("--interval-ms", type=float, default=2.0)
+    ap.add_argument("--main-only", action="store_true", help="sample only the first (main) thread; many more samples per second")
     ap.add_argument("--lines", action="store_true", help="group by source line instead of function")
     ap.add_argument("cmd", nargs=argparse.REMAINDER)
     a = ap.parse_args()
@@ -89,10 +90,16 @@ def main():
     dbg.SymSetOptions(0x2 | 0x10 | 0x1000)  # UNDNAME | LOAD_LINES | ... (no deferred)
     time.sleep(0.05)
     dbg.SymInitialize(hproc, ctypes.c_char_p(os.path.dirname(os.path.abspath(cmd[0])).encode()), True)
-    base = 0
+    psapi = ctypes.WinDLL("psapi", use_last_error=True)
+    mods = (ctypes.c_void_p * 8)()
+    need = wintypes.DWORD(0)
+    psapi.EnumProcessModules.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    psapi.EnumProcessModules(hproc, ctypes.byref(mods), ctypes.sizeof(mods), ctypes.byref(need))
+    base = mods[0] or 0
     buf = ctypes.create_string_buffer(1232 + 16)
     addr = (ctypes.addressof(buf) + 15) & ~15
     counts = collections.Counter()
+    raw = collections.Counter()
     total = 0
     sym = SYMBOL_INFO()
     sym.SizeOfStruct = 88
@@ -101,9 +108,14 @@ def main():
     line.SizeOfStruct = ctypes.sizeof(line)
     cache = {}
     tids = []
+    iteration = 0
     t0 = time.time()
     while p.poll() is None:
-        tids = threads(p.pid) or tids
+        if not tids or iteration % 200 == 0:
+            tids = threads(p.pid) or tids
+        iteration += 1
+        if a.main_only and tids:
+            tids = [min(tids)]
         for tid in tids:
             h = k32.OpenThread(THREAD_ALL, False, tid)
             if not h:
@@ -114,26 +126,34 @@ def main():
                 if k32.GetThreadContext(h, addr):
                     rip = ctypes.c_uint64.from_address(addr + 248).value
                     k32.ResumeThread(h)
-                    key = rip
-                    if key not in cache:
-                        d = ctypes.c_uint64(0)
-                        name = "?"
-                        if dbg.SymFromAddr(hproc, rip, ctypes.byref(d), ctypes.byref(sym)):
-                            name = sym.Name.decode(errors="replace")[:90]
-                        ln = ""
-                        dd = wintypes.DWORD(0)
-                        if dbg.SymGetLineFromAddr64(hproc, rip, ctypes.byref(dd), ctypes.byref(line)) and line.FileName:
-                            ln = line.FileName.decode(errors="replace").replace("\\", "/").split("REWIND/")[-1].split("/library/")[-1] + ":" + str(line.LineNumber)
-                        cache[key] = (name, ln)
-                    name, ln = cache[key]
-                    if name.startswith(("NtWait", "ZwWait", "NtDelay")):
-                        continue
-                    counts[ln if a.lines else name] += 1
+                    raw[rip] += 1
                     total += 1
                 else:
                     k32.ResumeThread(h)
             k32.CloseHandle(h)
         time.sleep(a.interval_ms / 1000)
+    k32.GetCurrentProcess.restype = wintypes.HANDLE
+    hself = k32.GetCurrentProcess()
+    dbg.SymCleanup.argtypes = [wintypes.HANDLE]
+    dbg.SymCleanup(hproc)
+    dbg.SymInitialize(hself, ctypes.c_char_p(os.path.dirname(os.path.abspath(cmd[0])).encode()), False)
+    loaded = dbg.SymLoadModuleEx(hself, None, os.path.abspath(cmd[0]).encode(), None, base, os.path.getsize(cmd[0]), None, 0)
+    if not loaded:
+        print('SymLoadModuleEx failed', ctypes.get_last_error(), file=sys.stderr)
+    hproc = hself
+    for rip, n in raw.items():
+        d = ctypes.c_uint64(0)
+        name = "?"
+        if dbg.SymFromAddr(hproc, rip, ctypes.byref(d), ctypes.byref(sym)):
+            name = sym.Name.decode(errors="replace")[:90]
+        ln = ""
+        dd = wintypes.DWORD(0)
+        if dbg.SymGetLineFromAddr64(hproc, rip, ctypes.byref(dd), ctypes.byref(line)) and line.FileName:
+            ln = line.FileName.decode(errors="replace").replace("\\", "/").split("REWIND/")[-1].split("/library/")[-1] + ":" + str(line.LineNumber)
+        if name.startswith(("NtWait", "ZwWait", "NtDelay")):
+            total -= n
+            continue
+        counts[ln if a.lines else name] += n
     print(f"samples={total} wall={time.time()-t0:.2f}s base={base:#x}")
     for k, v in counts.most_common(a.top):
         print(f"{100*v/total:5.1f}%  {v:6d}  {k}")

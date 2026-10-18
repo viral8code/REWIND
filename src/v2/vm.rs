@@ -1584,6 +1584,24 @@ struct VmSnapshot {
     scheduler_bytes: std::cell::Cell<Option<usize>>,
 }
 
+/// Static name for the scalar types whose declared and runtime type strings are identical.
+fn scalar_type_name(ty: &str) -> Option<&'static str> {
+    match ty {
+        "Int" => Some("Int"),
+        "Float" => Some("Float"),
+        "Bool" => Some("Bool"),
+        _ => None,
+    }
+}
+fn scalar_type_name_of(value: &Value) -> Option<&'static str> {
+    match value {
+        Value::Int(_) => Some("Int"),
+        Value::Float(_) => Some("Float"),
+        Value::Bool(_) => Some("Bool"),
+        _ => None,
+    }
+}
+
 fn gc_scope_roots(scopes: &[BTreeMap<String, Binding>], out: &mut Vec<Value>) {
     out.extend(
         scopes
@@ -2667,24 +2685,30 @@ impl<R: BufRead> Vm<R> {
         Ok(())
     }
     fn store(&mut self, name: &str, op: &str, rhs: Value, at: &Tok) -> Result<()> {
-        let old = self
-            .get(name)
-            .cloned()
-            .ok_or_else(|| self.error(at, format!("unknown variable {name}")))?;
-        if !old.mutable {
+        // Only the mutable flag, the value and (for the common scalar case) a static type name
+        // are needed; avoid cloning the binding's type string on every assignment.
+        let (mutable, old_value, declared_scalar) = match self.get(name) {
+            Some(b) => (b.mutable, b.value.clone(), scalar_type_name(&b.ty)),
+            None => return Err(self.error(at, format!("unknown variable {name}"))),
+        };
+        if !mutable {
             return Err(self.error(at, format!("cannot assign to let binding {name}")));
         }
         let mut value = if op == "=" {
             rhs
         } else {
-            unflow(binary(&op[..1], self.resolve(&old.value), rhs, at), at)?
+            unflow(binary(&op[..1], self.resolve(&old_value), rhs, at), at)?
         };
-        let actual = value_type(&value, &self.engine.runtime);
-        if !compatible(&old.ty, &actual) {
-            return Err(self.error(
-                at,
-                format!("type mismatch: expected {}, found {actual}", old.ty),
-            ));
+        // Same-type scalar stores are always compatible; skip building the type string.
+        if declared_scalar.is_none() || declared_scalar != scalar_type_name_of(&value) {
+            let actual = value_type(&value, &self.engine.runtime);
+            let declared = self.get(name).map(|b| b.ty.clone()).unwrap_or_default();
+            if !compatible(&declared, &actual) {
+                return Err(self.error(
+                    at,
+                    format!("type mismatch: expected {declared}, found {actual}"),
+                ));
+            }
         }
         if let Some((id, lease)) = self.engine.runtime.claim_native(&mut value)? {
             if let Some(frame) = self.frames.last_mut() {
@@ -2705,7 +2729,7 @@ impl<R: BufRead> Vm<R> {
                 self.global_cleanups.push(Cleanup::Native(id, lease, depth));
             }
         }
-        let previous = self.resolve(&old.value);
+        let previous = self.resolve(&old_value);
         if let Some((id, lease)) = rewind::native_resources::token(&previous) {
             if self.engine.runtime.native_owner_matches(id, lease)
                 && rewind::native_resources::token(&value) != Some((id, lease))
@@ -2714,7 +2738,7 @@ impl<R: BufRead> Vm<R> {
                 self.engine.runtime.forget_native_owner(id);
             }
         }
-        if let Value::CellRef(id) = old.value {
+        if let Value::CellRef(id) = old_value {
             self.engine.runtime.heap_set(id, value)?;
             return Ok(());
         }
