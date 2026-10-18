@@ -193,7 +193,7 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 | PERF-02 | 一部測定済 | Windowsで主要9 caseを前後比較（[記録](v2-next-perf-results.md)）。Linux・GUI・HTTP・PostgreSQL・IO-01・SCHED-01は未測定 |
 | PERF-03 | 測定済・1件修正 | 固定rootの繰返しで説明のつかない増加は、スケジュール記録の無制限増加1件のみ（修正済み）。ledgerは回数に比例しない |
 | PERF-04 | 3件改善済 | VM命令あたりの確保削減、非連続viewの走査、スケジュール記録。残り：予算確認の全状態走査、external台帳の走査（[記録](v2-next-perf-results.md)） |
-| PERF-05 | 一部実施 | VM/数値/task/checkpoint/recordは10,000 cycle以上で一定。SQLite loopは未達（時間が回数の約2乗、`db.next`ごとに約20 KiB増。原因未特定） |
+| PERF-05 | 一部実施（ローカルの主要経路は完了） | VM/数値/task/checkpoint/recordは10,000 cycle以上で一定。SQLite loopも10,000 cycle完走（14秒、回数に比例。external台帳分の約1.2 KiB/cycleは設計どおり）。GUI・HTTP・PostgreSQLの長時間は未実施 |
 
 最適化目標の数値はbaseline取得後に決めます。「GCがある」という事実だけで漏れなしを宣言しません。checkpoint由来の意図した保持を欠陥扱いしません。
 

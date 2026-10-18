@@ -107,7 +107,7 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 
 上表のcaseは10,000回（task系は80,000回）まで実行して、memory・handleが一定であることを確認しました。`record_compact_loop`（`--record --record-mode compact`、12万命令/千cycle）も10,000 cycleでpeak commit 3.4 MiB一定です。
 
-**未達：SQLite loop（INSERT OR REPLACE → SELECT → `db.next` → `closeCursor`、:memory:、固定16行）**
+**SQLite loop（INSERT OR REPLACE → SELECT → `db.next` → `closeCursor`、:memory:、固定16行）**
 
 | cycles | 変更前 wall s / peak commit MiB | 現在 wall s / peak commit MiB |
 |---|---|---|
@@ -134,3 +134,7 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 2. **同期・live経路の予約バッファ**：`src/external.rs`の同じ`try_reserve_exact`を、会計だけ残す形にするか検討する。
 3. **VM命令あたりの費用**：現在も空loopで約6 µs/反復。残りは`enforce_budget`の全状態走査が中心（globals・heap・stack・frameを毎回集計）。増分化には予算の失敗原子性の設計確認が必要。
 4. **`valuesFloat`**：要素ごとのメタデータ計算を、型付きscalar listではまとめて行う。
+
+### SQLite loopの10,000 cycle（修正2件の後）
+
+`62ceb6b`・`f204620`適用後のbinaryで、同じloopを2,500 / 5,000 / 10,000回: wall 3.5 / 6.9 / 14.2 秒（回数に比例）、peak commit 28.6 / 31.8 / 41.0 MiB（約1.2 KiB/cycle。cycleあたり4件のexternal台帳entryに相当し、台帳を保持する設計どおり）、handle最大164で一定。完走を確認しました。
