@@ -2952,6 +2952,30 @@ test fn compress_survives_pseudo_random_garbage_without_panicking_or_exceeding_t
         }
     }
 }
+fn auditFailed<T,E>(r:Result<T,E>)->Bool effects {} {match move r {Ok(_)=>{return false;},Err(_)=>{return true;}}}
+test fn lib_audit_overflow_and_range_are_reported_not_wrapped() {
+    let big=4611686018427387904;
+    var g=match graph.create(4,8){Ok(v)=>v,Err(_)=>{panic("create");}};
+    assert_eq(graph.add(&mut g,0,1,big),Ok(()));assert_eq(graph.add(&mut g,1,2,big),Ok(()));assert_eq(graph.add(&mut g,2,3,big),Ok(()));
+    assert(auditFailed(graph.dijkstra(&g,0)));assert(auditFailed(graph.bellmanFord(&g,0)));
+    assert(auditFailed(graph.add(&mut g,0,4,1)));assert(auditFailed(graph.add(&mut g,-1,0,1)));
+    var cyc=match graph.create(3,8){Ok(v)=>v,Err(_)=>{panic("create");}};
+    assert_eq(graph.add(&mut cyc,0,1,1),Ok(()));assert_eq(graph.add(&mut cyc,1,2,-5),Ok(()));assert_eq(graph.add(&mut cyc,2,0,1),Ok(()));
+    assert(auditFailed(graph.bellmanFord(&cyc,0)));assert(auditFailed(graph.topological(&cyc)));assert(auditFailed(graph.dijkstra(&cyc,0)));
+    var n=match flow.create(3,8){Ok(v)=>v,Err(_)=>{panic("create");}};
+    assert(!auditFailed(flow.add(&mut n,0,1,big)));assert(!auditFailed(flow.add(&mut n,0,1,big)));assert(!auditFailed(flow.add(&mut n,1,2,big)));
+    assert(auditFailed(flow.add(&mut n,0,2,-1)));assert(auditFailed(flow.augment(&mut n,0,2,-1)));assert(auditFailed(flow.augment(&mut n,1,1,5)));
+    let p=geometry.Point(big,big);let q=geometry.Point(-big,-big);let r=geometry.Point(big,-big);
+    assert_eq(geometry.orientation(p,q,r),Ok(1));
+    assert_eq(geometry.orientation(geometry.Point(0,0),geometry.Point(3037000500,3037000500),geometry.Point(3037000501,3037000499)),Ok(-1));
+    assert_eq(geometry.intersects(p,q,r,geometry.Point(-big,big)),Ok(true));
+    let w=List<Int>();w.add(big);w.add(big);w.add(big);
+    assert(auditFailed(sequence.prefix(&w)));
+    let v=List<Int>();v.add(1);v.add(2);v.add(3);
+    assert_eq(sequence.rotate(&v,-9223372036854775807-1).len(),3);
+    let pairs=List<Tuple<Int,Int>>();pairs.add((0,0));pairs.add((5,0));
+    assert(auditFailed(matching.maximum(2,2,&pairs)));assert(auditFailed(matching.maximum(-1,2,&pairs)));
+}
 test fn evaluation_shuffle_is_a_reproducible_permutation() {
     let a=evOrder(50,7);let b=evOrder(50,7);let c=evOrder(50,8);
     assert_eq(a.len(),50);

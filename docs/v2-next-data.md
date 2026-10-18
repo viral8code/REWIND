@@ -78,6 +78,8 @@ seed、データ順、model format、optimizer state、checkpoint保持数を記
 
 候補はchecked adapter、typed result、よくある組合せの例です。木のquery、offline query、数論等の追加も、現行APIにない操作だけを別作業へ分けます。単に一覧のmodule数を増やしません。
 
+**監査結果（2026-10-18、graph・flow・geometry・sequence・matching）：** 2^62級の重みでの距離・容量・累積和・外積のoverflow、負の重み・容量・limit、負閉路・循環、範囲外の頂点・pair、`Int`最小値のrotateを実行して調べ、いずれも巻き戻りや誤答ではなく`Err`（または正しい符号の`Ok`）を返すことを確認した。`orientation`/`intersects`/`onSegment`は座標2^62でも外積を正しく判定する。修正が必要な欠陥は見つからなかったため、期待値を`std.tests`の`lib_audit_overflow_and_range_are_reported_not_wrapped`に固定した。sort・searchの比較関数不整合、tree query・offline query等の追加は未監査。
+
 **受入：** 境界条件と費用を説明できる。小入力の独立参照解と比較できる。VMの予算を回避する無制限native処理を導入しない。
 
 ## LIB-02：binary codec・圧縮・画像
