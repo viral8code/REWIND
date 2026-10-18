@@ -17,6 +17,7 @@ pub mod database;
 pub mod datetime;
 pub mod decimal;
 pub mod external;
+pub mod gzip;
 pub mod http_server;
 pub mod json_stream;
 pub mod native_resources;

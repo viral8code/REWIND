@@ -3059,6 +3059,34 @@ test fn image_constructors_and_accessors_check_their_bounds() {
     assert_eq(imgCode(imageLib.pixel(&ok,4,0)),"Range");
     assert_eq(imgCode(imageLib.pixel(&ok,0,-1)),"Range");
 }
+fn gzFixture()->Bytes effects {} {
+    let l=List<Int>();
+    l.add(31);l.add(139);l.add(8);l.add(0);l.add(0);l.add(0);l.add(0);l.add(0);l.add(2);l.add(10);l.add(203);l.add(72);l.add(205);l.add(201);l.add(201);l.add(87);l.add(200);l.add(64);l.add(39);l.add(117);l.add(20);l.add(210);l.add(171);l.add(50);l.add(11);l.add(20);l.add(50);l.add(243);l.add(74);l.add(82);l.add(139);l.add(242);l.add(11);l.add(20);l.add(146);l.add(51);l.add(82);l.add(147);l.add(179);l.add(21);l.add(12);l.add(12);l.add(141);l.add(140);l.add(77);l.add(76);l.add(205);l.add(204);l.add(45);l.add(44);l.add(1);l.add(44);l.add(96);l.add(197);l.add(57);l.add(54);l.add(0);l.add(0);l.add(0);
+    match stdBytesFromList(&l){Ok(b)=>{return b;},Err(_)=>{panic("fixture");}}
+}
+test fn compress_gzip_reads_python_output_and_round_trips() {
+    let expected=Bytes("hello hello hello hello, gzip interop check 0123456789");
+    assert_eq(cmpTake(compress.gunzip(gzFixture(),256)),expected);
+    for level in [0,6,9] {
+        let z=cmpTake(compress.gzip(expected,level));
+        assert_eq(cmpTake(compress.gunzip(z,256)),expected);
+        assert_eq(compress.gzip(expected,level),compress.gzip(expected,level));
+    }
+    let empty=cmpTake(compress.gzip(Bytes(""),6));
+    assert_eq(cmpTake(compress.gunzip(empty,0)),Bytes(""));
+}
+test fn compress_gunzip_refuses_limit_truncation_damage_and_foreign_formats() {
+    let z=gzFixture();
+    let n=bytes.length(z);
+    assert_eq(cmpCode(compress.gunzip(z,53)),"Limit");
+    assert_eq(cmpCode(compress.gunzip(z,-1)),"Range");
+    assert_eq(cmpCode(compress.gunzip(cmpTake(bytes.slice(z,0,n-3)),256)),"Truncated");
+    assert_eq(cmpCode(compress.gunzip(cmpTake(bytes.slice(z,0,5)),256)),"Truncated");
+    assert_eq(cmpCode(compress.gunzip(cmpWith(z,n-6,(match bytes.get(z,n-6){Ok(v)=>v,Err(_)=>0}+1)%256),256)),"Corrupt");
+    assert_eq(cmpCode(compress.gunzip(cmpWith(z,0,0),256)),"Corrupt");
+    assert_eq(cmpCode(compress.gunzip(cmpWith(z,2,7),256)),"Unsupported");
+    assert_eq(cmpCode(compress.gunzip(Bytes("plain text, not gzip"),256)),"Corrupt");
+}
 test fn evaluation_shuffle_is_a_reproducible_permutation() {
     let a=evOrder(50,7);let b=evOrder(50,7);let c=evOrder(50,8);
     assert_eq(a.len(),50);

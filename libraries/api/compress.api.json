@@ -48,6 +48,40 @@
       ],
       "return": "Result<Bytes,StdError>"
     },
+    "fn:gunzip": {
+      "async": false,
+      "cost": "O(compressed bytes + min(maxOutput, 1032 * compressed bytes)) native work, charged up front.",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range / Limit (output would exceed maxOutput) / Unsupported (not method 8) / Truncated / Corrupt (bad CRC-32 or size, a second member or trailing bytes included).",
+      "generics": [],
+      "names": [
+        "data",
+        "maxOutput"
+      ],
+      "parameters": [
+        "Bytes",
+        "Int"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
+    "fn:gzip": {
+      "async": false,
+      "cost": "O(bytes) native work, 8 units per input byte; single-member RFC 1952 stream with a minimal header (no name or timestamp), so the output is reproducible.",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (level) / Limit (input or output over 1 MiB).",
+      "generics": [],
+      "names": [
+        "data",
+        "level"
+      ],
+      "parameters": [
+        "Bytes",
+        "Int"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
     "fn:inflate": {
       "async": false,
       "cost": "O(compressed bytes + min(maxOutput, 1032 * compressed bytes)) native work, charged up front.",

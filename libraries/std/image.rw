@@ -1,7 +1,8 @@
 import bytes as bytes;
 // Bounded PNG decode/encode. Pixels are 8-bit, interleaved, row-major, top row first, with 1 (gray),
-// 2 (gray+alpha), 3 (RGB) or 4 (RGBA) channels. Not supported: 16-bit, palette, interlaced images
-// (reported as Unsupported). The caller states the largest image it will accept (maxPixels) and the
+// 2 (gray+alpha), 3 (RGB) or 4 (RGBA) channels. Palette images (1, 2, 4 or 8 bits) are expanded to RGB,
+// or to RGBA when the file has a tRNS chunk. Not supported: 16-bit and interlaced images (reported as
+// Unsupported); gray/RGB colour-key transparency is ignored. The caller states the largest image it will accept (maxPixels) and the
 // size is checked from the header before any pixel data is inflated; every chunk checksum is
 // verified and the compressed data must expand to exactly the size the header implies.
 pub record Image {width:Int,height:Int,channels:Int,pixels:Bytes}

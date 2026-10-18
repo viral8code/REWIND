@@ -281,6 +281,8 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdAdler32",
         "stdPngDecode",
         "stdPngEncode",
+        "stdGzipCompress",
+        "stdGzipDecompress",
         "stdParseInt",
         "stdParseFloat",
         "stdFormatInt",
@@ -746,11 +748,11 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
         "stdMulMod" => 64,
         // Compression is a few tens of MB/s: charge 8 units per input byte. Decompression is
         // bounded by the caller's output limit and by the maximum expansion, charged up front.
-        "stdDeflate" | "stdZlibCompress" => match args {
+        "stdDeflate" | "stdZlibCompress" | "stdGzipCompress" => match args {
             [Value::Bytes(bytes), _] => bytes.len().saturating_mul(8).saturating_add(256),
             _ => 256,
         },
-        "stdInflate" | "stdZlibDecompress" => match args {
+        "stdInflate" | "stdZlibDecompress" | "stdGzipDecompress" => match args {
             // DEFLATE cannot expand more than 1032:1, so the output (and the work to produce it)
             // is bounded by both the caller's limit and the input size.
             [Value::Bytes(bytes), Value::Int(max)] => bytes
@@ -1393,6 +1395,8 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdInflate" | "stdZlibDecompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
         "stdCrc32" | "stdAdler32" => (&["Bytes"], "Int"),
         "stdPngDecode" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdGzipCompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdGzipDecompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
         "stdPngEncode" => (&["Bytes", "Int", "Int", "Int"], "Result<Bytes,StdError>"),
         "stdParseInt" => (&["String", "Int"], "Result<Int,StdError>"),
         "stdParseFloat" => (&["String"], "Result<Float,StdError>"),
@@ -1988,6 +1992,41 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                                 Err(("Truncated", e.output.len()))
                             }
                             Err(e) => Err(("Corrupt", e.output.len())),
+                        }
+                    }
+                }
+                "stdGzipCompress" => {
+                    let b = bytes(0)?;
+                    let level = int(1)?;
+                    if !(0..=10).contains(&level) {
+                        Err(("Range", 0))
+                    } else if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        let out = rewind::gzip::compress(b, level as u8);
+                        if out.len() > LIMIT {
+                            Err(("Limit", 0))
+                        } else {
+                            Ok(Value::Bytes(out.into()))
+                        }
+                    }
+                }
+                "stdGzipDecompress" => {
+                    let b = bytes(0)?;
+                    let max = int(1)?;
+                    if max < 0 || max as usize > LIMIT {
+                        Err(("Range", 0))
+                    } else if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        use rewind::gzip::GzipError;
+                        match rewind::gzip::decompress(b, max as usize) {
+                            Ok(out) => Ok(Value::Bytes(out.into())),
+                            Err(GzipError::Range) => Err(("Range", 0)),
+                            Err(GzipError::Limit) => Err(("Limit", 0)),
+                            Err(GzipError::Unsupported) => Err(("Unsupported", 0)),
+                            Err(GzipError::Truncated(at)) => Err(("Truncated", at)),
+                            Err(GzipError::Corrupt(at)) => Err(("Corrupt", at)),
                         }
                     }
                 }

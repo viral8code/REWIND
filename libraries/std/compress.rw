@@ -17,3 +17,9 @@ pub fn zlibDecompress(data:Bytes,maxOutput:Int)->Result<Bytes,StdError> effects 
 pub fn crc32(data:Bytes)->Int effects {} {return stdCrc32(data);}
 // @api adler32 cost O(bytes); result in 0..2^32-1.
 pub fn adler32(data:Bytes)->Int effects {} {return stdAdler32(data);}
+// @api gzip cost O(bytes) native work, 8 units per input byte; single-member RFC 1952 stream with a minimal header (no name or timestamp), so the output is reproducible.
+// @api gzip failure StdError Range (level) / Limit (input or output over 1 MiB).
+pub fn gzip(data:Bytes,level:Int)->Result<Bytes,StdError> effects {} {return stdGzipCompress(data,level);}
+// @api gunzip cost O(compressed bytes + min(maxOutput, 1032 * compressed bytes)) native work, charged up front.
+// @api gunzip failure StdError Range / Limit (output would exceed maxOutput) / Unsupported (not method 8) / Truncated / Corrupt (bad CRC-32 or size, a second member or trailing bytes included).
+pub fn gunzip(data:Bytes,maxOutput:Int)->Result<Bytes,StdError> effects {} {return stdGzipDecompress(data,maxOutput);}

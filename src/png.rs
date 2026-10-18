@@ -31,7 +31,7 @@ pub struct Decoded {
     pub pixels: Vec<u8>,
 }
 
-fn crc32(parts: &[&[u8]]) -> u32 {
+pub fn crc32(parts: &[&[u8]]) -> u32 {
     let mut crc = 0xffff_ffffu32;
     for part in parts {
         for byte in *part {
@@ -74,7 +74,10 @@ pub fn decode(data: &[u8], max_pixels: usize, max_bytes: usize) -> Result<Decode
         return Err(PngError::Corrupt(0));
     }
     let mut pos = 8;
-    let mut header: Option<(usize, usize, usize, usize)> = None; // width, height, channels, color type
+    // width, height, channels stored per pixel in the file, color type, bit depth
+    let mut header: Option<(usize, usize, usize, usize, usize)> = None;
+    let mut palette: Vec<[u8; 3]> = Vec::new();
+    let mut transparency: Vec<u8> = Vec::new();
     let mut idat: Vec<u8> = Vec::new();
     let mut idat_open = false;
     let mut idat_done = false;
@@ -126,28 +129,48 @@ pub fn decode(data: &[u8], max_pixels: usize, max_bytes: usize) -> Result<Decode
                     2 => 3,
                     4 => 2,
                     6 => 4,
-                    3 => return Err(PngError::Unsupported),
+                    3 => 1,
                     _ => return Err(PngError::Corrupt(pos)),
                 };
-                if depth != 8 || interlace != 0 {
+                if color == 3 {
+                    if !matches!(depth, 1 | 2 | 4 | 8) {
+                        return Err(PngError::Corrupt(pos));
+                    }
+                } else if depth != 8 {
+                    return Err(if matches!(depth, 1 | 2 | 4 | 16) {
+                        PngError::Unsupported
+                    } else {
+                        PngError::Corrupt(pos)
+                    });
+                }
+                if interlace != 0 {
                     return Err(PngError::Unsupported);
                 }
                 if w > MAX_DIMENSION || h > MAX_DIMENSION {
                     return Err(PngError::Limit);
                 }
                 let pixels = w * h;
-                if pixels > max_pixels || pixels * channels > max_bytes {
+                // A palette image decodes to RGB or RGBA; bound it by the larger.
+                let output_channels = if color == 3 { 4 } else { channels };
+                if pixels > max_pixels || pixels * output_channels > max_bytes {
                     return Err(PngError::Limit);
                 }
-                header = Some((w, h, channels, usize::from(color)));
+                header = Some((w, h, channels, usize::from(color), usize::from(depth)));
             }
             b"IDAT" => {
                 if idat_done {
                     return Err(PngError::Corrupt(pos));
                 }
                 idat_open = true;
-                let (w, h, channels, _) = header.expect("checked above");
-                let raw = (w * channels + 1) * h;
+                let (w, h, channels, color, depth) = header.expect("checked above");
+                let raw = if color == 3 {
+                    (usize::div_ceil(w * depth, 8) + 1) * h
+                } else {
+                    (w * channels + 1) * h
+                };
+                if color == 3 && palette.is_empty() {
+                    return Err(PngError::Corrupt(pos));
+                }
                 // A zlib stream of `raw` bytes cannot reasonably need more than raw plus framing.
                 if idat.len() + length > raw + raw / 100 + 1024 {
                     return Err(PngError::Corrupt(pos));
@@ -164,9 +187,35 @@ pub fn decode(data: &[u8], max_pixels: usize, max_bytes: usize) -> Result<Decode
                 }
             }
             b"PLTE" => {
-                let color = header.expect("checked above").3;
-                if color == 0 || color == 4 || length % 3 != 0 || length == 0 {
+                let (_, _, _, color, depth) = header.expect("checked above");
+                if color == 0
+                    || color == 4
+                    || length % 3 != 0
+                    || length == 0
+                    || length / 3 > 1 << depth.min(8)
+                    || !palette.is_empty()
+                    || idat_open
+                {
                     return Err(PngError::Corrupt(pos));
+                }
+                palette = body.chunks(3).map(|c| [c[0], c[1], c[2]]).collect();
+            }
+            b"tRNS" => {
+                let color = header.expect("checked above").3;
+                if idat_open {
+                    return Err(PngError::Corrupt(pos));
+                }
+                match color {
+                    3 => {
+                        if length > palette.len() || palette.is_empty() {
+                            return Err(PngError::Corrupt(pos));
+                        }
+                        transparency = body.to_vec();
+                    }
+                    // Color-key transparency for gray/RGB is checked and ignored: such images
+                    // decode without an alpha channel.
+                    0 | 2 => {}
+                    _ => return Err(PngError::Corrupt(pos)),
                 }
             }
             other => {
@@ -182,13 +231,19 @@ pub fn decode(data: &[u8], max_pixels: usize, max_bytes: usize) -> Result<Decode
         }
         pos = end;
     }
-    let Some((width, height, channels, _)) = header else {
+    let Some((width, height, channels, color, depth)) = header else {
         return Err(PngError::Truncated(data.len()));
     };
     if !ended || idat.is_empty() {
         return Err(PngError::Truncated(data.len()));
     }
-    let row = width * channels;
+    // `row` is the filtered row size in bytes; `bpp` the filter's byte distance to the left sample.
+    let row = if color == 3 {
+        usize::div_ceil(width * depth, 8)
+    } else {
+        width * channels
+    };
+    let bpp = if color == 3 { 1 } else { channels };
     let raw_len = (row + 1) * height;
     let raw = match miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(&idat, raw_len) {
         Ok(raw) => raw,
@@ -217,16 +272,12 @@ pub fn decode(data: &[u8], max_pixels: usize, max_bytes: usize) -> Result<Decode
             &before[(y - 1) * row..]
         };
         for i in 0..row {
-            let left = if i >= channels {
-                current[i - channels]
-            } else {
-                0
-            };
+            let left = if i >= bpp { current[i - bpp] } else { 0 };
             let up = if y == 0 { 0 } else { previous[i] };
-            let up_left = if y == 0 || i < channels {
+            let up_left = if y == 0 || i < bpp {
                 0
             } else {
-                previous[i - channels]
+                previous[i - bpp]
             };
             current[i] = src[i].wrapping_add(match filter {
                 0 => 0,
@@ -238,11 +289,37 @@ pub fn decode(data: &[u8], max_pixels: usize, max_bytes: usize) -> Result<Decode
             });
         }
     }
+    if color != 3 {
+        return Ok(Decoded {
+            width,
+            height,
+            channels,
+            pixels,
+        });
+    }
+    // Expand palette indices (1, 2, 4 or 8 bits, most significant bit first) to RGB or RGBA.
+    let out_channels = if transparency.is_empty() { 3 } else { 4 };
+    let mut expanded = Vec::with_capacity(width * height * out_channels);
+    for y in 0..height {
+        for x in 0..width {
+            let bit = x * depth;
+            let byte = pixels[y * row + bit / 8];
+            let index =
+                usize::from((byte >> (8 - depth - bit % 8)) & (((1u16 << depth) - 1) as u8));
+            let Some(rgb) = palette.get(index) else {
+                return Err(PngError::Corrupt(y * (row + 1)));
+            };
+            expanded.extend_from_slice(rgb);
+            if out_channels == 4 {
+                expanded.push(transparency.get(index).copied().unwrap_or(255));
+            }
+        }
+    }
     Ok(Decoded {
         width,
         height,
-        channels,
-        pixels,
+        channels: out_channels,
+        pixels: expanded,
     })
 }
 
@@ -410,7 +487,7 @@ mod tests {
         png.push(0);
         assert!(matches!(decode(&png, 16, 64), Err(PngError::Corrupt(_))));
         // 16-bit depth and palette color type in a hand-built, correctly checksummed header.
-        for (depth, color) in [(16u8, 2u8), (8, 3), (1, 0)] {
+        for (depth, color) in [(16u8, 2u8), (1, 0), (2, 6)] {
             let mut out = SIGNATURE.to_vec();
             let mut ihdr = Vec::new();
             ihdr.extend_from_slice(&2u32.to_be_bytes());
@@ -451,5 +528,118 @@ mod tests {
         chunk(&mut out, b"IDAT", &big);
         chunk(&mut out, b"IEND", &[]);
         assert!(matches!(decode(&out, 16, 64), Err(PngError::Corrupt(_))));
+    }
+
+    /// Hand-built palette PNG: one filter-0 row per entry of `rows`, indices packed MSB first.
+    fn palette_png(
+        width: usize,
+        depth: usize,
+        rows: &[Vec<u8>],
+        palette: &[[u8; 3]],
+        alpha: Option<&[u8]>,
+    ) -> Vec<u8> {
+        let mut raw = Vec::new();
+        for row in rows {
+            raw.push(0);
+            let mut packed = vec![0u8; usize::div_ceil(width * depth, 8)];
+            for (x, index) in row.iter().enumerate() {
+                let bit = x * depth;
+                packed[bit / 8] |= index << (8 - depth - bit % 8);
+            }
+            raw.extend_from_slice(&packed);
+        }
+        let mut out = SIGNATURE.to_vec();
+        let mut ihdr = Vec::new();
+        ihdr.extend_from_slice(&(width as u32).to_be_bytes());
+        ihdr.extend_from_slice(&(rows.len() as u32).to_be_bytes());
+        ihdr.extend_from_slice(&[depth as u8, 3, 0, 0, 0]);
+        chunk(&mut out, b"IHDR", &ihdr);
+        let plte: Vec<u8> = palette.iter().flatten().copied().collect();
+        chunk(&mut out, b"PLTE", &plte);
+        if let Some(alpha) = alpha {
+            chunk(&mut out, b"tRNS", alpha);
+        }
+        chunk(
+            &mut out,
+            b"IDAT",
+            &miniz_oxide::deflate::compress_to_vec_zlib(&raw, 6),
+        );
+        chunk(&mut out, b"IEND", &[]);
+        out
+    }
+
+    #[test]
+    fn palette_images_expand_for_every_bit_depth() {
+        let colors: Vec<[u8; 3]> = (0..=255u8).map(|i| [i, 255 - i, i / 2]).collect();
+        for depth in [1usize, 2, 4, 8] {
+            let entries = 1usize << depth;
+            for width in [1usize, 3, 7, 9] {
+                let rows: Vec<Vec<u8>> = (0..3)
+                    .map(|y| (0..width).map(|x| ((x * 3 + y) % entries) as u8).collect())
+                    .collect();
+                let png = palette_png(width, depth, &rows, &colors[..entries], None);
+                let image = decode(&png, 1 << 16, 1 << 20).unwrap();
+                assert_eq!((image.width, image.height, image.channels), (width, 3, 3));
+                for (y, row) in rows.iter().enumerate() {
+                    for (x, index) in row.iter().enumerate() {
+                        let at = (y * width + x) * 3;
+                        assert_eq!(
+                            &image.pixels[at..at + 3],
+                            &colors[usize::from(*index)],
+                            "{depth}/{width}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn palette_transparency_gives_rgba_and_defaults_to_opaque() {
+        let colors = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+        let rows = vec![vec![0u8, 1, 2]];
+        let png = palette_png(3, 2, &rows, &colors, Some(&[0, 128]));
+        let image = decode(&png, 16, 64).unwrap();
+        assert_eq!(image.channels, 4);
+        assert_eq!(image.pixels, vec![1, 2, 3, 0, 4, 5, 6, 128, 7, 8, 9, 255]);
+    }
+
+    #[test]
+    fn invalid_palettes_are_corrupt_not_panics() {
+        let colors = [[1, 2, 3], [4, 5, 6]];
+        // index 3 does not exist in a 2-entry palette
+        let bad_index = palette_png(2, 2, &[vec![0, 3]], &colors, None);
+        assert!(matches!(
+            decode(&bad_index, 16, 64),
+            Err(PngError::Corrupt(_))
+        ));
+        // transparency longer than the palette
+        let long_alpha = palette_png(2, 2, &[vec![0, 1]], &colors, Some(&[1, 2, 3]));
+        assert!(matches!(
+            decode(&long_alpha, 16, 64),
+            Err(PngError::Corrupt(_))
+        ));
+        // more palette entries than the bit depth can address
+        let big = palette_png(1, 1, &[vec![0]], &[[0; 3], [1; 3], [2; 3]], None);
+        assert!(matches!(decode(&big, 16, 64), Err(PngError::Corrupt(_))));
+        // palette color type without a PLTE chunk
+        let mut out = SIGNATURE.to_vec();
+        let mut ihdr = Vec::new();
+        ihdr.extend_from_slice(&1u32.to_be_bytes());
+        ihdr.extend_from_slice(&1u32.to_be_bytes());
+        ihdr.extend_from_slice(&[8, 3, 0, 0, 0]);
+        chunk(&mut out, b"IHDR", &ihdr);
+        chunk(
+            &mut out,
+            b"IDAT",
+            &miniz_oxide::deflate::compress_to_vec_zlib(&[0, 0], 6),
+        );
+        chunk(&mut out, b"IEND", &[]);
+        assert!(matches!(decode(&out, 16, 64), Err(PngError::Corrupt(_))));
+        // palette images are limited by their RGBA size
+        let ok = palette_png(4, 8, &[vec![0, 1, 0, 1]], &colors, None);
+        assert_eq!(decode(&ok, 3, 1 << 20), Err(PngError::Limit));
+        assert_eq!(decode(&ok, 4, 15), Err(PngError::Limit));
+        assert!(decode(&ok, 4, 16).is_ok());
     }
 }
