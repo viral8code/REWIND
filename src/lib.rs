@@ -723,6 +723,16 @@ pub enum FileMode {
     ReadWrite,
 }
 
+/// `set.insert(ptr)`, but a pointer equal to the previous one for the same category is known
+/// to be present already.
+fn fresh_ptr(set: &mut PtrSet, last: &mut usize, ptr: usize) -> bool {
+    if *last == ptr {
+        return false;
+    }
+    *last = ptr;
+    set.insert(ptr)
+}
+
 /// Pointer-identity set used by `enforce_budget`, which runs on almost every VM operation.
 /// The first entries live inline so the usual single-state case never touches the allocator.
 #[derive(Default)]
@@ -2225,11 +2235,24 @@ impl Runtime {
                 .saturating_mul(32),
             );
         }
+        // Consecutive checkpoints usually share these Arcs; remember the previous address so the
+        // set lookup is skipped for them.
+        let (
+            mut last_native_owners,
+            mut last_globals,
+            mut last_heap,
+            mut last_stack,
+            mut last_call_frames,
+        ) = (0usize, 0usize, 0usize, 0usize, 0usize);
         for state in std::iter::once(&self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
             .chain(branch_roots.iter().map(AsRef::as_ref))
         {
-            if seen_compute.insert(Arc::as_ptr(&state.native_owners) as usize) {
+            if fresh_ptr(
+                &mut seen_compute,
+                &mut last_native_owners,
+                Arc::as_ptr(&state.native_owners) as usize,
+            ) {
                 compute_memory =
                     compute_memory.saturating_add(state.native_owners.len().saturating_mul(64));
             }
@@ -2257,7 +2280,11 @@ impl Runtime {
                     }
                 }
             }
-            if seen_compute.insert(Arc::as_ptr(&state.globals) as usize) {
+            if fresh_ptr(
+                &mut seen_compute,
+                &mut last_globals,
+                Arc::as_ptr(&state.globals) as usize,
+            ) {
                 compute_memory = compute_memory.saturating_add(
                     state
                         .globals
@@ -2270,7 +2297,11 @@ impl Runtime {
                         .sum(),
                 );
             }
-            if seen_compute.insert(Arc::as_ptr(&state.heap) as usize) {
+            if fresh_ptr(
+                &mut seen_compute,
+                &mut last_heap,
+                Arc::as_ptr(&state.heap) as usize,
+            ) {
                 let mut bytes = if self.allocation_accounting {
                     state.heap.allocation_bytes()
                 } else {
@@ -2298,7 +2329,11 @@ impl Runtime {
                 }
                 compute_memory = compute_memory.saturating_add(bytes);
             }
-            if seen_compute.insert(Arc::as_ptr(&state.stack) as usize) {
+            if fresh_ptr(
+                &mut seen_compute,
+                &mut last_stack,
+                Arc::as_ptr(&state.stack) as usize,
+            ) {
                 compute_memory = compute_memory.saturating_add(
                     state
                         .stack
@@ -2307,7 +2342,11 @@ impl Runtime {
                         .sum(),
                 );
             }
-            if seen_compute.insert(Arc::as_ptr(&state.call_frames) as usize) {
+            if fresh_ptr(
+                &mut seen_compute,
+                &mut last_call_frames,
+                Arc::as_ptr(&state.call_frames) as usize,
+            ) {
                 compute_memory = compute_memory.saturating_add(
                     state
                         .call_frames

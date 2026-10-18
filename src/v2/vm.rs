@@ -1579,6 +1579,9 @@ struct VmSnapshot {
     branches: Vec<BranchFrame>,
     global_cleanups: Vec<Cleanup>,
     scheduler: Scheduler,
+    // A snapshot is never modified after it is stored (revert clones it), so its accounted
+    // scheduler size is computed once instead of on every VM step.
+    scheduler_bytes: std::cell::Cell<Option<usize>>,
 }
 
 fn gc_scope_roots(scopes: &[BTreeMap<String, Binding>], out: &mut Vec<Value>) {
@@ -2743,6 +2746,7 @@ impl<R: BufRead> Vm<R> {
             branches: self.branches.clone(),
             global_cleanups: self.global_cleanups.clone(),
             scheduler: self.scheduler.clone(),
+            scheduler_bytes: std::cell::Cell::new(None),
         }
     }
     fn collect_native_resources(&mut self) -> Result<()> {
@@ -4618,7 +4622,13 @@ impl<R: BufRead> Vm<R> {
                 + self
                     .snapshots
                     .values()
-                    .map(|s| s.scheduler.accounted_storage_bytes(&self.engine.runtime))
+                    .map(|s| {
+                        s.scheduler_bytes.get().unwrap_or_else(|| {
+                            let bytes = s.scheduler.accounted_storage_bytes(&self.engine.runtime);
+                            s.scheduler_bytes.set(Some(bytes));
+                            bytes
+                        })
+                    })
                     .sum::<usize>()
                 + self
                     .branches

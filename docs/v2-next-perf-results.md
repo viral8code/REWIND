@@ -151,3 +151,7 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 
 予算確認は全ローカルを毎回なめるため、ローカルが多い関数ほど遅くなっていました。スカラー値（Int/Float/Bool/Null/参照）は数値・共有・byte・containerの補正がすべて0なので、`retained_bytes`で即returnします（結果は同一）。残る費用はcheckpoint数に比例する部分（各checkpointのstateを2周する）で、増分化が必要です。
 
+### checkpoint数に比例する費用
+
+保持checkpoint 100個で空ループ10万回が約8秒（0個で1秒）だった原因は2つでした。(1) VMの1命令ごとに、全snapshotのscheduler保持量（16 MiB上限の確認）を再計算していた。snapshotは保存後に変更されないので、snapshotごとに1回だけ計算して保持。(2) 予算確認が各checkpointのstateについて5つのArcをhash集合へ入れ直していた。直前のcheckpointと同じ参照なら集合を引かない。結果は同一で、100個の場合 4.7 秒 → 2.4 秒（スカラー補正の前は8.2秒）。117本のテストが通過。
+
