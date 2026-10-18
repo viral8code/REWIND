@@ -175,3 +175,11 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 - **task増加の修正もLinuxで確認**：`await`するtaskを2万・4万・8万回回すと、変更前のRSSは15.4 / 15.6 / 17.0 MiB相当（15412 / 15576 / 16984 KiB）と増え、変更後は14932 / 15020 / 15124 KiBでほぼ一定。時間は1.36 / 2.84 / 5.66 秒 → 0.80 / 1.73 / 3.27 秒。
 - `recording debug`だけ変わりません。1000回のloopで0.5秒・174 MB使うのは、debug記録が1命令ごとに情報を残す設計のためで、今回の変更の対象外です（REC-01の課題）。
 
+### `--record-mode debug`の費用（未対応のREC-01課題）
+
+ループ1,000回（約1万命令）で、Windowsのpeak working setは debug 270 MiB・trace 14 MB、compact 14 MiB・trace 1.3 KB。debug記録は1命令ごとに状態の索引を残す設計で、メモリはtraceファイルの約19倍（JSON値の保持）になり、4,000回で`TraceBudgetExceeded: debug index`になります。compactは回数によらず一定です。長く走らせる記録にはcompactを使い、debugは短い再現用に限る、という使い分けが必要です。traceの保持形式（JSON値ではなく直列化済みbyte列）の見直しは別作業です。
+
+## 打ち切りの判断
+
+VM命令あたりの費用は、現在も空ループで約8 µs/反復（変更前の約27 µs）です。sampling profile（約3.8万sample）は、予算確認の全状態集計（約30%）、確保・解放（約20%）、命令dispatch本体（約15%）に分散していて、単独で大きい箇所は残っていません。これ以上の短縮は (a) 予算確認の結果の増分化、(b) 永続heapの一意所有時の破壊的更新、(c) `Op`の文字列のArc化、のいずれかが必要です。(a)(b)は「失敗時に更新前へ戻る」「checkpointと構造共有しても過去の状態を壊さない」「台帳の登録がnode単位」という既存契約に触れ、全テストで検出できない順序依存を作り得るため、今回は入れていません。(c)は確保を数%減らすだけです。
+
