@@ -12,7 +12,7 @@ REWIND は `commit` / `revert` / `publish` で VM 内の状態と出力を扱う
 
 ## 入門書・詳細リファレンス
 
-[HTML版（オフライン・全文検索）](docs/book/index.html) / [PDF版](docs/book/REWIND-2.0.0-book.pdf)。v2.0.0を対象に、32章・60の検証済み実行例と、全86公開モジュール・625関数のAPIを掲載しています。HTMLは保存してブラウザーで開けます。[編集・再生成](docs/book/README.md)。
+[HTML版](docs/book/index.html) / [PDF版](docs/book/REWIND-3.6.0-book.pdf)。REWIND 3.6.0を対象に、基本から実用までを25章で説明する入門書です。コード例はすべて実際に実行して確かめています。言語の正確な定義は[言語リファレンス](docs/language-reference.md)（[PDF版](docs/language-reference.pdf)）にあります。[編集・再生成](docs/book/README.md)。
 
 ## SDKを試す
 

@@ -11,7 +11,7 @@
 | ネイティブ GUI | [gui.md](gui.md) |
 | デバッガ（DAP） | [debugger.md](debugger.md) |
 | 版ごとの変更点と契約 | [REWIND_v3.0.md](REWIND_v3.0.md) など `REWIND_v*.md` |
-| 章立てで読む入門書 | [book/index.html](book/index.html)（2.0.0 時点の内容です） |
+| 章立てで読む入門書 | [book/index.html](book/index.html)（[PDF 版](book/REWIND-3.6.0-book.pdf)） |
 
 ## この文書の読み方
 
@@ -2030,7 +2030,28 @@ fn main()->Int {
 
 ### 15.2 `using`
 
-`using 名前 = 式;` は、資源（ファイルハンドル、データベース接続、`TaskGroup` など）を、スコープを出るときに確実に閉じます。
+`using 名前 = 式;` は、資源（ファイルハンドル、データベース接続、`TaskGroup` など）を、スコープを出るときに確実に閉じます。`return` で出るときも、失敗で止まるときも閉じられ、`defer` で閉じる処理を書くのと同じ順序規則（予約の逆順）に従います。
+
+```rewind
+fn readTail() -> String effects {fileRead} {
+    using f = File.openSnapshot("a.txt");
+    f.seek(6);
+    return f.read(5);
+}
+
+fn main()->Int effects {fileRead, fileWrite, output} {
+    File.writeText("a.txt", "hello world");
+    publish;
+    Out.println(readTail());
+    return 0;
+}
+```
+
+```text
+world
+```
+
+`File.openSnapshot(path)` は、開いた時点のファイルの内容を読むハンドルを返します。`seek(位置)` で位置を決め、`read(n)` で `n` 文字分を読みます。
 
 ### 15.3 組み込みの入出力
 
@@ -2237,7 +2258,7 @@ error[DivisionByZero]: division by zero
 
 ### 17.5 仕事量の内訳
 
-`rewind profile main.rw` は、関数ごと・行ごとの命令数とネイティブ処理量、チェックポイントが保持しているデータ、未実行の行（coverage）を表示します。時間ではなく、予算で数える論理的な仕事量です。`--profile-format json` で JSON にもなります。
+`rewind profile main.rw` は、関数ごと・行ごとの命令数とネイティブ処理量、チェックポイントが保持しているデータ、未実行の行（coverage）を報告します。時間ではなく、予算で数える論理的な仕事量です。既定の出力は JSON で、`--profile-format text` を付けると人が読む形式になります。
 
 ### 17.6 デバッガとエディタ
 
@@ -2335,3 +2356,5 @@ REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプ�
 - `Out.println` が `struct` や `record` を表示する形式は内部表現に近く、安定していません。
 - 公開されていない関数や型を別の module から使うと、`unknown name` と報告されます（「非公開」という説明は出ません）。
 - `List` と `Map` を `==` や `assert_eq` で比べると、中身ではなく同一性を調べます。
+- 借用した `List` や `Map`（`&List<T>`、`&Map<K,V>` の引数）を `for` で直接回すと、`cannot mutate through a shared borrow` と拒否されます（`for x in xs` も `for x in xs.iter()` も同じです）。添字（`for i in 0..xs.len()` と `xs.get(i)`）で回すか、`Map` では `let names = m.keys();` と取り出してから回します。
+- `branch` の中で `return` すると、関数からは戻れますが、`branch` が戻すはずの状態は戻りません。

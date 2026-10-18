@@ -2,7 +2,7 @@
 
 3.1.0はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
 
-[詳しいHTMLの入門書・リファレンス](book/index.html) / [PDF版](book/REWIND-2.0.0-book.pdf)も利用できます。
+章立てで学ぶ[入門書](book/index.html)（[PDF版](book/REWIND-3.6.0-book.pdf)）と、[言語リファレンス](language-reference.md)（[PDF版](language-reference.pdf)）も利用できます。
 
 ## Linux SDKをダウンロードする
 

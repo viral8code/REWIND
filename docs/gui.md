@@ -2,7 +2,7 @@
 
 `std.gui` は一つのネイティブウィンドウにラベル、ボタン、チェックボックス、色付き矩形を描画します。REWIND のイベントループでクリックとキー入力に応答できます。Windows x64 は Win32/GDI、Linux x86_64 は X11 を使います。ブラウザ、JVM、外部 GUI toolkit は不要です。
 
-現在の機能を順に読むには[HTMLの本のGUI章](book/index.html#ch18) / [PDF](book/REWIND-2.0.0-book.pdf)を利用できます。以下には各版で追加した機能の説明も含みます。
+入門書の[GUIの節](book/index.html#ネイティブ-gui)（[PDF](book/REWIND-3.6.0-book.pdf)）に、Undo付きカウンターを含む例があります。以下には各版で追加した機能の説明も含みます。
 
 ## 実行
 

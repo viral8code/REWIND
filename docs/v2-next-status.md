@@ -134,7 +134,7 @@ CLI/artifact/replayの回帰追加を含む最新commitはgit log -- tests/data_
 2. [v2.1詳細](REWIND_v2.1-plan.md)：最初の実装対象と受入条件。
 3. [v2.2詳細](REWIND_v2.2-plan.md)：GUI/DBの差分と保留条件。
 4. [性能計画](v2-next-performance.md)：baselineと最適化の判断。
-5. [現行入門書](book/index.html)、[v2.0仕様](REWIND_v2.0.md)、[受入履歴](v2-acceptance.md)：現在の契約を確認する資料。
+5. [言語リファレンス](language-reference.md)、[現行入門書](book/index.html)、[v2.0仕様](REWIND_v2.0.md)、[受入履歴](v2-acceptance.md)：現在の契約を確認する資料。
 
 以前の[2.0ロードマップ](ROADMAP_v2.md)は履歴です。その残件を検査せずに現行残件へ転記しません。
 

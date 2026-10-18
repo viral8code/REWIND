@@ -2,7 +2,7 @@
 
 REWIND 2.0.0、Linux x86_64 / Windows x64 のSDK。bin/rewind は compiler と runtime を兼ね、check/test/doc/build/run/debug/LSP を提供する。SDK内のstdlib APIは `share/rewind/doc/std-api.json` と `share/rewind/doc/std/` のmodule別文書にあります。このrepositoryでは[全標準APIのHTML](book/index.html#api)を参照してください。
 
-[HTMLの入門書・全標準API](book/index.html) / [PDF版](book/REWIND-2.0.0-book.pdf)。
+[入門書](book/index.html) / [PDF版](book/REWIND-3.6.0-book.pdf)、[言語リファレンス](language-reference.md)。標準ライブラリの各関数は[libraries/README.md](../libraries/README.md)にあります。
 
 ## 単一ファイル
 
