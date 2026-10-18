@@ -1,0 +1,26 @@
+// Expected output (checked): true, true, Limit, Truncated, 3421780262 on separate lines.
+import std.compress as compress;
+import std.bytes as bytes;
+fn take(r:Result<Bytes,StdError>)->Bytes effects {} {
+    match move r {Ok(value)=>{return move value;},Err(_)=>{panic("compression step failed");}}
+}
+fn code(r:Result<Bytes,StdError>)->String effects {} {
+    match move r {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn main()->Int {
+    var text="status=ok;";
+    for i in 0..9 {text=text+text;}
+    let data=take(bytes.encode(text));
+    let packed=take(compress.zlibCompress(data,6));
+    // The compressed form is much smaller and decompresses to exactly the same bytes.
+    Out.println(bytes.length(packed)<bytes.length(data)/10);
+    Out.println(take(compress.zlibDecompress(packed,8192))==data);
+    // Decompression never produces more than the caller allows, so a hostile stream cannot
+    // allocate without bound: asking for less than the real size is an error, not a truncation.
+    Out.println(code(compress.zlibDecompress(packed,1000)));
+    // A stream cut short is reported apart from a corrupt one.
+    Out.println(code(compress.zlibDecompress(take(bytes.slice(packed,0,bytes.length(packed)-4)),8192)));
+    Out.println(compress.crc32(Bytes("123456789")));
+    publish;
+    return 0;
+}

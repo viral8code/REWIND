@@ -1,0 +1,19 @@
+// Bounded DEFLATE / zlib compression and CRC-32 / Adler-32 checksums over Bytes.
+// Every input and output is limited to 1 MiB; decompression takes the caller's output limit and
+// refuses (never truncates) a stream that would exceed it. A truncated stream is reported apart
+// from a corrupt one. Output is deterministic for a given level of this build.
+// @api deflate cost O(bytes) native work, 8 units per input byte; level 0..10 (0 stored, 6 default).
+// @api deflate failure StdError Range (level) / Limit (input or output over 1 MiB).
+pub fn deflate(data:Bytes,level:Int)->Result<Bytes,StdError> effects {} {return stdDeflate(data,level);}
+// @api inflate cost O(compressed bytes + min(maxOutput, 1032 * compressed bytes)) native work, charged up front.
+// @api inflate failure StdError Range (maxOutput outside 0..1 MiB) / Limit (output would exceed maxOutput) / Truncated / Corrupt (offset = bytes produced before the error).
+pub fn inflate(data:Bytes,maxOutput:Int)->Result<Bytes,StdError> effects {} {return stdInflate(data,maxOutput);}
+// @api zlibCompress cost O(bytes) native work, 8 units per input byte; RFC 1950 stream with Adler-32.
+pub fn zlibCompress(data:Bytes,level:Int)->Result<Bytes,StdError> effects {} {return stdZlibCompress(data,level);}
+// @api zlibDecompress cost same bound as inflate: O(compressed bytes + min(maxOutput, 1032 * compressed bytes)) native work, charged up front.
+// @api zlibDecompress failure StdError Range / Limit / Truncated / Corrupt (including a bad Adler-32).
+pub fn zlibDecompress(data:Bytes,maxOutput:Int)->Result<Bytes,StdError> effects {} {return stdZlibDecompress(data,maxOutput);}
+// @api crc32 cost O(bytes); IEEE 802.3 polynomial, result in 0..2^32-1.
+pub fn crc32(data:Bytes)->Int effects {} {return stdCrc32(data);}
+// @api adler32 cost O(bytes); result in 0..2^32-1.
+pub fn adler32(data:Bytes)->Int effects {} {return stdAdler32(data);}

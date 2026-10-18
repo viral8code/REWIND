@@ -16,6 +16,7 @@ import option as option;
 import table as table;
 import layout as layout;
 import evaluation as evaluation;
+import compress as compress;
 import json as json;
 import jsonStream as jsonStream;
 import config as config;
@@ -2877,6 +2878,80 @@ test fn layout_builder_limits_names_counts_and_size() {
 
 fn evInts(values:Frozen<List<Int>>)->List<Int> effects {} {var out=List<Int>();for i in 0..values.len() {out.push(values.get(i));}return out;}
 fn evOrder(n:Int,seed:Int)->List<Int> effects {} {match evaluation.shuffled(n,seed) {Ok(v)=>{return v;},Err(_)=>{panic("shuffled");}}}
+fn cmpRepeat(unit:String,doublings:Int)->Bytes effects {} {
+    var s=unit;for i in 0..doublings {s=s+s;}
+    match bytes.encode(s){Ok(b)=>{return b;},Err(_)=>{panic("encode");}}
+}
+fn cmpTake(r:Result<Bytes,StdError>)->Bytes effects {} {
+    match r {Ok(b)=>{return b;},Err(_)=>{panic("compress step failed");}}
+}
+fn cmpCode(r:Result<Bytes,StdError>)->String effects {} {
+    match r {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn cmpWith(data:Bytes,at:Int,value:Int)->Bytes effects {} {
+    let list=List<Int>();
+    for i in 0..bytes.length(data) {
+        match bytes.get(data,i) {Ok(v)=>{if i==at {list.add(value);}else{list.add(v);}},Err(_)=>{panic("get");}}
+    }
+    match stdBytesFromList(&list){Ok(b)=>{return b;},Err(_)=>{panic("from list");}}
+}
+test fn compress_checksums_match_published_vectors() {
+    assert_eq(compress.crc32(Bytes("")),0);
+    assert_eq(compress.crc32(Bytes("123456789")),3421780262);
+    assert_eq(compress.adler32(Bytes("")),1);
+    assert_eq(compress.adler32(Bytes("Wikipedia")),300286872);
+}
+test fn compress_round_trips_and_shrinks_repetitive_data() {
+    let data=cmpRepeat("abcabcabc",8);
+    for level in [0,1,6,9] {
+        let packed=cmpTake(compress.deflate(data,level));
+        assert_eq(cmpTake(compress.inflate(packed,8192)),data);
+        let z=cmpTake(compress.zlibCompress(data,level));
+        assert_eq(cmpTake(compress.zlibDecompress(z,8192)),data);
+    }
+    let packed=cmpTake(compress.deflate(data,6));
+    assert(bytes.length(packed)<bytes.length(data)/10);
+    assert_eq(compress.deflate(data,6),compress.deflate(data,6));
+    let empty=cmpTake(compress.deflate(Bytes(""),6));
+    assert_eq(cmpTake(compress.inflate(empty,0)),Bytes(""));
+}
+test fn compress_inflate_refuses_output_over_the_limit_instead_of_truncating() {
+    let bomb=cmpRepeat("0",16);
+    assert_eq(bytes.length(bomb),65536);
+    let packed=cmpTake(compress.deflate(bomb,9));
+    assert(bytes.length(packed)<512);
+    assert_eq(cmpCode(compress.inflate(packed,1000)),"Limit");
+    assert_eq(cmpCode(compress.inflate(packed,65535)),"Limit");
+    assert_eq(cmpTake(compress.inflate(packed,65536)),bomb);
+}
+test fn compress_distinguishes_truncated_corrupt_and_out_of_range_input() {
+    let data=cmpRepeat("hello ",6);
+    let z=cmpTake(compress.zlibCompress(data,6));
+    let n=bytes.length(z);
+    assert_eq(cmpCode(compress.zlibDecompress(cmpTake(bytes.slice(z,0,n-6)),8192)),"Truncated");
+    assert_eq(cmpCode(compress.zlibDecompress(cmpWith(z,n-1,(match bytes.get(z,n-1){Ok(v)=>v,Err(_)=>0}+1)%256),8192)),"Corrupt");
+    assert_eq(cmpCode(compress.inflate(Bytes("not deflate data at all"),8192)),"Corrupt");
+    assert_eq(cmpCode(compress.deflate(data,11)),"Range");
+    assert_eq(cmpCode(compress.deflate(data,-1)),"Range");
+    assert_eq(cmpCode(compress.inflate(z,-1)),"Range");
+    assert_eq(cmpCode(compress.inflate(z,1048577)),"Range");
+}
+test fn compress_survives_pseudo_random_garbage_without_panicking_or_exceeding_the_limit() {
+    var state=12345;
+    for round in 0..50 {
+        let list=List<Int>();
+        let length=1+round%40;
+        for i in 0..length {state=(state*1103515245+12345)%2147483648;list.add((state/65536)%256);}
+        let data=match stdBytesFromList(&list){Ok(b)=>b,Err(_)=>Bytes("")};
+        for mode in 0..2 {
+            let result=if mode==0 {compress.inflate(data,2048)} else {compress.zlibDecompress(data,2048)};
+            match result {
+                Ok(out)=>{assert(bytes.length(out)<=2048);},
+                Err(e)=>{assert(e.code=="Limit"||e.code=="Truncated"||e.code=="Corrupt");},
+            }
+        }
+    }
+}
 test fn evaluation_shuffle_is_a_reproducible_permutation() {
     let a=evOrder(50,7);let b=evOrder(50,7);let c=evOrder(50,8);
     assert_eq(a.len(),50);

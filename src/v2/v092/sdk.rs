@@ -62,6 +62,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "evaluation",
             include_str!("../../../libraries/std/evaluation.rw"),
         ),
+        (
+            "compress",
+            include_str!("../../../libraries/std/compress.rw"),
+        ),
         ("layout", include_str!("../../../libraries/std/layout.rw")),
         ("parser", include_str!("../../../libraries/std/parser.rw")),
         (

@@ -273,6 +273,12 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdBytesSlice",
         "stdBytesLength",
         "stdBytesFromList",
+        "stdDeflate",
+        "stdInflate",
+        "stdZlibCompress",
+        "stdZlibDecompress",
+        "stdCrc32",
+        "stdAdler32",
         "stdParseInt",
         "stdParseFloat",
         "stdFormatInt",
@@ -736,6 +742,28 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
             _ => 1,
         },
         "stdMulMod" => 64,
+        // Compression is a few tens of MB/s: charge 8 units per input byte. Decompression is
+        // bounded by the caller's output limit and by the maximum expansion, charged up front.
+        "stdDeflate" | "stdZlibCompress" => match args {
+            [Value::Bytes(bytes), _] => bytes.len().saturating_mul(8).saturating_add(256),
+            _ => 256,
+        },
+        "stdInflate" | "stdZlibDecompress" => match args {
+            // DEFLATE cannot expand more than 1032:1, so the output (and the work to produce it)
+            // is bounded by both the caller's limit and the input size.
+            [Value::Bytes(bytes), Value::Int(max)] => bytes
+                .len()
+                .saturating_mul(4)
+                .saturating_add(
+                    ((*max).clamp(0, LIMIT as i64) as usize).min(bytes.len().saturating_mul(1032)),
+                )
+                .saturating_add(256),
+            _ => 256,
+        },
+        "stdCrc32" | "stdAdler32" => match args {
+            [Value::Bytes(bytes)] => bytes.len().saturating_mul(2).saturating_add(16),
+            _ => 16,
+        },
         "stdFormatInt" | "stdFormatFloat" => 128,
         _ => args.iter().map(length).fold(1usize, usize::saturating_add),
     };
@@ -1341,6 +1369,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdBytesSlice" => (&["Bytes", "Int", "Int"], "Result<Bytes,StdError>"),
         "stdBytesLength" => (&["Bytes"], "Int"),
         "stdBytesFromList" => (&["&List<Int>"], "Result<Bytes,StdError>"),
+        "stdDeflate" | "stdZlibCompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdInflate" | "stdZlibDecompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdCrc32" | "stdAdler32" => (&["Bytes"], "Int"),
         "stdParseInt" => (&["String", "Int"], "Result<Int,StdError>"),
         "stdParseFloat" => (&["String"], "Result<Float,StdError>"),
         "stdFormatInt" => (&["Int", "Int"], "Result<String,StdError>"),
@@ -1702,6 +1733,28 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
     let value = match n {
         "stdTextLength" => Value::Int(text(0)?.chars().count() as i64),
         "stdBytesLength" => Value::Int(bytes(0)?.len() as i64),
+        "stdCrc32" => {
+            let mut crc = 0xffff_ffffu32;
+            for byte in bytes(0)? {
+                crc ^= u32::from(*byte);
+                for _ in 0..8 {
+                    crc = (crc >> 1) ^ (0xedb8_8320 & 0u32.wrapping_sub(crc & 1));
+                }
+            }
+            Value::Int(i64::from(!crc))
+        }
+        "stdAdler32" => {
+            let (mut a, mut c) = (1u32, 0u32);
+            for chunk in bytes(0)?.chunks(5552) {
+                for byte in chunk {
+                    a += u32::from(*byte);
+                    c += a;
+                }
+                a %= 65521;
+                c %= 65521;
+            }
+            Value::Int(i64::from((c << 16) | a))
+        }
         "stdTextFind" => {
             let s = text(0)?;
             let needle = text(1)?;
@@ -1852,6 +1905,58 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                         Ok(Value::Bytes(
                             b[start as usize..end as usize].to_vec().into(),
                         ))
+                    }
+                }
+                "stdDeflate" | "stdZlibCompress" => {
+                    let b = bytes(0)?;
+                    let level = int(1)?;
+                    if !(0..=10).contains(&level) {
+                        Err(("Range", 0))
+                    } else if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        let out = if n == "stdDeflate" {
+                            miniz_oxide::deflate::compress_to_vec(b, level as u8)
+                        } else {
+                            miniz_oxide::deflate::compress_to_vec_zlib(b, level as u8)
+                        };
+                        if out.len() > LIMIT {
+                            Err(("Limit", 0))
+                        } else {
+                            Ok(Value::Bytes(out.into()))
+                        }
+                    }
+                }
+                "stdInflate" | "stdZlibDecompress" => {
+                    let b = bytes(0)?;
+                    let max = int(1)?;
+                    if max < 0 || max as usize > LIMIT {
+                        Err(("Range", 0))
+                    } else if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        let result = if n == "stdInflate" {
+                            miniz_oxide::inflate::decompress_to_vec_with_limit(b, max as usize)
+                        } else {
+                            miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(b, max as usize)
+                        };
+                        use miniz_oxide::inflate::TINFLStatus;
+                        match result {
+                            Ok(out) => Ok(Value::Bytes(out.into())),
+                            // More output than the caller allowed: refuse, never truncate.
+                            Err(e) if e.status == TINFLStatus::HasMoreOutput => Err(("Limit", 0)),
+                            // The stream ended before its final block / checksum.
+                            Err(e)
+                                if matches!(
+                                    e.status,
+                                    TINFLStatus::FailedCannotMakeProgress
+                                        | TINFLStatus::NeedsMoreInput
+                                ) =>
+                            {
+                                Err(("Truncated", e.output.len()))
+                            }
+                            Err(e) => Err(("Corrupt", e.output.len())),
+                        }
                     }
                 }
                 "stdParseInt" => {
