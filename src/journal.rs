@@ -6,6 +6,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 static NEXT_SPILL: AtomicU64 = AtomicU64::new(0);
+/// Bumped whenever any segment moves from memory to disk, so cached usage totals can tell
+/// that a segment they summed has changed.
+static SPILL_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+pub(crate) fn spill_generation() -> u64 {
+    SPILL_GENERATION.load(Ordering::Acquire)
+}
 
 enum Storage {
     Memory(Vec<u8>),
@@ -53,6 +60,7 @@ impl Segment {
             return Err(e.into());
         }
         *storage = Storage::Spill(path, bytes.len());
+        SPILL_GENERATION.fetch_add(1, Ordering::Release);
         Ok(())
     }
     pub(crate) fn write_to(&self, writer: &mut impl Write) -> io::Result<()> {

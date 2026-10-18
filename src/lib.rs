@@ -750,7 +750,24 @@ impl std::hash::Hasher for PtrHasher {
         self.0 = mixed ^ (mixed >> 32);
     }
 }
+/// Running (memory, disk) totals over the completed prefix of the append-only external ledger.
+/// Entries before `len` all have an outcome and are never edited, so the totals only change when
+/// a segment spills (tracked by `generation`) or the ledger is replaced (replay import).
+#[derive(Default)]
+struct LedgerCache {
+    len: usize,
+    generation: u64,
+    mem: usize,
+    disk: usize,
+    ptrs: PtrSet,
+}
 impl PtrSet {
+    fn contains(&self, value: usize) -> bool {
+        match &self.spill {
+            Some(spill) => spill.contains(&value),
+            None => self.inline[..self.len].contains(&value),
+        }
+    }
     /// Returns true when `value` was not present.
     fn insert(&mut self, value: usize) -> bool {
         if let Some(spill) = &mut self.spill {
@@ -922,6 +939,7 @@ pub struct Runtime {
     gui_window_scripted: Option<std::collections::VecDeque<gui::WindowEvent>>,
     gui_window_last_polled: Option<String>,
     external_entries: Vec<external::Entry>,
+    external_ledger_cache: RefCell<LedgerCache>,
     external_high_water: usize,
     external_memory_bytes: usize,
     external_pending: usize,
@@ -1883,6 +1901,7 @@ impl Runtime {
             gui_window_scripted: None,
             gui_window_last_polled: None,
             external_entries: Vec::new(),
+            external_ledger_cache: RefCell::default(),
             external_high_water: 0,
             external_memory_bytes: 0,
             external_pending: 0,
@@ -2311,13 +2330,36 @@ impl Runtime {
                 }
             }
         }
-        for outcome in self
+        // The completed prefix of the ledger is summed incrementally; only the tail and the live
+        // entries are walked. Segments already counted in the prefix are never counted twice.
+        let mut ledger = self.external_ledger_cache.borrow_mut();
+        let ledger = &mut *ledger;
+        let generation = journal::spill_generation();
+        if ledger.generation != generation || ledger.len > self.external_entries.len() {
+            *ledger = LedgerCache {
+                generation,
+                ..LedgerCache::default()
+            };
+        }
+        while let Some(outcome) = self
             .external_entries
+            .get(ledger.len)
+            .and_then(|e| e.outcome.as_ref())
+        {
+            if ledger.ptrs.insert(Arc::as_ptr(&outcome.segment) as usize) {
+                let (mem, disk) = outcome.segment.usage();
+                ledger.mem = ledger.mem.saturating_add(mem);
+                ledger.disk = ledger.disk.saturating_add(disk);
+            }
+            ledger.len += 1;
+        }
+        for outcome in self.external_entries[ledger.len..]
             .iter()
             .chain(self.external_live_entries.values().map(|live| &live.entry))
             .filter_map(|e| e.outcome.as_ref())
         {
-            if seen_segments.insert(Arc::as_ptr(&outcome.segment) as usize) {
+            let ptr = Arc::as_ptr(&outcome.segment) as usize;
+            if !ledger.ptrs.contains(ptr) && seen_segments.insert(ptr) {
                 segments.push(outcome.segment.clone());
             }
         }
@@ -2444,10 +2486,12 @@ impl Runtime {
             self.history_budget_kind.set("HistoryMemory");
             return Err(Error::HistoryBudgetExceeded);
         }
-        segments.sort_by_key(|segment| segment.id);
-        let mut journal_memory = 0usize;
-        let mut storage = 0usize;
+        let mut journal_memory = ledger.mem;
+        let mut storage = ledger.disk;
         for segment in &segments {
+            if ledger.ptrs.contains(Arc::as_ptr(segment) as usize) {
+                continue;
+            }
             let (mem, disk) = segment.usage();
             journal_memory = journal_memory.saturating_add(mem);
             storage = storage.saturating_add(disk);
@@ -2460,6 +2504,18 @@ impl Runtime {
             .budget
             .spill_threshold
             .min(self.budget.history_memory - compute_memory);
+        if journal_memory > target {
+            // Spilling may be needed: bring the cached prefix into the candidate list.
+            for outcome in self.external_entries[..ledger.len]
+                .iter()
+                .filter_map(|e| e.outcome.as_ref())
+            {
+                if seen_segments.insert(Arc::as_ptr(&outcome.segment) as usize) {
+                    segments.push(outcome.segment.clone());
+                }
+            }
+            segments.sort_by_key(|segment| segment.id);
+        }
         for segment in segments {
             if journal_memory <= target {
                 break;

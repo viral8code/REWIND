@@ -121,7 +121,7 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 1. **時間が回数の約1.6〜2乗**（1000 → 2000回で3.9倍）。`external`操作の結果（journal segment）は`external_entries`として実行中ずっと保持され（`src/external.rs`、上限100万件）、予算確認が全segmentを毎回走査するためです（INSERTだけのloopでも1000 → 2000回で3.2倍）。軽量hashで約1.5〜1.9倍速くなりましたが、O(件数)の走査は残っています。
 2. **peak commitが約20 KiB/cycle増える（原因特定・修正済み）**。`db.next`だけで増えたのは、非同期external開始時（`begin_async_external`、`src/external.rs`）に`max_result`分のバッファを`try_reserve_exact`で実確保していたためです。`db.next`の予約は8 MiBで、完了時に`shrink_to_fit`で縮めます。この8 MiBの確保・縮小の繰り返しでWindowsのheapが回ごとに伸びていました（他のdb操作は64 KiB予約なので目立たない）。切り分け: SQLite worker単体（`Command::Execute`/`Query`/`Next`/`CloseCursor`を4,000回、`next`有り・無し）はpeak commit 2.1 MiBで一定だったため、SQLite/CRT側ではありません。予約は`external_memory_bytes`の会計に残し、バッファ自体は結果に応じて伸ばす形にしました（`Vec::new()`）。結果上限は書き込み側の`Bounded`が従来どおり守ります。修正後の`sqlite_cycle`のpeak commitは250 / 500 / 1000回で29.3 / 29.2 / 29.1 MiBの一定（修正前37.1 / 42.9 / 53.5 MiB）。同じ予約の実確保が同期・live経路（`begin_live_external`、`src/external.rs`の2か所）にも残っていますが、今回は測定していません。
 
-項目1は今回直していません（次の作業を参照）。`external_entries`は`revert`/replayのために必要な台帳で、走査を減らす変更はreplay契約に触れるため、別の設計確認が必要です。
+**項目1も修正済み**。予算確認は、outcomeが揃った`external_entries`先頭部分の(memory, disk)合計をキャッシュし、新しく完了した分だけ足す。segmentがspillした時（全体のspill世代が変わる）とreplay読込時に作り直し、spillが必要な時だけ従来どおり全segmentを候補にする。他の保持元と共有するsegmentは二重計上しない。台帳自体（revert/replayの内容）は変えていない。修正後の`sqlite_cycle`（項目2の修正込み）は500 / 1000 / 2000回で0.88 / 1.6 / 2.9 s（修正前25.6 s @1000、100.0 s @2000）と回数に比例し、peak commitは29 MiBで一定。10,000回は未測定。
 
 ## 未実施・未確認
 
@@ -131,7 +131,6 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 
 ## 次の作業（候補）
 
-1. **external台帳の走査（PERF-05）**：予算確認で全journal segmentを毎回走査しない。追加専用の台帳の合計をキャッシュし、spill時だけ全走査にする案。replay契約とsegmentの重複計上を確認してから。
 2. **同期・live経路の予約バッファ**：`src/external.rs`の同じ`try_reserve_exact`を、会計だけ残す形にするか検討する。
 3. **VM命令あたりの費用**：現在も空loopで約6 µs/反復。残りは`enforce_budget`の全状態走査が中心（globals・heap・stack・frameを毎回集計）。増分化には予算の失敗原子性の設計確認が必要。
 4. **`valuesFloat`**：要素ごとのメタデータ計算を、型付きscalar listではまとめて行う。

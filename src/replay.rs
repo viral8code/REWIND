@@ -175,6 +175,7 @@ impl Runtime {
         }
         self.state.external_poll_cursor = 0;
         self.external_entries = external_entries;
+        *self.external_ledger_cache.borrow_mut() = Default::default();
         self.external_high_water = 0;
         self.state.external_cursor = 0;
         if data["format"] != 1 {
