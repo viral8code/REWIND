@@ -138,3 +138,16 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 ### SQLite loopの10,000 cycle（修正2件の後）
 
 `62ceb6b`・`f204620`適用後のbinaryで、同じloopを2,500 / 5,000 / 10,000回: wall 3.5 / 6.9 / 14.2 秒（回数に比例）、peak commit 28.6 / 31.8 / 41.0 MiB（約1.2 KiB/cycle。cycleあたり4件のexternal台帳entryに相当し、台帳を保持する設計どおり）、handle最大164で一定。完走を確認しました。
+
+### 命令あたりの費用が状態サイズでどう変わるか
+
+空ループ10万回（`s+=i`）の時間を、状態を変えて測りました（単発、秒）。
+
+| 状態 | 変更前 | 変更後 |
+|---|---|---|
+| ローカル変数 0 / 50 / 200 個 | 1.1 / 2.3 / 7.5 | 1.1 / 1.5 / 2.9 |
+| 保持checkpoint 0 / 20 / 100 個 | 1.0 / 2.3 / 8.2 | （未変更） |
+| heapのList 0 / 1,000 / 10,000 要素 | 1.1 / 1.1 / 1.2 | （heapは集計をキャッシュ済みで影響なし） |
+
+予算確認は全ローカルを毎回なめるため、ローカルが多い関数ほど遅くなっていました。スカラー値（Int/Float/Bool/Null/参照）は数値・共有・byte・containerの補正がすべて0なので、`retained_bytes`で即returnします（結果は同一）。残る費用はcheckpoint数に比例する部分（各checkpointのstateを2周する）で、増分化が必要です。
+

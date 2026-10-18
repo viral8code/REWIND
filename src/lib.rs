@@ -1571,6 +1571,20 @@ impl Runtime {
         )
     }
     fn retained_bytes(&self, value: &Value, mut bytes: usize, allocations: bool) -> usize {
+        // Scalars own no numeric, shared, byte or container payload, so every adjustment below is
+        // zero. `enforce_budget` visits every local on almost every VM operation.
+        if matches!(
+            value,
+            Value::Int(_)
+                | Value::Float(_)
+                | Value::Bool(_)
+                | Value::Null
+                | Value::HeapRef(_)
+                | Value::CellRef(_)
+                | Value::Handle(_)
+        ) {
+            return bytes;
+        }
         if let Some(a) = &self.numeric_accounting {
             Self::register_numeric_value(value, a);
             bytes = bytes.saturating_sub(Self::numeric_payload_bytes(value));
