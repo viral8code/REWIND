@@ -65,9 +65,9 @@ zed
 
 | 対象 | 操作 |
 |---|---|
-| `List` | `isEmpty()`、`contains(x)`、`indexOf(x)`、`first()`、`last()`、`insert(i, x)`、`removeAt(i)`、`clear()`、`reverse()`、`sort()`、`join(区切り)` |
+| `List` | `isEmpty()`、`contains(x)`、`indexOf(x)`、`first()`、`last()`、`insert(i, x)`、`removeAt(i)`、`clear()`、`reverse()`、`sort()`、`join(区切り)`、`slice(a, b)`、`extend(他の List)` |
 | `Map` | `isEmpty()`、`contains(k)`、`getOr(k, 既定値)`、`values()` |
-| `String` | `isEmpty()`、`trim()`、`replace(a, b)`、`repeat(n)`、`lines()` |
+| `String` | `isEmpty()`、`trim()`、`replace(a, b)`、`repeat(n)`、`lines()`、`toUpper()`、`toLower()` |
 
 ```rewind
 fn main()->Int {

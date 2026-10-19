@@ -37,7 +37,7 @@ blockquote { margin: 3mm 0; padding: 1mm 4mm; border-left: 3px solid #b6c3da; ba
 }
 </style></head><body><h1 id="rewind-入門">REWIND 入門</h1>
 <p><strong>巻き戻せるプログラミングを、はじめから順に学ぶ本</strong></p>
-<nav class="toc"><h2 class="nobreak" id="toc">目次</h2><ol><li class="l2"><a href="#第1章-この本について">第1章 この本について</a></li><li class="l3"><a href="#rewind-とはどんな言語か">REWIND とはどんな言語か</a></li><li class="l3"><a href="#この本の対象と読み方">この本の対象と読み方</a></li><li class="l3"><a href="#コード例の約束">コード例の約束</a></li><li class="l2"><a href="#第2章-準備と最初のプログラム">第2章 準備と最初のプログラム</a></li><li class="l3"><a href="#処理系を用意する">処理系を用意する</a></li><li class="l3"><a href="#hello-rewind">Hello, REWIND</a></li><li class="l3"><a href="#実行のしかた">実行のしかた</a></li><li class="l3"><a href="#エラーの読み方">エラーの読み方</a></li><li class="l2"><a href="#第3章-値変数基本の型">第3章 値・変数・基本の型</a></li><li class="l3"><a href="#変数を作る">変数を作る</a></li><li class="l3"><a href="#基本の型">基本の型</a></li><li class="l3"><a href="#暗黙の型変換はない">暗黙の型変換はない</a></li><li class="l3"><a href="#整数の計算は検査される">整数の計算は検査される</a></li><li class="l3"><a href="#文字列">文字列</a></li><li class="l3"><a href="#比較と等価">比較と等価</a></li><li class="l3"><a href="#演算子の優先順位">演算子の優先順位</a></li><li class="l3"><a href="#型に別名を付ける">型に別名を付ける</a></li><li class="l2"><a href="#第4章-分岐と繰り返し">第4章 分岐と繰り返し</a></li><li class="l3"><a href="#if-と-else">if と else</a></li><li class="l3"><a href="#式としての-if">式としての if</a></li><li class="l3"><a href="#while">while</a></li><li class="l3"><a href="#for">for</a></li><li class="l3"><a href="#match">match</a></li><li class="l3"><a href="#if-let-と-let--else">if let と let … else</a></li><li class="l2"><a href="#第5章-関数">第5章 関数</a></li><li class="l3"><a href="#関数を宣言する">関数を宣言する</a></li><li class="l3"><a href="#effects-の宣言">effects の宣言</a></li><li class="l3"><a href="#名前付きの引数と既定値">名前付きの引数と既定値</a></li><li class="l3"><a href="#クロージャ">クロージャ</a></li><li class="l3"><a href="#関数を引数に渡す">関数を引数に渡す</a></li><li class="l3"><a href="#再帰の深さには上限がある">再帰の深さには上限がある</a></li><li class="l2"><a href="#第6章-listmapイテレータ">第6章 List・Map・イテレータ</a></li><li class="l3"><a href="#list">List</a></li><li class="l3"><a href="#map">Map</a></li><li class="l3"><a href="#よく使う操作">よく使う操作</a></li><li class="l3"><a href="#変更できる値には持ち主がいる">変更できる値には持ち主がいる</a></li><li class="l3"><a href="#イテレータ">イテレータ</a></li><li class="l3"><a href="#タプル">タプル</a></li><li class="l2"><a href="#第7章-自分の型を定義する">第7章 自分の型を定義する</a></li><li class="l3"><a href="#record-変わらないデータ">record: 変わらないデータ</a></li><li class="l3"><a href="#struct-変えられるデータ">struct: 変えられるデータ</a></li><li class="l3"><a href="#enum-選択肢を表す">enum: 選択肢を表す</a></li><li class="l3"><a href="#match-で網羅を検査する">match で網羅を検査する</a></li><li class="l3"><a href="#型にメソッドを足したいとき">型にメソッドを足したいとき</a></li><li class="l3"><a href="#公開と非公開">公開と非公開</a></li><li class="l2"><a href="#第8章-trait-とジェネリクス">第8章 trait とジェネリクス</a></li><li class="l3"><a href="#trait-型が持つ約束">trait: 型が持つ約束</a></li><li class="l3"><a href="#ジェネリクス">ジェネリクス</a></li><li class="l3"><a href="#型引数に制約を付ける">型引数に制約を付ける</a></li><li class="l3"><a href="#自作の型を比べる">自作の型を比べる</a></li><li class="l3"><a href="#型引数付きの-enum">型引数付きの enum</a></li><li class="l2"><a href="#第9章-所有権と借用">第9章 所有権と借用</a></li><li class="l3"><a href="#なぜ所有権があるのか">なぜ所有権があるのか</a></li><li class="l3"><a href="#二種類の値">二種類の値</a></li><li class="l3"><a href="#move-持ち主を替える">move: 持ち主を替える</a></li><li class="l3"><a href="#借用-貸すだけで持ち主は変わらない">借用: 貸すだけで、持ち主は変わらない</a></li><li class="l3"><a href="#freeze-と-thaw-変えない複製を共有する">freeze と thaw: 変えない複製を共有する</a></li><li class="l3"><a href="#使い分けの目安">使い分けの目安</a></li><li class="l2"><a href="#第10章-エラーを扱う">第10章 エラーを扱う</a></li><li class="l3"><a href="#二種類の失敗">二種類の失敗</a></li><li class="l3"><a href="#option-あるかないか">Option: あるか、ないか</a></li><li class="l3"><a href="#result-成功か失敗か">Result: 成功か、失敗か</a></li><li class="l3"><a href="#-で失敗を呼び出し元へ返す">? で失敗を呼び出し元へ返す</a></li><li class="l3"><a href="#panic-と-assert">panic と assert</a></li><li class="l3"><a href="#テストを書く">テストを書く</a></li><li class="l2"><a href="#第11章-チェックポイント-commit-と-revert">第11章 チェックポイント: commit と revert</a></li><li class="l3"><a href="#保存して戻る">保存して、戻る</a></li><li class="l3"><a href="#何が戻るのか">何が戻るのか</a></li><li class="l3"><a href="#revert-は実行位置を戻さない">revert は、実行位置を戻さない</a></li><li class="l3"><a href="#resume-の注意-終わらないループ">resume の注意: 終わらないループ</a></li><li class="l3"><a href="#保存点の名前と寿命">保存点の名前と寿命</a></li><li class="l3"><a href="#考え方のまとめ">考え方のまとめ</a></li><li class="l2"><a href="#第12章-公開と外部領域">第12章 公開と外部領域</a></li><li class="l3"><a href="#三つの層">三つの層</a></li><li class="l3"><a href="#publish-外へ確定する">publish: 外へ確定する</a></li><li class="l3"><a href="#main-が戻ったときの自動公開">main が戻ったときの自動公開</a></li><li class="l3"><a href="#begin-最初の状態へ戻る">begin: 最初の状態へ戻る</a></li><li class="l3"><a href="#branch-試すだけ試す">branch: 試すだけ試す</a></li><li class="l3"><a href="#外部領域-取り直せない値を扱う">外部領域: 取り直せない値を扱う</a></li><li class="l2"><a href="#第13章-効果と許可">第13章 効果と許可</a></li><li class="l3"><a href="#効果とは何か">効果とは何か</a></li><li class="l3"><a href="#効果の一覧">効果の一覧</a></li><li class="l3"><a href="#効果は呼び出し元へ伝わる">効果は呼び出し元へ伝わる</a></li><li class="l3"><a href="#宣言と許可は別">宣言と許可は別</a></li><li class="l3"><a href="#ファイルのパス">ファイルのパス</a></li><li class="l3"><a href="#secret-値を伏せる">Secret: 値を伏せる</a></li><li class="l2"><a href="#第14章-module-とプロジェクト">第14章 module とプロジェクト</a></li><li class="l3"><a href="#import">import</a></li><li class="l3"><a href="#公開する名前を決める">公開する名前を決める</a></li><li class="l3"><a href="#module-の中の状態">module の中の状態</a></li><li class="l3"><a href="#プロジェクトにする">プロジェクトにする</a></li><li class="l2"><a href="#第15章-並行処理">第15章 並行処理</a></li><li class="l3"><a href="#async-fn-と-task">async fn と Task</a></li><li class="l3"><a href="#決定的な協調スケジューラ">決定的な協調スケジューラ</a></li><li class="l3"><a href="#タスクへ渡せる値">タスクへ渡せる値</a></li><li class="l3"><a href="#失敗取り消し時間切れ">失敗・取り消し・時間切れ</a></li><li class="l3"><a href="#チャネル">チャネル</a></li><li class="l3"><a href="#taskgroup-片付け忘れを防ぐ">TaskGroup: 片付け忘れを防ぐ</a></li><li class="l2"><a href="#第16章-後始末-defer-と-using">第16章 後始末: defer と using</a></li><li class="l3"><a href="#defer">defer</a></li><li class="l3"><a href="#using">using</a></li><li class="l3"><a href="#巻き戻しと後始末">巻き戻しと後始末</a></li><li class="l2"><a href="#第17章-入力引数ファイル">第17章 入力・引数・ファイル</a></li><li class="l3"><a href="#標準入力から読む">標準入力から読む</a></li><li class="l3"><a href="#大量の数値を読む">大量の数値を読む</a></li><li class="l3"><a href="#起動引数">起動引数</a></li><li class="l3"><a href="#ファイルの読み書き">ファイルの読み書き</a></li><li class="l3"><a href="#複数の書き込みは一括では確定しない">複数の書き込みは一括では確定しない</a></li><li class="l3"><a href="#時刻と乱数">時刻と乱数</a></li><li class="l3"><a href="#環境変数">環境変数</a></li><li class="l2"><a href="#第18章-文字列unicode正規表現">第18章 文字列・Unicode・正規表現</a></li><li class="l3"><a href="#一文字の数え方は一つではない">「一文字」の数え方は一つではない</a></li><li class="l3"><a href="#書記素と正規化">書記素と正規化</a></li><li class="l3"><a href="#正規表現">正規表現</a></li><li class="l2"><a href="#第19章-json-と-csv">第19章 JSON と CSV</a></li><li class="l3"><a href="#json-を読む">JSON を読む</a></li><li class="l3"><a href="#大きな-json-を逐次的に読む">大きな JSON を逐次的に読む</a></li><li class="l3"><a href="#csv-を読む">CSV を読む</a></li><li class="l3"><a href="#正確な値を保存する">正確な値を保存する</a></li><li class="l2"><a href="#第20章-大きな整数十進数日時">第20章 大きな整数・十進数・日時</a></li><li class="l3"><a href="#失敗を取り出す補助関数">失敗を取り出す補助関数</a></li><li class="l3"><a href="#bigint-桁数に上限のない整数">BigInt: 桁数に上限のない整数</a></li><li class="l3"><a href="#decimal-十進数で正確に計算する">Decimal: 十進数で正確に計算する</a></li><li class="l3"><a href="#日時">日時</a></li><li class="l2"><a href="#第21章-数値配列と線形代数">第21章 数値配列と線形代数</a></li><li class="l3"><a href="#list-と数値配列">List と数値配列</a></li><li class="l3"><a href="#連立方程式を解く">連立方程式を解く</a></li><li class="l3"><a href="#計算が重いとき">計算が重いとき</a></li><li class="l2"><a href="#第22章-テスト診断記録と再生">第22章 テスト・診断・記録と再生</a></li><li class="l3"><a href="#テストを書く-2">テストを書く</a></li><li class="l3"><a href="#エラーの診断を読む">エラーの診断を読む</a></li><li class="l3"><a href="#実行を記録して再生する">実行を記録して、再生する</a></li><li class="l3"><a href="#仕事量を調べる">仕事量を調べる</a></li><li class="l3"><a href="#エディタとデバッガ">エディタとデバッガ</a></li><li class="l2"><a href="#第23章-実行予算と性能">第23章 実行予算と性能</a></li><li class="l3"><a href="#予算がある理由">予算がある理由</a></li><li class="l3"><a href="#予算の種類">予算の種類</a></li><li class="l3"><a href="#既定の予算は小さい">既定の予算は小さい</a></li><li class="l3"><a href="#予算は巻き戻らない">予算は巻き戻らない</a></li><li class="l3"><a href="#ソースの中で指定する">ソースの中で指定する</a></li><li class="l3"><a href="#呼び出しの深さとそのほかの制限">呼び出しの深さと、そのほかの制限</a></li><li class="l3"><a href="#重いと感じたら">重いと感じたら</a></li><li class="l2"><a href="#第24章-外の世界とつなぐ-データベース通信gui">第24章 外の世界とつなぐ: データベース・通信・GUI</a></li><li class="l3"><a href="#共通の約束">共通の約束</a></li><li class="l3"><a href="#データベース">データベース</a></li><li class="l3"><a href="#http-の通信">HTTP の通信</a></li><li class="l3"><a href="#ネイティブ-gui">ネイティブ GUI</a></li><li class="l2"><a href="#第25章-実習-在庫を全部反映するか一つも反映しないかで更新する">第25章 実習: 在庫を「全部反映するか、一つも反映しないか」で更新する</a></li><li class="l3"><a href="#設計を考える">設計を考える</a></li><li class="l3"><a href="#プログラム">プログラム</a></li><li class="l3"><a href="#読み解きのポイント">読み解きのポイント</a></li><li class="l3"><a href="#発展-取り組んでみよう">発展: 取り組んでみよう</a></li><li class="l2"><a href="#付録a-標準ライブラリの地図">付録A 標準ライブラリの地図</a></li><li class="l2"><a href="#付録b-よくあるエラーと対処">付録B よくあるエラーと対処</a></li><li class="l2"><a href="#付録c-用語集">付録C 用語集</a></li><li class="l2"><a href="#付録d-現状の制約">付録D 現状の制約</a></li><li class="l2"><a href="#付録e-次に読むもの">付録E 次に読むもの</a></li></ol></nav><h2 id="第1章-この本について">第1章 この本について</h2>
+<nav class="toc"><h2 class="nobreak" id="toc">目次</h2><ol><li class="l2"><a href="#第1章-この本について">第1章 この本について</a></li><li class="l3"><a href="#rewind-とはどんな言語か">REWIND とはどんな言語か</a></li><li class="l3"><a href="#この本の対象と読み方">この本の対象と読み方</a></li><li class="l3"><a href="#コード例の約束">コード例の約束</a></li><li class="l2"><a href="#第2章-準備と最初のプログラム">第2章 準備と最初のプログラム</a></li><li class="l3"><a href="#処理系を用意する">処理系を用意する</a></li><li class="l3"><a href="#hello-rewind">Hello, REWIND</a></li><li class="l3"><a href="#実行のしかた">実行のしかた</a></li><li class="l3"><a href="#エラーの読み方">エラーの読み方</a></li><li class="l2"><a href="#第3章-値変数基本の型">第3章 値・変数・基本の型</a></li><li class="l3"><a href="#変数を作る">変数を作る</a></li><li class="l3"><a href="#基本の型">基本の型</a></li><li class="l3"><a href="#暗黙の型変換はない">暗黙の型変換はない</a></li><li class="l3"><a href="#整数の計算は検査される">整数の計算は検査される</a></li><li class="l3"><a href="#数値のメソッド">数値のメソッド</a></li><li class="l3"><a href="#文字列">文字列</a></li><li class="l3"><a href="#比較と等価">比較と等価</a></li><li class="l3"><a href="#演算子の優先順位">演算子の優先順位</a></li><li class="l3"><a href="#型に別名を付ける">型に別名を付ける</a></li><li class="l2"><a href="#第4章-分岐と繰り返し">第4章 分岐と繰り返し</a></li><li class="l3"><a href="#if-と-else">if と else</a></li><li class="l3"><a href="#式としての-if">式としての if</a></li><li class="l3"><a href="#while">while</a></li><li class="l3"><a href="#for">for</a></li><li class="l3"><a href="#match">match</a></li><li class="l3"><a href="#while-let">while let</a></li><li class="l3"><a href="#if-let-と-let--else">if let と let … else</a></li><li class="l2"><a href="#第5章-関数">第5章 関数</a></li><li class="l3"><a href="#関数を宣言する">関数を宣言する</a></li><li class="l3"><a href="#effects-の宣言">effects の宣言</a></li><li class="l3"><a href="#名前付きの引数と既定値">名前付きの引数と既定値</a></li><li class="l3"><a href="#クロージャ">クロージャ</a></li><li class="l3"><a href="#関数を引数に渡す">関数を引数に渡す</a></li><li class="l3"><a href="#再帰の深さには上限がある">再帰の深さには上限がある</a></li><li class="l2"><a href="#第6章-listmapイテレータ">第6章 List・Map・イテレータ</a></li><li class="l3"><a href="#list">List</a></li><li class="l3"><a href="#map">Map</a></li><li class="l3"><a href="#よく使う操作">よく使う操作</a></li><li class="l3"><a href="#変更できる値には持ち主がいる">変更できる値には持ち主がいる</a></li><li class="l3"><a href="#イテレータ">イテレータ</a></li><li class="l3"><a href="#タプル">タプル</a></li><li class="l2"><a href="#第7章-自分の型を定義する">第7章 自分の型を定義する</a></li><li class="l3"><a href="#record-変わらないデータ">record: 変わらないデータ</a></li><li class="l3"><a href="#struct-変えられるデータ">struct: 変えられるデータ</a></li><li class="l3"><a href="#enum-選択肢を表す">enum: 選択肢を表す</a></li><li class="l3"><a href="#match-で網羅を検査する">match で網羅を検査する</a></li><li class="l3"><a href="#型にメソッドを足したいとき">型にメソッドを足したいとき</a></li><li class="l3"><a href="#公開と非公開">公開と非公開</a></li><li class="l2"><a href="#第8章-trait-とジェネリクス">第8章 trait とジェネリクス</a></li><li class="l3"><a href="#trait-型が持つ約束">trait: 型が持つ約束</a></li><li class="l3"><a href="#ジェネリクス">ジェネリクス</a></li><li class="l3"><a href="#型引数に制約を付ける">型引数に制約を付ける</a></li><li class="l3"><a href="#自作の型を比べる">自作の型を比べる</a></li><li class="l3"><a href="#型引数付きの-enum">型引数付きの enum</a></li><li class="l2"><a href="#第9章-所有権と借用">第9章 所有権と借用</a></li><li class="l3"><a href="#なぜ所有権があるのか">なぜ所有権があるのか</a></li><li class="l3"><a href="#二種類の値">二種類の値</a></li><li class="l3"><a href="#move-持ち主を替える">move: 持ち主を替える</a></li><li class="l3"><a href="#借用-貸すだけで持ち主は変わらない">借用: 貸すだけで、持ち主は変わらない</a></li><li class="l3"><a href="#freeze-と-thaw-変えない複製を共有する">freeze と thaw: 変えない複製を共有する</a></li><li class="l3"><a href="#使い分けの目安">使い分けの目安</a></li><li class="l2"><a href="#第10章-エラーを扱う">第10章 エラーを扱う</a></li><li class="l3"><a href="#二種類の失敗">二種類の失敗</a></li><li class="l3"><a href="#option-あるかないか">Option: あるか、ないか</a></li><li class="l3"><a href="#result-成功か失敗か">Result: 成功か、失敗か</a></li><li class="l3"><a href="#-で失敗を呼び出し元へ返す">? で失敗を呼び出し元へ返す</a></li><li class="l3"><a href="#panic-と-assert">panic と assert</a></li><li class="l3"><a href="#テストを書く">テストを書く</a></li><li class="l2"><a href="#第11章-チェックポイント-commit-と-revert">第11章 チェックポイント: commit と revert</a></li><li class="l3"><a href="#保存して戻る">保存して、戻る</a></li><li class="l3"><a href="#何が戻るのか">何が戻るのか</a></li><li class="l3"><a href="#revert-は実行位置を戻さない">revert は、実行位置を戻さない</a></li><li class="l3"><a href="#resume-の注意-終わらないループ">resume の注意: 終わらないループ</a></li><li class="l3"><a href="#保存点の名前と寿命">保存点の名前と寿命</a></li><li class="l3"><a href="#考え方のまとめ">考え方のまとめ</a></li><li class="l2"><a href="#第12章-公開と外部領域">第12章 公開と外部領域</a></li><li class="l3"><a href="#三つの層">三つの層</a></li><li class="l3"><a href="#publish-外へ確定する">publish: 外へ確定する</a></li><li class="l3"><a href="#main-が戻ったときの自動公開">main が戻ったときの自動公開</a></li><li class="l3"><a href="#begin-最初の状態へ戻る">begin: 最初の状態へ戻る</a></li><li class="l3"><a href="#branch-試すだけ試す">branch: 試すだけ試す</a></li><li class="l3"><a href="#外部領域-取り直せない値を扱う">外部領域: 取り直せない値を扱う</a></li><li class="l2"><a href="#第13章-効果と許可">第13章 効果と許可</a></li><li class="l3"><a href="#効果とは何か">効果とは何か</a></li><li class="l3"><a href="#効果の一覧">効果の一覧</a></li><li class="l3"><a href="#効果は呼び出し元へ伝わる">効果は呼び出し元へ伝わる</a></li><li class="l3"><a href="#宣言と許可は別">宣言と許可は別</a></li><li class="l3"><a href="#ファイルのパス">ファイルのパス</a></li><li class="l3"><a href="#secret-値を伏せる">Secret: 値を伏せる</a></li><li class="l2"><a href="#第14章-module-とプロジェクト">第14章 module とプロジェクト</a></li><li class="l3"><a href="#import">import</a></li><li class="l3"><a href="#公開する名前を決める">公開する名前を決める</a></li><li class="l3"><a href="#module-の中の状態">module の中の状態</a></li><li class="l3"><a href="#プロジェクトにする">プロジェクトにする</a></li><li class="l2"><a href="#第15章-並行処理">第15章 並行処理</a></li><li class="l3"><a href="#async-fn-と-task">async fn と Task</a></li><li class="l3"><a href="#決定的な協調スケジューラ">決定的な協調スケジューラ</a></li><li class="l3"><a href="#タスクへ渡せる値">タスクへ渡せる値</a></li><li class="l3"><a href="#失敗取り消し時間切れ">失敗・取り消し・時間切れ</a></li><li class="l3"><a href="#チャネル">チャネル</a></li><li class="l3"><a href="#taskgroup-片付け忘れを防ぐ">TaskGroup: 片付け忘れを防ぐ</a></li><li class="l2"><a href="#第16章-後始末-defer-と-using">第16章 後始末: defer と using</a></li><li class="l3"><a href="#defer">defer</a></li><li class="l3"><a href="#using">using</a></li><li class="l3"><a href="#巻き戻しと後始末">巻き戻しと後始末</a></li><li class="l2"><a href="#第17章-入力引数ファイル">第17章 入力・引数・ファイル</a></li><li class="l3"><a href="#標準入力から読む">標準入力から読む</a></li><li class="l3"><a href="#大量の数値を読む">大量の数値を読む</a></li><li class="l3"><a href="#起動引数">起動引数</a></li><li class="l3"><a href="#ファイルの読み書き">ファイルの読み書き</a></li><li class="l3"><a href="#複数の書き込みは一括では確定しない">複数の書き込みは一括では確定しない</a></li><li class="l3"><a href="#時刻と乱数">時刻と乱数</a></li><li class="l3"><a href="#環境変数">環境変数</a></li><li class="l2"><a href="#第18章-文字列unicode正規表現">第18章 文字列・Unicode・正規表現</a></li><li class="l3"><a href="#一文字の数え方は一つではない">「一文字」の数え方は一つではない</a></li><li class="l3"><a href="#書記素と正規化">書記素と正規化</a></li><li class="l3"><a href="#正規表現">正規表現</a></li><li class="l2"><a href="#第19章-json-と-csv">第19章 JSON と CSV</a></li><li class="l3"><a href="#json-を読む">JSON を読む</a></li><li class="l3"><a href="#大きな-json-を逐次的に読む">大きな JSON を逐次的に読む</a></li><li class="l3"><a href="#csv-を読む">CSV を読む</a></li><li class="l3"><a href="#正確な値を保存する">正確な値を保存する</a></li><li class="l2"><a href="#第20章-大きな整数十進数日時">第20章 大きな整数・十進数・日時</a></li><li class="l3"><a href="#失敗を取り出す補助関数">失敗を取り出す補助関数</a></li><li class="l3"><a href="#bigint-桁数に上限のない整数">BigInt: 桁数に上限のない整数</a></li><li class="l3"><a href="#decimal-十進数で正確に計算する">Decimal: 十進数で正確に計算する</a></li><li class="l3"><a href="#日時">日時</a></li><li class="l2"><a href="#第21章-数値配列と線形代数">第21章 数値配列と線形代数</a></li><li class="l3"><a href="#list-と数値配列">List と数値配列</a></li><li class="l3"><a href="#連立方程式を解く">連立方程式を解く</a></li><li class="l3"><a href="#計算が重いとき">計算が重いとき</a></li><li class="l2"><a href="#第22章-テスト診断記録と再生">第22章 テスト・診断・記録と再生</a></li><li class="l3"><a href="#テストを書く-2">テストを書く</a></li><li class="l3"><a href="#エラーの診断を読む">エラーの診断を読む</a></li><li class="l3"><a href="#実行を記録して再生する">実行を記録して、再生する</a></li><li class="l3"><a href="#仕事量を調べる">仕事量を調べる</a></li><li class="l3"><a href="#エディタとデバッガ">エディタとデバッガ</a></li><li class="l2"><a href="#第23章-実行予算と性能">第23章 実行予算と性能</a></li><li class="l3"><a href="#予算がある理由">予算がある理由</a></li><li class="l3"><a href="#予算の種類">予算の種類</a></li><li class="l3"><a href="#既定の予算は小さい">既定の予算は小さい</a></li><li class="l3"><a href="#予算は巻き戻らない">予算は巻き戻らない</a></li><li class="l3"><a href="#ソースの中で指定する">ソースの中で指定する</a></li><li class="l3"><a href="#呼び出しの深さとそのほかの制限">呼び出しの深さと、そのほかの制限</a></li><li class="l3"><a href="#重いと感じたら">重いと感じたら</a></li><li class="l2"><a href="#第24章-外の世界とつなぐ-データベース通信gui">第24章 外の世界とつなぐ: データベース・通信・GUI</a></li><li class="l3"><a href="#共通の約束">共通の約束</a></li><li class="l3"><a href="#データベース">データベース</a></li><li class="l3"><a href="#http-の通信">HTTP の通信</a></li><li class="l3"><a href="#ネイティブ-gui">ネイティブ GUI</a></li><li class="l2"><a href="#第25章-実習-在庫を全部反映するか一つも反映しないかで更新する">第25章 実習: 在庫を「全部反映するか、一つも反映しないか」で更新する</a></li><li class="l3"><a href="#設計を考える">設計を考える</a></li><li class="l3"><a href="#プログラム">プログラム</a></li><li class="l3"><a href="#読み解きのポイント">読み解きのポイント</a></li><li class="l3"><a href="#発展-取り組んでみよう">発展: 取り組んでみよう</a></li><li class="l2"><a href="#付録a-標準ライブラリの地図">付録A 標準ライブラリの地図</a></li><li class="l2"><a href="#付録b-よくあるエラーと対処">付録B よくあるエラーと対処</a></li><li class="l2"><a href="#付録c-用語集">付録C 用語集</a></li><li class="l2"><a href="#付録d-現状の制約">付録D 現状の制約</a></li><li class="l2"><a href="#付録e-次に読むもの">付録E 次に読むもの</a></li></ol></nav><h2 id="第1章-この本について">第1章 この本について</h2>
 <h3 id="rewind-とはどんな言語か">REWIND とはどんな言語か</h3>
 <p>プログラムを書いていて、「ここまでの状態に戻れたらいいのに」と思ったことはないでしょうか。探索で行き止まりに入ったとき、試しに変更した結果が気に入らなかったとき、あるいは途中で失敗したので最初からやり直したいとき。普通の言語では、そのための保存と復元を自分で書くことになります。</p>
 <p>REWIND は、この「戻る」操作を言語の機能として持っているプログラミング言語です。変数や <code>List</code> の中身といった計算の状態に <strong>名前を付けて保存</strong> しておき、あとから <strong>その状態へ戻れます</strong>。まだ画面やファイルに出ていない出力も、一緒に取り消されます。</p>
@@ -256,6 +256,40 @@ Err(InexactOrOverflow)</code></pre></div>
 <div class="code"><div class="cap out">出力</div><pre><code>inf
 false
 0.30000000000000004</code></pre></div>
+<h3 id="数値のメソッド">数値のメソッド</h3>
+<p>数値には、よく使う計算がメソッドとして用意されています。</p>
+<table>
+<thead>
+<tr>
+  <th>型</th>
+  <th>メソッド</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>Int</code></td>
+  <td><code>abs()</code>、<code>min(x)</code>、<code>max(x)</code>、<code>pow(n)</code></td>
+</tr>
+<tr>
+  <td><code>Float</code></td>
+  <td><code>abs()</code>、<code>sqrt()</code>、<code>floor()</code>、<code>ceil()</code>、<code>round()</code>、<code>min(x)</code>、<code>max(x)</code></td>
+</tr>
+</tbody>
+</table>
+<div class="code"><div class="cap">REWIND</div><pre><code>fn main()-&gt;Int {
+    Out.println((-5).abs());
+    Out.println(3.max(8));
+    Out.println(2.pow(10));
+    Out.println(2.5.floor());
+    Out.println(16.0.sqrt());
+    return 0;
+}</code></pre></div>
+<div class="code"><div class="cap out">出力</div><pre><code>5
+8
+1024
+2
+4</code></pre></div>
+<p><code>Int</code> の <code>abs()</code> と <code>pow(n)</code> は、結果が 64 ビットの範囲を超えると止まります。<code>Float</code> の <code>floor()</code> などは、<code>Float</code> を返します（<code>Int</code> にしたいときは、第3章で見た <code>toIntChecked</code> を使います）。</p>
 <h3 id="文字列">文字列</h3>
 <p>文字列は <code>&quot;</code> で囲みます。改行や <code>\n</code> などのエスケープが使えます。文字列どうしは <code>+</code> で連結できます。</p>
 <p>文字列の中に値を埋め込むには、<code>${式}</code> を使います。<code>${</code> という文字そのものを書きたいときは <code>$${</code> とします。</p>
@@ -374,6 +408,16 @@ a
 b
 ann
 bob</code></pre></div>
+<p><code>for</code> の変数には、タプルのパターンも書けます。<code>enumerate()</code> は、添字と要素の組を作るので、その場で分解できます。</p>
+<div class="code"><div class="cap">REWIND</div><pre><code>fn main()-&gt;Int {
+    let names = [&quot;a&quot;, &quot;b&quot;];
+    for (i, name) in names.iter().enumerate() {
+        Out.println(&quot;${i}: ${name}&quot;);
+    }
+    return 0;
+}</code></pre></div>
+<div class="code"><div class="cap out">出力</div><pre><code>0: a
+1: b</code></pre></div>
 <h3 id="match">match</h3>
 <p><code>match</code> は、値の形によって処理を分けます。他の言語の <code>switch</code> に似ていますが、値の中身を取り出せる点と、<strong>すべての場合を扱っているかを検査してくれる</strong> 点が違います。</p>
 <div class="code"><div class="cap">REWIND</div><pre><code>fn main()-&gt;Int {
@@ -391,6 +435,18 @@ bob</code></pre></div>
 many</code></pre></div>
 <p>整数や文字列の <code>match</code> では、残りのすべてを受ける <code>_</code> が必要です。<code>match</code> は式なので、上の <code>word</code> のように値を返せます。</p>
 <p>値の中身を取り出すパターンは、第7章で <code>enum</code> と一緒に学びます。</p>
+<h3 id="while-let">while let</h3>
+<p><code>Option</code> を返す操作を、空になるまで繰り返したいときは、<code>while let</code> が便利です。パターンに一致する間だけ繰り返し、一致しなくなると、ループを終えます。</p>
+<div class="code"><div class="cap">REWIND</div><pre><code>fn main()-&gt;Int {
+    let stack = [1, 2, 3];
+    while let Some(top) = stack.pop() {
+        Out.println(top);
+    }
+    return 0;
+}</code></pre></div>
+<div class="code"><div class="cap out">出力</div><pre><code>3
+2
+1</code></pre></div>
 <h3 id="if-let-と-let--else">if let と let … else</h3>
 <p>ある形のときだけ処理したい場合は、<code>match</code> より <code>if let</code> が簡潔です。</p>
 <div class="code"><div class="cap">REWIND</div><pre><code>fn main()-&gt;Int {
@@ -571,7 +627,7 @@ zed</code></pre></div>
 <tbody>
 <tr>
   <td><code>List</code></td>
-  <td><code>isEmpty()</code>、<code>contains(x)</code>、<code>indexOf(x)</code>、<code>first()</code>、<code>last()</code>、<code>insert(i, x)</code>、<code>removeAt(i)</code>、<code>clear()</code>、<code>reverse()</code>、<code>sort()</code>、<code>join(区切り)</code></td>
+  <td><code>isEmpty()</code>、<code>contains(x)</code>、<code>indexOf(x)</code>、<code>first()</code>、<code>last()</code>、<code>insert(i, x)</code>、<code>removeAt(i)</code>、<code>clear()</code>、<code>reverse()</code>、<code>sort()</code>、<code>join(区切り)</code>、<code>slice(a, b)</code>、<code>extend(他の List)</code></td>
 </tr>
 <tr>
   <td><code>Map</code></td>
@@ -579,7 +635,7 @@ zed</code></pre></div>
 </tr>
 <tr>
   <td><code>String</code></td>
-  <td><code>isEmpty()</code>、<code>trim()</code>、<code>replace(a, b)</code>、<code>repeat(n)</code>、<code>lines()</code></td>
+  <td><code>isEmpty()</code>、<code>trim()</code>、<code>replace(a, b)</code>、<code>repeat(n)</code>、<code>lines()</code>、<code>toUpper()</code>、<code>toLower()</code></td>
 </tr>
 </tbody>
 </table>
@@ -1261,6 +1317,20 @@ fn main()-&gt;Int {
 }</code></pre></div>
 <div class="code"><div class="cap out">出力</div><pre><code>Ok(1)
 Err(7)</code></pre></div>
+<p><code>Option</code> と <code>Result</code> には、中身を取り出さずに状態を調べるメソッドと、既定値を指定して取り出すメソッドもあります。<code>isSome()</code>、<code>isNone()</code>、<code>isOk()</code>、<code>isErr()</code>、<code>valueOr(既定値)</code> です。</p>
+<div class="code"><div class="cap">REWIND</div><pre><code>fn main()-&gt;Int {
+    let missing: Option&lt;Int&gt; = None;
+    let failed: Result&lt;Int, String&gt; = Err(&quot;bad&quot;);
+    Out.println(missing.isNone());
+    Out.println(missing.valueOr(7));
+    Out.println(failed.isErr());
+    Out.println(failed.valueOr(8));
+    return 0;
+}</code></pre></div>
+<div class="code"><div class="cap out">出力</div><pre><code>true
+7
+true
+8</code></pre></div>
 <p><code>Result</code> には、他に <code>map</code>（<code>Ok</code> の中身を変換）、<code>andThen</code>（<code>Ok</code> の中身から次の <code>Result</code> を作る）、<code>flatten</code>（入れ子を一つにする）があります。</p>
 <p>エラーの型が組み込みの型どうしで食い違っていると、実行前に拒否されます。</p>
 <div class="code"><div class="cap err">エラーになる例</div><pre><code>fn code(key: String) -&gt; Result&lt;Int, Int&gt; effects {} {
@@ -2113,7 +2183,7 @@ hello</code></pre></div>
 <h3 id="時刻と乱数">時刻と乱数</h3>
 <p><code>Time.now()</code> は <code>clock</code> 効果、<code>Random.next()</code> は <code>random</code> 効果を必要とします。</p>
 <p>時刻は、外の世界から得る値です。実行を記録しておくと（第22章）、時刻も一緒に記録され、再生するときは同じ値が使われます。</p>
-<p><code>Random.next()</code> は少し違います。乱数の生成器は、決まった初期値から始まるので、<strong>実行するたびに同じ列</strong> が出ます。生成器の状態は、チェックポイントの一部として、<code>revert</code> で戻ります。値は符号付き 64 ビットの全域で、負にもなります。たとえばサイコロの目を作るときは、<code>Random.next() % 6</code> が負になりうるので、そのまま <code>+ 1</code> してはいけません。実行ごとに変わる値が必要なときは、時刻などを種にした仕組みを、自分で作る必要があります。</p>
+<p><code>Random.next()</code> は少し違います。乱数の生成器は、決まった初期値から始まるので、<strong>実行するたびに同じ列</strong> が出ます。生成器の状態は、チェックポイントの一部として、<code>revert</code> で戻ります。値は符号付き 64 ビットの全域で、負にもなります。範囲に収めた値が欲しいときは、<code>Random.below(n)</code> が、0 以上 <code>n</code> 未満の値を返します。サイコロの目なら <code>Random.below(6) + 1</code> です（<code>Random.next() % 6</code> は、負になりうるので使えません）。実行ごとに変わる値が必要なときは、時刻などを種にした仕組みを、自分で作る必要があります。</p>
 <h3 id="環境変数">環境変数</h3>
 <p>環境変数は <code>Env.get(名前)</code> で読みます。効果 <code>env</code> に加えて、変数名ごとの許可（<code>--allow-env 名前</code>）が必要です。パスワードのような値は <code>Env.getSecret(名前)</code> で読むと、<code>Secret</code> として扱われ、診断や記録に値が残りません。</p>
 <h2 id="第18章-文字列unicode正規表現">第18章 文字列・Unicode・正規表現</h2>

@@ -1990,13 +1990,63 @@ impl Parser {
             };
             StmtKind::If(cond, yes, no)
         } else if self.eat("while") {
+            if self.eat("let") {
+                // `while let Pat = value { body }` repeats while the pattern matches.
+                let pattern = self.pattern()?;
+                self.need("=")?;
+                let value = self.expr(0)?;
+                let body = self.block()?;
+                return Ok(Stmt {
+                    kind: StmtKind::While(
+                        Expr {
+                            kind: ExprKind::Value(Value::Bool(true)),
+                            at: at.clone(),
+                        },
+                        vec![Stmt {
+                            kind: StmtKind::Match(
+                                value,
+                                vec![
+                                    (
+                                        pattern,
+                                        None,
+                                        Stmt {
+                                            kind: StmtKind::Block(body),
+                                            at: at.clone(),
+                                        },
+                                    ),
+                                    (
+                                        Pattern::Wildcard,
+                                        None,
+                                        Stmt {
+                                            kind: StmtKind::Break,
+                                            at: at.clone(),
+                                        },
+                                    ),
+                                ],
+                            ),
+                            at: at.clone(),
+                        }],
+                    ),
+                    at,
+                });
+            }
             let cond = self.expr(0)?;
             StmtKind::While(cond, self.block()?)
         } else if self.eat("for") {
-            let name = self.name()?;
+            // `for (a, b) in iterator { ... }` destructures each item.
+            let destructure = if self.is("(") {
+                Some(self.pattern()?)
+            } else {
+                None
+            };
+            let name = if destructure.is_some() {
+                String::new()
+            } else {
+                self.name()?
+            };
             self.need("in")?;
             let start = self.expr(1)?;
-            if self.eat("..") {
+            if destructure.is_none() && self.eat("..") {
                 let end = self.expr(0)?;
                 StmtKind::For(name, start, end, self.block()?)
             } else {
@@ -2045,7 +2095,7 @@ impl Parser {
                                             (
                                                 Pattern::Variant(
                                                     "Some".into(),
-                                                    vec![Pattern::Bind(name)],
+                                                    vec![destructure.unwrap_or(Pattern::Bind(name))],
                                                 ),
                                                 None,
                                                 Stmt {
@@ -11135,13 +11185,10 @@ impl Checker<'_> {
             Some(inner) => (inner.to_string(), true),
             None => (received, false),
         };
-        let mutating = matches!(method, "insert" | "removeAt" | "clear" | "reverse" | "sort");
-        let invalid = || {
-            diagnostic(
-                at,
-                format!("invalid method call {receiver}.{method}/{}", types.len()),
-            )
-        };
+        let mutating = matches!(
+            method,
+            "insert" | "removeAt" | "clear" | "reverse" | "sort" | "extend"
+        );
         let result = if let Some(item) = receiver
             .strip_prefix("List<")
             .and_then(|t| t.strip_suffix('>'))
@@ -11159,7 +11206,16 @@ impl Checker<'_> {
                     "Unit".into()
                 }
                 ("join", [sep]) if item == "String" && compatible("String", sep) => "String".into(),
-                _ => return Err(invalid()),
+                ("slice", [a, b]) if compatible("Int", a) && compatible("Int", b) => {
+                    format!("List<{item}>")
+                }
+                ("extend", [other])
+                    if compatible(&format!("List<{item}>"), other)
+                        || compatible(&format!("Frozen<List<{item}>>"), other) =>
+                {
+                    "Unit".into()
+                }
+                _ => return Ok(None),
             }
         } else if let Some(inner) = receiver
             .strip_prefix("Map<")
@@ -11176,7 +11232,7 @@ impl Checker<'_> {
                 ("getOr", [k, d]) if compatible(parts[0], k) && compatible(parts[1], d) => {
                     parts[1].to_string()
                 }
-                _ => return Err(invalid()),
+                _ => return Ok(None),
             }
         } else if receiver == "String" {
             match (method, types) {
@@ -11187,7 +11243,41 @@ impl Checker<'_> {
                 }
                 ("repeat", [n]) if compatible("Int", n) => "String".into(),
                 ("lines", []) => "List<String>".into(),
-                _ => return Err(invalid()),
+                ("toUpper" | "toLower", []) => "String".into(),
+                _ => return Ok(None),
+            }
+        } else if let Some(item) = receiver
+            .strip_prefix("Option<")
+            .and_then(|t| t.strip_suffix('>'))
+        {
+            match (method, types) {
+                ("isSome" | "isNone", []) => "Bool".to_string(),
+                ("valueOr", [d]) if compatible(item, d) => item.to_string(),
+                _ => return Ok(None),
+            }
+        } else if let Some(inner) = receiver
+            .strip_prefix("Result<")
+            .and_then(|t| t.strip_suffix('>'))
+        {
+            let parts = split_type_args(inner);
+            match (method, types) {
+                ("isOk" | "isErr", []) => "Bool".to_string(),
+                ("valueOr", [d]) if parts.len() == 2 && compatible(parts[0], d) => {
+                    parts[0].to_string()
+                }
+                _ => return Ok(None),
+            }
+        } else if receiver == "Int" {
+            match (method, types) {
+                ("abs", []) => "Int".to_string(),
+                ("min" | "max" | "pow", [x]) if compatible("Int", x) => "Int".into(),
+                _ => return Ok(None),
+            }
+        } else if receiver == "Float" {
+            match (method, types) {
+                ("abs" | "sqrt" | "floor" | "ceil" | "round", []) => "Float".to_string(),
+                ("min" | "max", [x]) if compatible("Float", x) => "Float".into(),
+                _ => return Ok(None),
             }
         } else {
             return Ok(None);
@@ -11815,6 +11905,7 @@ fn builtin_type(receiver: &str, method: &str, args: &[String], at: &Tok) -> Resu
         ("In", "readLine", 0) => "Option<String>",
         ("In", "readSecretLine", 0) => "Option<Secret<String>>",
         ("Time", "now", 0) | ("Random", "next", 0) => "Int",
+        ("Random", "below", 1) if args[0] == "Int" => "Int",
         ("Args", "all", 0) | ("Directory", "entries", 1) => "List<String>",
         ("Env", "get", 1) => "Option<String>",
         ("Env", "getSecret", 1) => "Option<Secret<String>>",
@@ -14264,9 +14355,59 @@ impl<R: BufRead> Engine<R> {
         at: &Tok,
     ) -> Exec<Option<Value>> {
         let target = v05::unfrozen(target).unwrap_or(target);
+        match (target, method, args) {
+            (Value::Option(o), "isSome", []) => return Ok(Some(Value::Bool(o.is_some()))),
+            (Value::Option(o), "isNone", []) => return Ok(Some(Value::Bool(o.is_none()))),
+            (Value::Option(o), "valueOr", [d]) => {
+                return Ok(Some(o.as_deref().cloned().unwrap_or_else(|| d.clone())))
+            }
+            (Value::Result(r), "isOk", []) => return Ok(Some(Value::Bool(r.is_ok()))),
+            (Value::Result(r), "isErr", []) => return Ok(Some(Value::Bool(r.is_err()))),
+            (Value::Result(r), "valueOr", [d]) => {
+                return Ok(Some(match r {
+                    Ok(v) => (**v).clone(),
+                    Err(_) => d.clone(),
+                }))
+            }
+            (Value::Int(n), "abs", []) => {
+                let value = n
+                    .checked_abs()
+                    .ok_or_else(|| self.fail(at, "integer overflow"))?;
+                return Ok(Some(Value::Int(value)));
+            }
+            (Value::Int(n), "min", [Value::Int(m)]) => return Ok(Some(Value::Int(*n.min(m)))),
+            (Value::Int(n), "max", [Value::Int(m)]) => return Ok(Some(Value::Int(*n.max(m)))),
+            (Value::Int(n), "pow", [Value::Int(e)]) => {
+                let exponent = u32::try_from(*e)
+                    .map_err(|_| self.fail(at, "pow needs an exponent from 0 to 4294967295"))?;
+                let value = n
+                    .checked_pow(exponent)
+                    .ok_or_else(|| self.fail(at, "integer overflow"))?;
+                return Ok(Some(Value::Int(value)));
+            }
+            (Value::Float(bits), "abs" | "sqrt" | "floor" | "ceil" | "round", []) => {
+                let x = f64::from_bits(*bits);
+                let y = match method {
+                    "abs" => x.abs(),
+                    "sqrt" => x.sqrt(),
+                    "floor" => x.floor(),
+                    "ceil" => x.ceil(),
+                    _ => x.round(),
+                };
+                return Ok(Some(Value::Float(y.to_bits())));
+            }
+            (Value::Float(a), "min" | "max", [Value::Float(b)]) => {
+                let (x, y) = (f64::from_bits(*a), f64::from_bits(*b));
+                let z = if method == "min" { x.min(y) } else { x.max(y) };
+                return Ok(Some(Value::Float(z.to_bits())));
+            }
+            _ => {}
+        }
         if let Value::Text(text) = target {
             let text: &str = text;
             let value = match (method, args) {
+                ("toUpper", []) => Value::Text(text.to_uppercase().into()),
+                ("toLower", []) => Value::Text(text.to_lowercase().into()),
                 ("isEmpty", []) => Value::Bool(text.is_empty()),
                 ("trim", []) => Value::Text(text.trim().into()),
                 ("replace", [Value::Text(from), Value::Text(to)]) => {
@@ -14377,6 +14518,32 @@ impl<R: BufRead> Engine<R> {
                         } else {
                             Value::Option(found.map(|i| Box::new(Value::Int(i as i64))))
                         }
+                    }
+                    ("slice", [Value::Int(from), Value::Int(to)]) => {
+                        if *from < 0 || from > to || *to as usize > items.len() {
+                            return Err(self.fail(at, "list index out of bounds"));
+                        }
+                        let part: Vec<Value> = items[*from as usize..*to as usize].to_vec();
+                        let list = match (&list_type, part.is_empty()) {
+                            (Some(ty), false) => Value::TypedList(ty.clone(), part.into()),
+                            _ => Value::List(part),
+                        };
+                        Value::HeapRef(self.runtime.alloc(list).map_err(Flow::Error)?)
+                    }
+                    ("extend", [other]) => {
+                        let other = v05::unfrozen(other).unwrap_or(other);
+                        let other = match other {
+                            Value::HeapRef(other_id) => self.runtime.heap_get(*other_id).cloned(),
+                            other => Some(other.clone()),
+                        };
+                        let extra: Vec<Value> = match other {
+                            Some(Value::TypedList(_, more)) => more.iter().cloned().collect(),
+                            Some(Value::List(more)) => more,
+                            _ => return Err(self.fail(at, "extend needs a List")),
+                        };
+                        items.extend(extra);
+                        store(self, items)?;
+                        Value::Null
                     }
                     ("join", [Value::Text(separator)]) => {
                         let mut parts = Vec::with_capacity(items.len());
@@ -15786,6 +15953,13 @@ impl<R: BufRead> Engine<R> {
             )),
             ("Time", "now", 0) => Ok(Value::Int(self.runtime.now_millis()? as i64)),
             ("Random", "next", 0) => Ok(Value::Int(self.runtime.random_u64() as i64)),
+            ("Random", "below", 1) => match args[0] {
+                Value::Int(limit) if limit > 0 => {
+                    let draw = self.runtime.random_u64();
+                    Ok(Value::Int((draw % limit as u64) as i64))
+                }
+                _ => Err(self.fail(at, "Random.below needs a positive Int")),
+            },
             ("Args", "all", 0) => {
                 let values: Vec<_> = self
                     .runtime
@@ -15954,7 +16128,9 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
 /// Methods added to the built-in `List`, `Map` and `String` types.
 const EXTRA_METHODS: &[&str] = &[
     "isEmpty", "contains", "first", "last", "indexOf", "insert", "removeAt", "clear", "reverse",
-    "sort", "join", "values", "getOr", "trim", "replace", "repeat", "lines",
+    "sort", "join", "values", "getOr", "trim", "replace", "repeat", "lines", "isSome", "isNone",
+    "valueOr", "isOk", "isErr", "abs", "min", "max", "pow", "sqrt", "floor", "ceil", "round",
+    "slice", "extend", "toUpper", "toLower",
 ];
 
 /// True when every name in `ty` is one of the built-in value types, so a

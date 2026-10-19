@@ -144,6 +144,27 @@ Ok(1)
 Err(7)
 ```
 
+`Option` と `Result` には、中身を取り出さずに状態を調べるメソッドと、既定値を指定して取り出すメソッドもあります。`isSome()`、`isNone()`、`isOk()`、`isErr()`、`valueOr(既定値)` です。
+
+```rewind
+fn main()->Int {
+    let missing: Option<Int> = None;
+    let failed: Result<Int, String> = Err("bad");
+    Out.println(missing.isNone());
+    Out.println(missing.valueOr(7));
+    Out.println(failed.isErr());
+    Out.println(failed.valueOr(8));
+    return 0;
+}
+```
+
+```text
+true
+7
+true
+8
+```
+
 `Result` には、他に `map`（`Ok` の中身を変換）、`andThen`（`Ok` の中身から次の `Result` を作る）、`flatten`（入れ子を一つにする）があります。
 
 エラーの型が組み込みの型どうしで食い違っていると、実行前に拒否されます。

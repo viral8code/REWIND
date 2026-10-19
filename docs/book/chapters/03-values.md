@@ -137,6 +137,36 @@ false
 0.30000000000000004
 ```
 
+### 数値のメソッド
+
+数値には、よく使う計算がメソッドとして用意されています。
+
+| 型 | メソッド |
+|---|---|
+| `Int` | `abs()`、`min(x)`、`max(x)`、`pow(n)` |
+| `Float` | `abs()`、`sqrt()`、`floor()`、`ceil()`、`round()`、`min(x)`、`max(x)` |
+
+```rewind
+fn main()->Int {
+    Out.println((-5).abs());
+    Out.println(3.max(8));
+    Out.println(2.pow(10));
+    Out.println(2.5.floor());
+    Out.println(16.0.sqrt());
+    return 0;
+}
+```
+
+```text
+5
+8
+1024
+2
+4
+```
+
+`Int` の `abs()` と `pow(n)` は、結果が 64 ビットの範囲を超えると止まります。`Float` の `floor()` などは、`Float` を返します（`Int` にしたいときは、第3章で見た `toIntChecked` を使います）。
+
 ### 文字列
 
 文字列は `"` で囲みます。改行や `\n` などのエスケープが使えます。文字列どうしは `+` で連結できます。

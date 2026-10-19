@@ -541,6 +541,34 @@ fn main()->Int {
 
 関連関数（`型.new()` のような書き方）も無く、値を作る関数は普通の関数として書きます。
 
+### 5.10 数値のメソッド
+
+| 型 | メソッド |
+|---|---|
+| `Int` | `abs()`、`min(x)`、`max(x)`、`pow(n)`（`n` は 0 以上） |
+| `Float` | `abs()`、`sqrt()`、`floor()`、`ceil()`、`round()`（いずれも `Float` を返す）、`min(x)`、`max(x)` |
+
+`Int` の `abs()` と `pow(n)` は、結果が 64 ビットの範囲を超えると `IntegerOverflow` で止まります。
+
+```rewind
+fn main()->Int {
+    Out.println((-5).abs());
+    Out.println(3.max(8));
+    Out.println(2.pow(10));
+    Out.println(2.5.floor());
+    Out.println(16.0.sqrt());
+    return 0;
+}
+```
+
+```text
+5
+8
+1024
+2
+4
+```
+
 ## 6. 文と制御構造
 
 ### 6.1 束縛: `let` と `var`
@@ -682,6 +710,24 @@ bob
 
 `Map` のキーは常に昇順（`String` なら辞書順）で取り出されます。
 
+`for` の変数には、タプルのパターンも書けます。`enumerate()` や `zip()` が返す組を、その場で分解できます。
+
+```rewind
+fn main()->Int {
+    let names = ["a", "b"];
+    for (i, name) in names.iter().enumerate() {
+        Out.println("${i}: ${name}");
+    }
+    return 0;
+}
+```
+
+```text
+0: a
+1: b
+```
+
+
 ### 6.6 `return`
 
 `return 式;` で関数から戻ります。`Unit` を返す関数では `return;` と書けます。値を返す関数は、すべての経路で `return` に到達しなければならず、足りないとコンパイル時に `function returning Int needs a return on every path` と拒否されます。
@@ -798,6 +844,26 @@ fn main()->Int {
 ```text
 0
 9
+```
+
+### 6.9 `while let`
+
+`while let パターン = 式 { ... }` は、式の値がパターンに一致する間、繰り返します。一致しなくなったら、ループを終えます。`pop()` や `next()` のように、`Option` を返す操作を、空になるまで繰り返すときに使います。
+
+```rewind
+fn main()->Int {
+    let stack = [1, 2, 3];
+    while let Some(top) = stack.pop() {
+        Out.println(top);
+    }
+    return 0;
+}
+```
+
+```text
+3
+2
+1
 ```
 
 ## 7. 関数
@@ -1411,6 +1477,29 @@ REWIND の失敗は、扱い方で二種類に分かれます。
 | `mapErr(f)` | `Err` の中身を変換する |
 | `andThen(f)` | `Ok` の中身から次の `Result` を作る |
 | `flatten()` | 入れ子の `Result` を一つにする（`Err` の型が同じとき） |
+| `isOk()`、`isErr()` | 成功か失敗かを `Bool` で返す |
+| `valueOr(既定値)` | `Ok` の中身。`Err` なら既定値 |
+
+`Option` には `isSome()`、`isNone()`、`valueOr(既定値)` があります。
+
+```rewind
+fn main()->Int {
+    let missing: Option<Int> = None;
+    let failed: Result<Int, String> = Err("bad");
+    Out.println(missing.isNone());
+    Out.println(missing.valueOr(7));
+    Out.println(failed.isErr());
+    Out.println(failed.valueOr(8));
+    return 0;
+}
+```
+
+```text
+true
+7
+true
+8
+```
 
 `式?` は、`Result` を返す関数の中で使えます。`Ok(v)` なら `v` を取り出し、`Err(e)` ならその関数から `Err(e)` を返します。
 
@@ -2146,6 +2235,7 @@ world
 | `Env.get(名前)`、`Env.getSecret(名前)` | `Option<String>`、`Option<Secret<String>>` |
 | `Locale.current()` | `String`。地域設定 |
 | `Time.now()` | `Int`。観測された時刻。型付きの日時は `std.datetime`、`std.clock` |
+| `Random.below(n)` | `Int`。0 以上 `n` 未満の乱数（`n` は正の `Int`）。`Random.next()` と同じ生成器を使う |
 | `Random.next()` | `Int`。符号付き 64 ビット全域の値で、負にもなる。生成器は決まった初期値から始まるため、**実行するたびに同じ列** が出る。状態はチェックポイントで戻る。範囲に収めるには、剰余を取って符号を考慮する |
 | `File.readText(path)`、`File.readBytes(path)` | `Result<String,FileError>`、`Result<Bytes,FileError>` |
 | `File.writeText(path, 文字列)`、`File.writeBytes(path, Bytes)` | `Unit`。保留中の書き込み |
@@ -2190,6 +2280,7 @@ world
 | `s.replace(a, b)` | `String`。`a` をすべて `b` に置き換える（`a` は空でない） |
 | `s.repeat(n)` | `String`。`n` 回繰り返す（結果は 16 MiB まで） |
 | `s.lines()` | `List<String>`。改行で分ける |
+| `s.toUpper()`、`s.toLower()` | `String`。Unicode の大文字・小文字に変える（`"ß"` は `"SS"` になる） |
 | `b.decodeUtf8()` | `Result<String,String>`（`Bytes` のメソッド） |
 | `b.slice(a, b)`、`b.byteLen()` | `Bytes` のバイト位置 |
 
@@ -2223,6 +2314,7 @@ Unicode のスカラー値は、人が見る「一文字」と一致するとは
 |---|---|
 | `List<T>` | `add(x)`、`push(x)`、`set(i, x)`、`get(i)`、`len()`、`pop()`（`Option<T>`）、`iter()` |
 | `List<T>`（検索・参照） | `isEmpty()`、`contains(x)`、`indexOf(x)`（`Option<Int>`）、`first()`、`last()`（`Option<T>`）、`join(区切り)`（`List<String>` のとき） |
+| `List<T>`（部分・結合） | `slice(a, b)`（`a` 以上 `b` 未満の複製）、`extend(他の List)`（末尾へ追加。`freeze` した `List` か、`move` した `List` を渡す） |
 | `List<T>`（更新） | `insert(i, x)`、`removeAt(i)`（取り除いた要素を返す）、`clear()`、`reverse()`、`sort()`（`Int`、`Float`、`String` の `List`。昇順） |
 | `Map<K,V>` | `set(k, v)`、`get(k)`（`Option<V>`）、`remove(k)`、`len()`、`keys()` |
 | `Map<K,V>`（追加） | `isEmpty()`、`contains(k)`、`getOr(k, 既定値)`、`values()`（キーの昇順の `List<V>`） |

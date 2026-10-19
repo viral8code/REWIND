@@ -32,6 +32,22 @@ fn run(source: &str) -> Output {
     let root = project(source);
     call(&root, &["run", "--root", "."])
 }
+fn run_allowing(source: &str, effects: &str) -> Output {
+    let root = project(source);
+    fs::write(
+        root.join("rewind.toml"),
+        format!(
+            "language = \"3.0.0\"
+source_root = \".\"
+entry = \"main.rw\"
+effects = \"{effects}\"
+"
+        ),
+    )
+    .unwrap();
+    assert!(call(&root, &["update"]).status.success());
+    call(&root, &["run", "--root", "."])
+}
 fn stdout(out: &Output) -> String {
     String::from_utf8_lossy(&out.stdout).into()
 }
@@ -597,4 +613,58 @@ fn mutating_list_methods_respect_borrows_and_frozen_values() {
         "{}",
         stderr(&range)
     );
+}
+
+#[test]
+fn while_let_and_tuple_patterns_in_for_loops_work() {
+    let out = run(
+        "fn main()->Int effects {output} {\n    let xs = [3, 1, 2];\n    while let Some(x) = xs.pop() {\n        Out.println(x);\n    }\n    let names = [\"a\", \"b\"];\n    for (i, name) in names.iter().enumerate() {\n        Out.println(\"${i}: ${name}\");\n    }\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "2\n1\n3\n0: a\n1: b\n");
+}
+
+#[test]
+fn option_result_number_and_slice_methods_work() {
+    let out = run(
+        "fn main()->Int effects {output} {\n    let o: Option<Int> = Some(2);\n    let none: Option<Int> = None;\n    let r: Result<Int, String> = Ok(1);\n    let bad: Result<Int, String> = Err(\"x\");\n    Out.println(o.isSome());\n    Out.println(none.isNone());\n    Out.println(none.valueOr(7));\n    Out.println(r.isOk());\n    Out.println(bad.isErr());\n    Out.println(bad.valueOr(9));\n    let n = -5;\n    Out.println(n.abs());\n    Out.println(n.max(3));\n    Out.println(n.min(3));\n    Out.println(2.pow(10));\n    let f = 2.5;\n    Out.println(f.floor());\n    Out.println(f.ceil());\n    Out.println(16.0.sqrt());\n    let xs = [1, 2, 3, 4];\n    Out.println(xs.slice(1, 3));\n    let ys = [9];\n    ys.extend(freeze(xs));\n    Out.println(ys);\n    Out.println(\"Straße\".toUpper());\n    Out.println(\"ABC\".toLower());\n    Out.println(\"hello\".slice(1, 3));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "true\ntrue\n7\ntrue\ntrue\n9\n5\n3\n-5\n1024\n2\n3\n4\n[2, 3]\n[9, 1, 2, 3, 4]\nSTRASSE\nabc\nOk(el)\n"
+    );
+}
+
+#[test]
+fn integer_helpers_report_overflow() {
+    let out = run("fn main()->Int effects {} {\n    let n = 2.pow(63);\n    return 0;\n}\n");
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("IntegerOverflow"), "{}", stderr(&out));
+}
+
+#[test]
+fn random_below_stays_in_range_and_rejects_bad_limits() {
+    let source = "fn main()->Int effects {random, output} {
+    var ok = true;
+    for i in 0..50 {
+        let n = Random.below(6);
+        if n < 0 || n > 5 { ok = false; }
+    }
+    Out.println(ok);
+    return 0;
+}
+";
+    let out = run_allowing(source, "random,output");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "true\n");
+    let bad = run_allowing(
+        "fn main()->Int effects {random} {
+    let n = Random.below(0);
+    return 0;
+}
+",
+        "random",
+    );
+    assert!(!bad.status.success());
 }

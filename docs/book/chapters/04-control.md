@@ -110,6 +110,23 @@ ann
 bob
 ```
 
+`for` の変数には、タプルのパターンも書けます。`enumerate()` は、添字と要素の組を作るので、その場で分解できます。
+
+```rewind
+fn main()->Int {
+    let names = ["a", "b"];
+    for (i, name) in names.iter().enumerate() {
+        Out.println("${i}: ${name}");
+    }
+    return 0;
+}
+```
+
+```text
+0: a
+1: b
+```
+
 ### match
 
 `match` は、値の形によって処理を分けます。他の言語の `switch` に似ていますが、値の中身を取り出せる点と、**すべての場合を扱っているかを検査してくれる** 点が違います。
@@ -136,6 +153,26 @@ many
 整数や文字列の `match` では、残りのすべてを受ける `_` が必要です。`match` は式なので、上の `word` のように値を返せます。
 
 値の中身を取り出すパターンは、第7章で `enum` と一緒に学びます。
+
+### while let
+
+`Option` を返す操作を、空になるまで繰り返したいときは、`while let` が便利です。パターンに一致する間だけ繰り返し、一致しなくなると、ループを終えます。
+
+```rewind
+fn main()->Int {
+    let stack = [1, 2, 3];
+    while let Some(top) = stack.pop() {
+        Out.println(top);
+    }
+    return 0;
+}
+```
+
+```text
+3
+2
+1
+```
 
 ### if let と let … else
 
