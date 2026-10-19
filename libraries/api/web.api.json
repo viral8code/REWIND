@@ -1,0 +1,201 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.6.0",
+  "symbols": {
+    "fn:contentType": {
+      "async": false,
+      "cost": "O(path length); looks at the last extension only, compared without case.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; a missing or unknown extension gives application/octet-stream.",
+      "generics": [],
+      "names": [
+        "path"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "String"
+    },
+    "fn:safeJoin": {
+      "async": false,
+      "cost": "O(path length); rejects \"..\", \".\", empty segments, a leading slash, backslashes, colons and control characters.",
+      "defaults": [],
+      "effects": [],
+      "failure": "WebError/Path (the relative path is empty, too long, absolute or has a segment that could escape the root).",
+      "generics": [],
+      "names": [
+        "root",
+        "relative"
+      ],
+      "parameters": [
+        "String",
+        "String"
+      ],
+      "return": "Result<String,WebError>"
+    },
+    "fn:etag": {
+      "async": false,
+      "cost": "one SHA-256 over the body (native work, 4 units per input byte); the first 32 hex characters of the digest, quoted.",
+      "defaults": [],
+      "effects": [],
+      "failure": "WebError/Limit (the body is over the sha256 input limit of 1 MiB).",
+      "generics": [],
+      "names": [
+        "body"
+      ],
+      "parameters": [
+        "Bytes"
+      ],
+      "return": "Result<String,WebError>"
+    },
+    "fn:notModified": {
+      "async": false,
+      "cost": "O(header length); true when If-None-Match is \"*\" or lists the current tag. Weak and strong forms compare equal.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; an empty current tag or a malformed list gives false.",
+      "generics": [],
+      "names": [
+        "ifNoneMatch",
+        "current"
+      ],
+      "parameters": [
+        "String",
+        "String"
+      ],
+      "return": "Bool"
+    },
+    "fn:parseRange": {
+      "async": false,
+      "cost": "O(header length); accepts one \"bytes=a-b\", \"bytes=a-\" or \"bytes=-n\" range and clips it to size.",
+      "defaults": [],
+      "effects": [],
+      "failure": "WebError/Syntax (not a single bytes range, or a bad number) and Unsatisfiable (size below 1, or the start is past the end).",
+      "generics": [],
+      "names": [
+        "header",
+        "size"
+      ],
+      "parameters": [
+        "String",
+        "Int"
+      ],
+      "return": "Result<ByteRange,WebError>"
+    },
+    "fn:securityHeaders": {
+      "async": false,
+      "cost": "O(1); six fixed headers: nosniff, no framing, no referrer, a restrictive CSP, HSTS and no caching of responses by default.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none.",
+      "generics": [],
+      "names": [],
+      "parameters": [],
+      "return": "List<httpHeaders.Header>"
+    },
+    "fn:sessionCookie": {
+      "async": false,
+      "cost": "O(value length); Set-Cookie with Path=/, HttpOnly, SameSite=Lax, the given Max-Age and the Secure flag.",
+      "defaults": [],
+      "effects": [],
+      "failure": "WebError/Cookie (the name or token is not a valid cookie, or maxAge is below 1).",
+      "generics": [],
+      "names": [
+        "name",
+        "token",
+        "maxAge",
+        "secure"
+      ],
+      "parameters": [
+        "String",
+        "String",
+        "Int",
+        "Bool"
+      ],
+      "return": "Result<String,WebError>"
+    },
+    "fn:clearSessionCookie": {
+      "async": false,
+      "cost": "O(name length); Set-Cookie with an empty value and Max-Age=0, with the same Path, HttpOnly and SameSite as sessionCookie.",
+      "defaults": [],
+      "effects": [],
+      "failure": "WebError/Cookie (the name is not a valid cookie name).",
+      "generics": [],
+      "names": [
+        "name",
+        "secure"
+      ],
+      "parameters": [
+        "String",
+        "Bool"
+      ],
+      "return": "Result<String,WebError>"
+    },
+    "fn:readSession": {
+      "async": false,
+      "cost": "O(header length); reads the first Cookie header and returns the value of the named cookie.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; a missing or malformed Cookie header, or no such cookie, gives None.",
+      "generics": [],
+      "names": [
+        "headers",
+        "name"
+      ],
+      "parameters": [
+        "&List<httpHeaders.Header>",
+        "String"
+      ],
+      "return": "Option<String>"
+    },
+    "fn:parseForm": {
+      "async": false,
+      "cost": "O(body length); parses an application/x-www-form-urlencoded body with url.parseQuery (plus is a space).",
+      "defaults": [],
+      "effects": [],
+      "failure": "WebError/Form (malformed percent-encoding, or a body over the url.parseQuery limit).",
+      "generics": [],
+      "names": [
+        "body"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<List<url.Param>,WebError>"
+    },
+    "fn:formValue": {
+      "async": false,
+      "cost": "O(fields); the value of the first field with that name. A field without = gives None.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; a missing name gives None.",
+      "generics": [],
+      "names": [
+        "fields",
+        "name"
+      ],
+      "parameters": [
+        "&List<url.Param>",
+        "String"
+      ],
+      "return": "Option<String>"
+    },
+    "fn:redirectLocation": {
+      "async": false,
+      "cost": "O(target length); accepts only a path on the same origin: one leading slash, no backslash, no control characters.",
+      "defaults": [],
+      "effects": [],
+      "failure": "WebError/Redirect (a scheme, a host, a leading // or /\\, a backslash, a control character, or a target over 2048 bytes).",
+      "generics": [],
+      "names": [
+        "target"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<String,WebError>"
+    }
+  }
+}

@@ -2507,7 +2507,7 @@ error[DivisionByZero]: division by zero
 | 履歴と状態 | snapshot、history、historyGraph、timeline、changes、persistentSet、memo、lazy、lens |
 | 数値計算 | numeric とその Async 系、matrix、sparse、sparseAsync、fft、fftAsync、distributions |
 | 機械学習 | autodiff 系、optimize、training、models、evaluation、plot |
-| タスクと通信 | task、taskError、retry、external、http、httpHeaders、httpRouter、httpServer、tcp |
+| タスクと通信 | task、taskError、retry、external、http、httpHeaders、httpRouter、httpServer、tcp、web |
 | データベース | db、dbDatetime、dbDecimal、dbMigration、dbTransaction |
 | GUI | gui、guiDialog、guiField、guiForm、guiMenu、guiTable、guiWindows |
 | テスト支援 | proptest |

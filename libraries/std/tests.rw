@@ -3617,3 +3617,84 @@ III
     match fastx.phred("!I",33) {Ok(q)=>{assert_eq(q.get(0),0);assert_eq(q.get(1),40);},Err(_)=>{panic("phred failed");}}
     match fastx.phred("!",99) {Ok(_)=>{panic("bad offset must be rejected");},Err(e)=>{assert_eq(e.code,"Format");}}
 }
+
+import web as web;
+
+fn webCode<T>(r:Result<T,web.WebError>)->String effects {} {match r {Ok(_)=>{return "ok";},Err(e)=>{return e.code;}}}
+
+test fn web_content_type_by_extension()->Unit effects {} {
+    assert_eq(web.contentType("index.html"),"text/html; charset=utf-8");
+    assert_eq(web.contentType("css/site.CSS"),"text/css; charset=utf-8");
+    assert_eq(web.contentType("a.b/readme"),"application/octet-stream");
+    assert_eq(web.contentType("img/logo.png"),"image/png");
+    assert_eq(web.contentType("data.unknownext"),"application/octet-stream");
+}
+
+test fn web_safe_join_rejects_escapes()->Unit effects {} {
+    assert_eq(webCode(web.safeJoin("/srv","a/b.txt")),"ok");
+    assert_eq(webCode(web.safeJoin("/srv","../etc/passwd")),"Path");
+    assert_eq(webCode(web.safeJoin("/srv","a/./b")),"Path");
+    assert_eq(webCode(web.safeJoin("/srv","/abs")),"Path");
+    assert_eq(webCode(web.safeJoin("/srv","a\\b")),"Path");
+    assert_eq(webCode(web.safeJoin("/srv","")),"Path");
+}
+
+test fn web_etag_is_quoted_and_stable()->Unit effects {} {
+    let a=web.etag("abc".encodeUtf8());
+    let b=web.etag("abc".encodeUtf8());
+    assert_eq(webCode(a),"ok");
+    assert_eq(webCode(b),"ok");
+}
+
+test fn web_not_modified_matches_tags()->Unit effects {} {
+    assert_eq(web.notModified("\"abc\", \"def\"","\"def\""),true);
+    assert_eq(web.notModified("W/\"abc\"","\"abc\""),true);
+    assert_eq(web.notModified("*","\"abc\""),true);
+    assert_eq(web.notModified("\"xyz\"","\"abc\""),false);
+    assert_eq(web.notModified("\"abc\"",""),false);
+}
+
+test fn web_parse_range_clips_and_rejects()->Unit effects {} {
+    match web.parseRange("bytes=0-99",1000) {Ok(r)=>{assert_eq(r.start,0);assert_eq(r.end,99);},Err(_)=>{panic("range");}}
+    match web.parseRange("bytes=500-",1000) {Ok(r)=>{assert_eq(r.start,500);assert_eq(r.end,999);},Err(_)=>{panic("open range");}}
+    match web.parseRange("bytes=-100",1000) {Ok(r)=>{assert_eq(r.start,900);assert_eq(r.end,999);},Err(_)=>{panic("suffix range");}}
+    assert_eq(webCode(web.parseRange("bytes=1000-",1000)),"Unsatisfiable");
+    assert_eq(webCode(web.parseRange("bytes=0-1,3-4",1000)),"Syntax");
+    assert_eq(webCode(web.parseRange("items=0-1",1000)),"Syntax");
+}
+
+test fn web_security_headers_present()->Unit effects {} {
+    let h=web.securityHeaders();
+    assert_eq(h.len(),6);
+    assert_eq(hh.find(&h,"X-Frame-Options"),Some("DENY"));
+}
+
+test fn web_session_cookie_round_trip()->Unit effects {} {
+    assert_eq(webCode(web.sessionCookie("sid","tok123",3600,true)),"ok");
+    assert_eq(webCode(web.sessionCookie("sid","tok123",0,true)),"Cookie");
+    assert_eq(webCode(web.clearSessionCookie("sid",false)),"ok");
+    let headers=List<hh.Header>();
+    headers.add(hh.Header("cookie","a=1; sid=tok123"));
+    assert_eq(web.readSession(&headers,"sid"),Some("tok123"));
+    assert_eq(web.readSession(&headers,"missing"),None);
+}
+
+test fn web_form_values()->Unit effects {} {
+    match web.parseForm("name=a+b&tag=x&tag=y&flag") {
+        Ok(fields)=>{
+            assert_eq(web.formValue(&fields,"name"),Some("a b"));
+            assert_eq(web.formValue(&fields,"tag"),Some("x"));
+            assert_eq(web.formValue(&fields,"flag"),None);
+            assert_eq(web.formValue(&fields,"none"),None);
+        },
+        Err(_)=>{panic("form");}
+    }
+}
+
+test fn web_redirect_location_same_origin_only()->Unit effects {} {
+    assert_eq(webCode(web.redirectLocation("/home?x=1")),"ok");
+    assert_eq(webCode(web.redirectLocation("https://evil.example/")),"Redirect");
+    assert_eq(webCode(web.redirectLocation("//evil.example/")),"Redirect");
+    assert_eq(webCode(web.redirectLocation("/\\evil")),"Redirect");
+    assert_eq(webCode(web.redirectLocation("home")),"Redirect");
+}
