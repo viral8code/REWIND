@@ -1,0 +1,24 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.6.0",
+  "symbols": {
+    "fn:render": {
+      "async": false,
+      "cost": "O(template characters + output characters); output is at most 1048576 characters and sections nest at most 16 deep.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "source",
+        "data"
+      ],
+      "parameters": [
+        "String",
+        "Json"
+      ],
+      "return": "Result<String,TemplateError>",
+      "failure": "Unclosed, Mismatch, BadTag, TooDeep, TooLarge; offset is the character index of the tag."
+    }
+  }
+}

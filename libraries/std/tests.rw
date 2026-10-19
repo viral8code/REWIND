@@ -1,4 +1,6 @@
 import numeric as numeric;
+import html as html;
+import template as template;
 import flow as flow;
 import matching as matching;
 import error as error;
@@ -3269,4 +3271,82 @@ test fn evaluation_early_stopping_waits_for_patience() {
         Err(_)=>{panic("stopper");}
     }
     assert_eq(evaluation.stopper(0),Err(evaluation.EvalError("Patience")));
+}
+
+test fn html_escapes_text_and_attributes()->Unit effects {} {
+    assert_eq(html.escapeText("<script>&'\"</script>"), "&lt;script&gt;&amp;&#39;&quot;&lt;/script&gt;");
+    assert_eq(html.escapeAttribute("a=`b"), "a&#61;&#96;b");
+}
+
+test fn html_safe_url_rejects_script_schemes()->Unit effects {} {
+    assert_eq(html.safeUrl("javascript:alert(1)"), "#");
+    assert_eq(html.safeUrl("JaVa	ScRiPt:alert(1)"), "#");
+    assert_eq(html.safeUrl("/relative"), "/relative");
+}
+
+test fn html_element_builds_sorted_attributes()->Unit effects {} {
+    let attrs=Map<String,String>();
+    attrs.set("title","a\"b");
+    attrs.set("class","x");
+    let kids=List<html.Html>();
+    kids.add(html.text("<x>"));
+    match html.element("p",&attrs,&kids) {
+        Ok(h)=>{assert_eq(html.toString(&h), "<p class=\"x\" title=\"a&quot;b\">&lt;x&gt;</p>");},
+        Err(e)=>{panic(e.code);}
+    }
+}
+
+test fn html_element_rejects_bad_names_and_void_children()->Unit effects {} {
+    let attrs=Map<String,String>();
+    let kids=List<html.Html>();
+    match html.element("P",&attrs,&kids) {Ok(_)=>{panic("accepted");},Err(e)=>{assert_eq(e.code, "BadTag");}}
+    attrs.set("bad name","x");
+    match html.element("p",&attrs,&kids) {Ok(_)=>{panic("accepted");},Err(e)=>{assert_eq(e.code, "BadAttribute");}}
+    let none=Map<String,String>();
+    kids.add(html.text("x"));
+    match html.element("br",&none,&kids) {Ok(_)=>{panic("accepted");},Err(e)=>{assert_eq(e.code, "VoidChildren");}}
+}
+
+fn templateParsed(text:String)->Json effects {} {
+    match json.parse(text) {Ok(v)=>{return v;},Err(_)=>{panic("bad json");}}
+}
+fn templateRendered(source:String,data:Json)->String effects {} {
+    match template.render(source,data) {Ok(s)=>{return s;},Err(_)=>{panic("render failed");}}
+}
+fn templateFailure(source:String,data:Json)->String effects {} {
+    match template.render(source,data) {Ok(_)=>{panic("expected render error");},Err(e)=>{return e.code;}}
+}
+
+test fn template_escapes_values_unless_raw()->Unit effects {} {
+    let data=templateParsed("{\"name\":\"<b>\",\"raw\":\"<i>\"}");
+    assert_eq(templateRendered("Hi {{name}} {{{raw}}}", data), "Hi &lt;b&gt; <i>");
+}
+
+test fn template_sections_repeat_over_arrays()->Unit effects {} {
+    let data=templateParsed("{\"items\":[{\"name\":\"a\"},{\"name\":\"b\"}],\"empty\":[]}");
+    assert_eq(templateRendered("{{#items}}[{{name}}]{{/items}}", data), "[a][b]");
+    assert_eq(templateRendered("{{^empty}}none{{/empty}}", data), "none");
+    assert_eq(templateRendered("{{^items}}none{{/items}}", data), "");
+}
+
+test fn template_sections_test_truthiness()->Unit effects {} {
+    let on=templateParsed("{\"flag\":true}");
+    let off=templateParsed("{\"flag\":false}");
+    assert_eq(templateRendered("{{#flag}}yes{{/flag}}{{^flag}}no{{/flag}}", on), "yes");
+    assert_eq(templateRendered("{{#flag}}yes{{/flag}}{{^flag}}no{{/flag}}", off), "no");
+    assert_eq(templateRendered("{{#missing}}yes{{/missing}}{{^missing}}no{{/missing}}", off), "no");
+}
+
+test fn template_dotted_names_and_current_value()->Unit effects {} {
+    let data=templateParsed("{\"user\":{\"name\":\"x\"},\"list\":[\"p\",\"q\"]}");
+    assert_eq(templateRendered("{{user.name}}", data), "x");
+    assert_eq(templateRendered("{{#list}}{{.}},{{/list}}", data), "p,q,");
+}
+
+test fn template_reports_error_codes()->Unit effects {} {
+    let data=templateParsed("{\"x\":1}");
+    assert_eq(templateFailure("{{name", data), "Unclosed");
+    assert_eq(templateFailure("{{/x}}", data), "Mismatch");
+    assert_eq(templateFailure("{{#x}}body", data), "Unclosed");
+    assert_eq(templateFailure("{{a b}}", data), "BadTag");
 }

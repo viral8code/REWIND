@@ -2514,6 +2514,54 @@ error[DivisionByZero]: division by zero
 
 `std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。乱数は `std.crypto` にはまだないため、salt は呼出側で用意します。
 
+`std.html` は `text`、`raw`、`concat`、`element`、`escapeText`、`escapeAttribute`、`safeUrl`、`toString` を提供し、HTML の文字列を組み立てます。`text` は `&<>"'` をエスケープしてから `Html` にします。信頼してそのまま入れてよいのは `raw` の入力だけです。`element` は tag 名と属性名を検査し、属性を名前順に書き、void 要素に子を持たせません。リンクの `href` には `safeUrl` を通してください。`javascript:` などの URL は `#` になります。
+
+```rewind
+import std.html as html;
+
+fn main()->Int {
+    let attrs = Map<String,String>();
+    attrs.set("title", "a\"b");
+    attrs.set("href", html.safeUrl("javascript:alert(1)"));
+    let children = List<html.Html>();
+    children.add(html.text("<tag> & 'x'"));
+    match html.element("a", &attrs, &children) {
+        Ok(h)=>{ Out.println(html.toString(&h)); },
+        Err(e)=>{ Out.println(e.code); }
+    }
+    return 0;
+}
+```
+
+```text
+<a href="#" title="a&quot;b">&lt;tag&gt; &amp; &#39;x&#39;</a>
+```
+
+`std.template` の `render` は、JSON データを `Json` として受け取り、テンプレートを描画します。`{{name}}` は `std.html` の `escapeText` を通し、`{{{name}}}` は無変換で入れます。`{{#name}}...{{/name}}` は配列を繰り返し、`{{^name}}...{{/name}}` は値がないか偽のときに描画します。失敗は `TemplateError` の `code` と文字位置 `offset` で返します。
+
+```rewind
+import std.json as json;
+import std.template as template;
+
+fn main()->Int {
+    let data = json.parse("{\"name\":\"<b>Ann</b>\",\"items\":[{\"n\":\"x\"},{\"n\":\"y\"}]}");
+    match data {
+        Ok(value)=>{
+            match template.render("Hi {{name}} {{{name}}}:{{#items}}[{{n}}]{{/items}}", value) {
+                Ok(text)=>{ Out.println(text); },
+                Err(e)=>{ Out.println(e.code); }
+            }
+        },
+        Err(_)=>{ Out.println("parse"); }
+    }
+    return 0;
+}
+```
+
+```text
+Hi &lt;b&gt;Ann&lt;/b&gt; <b>Ann</b>:[x][y]
+```
+
 Option と Result の補助には `std.option`、`std.result` があり、`valueOr` で失敗時の既定値を指定して取り出せます。
 
 ```rewind
