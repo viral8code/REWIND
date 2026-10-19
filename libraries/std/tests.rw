@@ -20,6 +20,8 @@ import layout as layout;
 import evaluation as evaluation;
 import compress as compress;
 import crypto as crypto;
+import base64 as base64;
+import auth as auth;
 import image as imageLib;
 import json as json;
 import jsonStream as jsonStream;
@@ -3349,4 +3351,134 @@ test fn template_reports_error_codes()->Unit effects {} {
     assert_eq(templateFailure("{{/x}}", data), "Mismatch");
     assert_eq(templateFailure("{{#x}}body", data), "Unclosed");
     assert_eq(templateFailure("{{a b}}", data), "BadTag");
+}
+
+fn b64StdHex(text:String)->String effects {} {
+    match base64.decode(text) {Ok(b)=>{return bytes.toHex(b);},Err(_)=>{panic("decode failed");}}
+}
+fn b64UrlHex(text:String)->String effects {} {
+    match base64.decodeUrl(text) {Ok(b)=>{return bytes.toHex(b);},Err(_)=>{panic("decode failed");}}
+}
+fn b64StdCode(text:String)->String effects {} {
+    match base64.decode(text) {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn b64UrlCode(text:String)->String effects {} {
+    match base64.decodeUrl(text) {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn b64StdOffset(text:String)->Int effects {} {
+    match base64.decode(text) {Ok(_)=>{panic("expected decode error");},Err(e)=>{return e.offset;}}
+}
+fn tokenPayload(key:Bytes,token:String,now:Int)->String effects {} {
+    match auth.verifyToken(key,token,now) {Ok(p)=>{return p;},Err(_)=>{panic("verify failed");}}
+}
+fn tokenCode(key:Bytes,token:String,now:Int)->String effects {} {
+    match auth.verifyToken(key,token,now) {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+
+test fn base64_matches_rfc_vectors()->Unit effects {} {
+    assert_eq(base64.encode(Bytes("")),"");
+    assert_eq(base64.encode(Bytes("f")),"Zg==");
+    assert_eq(base64.encode(Bytes("fo")),"Zm8=");
+    assert_eq(base64.encode(Bytes("foo")),"Zm9v");
+    assert_eq(base64.encode(Bytes("foob")),"Zm9vYg==");
+    assert_eq(base64.encode(Bytes("fooba")),"Zm9vYmE=");
+    assert_eq(base64.encode(Bytes("foobar")),"Zm9vYmFy");
+    assert_eq(base64.encodeUrl(Bytes("f")),"Zg");
+    assert_eq(base64.encodeUrl(Bytes("foobar")),"Zm9vYmFy");
+}
+
+test fn base64_decodes_both_alphabets()->Unit effects {} {
+    assert_eq(b64StdHex(""),"");
+    assert_eq(b64StdHex("Zm9vYmFy"),"666f6f626172");
+    assert_eq(b64StdHex("Zg=="),"66");
+    assert_eq(b64StdHex("+/8="),"fbff");
+    assert_eq(b64UrlHex("-_8"),"fbff");
+    assert_eq(b64UrlHex("-_8="),"fbff");
+    assert_eq(b64UrlHex("Zg"),"66");
+    assert_eq(b64UrlHex("Zg=="),"66");
+    assert_eq(base64.encode(cmpTake(bytes.fromHex("fbff"))),"+/8=");
+    assert_eq(base64.encodeUrl(cmpTake(bytes.fromHex("fbff"))),"-_8");
+}
+
+test fn base64_round_trips_arbitrary_bytes()->Unit effects {} {
+    let data=cmpTake(bytes.fromHex("000102fdfeff7f80"));
+    assert_eq(b64StdHex(base64.encode(data)),"000102fdfeff7f80");
+    assert_eq(b64UrlHex(base64.encodeUrl(data)),"000102fdfeff7f80");
+}
+
+test fn base64_reports_bad_chars_and_lengths()->Unit effects {} {
+    assert_eq(b64StdCode("Zm9v!mFy"),"BadChar");
+    assert_eq(b64StdOffset("Zm9v!mFy"),4);
+    assert_eq(b64StdCode("Zm9"),"BadLength");
+    assert_eq(b64StdCode("+/8"),"BadLength");
+    assert_eq(b64UrlCode("Z"),"BadLength");
+    assert_eq(b64UrlCode("Zg="),"BadLength");
+    assert_eq(b64UrlCode("+/8="),"BadChar");
+    assert_eq(b64StdCode("-_8="),"BadChar");
+}
+
+test fn auth_hashes_passwords_with_salt_and_iterations()->Unit effects {} {
+    let salt=cmpTake(bytes.fromHex("000102030405060708090a0b0c0d0e0f"));
+    match auth.hashPassword("correct horse",salt,10000) {
+        Ok(stored)=>{
+            assert_eq(stored,"pbkdf2-sha256$10000$AAECAwQFBgcICQoLDA0ODw$5RUHDgNTp9sBOWGYS4e6u57cz_Sq3_TQgaDP_8MW6L8");
+            assert(!auth.needsRehash(stored,10000));
+            assert(auth.needsRehash(stored,10001));
+        },
+        Err(_)=>{panic("hash failed");}
+    }
+    match auth.hashPassword("x",cmpTake(bytes.fromHex("0001")),10000) {
+        Ok(_)=>{panic("expected salt error");},
+        Err(e)=>{assert_eq(e.code,"Range");}
+    }
+}
+
+test fn auth_verifies_stored_password_hash()->Unit effects {} {
+    let stored="pbkdf2-sha256$10000$AAECAwQFBgcICQoLDA0ODw$5RUHDgNTp9sBOWGYS4e6u57cz_Sq3_TQgaDP_8MW6L8";
+    assert(auth.verifyPassword("correct horse",stored));
+}
+
+test fn auth_rejects_wrong_password_for_stored_hash()->Unit effects {} {
+    let stored="pbkdf2-sha256$10000$AAECAwQFBgcICQoLDA0ODw$5RUHDgNTp9sBOWGYS4e6u57cz_Sq3_TQgaDP_8MW6L8";
+    assert(!auth.verifyPassword("wrong",stored));
+}
+
+test fn auth_rejects_malformed_password_hashes()->Unit effects {} {
+    assert(!auth.verifyPassword("x","bogus"));
+    assert(!auth.verifyPassword("x","md5$10000$AAAA$AAAA"));
+    assert(!auth.verifyPassword("x","pbkdf2-sha256$abc$AAAA$AAAA"));
+    assert(auth.needsRehash("bogus",10000));
+    assert(auth.needsRehash("md5$10000$AAAA$AAAA",10000));
+}
+
+test fn auth_signs_and_verifies_tokens()->Unit effects {} {
+    let key=cmpTake(bytes.fromHex("0123456789abcdef0123456789abcdef"));
+    match auth.signToken(key,"user:42",1000) {
+        Ok(token)=>{
+            assert_eq(tokenPayload(key,token,999),"user:42");
+            assert_eq(tokenCode(key,token,1000),"Expired");
+            let parts=token.split(".");
+            let tampered=base64.encodeUrl(Bytes("user:43"))+"."+parts.get(1)+"."+parts.get(2);
+            assert_eq(tokenCode(key,tampered,999),"BadSignature");
+        },
+        Err(_)=>{panic("sign failed");}
+    }
+    assert_eq(tokenCode(key,"abc",0),"Malformed");
+    assert_eq(tokenCode(key,"a.b.c.d",0),"Malformed");
+    match auth.signToken(cmpTake(bytes.fromHex("0102")),"x",1) {
+        Ok(_)=>{panic("expected key error");},
+        Err(e)=>{assert_eq(e.code,"Range");}
+    }
+}
+
+test fn auth_csrf_tokens_bind_to_session()->Unit effects {} {
+    let key=cmpTake(bytes.fromHex("0123456789abcdef0123456789abcdef"));
+    match auth.csrfToken(key,"session-a") {
+        Ok(csrf)=>{
+            assert(auth.verifyCsrf(key,"session-a",csrf));
+            assert(!auth.verifyCsrf(key,"session-b",csrf));
+            assert(!auth.verifyCsrf(key,"session-a",csrf+"x"));
+        },
+        Err(_)=>{panic("csrf failed");}
+    }
 }

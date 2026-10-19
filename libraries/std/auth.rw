@@ -1,0 +1,128 @@
+// Password hashing (PBKDF2-SHA256), signed tokens (HMAC-SHA256) and CSRF tokens.
+// Salts and keys are supplied by the caller: this language has no cryptographic random source.
+// Every function is deterministic, has no effects, and returns an error instead of panicking.
+import crypto as crypto;
+import base64 as base64;
+
+pub record AuthError {code:String}
+
+// @api hashPassword cost one PBKDF2-SHA256 run with the given iterations (10,000 to 1,000,000); salt 16 to 64 bytes.
+// @api hashPassword failure AuthError Range (salt length or iterations out of range).
+pub fn hashPassword(password:String,salt:Bytes,iterations:Int)->Result<String,AuthError> effects {} {
+    let saltLen=stdBytesLength(salt);
+    if saltLen<16 || saltLen>64 {return Err(AuthError("Range"));}
+    if iterations<10000 || iterations>1000000 {return Err(AuthError("Range"));}
+    let hashed=match crypto.pbkdf2Sha256(password.encodeUtf8(),salt,iterations,32) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(AuthError("Range"));}
+    };
+    return Ok("pbkdf2-sha256$"+iterations.format()+"$"+base64.encodeUrl(salt)+"$"+base64.encodeUrl(hashed));
+}
+
+// @api verifyPassword cost one PBKDF2-SHA256 run with the iterations stored in the hash (1 to 1,000,000).
+// @api verifyPassword failure none; malformed input, an unknown algorithm or a wrong password all return false.
+pub fn verifyPassword(password:String,stored:String)->Bool effects {} {
+    let parts=stored.split("$");
+    if parts.len()!=4 {return false;}
+    let algorithm=parts.get(0);
+    if algorithm!="pbkdf2-sha256" {return false;}
+    let countText=parts.get(1);
+    let iterations=match countText.parseInt() {
+        Ok(v)=>{v},
+        Err(_)=>{return false;}
+    };
+    if iterations<1 || iterations>1000000 {return false;}
+    let salt=match base64.decodeUrl(parts.get(2)) {
+        Ok(v)=>{v},
+        Err(_)=>{return false;}
+    };
+    let expected=match base64.decodeUrl(parts.get(3)) {
+        Ok(v)=>{v},
+        Err(_)=>{return false;}
+    };
+    let actual=match crypto.pbkdf2Sha256(password.encodeUtf8(),salt,iterations,32) {
+        Ok(v)=>{v},
+        Err(_)=>{return false;}
+    };
+    return crypto.constantTimeEq(actual,expected);
+}
+
+// @api needsRehash cost O(stored) work; no hashing.
+// @api needsRehash failure none; malformed input or an unknown algorithm returns true.
+pub fn needsRehash(stored:String,minIterations:Int)->Bool effects {} {
+    let parts=stored.split("$");
+    if parts.len()!=4 {return true;}
+    let algorithm=parts.get(0);
+    if algorithm!="pbkdf2-sha256" {return true;}
+    let countText=parts.get(1);
+    match countText.parseInt() {
+        Ok(v)=>{return v<minIterations;},
+        Err(_)=>{return true;}
+    }
+}
+
+// @api signToken cost one HMAC-SHA256 over the token head; key at least 16 bytes, payload at most 4096 bytes.
+// @api signToken failure AuthError Range (key shorter than 16 bytes or payload longer than 4096 bytes).
+pub fn signToken(key:Bytes,payload:String,expiresAt:Int)->Result<String,AuthError> effects {} {
+    if stdBytesLength(key)<16 {return Err(AuthError("Range"));}
+    let payloadBytes=payload.encodeUtf8();
+    if stdBytesLength(payloadBytes)>4096 {return Err(AuthError("Range"));}
+    let head=base64.encodeUrl(payloadBytes)+"."+expiresAt.format();
+    let sig=match crypto.hmacSha256(key,head.encodeUtf8()) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(AuthError("Range"));}
+    };
+    return Ok(head+"."+base64.encodeUrl(sig));
+}
+
+// @api verifyToken cost one HMAC-SHA256 over the token head; the signature is checked before the payload is returned.
+// @api verifyToken failure AuthError BadSignature (signature mismatch, or key shorter than 16 bytes), Expired (now is at or after expiresAt), Malformed (wrong shape or undecodable parts).
+pub fn verifyToken(key:Bytes,token:String,now:Int)->Result<String,AuthError> effects {} {
+    let parts=token.split(".");
+    if parts.len()!=3 {return Err(AuthError("Malformed"));}
+    let payloadBytes=match base64.decodeUrl(parts.get(0)) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(AuthError("Malformed"));}
+    };
+    let expiresText=parts.get(1);
+    let expiresAt=match expiresText.parseInt() {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(AuthError("Malformed"));}
+    };
+    let sigBytes=match base64.decodeUrl(parts.get(2)) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(AuthError("Malformed"));}
+    };
+    if stdBytesLength(key)<16 {return Err(AuthError("BadSignature"));}
+    let head=parts.get(0)+"."+expiresText;
+    let expected=match crypto.hmacSha256(key,head.encodeUtf8()) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(AuthError("BadSignature"));}
+    };
+    if !crypto.constantTimeEq(expected,sigBytes) {return Err(AuthError("BadSignature"));}
+    if now>=expiresAt {return Err(AuthError("Expired"));}
+    match stdDecode(payloadBytes) {
+        Ok(text)=>{return Ok(text);},
+        Err(_)=>{return Err(AuthError("Malformed"));}
+    }
+}
+
+// @api csrfToken cost one HMAC-SHA256.
+// @api csrfToken failure AuthError Range (HMAC rejected the input).
+pub fn csrfToken(key:Bytes,sessionId:String)->Result<String,AuthError> effects {} {
+    let sig=match crypto.hmacSha256(key,("csrf:"+sessionId).encodeUtf8()) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(AuthError("Range"));}
+    };
+    return Ok(base64.encodeUrl(sig));
+}
+
+// @api verifyCsrf cost one HMAC-SHA256 and a constant-time comparison.
+// @api verifyCsrf failure none; a wrong token, wrong session or unusable key returns false.
+pub fn verifyCsrf(key:Bytes,sessionId:String,token:String)->Bool effects {} {
+    let expected=match csrfToken(key,sessionId) {
+        Ok(v)=>{v},
+        Err(_)=>{return false;}
+    };
+    return crypto.constantTimeEq(expected.encodeUtf8(),token.encodeUtf8());
+}

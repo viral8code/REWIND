@@ -1,0 +1,80 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.6.0",
+  "symbols": {
+    "fn:decode": {
+      "async": false,
+      "cost": "O(text) work; input over 1 MiB is rejected before decoding.",
+      "defaults": [],
+      "effects": [],
+      "failure": "Base64Error/BadChar (symbol outside the alphabet, offset is the byte index), BadLength (length not a multiple of 4), TooLarge (input over 1 MiB).",
+      "generics": [],
+      "names": [
+        "text"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<Bytes,Base64Error>"
+    },
+    "fn:decodeUrl": {
+      "async": false,
+      "cost": "O(text) work; accepts the URL-safe alphabet with optional = padding.",
+      "defaults": [],
+      "effects": [],
+      "failure": "Base64Error/BadChar (symbol outside the alphabet, offset is the byte index), BadLength (length 1 mod 4, or padding without a multiple of 4), TooLarge (input over 1 MiB).",
+      "generics": [],
+      "names": [
+        "text"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<Bytes,Base64Error>"
+    },
+    "fn:encode": {
+      "async": false,
+      "cost": "O(bytes) work; standard alphabet with = padding.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "data"
+      ],
+      "parameters": [
+        "Bytes"
+      ],
+      "return": "String"
+    },
+    "fn:encodeUrl": {
+      "async": false,
+      "cost": "O(bytes) work; URL-safe alphabet (-_) without padding.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "data"
+      ],
+      "parameters": [
+        "Bytes"
+      ],
+      "return": "String"
+    },
+    "type:Base64Error": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

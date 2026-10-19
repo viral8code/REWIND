@@ -1,0 +1,145 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.6.0",
+  "symbols": {
+    "fn:csrfToken": {
+      "async": false,
+      "cost": "one HMAC-SHA256.",
+      "defaults": [],
+      "effects": [],
+      "failure": "AuthError/Range (HMAC rejected the input).",
+      "generics": [],
+      "names": [
+        "key",
+        "sessionId"
+      ],
+      "parameters": [
+        "Bytes",
+        "String"
+      ],
+      "return": "Result<String,AuthError>"
+    },
+    "fn:hashPassword": {
+      "async": false,
+      "cost": "one PBKDF2-SHA256 run with the given iterations (10,000 to 1,000,000); salt 16 to 64 bytes.",
+      "defaults": [],
+      "effects": [],
+      "failure": "AuthError/Range (salt length or iterations out of range).",
+      "generics": [],
+      "names": [
+        "password",
+        "salt",
+        "iterations"
+      ],
+      "parameters": [
+        "String",
+        "Bytes",
+        "Int"
+      ],
+      "return": "Result<String,AuthError>"
+    },
+    "fn:needsRehash": {
+      "async": false,
+      "cost": "O(stored) work; no hashing.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; malformed input or an unknown algorithm returns true.",
+      "generics": [],
+      "names": [
+        "stored",
+        "minIterations"
+      ],
+      "parameters": [
+        "String",
+        "Int"
+      ],
+      "return": "Bool"
+    },
+    "fn:signToken": {
+      "async": false,
+      "cost": "one HMAC-SHA256 over the token head; key at least 16 bytes, payload at most 4096 bytes.",
+      "defaults": [],
+      "effects": [],
+      "failure": "AuthError/Range (key shorter than 16 bytes or payload longer than 4096 bytes).",
+      "generics": [],
+      "names": [
+        "key",
+        "payload",
+        "expiresAt"
+      ],
+      "parameters": [
+        "Bytes",
+        "String",
+        "Int"
+      ],
+      "return": "Result<String,AuthError>"
+    },
+    "fn:verifyCsrf": {
+      "async": false,
+      "cost": "one HMAC-SHA256 and a constant-time comparison.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; a wrong token, wrong session or unusable key returns false.",
+      "generics": [],
+      "names": [
+        "key",
+        "sessionId",
+        "token"
+      ],
+      "parameters": [
+        "Bytes",
+        "String",
+        "String"
+      ],
+      "return": "Bool"
+    },
+    "fn:verifyPassword": {
+      "async": false,
+      "cost": "one PBKDF2-SHA256 run with the iterations stored in the hash (1 to 1,000,000).",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; malformed input, an unknown algorithm or a wrong password all return false.",
+      "generics": [],
+      "names": [
+        "password",
+        "stored"
+      ],
+      "parameters": [
+        "String",
+        "String"
+      ],
+      "return": "Bool"
+    },
+    "fn:verifyToken": {
+      "async": false,
+      "cost": "one HMAC-SHA256 over the token head; the signature is checked before the payload is returned.",
+      "defaults": [],
+      "effects": [],
+      "failure": "AuthError/BadSignature (signature mismatch, or key shorter than 16 bytes), Expired (now is at or after expiresAt), Malformed (wrong shape or undecodable parts).",
+      "generics": [],
+      "names": [
+        "key",
+        "token",
+        "now"
+      ],
+      "parameters": [
+        "Bytes",
+        "String",
+        "Int"
+      ],
+      "return": "Result<String,AuthError>"
+    },
+    "type:AuthError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

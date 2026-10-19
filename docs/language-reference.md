@@ -2502,8 +2502,8 @@ error[DivisionByZero]: division by zero
 | 日時 | datetime、clock |
 | コレクションとアルゴリズム | collections、map、orderedMap、sequence、sort、search、heap、deque、bitset、disjointSet、rollbackSet、fenwick、segment、lazySegment、range、trie、suffix、dp、table |
 | グラフと幾何 | graph、graphLarge、graphLargeAsync、flow、matching、geometry |
-| データ形式と解析 | json、jsonStream、csv、csvStream、config、args、scanner、stream、parser、schema、logfmt、compress、image |
-| 暗号 | crypto |
+| データ形式と解析 | json、jsonStream、csv、csvStream、config、args、scanner、stream、parser、schema、logfmt、compress、image、base64 |
+| 暗号 | crypto、auth |
 | 履歴と状態 | snapshot、history、historyGraph、timeline、changes、persistentSet、memo、lazy、lens |
 | 数値計算 | numeric とその Async 系、matrix、sparse、sparseAsync、fft、fftAsync、distributions |
 | 機械学習 | autodiff 系、optimize、training、models、evaluation、plot |
@@ -2513,6 +2513,46 @@ error[DivisionByZero]: division by zero
 | テスト支援 | proptest |
 
 `std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。乱数は `std.crypto` にはまだないため、salt は呼出側で用意します。
+
+`std.auth` は、パスワードの保存と検証、署名付き token、CSRF token を提供します。乱数を持たないため、salt と key は呼出側が渡します。`hashPassword` は `pbkdf2-sha256$反復回数$salt$hash` の形式を返し、salt は 16〜64 バイト、反復回数は 10,000〜1,000,000 の範囲にします。`verifyPassword` は定数時間で比較し、形式の壊れた値や未知のアルゴリズムは `false` を返します。`needsRehash` は保存値の反復回数が要求値より少ないときに `true` を返します。`signToken` と `verifyToken` は `payload.expiresAt.署名` の形式で、署名を先に検査してから期限を見ます。失敗は `AuthError` の `code`（`Range`、`BadSignature`、`Expired`、`Malformed`）で返し、入力値は含みません。PBKDF2 の計算量が大きいため、1 回の run で呼べる回数は既定の作業上限に収まる範囲に限られます。
+
+```rewind
+import std.auth as auth;
+
+fn main()->Int {
+    let stored = "pbkdf2-sha256$10000$AAECAwQFBgcICQoLDA0ODw$5RUHDgNTp9sBOWGYS4e6u57cz_Sq3_TQgaDP_8MW6L8";
+    if auth.verifyPassword("correct horse", stored) {
+        Out.println("ok");
+    } else {
+        Out.println("ng");
+    }
+    return 0;
+}
+```
+
+```text
+ok
+```
+
+`std.base64` は `encode` と `decode`（標準のアルファベット、パディングあり）、`encodeUrl` と `decodeUrl`（URL-safe のアルファベット、パディングなし。`decodeUrl` はパディングを任意に受け付けます）を提供します。入力は 1 MiB までで、超えると `TooLarge` になります。失敗は `Base64Error` の `code`（`BadChar`、`BadLength`、`TooLarge`）と位置 `offset` で返し、入力値は含みません。
+
+```rewind
+import std.base64 as base64;
+
+fn main()->Int {
+    Out.println(base64.encode(Bytes("Hi!")));
+    match base64.decode("SG!h") {
+        Ok(_)=>{ Out.println("ok"); },
+        Err(e)=>{ Out.println(e.code); }
+    }
+    return 0;
+}
+```
+
+```text
+SGkh
+BadChar
+```
 
 `std.html` は `text`、`raw`、`concat`、`element`、`escapeText`、`escapeAttribute`、`safeUrl`、`toString` を提供し、HTML の文字列を組み立てます。`text` は `&<>"'` をエスケープしてから `Html` にします。信頼してそのまま入れてよいのは `raw` の入力だけです。`element` は tag 名と属性名を検査し、属性を名前順に書き、void 要素に子を持たせません。リンクの `href` には `safeUrl` を通してください。`javascript:` などの URL は `#` になります。
 

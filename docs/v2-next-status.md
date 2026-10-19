@@ -467,3 +467,5 @@ Added [an example](../examples/gui-form-schema-validation.rw) and an acceptance 
 Compiler, runtime, tests, and API generation remain unverified because the execution environment failed to start. Static checks covered source/API function names, API JSON parse, and delimiter balance. The feature and this record are on `codex/develop` with `[skip ci]`; no public CI/CD, main merge, Release, or version update was run.
 
 2026-10-19: std.html / std.template 追加（版は上げない）。`std.html` は HTML の escape・安全な URL・属性を検査した element 構築を、`std.template` は JSON data の `{{name}}` 描画を、pure な `.rw` として `libraries/std` に追加した。API baseline（`libraries/api/html.api.json`、`template.api.json`）、`libraries/README.md`、`docs/language-reference.md` に反映した。コミット・push・版の更新はしていない。
+
+2026-10-19: std.base64 / std.auth 追加（版は上げない）。`std.base64` は標準と URL-safe の encode/decode を、`std.auth` は PBKDF2 によるパスワード保存と検証、署名付き token、CSRF token を、pure な `.rw` として `libraries/std` に追加した。salt と key は呼出側が渡す（CSPRNG は未提供）。API baseline（`libraries/api/base64.api.json`、`auth.api.json`）、`libraries/README.md`、`docs/language-reference.md` に反映した。コミット・push・版の更新はしていない。
