@@ -68,9 +68,7 @@ fn apply(stock: &mut Map<String, Int>, command: Command) -> Result<Unit, String>
 }
 
 fn report(stock: &Map<String, Int>) -> Unit effects {output} {
-    let names = stock.keys();
-    for i in 0..names.len() {
-        let item = names.get(i);
+    for item in stock.keys() {
         Out.println("${item}: ${have(stock, item)}");
     }
 }
@@ -161,9 +159,7 @@ fn apply(stock: &mut Map<String, Int>, command: Command) -> Result<Unit, String>
 }
 
 fn report(stock: &Map<String, Int>) -> Unit effects {output} {
-    let names = stock.keys();
-    for i in 0..names.len() {
-        let item = names.get(i);
+    for item in stock.keys() {
         Out.println("${item}: ${have(stock, item)}");
     }
 }
@@ -215,7 +211,7 @@ pear: 2
 
 **`return 1` でも出力は公開される。** `main` が戻れば、保留中の出力は、戻り値にかかわらず公開されます。「反映せず、在庫は元のまま」の出力と、`report` の出力は、この自動公開で外に出ます。
 
-**`for` に借用した `Map` を直接渡さない理由。** `report` は `&Map` を受け取るので、`for item in stock.keys()` とは書けません（現状の実装の制約です）。一度 `names` に取り出して、添字で回しています。
+**借用した `Map` を `for` で回す。** `report` は `&Map` を受け取りますが、`for item in stock.keys()` と、そのままキーを回せます。`keys()` が返すのはキーの列を進める反復子で、`Map` そのものは変更しません。回している間に `stock.set(...)` のような変更を書くと、借用中の変更として拒否されます。
 
 ### 発展: 取り組んでみよう
 

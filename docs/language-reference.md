@@ -2356,5 +2356,4 @@ REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプ�
 - `Out.println` が `struct` や `record` を表示する形式は内部表現に近く、安定していません。
 - 公開されていない関数や型を別の module から使うと、`unknown name` と報告されます（「非公開」という説明は出ません）。
 - `List` と `Map` を `==` や `assert_eq` で比べると、中身ではなく同一性を調べます。
-- 借用した `List` や `Map`（`&List<T>`、`&Map<K,V>` の引数）を `for` で直接回すと、`cannot mutate through a shared borrow` と拒否されます（`for x in xs` も `for x in xs.iter()` も同じです）。添字（`for i in 0..xs.len()` と `xs.get(i)`）で回すか、`Map` では `let names = m.keys();` と取り出してから回します。
 - `branch` の中で `return` すると、関数からは戻れますが、`branch` が戻すはずの状態は戻りません。

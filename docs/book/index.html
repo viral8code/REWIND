@@ -3129,9 +3129,7 @@ fn apply(stock: &amp;mut Map&lt;String, Int&gt;, command: Command) -&gt; Result&
 }
 
 fn report(stock: &amp;Map&lt;String, Int&gt;) -&gt; Unit effects {output} {
-    let names = stock.keys();
-    for i in 0..names.len() {
-        let item = names.get(i);
+    for item in stock.keys() {
         Out.println(&quot;${item}: ${have(stock, item)}&quot;);
     }
 }
@@ -3214,9 +3212,7 @@ fn apply(stock: &amp;mut Map&lt;String, Int&gt;, command: Command) -&gt; Result&
 }
 
 fn report(stock: &amp;Map&lt;String, Int&gt;) -&gt; Unit effects {output} {
-    let names = stock.keys();
-    for i in 0..names.len() {
-        let item = names.get(i);
+    for item in stock.keys() {
         Out.println(&quot;${item}: ${have(stock, item)}&quot;);
     }
 }
@@ -3259,7 +3255,7 @@ pear: 2</code></pre></div>
 <p><strong><code>revert</code> の前に <code>publish</code> している理由。</strong> <code>revert start;</code> は、<code>start</code> より後に作られた変数を消します。<code>message</code> もその一つで、<code>revert</code> の後では使えません。そこで、失敗の理由を、<code>revert</code> の前に出力して <code>publish</code> で確定しています。確定済みの出力は、<code>revert</code> で取り消されません。この「戻る前に、残したい情報を外へ出す」という順序は、チェックポイントを使うときの基本です。</p>
 <p><strong><code>count</code> を <code>commit</code> の前に宣言している理由。</strong> <code>commit</code> の後で作った変数は、<code>revert</code> で消えます。ループの中で <code>revert</code> するので、ループの外にある変数は、<code>commit</code> より前に作っておく必要があります。</p>
 <p><strong><code>return 1</code> でも出力は公開される。</strong> <code>main</code> が戻れば、保留中の出力は、戻り値にかかわらず公開されます。「反映せず、在庫は元のまま」の出力と、<code>report</code> の出力は、この自動公開で外に出ます。</p>
-<p><strong><code>for</code> に借用した <code>Map</code> を直接渡さない理由。</strong> <code>report</code> は <code>&amp;Map</code> を受け取るので、<code>for item in stock.keys()</code> とは書けません（現状の実装の制約です）。一度 <code>names</code> に取り出して、添字で回しています。</p>
+<p><strong>借用した <code>Map</code> を <code>for</code> で回す。</strong> <code>report</code> は <code>&amp;Map</code> を受け取りますが、<code>for item in stock.keys()</code> と、そのままキーを回せます。<code>keys()</code> が返すのはキーの列を進める反復子で、<code>Map</code> そのものは変更しません。回している間に <code>stock.set(...)</code> のような変更を書くと、借用中の変更として拒否されます。</p>
 <h3 id="発展-取り組んでみよう">発展: 取り組んでみよう</h3>
 <ol>
 <li><code>remove</code> で在庫が 0 になった品目を、<code>Map</code> から消すように変えてみましょう（<code>stock.remove(item)</code>）。</li>
@@ -3497,7 +3493,6 @@ pear: 2</code></pre></div>
 <h2 id="付録d-現状の制約">付録D 現状の制約</h2>
 <p>この本の版（REWIND 3.6.0）の実装で、期待と異なる動作をする点を挙げます。今後の版で変わる可能性があります。</p>
 <ul>
-<li><strong>借用した <code>List</code> や <code>Map</code> を、<code>for</code> で直接回せません。</strong> <code>fn f(xs: &amp;List&lt;Int&gt;)</code> の中で <code>for x in xs</code> や <code>for x in xs.iter()</code> と書くと、<code>cannot mutate through a shared borrow</code> と拒否されます。<code>for i in 0..xs.len()</code> と <code>xs.get(i)</code> で回してください。<code>Map</code> のキーも、一度 <code>let names = m.keys();</code> と取り出してから回します（第25章）。</li>
 <li><strong><code>?</code> のエラー型の不一致は、実行時に見つかります。</strong> <code>Err</code> の経路を通ったときの実行時エラーで、実行前には拒否されません（第10章）。</li>
 <li><strong>ジェネリクスの制約に、存在しない名前を書いても拒否されません。</strong> <code>T: Bogus</code> のように書いても、エラーになりません。</li>
 <li><strong><code>Out.println</code> が <code>struct</code> や <code>record</code>、<code>Json</code> などを表示する形式は、内部表現に近く、安定していません。</strong> 人が読む文字列は、自分で組み立ててください。</li>

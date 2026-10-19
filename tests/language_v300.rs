@@ -420,3 +420,31 @@ fn map_keys_can_be_iterated_with_for() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "a\nb\nx\ny\n8\n");
 }
+
+#[test]
+fn iterators_over_shared_borrows_can_be_consumed() {
+    let out = run(
+        "fn total(xs: &List<Int>) -> Int effects {} {\n    var s = 0;\n    for x in xs { s = s + x; }\n    for x in xs.iter() { s = s + x; }\n    let it = xs.iter();\n    let first = it.next();\n    let doubled = xs.iter().map(|x: Int| -> Int { return x * 2; }).collect();\n    return s + doubled.len();\n}\nfn names(m: &Map<String,Int>) -> Int effects {} {\n    var n = 0;\n    for k in m.keys() { n = n + 1; }\n    return n;\n}\nfn main()->Int effects {output} {\n    let xs = [1, 2, 3];\n    Out.println(total(&xs));\n    let m = Map<String,Int>();\n    m.set(\"a\", 5);\n    m.set(\"b\", 6);\n    Out.println(names(&m));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "15\n2\n");
+}
+
+#[test]
+fn shared_borrows_still_reject_mutating_the_owner() {
+    for body in [
+        "xs.add(4);",
+        "for x in xs.iter() { xs.add(x); }",
+        "let it = xs.iter(); xs.push(1);",
+    ] {
+        let out = run(&format!(
+            "fn f(xs: &List<Int>) -> Int effects {{}} {{\n    {body}\n    return 0;\n}}\nfn main()->Int effects {{output}} {{ let xs = [1]; Out.println(f(xs)); return 0; }}\n"
+        ));
+        assert!(!out.status.success(), "{body} was accepted");
+        assert!(
+            stderr(&out).contains("cannot mutate"),
+            "{body}: {}",
+            stderr(&out)
+        );
+    }
+}

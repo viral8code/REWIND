@@ -726,6 +726,12 @@ impl Flow<'_> {
             .get(place.split('.').next().unwrap())
             .and_then(|v| v.moved_at.clone())
     }
+    /// An iterator bound from a shared place keeps that place borrowed, but the
+    /// iterator itself is a local owner: advancing it never mutates the source.
+    fn iterator_owner(&self, n: &str) -> bool {
+        self.vars.get(n).is_some_and(|v| v.ty.starts_with("Iterator"))
+    }
+
     fn borrowed(&self, n: &str) -> bool {
         self.vars.values().any(|v| {
             v.capture_borrows
@@ -1767,11 +1773,12 @@ impl Flow<'_> {
                                         )],
                                     ));
                                 }
-                                if self
-                                    .vars
-                                    .get(place.split('.').next().unwrap())
-                                    .and_then(|v| v.borrow.as_ref())
-                                    .is_some_and(|(_, m)| !*m)
+                                if !self.iterator_owner(place.split('.').next().unwrap())
+                                    && self
+                                        .vars
+                                        .get(place.split('.').next().unwrap())
+                                        .and_then(|v| v.borrow.as_ref())
+                                        .is_some_and(|(_, m)| !*m)
                                 {
                                     return Err(diagnostic(
                                         &e.at,
@@ -1804,11 +1811,12 @@ impl Flow<'_> {
                                     &[(self.borrow_site(n).as_ref(), "borrow starts here")],
                                 ));
                             }
-                            if self
-                                .vars
-                                .get(n)
-                                .and_then(|v| v.borrow.as_ref())
-                                .is_some_and(|(_, m)| !*m)
+                            if !self.iterator_owner(n)
+                                && self
+                                    .vars
+                                    .get(n)
+                                    .and_then(|v| v.borrow.as_ref())
+                                    .is_some_and(|(_, m)| !*m)
                             {
                                 return Err(diagnostic(
                                     &e.at,
