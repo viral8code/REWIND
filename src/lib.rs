@@ -3085,38 +3085,42 @@ impl Runtime {
     pub fn heap_get(&self, id: u64) -> Option<&Value> {
         self.state.heap.get(&id)
     }
-    pub fn display_value(&self, value: &Value) -> String {
-        fn secret(rt: &Runtime, v: &Value, seen: &mut BTreeSet<u64>, depth: usize) -> bool {
-            if depth > 64 {
-                return true;
-            }
-            match v {
-                Value::Struct(t, _) if t.starts_with("Secret<") => true,
-                Value::HeapRef(id) | Value::CellRef(id) => {
-                    seen.insert(*id)
-                        && rt
-                            .heap_get(*id)
-                            .is_some_and(|v| secret(rt, v, seen, depth + 1))
-                }
-                Value::List(v) => v.iter().any(|v| secret(rt, v, seen, depth + 1)),
-                Value::TypedList(_, v) => v.iter().any(|v| secret(rt, v, seen, depth + 1)),
-                Value::Struct(_, v) | Value::Closure(_, _, v) => {
-                    v.values().any(|v| secret(rt, v, seen, depth + 1))
-                }
-                Value::Enum(_, _, v) => v.iter().any(|(_, v)| secret(rt, v, seen, depth + 1)),
-                Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
-                    secret(rt, v, seen, depth + 1)
-                }
-                Value::Map(v) | Value::TypedMap(_, _, v) => {
-                    v.values().any(|v| secret(rt, v, seen, depth + 1))
-                }
-                Value::OrderedMap(_, _, v) => v
-                    .iter()
-                    .any(|(a, b)| secret(rt, a, seen, depth + 1) || secret(rt, b, seen, depth + 1)),
-                _ => false,
-            }
+    fn contains_secret(&self, value: &Value) -> bool {
+        Self::secret(self, value, &mut BTreeSet::new(), 0)
+    }
+    fn secret(rt: &Runtime, v: &Value, seen: &mut BTreeSet<u64>, depth: usize) -> bool {
+        if depth > 64 {
+            return true;
         }
-        if secret(self, value, &mut BTreeSet::new(), 0) {
+        match v {
+            Value::Struct(t, _) if t.starts_with("Secret<") => true,
+            Value::HeapRef(id) | Value::CellRef(id) => {
+                seen.insert(*id)
+                    && rt
+                        .heap_get(*id)
+                        .is_some_and(|v| Self::secret(rt, v, seen, depth + 1))
+            }
+            Value::List(v) => v.iter().any(|v| Self::secret(rt, v, seen, depth + 1)),
+            Value::TypedList(_, v) => v.iter().any(|v| Self::secret(rt, v, seen, depth + 1)),
+            Value::Struct(_, v) | Value::Closure(_, _, v) => {
+                v.values().any(|v| Self::secret(rt, v, seen, depth + 1))
+            }
+            Value::Enum(_, _, v) => v.iter().any(|(_, v)| Self::secret(rt, v, seen, depth + 1)),
+            Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                Self::secret(rt, v, seen, depth + 1)
+            }
+            Value::Map(v) | Value::TypedMap(_, _, v) => {
+                v.values().any(|v| Self::secret(rt, v, seen, depth + 1))
+            }
+            Value::OrderedMap(_, _, v) => v.iter().any(|(a, b)| {
+                Self::secret(rt, a, seen, depth + 1) || Self::secret(rt, b, seen, depth + 1)
+            }),
+            _ => false,
+        }
+    }
+
+    pub fn display_value(&self, value: &Value) -> String {
+        if self.contains_secret(value) {
             return "<redacted: Secret>".into();
         }
         match value {
@@ -3124,6 +3128,145 @@ impl Runtime {
                 .heap_get(*id)
                 .map(ToString::to_string)
                 .unwrap_or_else(|| format!("<missing object:{id}>")),
+            other => other.to_string(),
+        }
+    }
+
+    /// Readable text for program output (`Out.println` and friends). Unlike
+    /// `display_value`, which also feeds traces and the debugger, this expands
+    /// nested records, enums, tuples and collections.
+    pub fn display_pretty(&self, value: &Value) -> String {
+        if self.contains_secret(value) {
+            return "<redacted: Secret>".into();
+        }
+        self.pretty(value, 0)
+    }
+
+    /// Human-readable form used by `Out.println`: records, structs, enums,
+    /// tuples, maps and nested heap values are written out in full.
+    fn pretty(&self, value: &Value, depth: usize) -> String {
+        const MAX_DEPTH: usize = 8;
+        // Inside another value a collection shows only its first items, so
+        // that a record holding a large List stays one readable line.
+        const NESTED_ITEMS: usize = 32;
+        if depth > MAX_DEPTH {
+            return "...".into();
+        }
+        let short = |name: &str| name.rsplit('$').next().unwrap_or(name).to_string();
+        let next = depth + 1;
+        let key_text = |key: &MapKey| match key {
+            MapKey::Text(text) => text.clone(),
+            MapKey::Int(n) => n.to_string(),
+            MapKey::Bool(b) => b.to_string(),
+            MapKey::Float(bits) => f64::from_bits(*bits).to_string(),
+            other => format!("{other:?}"),
+        };
+        match value {
+            Value::HeapRef(id) => self
+                .heap_get(*id)
+                .map(|inner| self.pretty(inner, next))
+                .unwrap_or_else(|| format!("<missing object:{id}>")),
+            Value::List(items) => {
+                let limit = if depth == 0 { usize::MAX } else { NESTED_ITEMS };
+                let mut parts: Vec<String> = items
+                    .iter()
+                    .take(limit)
+                    .map(|item| self.pretty(item, next))
+                    .collect();
+                if items.len() > limit {
+                    parts.push(format!("... {} more", items.len() - limit));
+                }
+                format!("[{}]", parts.join(", "))
+            }
+            Value::TypedList(_, items) => {
+                let limit = if depth == 0 { usize::MAX } else { NESTED_ITEMS };
+                let mut parts: Vec<String> = items
+                    .iter()
+                    .take(limit)
+                    .map(|item| self.pretty(item, next))
+                    .collect();
+                if items.len() > limit {
+                    parts.push(format!("... {} more", items.len() - limit));
+                }
+                format!("[{}]", parts.join(", "))
+            }
+            Value::Map(map) | Value::TypedMap(_, _, map) => {
+                let limit = if depth == 0 { usize::MAX } else { NESTED_ITEMS };
+                let mut parts: Vec<String> = map
+                    .iter()
+                    .take(limit)
+                    .map(|(k, v)| format!("{}: {}", key_text(k), self.pretty(v, next)))
+                    .collect();
+                if map.len() > limit {
+                    parts.push(format!("... {} more", map.len() - limit));
+                }
+                format!("{{{}}}", parts.join(", "))
+            }
+            Value::Struct(name, fields) if name.starts_with("Frozen<") && fields.len() == 1 => {
+                match fields.get("$value") {
+                    Some(inner) => self.pretty(inner, next),
+                    None => value.to_string(),
+                }
+            }
+            Value::Struct(name, fields) if name.starts_with("Tuple<") => {
+                let mut parts: Vec<(usize, String)> = fields
+                    .iter()
+                    .map(|(k, v)| {
+                        (
+                            k.trim_start_matches('_').parse().unwrap_or(0),
+                            self.pretty(v, next),
+                        )
+                    })
+                    .collect();
+                parts.sort_by_key(|(index, _)| *index);
+                format!(
+                    "({})",
+                    parts
+                        .into_iter()
+                        .map(|(_, text)| text)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+            Value::Struct(name, fields) => format!(
+                "{}{{{}}}",
+                short(name),
+                fields
+                    .iter()
+                    .map(|(k, v)| format!("{k}: {}", self.pretty(v, next)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Value::Enum(name, variant, fields) => {
+                let head = format!("{}::{variant}", short(name));
+                if fields.is_empty() {
+                    head
+                } else if fields
+                    .iter()
+                    .all(|(k, _)| k.chars().all(|c| c.is_ascii_digit()))
+                {
+                    format!(
+                        "{head}({})",
+                        fields
+                            .iter()
+                            .map(|(_, v)| self.pretty(v, next))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                } else {
+                    format!(
+                        "{head}{{{}}}",
+                        fields
+                            .iter()
+                            .map(|(k, v)| format!("{k}: {}", self.pretty(v, next)))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            }
+            Value::Option(Some(inner)) => format!("Some({})", self.pretty(inner, next)),
+            Value::Result(Ok(inner)) => format!("Ok({})", self.pretty(inner, next)),
+            Value::Result(Err(inner)) => format!("Err({})", self.pretty(inner, next)),
             other => other.to_string(),
         }
     }

@@ -10770,8 +10770,24 @@ impl Checker<'_> {
             }
             ExprKind::Try(inner) => {
                 let t = self.expr(inner)?;
+                if let Some(item) = t.strip_prefix("Option<").and_then(|s| s.strip_suffix('>')) {
+                    if let Some(returned) = self.return_ty.as_deref() {
+                        if !returned.starts_with("Option<")
+                            && only_builtin_types(returned)
+                            && returned != "Unknown"
+                        {
+                            return Err(diagnostic(
+                                &e.at,
+                                format!(
+                                    "'?' on an Option needs a function that returns Option, but this one returns {returned}"
+                                ),
+                            ));
+                        }
+                    }
+                    return Ok(item.into());
+                }
                 if !t.starts_with("Result<") {
-                    return Err(diagnostic(&e.at, "'?' requires Result"));
+                    return Err(diagnostic(&e.at, "'?' requires Result or Option"));
                 }
                 let inner = t
                     .strip_prefix("Result<")
@@ -11686,7 +11702,7 @@ fn cleanup_calls_publish(program: &Program, body: &[Stmt], seen: &mut BTreeSet<S
 fn builtin_type(receiver: &str, method: &str, args: &[String], at: &Tok) -> Result<String> {
     let count = args.len();
     let result = match (receiver, method, count) {
-        ("Out" | "Err", "println", 1) | ("Out" | "Err", "flush", 0) => "Unit",
+        ("Out" | "Err", "println" | "print", 1) | ("Out" | "Err", "flush", 0) => "Unit",
         ("In", "readChunk", 1) if args[0] == "Int" => "Option<Bytes>",
         ("Out", "writeBytes", 1) if args[0] == "Bytes" => "Unit",
         ("In", "readLine", 0) => "Option<String>",
@@ -12467,7 +12483,9 @@ impl<R: BufRead> Engine<R> {
             ExprKind::Try(inner) => match self.eval(inner)? {
                 Value::Result(Ok(v)) => Ok(*v),
                 Value::Result(Err(v)) => Err(Flow::Return(Value::Result(Err(v)))),
-                _ => Err(self.fail(&e.at, "'?' requires Result")),
+                Value::Option(Some(v)) => Ok(*v),
+                Value::Option(None) => Err(Flow::Return(Value::Option(None))),
+                _ => Err(self.fail(&e.at, "'?' requires Result or Option")),
             },
             ExprKind::Match(value, arms) => {
                 let value = self.eval(value)?;
@@ -14985,13 +15003,23 @@ impl<R: BufRead> Engine<R> {
         let unit = Value::Null;
         match (receiver, method, args.len()) {
             ("Out", "println", 1) => {
-                let s = self.runtime.display_value(&args[0]);
+                let s = self.runtime.display_pretty(&args[0]);
                 self.runtime.print_out(&(s + "\n"))?;
                 Ok(unit)
             }
             ("Err", "println", 1) => {
-                let s = self.runtime.display_value(&args[0]);
+                let s = self.runtime.display_pretty(&args[0]);
                 self.runtime.print_err(&(s + "\n"))?;
+                Ok(unit)
+            }
+            ("Out", "print", 1) => {
+                let s = self.runtime.display_pretty(&args[0]);
+                self.runtime.print_out(&s)?;
+                Ok(unit)
+            }
+            ("Err", "print", 1) => {
+                let s = self.runtime.display_pretty(&args[0]);
+                self.runtime.print_err(&s)?;
                 Ok(unit)
             }
             ("Out", "flush", 0) | ("Err", "flush", 0) => Ok(unit),

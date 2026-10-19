@@ -1442,7 +1442,34 @@ Err(InvalidIntOrOverflow)
 9
 ```
 
-`?` は `Option` には使えません。`Option` は `match` や `let ... else` で処理します。
+`Option` にも `?` を使えます。`Option` を返す関数の中で、`Some(v)` なら `v` を取り出し、`None` ならその関数から `None` を返します。`Result` を返す関数の中で `Option` に `?` を付けることはできません（`'?' on an Option needs a function that returns Option`）。変換が必要なときは、`match` や `let ... else` で処理します。
+
+```rewind
+fn firstEven(xs: &List<Int>) -> Option<Int> effects {} {
+    for i in 0..xs.len() {
+        if xs.get(i) % 2 == 0 { return Some(xs.get(i)); }
+    }
+    return None;
+}
+
+fn doubled(xs: &List<Int>) -> Option<Int> effects {} {
+    let n = firstEven(xs)?;
+    return Some(n * 2);
+}
+
+fn main()->Int {
+    let a = [1, 3, 4];
+    let b = [1, 3];
+    Out.println(doubled(&a));
+    Out.println(doubled(&b));
+    return 0;
+}
+```
+
+```text
+Some(8)
+None
+```
 
 関数が返す `Err` の型は、`?` を使う関数の戻り値の `Err` の型と一致しなければなりません。型が違うときは `mapErr` で変換してから `?` を使います。
 
@@ -2108,7 +2135,8 @@ world
 
 | 呼び出し | 戻り値と備考 |
 |---|---|
-| `Out.println(値)`、`Err.println(値)` | `Unit`。標準出力・標準エラーへの保留中の出力 |
+| `Out.println(値)`、`Err.println(値)` | `Unit`。標準出力・標準エラーへの保留中の出力（改行付き） |
+| `Out.print(値)`、`Err.print(値)` | `Unit`。改行なしの保留中の出力 |
 | `Out.writeBytes(Bytes)` | `Unit`。生のバイト列を出力する |
 | `Out.flush()`、`Err.flush()` | `Unit`。公開とは別の操作 |
 | `In.readLine()` | `Option<String>`。入力の終わりは `None` |
@@ -2124,9 +2152,20 @@ world
 | `File.open(path)` | ファイルハンドル（`using` で閉じる） |
 | `Directory.entries(path)` | `List<String>` |
 
-`Out.println` に渡す値は、`Int`、`Float`、`String`、`Bool`、`Option`、`Result`、`List` などを自由に出力できます。`struct` や `record` のような型の表示形式は実装の内部表現に近く、安定した形式ではありません。人が読む文字列は自分で組み立ててください（[文字列補間](#35-文字列補間)）。
+`Out.println` と `Out.print` に渡す値は、`Int`、`Float`、`String`、`Bool`、`Option`、`Result`、`List`、`Map`、`record`、`struct`、`enum`、タプルなどを自由に出力できます。表示の形は次のとおりです。
 
-`Out.println` は改行付きで、改行なしの出力関数はありません。
+| 値 | 表示 |
+|---|---|
+| `record` / `struct` | `Point{x: 3, y: 4}`（フィールド名の昇順。入れ子も展開する） |
+| `enum` | `Shape::Circle(2)`、`Shape::Move{x: 1, y: 2}`、`Shape::Empty` |
+| タプル | `(1, a)`（文字列は引用符なし） |
+| `List`、`Map` | `[1, 2]`、`{a: 1, b: 2}`（`Map` はキーの昇順） |
+| `Option`、`Result` | `Some(3)`、`None`、`Ok(3)`、`Err(e)` |
+| `Frozen<T>` | 中身と同じ |
+
+入れ子の文字列も引用符なしで表示されるので、`"a, b"` という 1 つの文字列と、`"a"` と `"b"` の 2 つの文字列は、表示では区別できません。機械が読む形式が必要なときは、`std.json` などを使うか、自分で文字列を組み立ててください（[文字列補間](#35-文字列補間)）。
+
+`Out.println` は改行付き、`Out.print` は改行なしで出力します。`Err.print`、`Err.println` も同じです。
 
 `secret(値)` は値を `Secret<T>` で包み、`reveal(秘密)` で取り出します。`Secret` を出力すると `<redacted: Secret>` になります。診断や記録にも値は残りません。ただし暗号化や外部への送信の防止まで保証するものではありません。
 
@@ -2402,7 +2441,6 @@ REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプ�
 
 - `?` のエラー型の不一致は、組み込みの型どうしなら実行前に拒否されますが、`record` や標準ライブラリの型が絡むときは、`Err` の経路を通ったときの実行時エラーになります（[第 10.2 節](#102-option-と-result)）。
 - 型制約の名前が存在するかは、関数の型引数についてだけ検査されます。`struct` や `record` の型引数に書いた存在しない制約は拒否されません。
-- `Out.println` が `struct` や `record` を表示する形式は内部表現に近く、安定していません。
 - 公開されていない関数や型を別の module から使うと、`unknown name` と報告されます（「非公開」という説明は出ません）。
 - `List` と `Map` を `==` や `assert_eq` で比べると、中身ではなく同一性を調べます。
 - `branch` の中で `return` すると、関数からは戻れますが、`branch` が戻すはずの状態は戻りません。

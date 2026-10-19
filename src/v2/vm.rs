@@ -6639,7 +6639,9 @@ impl<R: BufRead> Vm<R> {
                     Value::Result(Err(value)) => {
                         self.finish_call(Value::Result(Err(value)), &inst.at)?
                     }
-                    _ => return Err(self.error(&inst.at, "'?' requires Result")),
+                    Value::Option(Some(value)) => self.push(*value)?,
+                    Value::Option(None) => self.finish_call(Value::Option(None), &inst.at)?,
+                    _ => return Err(self.error(&inst.at, "'?' requires Result or Option")),
                 },
                 Op::Pop => {
                     let value = self.pop()?;

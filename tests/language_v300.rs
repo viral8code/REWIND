@@ -519,3 +519,34 @@ fn short_closure_without_context_asks_for_annotations() {
         stderr(&out)
     );
 }
+
+#[test]
+fn print_writes_without_a_newline() {
+    let out = run("fn main()->Int effects {output} {\n    Out.print(\"a\");\n    Out.print(1);\n    Out.println(\"b\");\n    return 0;\n}\n");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "a1b\n");
+}
+
+#[test]
+fn question_mark_works_on_options_in_option_functions() {
+    let out = run(
+        "fn firstEven(xs: &List<Int>) -> Option<Int> effects {} {\n    for i in 0..xs.len() {\n        if xs.get(i) % 2 == 0 { return Some(xs.get(i)); }\n    }\n    return None;\n}\nfn doubled(xs: &List<Int>) -> Option<Int> effects {} {\n    let n = firstEven(xs)?;\n    return Some(n * 2);\n}\nfn main()->Int effects {output} {\n    let a = [1, 3, 4];\n    let b = [1, 3];\n    Out.println(doubled(&a));\n    Out.println(doubled(&b));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "Some(8)\nNone\n");
+    let bad = run("fn f(x: Option<Int>) -> Result<Int, String> effects {} {\n    let v = x?;\n    return Ok(v);\n}\nfn main()->Int effects {} { return 0; }\n");
+    assert!(!bad.status.success());
+    assert!(stderr(&bad).contains("returns Option"), "{}", stderr(&bad));
+}
+
+#[test]
+fn println_writes_records_enums_tuples_and_maps_readably() {
+    let out = run(
+        "record Point { x: Int, y: Int }\nstruct Counter { n: Int, name: String }\nenum Shape { Circle(Int), Empty, Move{x: Int, y: Int} }\nrecord Line { a: Point, b: Point }\nfn main()->Int effects {output} {\n    Out.println(Point(3, 4));\n    Out.println(Counter(1, \"c\"));\n    Out.println(Shape::Circle(2));\n    Out.println(Shape::Empty);\n    Out.println(Shape::Move{x: 1, y: 2});\n    Out.println(Line(Point(1, 2), Point(3, 4)));\n    Out.println(Some(Point(1, 2)));\n    Out.println((1, \"a\"));\n    Out.println([Point(1, 2)]);\n    Out.println({\"a\": 1, \"b\": 2});\n    Out.println(freeze([1, 2]));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "Point{x: 3, y: 4}\nCounter{n: 1, name: c}\nShape::Circle(2)\nShape::Empty\nShape::Move{x: 1, y: 2}\nLine{a: Point{x: 1, y: 2}, b: Point{x: 3, y: 4}}\nSome(Point{x: 1, y: 2})\n(1, a)\n[Point{x: 1, y: 2}]\n{a: 1, b: 2}\n[1, 2]\n"
+    );
+}

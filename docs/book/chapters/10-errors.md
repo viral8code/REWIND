@@ -88,7 +88,36 @@ Err(InvalidIntOrOverflow)
 9
 ```
 
-`?` は `Option` には使えません。`Option` は、`match` か `let … else` で扱います。
+`?` は `Option` にも使えます。`Option` を返す関数の中で、`Some(v)` なら `v` を取り出し、`None` ならその関数から `None` を返します。
+
+```rewind
+fn firstEven(xs: &List<Int>) -> Option<Int> effects {} {
+    for i in 0..xs.len() {
+        if xs.get(i) % 2 == 0 { return Some(xs.get(i)); }
+    }
+    return None;
+}
+
+fn doubled(xs: &List<Int>) -> Option<Int> effects {} {
+    let n = firstEven(xs)?;
+    return Some(n * 2);
+}
+
+fn main()->Int {
+    let a = [1, 3, 4];
+    let b = [1, 3];
+    Out.println(doubled(&a));
+    Out.println(doubled(&b));
+    return 0;
+}
+```
+
+```text
+Some(8)
+None
+```
+
+`Result` を返す関数の中では、`Option` に `?` を付けられません。`match` か `let … else` で扱ってください。
 
 `?` を使う関数では、`Err` の型が、戻り値の `Err` の型と一致している必要があります。違うときは、`mapErr` で型を変えてから `?` を付けます。
 

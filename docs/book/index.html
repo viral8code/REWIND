@@ -1166,7 +1166,29 @@ fn main()-&gt;Int {
 <div class="code"><div class="cap out">出力</div><pre><code>Ok(3)
 Err(InvalidIntOrOverflow)
 9</code></pre></div>
-<p><code>?</code> は <code>Option</code> には使えません。<code>Option</code> は、<code>match</code> か <code>let … else</code> で扱います。</p>
+<p><code>?</code> は <code>Option</code> にも使えます。<code>Option</code> を返す関数の中で、<code>Some(v)</code> なら <code>v</code> を取り出し、<code>None</code> ならその関数から <code>None</code> を返します。</p>
+<div class="code"><div class="cap">REWIND</div><pre><code>fn firstEven(xs: &amp;List&lt;Int&gt;) -&gt; Option&lt;Int&gt; effects {} {
+    for i in 0..xs.len() {
+        if xs.get(i) % 2 == 0 { return Some(xs.get(i)); }
+    }
+    return None;
+}
+
+fn doubled(xs: &amp;List&lt;Int&gt;) -&gt; Option&lt;Int&gt; effects {} {
+    let n = firstEven(xs)?;
+    return Some(n * 2);
+}
+
+fn main()-&gt;Int {
+    let a = [1, 3, 4];
+    let b = [1, 3];
+    Out.println(doubled(&amp;a));
+    Out.println(doubled(&amp;b));
+    return 0;
+}</code></pre></div>
+<div class="code"><div class="cap out">出力</div><pre><code>Some(8)
+None</code></pre></div>
+<p><code>Result</code> を返す関数の中では、<code>Option</code> に <code>?</code> を付けられません。<code>match</code> か <code>let … else</code> で扱ってください。</p>
 <p><code>?</code> を使う関数では、<code>Err</code> の型が、戻り値の <code>Err</code> の型と一致している必要があります。違うときは、<code>mapErr</code> で型を変えてから <code>?</code> を付けます。</p>
 <div class="code"><div class="cap">REWIND</div><pre><code>fn lookup(key: String) -&gt; Result&lt;Int, String&gt; effects {} {
     if key == &quot;a&quot; { return Ok(1); }
@@ -1943,7 +1965,7 @@ fn main()-&gt;Int effects {fileRead, fileWrite, output} {
 <p>標準入力に <code>10</code>、<code>20</code>、<code>abc</code>、<code>5</code> の 4 行を渡して実行した結果です。端末では次のように試せます。</p>
 <div class="code"><div class="cap sh">コマンド</div><pre><code>printf &#x27;10\n20\nabc\n5\n&#x27; | rewind run main.rw</code></pre></div>
 <p>「入力が途中で終わった」ことを <code>None</code> として受け取り、足りないという扱いにするか、空の入力を許すかは、プログラムの仕様として決めてください。<code>None</code> を <code>0</code> とみなして加算してしまうと、入力の欠落に気づけません。</p>
-<p>人に入力を促す対話型のプログラムでは、<code>In.readLine()</code> の前に <code>publish;</code> を書いて、プロンプトを先に表示します。出力は <code>main</code> が戻るまで保留中のままだからです。</p>
+<p>人に入力を促す対話型のプログラムでは、プロンプトを <code>Out.print(&quot;名前: &quot;);</code> のように改行なしで出力し、<code>In.readLine()</code> の前に <code>publish;</code> を書いて、先に表示します。出力は <code>main</code> が戻るまで保留中のままだからです。</p>
 <h3 id="大量の数値を読む">大量の数値を読む</h3>
 <p>数百万個の数を読むとき、1 行ごとに <code>String</code> を作って分割すると、途中の値が大量にできます。<code>std.scanner</code> は、<code>Bytes</code> を保持したまま位置を進めながら数を読むので、中間の文字列を作りません。</p>
 <div class="code"><div class="cap">REWIND</div><pre><code>import std.scanner as scanner;
@@ -3516,7 +3538,6 @@ pear: 2</code></pre></div>
 <ul>
 <li><strong><code>?</code> のエラー型の不一致は、組み込みの型どうしなら実行前に拒否されます。</strong> <code>record</code> や標準ライブラリの型が絡むときは、<code>Err</code> の経路を通ったときの実行時エラーになります（第10章）。</li>
 <li><strong><code>struct</code> や <code>record</code> の型引数に、存在しない制約を書いても拒否されません。</strong> 関数の型引数の制約は、存在しない名前が拒否されます。</li>
-<li><strong><code>Out.println</code> が <code>struct</code> や <code>record</code>、<code>Json</code> などを表示する形式は、内部表現に近く、安定していません。</strong> 人が読む文字列は、自分で組み立ててください。</li>
 <li><strong><code>List</code> と <code>Map</code> を <code>==</code> や <code>assert_eq</code> で比べると、中身ではなく同一性を調べます。</strong> 比べたいときは <code>freeze</code> します（第3章）。</li>
 <li><strong><code>return</code> を <code>branch</code> の中で使うと、そこで関数から戻りますが、状態は戻りません。</strong> 状態を元に戻したいときは、ブロックを最後まで実行して終えてください（第12章）。</li>
 </ul>
