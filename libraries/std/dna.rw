@@ -1,0 +1,224 @@
+// DNA の 2 ビット詰め (A=0, C=1, G=2, T=3)。k は 1..32 で、k 塩基の k-mer を Int 1 つに入れる。逆相補、正準形、ローリング更新、k-mer 列挙を提供する。
+// 受け付けるのは大文字の A, C, G, T だけで、N などそれ以外の記号は BadBase になる。配列は 4 MiB までに制限する。エラーはコードと位置だけを返し、入力の文字列は含めない。
+pub record DnaError {code:String,offset:Int}
+
+fn maxSequence()->Int effects {} {return 4194304;}
+
+fn shl(v:Int,n:Int)->Int effects {} {
+    match stdShiftLeft(v,n) {
+        Ok(x)=>{return x;},
+        Err(_)=>{return 0;}
+    }
+}
+
+fn shr(v:Int,n:Int)->Int effects {} {
+    match stdShiftUnsigned(v,n) {
+        Ok(x)=>{return x;},
+        Err(_)=>{return 0;}
+    }
+}
+
+fn byteAt(input:Bytes,index:Int)->Int effects {} {
+    match stdBytesGet(input,index) {
+        Ok(v)=>{return v;},
+        Err(_)=>{return 0;}
+    }
+}
+
+fn validK(k:Int)->Bool effects {} {return k>=1 && k<=32;}
+
+// 下位 2k ビットを覆うマスク。k=32 のときは 64 ビットすべてを残す。
+fn maskOf(k:Int)->Int effects {} {
+    if k>=32 {return -1;}
+    return shl(1,2*k)-1;
+}
+
+// k 塩基の k-mer として有効な値か。k=32 のときは Int のどの値も有効とする。
+fn validKmer(kmer:Int,k:Int)->Bool effects {} {
+    if k>=32 {return true;}
+    return kmer>=0 && kmer<=maskOf(k);
+}
+
+// 1 塩基の 2 ビット値。A, C, G, T 以外は -1。
+fn baseCode(c:Int)->Int effects {} {
+    if c==65 {return 0;}
+    if c==67 {return 1;}
+    if c==71 {return 2;}
+    if c==84 {return 3;}
+    return -1;
+}
+
+// 2 ビット値に対応する ASCII 文字。
+fn baseSymbol(v:Int)->Int effects {} {
+    if v==0 {return 65;}
+    if v==1 {return 67;}
+    if v==2 {return 71;}
+    return 84;
+}
+
+// 符号ビットを反転してから比べると、Int の比較が符号なしの比較になる。
+fn unsignedLess(a:Int,b:Int)->Bool effects {} {
+    let flip=shl(1,63);
+    return stdBitXor(a,flip)<stdBitXor(b,flip);
+}
+
+// 検査済みの k-mer の逆相補。相補は各 2 ビットとの XOR (A<->T, C<->G) で得る。
+fn reverseComplementCore(kmer:Int,k:Int)->Int effects {} {
+    var x=stdBitXor(kmer,maskOf(k));
+    var out=0;
+    var i=0;
+    while i<k {
+        out=stdBitOr(shl(out,2),stdBitAnd(x,3));
+        x=shr(x,2);
+        i+=1;
+    }
+    return out;
+}
+
+// @api encode cost O(bases) work; input must be 1..32 uppercase A, C, G, T.
+// @api encode failure DnaError BadLength (empty or longer than 32 bases, offset 0), BadBase (symbol other than A, C, G, T, offset is the base index).
+pub fn encode(seq:String)->Result<Int,DnaError> effects {} {
+    let bytes=match stdEncode(seq) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(DnaError("BadLength",0));}
+    };
+    let n=stdBytesLength(bytes);
+    if n<1 || n>32 {return Err(DnaError("BadLength",0));}
+    var v=0;
+    var i=0;
+    while i<n {
+        let code=baseCode(byteAt(bytes,i));
+        if code<0 {return Err(DnaError("BadBase",i));}
+        v=stdBitOr(shl(v,2),code);
+        i+=1;
+    }
+    return Ok(v);
+}
+
+// @api decode cost O(k) work; returns the k bases of the packed k-mer as uppercase text.
+// @api decode failure DnaError BadK (k outside 1..32, or kmer outside the 2k-bit range), offset is 0.
+pub fn decode(kmer:Int,k:Int)->Result<String,DnaError> effects {} {
+    if !validK(k) {return Err(DnaError("BadK",0));}
+    if !validKmer(kmer,k) {return Err(DnaError("BadK",0));}
+    let out=List<Int>();
+    var i=k-1;
+    while i>=0 {
+        out.add(baseSymbol(stdBitAnd(shr(kmer,2*i),3)));
+        i-=1;
+    }
+    match stdBytesFromList(&out) {
+        Ok(bytes)=>{
+            match stdDecode(bytes) {
+                Ok(text)=>{return Ok(text);},
+                Err(_)=>{return Err(DnaError("BadK",0));}
+            }
+        },
+        Err(_)=>{return Err(DnaError("BadK",0));}
+    }
+}
+
+// @api reverseComplement cost O(k) work; complement of each base, in reversed order.
+// @api reverseComplement failure DnaError BadK (k outside 1..32, or kmer outside the 2k-bit range), offset is 0.
+pub fn reverseComplement(kmer:Int,k:Int)->Result<Int,DnaError> effects {} {
+    if !validK(k) {return Err(DnaError("BadK",0));}
+    if !validKmer(kmer,k) {return Err(DnaError("BadK",0));}
+    return Ok(reverseComplementCore(kmer,k));
+}
+
+// @api canonical cost O(k) work; the smaller of the k-mer and its reverse complement, compared as unsigned values.
+// @api canonical failure DnaError BadK (k outside 1..32, or kmer outside the 2k-bit range), offset is 0.
+pub fn canonical(kmer:Int,k:Int)->Result<Int,DnaError> effects {} {
+    if !validK(k) {return Err(DnaError("BadK",0));}
+    if !validKmer(kmer,k) {return Err(DnaError("BadK",0));}
+    let rc=reverseComplementCore(kmer,k);
+    if unsignedLess(rc,kmer) {return Ok(rc);}
+    return Ok(kmer);
+}
+
+// @api roll cost O(1) work; drops the oldest base and appends base (0..3 for A, C, G, T).
+// @api roll failure DnaError BadK (k outside 1..32, or kmer outside the 2k-bit range), BadBase (base outside 0..3), offset is 0.
+pub fn roll(kmer:Int,base:Int,k:Int)->Result<Int,DnaError> effects {} {
+    if !validK(k) {return Err(DnaError("BadK",0));}
+    if !validKmer(kmer,k) {return Err(DnaError("BadK",0));}
+    if base<0 || base>3 {return Err(DnaError("BadBase",0));}
+    return Ok(stdBitAnd(stdBitOr(shl(kmer,2),base),maskOf(k)));
+}
+
+// @api kmers cost O(bases * k) work when canonicalForm is true, O(bases) otherwise; returns at most 4M k-mers in sequence order.
+// @api kmers failure DnaError BadK (k outside 1..32), BadLength (sequence over 4 MiB), BadBase (symbol other than A, C, G, T, offset is the base index).
+pub fn kmers(seq:String,k:Int,canonicalForm:Bool)->Result<List<Int>,DnaError> effects {} {
+    if !validK(k) {return Err(DnaError("BadK",0));}
+    let bytes=match stdEncode(seq) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(DnaError("BadLength",0));}
+    };
+    let n=stdBytesLength(bytes);
+    if n>maxSequence() {return Err(DnaError("BadLength",0));}
+    let mask=maskOf(k);
+    let out=List<Int>();
+    var window=0;
+    var filled=0;
+    var i=0;
+    while i<n {
+        let code=baseCode(byteAt(bytes,i));
+        if code<0 {return Err(DnaError("BadBase",i));}
+        window=stdBitAnd(stdBitOr(shl(window,2),code),mask);
+        filled+=1;
+        if filled>=k {
+            if canonicalForm {
+                let rc=reverseComplementCore(window,k);
+                if unsignedLess(rc,window) {out.add(rc);} else {out.add(window);}
+            } else {
+                out.add(window);
+            }
+        }
+        i+=1;
+    }
+    return Ok(out);
+}
+
+// @api gcCount cost O(bases) work; counts C and G.
+// @api gcCount failure DnaError BadLength (sequence over 4 MiB), BadBase (symbol other than A, C, G, T, offset is the base index).
+pub fn gcCount(seq:String)->Result<Int,DnaError> effects {} {
+    let bytes=match stdEncode(seq) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(DnaError("BadLength",0));}
+    };
+    let n=stdBytesLength(bytes);
+    if n>maxSequence() {return Err(DnaError("BadLength",0));}
+    var count=0;
+    var i=0;
+    while i<n {
+        let code=baseCode(byteAt(bytes,i));
+        if code<0 {return Err(DnaError("BadBase",i));}
+        if code==1 || code==2 {count+=1;}
+        i+=1;
+    }
+    return Ok(count);
+}
+
+// @api hammingDistance cost O(bases) work; number of positions where the two sequences differ.
+// @api hammingDistance failure DnaError BadLength (lengths differ, or a sequence over 4 MiB, offset 0), BadBase (symbol other than A, C, G, T, offset is the base index in a).
+pub fn hammingDistance(a:String,b:String)->Result<Int,DnaError> effects {} {
+    let left=match stdEncode(a) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(DnaError("BadLength",0));}
+    };
+    let right=match stdEncode(b) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(DnaError("BadLength",0));}
+    };
+    let n=stdBytesLength(left);
+    if n!=stdBytesLength(right) || n>maxSequence() {return Err(DnaError("BadLength",0));}
+    var diff=0;
+    var i=0;
+    while i<n {
+        let x=baseCode(byteAt(left,i));
+        let y=baseCode(byteAt(right,i));
+        if x<0 {return Err(DnaError("BadBase",i));}
+        if y<0 {return Err(DnaError("BadBase",i));}
+        if x!=y {diff+=1;}
+        i+=1;
+    }
+    return Ok(diff);
+}

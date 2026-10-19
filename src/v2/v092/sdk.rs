@@ -86,6 +86,8 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "auth",
             include_str!("../../../libraries/std/auth.rw"),
         ),
+        ("dna", include_str!("../../../libraries/std/dna.rw")),
+        ("fastx", include_str!("../../../libraries/std/fastx.rw")),
         ("image", include_str!("../../../libraries/std/image.rw")),
         ("layout", include_str!("../../../libraries/std/layout.rw")),
         ("parser", include_str!("../../../libraries/std/parser.rw")),

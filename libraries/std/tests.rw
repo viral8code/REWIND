@@ -21,6 +21,8 @@ import evaluation as evaluation;
 import compress as compress;
 import crypto as crypto;
 import base64 as base64;
+import dna as dna;
+import fastx as fastx;
 import auth as auth;
 import image as imageLib;
 import json as json;
@@ -3530,4 +3532,88 @@ test fn auth_csrf_tokens_bind_to_session()->Unit effects {} {
         },
         Err(_)=>{panic("csrf failed");}
     }
+}
+
+test fn dna_packs_and_unpacks_kmers()->Unit effects {} {
+    match dna.encode("ACGT") {Ok(v)=>{assert_eq(v,27);},Err(_)=>{panic("encode failed");}}
+    match dna.decode(27,4) {Ok(t)=>{assert_eq(t,"ACGT");},Err(_)=>{panic("decode failed");}}
+    match dna.encode("ACGTACGTACGTACGTACGTACGTACGTACGT") {Ok(v)=>{match dna.decode(v,32) {Ok(t)=>{assert_eq(t,"ACGTACGTACGTACGTACGTACGTACGTACGT");},Err(_)=>{panic("k=32 decode failed");}}},Err(_)=>{panic("k=32 encode failed");}}
+    match dna.encode("ACGN") {Ok(_)=>{panic("N must be rejected");},Err(e)=>{assert_eq(e.code,"BadBase");assert_eq(e.offset,3);}}
+    match dna.encode("") {Ok(_)=>{panic("empty must be rejected");},Err(e)=>{assert_eq(e.code,"BadLength");}}
+    match dna.decode(0,0) {Ok(_)=>{panic("k=0 must be rejected");},Err(e)=>{assert_eq(e.code,"BadK");}}
+}
+
+test fn dna_reverse_complement_canonical_and_roll()->Unit effects {} {
+    match dna.encode("AAAC") {Ok(v)=>{match dna.reverseComplement(v,4) {Ok(rc)=>{assert_eq(dna.decode(rc,4),Ok("GTTT"));},Err(_)=>{panic("rc failed");}}},Err(_)=>{panic("encode failed");}}
+    match dna.encode("AAAC") {Ok(expected)=>{match dna.encode("GTTT") {Ok(v)=>{match dna.canonical(v,4) {Ok(c)=>{assert_eq(c,expected);},Err(_)=>{panic("canonical failed");}}},Err(_)=>{panic("encode failed");}}},Err(_)=>{panic("encode failed");}}
+    match dna.encode("ACG") {Ok(v)=>{match dna.roll(v,3,3) {Ok(r)=>{assert_eq(dna.decode(r,3),Ok("CGT"));},Err(_)=>{panic("roll failed");}}},Err(_)=>{panic("encode failed");}}
+    match dna.roll(0,4,3) {Ok(_)=>{panic("bad base must be rejected");},Err(e)=>{assert_eq(e.code,"BadBase");}}
+}
+
+test fn dna_kmers_gc_and_hamming()->Unit effects {} {
+    match dna.kmers("ACGTA",3,false) {Ok(list)=>{assert_eq(list.len(),3);},Err(_)=>{panic("kmers failed");}}
+    match dna.kmers("AAAC",2,true) {Ok(list)=>{assert_eq(list.len(),3);assert_eq(list.get(0),0);},Err(_)=>{panic("canonical kmers failed");}}
+    match dna.gcCount("GGCCAT") {Ok(n)=>{assert_eq(n,4);},Err(_)=>{panic("gcCount failed");}}
+    match dna.hammingDistance("ACGT","ACCT") {Ok(d)=>{assert_eq(d,1);},Err(_)=>{panic("hamming failed");}}
+    match dna.hammingDistance("ACGT","ACG") {Ok(_)=>{panic("length mismatch must be rejected");},Err(e)=>{assert_eq(e.code,"BadLength");}}
+}
+
+test fn fastx_parses_and_formats_fasta()->Unit effects {} {
+    match fastx.parseFasta(">seq1 first
+ACGT
+AC
+
+>seq2
+GG
+") {
+        Ok(reads)=>{
+            assert_eq(reads.len(),2);
+            assert_eq(reads.get(0).name,"seq1");
+            assert_eq(reads.get(0).description,"first");
+            assert_eq(reads.get(0).sequence,"ACGTAC");
+            assert_eq(reads.get(1).sequence,"GG");
+        },
+        Err(_)=>{panic("parseFasta failed");}
+    }
+    match fastx.parseFasta("ACGT
+>x
+") {Ok(_)=>{panic("sequence before header must be rejected");},Err(e)=>{assert_eq(e.code,"Format");assert_eq(e.line,1);}}
+    match fastx.parseFasta(">a b
+ACGTA
+") {
+        Ok(reads)=>{
+            match fastx.formatFasta(&reads,2) {Ok(t)=>{assert_eq(t,">a b
+AC
+GT
+A
+");},Err(_)=>{panic("formatFasta failed");}}
+        },
+        Err(_)=>{panic("parseFasta failed");}
+    }
+    let noReads=List<fastx.Read>();
+    match fastx.formatFasta(&noReads,0) {Ok(_)=>{panic("width 0 must be rejected");},Err(e)=>{assert_eq(e.code,"Format");}}
+}
+
+test fn fastx_parses_and_formats_fastq_and_phred()->Unit effects {} {
+    match fastx.parseFastq("@r1 desc
+ACGT
++
+IIII
+") {
+        Ok(reads)=>{
+            assert_eq(reads.len(),1);
+            assert_eq(reads.get(0).name,"r1");
+            assert_eq(reads.get(0).description,"desc");
+            assert_eq(reads.get(0).sequence,"ACGT");
+            assert_eq(reads.get(0).quality,Some("IIII"));
+        },
+        Err(_)=>{panic("parseFastq failed");}
+    }
+    match fastx.parseFastq("@r1
+ACGT
++
+III
+") {Ok(_)=>{panic("length mismatch must be rejected");},Err(e)=>{assert_eq(e.code,"LengthMismatch");assert_eq(e.line,1);}}
+    match fastx.phred("!I",33) {Ok(q)=>{assert_eq(q.get(0),0);assert_eq(q.get(1),40);},Err(_)=>{panic("phred failed");}}
+    match fastx.phred("!",99) {Ok(_)=>{panic("bad offset must be rejected");},Err(e)=>{assert_eq(e.code,"Format");}}
 }

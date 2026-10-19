@@ -2502,7 +2502,7 @@ error[DivisionByZero]: division by zero
 | 日時 | datetime、clock |
 | コレクションとアルゴリズム | collections、map、orderedMap、sequence、sort、search、heap、deque、bitset、disjointSet、rollbackSet、fenwick、segment、lazySegment、range、trie、suffix、dp、table |
 | グラフと幾何 | graph、graphLarge、graphLargeAsync、flow、matching、geometry |
-| データ形式と解析 | json、jsonStream、csv、csvStream、config、args、scanner、stream、parser、schema、logfmt、compress、image、base64 |
+| データ形式と解析 | json、jsonStream、csv、csvStream、config、args、scanner、stream、parser、schema、logfmt、compress、image、base64、dna、fastx |
 | 暗号 | crypto、auth |
 | 履歴と状態 | snapshot、history、historyGraph、timeline、changes、persistentSet、memo、lazy、lens |
 | 数値計算 | numeric とその Async 系、matrix、sparse、sparseAsync、fft、fftAsync、distributions |
@@ -2554,6 +2554,54 @@ fn main()->Int {
 ```text
 SGkh
 BadChar
+```
+
+`std.dna` は、2 bit で塩基（A=0、C=1、G=2、T=3）を詰めた Int の k-mer を扱い、`encode`、`decode`、`reverseComplement`、`canonical`、`roll`、`kmers`、`gcCount`、`hammingDistance` を提供します。k は 1〜32 です。入力は 1 MiB までで、超えると `BadLength` になります。失敗は `DnaError` の `code`（`BadBase`、`BadK`、`BadLength`）と位置 `offset` で返します。
+
+```rewind
+import std.dna as dna;
+
+fn main()->Int {
+    match dna.encode("ACGT") {
+        Ok(kmer)=>{
+            match dna.decode(kmer,4) {
+                Ok(text)=>{ Out.println(text); },
+                Err(e)=>{ Out.println(e.code); }
+            }
+        },
+        Err(e)=>{ Out.println(e.code); }
+    }
+    return 0;
+}
+```
+
+```text
+ACGT
+```
+
+`std.fastx` は FASTA と FASTQ の読込と書出し、Phred 品質の変換を提供します。`parseFasta` と `parseFastq` は `Read` の List を返し、`formatFasta` は行幅 `width` で折り返します。`formatFastq` は品質を持つ read を 4 行で書きます。`phred` は offset 33 または 64 の品質文字を整数に変換します。入力は 1 MiB まで、read 数は 1,000,000 までで、超えると `TooLarge` になります。失敗は `FastxError` の `code`（`Format`、`LengthMismatch`、`TooLarge`）と行番号 `line` で返します。
+
+```rewind
+import std.fastx as fastx;
+
+fn main()->Int {
+    match fastx.parseFasta(">seq1 first
+ACGT
+AC
+") {
+        Ok(reads)=>{
+            Out.println(reads.get(0).name);
+            Out.println(reads.get(0).sequence);
+        },
+        Err(e)=>{ Out.println(e.code); }
+    }
+    return 0;
+}
+```
+
+```text
+seq1
+ACGTAC
 ```
 
 `std.html` は `text`、`raw`、`concat`、`element`、`escapeText`、`escapeAttribute`、`safeUrl`、`toString` を提供し、HTML の文字列を組み立てます。`text` は `&<>"'` をエスケープしてから `Html` にします。信頼してそのまま入れてよいのは `raw` の入力だけです。`element` は tag 名と属性名を検査し、属性を名前順に書き、void 要素に子を持たせません。リンクの `href` には `safeUrl` を通してください。`javascript:` などの URL は `#` になります。

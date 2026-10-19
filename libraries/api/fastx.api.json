@@ -1,0 +1,124 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.6.0",
+  "symbols": {
+    "fn:formatFasta": {
+      "async": false,
+      "cost": "O(bases) work; width is the number of bases per sequence line.",
+      "defaults": [],
+      "effects": [],
+      "failure": "FastxError/Format (width outside 1..1000, or a read with an empty name), TooLarge (more than 1,000,000 reads, or output over 1 MiB).",
+      "generics": [],
+      "names": [
+        "reads",
+        "width"
+      ],
+      "parameters": [
+        "&List<Read>",
+        "Int"
+      ],
+      "return": "Result<String,FastxError>"
+    },
+    "fn:formatFastq": {
+      "async": false,
+      "cost": "O(bases) work; each read with a quality string is written as four lines.",
+      "defaults": [],
+      "effects": [],
+      "failure": "FastxError/Format (a read with no quality, or with an empty name), LengthMismatch (sequence and quality lengths differ), TooLarge (more than 1,000,000 reads, or output over 1 MiB).",
+      "generics": [],
+      "names": [
+        "reads"
+      ],
+      "parameters": [
+        "&List<Read>"
+      ],
+      "return": "Result<String,FastxError>"
+    },
+    "fn:parseFasta": {
+      "async": false,
+      "cost": "O(bytes) work; blank lines are ignored, CRLF is accepted.",
+      "defaults": [],
+      "effects": [],
+      "failure": "FastxError/Format (sequence before the first header, empty header name, offset is the line number), TooLarge (input over 1 MiB, or over 1,000,000 reads).",
+      "generics": [],
+      "names": [
+        "text"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<List<Read>,FastxError>"
+    },
+    "fn:parseFastq": {
+      "async": false,
+      "cost": "O(bytes) work; each record is four lines, CRLF is accepted.",
+      "defaults": [],
+      "effects": [],
+      "failure": "FastxError/Format (a line missing or not starting with @ or +, offset is the line number), LengthMismatch (sequence and quality lengths differ, offset is the header line number), TooLarge (input over 1 MiB, or over 1,000,000 reads).",
+      "generics": [],
+      "names": [
+        "text"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<List<Read>,FastxError>"
+    },
+    "fn:phred": {
+      "async": false,
+      "cost": "O(quality) work; offset is 33 (Phred+33) or 64 (Phred+64), and each byte is converted to its score.",
+      "defaults": [],
+      "effects": [],
+      "failure": "FastxError/Format (offset other than 33 or 64, or a byte below the offset, offset is 0), TooLarge (quality over 1 MiB).",
+      "generics": [],
+      "names": [
+        "quality",
+        "offset"
+      ],
+      "parameters": [
+        "String",
+        "Int"
+      ],
+      "return": "Result<List<Int>,FastxError>"
+    },
+    "type:FastxError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Read": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "description",
+          "String"
+        ],
+        [
+          "sequence",
+          "String"
+        ],
+        [
+          "quality",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}
