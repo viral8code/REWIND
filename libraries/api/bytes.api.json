@@ -3,6 +3,23 @@
   "kind": "rewind-api",
   "language": "3.6.0",
   "symbols": {
+    "fn:concat": {
+      "async": false,
+      "cost": "O(first + second)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Limit (combined length over 1 MiB).",
+      "generics": [],
+      "names": [
+        "first",
+        "second"
+      ],
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
     "fn:decode": {
       "async": false,
       "defaults": [],
@@ -29,6 +46,22 @@
       ],
       "return": "Result<Bytes,StdError>"
     },
+    "fn:equal": {
+      "async": false,
+      "cost": "O(bytes)",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "a",
+        "b"
+      ],
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "return": "Bool"
+    },
     "fn:fromHex": {
       "async": false,
       "cost": "O(text); accepts upper and lower case digits.",
@@ -41,6 +74,21 @@
       ],
       "parameters": [
         "String"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
+    "fn:fromInts": {
+      "async": false,
+      "cost": "O(values)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (an element outside 0 to 255) / Limit (more than 65,536 elements).",
+      "generics": [],
+      "names": [
+        "values"
+      ],
+      "parameters": [
+        "&List<Int>"
       ],
       "return": "Result<Bytes,StdError>"
     },
@@ -59,6 +107,25 @@
       ],
       "return": "Result<Int,StdError>"
     },
+    "fn:indexOf": {
+      "async": false,
+      "cost": "O(bytes * needle)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (empty needle, or start outside 0 to length).",
+      "generics": [],
+      "names": [
+        "value",
+        "needle",
+        "start"
+      ],
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Int"
+      ],
+      "return": "Result<Int,StdError>"
+    },
     "fn:length": {
       "async": false,
       "defaults": [],
@@ -71,6 +138,27 @@
         "Bytes"
       ],
       "return": "Int"
+    },
+    "fn:readInt": {
+      "async": false,
+      "cost": "O(width)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (width not 1, 2, 4 or 8, or the field runs past the end).",
+      "generics": [],
+      "names": [
+        "value",
+        "offset",
+        "width",
+        "big"
+      ],
+      "parameters": [
+        "Bytes",
+        "Int",
+        "Int",
+        "Bool"
+      ],
+      "return": "Result<Int,StdError>"
     },
     "fn:slice": {
       "async": false,
@@ -144,6 +232,21 @@
         "Bytes"
       ],
       "return": "String"
+    },
+    "fn:toInts": {
+      "async": false,
+      "cost": "O(bytes)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Limit (more than 65,536 bytes).",
+      "generics": [],
+      "names": [
+        "value"
+      ],
+      "parameters": [
+        "Bytes"
+      ],
+      "return": "Result<List<Int>,StdError>"
     },
     "type:BigInt": {
       "constructor": false,

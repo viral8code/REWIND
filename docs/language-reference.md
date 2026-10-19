@@ -2514,6 +2514,8 @@ error[DivisionByZero]: division by zero
 
 `std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。乱数は `std.crypto` にはまだないため、salt は呼出側で用意します。
 
+`std.bits` は `leadingZeros`、`trailingZeros`、`rotateLeft`、`rotateRight`、`reverseBits`、`byteSwap`、`extract`、`deposit` を提供します。`std.bytes` は `concat`、`fromInts`、`toInts`、`indexOf`、`equal`、`readInt` を提供し、`readInt` は 1、2、4、8 バイトの整数を指定した位置から読みます。範囲外の値や位置は `Range`、大きすぎる入力は `Limit` で返します。
+
 `std.auth` は、パスワードの保存と検証、署名付き token、CSRF token を提供します。乱数を持たないため、salt と key は呼出側が渡します。`hashPassword` は `pbkdf2-sha256$反復回数$salt$hash` の形式を返し、salt は 16〜64 バイト、反復回数は 10,000〜1,000,000 の範囲にします。`verifyPassword` は定数時間で比較し、形式の壊れた値や未知のアルゴリズムは `false` を返します。`needsRehash` は保存値の反復回数が要求値より少ないときに `true` を返します。`signToken` と `verifyToken` は `payload.expiresAt.署名` の形式で、署名を先に検査してから期限を見ます。失敗は `AuthError` の `code`（`Range`、`BadSignature`、`Expired`、`Malformed`）で返し、入力値は含みません。PBKDF2 の計算量が大きいため、1 回の run で呼べる回数は既定の作業上限に収まる範囲に限られます。
 
 ```rewind

@@ -37,6 +37,7 @@ pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str>
         .or_else(|| regex::parameter(name, index))
         .or_else(|| csv_stream::parameter(name, index))
         .or_else(|| json_stream::parameter(name, index))
+        .or_else(|| (name == "stdBytesFromInts" && index == 0).then_some("&List<Int>"))
 }
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
@@ -286,6 +287,12 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdConstantTimeEq",
         "stdBytesToHex",
         "stdBytesFromHex",
+        "stdBytesConcat",
+        "stdBytesFromInts",
+        "stdBytesToInts",
+        "stdBytesIndexOf",
+        "stdBytesEqual",
+        "stdBytesReadInt",
         "stdPngDecode",
         "stdPngEncode",
         "stdGzipCompress",
@@ -302,6 +309,14 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdShiftRight",
         "stdShiftUnsigned",
         "stdCountBits",
+        "stdBitLeadingZeros",
+        "stdBitTrailingZeros",
+        "stdBitRotateLeft",
+        "stdBitRotateRight",
+        "stdBitReverse",
+        "stdBitByteSwap",
+        "stdBitExtract",
+        "stdBitDeposit",
         "stdMulMod",
         "stdHttpComponent",
         "stdExternalClock",
@@ -743,7 +758,18 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
     };
     let work = match name {
         "stdBytesLength" | "stdBytesGet" | "stdBitAnd" | "stdBitOr" | "stdBitXor" | "stdBitNot"
-        | "stdCountBits" | "stdShiftLeft" | "stdShiftRight" | "stdShiftUnsigned" => 1,
+        | "stdCountBits" | "stdShiftLeft" | "stdShiftRight" | "stdShiftUnsigned"
+        | "stdBitLeadingZeros" | "stdBitTrailingZeros" | "stdBitRotateLeft" | "stdBitRotateRight"
+        | "stdBitReverse" | "stdBitByteSwap" | "stdBitExtract" | "stdBitDeposit" => 1,
+        // 先頭から一致を探すので、最悪ケースは入力長 × 針の長さになる。
+        "stdBytesIndexOf" => match args {
+            [Value::Bytes(data), Value::Bytes(needle), ..] => data
+                .len()
+                .saturating_mul(needle.len().max(1))
+                .saturating_add(16),
+            _ => 16,
+        },
+        "stdBytesReadInt" => 16,
         "stdBytesSlice" => match args {
             [Value::Bytes(bytes), Value::Int(a), Value::Int(b)]
                 if *a >= 0 && *b >= *a && (*b as u64) <= bytes.len() as u64 =>
@@ -1455,6 +1481,20 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdShiftLeft" | "stdShiftRight" | "stdShiftUnsigned" => {
             (&["Int", "Int"], "Result<Int,StdError>")
         }
+        "stdBitLeadingZeros" | "stdBitTrailingZeros" | "stdBitReverse" | "stdBitByteSwap" => {
+            (&["Int"], "Int")
+        }
+        "stdBitRotateLeft" | "stdBitRotateRight" => {
+            (&["Int", "Int"], "Result<Int,StdError>")
+        }
+        "stdBitExtract" => (&["Int", "Int", "Int"], "Result<Int,StdError>"),
+        "stdBitDeposit" => (&["Int", "Int", "Int", "Int"], "Result<Int,StdError>"),
+        "stdBytesConcat" => (&["Bytes", "Bytes"], "Result<Bytes,StdError>"),
+        "stdBytesFromInts" => (&["&List<Int>"], "Result<Bytes,StdError>"),
+        "stdBytesToInts" => (&["Bytes"], "Result<List<Int>,StdError>"),
+        "stdBytesIndexOf" => (&["Bytes", "Bytes", "Int"], "Result<Int,StdError>"),
+        "stdBytesEqual" => (&["Bytes", "Bytes"], "Bool"),
+        "stdBytesReadInt" => (&["Bytes", "Int", "Int", "Bool"], "Result<Int,StdError>"),
         "stdMulMod" => (&["Int", "Int", "Int"], "Result<Int,StdError>"),
         _ => unreachable!(),
     };
@@ -1857,6 +1897,11 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
         "stdBitXor" => Value::Int(int(0)? ^ int(1)?),
         "stdBitNot" => Value::Int(!int(0)?),
         "stdCountBits" => Value::Int(int(0)?.count_ones() as i64),
+        "stdBitLeadingZeros" => Value::Int(int(0)?.leading_zeros() as i64),
+        "stdBitTrailingZeros" => Value::Int(int(0)?.trailing_zeros() as i64),
+        "stdBitReverse" => Value::Int(int(0)?.reverse_bits()),
+        "stdBitByteSwap" => Value::Int(int(0)?.swap_bytes()),
+        "stdBytesEqual" => Value::Bool(bytes(0)? == bytes(1)?),
         _ => {
             let result = match n {
                 "stdTextTrim" => {
@@ -2265,6 +2310,134 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                             "stdShiftRight" => a >> shift,
                             _ => ((a as u64) >> shift) as i64,
                         }))
+                    }
+                }
+                "stdBitRotateLeft" | "stdBitRotateRight" => {
+                    let a = int(0)?;
+                    let count = int(1)?;
+                    if !(0..64).contains(&count) {
+                        Err(("Range", 0))
+                    } else {
+                        let u = a as u64;
+                        let r = if n == "stdBitRotateLeft" {
+                            u.rotate_left(count as u32)
+                        } else {
+                            u.rotate_right(count as u32)
+                        };
+                        Ok(Value::Int(r as i64))
+                    }
+                }
+                "stdBitExtract" | "stdBitDeposit" => {
+                    let a = int(0)?;
+                    let start = int(1)?;
+                    let width = int(2)?;
+                    if !(0..64).contains(&start) || !(1..=64).contains(&width) || start + width > 64 {
+                        Err(("Range", 0))
+                    } else {
+                        let mask = if width == 64 { u64::MAX } else { (1u64 << width) - 1 };
+                        if n == "stdBitExtract" {
+                            Ok(Value::Int((((a as u64) >> start) & mask) as i64))
+                        } else {
+                            let v = int(3)?;
+                            if v < 0 || (v as u64) & !mask != 0 {
+                                Err(("Range", 0))
+                            } else {
+                                let cleared = (a as u64) & !(mask << start);
+                                Ok(Value::Int((cleared | ((v as u64) << start)) as i64))
+                            }
+                        }
+                    }
+                }
+                "stdBytesConcat" => {
+                    let a = bytes(0)?;
+                    let b = bytes(1)?;
+                    if a.len() + b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        let mut output = a.to_vec();
+                        output.extend_from_slice(b);
+                        Ok(Value::Bytes(output.into()))
+                    }
+                }
+                "stdBytesFromInts" => {
+                    let target = match args.first() {
+                        Some(Value::HeapRef(id)) => runtime.heap_get(*id),
+                        other => other,
+                    };
+                    match target {
+                        Some(Value::TypedList(_, values)) if values.len() <= ITEMS => {
+                            let mut output = Vec::with_capacity(values.len());
+                            let mut failure = None;
+                            for value in values.iter() {
+                                match value {
+                                    Value::Int(v) if (0..=255).contains(v) => output.push(*v as u8),
+                                    _ => {
+                                        failure = Some(("Range", 0));
+                                        break;
+                                    }
+                                }
+                            }
+                            match failure {
+                                Some(e) => Err(e),
+                                None => Ok(Value::Bytes(output.into())),
+                            }
+                        }
+                        Some(Value::TypedList(_, _)) => Err(("Limit", 0)),
+                        _ => {
+                            return Err(Error::InvalidOperation(
+                                "expected borrowed List<Int>".into(),
+                            ))
+                        }
+                    }
+                }
+                "stdBytesToInts" => {
+                    let b = bytes(0)?;
+                    if b.len() > ITEMS {
+                        Err(("Limit", 0))
+                    } else {
+                        let values: Vec<Value> =
+                            b.iter().map(|v| Value::Int(i64::from(*v))).collect();
+                        Ok(Value::TypedList("Int".into(), values.into()))
+                    }
+                }
+                "stdBytesIndexOf" => {
+                    let data = bytes(0)?;
+                    let needle = bytes(1)?;
+                    let start = int(2)?;
+                    if needle.is_empty() || start < 0 || start as u64 > data.len() as u64 {
+                        Err(("Range", 0))
+                    } else {
+                        let from = start as usize;
+                        let found = data[from..]
+                            .windows(needle.len())
+                            .position(|window| window == needle)
+                            .map_or(-1, |i| (i + from) as i64);
+                        Ok(Value::Int(found))
+                    }
+                }
+                "stdBytesReadInt" => {
+                    let data = bytes(0)?;
+                    let offset = int(1)?;
+                    let width = int(2)?;
+                    let big = matches!(args.get(3), Some(Value::Bool(true)));
+                    if !matches!(width, 1 | 2 | 4 | 8)
+                        || offset < 0
+                        || offset as u64 + width as u64 > data.len() as u64
+                    {
+                        Err(("Range", 0))
+                    } else {
+                        let field = &data[offset as usize..(offset + width) as usize];
+                        let mut value: u64 = 0;
+                        if big {
+                            for byte in field {
+                                value = (value << 8) | u64::from(*byte);
+                            }
+                        } else {
+                            for byte in field.iter().rev() {
+                                value = (value << 8) | u64::from(*byte);
+                            }
+                        }
+                        Ok(Value::Int(value as i64))
                     }
                 }
                 "stdMulMod" => {

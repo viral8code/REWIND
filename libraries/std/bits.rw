@@ -6,3 +6,19 @@ pub fn count(a:Int)->Int effects {} {return stdCountBits(a);}
 pub fn shiftLeft(a:Int,n:Int)->Result<Int,StdError> effects {} {return stdShiftLeft(a,n);}
 pub fn shiftRight(a:Int,n:Int)->Result<Int,StdError> effects {} {return stdShiftRight(a,n);}
 pub fn shiftUnsigned(a:Int,n:Int)->Result<Int,StdError> effects {} {return stdShiftUnsigned(a,n);}
+// @api leadingZeros cost O(1); counts from the most significant bit of the 64-bit value (0 gives 64).
+pub fn leadingZeros(a:Int)->Int effects {} {return stdBitLeadingZeros(a);}
+// @api trailingZeros cost O(1); counts from the least significant bit of the 64-bit value (0 gives 64).
+pub fn trailingZeros(a:Int)->Int effects {} {return stdBitTrailingZeros(a);}
+// @api rotateLeft cost O(1); rotates the 64-bit pattern, count 0 to 63. failure StdError Range (count out of range).
+pub fn rotateLeft(a:Int,count:Int)->Result<Int,StdError> effects {} {return stdBitRotateLeft(a,count);}
+// @api rotateRight cost O(1); rotates the 64-bit pattern, count 0 to 63. failure StdError Range (count out of range).
+pub fn rotateRight(a:Int,count:Int)->Result<Int,StdError> effects {} {return stdBitRotateRight(a,count);}
+// @api reverseBits cost O(1); reverses the order of the 64 bits.
+pub fn reverseBits(a:Int)->Int effects {} {return stdBitReverse(a);}
+// @api byteSwap cost O(1); reverses the byte order of the 64-bit value.
+pub fn byteSwap(a:Int)->Int effects {} {return stdBitByteSwap(a);}
+// @api extract cost O(1); reads width bits (1 to 64) starting at bit start (0 to 63), as an unsigned pattern. failure StdError Range (start, width, or start + width out of range).
+pub fn extract(a:Int,start:Int,width:Int)->Result<Int,StdError> effects {} {return stdBitExtract(a,start,width);}
+// @api deposit cost O(1); writes value into width bits starting at start and returns the new 64-bit pattern. failure StdError Range (start or width out of range, or value does not fit in width bits or is negative).
+pub fn deposit(a:Int,start:Int,width:Int,value:Int)->Result<Int,StdError> effects {} {return stdBitDeposit(a,start,width,value);}

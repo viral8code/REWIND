@@ -81,9 +81,9 @@ compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection st
 | result | valueOr, map, mapError, mapOwned, thenOwned, mapErrorOwned | valueOr/map/mapError は Share の値用。`*Owned` は Result を消費し、非Share の owner（List、接続など）を複製せず一度だけ次へ渡す |
 | map | getOr, contains | borrowed Map、Ord key、Share value、key equality は既存 Map と同じ |
 | text | length, trim, split, tokens, slice, find | Unicode scalar index、slice は半開区間、split は空要素保持、tokens は ASCII whitespace |
-| bytes | length, encode, decode, get, slice, toHex, fromHex | UTF-8 codec、byte index、get は0..255、slice は半開区間、toHex/fromHex は16進表記（fromHex は不正な桁を `Corrupt` で拒否） |
+| bytes | length, encode, decode, get, slice, toHex, fromHex, concat, fromInts, toInts, indexOf, equal, readInt | UTF-8 codec、byte index、get は0..255、slice は半開区間、toHex/fromHex は16進表記（fromHex は不正な桁を `Corrupt` で拒否）、fromInts/toInts は0..255 の List<Int>、readInt は1/2/4/8 byte の big/little endian 読み取り |
 | number | integer, decimal, floating, formatInt, formatFloat | signed64、radix2..36、小文字 digit、有限 binary64 |
-| bits | and, or, xor, not, count, shiftLeft, shiftRight, shiftUnsigned | 64-bit 二の補数、shift0..63、left は wrapping、right は符号拡張/zero fill を区別 |
+| bits | and, or, xor, not, count, shiftLeft, shiftRight, shiftUnsigned, leadingZeros, trailingZeros, rotateLeft, rotateRight, reverseBits, byteSwap, extract, deposit | 64-bit 二の補数、shift0..63、left は wrapping、right は符号拡張/zero fill を区別、rotate は count0..63、extract/deposit は start と width の範囲を `Range` で拒否 |
 
 ## SDK から導入
 

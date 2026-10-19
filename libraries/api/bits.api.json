@@ -18,8 +18,76 @@
       ],
       "return": "Int"
     },
+    "fn:byteSwap": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "a"
+      ],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Int"
+    },
     "fn:count": {
       "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "a"
+      ],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Int"
+    },
+    "fn:deposit": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (start or width out of range, or value does not fit in width bits or is negative).",
+      "generics": [],
+      "names": [
+        "a",
+        "start",
+        "width",
+        "value"
+      ],
+      "parameters": [
+        "Int",
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,StdError>"
+    },
+    "fn:extract": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (start, width, or start + width out of range).",
+      "generics": [],
+      "names": [
+        "a",
+        "start",
+        "width"
+      ],
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,StdError>"
+    },
+    "fn:leadingZeros": {
+      "async": false,
+      "cost": "O(1)",
       "defaults": [],
       "effects": [],
       "generics": [],
@@ -58,6 +126,54 @@
         "Int"
       ],
       "return": "Int"
+    },
+    "fn:reverseBits": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "a"
+      ],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Int"
+    },
+    "fn:rotateLeft": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (count out of range).",
+      "generics": [],
+      "names": [
+        "a",
+        "count"
+      ],
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,StdError>"
+    },
+    "fn:rotateRight": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (count out of range).",
+      "generics": [],
+      "names": [
+        "a",
+        "count"
+      ],
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Int,StdError>"
     },
     "fn:shiftLeft": {
       "async": false,
@@ -145,6 +261,20 @@
         "V"
       ],
       "return": "Map<K,V>"
+    },
+    "fn:trailingZeros": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "a"
+      ],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Int"
     },
     "fn:xor": {
       "async": false,

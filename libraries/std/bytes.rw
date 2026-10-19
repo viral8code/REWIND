@@ -7,3 +7,15 @@ pub fn slice(value:Bytes,start:Int,end:Int)->Result<Bytes,StdError> effects {} {
 pub fn toHex(value:Bytes)->String effects {} {return stdBytesToHex(value);}
 // @api fromHex cost O(text); accepts upper and lower case digits. failure StdError Limit (text over 1 MiB) / Corrupt (offset = byte offset of the first bad digit, or the text length when the length is odd).
 pub fn fromHex(value:String)->Result<Bytes,StdError> effects {} {return stdBytesFromHex(value);}
+// @api concat cost O(first + second); failure StdError Limit (combined length over 1 MiB).
+pub fn concat(first:Bytes,second:Bytes)->Result<Bytes,StdError> effects {} {return stdBytesConcat(first,second);}
+// @api fromInts cost O(values); each element must be 0 to 255. failure StdError Range (an element outside 0 to 255), Limit (more than 65,536 elements).
+pub fn fromInts(values:&List<Int>)->Result<Bytes,StdError> effects {} {return stdBytesFromInts(values);}
+// @api toInts cost O(bytes); one Int (0 to 255) per byte. failure StdError Limit (more than 65,536 bytes).
+pub fn toInts(value:Bytes)->Result<List<Int>,StdError> effects {} {return stdBytesToInts(value);}
+// @api indexOf cost O(bytes * needle), naive search from start; returns -1 when not found. failure StdError Range (empty needle, or start outside 0 to length).
+pub fn indexOf(value:Bytes,needle:Bytes,start:Int)->Result<Int,StdError> effects {} {return stdBytesIndexOf(value,needle,start);}
+// @api equal cost O(bytes); byte-wise equality of two values.
+pub fn equal(a:Bytes,b:Bytes)->Bool effects {} {return stdBytesEqual(a,b);}
+// @api readInt cost O(width); reads a 1, 2, 4 or 8 byte field at offset. width 8 is returned as a wrapping 64-bit Int, the others are unsigned. failure StdError Range (width not 1, 2, 4 or 8, or the field runs past the end).
+pub fn readInt(value:Bytes,offset:Int,width:Int,big:Bool)->Result<Int,StdError> effects {} {return stdBytesReadInt(value,offset,width,big);}

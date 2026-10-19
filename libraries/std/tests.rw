@@ -2945,6 +2945,9 @@ fn cmpTake(r:Result<Bytes,StdError>)->Bytes effects {} {
 fn cmpCode(r:Result<Bytes,StdError>)->String effects {} {
     match r {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
 }
+fn intCode<T>(r:Result<T,StdError>)->String effects {} {
+    match r {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
 fn cmpWith(data:Bytes,at:Int,value:Int)->Bytes effects {} {
     let list=List<Int>();
     for i in 0..bytes.length(data) {
@@ -3039,6 +3042,52 @@ test fn crypto_constant_time_eq_compares_bytes() {
     assert(!crypto.constantTimeEq(Bytes("abc"),Bytes("abd")));
     assert(!crypto.constantTimeEq(Bytes("abc"),Bytes("ab")));
     assert(crypto.constantTimeEq(Bytes(""),Bytes("")));
+}
+test fn bits_zeros_rotate_reverse_and_byte_swap() {
+    assert_eq(bits.leadingZeros(1),63);
+    assert_eq(bits.leadingZeros(0),64);
+    assert_eq(bits.leadingZeros(-1),0);
+    assert_eq(bits.trailingZeros(8),3);
+    assert_eq(bits.trailingZeros(0),64);
+    assert_eq(bits.rotateLeft(1,1),Ok(2));
+    assert_eq(bits.rotateRight(1,1),Ok(-9223372036854775807-1));
+    assert_eq(intCode(bits.rotateLeft(1,64)),"Range");
+    assert_eq(bits.reverseBits(1),-9223372036854775807-1);
+    assert_eq(bits.reverseBits(-9223372036854775807-1),1);
+    assert_eq(bits.byteSwap(258),144396663052566528);
+}
+test fn bits_extract_and_deposit_check_ranges() {
+    assert_eq(bits.extract(171,4,4),Ok(10));
+    assert_eq(intCode(bits.extract(1,64,1)),"Range");
+    assert_eq(intCode(bits.extract(1,0,0)),"Range");
+    assert_eq(bits.deposit(0,4,4,10),Ok(160));
+    assert_eq(intCode(bits.deposit(0,0,4,16)),"Range");
+    assert_eq(intCode(bits.deposit(0,0,4,-1)),"Range");
+}
+test fn bytes_concat_from_ints_and_to_ints() {
+    assert_eq(bytes.toHex(cmpTake(bytes.concat(Bytes("ab"),Bytes("c")))),"616263");
+    let values=List<Int>();values.add(0);values.add(255);values.add(16);
+    assert_eq(bytes.toHex(cmpTake(bytes.fromInts(&values))),"00ff10");
+    let bad=List<Int>();bad.add(256);
+    assert_eq(cmpCode(bytes.fromInts(&bad)),"Range");
+    let ints=match bytes.toInts(Bytes("AB")){Ok(v)=>v,Err(_)=>{panic("toInts");}};
+    assert_eq(ints.len(),2);
+    assert_eq(ints.get(0),65);
+    assert_eq(ints.get(1),66);
+}
+test fn bytes_index_of_equal_and_read_int() {
+    assert_eq(bytes.indexOf(Bytes("abcabc"),Bytes("bc"),0),Ok(1));
+    assert_eq(bytes.indexOf(Bytes("abcabc"),Bytes("bc"),2),Ok(4));
+    assert_eq(bytes.indexOf(Bytes("abc"),Bytes("z"),0),Ok(-1));
+    assert_eq(intCode(bytes.indexOf(Bytes("abc"),Bytes(""),0)),"Range");
+    assert_eq(intCode(bytes.indexOf(Bytes("abc"),Bytes("a"),4)),"Range");
+    assert(bytes.equal(Bytes("ab"),Bytes("ab")));
+    assert(!bytes.equal(Bytes("ab"),Bytes("ac")));
+    let raw=cmpTake(bytes.fromHex("01020304"));
+    assert_eq(bytes.readInt(raw,0,4,true),Ok(16909060));
+    assert_eq(bytes.readInt(raw,0,4,false),Ok(67305985));
+    assert_eq(intCode(bytes.readInt(raw,0,3,true)),"Range");
+    assert_eq(intCode(bytes.readInt(raw,2,4,true)),"Range");
 }
 fn auditFailed<T,E>(r:Result<T,E>)->Bool effects {} {match move r {Ok(_)=>{return false;},Err(_)=>{return true;}}}
 test fn lib_audit_overflow_and_range_are_reported_not_wrapped() {
