@@ -75,6 +75,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\gui-drive-windows.ps
 
 この方法で、Windows 10 以降の Win32/GDI について、ボタンのクリック、Undo（`revert` と `continueInput`）、文字入力、複数行の編集、保存、ウィンドウのリサイズ（`Action::Resize` を受けて `resize` と `applyLayout` で再配置）が動くことを確認しました。IME の変換中の表示は、OS の入力法が必要なので、この方法では確かめられません。
 
+## Linux（X11）の実機で試す
+
+Linux では、`scripts/gui-drive-x11.py` が同じことを行います。Python 3 の標準ライブラリと、`libX11`、XTEST 拡張（`libXtst`）だけを使うので、追加のパッケージは要りません。WSL2 の WSLg でも動きます。
+
+```sh
+python3 scripts/gui-drive-x11.py --source examples/notes/main.rw --title "REWIND notes" \
+  --effects gui,fileRead,fileWrite \
+  --steps "clickf:0.5,0.45;keys:hello{ENTER}world;shot:typed.png;clickf:0.25,0.92;wait:800"
+```
+
+`scripts/gui-smoke-linux.sh` は、Windows の確認用スクリプトと同じ内容（入力、保存、ファイルの確認）を行います。WSLg の XWayland で、入力、保存、ウィンドウのリサイズと再配置が動くことを確認しました。
+
+この確認で、X11 の実装に不具合が見つかり、直しました。ウィンドウのサイズが変わっていない `ConfigureNotify`（移動や、自分が出した `XResizeWindow` の反映）も `resize` イベントとして扱っていたため、アプリケーションが `resize` に応じて再配置すると、`present` がまた `XResizeWindow` を呼び、`resize` イベントが止まらなくなっていました。いまは、サイズが変わったときだけ `resize` イベントを出します。
+
 ## 制限と失敗
 
 ウィンドウの canvas は各辺 64..4096 pixels、最大 2048 widgets、ID は一意で 128 UTF-8 bytes 以下、text は 4096 bytes 以下、scene は最大 1 MiB（JSON 側の予算も適用）。widget は canvas の内側に収めます。text は widget の矩形でクリップします。重なった操作可能 widget は後から追加したものが優先されます。色は `0xRRGGBB` です。イベントは最大 100 万件、fixture は最大 1 MiB。履歴予算も適用されます。

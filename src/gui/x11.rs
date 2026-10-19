@@ -363,6 +363,9 @@ pub(super) struct Surface {
     font: *mut c_void,
     delete: c_ulong,
     frame: Option<Arc<Frame>>,
+    /// Last client size seen or requested. A ConfigureNotify with the same size
+    /// (a move, or the echo of our own resize) must not become a resize event.
+    known_size: (c_int, c_int),
     accessibility_enabled: bool,
     accessibility_attempted: bool,
     accessibility_tree: accessibility::Tree,
@@ -468,6 +471,7 @@ impl Surface {
                 },
             ]);
             Ok(Self {
+                known_size: (0, 0),
                 ime_enabled: false,
                 ime_callbacks: false,
                 composition,
@@ -807,12 +811,15 @@ impl Surface {
                 frame.title.as_ptr(),
                 frame.title.len() as i32,
             );
-            (self.api.XResizeWindow)(
-                self.display,
-                self.window,
-                frame.width as u32,
-                frame.height as u32,
-            );
+            if self.known_size != (frame.width as c_int, frame.height as c_int) {
+                self.known_size = (frame.width as c_int, frame.height as c_int);
+                (self.api.XResizeWindow)(
+                    self.display,
+                    self.window,
+                    frame.width as u32,
+                    frame.height as u32,
+                );
+            }
             if self.ime_enabled {
                 let before = self.frame.as_deref().and_then(clipboard::focused_input);
                 let after = clipboard::focused_input(frame);
@@ -1383,10 +1390,13 @@ impl Surface {
                     }
                     22 => {
                         let c = e.configure;
-                        let mut out = Event::simple("resize");
-                        out.width = c.width;
-                        out.height = c.height;
-                        return Ok(Some(out));
+                        if (c.width, c.height) != self.known_size {
+                            self.known_size = (c.width, c.height);
+                            let mut out = Event::simple("resize");
+                            out.width = c.width;
+                            out.height = c.height;
+                            return Ok(Some(out));
+                        }
                     }
                     33 if e.client.data[0] as c_ulong == self.delete => {
                         self.close();

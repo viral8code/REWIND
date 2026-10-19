@@ -11,7 +11,7 @@
 - 言語の現在の仕様は[言語リファレンス](language-reference.md)、入門は[入門書](book/index.html)にあります。
 - 性能段階（PERF-02〜05）の測定結果は[v2-next-perf-results.md](v2-next-perf-results.md)にあります。
 - 3.6.0の後に `codex/develop` へ入った言語の改善（版は上げていません）: 借用した`List`/`Map`を`for`で回せるようにした、`?`のエラー型の不一致（組み込みの型どうし）と`Result`を返さない関数での`?`を実行前に拒否、関数の型制約に存在しない名前を拒否、型を省ける短いクロージャ（`|n| n * 2`。渡す先から型が決まるときだけ）、`const`と`Map.keys()`の`for`の修正。
-- Windowsのネイティブ GUI は、ローカルの実機で実際のウィンドウを開き、マウス・キーボード入力、Undo、保存、リサイズ後の再配置を確かめました（[docs/gui.md](gui.md)、`scripts/gui-smoke-windows.ps1`）。IME の変換中表示と、Linux/X11・Wayland の実機確認は残っています。
+- Windowsのネイティブ GUI は、ローカルの実機で実際のウィンドウを開き、マウス・キーボード入力、Undo、保存、リサイズ後の再配置を確かめました（[docs/gui.md](gui.md)、`scripts/gui-smoke-windows.ps1`）。Linux/X11（WSLg の XWayland）でも、同じ確認を行い、`resize` イベントが止まらなくなる不具合を直しました（`scripts/gui-smoke-linux.sh`）。IME の変換中表示と、Wayland のネイティブ実装の確認は残っています。
 - 残っているもの: GUIの自然寸法測定・IME再描画、PERF-01の共通測定形式、Linux・GUI・HTTP・PostgreSQLの測定、言語の使い勝手の改善のうち、`unwrap`/`expect`と入力前の自動`publish`は、「失敗を無視しない」「`publish`するまで外へ出ない」という言語の方針と衝突するため採用していません（[v3.0の未実装一覧](REWIND_v3.0.md)）。
 
 ## この作業で守る指示
