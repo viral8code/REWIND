@@ -111,6 +111,27 @@ fn main()->Int {
 2
 ```
 
+#### 短い形
+
+関数型が分かっている場所へ **直接渡す** ときは、型と `return` を省いて、`|引数| 式` と短く書けます。引数の型は、渡す先から決まります。
+
+```rewind
+fn main()->Int {
+    let xs = [1, 2, 3, 4];
+    let evens = xs.iter().filter(|n| n % 2 == 0).map(|n| n * 10).collect();
+    Out.println(evens.len());
+    Out.println(xs.iter().fold(0, |a, b| a + b));
+    return 0;
+}
+```
+
+```text
+2
+10
+```
+
+`let add = |a, b| a + b;` のように、変数に束縛するときは、型を決める手がかりが無いので、`cannot infer the type of closure parameter` と拒否されます。そのときは、前に説明した、型を書く形を使ってください。
+
 ### 関数を引数に渡す
 
 関数を受け取る引数には、関数型 `fn(引数の型) -> 戻り値の型 effects { ... }` を書きます。名前付きの関数も、クロージャも渡せます。

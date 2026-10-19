@@ -1235,8 +1235,10 @@ fn transfer_type_with_bounds(
     {
         return !shared;
     }
-    if matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes" | "Unit")
-        || ty.starts_with("Task<")
+    if matches!(
+        ty,
+        "Bool" | "Int" | "Float" | "String" | "Bytes" | "Unit" | "Unknown"
+    ) || ty.starts_with("Task<")
         || ty.starts_with("Channel<")
         || ty == "TaskGroup"
     {

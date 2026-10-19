@@ -2641,23 +2641,43 @@ impl Parser {
             }
             "||" | "|" => {
                 let mut params = Vec::new();
+                let mut inferred = false;
                 if at.text == "|" && !self.eat("|") {
                     loop {
                         let name = self.name()?;
-                        self.need(":")?;
-                        params.push((name, self.ty()?));
+                        if self.eat(":") {
+                            params.push((name, self.ty()?));
+                        } else {
+                            inferred = true;
+                            params.push((name, "Unknown".into()));
+                        }
                         if self.eat("|") {
                             break;
                         }
                         self.need(",")?;
                     }
                 }
-                self.need("->")?;
-                let ret = self.ty()?;
-                let body = self.block()?;
-                Expr {
-                    kind: ExprKind::Closure(params, ret, body),
-                    at: at.clone(),
+                if self.is("->") {
+                    self.need("->")?;
+                    let ret = self.ty()?;
+                    let body = self.block()?;
+                    Expr {
+                        kind: ExprKind::Closure(params, ret, body),
+                        at: at.clone(),
+                    }
+                } else {
+                    // Short form `|a, b| expression`: the body is one expression
+                    // and the types come from where the closure is used.
+                    let _ = inferred;
+                    let value = self.expr(0)?;
+                    let body = vec![Stmt {
+                        kind: StmtKind::Return(Some(value)),
+                        at: at.clone(),
+                    }];
+                    Expr {
+                        kind: ExprKind::Closure(params, "Unknown".into(), body),
+                        at: at.clone(),
+                    }
                 }
             }
             _ if at.text.starts_with('"') => {
@@ -5629,6 +5649,21 @@ fn check_program(program: &Program) -> Result<()> {
         {
             continue;
         }
+        if language_at_least(&program.language, "3.0.0") {
+            for (param, bound) in &f.type_params {
+                for name in bound.iter().flat_map(|b| b.split('+')) {
+                    if !matches!(name, "Share" | "Send" | "Ord" | "Eq" | "Hash" | "Display")
+                        && !program.traits.contains_key(name)
+                        && !program.traits.contains_key(&resolve_alias(program, name))
+                    {
+                        return Err(diagnostic(
+                            &f.at,
+                            format!("unknown trait bound {name} on type parameter {param}"),
+                        ));
+                    }
+                }
+            }
+        }
         let mut checker = Checker {
             program,
             scopes: vec![
@@ -8445,6 +8480,8 @@ impl Checker<'_> {
                         }
                     }
                 }
+                let contextual = self.contextual_closures(target, args);
+                let args = contextual.as_ref().unwrap_or(args);
                 let types = args
                     .iter()
                     .map(|a| self.expr(a))
@@ -10740,6 +10777,11 @@ impl Checker<'_> {
                     .strip_prefix("Result<")
                     .and_then(|s| s.strip_suffix('>'))
                     .unwrap();
+                if language_at_least(&self.program.language, "3.0.0") {
+                    if let Some(returned) = self.return_ty.as_deref() {
+                        check_try_propagation(&e.at, inner, returned)?;
+                    }
+                }
                 split_type_args(inner)
                     .first()
                     .copied()
@@ -10825,6 +10867,11 @@ impl Checker<'_> {
                 }
             }
             ExprKind::Closure(params, ret, body) => {
+                if params.iter().any(|(_, t)| t == "Unknown") {
+                    // Parameter types come from the call that receives the closure
+                    // (`contextual_closures`); the typed copy is checked there.
+                    return Ok(v06::fn_type(params, ret, &Default::default()));
+                }
                 let mut scoped = Checker {
                     program: self.program,
                     scopes: self.scopes.clone(),
@@ -10854,6 +10901,19 @@ impl Checker<'_> {
                         format!("closure returning {ret} needs return on every path"),
                     ));
                 }
+                let inferred_ret;
+                let ret = if ret == "Unknown" {
+                    inferred_ret = match body.as_slice() {
+                        [Stmt {
+                            kind: StmtKind::Return(Some(value)),
+                            ..
+                        }] => scoped.expr(value)?,
+                        _ => "Unknown".into(),
+                    };
+                    &inferred_ret
+                } else {
+                    ret
+                };
                 if matches!(
                     self.program.language.as_str(),
                     "0.6"
@@ -11017,9 +11077,98 @@ impl Checker<'_> {
             }
         })
     }
+    /// Fills in the parameter types of short closures (`|a, b| a + b`) from the
+    /// function type the call expects. Returns the rewritten arguments only
+    /// when something changed.
+    fn contextual_closures(&self, target: &Expr, args: &[Expr]) -> Option<Vec<Expr>> {
+        let untyped = |a: &Expr| matches!(&a.kind, ExprKind::Closure(params, _, _) if params.iter().any(|(_, t)| t == "Unknown"));
+        if !args.iter().any(untyped) {
+            return None;
+        }
+        let mut expected: Vec<Option<Vec<String>>> = vec![None; args.len()];
+        match &target.kind {
+            ExprKind::Member(base, method) => {
+                let ty = self.expr(base).ok()?;
+                let ty = ty.trim_start_matches('&').to_string();
+                if ty.starts_with("Iterator<") {
+                    let item = v05::iterator_item(&ty)?;
+                    match (method.as_str(), args.len()) {
+                        ("map" | "filter", 1) => expected[0] = Some(vec![item]),
+                        ("fold", 2) => {
+                            let accumulator = self.expr(&args[0]).ok()?;
+                            expected[1] = Some(vec![accumulator, item]);
+                        }
+                        _ => {}
+                    }
+                } else if let Some(inner) =
+                    ty.strip_prefix("Result<").and_then(|t| t.strip_suffix('>'))
+                {
+                    let parts = split_type_args(inner);
+                    if parts.len() == 2 && args.len() == 1 {
+                        match method.as_str() {
+                            "map" | "andThen" => expected[0] = Some(vec![parts[0].into()]),
+                            "mapErr" => expected[0] = Some(vec![parts[1].into()]),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            ExprKind::Name(name) => {
+                let resolved = resolve_alias(self.program, name);
+                let function = self
+                    .program
+                    .functions
+                    .get(resolved.split('<').next().unwrap_or(&resolved))?;
+                for (index, (_, ty)) in function.params.iter().enumerate().take(args.len()) {
+                    if let Some((params, _)) = function_signature(ty) {
+                        expected[index] = Some(params);
+                    }
+                }
+            }
+            _ => {}
+        }
+        let mut changed = false;
+        let rewritten = args
+            .iter()
+            .zip(expected)
+            .map(|(arg, wanted)| match (&arg.kind, wanted) {
+                (ExprKind::Closure(params, ret, body), Some(wanted))
+                    if untyped(arg) && wanted.len() == params.len() =>
+                {
+                    changed = true;
+                    let params = params
+                        .iter()
+                        .zip(wanted)
+                        .map(|((name, ty), wanted)| {
+                            (
+                                name.clone(),
+                                if ty == "Unknown" { wanted } else { ty.clone() },
+                            )
+                        })
+                        .collect();
+                    Expr {
+                        kind: ExprKind::Closure(params, ret.clone(), body.clone()),
+                        at: arg.at.clone(),
+                    }
+                }
+                _ => arg.clone(),
+            })
+            .collect();
+        changed.then_some(rewritten)
+    }
     fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match &stmt.kind {
             StmtKind::Let(name, mutable, ty, expr) => {
+                if let ExprKind::Closure(params, _, _) = &expr.kind {
+                    if let Some((param, _)) = params.iter().find(|(_, t)| t == "Unknown") {
+                        return Err(diagnostic(
+                            &expr.at,
+                            format!(
+                                "cannot infer the type of closure parameter {param}; annotate it (|{param}: Int| -> Int {{ ... }}) or pass the closure directly where the function type is known"
+                            ),
+                        ));
+                    }
+                }
                 let inferred = self.expr(expr)?;
                 let annotation = ty
                     .as_ref()
@@ -15478,6 +15627,56 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
     }
     .into()
 }
+/// True when every name in `ty` is one of the built-in value types, so a
+/// comparison cannot be confused by a generic parameter or an imported type.
+fn only_builtin_types(ty: &str) -> bool {
+    const BUILTIN: [&str; 11] = [
+        "Int", "Float", "Bool", "String", "Bytes", "Unit", "List", "Map", "Option", "Result",
+        "Frozen",
+    ];
+    ty.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '$'))
+        .filter(|name| !name.is_empty())
+        .all(|name| BUILTIN.contains(&name))
+}
+
+/// Rejects `?` whose error type cannot be returned by the enclosing function.
+/// Only built-in types are compared; anything else stays a runtime check.
+fn check_try_propagation(
+    at: &Tok,
+    operand: &str,
+    returned: &str,
+) -> std::result::Result<(), Error> {
+    let operand_error = split_type_args(operand)
+        .get(1)
+        .copied()
+        .unwrap_or("Unknown");
+    if let Some(inner) = returned
+        .strip_prefix("Result<")
+        .and_then(|s| s.strip_suffix('>'))
+    {
+        let returned_error = split_type_args(inner).get(1).copied().unwrap_or("Unknown");
+        if only_builtin_types(operand_error)
+            && only_builtin_types(returned_error)
+            && operand_error != "Unknown"
+            && returned_error != "Unknown"
+            && !compatible(returned_error, operand_error)
+        {
+            return Err(diagnostic(
+                at,
+                format!(
+                    "'?' error type {operand_error} does not match the function's error type {returned_error}; convert it with mapErr"
+                ),
+            ));
+        }
+    } else if only_builtin_types(returned) && returned != "Unknown" {
+        return Err(diagnostic(
+            at,
+            format!("'?' needs a function that returns Result, but this one returns {returned}"),
+        ));
+    }
+    Ok(())
+}
+
 fn compatible(expected: &str, actual: &str) -> bool {
     if expected.starts_with('&') || actual.starts_with('&') {
         let expected = v06::borrowed_type(expected);

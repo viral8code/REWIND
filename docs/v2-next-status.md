@@ -2,6 +2,17 @@
 
 更新日：2026-10-12。構想から実装へ移行。snapshot/historyに加え12の標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
 
+## 現状（2026-10-19）
+
+この文書の以下の表は、v2.1〜v2.2を計画していた当時の記録で、**現在の状態とは一致しません**。現在の実装は REWIND 3.6.0（`codex/develop`）です。
+
+- v2.1の作業（CLI-01/02、DIAG-01〜03、DBG-01〜03、PROF-01/02）は、v3.1で出荷済みです（[v3.1](REWIND_v3.1.md)）。
+- DB transaction・migration・PostgreSQLの実backend確認は、v3.1〜v3.3で行いました。LANG・NET・DATA・QUAL・MEMの一部の構想は、v3.4〜v3.6で採用・実装されました。
+- 言語の現在の仕様は[言語リファレンス](language-reference.md)、入門は[入門書](book/index.html)にあります。
+- 性能段階（PERF-02〜05）の測定結果は[v2-next-perf-results.md](v2-next-perf-results.md)にあります。
+- 3.6.0の後に `codex/develop` へ入った言語の改善（版は上げていません）: 借用した`List`/`Map`を`for`で回せるようにした、`?`のエラー型の不一致（組み込みの型どうし）と`Result`を返さない関数での`?`を実行前に拒否、関数の型制約に存在しない名前を拒否、型を省ける短いクロージャ（`|n| n * 2`。渡す先から型が決まるときだけ）、`const`と`Map.keys()`の`for`の修正。
+- 残っているもの: GUIの自然寸法測定・IME再描画、PERF-01の共通測定形式、Linux・GUI・HTTP・PostgreSQLの測定、言語の使い勝手の改善のうち、`unwrap`/`expect`と入力前の自動`publish`は、「失敗を無視しない」「`publish`するまで外へ出ない」という言語の方針と衝突するため採用していません（[v3.0の未実装一覧](REWIND_v3.0.md)）。
+
 ## この作業で守る指示
 
 - 作業とcommit/pushは`codex/develop`だけ。今回mainへ統合しない。

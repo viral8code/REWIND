@@ -448,3 +448,74 @@ fn shared_borrows_still_reject_mutating_the_owner() {
         );
     }
 }
+
+#[test]
+fn question_mark_error_type_mismatch_is_rejected_before_running() {
+    let out = run(
+        "fn g() -> Result<Int, Int> effects {} {\n    let x = \"1\".parseInt()?;\n    return Ok(x);\n}\nfn main()->Int effects {output} { Out.println(g()); return 0; }\n",
+    );
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("does not match"), "{}", stderr(&out));
+    assert!(stderr(&out).contains("mapErr"), "{}", stderr(&out));
+    assert!(stdout(&out).is_empty());
+}
+
+#[test]
+fn question_mark_needs_a_result_returning_function() {
+    let out = run(
+        "fn h() -> Int effects {} {\n    let x = \"1\".parseInt()?;\n    return x;\n}\nfn main()->Int effects {output} { Out.println(h()); return 0; }\n",
+    );
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("returns Result"), "{}", stderr(&out));
+}
+
+#[test]
+fn question_mark_with_matching_or_converted_error_types_still_runs() {
+    let out = run(
+        "fn f() -> Result<Int, String> effects {} {\n    let x = \"1\".parseInt()?;\n    return Ok(x);\n}\nfn g() -> Result<Int, Int> effects {} {\n    let x = \"2\".parseInt().mapErr(|e: String| -> Int { return e.byteLen(); })?;\n    return Ok(x);\n}\nfn main()->Int effects {output} { Out.println(f()); Out.println(g()); return 0; }\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "Ok(1)\nOk(2)\n");
+}
+
+#[test]
+fn unknown_generic_trait_bounds_are_rejected() {
+    let out = run("fn f<T: Bogus>(a: T) -> T effects {} { return a; }\nfn main()->Int effects {} { return 0; }\n");
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("unknown trait bound Bogus"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn builtin_and_user_trait_bounds_are_accepted() {
+    let out = run(
+        "trait Named { fn name(self: &Self) -> String effects {}; }\nrecord A { n: String }\nimpl Named for A { fn name(self: &A) -> String effects {} { return self.n; } }\nfn pick<T: Named + Share>(a: &T) -> String effects {} { return a.name(); }\nfn big<T: Ord + Share>(a: T, b: T) -> T effects {} { if a.cmp(b) >= 0 { return a; } return b; }\nfn main()->Int effects {output} { let a = A(\"x\"); Out.println(pick(&a)); Out.println(big(1, 2)); return 0; }\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "x\n2\n");
+}
+
+#[test]
+fn short_closures_take_parameter_types_from_the_call() {
+    let out = run(
+        "fn apply(f: fn(Int) -> Int effects {}, x: Int) -> Int effects {} { return f(x); }\nfn parse(text: String) -> Result<Int, String> effects {} { return text.parseInt(); }\nfn main()->Int effects {output} {\n    let xs = [1, 2, 3, 4];\n    let evens = xs.iter().filter(|n| n % 2 == 0).map(|n| n * 10).collect();\n    Out.println(evens.len());\n    Out.println(evens.get(1) + 1);\n    Out.println(xs.iter().fold(0, |a, b| a + b));\n    Out.println(apply(|n| n + 1, 4));\n    Out.println(parse(\"5\").map(|n| n * 2));\n    Out.println(parse(\"x\").mapErr(|e| e.byteLen()));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "2\n41\n10\n5\nOk(10)\nErr(20)\n");
+}
+
+#[test]
+fn short_closure_without_context_asks_for_annotations() {
+    let out = run(
+        "fn main()->Int effects {output} {\n    let add = |a, b| a + b;\n    Out.println(add(1, 2));\n    return 0;\n}\n",
+    );
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("cannot infer the type of closure parameter a"),
+        "{}",
+        stderr(&out)
+    );
+}

@@ -898,6 +898,41 @@ fn main()->Int {
 
 クロージャが外側の変数をどう使えるかは、渡す先の関数型が決めます。タスクへ渡すクロージャには追加の制約があります（[第 14 章](#14-並行処理)）。
 
+#### 短い形
+
+関数型が分かっている場所へ **直接渡す** ときは、型と `return` を省いた短い形 `|引数, ...| 式` を書けます。引数の型は、渡す先の関数型（イテレータの要素、`Result` の中身、関数の引数の型）から決まります。
+
+```rewind
+fn apply(f: fn(Int) -> Int effects {}, x: Int) -> Int effects {} { return f(x); }
+
+fn main()->Int {
+    let xs = [1, 2, 3, 4];
+    let evens = xs.iter().filter(|n| n % 2 == 0).map(|n| n * 10).collect();
+    Out.println(evens.len());
+    Out.println(xs.iter().fold(0, |a, b| a + b));
+    Out.println(apply(|n| n + 1, 4));
+    return 0;
+}
+```
+
+```text
+2
+10
+5
+```
+
+型が決まる手がかりが無いと、短い形は使えません。`let` で変数に束縛するときなどは、型を書いた形にします。
+
+```rewind-error cannot infer the type of closure parameter
+fn main()->Int {
+    let add = |a, b| a + b;
+    Out.println(add(1, 2));
+    return 0;
+}
+```
+
+短い形の戻り値の型は、式の型です。本体が複数の文のときは、従来の形（`|a: Int| -> Int { ... }`）を使います。
+
 ### 7.4 関数型と高階関数
 
 関数を引数に取るには、関数型 `fn(引数の型) -> 戻り値の型 effects { ... }` を使います。名前付きの関数もクロージャも渡せます。渡す関数の効果は、受け取る型で許された範囲に収まっている必要があります。
@@ -1434,7 +1469,21 @@ Ok(1)
 Err(7)
 ```
 
-> **現状の制約**: `?` のエラー型の不一致は、現在のところ `Err` の経路を実際に通ったときの実行時エラー（`b returns Result<Unknown,String>, expected ...`）として検出されます。コンパイル時には拒否されないため、`mapErr` で型をそろえる書き方を習慣にしてください。
+エラーの型が組み込みの型（`Int`、`String`、`List` など）どうしで食い違っていると、実行前に `'?' error type … does not match the function's error type …; convert it with mapErr` と拒否されます。`Result` を返さない関数の中の `?` も、`'?' needs a function that returns Result` と拒否されます。
+
+```rewind-error does not match
+fn code(key: String) -> Result<Int, Int> effects {} {
+    let v = key.parseInt()?;      // エラーの型は String、この関数は Int
+    return Ok(v);
+}
+
+fn main()->Int {
+    Out.println(code("1"));
+    return 0;
+}
+```
+
+`record` や標準ライブラリの型をエラーに使っているときの不一致は、現在のところ `Err` の経路を実際に通ったときの実行時エラーとして検出されます。`mapErr` で型をそろえる書き方を習慣にしてください。
 
 ### 10.3 `panic` と `assert`
 
@@ -2069,7 +2118,7 @@ world
 | `Env.get(名前)`、`Env.getSecret(名前)` | `Option<String>`、`Option<Secret<String>>` |
 | `Locale.current()` | `String`。地域設定 |
 | `Time.now()` | `Int`。観測された時刻。型付きの日時は `std.datetime`、`std.clock` |
-| `Random.next()` | `Int`。VM の乱数 |
+| `Random.next()` | `Int`。符号付き 64 ビット全域の値で、負にもなる。生成器は決まった初期値から始まるため、**実行するたびに同じ列** が出る。状態はチェックポイントで戻る。範囲に収めるには、剰余を取って符号を考慮する |
 | `File.readText(path)`、`File.readBytes(path)` | `Result<String,FileError>`、`Result<Bytes,FileError>` |
 | `File.writeText(path, 文字列)`、`File.writeBytes(path, Bytes)` | `Unit`。保留中の書き込み |
 | `File.open(path)` | ファイルハンドル（`using` で閉じる） |
@@ -2327,7 +2376,7 @@ fn main()->Int {
 | 型の定義 | `struct`、`record`、`enum`、`type 名前 = 型;`、`trait`、`impl トレイト for 型 { }` |
 | module | `import 経路 as 別名;`、`import 経路.{名前, 名前 as 別名};`、`pub` |
 | 借用・移動 | `&式`、`&mut 式`、`move 式`、`freeze(式)`、`thaw(式)` |
-| クロージャ | `\|引数: 型\| -> 型 { 本体 }` |
+| クロージャ | `\|引数: 型\| -> 型 { 本体 }`、短い形 `\|引数\| 式` |
 | エラー | `式?`、`panic(文字列)`、`assert(条件)`、`assert_eq(a, b)` |
 | チェックポイント | `commit 名;`、`revert 名;`、`resume 名;`、`drop 名;`、`branch 名 { }`、`publish;` |
 | 外部領域 | `external { }`、`external fresh { }`、`external live { }` |
@@ -2351,8 +2400,8 @@ REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプ�
 
 実装の現状として、次の点は期待と異なることがあります。
 
-- `?` のエラー型の不一致は、`Err` の経路を実際に通ったときに実行時エラーとして検出されます（[第 10.2 節](#102-option-と-result)）。
-- ジェネリックな関数の型制約に、存在しない名前（`T: Bogus`）を書いても拒否されません。
+- `?` のエラー型の不一致は、組み込みの型どうしなら実行前に拒否されますが、`record` や標準ライブラリの型が絡むときは、`Err` の経路を通ったときの実行時エラーになります（[第 10.2 節](#102-option-と-result)）。
+- 型制約の名前が存在するかは、関数の型引数についてだけ検査されます。`struct` や `record` の型引数に書いた存在しない制約は拒否されません。
 - `Out.println` が `struct` や `record` を表示する形式は内部表現に近く、安定していません。
 - 公開されていない関数や型を別の module から使うと、`unknown name` と報告されます（「非公開」という説明は出ません）。
 - `List` と `Map` を `==` や `assert_eq` で比べると、中身ではなく同一性を調べます。

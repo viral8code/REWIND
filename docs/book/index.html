@@ -488,6 +488,18 @@ wide: 10</code></pre></div>
 }</code></pre></div>
 <div class="code"><div class="cap out">出力</div><pre><code>3
 2</code></pre></div>
+<h4 id="短い形">短い形</h4>
+<p>関数型が分かっている場所へ <strong>直接渡す</strong> ときは、型と <code>return</code> を省いて、<code>|引数| 式</code> と短く書けます。引数の型は、渡す先から決まります。</p>
+<div class="code"><div class="cap">REWIND</div><pre><code>fn main()-&gt;Int {
+    let xs = [1, 2, 3, 4];
+    let evens = xs.iter().filter(|n| n % 2 == 0).map(|n| n * 10).collect();
+    Out.println(evens.len());
+    Out.println(xs.iter().fold(0, |a, b| a + b));
+    return 0;
+}</code></pre></div>
+<div class="code"><div class="cap out">出力</div><pre><code>2
+10</code></pre></div>
+<p><code>let add = |a, b| a + b;</code> のように、変数に束縛するときは、型を決める手がかりが無いので、<code>cannot infer the type of closure parameter</code> と拒否されます。そのときは、前に説明した、型を書く形を使ってください。</p>
 <h3 id="関数を引数に渡す">関数を引数に渡す</h3>
 <p>関数を受け取る引数には、関数型 <code>fn(引数の型) -&gt; 戻り値の型 effects { ... }</code> を書きます。名前付きの関数も、クロージャも渡せます。</p>
 <div class="code"><div class="cap">REWIND</div><pre><code>fn apply(f: fn(Int) -&gt; Int effects {}, x: Int) -&gt; Int effects {} {
@@ -1174,9 +1186,17 @@ fn main()-&gt;Int {
 <div class="code"><div class="cap out">出力</div><pre><code>Ok(1)
 Err(7)</code></pre></div>
 <p><code>Result</code> には、他に <code>map</code>（<code>Ok</code> の中身を変換）、<code>andThen</code>（<code>Ok</code> の中身から次の <code>Result</code> を作る）、<code>flatten</code>（入れ子を一つにする）があります。</p>
-<blockquote>
-<p><strong>注意</strong>: <code>?</code> のエラー型の不一致は、現在のところ、実際に <code>Err</code> の経路を通ったときの実行時エラーとして見つかります。実行前には拒否されません。<code>mapErr</code> で型をそろえる書き方を習慣にしておくと安全です。</p>
-</blockquote>
+<p>エラーの型が組み込みの型どうしで食い違っていると、実行前に拒否されます。</p>
+<div class="code"><div class="cap err">エラーになる例</div><pre><code>fn code(key: String) -&gt; Result&lt;Int, Int&gt; effects {} {
+    let v = key.parseInt()?;      // エラーの型は String、この関数は Int
+    return Ok(v);
+}
+
+fn main()-&gt;Int {
+    Out.println(code(&quot;1&quot;));
+    return 0;
+}</code></pre></div>
+<p><code>record</code> や標準ライブラリの型が絡む不一致は、実際に <code>Err</code> の経路を通ったときの実行時エラーになります。いずれにしても、<code>mapErr</code> で型をそろえる書き方を習慣にしておくと安全です。</p>
 <h3 id="panic-と-assert">panic と assert</h3>
 <p><code>panic</code> と <code>assert</code> は、「ここに来たらプログラムの誤り」という前提を表すためのものです。</p>
 <table>
@@ -2015,8 +2035,9 @@ hello</code></pre></div>
 <p>複数のファイルやディレクトリ、標準出力を、一つの <code>publish</code> にまとめても、OS 全体のトランザクションにはなりません。途中で失敗すると <code>PublishPartiallyApplied</code> になり、どこまで適用されたかが診断に出ます。「エラーなら何も起きていない」と考えて再実行すると、すでに保存したファイルを二重に適用するかもしれません。実際の外部の状態と診断を確かめてから、再開の方法を決めてください。</p>
 <p>データベースのトランザクションとも別物です。ファイルの <code>publish</code> はデータベースの確定ではなく、データベースの確定は REWIND のチェックポイントの保存ではありません。この区別は、第24章でもう一度扱います。</p>
 <h3 id="時刻と乱数">時刻と乱数</h3>
-<p>時刻と乱数は、どちらも <strong>外の世界から得る値</strong> です。<code>Time.now()</code> は <code>clock</code> 効果、<code>Random.next()</code> は <code>random</code> 効果を必要とします。</p>
-<p>実行を記録しておくと（第22章）、これらの値も一緒に記録され、再生するときは同じ値が使われます。乱数や時刻を使うプログラムでも、失敗した実行を同じ値で再現できます。</p>
+<p><code>Time.now()</code> は <code>clock</code> 効果、<code>Random.next()</code> は <code>random</code> 効果を必要とします。</p>
+<p>時刻は、外の世界から得る値です。実行を記録しておくと（第22章）、時刻も一緒に記録され、再生するときは同じ値が使われます。</p>
+<p><code>Random.next()</code> は少し違います。乱数の生成器は、決まった初期値から始まるので、<strong>実行するたびに同じ列</strong> が出ます。生成器の状態は、チェックポイントの一部として、<code>revert</code> で戻ります。値は符号付き 64 ビットの全域で、負にもなります。たとえばサイコロの目を作るときは、<code>Random.next() % 6</code> が負になりうるので、そのまま <code>+ 1</code> してはいけません。実行ごとに変わる値が必要なときは、時刻などを種にした仕組みを、自分で作る必要があります。</p>
 <h3 id="環境変数">環境変数</h3>
 <p>環境変数は <code>Env.get(名前)</code> で読みます。効果 <code>env</code> に加えて、変数名ごとの許可（<code>--allow-env 名前</code>）が必要です。パスワードのような値は <code>Env.getSecret(名前)</code> で読むと、<code>Secret</code> として扱われ、診断や記録に値が残りません。</p>
 <h2 id="第18章-文字列unicode正規表現">第18章 文字列・Unicode・正規表現</h2>
@@ -3493,8 +3514,8 @@ pear: 2</code></pre></div>
 <h2 id="付録d-現状の制約">付録D 現状の制約</h2>
 <p>この本の版（REWIND 3.6.0）の実装で、期待と異なる動作をする点を挙げます。今後の版で変わる可能性があります。</p>
 <ul>
-<li><strong><code>?</code> のエラー型の不一致は、実行時に見つかります。</strong> <code>Err</code> の経路を通ったときの実行時エラーで、実行前には拒否されません（第10章）。</li>
-<li><strong>ジェネリクスの制約に、存在しない名前を書いても拒否されません。</strong> <code>T: Bogus</code> のように書いても、エラーになりません。</li>
+<li><strong><code>?</code> のエラー型の不一致は、組み込みの型どうしなら実行前に拒否されます。</strong> <code>record</code> や標準ライブラリの型が絡むときは、<code>Err</code> の経路を通ったときの実行時エラーになります（第10章）。</li>
+<li><strong><code>struct</code> や <code>record</code> の型引数に、存在しない制約を書いても拒否されません。</strong> 関数の型引数の制約は、存在しない名前が拒否されます。</li>
 <li><strong><code>Out.println</code> が <code>struct</code> や <code>record</code>、<code>Json</code> などを表示する形式は、内部表現に近く、安定していません。</strong> 人が読む文字列は、自分で組み立ててください。</li>
 <li><strong><code>List</code> と <code>Map</code> を <code>==</code> や <code>assert_eq</code> で比べると、中身ではなく同一性を調べます。</strong> 比べたいときは <code>freeze</code> します（第3章）。</li>
 <li><strong><code>return</code> を <code>branch</code> の中で使うと、そこで関数から戻りますが、状態は戻りません。</strong> 状態を元に戻したいときは、ブロックを最後まで実行して終えてください（第12章）。</li>

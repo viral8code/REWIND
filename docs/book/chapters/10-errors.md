@@ -117,7 +117,21 @@ Err(7)
 
 `Result` には、他に `map`（`Ok` の中身を変換）、`andThen`（`Ok` の中身から次の `Result` を作る）、`flatten`（入れ子を一つにする）があります。
 
-> **注意**: `?` のエラー型の不一致は、現在のところ、実際に `Err` の経路を通ったときの実行時エラーとして見つかります。実行前には拒否されません。`mapErr` で型をそろえる書き方を習慣にしておくと安全です。
+エラーの型が組み込みの型どうしで食い違っていると、実行前に拒否されます。
+
+```rewind-error does not match
+fn code(key: String) -> Result<Int, Int> effects {} {
+    let v = key.parseInt()?;      // エラーの型は String、この関数は Int
+    return Ok(v);
+}
+
+fn main()->Int {
+    Out.println(code("1"));
+    return 0;
+}
+```
+
+`record` や標準ライブラリの型が絡む不一致は、実際に `Err` の経路を通ったときの実行時エラーになります。いずれにしても、`mapErr` で型をそろえる書き方を習慣にしておくと安全です。
 
 ### panic と assert
 
