@@ -59,6 +59,53 @@ zed
 
 `ages["ann"]` と書いても `ages.get("ann")` と同じです。`Map` のキーは、必ず並び順が決まります。そのため、どの環境で動かしても反復の順序が変わらず、結果が再現できます。
 
+### よく使う操作
+
+ここまでの操作に加えて、日常的によく使う操作が用意されています。
+
+| 対象 | 操作 |
+|---|---|
+| `List` | `isEmpty()`、`contains(x)`、`indexOf(x)`、`first()`、`last()`、`insert(i, x)`、`removeAt(i)`、`clear()`、`reverse()`、`sort()`、`join(区切り)` |
+| `Map` | `isEmpty()`、`contains(k)`、`getOr(k, 既定値)`、`values()` |
+| `String` | `isEmpty()`、`trim()`、`replace(a, b)`、`repeat(n)`、`lines()` |
+
+```rewind
+fn main()->Int {
+    let xs = [3, 1, 2];
+    xs.sort();
+    xs.insert(1, 9);
+    Out.println(xs);
+    Out.println(xs.contains(9));
+    Out.println(xs.indexOf(2));
+    Out.println(xs.removeAt(0));
+    Out.println(xs.first());
+
+    let ages = {"ann": 31, "bob": 28};
+    Out.println(ages.getOr("zed", 0));
+    Out.println(ages.contains("bob"));
+    Out.println(ages.values());
+
+    Out.println("  hello  ".trim().replace("l", "L"));
+    Out.println(["a", "b", "c"].join("-"));
+    return 0;
+}
+```
+
+```text
+[1, 9, 2, 3]
+true
+Some(2)
+1
+Some(9)
+0
+true
+[31, 28]
+heLLo
+a-b-c
+```
+
+`sort()` は、`Int`、`Float`、`String` の `List` を昇順に並べ替えます。`insert` や `removeAt` の添字が範囲外だと、`get` と同じく止まります。値を書き換える操作は、`&` で借りた `List` や `Frozen` の `List` には使えません。
+
 ### 変更できる値には持ち主がいる
 
 `List` や `Map` は、中身を後から変えられる値です。REWIND では、このような値をむやみにコピーせず、「いま誰が持っているか」を言語が追跡します。たとえば次のようには書けません。

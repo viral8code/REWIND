@@ -8453,7 +8453,22 @@ impl Checker<'_> {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
                             if !matches!(
                                 method.as_str(),
-                                "len" | "get" | "keys" | "eq" | "cmp" | "hash" | "display" | "iter"
+                                "len"
+                                    | "get"
+                                    | "keys"
+                                    | "eq"
+                                    | "cmp"
+                                    | "hash"
+                                    | "display"
+                                    | "iter"
+                                    | "isEmpty"
+                                    | "contains"
+                                    | "first"
+                                    | "last"
+                                    | "indexOf"
+                                    | "join"
+                                    | "values"
+                                    | "getOr"
                             ) {
                                 return Err(diagnostic(&e.at, "cannot mutate Frozen<T>; use thaw"));
                             }
@@ -8486,6 +8501,13 @@ impl Checker<'_> {
                     .iter()
                     .map(|a| self.expr(a))
                     .collect::<Result<Vec<_>>>()?;
+                if let ExprKind::Member(base, method) = &target.kind {
+                    if EXTRA_METHODS.contains(&method.as_str()) {
+                        if let Some(ty) = self.extra_method_type(base, method, &types, &e.at)? {
+                            return Ok(ty);
+                        }
+                    }
+                }
                 if matches!(&target.kind,ExprKind::Name(n) if n=="$tuple") {
                     if !matches!(
                         self.program.language.as_str(),
@@ -11092,6 +11114,91 @@ impl Checker<'_> {
                 enum_constructor_type(self.program, &resolved_name, &ordered, &e.at)?.unwrap()
             }
         })
+    }
+    /// Types of the everyday `List`, `Map` and `String` methods in `EXTRA_METHODS`.
+    /// `None` means the receiver is something else and normal dispatch applies.
+    fn extra_method_type(
+        &self,
+        base: &Expr,
+        method: &str,
+        types: &[String],
+        at: &Tok,
+    ) -> Result<Option<String>> {
+        let Ok(received) = self.expr(base) else {
+            return Ok(None);
+        };
+        let received = received.trim_start_matches('&').to_string();
+        let (receiver, frozen) = match received
+            .strip_prefix("Frozen<")
+            .and_then(|t| t.strip_suffix('>'))
+        {
+            Some(inner) => (inner.to_string(), true),
+            None => (received, false),
+        };
+        let mutating = matches!(method, "insert" | "removeAt" | "clear" | "reverse" | "sort");
+        let invalid = || {
+            diagnostic(
+                at,
+                format!("invalid method call {receiver}.{method}/{}", types.len()),
+            )
+        };
+        let result = if let Some(item) = receiver
+            .strip_prefix("List<")
+            .and_then(|t| t.strip_suffix('>'))
+        {
+            let item = item.to_string();
+            match (method, types) {
+                ("isEmpty", []) => "Bool".to_string(),
+                ("contains", [x]) if compatible(&item, x) => "Bool".into(),
+                ("first" | "last", []) => format!("Option<{item}>"),
+                ("indexOf", [x]) if compatible(&item, x) => "Option<Int>".into(),
+                ("insert", [i, x]) if compatible("Int", i) && compatible(&item, x) => "Unit".into(),
+                ("removeAt", [i]) if compatible("Int", i) => item,
+                ("clear" | "reverse", []) => "Unit".into(),
+                ("sort", []) if matches!(item.as_str(), "Int" | "Float" | "String") => {
+                    "Unit".into()
+                }
+                ("join", [sep]) if item == "String" && compatible("String", sep) => "String".into(),
+                _ => return Err(invalid()),
+            }
+        } else if let Some(inner) = receiver
+            .strip_prefix("Map<")
+            .and_then(|t| t.strip_suffix('>'))
+        {
+            let parts = split_type_args(inner);
+            if parts.len() != 2 {
+                return Ok(None);
+            }
+            match (method, types) {
+                ("isEmpty", []) => "Bool".to_string(),
+                ("contains", [k]) if compatible(parts[0], k) => "Bool".into(),
+                ("values", []) => format!("List<{}>", parts[1]),
+                ("getOr", [k, d]) if compatible(parts[0], k) && compatible(parts[1], d) => {
+                    parts[1].to_string()
+                }
+                _ => return Err(invalid()),
+            }
+        } else if receiver == "String" {
+            match (method, types) {
+                ("isEmpty", []) => "Bool".to_string(),
+                ("trim", []) => "String".into(),
+                ("replace", [a, b]) if compatible("String", a) && compatible("String", b) => {
+                    "String".into()
+                }
+                ("repeat", [n]) if compatible("Int", n) => "String".into(),
+                ("lines", []) => "List<String>".into(),
+                _ => return Err(invalid()),
+            }
+        } else {
+            return Ok(None);
+        };
+        if frozen && mutating {
+            return Err(diagnostic(
+                at,
+                "cannot mutate Frozen<T>; use thaw for an independent mutable copy",
+            ));
+        }
+        Ok(Some(result))
     }
     /// Fills in the parameter types of short closures (`|a, b| a + b`) from the
     /// function type the call expects. Returns the rewritten arguments only
@@ -14147,6 +14254,190 @@ impl<R: BufRead> Engine<R> {
         }
         self.method_inner(target, method, args, at)
     }
+    /// Everyday `List`, `Map` and `String` methods (see `EXTRA_METHODS`).
+    /// Returns `None` when the receiver is not one of those types.
+    fn extra_method(
+        &mut self,
+        target: &Value,
+        method: &str,
+        args: &[Value],
+        at: &Tok,
+    ) -> Exec<Option<Value>> {
+        let target = v05::unfrozen(target).unwrap_or(target);
+        if let Value::Text(text) = target {
+            let text: &str = text;
+            let value = match (method, args) {
+                ("isEmpty", []) => Value::Bool(text.is_empty()),
+                ("trim", []) => Value::Text(text.trim().into()),
+                ("replace", [Value::Text(from), Value::Text(to)]) => {
+                    if from.is_empty() {
+                        return Err(self.fail(at, "replace needs a non-empty pattern"));
+                    }
+                    self.runtime
+                        .charge_native_work(text.len() / 64 + 1)
+                        .map_err(Flow::Error)?;
+                    Value::Text(text.replace(&**from, to).into())
+                }
+                ("repeat", [Value::Int(n)]) => {
+                    let times = usize::try_from(*n)
+                        .map_err(|_| self.fail(at, "repeat count must not be negative"))?;
+                    if text.len().saturating_mul(times) > (1 << 24) {
+                        return Err(self.fail(at, "repeat result exceeds 16 MiB"));
+                    }
+                    Value::Text(text.repeat(times).into())
+                }
+                ("lines", []) => {
+                    let items: Vec<Value> =
+                        text.lines().map(|line| Value::Text(line.into())).collect();
+                    let list = if items.is_empty() {
+                        Value::List(items)
+                    } else {
+                        Value::TypedList("String".into(), items.into())
+                    };
+                    Value::HeapRef(self.runtime.alloc(list).map_err(Flow::Error)?)
+                }
+                _ => return Ok(None),
+            };
+            return Ok(Some(value));
+        }
+        let (id, root) = match target {
+            Value::HeapRef(id) => (Some(*id), self.runtime.heap_get(*id).cloned()),
+            other => (None, Some(other.clone())),
+        };
+        let Some(root) = root else {
+            return Ok(None);
+        };
+        match root {
+            Value::Map(_) | Value::TypedMap(_, _, _) => {
+                let (value_type, map) = match root {
+                    Value::TypedMap(_, value_type, map) => (Some(value_type), map),
+                    Value::Map(map) => (None, map),
+                    _ => unreachable!(),
+                };
+                let key = |this: &Self, value: &Value| {
+                    MapKey::from_value(value)
+                        .ok_or_else(|| this.fail(at, "unsupported Map key type"))
+                };
+                let result = match (method, args) {
+                    ("isEmpty", []) => Value::Bool(map.len() == 0),
+                    ("contains", [k]) => Value::Bool(map.get(&key(self, k)?).is_some()),
+                    ("getOr", [k, default]) => map
+                        .get(&key(self, k)?)
+                        .cloned()
+                        .unwrap_or_else(|| default.clone()),
+                    ("values", []) => {
+                        let items: Vec<Value> = map.iter().map(|(_, v)| v.clone()).collect();
+                        let list = match (&value_type, items.is_empty()) {
+                            (Some(ty), false) => Value::TypedList(ty.clone(), items.into()),
+                            _ => Value::List(items),
+                        };
+                        Value::HeapRef(self.runtime.alloc(list).map_err(Flow::Error)?)
+                    }
+                    _ => return Ok(None),
+                };
+                Ok(Some(result))
+            }
+            Value::List(_) | Value::TypedList(_, _) => {
+                let (list_type, mut items): (Option<String>, Vec<Value>) = match root {
+                    Value::TypedList(ty, items) => (Some(ty), items.iter().cloned().collect()),
+                    Value::List(items) => (None, items),
+                    _ => unreachable!(),
+                };
+                self.runtime
+                    .charge_native_work(items.len() / 64 + 1)
+                    .map_err(Flow::Error)?;
+                let in_range = |this: &Self, index: &Value, upper: usize| match index {
+                    Value::Int(i) if *i >= 0 && (*i as usize) <= upper => Ok(*i as usize),
+                    _ => Err(this.fail(at, "list index out of bounds")),
+                };
+                let store = |this: &mut Self, items: Vec<Value>| -> Exec<()> {
+                    let id = id.ok_or_else(|| this.fail(at, "cannot modify an immutable value"))?;
+                    let value = match &list_type {
+                        Some(ty) => Value::TypedList(ty.clone(), items.into()),
+                        None => Value::List(items),
+                    };
+                    this.runtime.heap_set(id, value).map_err(Flow::Error)?;
+                    Ok(())
+                };
+                let result = match (method, args) {
+                    ("isEmpty", []) => Value::Bool(items.is_empty()),
+                    ("first", []) => Value::Option(items.first().cloned().map(Box::new)),
+                    ("last", []) => Value::Option(items.last().cloned().map(Box::new)),
+                    ("contains" | "indexOf", [wanted]) => {
+                        let mut found = None;
+                        for (index, item) in items.iter().enumerate() {
+                            if binary("==", item.clone(), wanted.clone(), at)? == Value::Bool(true)
+                            {
+                                found = Some(index);
+                                break;
+                            }
+                        }
+                        if method == "contains" {
+                            Value::Bool(found.is_some())
+                        } else {
+                            Value::Option(found.map(|i| Box::new(Value::Int(i as i64))))
+                        }
+                    }
+                    ("join", [Value::Text(separator)]) => {
+                        let mut parts = Vec::with_capacity(items.len());
+                        for item in &items {
+                            match item {
+                                Value::Text(text) => parts.push(text.to_string()),
+                                _ => return Ok(None),
+                            }
+                        }
+                        Value::Text(parts.join(&**separator).into())
+                    }
+                    ("insert", [index, value]) => {
+                        let at_index = in_range(self, index, items.len())?;
+                        items.insert(at_index, value.clone());
+                        store(self, items)?;
+                        Value::Null
+                    }
+                    ("removeAt", [index]) => {
+                        if items.is_empty() {
+                            return Err(self.fail(at, "list index out of bounds"));
+                        }
+                        let at_index = in_range(self, index, items.len() - 1)?;
+                        let removed = items.remove(at_index);
+                        store(self, items)?;
+                        removed
+                    }
+                    ("clear", []) => {
+                        store(self, Vec::new())?;
+                        Value::Null
+                    }
+                    ("reverse", []) => {
+                        items.reverse();
+                        store(self, items)?;
+                        Value::Null
+                    }
+                    ("sort", []) => {
+                        let mut failed = false;
+                        items.sort_by(|a, b| match (a, b) {
+                            (Value::Int(x), Value::Int(y)) => x.cmp(y),
+                            (Value::Float(x), Value::Float(y)) => {
+                                f64::from_bits(*x).total_cmp(&f64::from_bits(*y))
+                            }
+                            (Value::Text(x), Value::Text(y)) => x.as_bytes().cmp(y.as_bytes()),
+                            _ => {
+                                failed = true;
+                                std::cmp::Ordering::Equal
+                            }
+                        });
+                        if failed {
+                            return Err(self.fail(at, "sort needs Int, Float or String items"));
+                        }
+                        store(self, items)?;
+                        Value::Null
+                    }
+                    _ => return Ok(None),
+                };
+                Ok(Some(result))
+            }
+            _ => Ok(None),
+        }
+    }
     fn method_inner(
         &mut self,
         target: Value,
@@ -14154,6 +14445,11 @@ impl<R: BufRead> Engine<R> {
         args: Vec<Value>,
         at: &Tok,
     ) -> Exec<Value> {
+        if EXTRA_METHODS.contains(&method) {
+            if let Some(value) = self.extra_method(&target, method, &args, at)? {
+                return Ok(value);
+            }
+        }
         if matches!(
             self.program.language.as_str(),
             "0.6"
@@ -15655,6 +15951,12 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
     }
     .into()
 }
+/// Methods added to the built-in `List`, `Map` and `String` types.
+const EXTRA_METHODS: &[&str] = &[
+    "isEmpty", "contains", "first", "last", "indexOf", "insert", "removeAt", "clear", "reverse",
+    "sort", "join", "values", "getOr", "trim", "replace", "repeat", "lines",
+];
+
 /// True when every name in `ty` is one of the built-in value types, so a
 /// comparison cannot be confused by a generic parameter or an imported type.
 fn only_builtin_types(ty: &str) -> bool {

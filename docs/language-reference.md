@@ -2185,6 +2185,11 @@ world
 | `s.parseInt()`、`s.parseFloat()` | `Result<Int,String>`、`Result<Float,String>` |
 | `s.encodeUtf8()` | `Bytes` |
 | `s.format()` | `String`（`Int`、`Float`、`Bool` にもある） |
+| `s.isEmpty()` | `Bool` |
+| `s.trim()` | `String`。前後の空白を取り除く |
+| `s.replace(a, b)` | `String`。`a` をすべて `b` に置き換える（`a` は空でない） |
+| `s.repeat(n)` | `String`。`n` 回繰り返す（結果は 16 MiB まで） |
+| `s.lines()` | `List<String>`。改行で分ける |
 | `b.decodeUtf8()` | `Result<String,String>`（`Bytes` のメソッド） |
 | `b.slice(a, b)`、`b.byteLen()` | `Bytes` のバイト位置 |
 
@@ -2217,9 +2222,47 @@ Unicode のスカラー値は、人が見る「一文字」と一致するとは
 | 型 | メソッド |
 |---|---|
 | `List<T>` | `add(x)`、`push(x)`、`set(i, x)`、`get(i)`、`len()`、`pop()`（`Option<T>`）、`iter()` |
+| `List<T>`（検索・参照） | `isEmpty()`、`contains(x)`、`indexOf(x)`（`Option<Int>`）、`first()`、`last()`（`Option<T>`）、`join(区切り)`（`List<String>` のとき） |
+| `List<T>`（更新） | `insert(i, x)`、`removeAt(i)`（取り除いた要素を返す）、`clear()`、`reverse()`、`sort()`（`Int`、`Float`、`String` の `List`。昇順） |
 | `Map<K,V>` | `set(k, v)`、`get(k)`（`Option<V>`）、`remove(k)`、`len()`、`keys()` |
+| `Map<K,V>`（追加） | `isEmpty()`、`contains(k)`、`getOr(k, 既定値)`、`values()`（キーの昇順の `List<V>`） |
 
-`get(i)` は範囲外のとき致命的な失敗になります。`contains`、`insert`、`clear` のような他の操作は、標準ライブラリの `std.collections`、`std.map`、`std.sequence` などにあります。
+`get(i)` と `removeAt(i)`、`insert(i, x)` は、添字が範囲外のとき致命的な失敗になります（`insert` は `0` から `len()` まで）。`contains` と `indexOf` は `==` と同じ規則で比べるので、`List` の `List` を探すときは、同一性で比べることになります（[第 5.4 節](#54-比較と等価)）。更新のメソッドは、`&` で借りた値や `Frozen` には使えません。`sort` と、より多くの要素を扱う操作（`unique`、`rotate`、二分探索など）は、標準ライブラリの `std.sort`、`std.sequence`、`std.search`、`std.collections`、`std.map` にもあります。
+
+```rewind
+fn main()->Int {
+    let xs = [3, 1, 2];
+    xs.sort();
+    xs.insert(1, 9);
+    Out.println(xs);
+    Out.println(xs.contains(9));
+    Out.println(xs.indexOf(2));
+    Out.println(xs.removeAt(0));
+    Out.println(xs.first());
+
+    let ages = {"ann": 31, "bob": 28};
+    Out.println(ages.getOr("zed", 0));
+    Out.println(ages.contains("bob"));
+    Out.println(ages.values());
+
+    Out.println("  hello  ".trim().replace("l", "L"));
+    Out.println(["a", "b", "c"].join("-"));
+    return 0;
+}
+```
+
+```text
+[1, 9, 2, 3]
+true
+Some(2)
+1
+Some(9)
+0
+true
+[31, 28]
+heLLo
+a-b-c
+```
 
 ## 16. 実行予算と制限
 

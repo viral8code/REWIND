@@ -550,3 +550,51 @@ fn println_writes_records_enums_tuples_and_maps_readably() {
         "Point{x: 3, y: 4}\nCounter{n: 1, name: c}\nShape::Circle(2)\nShape::Empty\nShape::Move{x: 1, y: 2}\nLine{a: Point{x: 1, y: 2}, b: Point{x: 3, y: 4}}\nSome(Point{x: 1, y: 2})\n(1, a)\n[Point{x: 1, y: 2}]\n{a: 1, b: 2}\n[1, 2]\n"
     );
 }
+
+#[test]
+fn everyday_list_map_and_string_methods_work() {
+    let out = run(
+        "fn main()->Int effects {output} {\n    let xs = [3, 1, 2];\n    Out.println(xs.isEmpty());\n    Out.println(xs.contains(2));\n    Out.println(xs.indexOf(1));\n    Out.println(xs.first());\n    Out.println(xs.last());\n    xs.sort();\n    Out.println(xs);\n    xs.reverse();\n    xs.insert(1, 9);\n    Out.println(xs);\n    Out.println(xs.removeAt(0));\n    xs.clear();\n    Out.println(xs.isEmpty());\n    Out.println([\"a\", \"b\"].join(\"-\"));\n    let m = {\"a\": 1, \"b\": 2};\n    Out.println(m.contains(\"a\"));\n    Out.println(m.getOr(\"z\", 7));\n    Out.println(m.values());\n    Out.println(\"  hi  \".trim());\n    Out.println(\"banana\".replace(\"an\", \"AN\"));\n    Out.println(\"ab\".repeat(3));\n    Out.println(\"a\nb\".lines());\n    Out.println(freeze([5, 6]).contains(6));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "false\ntrue\nSome(1)\nSome(3)\nSome(2)\n[1, 2, 3]\n[3, 9, 2, 1]\n3\ntrue\na-b\ntrue\n7\n[1, 2]\nhi\nbANANa\nababab\n[a, b]\ntrue\n"
+    );
+}
+
+#[test]
+fn mutating_list_methods_respect_borrows_and_frozen_values() {
+    for body in [
+        "xs.insert(0, 1);",
+        "xs.clear();",
+        "xs.reverse();",
+        "xs.sort();",
+    ] {
+        let out = run(&format!(
+            "fn f(xs: &List<Int>) -> Unit effects {{}} {{\n    {body}\n}}\nfn main()->Int effects {{}} {{ return 0; }}\n"
+        ));
+        assert!(!out.status.success(), "{body} was accepted");
+        assert!(
+            stderr(&out).contains("cannot mutate"),
+            "{body}: {}",
+            stderr(&out)
+        );
+    }
+    let frozen = run("fn main()->Int effects {} {\n    let f = freeze([2, 1]);\n    f.sort();\n    return 0;\n}\n");
+    assert!(!frozen.status.success());
+    assert!(
+        stderr(&frozen).contains("cannot mutate Frozen"),
+        "{}",
+        stderr(&frozen)
+    );
+    let range = run(
+        "fn main()->Int effects {} {\n    let xs = [1];\n    xs.removeAt(3);\n    return 0;\n}\n",
+    );
+    assert!(!range.status.success());
+    assert!(
+        stderr(&range).contains("out of bounds"),
+        "{}",
+        stderr(&range)
+    );
+}

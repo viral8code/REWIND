@@ -729,7 +729,9 @@ impl Flow<'_> {
     /// An iterator bound from a shared place keeps that place borrowed, but the
     /// iterator itself is a local owner: advancing it never mutates the source.
     fn iterator_owner(&self, n: &str) -> bool {
-        self.vars.get(n).is_some_and(|v| v.ty.starts_with("Iterator"))
+        self.vars
+            .get(n)
+            .is_some_and(|v| v.ty.starts_with("Iterator"))
     }
 
     fn borrowed(&self, n: &str) -> bool {
@@ -1749,6 +1751,11 @@ impl Flow<'_> {
                                 | "pop"
                                 | "set"
                                 | "remove"
+                                | "insert"
+                                | "removeAt"
+                                | "clear"
+                                | "reverse"
+                                | "sort"
                                 | "write"
                                 | "writeBytes"
                                 | "seek"
@@ -1798,6 +1805,11 @@ impl Flow<'_> {
                                 | "pop"
                                 | "set"
                                 | "remove"
+                                | "insert"
+                                | "removeAt"
+                                | "clear"
+                                | "reverse"
+                                | "sort"
                                 | "write"
                                 | "writeBytes"
                                 | "seek"
@@ -2231,6 +2243,11 @@ impl Flow<'_> {
                                             | "pop"
                                             | "set"
                                             | "remove"
+                                            | "insert"
+                                            | "removeAt"
+                                            | "clear"
+                                            | "reverse"
+                                            | "sort"
                                             | "write"
                                             | "writeBytes"
                                             | "seek"
