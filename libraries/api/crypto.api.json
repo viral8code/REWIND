@@ -1,0 +1,91 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.6.0",
+  "symbols": {
+    "fn:constantTimeEq": {
+      "async": false,
+      "cost": "O(min length); unequal lengths give false without comparing contents.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "a",
+        "b"
+      ],
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "return": "Bool"
+    },
+    "fn:hmacSha256": {
+      "async": false,
+      "cost": "O(key + message) native work; keys longer than 64 bytes are hashed first; 32-byte tag (RFC 2104).",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Limit (key or message over 1 MiB).",
+      "generics": [],
+      "names": [
+        "key",
+        "message"
+      ],
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
+    "fn:pbkdf2Sha256": {
+      "async": false,
+      "cost": "O(iterations * 64 + length) native work, charged up front; the largest call is 1000000 iterations.",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (iterations outside 1..1000000, length outside 1..1024, salt outside 1..1024 bytes) / Limit (password over 1 MiB).",
+      "generics": [],
+      "names": [
+        "password",
+        "salt",
+        "iterations",
+        "length"
+      ],
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Int",
+        "Int"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
+    "fn:sha256": {
+      "async": false,
+      "cost": "O(bytes) native work, 4 units per input byte; 32-byte digest.",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Limit (input over 1 MiB).",
+      "generics": [],
+      "names": [
+        "data"
+      ],
+      "parameters": [
+        "Bytes"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
+    "fn:sha512": {
+      "async": false,
+      "cost": "O(bytes) native work, 4 units per input byte; 64-byte digest.",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Limit (input over 1 MiB).",
+      "generics": [],
+      "names": [
+        "data"
+      ],
+      "parameters": [
+        "Bytes"
+      ],
+      "return": "Result<Bytes,StdError>"
+    }
+  }
+}

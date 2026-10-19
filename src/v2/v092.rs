@@ -279,6 +279,13 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdZlibDecompress",
         "stdCrc32",
         "stdAdler32",
+        "stdSha256",
+        "stdSha512",
+        "stdHmacSha256",
+        "stdPbkdf2Sha256",
+        "stdConstantTimeEq",
+        "stdBytesToHex",
+        "stdBytesFromHex",
         "stdPngDecode",
         "stdPngEncode",
         "stdGzipCompress",
@@ -766,6 +773,41 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
         },
         "stdCrc32" | "stdAdler32" => match args {
             [Value::Bytes(bytes)] => bytes.len().saturating_mul(2).saturating_add(16),
+            _ => 16,
+        },
+        "stdSha256" | "stdSha512" | "stdBytesToHex" => match args {
+            [Value::Bytes(bytes)] => bytes.len().saturating_mul(4).saturating_add(256),
+            _ => 256,
+        },
+        "stdHmacSha256" => match args {
+            [Value::Bytes(key), Value::Bytes(message)] => key
+                .len()
+                .saturating_add(message.len())
+                .saturating_mul(4)
+                .saturating_add(256),
+            _ => 256,
+        },
+        // PBKDF2 は反復ごとに HMAC を回すので、コストは反復回数に比例させる。
+        // 範囲外の引数は実行前に Range で返すので、仕事量を見積もらず 256 とする。
+        "stdPbkdf2Sha256" => match args {
+            [Value::Bytes(_), Value::Bytes(salt), Value::Int(iterations), Value::Int(length)]
+                if (1..=1_000_000).contains(iterations)
+                    && (1..=1024).contains(length)
+                    && (1..=1024).contains(&salt.len()) =>
+            {
+                (*iterations as usize)
+                    .saturating_mul(64)
+                    .saturating_add((*length as usize).saturating_mul(4))
+                    .saturating_add(256)
+            }
+            _ => 256,
+        },
+        "stdConstantTimeEq" => match args {
+            [Value::Bytes(a), Value::Bytes(b)] => a.len().min(b.len()).saturating_mul(2).saturating_add(16),
+            _ => 16,
+        },
+        "stdBytesFromHex" => match args {
+            [Value::Text(text)] => text.len().saturating_mul(2).saturating_add(16),
             _ => 16,
         },
         // Decoding is bounded by the pixel limit the caller passes and by the input size (a PNG
@@ -1394,6 +1436,12 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdDeflate" | "stdZlibCompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
         "stdInflate" | "stdZlibDecompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
         "stdCrc32" | "stdAdler32" => (&["Bytes"], "Int"),
+        "stdSha256" | "stdSha512" => (&["Bytes"], "Result<Bytes,StdError>"),
+        "stdHmacSha256" => (&["Bytes", "Bytes"], "Result<Bytes,StdError>"),
+        "stdPbkdf2Sha256" => (&["Bytes", "Bytes", "Int", "Int"], "Result<Bytes,StdError>"),
+        "stdConstantTimeEq" => (&["Bytes", "Bytes"], "Bool"),
+        "stdBytesToHex" => (&["Bytes"], "String"),
+        "stdBytesFromHex" => (&["String"], "Result<Bytes,StdError>"),
         "stdPngDecode" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
         "stdGzipCompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
         "stdGzipDecompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
@@ -1791,6 +1839,8 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
             }
             Value::Int(i64::from((c << 16) | a))
         }
+        "stdConstantTimeEq" => Value::Bool(rewind::crypto::constant_time_eq(bytes(0)?, bytes(1)?)),
+        "stdBytesToHex" => Value::Text(rewind::crypto::to_hex(bytes(0)?).into()),
         "stdTextFind" => {
             let s = text(0)?;
             let needle = text(1)?;
@@ -1941,6 +1991,62 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                         Ok(Value::Bytes(
                             b[start as usize..end as usize].to_vec().into(),
                         ))
+                    }
+                }
+                "stdSha256" | "stdSha512" => {
+                    let b = bytes(0)?;
+                    if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else if n == "stdSha256" {
+                        Ok(Value::Bytes(rewind::crypto::sha256(b).to_vec().into()))
+                    } else {
+                        Ok(Value::Bytes(rewind::crypto::sha512(b).to_vec().into()))
+                    }
+                }
+                "stdHmacSha256" => {
+                    let key = bytes(0)?;
+                    let message = bytes(1)?;
+                    if key.len() > LIMIT || message.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        Ok(Value::Bytes(
+                            rewind::crypto::hmac_sha256(key, message).to_vec().into(),
+                        ))
+                    }
+                }
+                "stdPbkdf2Sha256" => {
+                    let password = bytes(0)?;
+                    let salt = bytes(1)?;
+                    let iterations = int(2)?;
+                    let length = int(3)?;
+                    if !(1..=1_000_000).contains(&iterations)
+                        || !(1..=1024).contains(&length)
+                        || !(1..=1024).contains(&salt.len())
+                    {
+                        Err(("Range", 0))
+                    } else if password.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        Ok(Value::Bytes(
+                            rewind::crypto::pbkdf2_sha256(
+                                password,
+                                salt,
+                                iterations as u32,
+                                length as usize,
+                            )
+                            .into(),
+                        ))
+                    }
+                }
+                "stdBytesFromHex" => {
+                    let s = text(0)?;
+                    if s.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        match rewind::crypto::from_hex(s) {
+                            Ok(out) => Ok(Value::Bytes(out.into())),
+                            Err(offset) => Err(("Corrupt", offset)),
+                        }
                     }
                 }
                 "stdDeflate" | "stdZlibCompress" => {

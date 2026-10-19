@@ -17,6 +17,7 @@ import table as table;
 import layout as layout;
 import evaluation as evaluation;
 import compress as compress;
+import crypto as crypto;
 import image as imageLib;
 import json as json;
 import jsonStream as jsonStream;
@@ -3003,6 +3004,37 @@ test fn compress_survives_pseudo_random_garbage_without_panicking_or_exceeding_t
             }
         }
     }
+}
+test fn crypto_known_answers_match_published_vectors() {
+    assert_eq(bytes.toHex(cmpTake(crypto.sha256(Bytes("abc")))),"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    assert_eq(bytes.toHex(cmpTake(crypto.sha256(Bytes("")))),"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    assert_eq(bytes.toHex(cmpTake(crypto.sha512(Bytes("abc")))),"ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f");
+    assert_eq(bytes.toHex(cmpTake(crypto.hmacSha256(Bytes("Jefe"),Bytes("what do ya want for nothing?")))),"5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+    assert_eq(bytes.toHex(cmpTake(crypto.hmacSha256(cmpTake(bytes.fromHex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")),Bytes("Hi There")))),"b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
+}
+test fn crypto_pbkdf2_matches_published_vectors() {
+    assert_eq(bytes.toHex(cmpTake(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1,32))),"120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b");
+    assert_eq(bytes.toHex(cmpTake(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),4096,32))),"c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a");
+    assert_eq(bytes.length(cmpTake(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1,40))),40);
+}
+test fn crypto_pbkdf2_rejects_out_of_range_arguments() {
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),0,32)),"Range");
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1000001,32)),"Range");
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1,0)),"Range");
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1,1025)),"Range");
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes(""),1,32)),"Range");
+}
+test fn crypto_hex_round_trip_and_corrupt_input() {
+    assert_eq(bytes.toHex(Bytes("")),"");
+    assert_eq(bytes.toHex(cmpTake(bytes.fromHex("00ABff"))),"00abff");
+    assert_eq(cmpCode(bytes.fromHex("abc")),"Corrupt");
+    assert_eq(cmpCode(bytes.fromHex("zz")),"Corrupt");
+}
+test fn crypto_constant_time_eq_compares_bytes() {
+    assert(crypto.constantTimeEq(Bytes("abc"),Bytes("abc")));
+    assert(!crypto.constantTimeEq(Bytes("abc"),Bytes("abd")));
+    assert(!crypto.constantTimeEq(Bytes("abc"),Bytes("ab")));
+    assert(crypto.constantTimeEq(Bytes(""),Bytes("")));
 }
 fn auditFailed<T,E>(r:Result<T,E>)->Bool effects {} {match move r {Ok(_)=>{return false;},Err(_)=>{return true;}}}
 test fn lib_audit_overflow_and_range_are_reported_not_wrapped() {

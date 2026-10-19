@@ -29,6 +29,21 @@
       ],
       "return": "Result<Bytes,StdError>"
     },
+    "fn:fromHex": {
+      "async": false,
+      "cost": "O(text); accepts upper and lower case digits.",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Limit (text over 1 MiB) / Corrupt (offset = byte offset of the first bad digit, or the text length when the length is odd).",
+      "generics": [],
+      "names": [
+        "value"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
     "fn:get": {
       "async": false,
       "defaults": [],
@@ -115,6 +130,20 @@
         "V"
       ],
       "return": "Map<K,V>"
+    },
+    "fn:toHex": {
+      "async": false,
+      "cost": "O(bytes); lowercase hex text, two digits per byte.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "value"
+      ],
+      "parameters": [
+        "Bytes"
+      ],
+      "return": "String"
     },
     "type:BigInt": {
       "constructor": false,

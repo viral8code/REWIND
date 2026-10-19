@@ -16,6 +16,7 @@
 | table | builder, addInts/Floats/Texts/Bools (+Nullable), build, select, dropColumns, rename, head, slice, batch, where, takeRows, orderBy, mask*, isNull, with*, map*, cast, floatArray, intArray, withFloatArray, cell, ints/floats/texts/bools, nullCount, aggregate, join | 型付き列（Int/Float/Text/Bool）とNULL maskを持つ不変table。最大100万行・256列。列の選択/改名/削除はデータを共有し、行操作は残す行×列を一度copyする。numeric kernelへはfloatArray/intArrayで渡す。aggregateは初出順のgroup（NULL keyも1 group）、joinは出力上限つきhash join（NULL keyは不一致） |
 | layout | builder, add, finish, pack, unpack, read, offsetOf, size, alignment, width, fieldNames | 明示的なbinary layout。整数7種（U8 I8 U16 I16 U32 I32 I64）・配列・little/big endian・C規則のpadding/packed。最大1 MiB・256 field。Pythonのstructと一致することを`tests/layout_native.rs`で確認。浮動小数点・U64・union・bitfieldは未対応 |
 | compress | deflate, inflate, zlibCompress, zlibDecompress, gzip, gunzip, crc32, adler32 | BytesのDEFLATE/zlib圧縮と展開、CRC-32・Adler-32。入力・出力とも1 MiB上限。展開は呼出側のmaxOutputを超える出力を切り詰めずLimitで拒否し、途中で切れたTruncatedと壊れたCorruptを区別する。nativeはpure Rust crate（miniz_oxide、MIT/Zlib/Apache-2.0）で、C依存・追加threadなし。圧縮は入力1 byteあたり8、展開は入力4+min(maxOutput, 入力×1032)のnative workを先に計上 |
+| crypto | sha256, sha512, hmacSha256, pbkdf2Sha256, constantTimeEq | SHA-2（sha2 crate）、HMAC-SHA256（RFC 2104）、PBKDF2-HMAC-SHA256（RFC 8018）、比較は定数時間。入力は1 MiB上限で超えると`Limit`。pbkdf2は反復1〜1,000,000、長さ1〜1024 byte、salt 1〜1024 byteの範囲外を`Range`で拒否する。乱数（randomBytes）は含まない。パスワード保存にはsha256を直接使わずpbkdf2Sha256を使う |
 | image | Image, decodePng, encodePng, fromPixels, pixel | 8-bit gray/gray+alpha/RGB/RGBA PNG（非interlace）のdecode/encode。palette（1/2/4/8 bit、tRNSがあればRGBA）はRGB/RGBAへ展開。16-bit・interlaceは`Unsupported`。呼出側がmaxPixelsを渡し、headerの寸法を見てからpixelを展開する（1辺16384・復号後1 MiB上限）。chunkのCRCを検証し、zlibはheaderが示す大きさちょうどに展開されなければ`Corrupt`。decodeは入力4 + min(maxPixels, 入力×344)×8、encodeはpixel byteあたり24のnative workを先に計上。圧縮はstd.compressと同じminiz_oxide、encodeは決定的 |
 | evaluation | shuffled, split, batchCount, batch, accuracy, meanSquaredError, meanAbsoluteError, confusion, precision, recall, stopper, observe, shouldStop, bestEpoch | 再現可能な学習・評価helper（NUM-03）。(n, seed)で順序が決まる31bit LCGのshuffle、重複しないtrain/validation分割、batch、少数の評価指標、early stopping。最大1,000,000件。乱数品質は暗号・統計用途に不足。定義できない指標（正例0件のprecision等）は0やNaNでなくErr(Undefined)。|
 | textIndex | Source, ByteOffset, ScalarIndex, GraphemeIndex, create, byteAt/scalarAt/graphemeAt, sliceBytes/Scalars/Graphemes | 原文と境界表の保持、明示的な位置変換、別原文の範囲を拒否 |
@@ -76,7 +77,7 @@ compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection st
 | result | valueOr, map, mapError, mapOwned, thenOwned, mapErrorOwned | valueOr/map/mapError は Share の値用。`*Owned` は Result を消費し、非Share の owner（List、接続など）を複製せず一度だけ次へ渡す |
 | map | getOr, contains | borrowed Map、Ord key、Share value、key equality は既存 Map と同じ |
 | text | length, trim, split, tokens, slice, find | Unicode scalar index、slice は半開区間、split は空要素保持、tokens は ASCII whitespace |
-| bytes | length, encode, decode, get, slice | UTF-8 codec、byte index、get は0..255、slice は半開区間 |
+| bytes | length, encode, decode, get, slice, toHex, fromHex | UTF-8 codec、byte index、get は0..255、slice は半開区間、toHex/fromHex は16進表記（fromHex は不正な桁を `Corrupt` で拒否） |
 | number | integer, decimal, floating, formatInt, formatFloat | signed64、radix2..36、小文字 digit、有限 binary64 |
 | bits | and, or, xor, not, count, shiftLeft, shiftRight, shiftUnsigned | 64-bit 二の補数、shift0..63、left は wrapping、right は符号拡張/zero fill を区別 |
 

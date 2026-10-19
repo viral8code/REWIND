@@ -3,3 +3,7 @@ pub fn encode(value:String)->Result<Bytes,StdError> effects {} {return stdEncode
 pub fn decode(value:Bytes)->Result<String,StdError> effects {} {return stdDecode(value);}
 pub fn get(value:Bytes,index:Int)->Result<Int,StdError> effects {} {return stdBytesGet(value,index);}
 pub fn slice(value:Bytes,start:Int,end:Int)->Result<Bytes,StdError> effects {} {return stdBytesSlice(value,start,end);}
+// @api toHex cost O(bytes); lowercase hex text, two digits per byte.
+pub fn toHex(value:Bytes)->String effects {} {return stdBytesToHex(value);}
+// @api fromHex cost O(text); accepts upper and lower case digits. failure StdError Limit (text over 1 MiB) / Corrupt (offset = byte offset of the first bad digit, or the text length when the length is odd).
+pub fn fromHex(value:String)->Result<Bytes,StdError> effects {} {return stdBytesFromHex(value);}

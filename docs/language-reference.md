@@ -2503,6 +2503,7 @@ error[DivisionByZero]: division by zero
 | コレクションとアルゴリズム | collections、map、orderedMap、sequence、sort、search、heap、deque、bitset、disjointSet、rollbackSet、fenwick、segment、lazySegment、range、trie、suffix、dp、table |
 | グラフと幾何 | graph、graphLarge、graphLargeAsync、flow、matching、geometry |
 | データ形式と解析 | json、jsonStream、csv、csvStream、config、args、scanner、stream、parser、schema、logfmt、compress、image |
+| 暗号 | crypto |
 | 履歴と状態 | snapshot、history、historyGraph、timeline、changes、persistentSet、memo、lazy、lens |
 | 数値計算 | numeric とその Async 系、matrix、sparse、sparseAsync、fft、fftAsync、distributions |
 | 機械学習 | autodiff 系、optimize、training、models、evaluation、plot |
@@ -2510,6 +2511,8 @@ error[DivisionByZero]: division by zero
 | データベース | db、dbDatetime、dbDecimal、dbMigration、dbTransaction |
 | GUI | gui、guiDialog、guiField、guiForm、guiMenu、guiTable、guiWindows |
 | テスト支援 | proptest |
+
+`std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。乱数は `std.crypto` にはまだないため、salt は呼出側で用意します。
 
 Option と Result の補助には `std.option`、`std.result` があり、`valueOr` で失敗時の既定値を指定して取り出せます。
 
