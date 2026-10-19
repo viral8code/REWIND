@@ -683,8 +683,13 @@ impl Flow<'_> {
             ExprKind::NamedConstructor(_, fields) => fields.iter().all(|(_, v)| self.sendable(v)),
             ExprKind::Call(target, args) => {
                 let ty = self.checker().expr(e).unwrap_or_default();
+                // A borrowed argument cannot end up inside the result (borrowed
+                // return types are not supported), so only owned arguments matter.
                 self.transfer_ty(&ty, false)
-                    && args.iter().all(|v| self.sendable(v))
+                    && args.iter().all(|v| {
+                        self.sendable(v)
+                            || matches!(&v.kind, ExprKind::Unary(op, _) if op == "borrow" || op == "borrowMut")
+                    })
                     && match &target.kind {
                         ExprKind::Member(base, _) => self.sendable(base),
                         _ => true,

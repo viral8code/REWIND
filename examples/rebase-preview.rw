@@ -5,16 +5,19 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 }
 
 // Expected output (not executed): 20, 7, complete on separate lines.
-let same=|a:Int,b:Int|->Bool{return a==b;};
-let base=Map<String,Int>();base.set("score",10);
-let edited=Map<String,Int>();edited.set("score",20);
-let patches=List<changes.ChangeSet<Int>>();
-patches.add(take(changes.diff(&base,&edited,same)));
-let onto=Map<String,Int>();onto.set("score",10);onto.set("unrelated",7);
-let preview=take(changes.previewRebase(&base,&onto,&patches,same));
-match preview.value.get("score") {Some(value)=>{Out.println(value);},None=>{panic("missing score");}}
-match preview.value.get("unrelated") {Some(value)=>{Out.println(value);},None=>{panic("missing unrelated key");}}
-match preview.conflict {Some(problem)=>{Out.println(problem.key);},None=>{Out.println("complete");}}
-// Adoption is explicit. The original maps and any branch heads are unchanged.
-let adopted=thaw(preview.value);
-publish;
+fn main()->Int effects {output} {
+    let same=|a:Int,b:Int|->Bool{return a==b;};
+    let base=Map<String,Int>();base.set("score",10);
+    let edited=Map<String,Int>();edited.set("score",20);
+    let patches=List<changes.ChangeSet<Int>>();
+    patches.add(take(changes.diff(&base,&edited,same)));
+    let onto=Map<String,Int>();onto.set("score",10);onto.set("unrelated",7);
+    let preview=take(changes.previewRebase(&base,&onto,&patches,same));
+    match thaw(preview.value.get("score")) {Some(value)=>{Out.println(value);},None=>{panic("missing score");}}
+    match thaw(preview.value.get("unrelated")) {Some(value)=>{Out.println(value);},None=>{panic("missing unrelated key");}}
+    match preview.conflict {Some(problem)=>{Out.println(problem.key);},None=>{Out.println("complete");}}
+    // Adoption is explicit. The original maps and any branch heads are unchanged.
+    let adopted=thaw(preview.value);
+    publish;
+    return 0;
+}

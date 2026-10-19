@@ -687,3 +687,21 @@ fn unknown_trait_bounds_on_types_are_rejected() {
     let fine = run("struct S<T: Ord> { v: List<T> }\nfn main()->Int effects {} { return 0; }\n");
     assert!(fine.status.success(), "{}", stderr(&fine));
 }
+
+#[test]
+fn send_bound_accepts_borrowed_call_argument() {
+    let out = main_output(
+        r#"fn id<T: Send>(x: T) -> T effects {} { return move x; }
+fn total(xs: &List<Int>) -> Int effects {} {
+    var sum=0;
+    for i in 0..xs.len() { sum+=xs.get(i); }
+    return sum;
+}
+fn run()->Unit effects {output} {
+    let xs=[1, 2, 3];
+    Out.println(id(total(&xs)));
+}"#,
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "6\n");
+}
