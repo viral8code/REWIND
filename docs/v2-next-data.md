@@ -32,7 +32,7 @@ DATA-02の後続候補です。group keyの型、NULL同士の対応、行順序
 
 **受入：** 小入力の単純な参照実装と照合する。重複key、NULL、偏ったkey、空入力、出力上限を確認する。algorithmとscratch費用をAPIへ記載する。
 
-**実装済み（2026-10-17、`std.table`内）：** `aggregate(t,key,specs)`は`CountRows/Count/Sum/Min/Max/Mean`を最大64個、keyはInt/Text/Boolの列（Floatは`KeyKind`で拒否）。NULL keyは1つのgroupになり、groupは初出順で安定。集計はNULL cellを無視し、非NULLが無いgroupのSum/Min/Max/MeanはNULL。Int合計は`Overflow`、Mean用のInt→Floatが不正確なら`Inexact`で失敗します。`join(left,right,leftKey,rightKey,Inner|Left,maxRows)`はhash（Map）方式で、出力はmaxRows（1..100万）を超えると構築前に`JoinTooLarge`、NULL keyは一致せず、右の重複keyは展開されます。列名が重なると`DuplicateName`（先にrename）。参照実装との照合は手で数えた小さな表で行い、乱数との照合や偏ったkeyの大規模測定は未実施です。Decimal合計、複数列key、outer/right join、sort/orderByは未実装です。
+**実装済み（2026-10-17、`std.table`内）：** `aggregate(t,key,specs)`は`CountRows/Count/Sum/Min/Max/Mean`を最大64個、keyはInt/Text/Boolの列（Floatは`KeyKind`で拒否）。NULL keyは1つのgroupになり、groupは初出順で安定。集計はNULL cellを無視し、非NULLが無いgroupのSum/Min/Max/MeanはNULL。Int合計は`Overflow`、Mean用のInt→Floatが不正確なら`Inexact`で失敗します。`join(left,right,leftKey,rightKey,Inner|Left,maxRows)`はhash（Map）方式で、出力はmaxRows（1..100万）を超えると構築前に`JoinTooLarge`、NULL keyは一致せず、右の重複keyは展開されます。列名が重なると`DuplicateName`（先にrename）。参照実装との照合は手で数えた小さな表で行い、乱数との照合や偏ったkeyの大規模測定は未実施です。`orderBy(t,name,order)`は2026-10-19に実装（`Ascending|Descending`の安定ソート。NULLは両方向で末尾、同値は元の順、Float列のNaNは`NotComparable`で失敗）。Decimal合計、複数列key、outer/right joinは未実装です。
 
 ## DATA-04：streamから表へのpipeline
 

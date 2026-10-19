@@ -2709,6 +2709,57 @@ test fn table_limits_columns() {
     assert_eq(table.columnCount(&t),256);
 }
 
+fn tblIds(t:&table.Table)->List<Int> effects {} {return tblTake(table.ints(t,"id"));}
+fn tblOrderIds(r:Result<table.Table,table.TableError>)->List<Int> effects {} {match r {Ok(t)=>{return tblIds(&t);},Err(e)=>{panic(e.code);}}}
+test fn table_order_by_ascending_puts_null_last() {
+    let p=tblPeople();
+    let s=tblTable(table.orderBy(&p,"age",table.Order::Ascending));
+    let ids=tblIds(&s);
+    assert_eq(ids.get(0),2);assert_eq(ids.get(1),1);assert_eq(ids.get(2),4);assert_eq(ids.get(3),3);
+    assert_eq(table.cell(&s,3,"age"),Ok(table.Cell::Null));
+}
+test fn table_order_by_descending_puts_null_last() {
+    let p=tblPeople();
+    let s=tblTable(table.orderBy(&p,"age",table.Order::Descending));
+    let ids=tblIds(&s);
+    assert_eq(ids.get(0),4);assert_eq(ids.get(1),1);assert_eq(ids.get(2),2);assert_eq(ids.get(3),3);
+    assert_eq(table.cell(&s,3,"age"),Ok(table.Cell::Null));
+}
+test fn table_order_by_text_column_and_original_is_unchanged() {
+    let t=tblPeople();
+    let asc=tblOrderIds(table.orderBy(&t,"name",table.Order::Ascending));
+    assert_eq(asc.get(0),1);assert_eq(asc.get(1),3);assert_eq(asc.get(2),4);assert_eq(asc.get(3),2);
+    let desc=tblOrderIds(table.orderBy(&t,"name",table.Order::Descending));
+    assert_eq(desc.get(0),4);assert_eq(desc.get(1),3);assert_eq(desc.get(2),1);assert_eq(desc.get(3),2);
+    assert_eq(table.cell(&t,0,"id"),Ok(table.Cell::Int(1)));
+    assert_eq(table.rowCount(&t),4);
+}
+test fn table_order_by_keeps_equal_keys_in_original_order() {
+    var b=table.builder();
+    let k=List<Int>();k.add(2);k.add(1);k.add(2);k.add(1);
+    let id=List<Int>();id.add(1);id.add(2);id.add(3);id.add(4);
+    let _a=table.addInts(&mut b,"k",&k);
+    let _b=table.addInts(&mut b,"id",&id);
+    let t=table.build(move b);
+    let asc=tblOrderIds(table.orderBy(&t,"k",table.Order::Ascending));
+    assert_eq(asc.get(0),2);assert_eq(asc.get(1),4);assert_eq(asc.get(2),1);assert_eq(asc.get(3),3);
+    let desc=tblOrderIds(table.orderBy(&t,"k",table.Order::Descending));
+    assert_eq(desc.get(0),1);assert_eq(desc.get(1),3);assert_eq(desc.get(2),2);assert_eq(desc.get(3),4);
+}
+test fn table_order_by_bool_column_false_first() {
+    var b=table.builder();
+    let f=List<Bool>();f.add(true);f.add(false);f.add(true);f.add(false);
+    let id=List<Int>();id.add(1);id.add(2);id.add(3);id.add(4);
+    let _a=table.addBools(&mut b,"f",&f);
+    let _b=table.addInts(&mut b,"id",&id);
+    let t=table.build(move b);
+    let asc=tblOrderIds(table.orderBy(&t,"f",table.Order::Ascending));
+    assert_eq(asc.get(0),2);assert_eq(asc.get(1),4);assert_eq(asc.get(2),1);assert_eq(asc.get(3),3);
+}
+test fn table_order_by_missing_column_fails() {
+    let p=tblPeople();
+    assert_eq(tblCode(table.orderBy(&p,"zzz",table.Order::Ascending)),"UnknownColumn");
+}
 fn tblOrders()->table.Table effects {} {
     var b=table.builder();
     let who=List<Option<String>>();who.add(Some("a"));who.add(Some("b"));who.add(Some("a"));who.add(None);who.add(Some("b"));who.add(Some("a"));who.add(Some("c"));
