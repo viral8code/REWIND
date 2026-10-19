@@ -59,6 +59,22 @@ rewind replay trace.json --root . --allow-effects gui
 
 `--gui-events` を指定するとネイティブウィンドウを開かず、指定した JSON 配列を入力として利用します。Replay もウィンドウを開きません。GUI 許可は別途必要です。イベントが不足すると `GuiEventTapeEnd`、改変や不足のある replay は `ReplayMismatch` になります。
 
+## Windows の実機で試す
+
+Windows では、実際のウィンドウを開き、マウスとキーボードを送って確かめられます。`scripts/gui-drive-windows.ps1` が、プログラムを起動し、ウィンドウを見つけて、クリック、キー入力、リサイズ、画面の保存（PNG）を順に行います。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\gui-drive-windows.ps1 `
+  -Source examples\notes\main.rw -Title "REWIND notes" -Effects "gui,fileRead,fileWrite" `
+  -Steps "clickf:0.5,0.45;keys:hello{ENTER}world;shot:typed.png;clickf:0.25,0.92;wait:800"
+```
+
+`-Steps` の部品は `click:X,Y`（クライアント領域の物理ピクセル）、`clickf:FX,FY`（クライアント領域に対する 0〜1 の割合）、`keys:TEXT`（`SendKeys` の書式）、`wait:MS`、`resize:W,H`、`shot:FILE` です。ウィンドウの見つけ方は題名（`-Title`）で、ASCII の題名を使ってください。
+
+`scripts/gui-smoke-windows.ps1` は、`examples/notes` を実際のウィンドウで開き、キーボードで 2 行を入力し、Save ボタンを押して、保存されたファイルの内容を確かめます。対話できるデスクトップが必要で、実行中はマウスが動きます。
+
+この方法で、Windows 10 以降の Win32/GDI について、ボタンのクリック、Undo（`revert` と `continueInput`）、文字入力、複数行の編集、保存、ウィンドウのリサイズ（`Action::Resize` を受けて `resize` と `applyLayout` で再配置）が動くことを確認しました。IME の変換中の表示は、OS の入力法が必要なので、この方法では確かめられません。
+
 ## 制限と失敗
 
 ウィンドウの canvas は各辺 64..4096 pixels、最大 2048 widgets、ID は一意で 128 UTF-8 bytes 以下、text は 4096 bytes 以下、scene は最大 1 MiB（JSON 側の予算も適用）。widget は canvas の内側に収めます。text は widget の矩形でクリップします。重なった操作可能 widget は後から追加したものが優先されます。色は `0xRRGGBB` です。イベントは最大 100 万件、fixture は最大 1 MiB。履歴予算も適用されます。

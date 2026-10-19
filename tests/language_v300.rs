@@ -668,3 +668,22 @@ fn random_below_stays_in_range_and_rejects_bad_limits() {
     );
     assert!(!bad.status.success());
 }
+
+#[test]
+fn unknown_trait_bounds_on_types_are_rejected() {
+    for source in [
+        "struct S<T: Bogus> { v: List<T> }\nfn main()->Int effects {} { return 0; }\n",
+        "enum E<T: Bogus> { A(T) }\nfn main()->Int effects {} { return 0; }\n",
+        "type L<T: Bogus> = List<T>;\nfn main()->Int effects {} { return 0; }\n",
+    ] {
+        let out = run(source);
+        assert!(!out.status.success(), "{source} was accepted");
+        assert!(
+            stderr(&out).contains("unknown trait bound Bogus"),
+            "{}",
+            stderr(&out)
+        );
+    }
+    let fine = run("struct S<T: Ord> { v: List<T> }\nfn main()->Int effects {} { return 0; }\n");
+    assert!(fine.status.success(), "{}", stderr(&fine));
+}

@@ -869,6 +869,10 @@ struct AliasDef {
 }
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 struct Program {
+    /// Trait names written as bounds on `struct`/`record` type parameters,
+    /// checked once every module's traits are known.
+    #[serde(default)]
+    bound_sites: Vec<(Tok, String)>,
     #[serde(default)]
     aliases: BTreeMap<String, AliasDef>,
     #[serde(default, with = "v05::pairs")]
@@ -1229,7 +1233,13 @@ impl Parser {
             } else if self.eat("type") {
                 let at = self.current().clone();
                 let name = self.name()?;
-                let params = self.type_params()?.into_iter().map(|(n, _)| n).collect();
+                let parameters = self.type_params()?;
+                for (_, bound) in &parameters {
+                    for bound in bound.iter().flat_map(|b| b.split('+')) {
+                        p.bound_sites.push((at.clone(), bound.to_string()));
+                    }
+                }
+                let params = parameters.into_iter().map(|(n, _)| n).collect();
                 self.need("=")?;
                 let ty = self.ty()?;
                 self.need(";")?;
@@ -1252,8 +1262,15 @@ impl Parser {
                     ));
                 }
             } else if self.eat("enum") {
+                let declared_at = self.current().clone();
                 let name = self.name()?;
-                let type_params = self.type_params()?.into_iter().map(|(n, _)| n).collect();
+                let parameters = self.type_params()?;
+                for (_, bound) in &parameters {
+                    for bound in bound.iter().flat_map(|b| b.split('+')) {
+                        p.bound_sites.push((declared_at.clone(), bound.to_string()));
+                    }
+                }
+                let type_params = parameters.into_iter().map(|(n, _)| n).collect();
                 self.need("{")?;
                 let mut variants = BTreeMap::new();
                 while !self.eat("}") {
@@ -1480,6 +1497,7 @@ impl Parser {
                     .insert((tr.clone(), target.clone()), type_params);
                 p.impl_origins.insert((tr, target), PathBuf::new());
             } else if self.is("struct") || self.is("record") {
+                let declared_at = self.current().clone();
                 let immutable = self.eat("record");
                 if !immutable {
                     self.need("struct")?;
@@ -1487,6 +1505,11 @@ impl Parser {
                 let name = self.name()?;
                 let mut parameters = self.type_params()?;
                 self.where_bounds(&mut parameters)?;
+                for (_, bound) in &parameters {
+                    for name in bound.iter().flat_map(|b| b.split('+')) {
+                        p.bound_sites.push((declared_at.clone(), name.to_string()));
+                    }
+                }
                 let bounds = parameters
                     .iter()
                     .filter_map(|(n, b)| b.clone().map(|b| (n.clone(), b)))
@@ -3933,6 +3956,7 @@ fn load_program_overlay(
                         ));
                     }
                 }
+                program.bound_sites.extend(imported.bound_sites.clone());
                 for (name, s) in imported.structs {
                     if program.structs.insert(name.clone(), s).is_some() {
                         return Err(diagnostic(
@@ -4053,6 +4077,7 @@ fn load_program_overlay(
             )));
         }
     }
+    program.bound_sites.extend(own.bound_sites.clone());
     for (name, s) in own.structs {
         if program.structs.insert(name.clone(), s).is_some() {
             return Err(Error::InvalidOperation(format!("duplicate struct {name}")));
@@ -5584,6 +5609,21 @@ fn check_program(program: &Program) -> Result<()> {
         f.body.clear();
     }
     let interface_key = v06::cache::key(&(interfaces, &globals)).unwrap_or_default();
+    if language_at_least(&program.language, "3.0.0") {
+        for (at, name) in &program.bound_sites {
+            if !matches!(
+                name.as_str(),
+                "Share" | "Send" | "Ord" | "Eq" | "Hash" | "Display"
+            ) && !program.traits.contains_key(name)
+                && !program.traits.contains_key(&resolve_alias(program, name))
+            {
+                return Err(diagnostic(
+                    at,
+                    format!("unknown trait bound {name} on a type parameter"),
+                ));
+            }
+        }
+    }
     for f in program.functions.values() {
         let root = program.root_origin.parent().unwrap_or(Path::new("."));
         let key = v06::cache::key(&(f, &interface_key)).unwrap_or_default();

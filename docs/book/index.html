@@ -3661,7 +3661,6 @@ pear: 2</code></pre></div>
 <p>この本の版（REWIND 3.6.0）の実装で、期待と異なる動作をする点を挙げます。今後の版で変わる可能性があります。</p>
 <ul>
 <li><strong><code>?</code> のエラー型の不一致は、組み込みの型どうしなら実行前に拒否されます。</strong> <code>record</code> や標準ライブラリの型が絡むときは、<code>Err</code> の経路を通ったときの実行時エラーになります（第10章）。</li>
-<li><strong><code>struct</code> や <code>record</code> の型引数に、存在しない制約を書いても拒否されません。</strong> 関数の型引数の制約は、存在しない名前が拒否されます。</li>
 <li><strong><code>List</code> と <code>Map</code> を <code>==</code> や <code>assert_eq</code> で比べると、中身ではなく同一性を調べます。</strong> 比べたいときは <code>freeze</code> します（第3章）。</li>
 <li><strong><code>return</code> を <code>branch</code> の中で使うと、そこで関数から戻りますが、状態は戻りません。</strong> 状態を元に戻したいときは、ブロックを最後まで実行して終えてください（第12章）。</li>
 </ul>
