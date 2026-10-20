@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 mod extensions;
 mod scheduler;
 use scheduler::Scheduler;
+use std::sync::Arc;
 
 fn replay_control_error(error: &Error) -> bool {
     match error {
@@ -1760,7 +1761,7 @@ impl<R: BufRead> Vm<R> {
 
 struct Vm<R: BufRead> {
     engine: Engine<R>,
-    code: Vec<Inst>,
+    code: Vec<Arc<Inst>>,
     functions: BTreeMap<String, usize>,
     globals: Vec<BTreeMap<String, Binding>>,
     global_scope_ids: Vec<u64>,
@@ -2258,7 +2259,7 @@ impl<R: BufRead> Vm<R> {
         engine.test_mode = test_mode;
         let mut vm = Self {
             engine,
-            code: compiled.code,
+            code: compiled.code.into_iter().map(Arc::new).collect(),
             functions: compiled.functions,
             globals: vec![BTreeMap::new()],
             global_scope_ids: vec![0],
@@ -3199,7 +3200,7 @@ impl<R: BufRead> Vm<R> {
                 }
                 let target = self.code.len();
                 for index in start..end {
-                    let mut inst = self.code[index].clone();
+                    let mut inst = Inst::clone(&self.code[index]);
                     match &mut inst.op {
                         Op::Jump(to)
                         | Op::JumpFalse(to)
@@ -3219,7 +3220,7 @@ impl<R: BufRead> Vm<R> {
                         }
                         _ => {}
                     }
-                    self.code.push(inst);
+                    self.code.push(Arc::new(inst));
                 }
                 self.specialized_instructions += size;
                 self.specializations.insert(key, target);
@@ -4651,18 +4652,21 @@ impl<R: BufRead> Vm<R> {
                 self.engine.runtime.charge_execution_work(work)?;
                 self.steps -= work;
             }
-            let scheduler_bytes = self.scheduler.accounted_storage_bytes(&self.engine.runtime)
-                + self
-                    .snapshots
-                    .values()
-                    .map(|s| {
-                        s.scheduler_bytes.get().unwrap_or_else(|| {
-                            let bytes = s.scheduler.accounted_storage_bytes(&self.engine.runtime);
-                            s.scheduler_bytes.set(Some(bytes));
-                            bytes
-                        })
+            let scheduler_bytes = (if self.scheduler.storage_is_empty() {
+                Scheduler::TRIVIAL_STORAGE_BYTES
+            } else {
+                self.scheduler.accounted_storage_bytes(&self.engine.runtime)
+            }) + self
+                .snapshots
+                .values()
+                .map(|s| {
+                    s.scheduler_bytes.get().unwrap_or_else(|| {
+                        let bytes = s.scheduler.accounted_storage_bytes(&self.engine.runtime);
+                        s.scheduler_bytes.set(Some(bytes));
+                        bytes
                     })
-                    .sum::<usize>()
+                })
+                .sum::<usize>()
                 + self
                     .branches
                     .iter()
@@ -4681,7 +4685,7 @@ impl<R: BufRead> Vm<R> {
             self.engine.runtime.charge_execution_work(1)?;
             self.steps -= 1;
             self.scheduler.ticks = self.scheduler.ticks.saturating_add(1);
-            let inst = self.code.get(self.pc).cloned().ok_or_else(|| {
+            let inst = self.code.get(self.pc).map(Arc::clone).ok_or_else(|| {
                 Error::InvalidOperation(format!("invalid program counter {}", self.pc))
             })?;
             if self.profile.is_some() {
@@ -4976,7 +4980,7 @@ impl<R: BufRead> Vm<R> {
             }
             self.engine.runtime.set_program_counter(self.pc);
             self.pc += 1;
-            match inst.op {
+            match &inst.op {
                 Op::Halt => {
                     if self.drain_scope_groups(None, &inst.at)? {
                         continue;
@@ -5004,8 +5008,9 @@ impl<R: BufRead> Vm<R> {
                     let task = self.pop()?;
                     self.wait_task(task, &inst.at)?;
                 }
-                Op::Push(value) => self.push(value)?,
+                Op::Push(value) => self.push(value.clone())?,
                 Op::Load(name) => {
+                    let name = name.clone();
                     let value = if let Some(binding) = self.get(&name) {
                         self.resolve(&binding.value)
                     } else if let Some(f) = self.engine.program.functions.get(&name) {
@@ -5169,6 +5174,7 @@ impl<R: BufRead> Vm<R> {
                     self.push(value)?;
                 }
                 Op::Declare(name, mutable, ty) => {
+                    let (name, mutable, ty) = (name.clone(), *mutable, ty.clone());
                     let value = self.pop()?;
                     self.declare(name, value, mutable, ty, &inst.at)?;
                 }
@@ -5177,6 +5183,7 @@ impl<R: BufRead> Vm<R> {
                     self.store(&name, &op, value, &inst.at)?;
                 }
                 Op::StoreField(field, op) => {
+                    let field = field.clone();
                     let rhs = self.pop()?;
                     let receiver = self.pop()?;
                     let Value::HeapRef(id) = receiver else {
@@ -5381,6 +5388,7 @@ impl<R: BufRead> Vm<R> {
                     self.push(unflow(binary(&op, lhs, rhs, &inst.at), &inst.at)?)?;
                 }
                 Op::Property(field) => {
+                    let field = field.clone();
                     let value = self.pop()?;
                     let secret = v05::unsecret(&value).cloned();
                     let value = secret.clone().unwrap_or(value);
@@ -5444,6 +5452,7 @@ impl<R: BufRead> Vm<R> {
                     self.push(result)?;
                 }
                 Op::Call(name, count) => {
+                    let count = *count;
                     let args = self.args(count)?;
                     if matches!(
                         self.engine.program.language.as_str(),
@@ -5717,6 +5726,7 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::CallValue(count) => {
+                    let count = *count;
                     let args = self.args(count)?;
                     let callable = self.pop()?;
                     self.call_value(callable, args, &inst.at)?;
@@ -5726,7 +5736,7 @@ impl<R: BufRead> Vm<R> {
                     let value = unflow(
                         self.engine.call_named(
                             &name,
-                            fields.into_iter().zip(values).collect(),
+                            fields.iter().cloned().zip(values).collect(),
                             &inst.at,
                         ),
                         &inst.at,
@@ -5734,6 +5744,7 @@ impl<R: BufRead> Vm<R> {
                     self.push(value)?;
                 }
                 Op::MakeClosure(name, ty) => {
+                    let (name, ty) = (name.clone(), ty.clone());
                     let mut captures = BTreeMap::new();
                     let needed = v05::needed_globals(&self.engine.program, &name);
                     for scope in &self.globals {
@@ -6169,6 +6180,7 @@ impl<R: BufRead> Vm<R> {
                     self.push(Value::HeapRef(id))?;
                 }
                 Op::Method(method, count) => {
+                    let count = *count;
                     let mut args = self.args(count)?;
                     let target = self.pop()?;
                     if matches!(
@@ -6419,6 +6431,7 @@ impl<R: BufRead> Vm<R> {
                     self.push(value)?;
                 }
                 Op::Builtin(receiver, method, count) => {
+                    let count = *count;
                     let args = self.args(count)?;
                     if matches!(
                         self.engine.program.language.as_str(),
@@ -6754,18 +6767,19 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::ApplicationEntry(to) => {
+                    let to = *to;
                     if self.engine.test_mode {
                         self.pc = to;
                     }
                 }
-                Op::Jump(to) => self.pc = to,
+                Op::Jump(to) => self.pc = *to,
                 Op::JumpFalse(to) => match self.pop()? {
-                    Value::Bool(false) => self.pc = to,
+                    Value::Bool(false) => self.pc = *to,
                     Value::Bool(true) => {}
                     _ => return Err(self.error(&inst.at, "condition must be Bool")),
                 },
                 Op::JumpTrue(to) => match self.pop()? {
-                    Value::Bool(true) => self.pc = to,
+                    Value::Bool(true) => self.pc = *to,
                     Value::Bool(false) => {}
                     _ => return Err(self.error(&inst.at, "condition must be Bool")),
                 },
@@ -6890,6 +6904,7 @@ impl<R: BufRead> Vm<R> {
                     self.finish_call(value, &inst.at)?;
                 }
                 Op::Defer(expr) => {
+                    let expr = expr.clone();
                     let Some(frame) = self.frames.last_mut() else {
                         return Err(self.error(&inst.at, "defer requires a function"));
                     };
@@ -6960,7 +6975,7 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Revert(name) => {
                     self.engine.runtime.require_internal()?;
-                    let mut snap = self.snapshots.get(&name).cloned().ok_or_else(|| {
+                    let mut snap = self.snapshots.get(name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
                     if name == "begin" && language_at_least(&self.engine.program.language, "1.3.0")
@@ -7070,7 +7085,7 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Resume(name) => {
                     self.engine.runtime.require_internal()?;
-                    let snap = self.snapshots.get(&name).cloned().ok_or_else(|| {
+                    let snap = self.snapshots.get(name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
                     if name == "begin" && language_at_least(&self.engine.program.language, "1.3.0")
@@ -7084,9 +7099,10 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Drop(name) => {
                     self.engine.runtime.drop_checkpoint(&name)?;
-                    self.snapshots.remove(&name);
+                    self.snapshots.remove(name);
                 }
                 Op::Publish(force) => {
+                    let force = *force;
                     self.engine.runtime.require_internal()?;
                     if matches!(
                         self.engine.program.language.as_str(),
@@ -7255,12 +7271,14 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::Runtime(budget, steps) => {
+                    let (budget, steps) = (budget.clone(), *steps);
                     self.engine.runtime.set_budget(budget)?;
                     if let Some(steps) = steps {
                         self.steps = steps;
                     }
                 }
                 Op::PatternTest(pattern, miss) | Op::BorrowPatternTest(pattern, miss) => {
+                    let miss = *miss;
                     let value = self.pop()?;
                     let mut bindings = BTreeMap::new();
                     if pattern_matches(&pattern, &value, &self.engine.runtime, &mut bindings) {

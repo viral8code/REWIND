@@ -209,6 +209,21 @@ impl Scheduler {
             std::mem::size_of::<Value>().saturating_add(runtime.retained_payload_bytes(v))
         })
     }
+    // O(1). True when only the bare main task exists (no context, result, globals,
+    // channels or groups), so `accounted_storage_bytes` is exactly
+    // `TRIVIAL_STORAGE_BYTES` and no value is measured (no registration side effects).
+    pub(super) fn storage_is_empty(&self) -> bool {
+        self.tasks.len() == 1
+            && self.channels.is_empty()
+            && self.groups.is_empty()
+            && self.tasks.get(&0).is_some_and(|t| {
+                matches!(t.body, TaskBody::Main)
+                    && t.context.is_none()
+                    && t.result.is_none()
+                    && t.globals.is_empty()
+            })
+    }
+    pub(super) const TRIVIAL_STORAGE_BYTES: usize = 256;
     fn storage_bytes_using<F: Fn(&Value) -> usize>(&self, value: &F) -> usize {
         fn bindings<F: Fn(&Value) -> usize>(
             scopes: &[BTreeMap<String, Binding>],
