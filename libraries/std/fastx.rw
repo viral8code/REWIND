@@ -14,12 +14,18 @@ fn byteAt(input:Bytes,index:Int)->Int effects {} {
 
 // start から始まる行の終わり (LF の位置、または n)。
 fn lineEnd(input:Bytes,start:Int,n:Int)->Int effects {} {
-    var i=start;
-    while i<n {
-        if byteAt(input,i)==10 {return i;}
-        i+=1;
+    if start>=n {return n;}
+    let lf=match stdEncode("\n") {
+        Ok(v)=>{v},
+        Err(_)=>{return n;}
+    };
+    match stdBytesIndexOf(input,lf,start) {
+        Ok(at)=>{
+            if at<0 {return n;}
+            return at;
+        },
+        Err(_)=>{return n;}
     }
-    return n;
 }
 
 // 行末の CR を除いた位置。
@@ -80,6 +86,8 @@ pub fn parseFasta(text:String)->Result<List<Read>,FastxError> effects {} {
     var line=0;
     var have=false;
     var current=Read("","","",None);
+    // 配列行は行ごとに連結すると毎回コピーになるので、読みの途中は seq に溜めて読みを作るときにまとめる。
+    var seq="";
     while pos<n {
         line+=1;
         let end=lineEnd(bytes,pos,n);
@@ -88,7 +96,7 @@ pub fn parseFasta(text:String)->Result<List<Read>,FastxError> effects {} {
             if byteAt(bytes,pos)==62 {
                 if have {
                     if out.len()>=maxReads() {return Err(FastxError("TooLarge",line));}
-                    out.add(current);
+                    out.add(Read(current.name,current.description,seq,None));
                 }
                 let header=match sliceText(bytes,pos+1,stop,line) {
                     Ok(v)=>{v},
@@ -98,6 +106,7 @@ pub fn parseFasta(text:String)->Result<List<Read>,FastxError> effects {} {
                     Ok(v)=>{v},
                     Err(error)=>{return Err(error);}
                 };
+                seq="";
                 have=true;
             } else {
                 if !have {return Err(FastxError("Format",line));}
@@ -105,14 +114,14 @@ pub fn parseFasta(text:String)->Result<List<Read>,FastxError> effects {} {
                     Ok(v)=>{v},
                     Err(error)=>{return Err(error);}
                 };
-                current=Read(current.name,current.description,current.sequence+part,None);
+                seq+=part;
             }
         }
         pos=end+1;
     }
     if have {
         if out.len()>=maxReads() {return Err(FastxError("TooLarge",line));}
-        out.add(current);
+        out.add(Read(current.name,current.description,seq,None));
     }
     return Ok(out);
 }
@@ -192,11 +201,26 @@ pub fn formatFasta(reads:&List<Read>,width:Int)->Result<String,FastxError> effec
         if r.description!="" {out+=" "+r.description;}
         out+="\n";
         let n=stdTextLength(r.sequence);
+        // ASCII だけの配列は文字位置とバイト位置が一致するので、バイト単位で切り出す。文字単位の切り出しは毎回先頭から数えるため、行数だけ遅くなる。
+        let bytes=match stdEncode(r.sequence) {
+            Ok(v)=>{v},
+            Err(_)=>{return Err(FastxError("TooLarge",0));}
+        };
+        let ascii=stdBytesLength(bytes)==n;
         var p=0;
         while p<n {
             var e=p+width;
             if e>n {e=n;}
-            out+=textPart(r.sequence,p,e)+"\n";
+            var piece="";
+            if ascii {
+                piece=match sliceText(bytes,p,e,0) {
+                    Ok(v)=>{v},
+                    Err(error)=>{return Err(error);}
+                };
+            } else {
+                piece=textPart(r.sequence,p,e);
+            }
+            out+=piece+"\n";
             p=e;
         }
         i+=1;
