@@ -57,6 +57,24 @@
       ],
       "return": "Result<Bytes,StdError>"
     },
+    "fn:randomBytes": {
+      "async": false,
+      "cost": "O(length) native work, 4 units per byte plus a fixed 256; length 1..65536.",
+      "defaults": [],
+      "effects": [
+        "external",
+        "random"
+      ],
+      "failure": "StdError Range (length outside 1..65536) / ExternalFailure (OS entropy unavailable); requires an external region.",
+      "generics": [],
+      "names": [
+        "length"
+      ],
+      "parameters": [
+        "Int"
+      ],
+      "return": "Result<Bytes,StdError>"
+    },
     "fn:sha256": {
       "async": false,
       "cost": "O(bytes) native work, 4 units per input byte; 32-byte digest.",

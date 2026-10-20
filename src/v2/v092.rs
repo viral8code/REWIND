@@ -320,6 +320,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdMulMod",
         "stdHttpComponent",
         "stdExternalClock",
+        "stdExternalRandomBytes",
         "stdExternalDbSqlite",
         "stdExternalDbPostgres",
         "stdExternalDbCredentials",
@@ -831,6 +832,13 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
         "stdConstantTimeEq" => match args {
             [Value::Bytes(a), Value::Bytes(b)] => a.len().min(b.len()).saturating_mul(2).saturating_add(16),
             _ => 16,
+        },
+        // 乱数は要求された長さに比例して作る。範囲外の引数は実行前に Range で返すので、仕事量を見積もらず 256 とする。
+        "stdExternalRandomBytes" => match args {
+            [Value::Int(length)] if (1..=65_536).contains(length) => {
+                (*length as usize).saturating_mul(4).saturating_add(256)
+            }
+            _ => 256,
         },
         "stdBytesFromHex" => match args {
             [Value::Text(text)] => text.len().saturating_mul(2).saturating_add(16),
@@ -1349,6 +1357,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         | "stdExternalDbClose" => (&["&mut DbConnection", "Int"], "Task<Result<Unit,DbError>>"),
         "stdHttpComponent" => (&["String"], "Result<String,StdError>"),
         "stdExternalClock" => (&[], "Result<Int,StdError>"),
+        "stdExternalRandomBytes" => (&["Int"], "Result<Bytes,StdError>"),
         "stdExternalHttpUpload" => (
             &[
                 "String",
@@ -1739,6 +1748,31 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
             Ok(v) => outcome(v.as_i64().map(Value::Int).ok_or(("ClockRange", 0))),
             Err(_) => outcome(Err(("ExternalFailure", 0))),
         }));
+    }
+    // 範囲外の長さは外部操作を記録せずに Range で返す。記録する値は 16 進文字列で、上限は長さの 2 倍と JSON の包みの分。
+    if n == "stdExternalRandomBytes" && args.len() == 1 {
+        if let Value::Int(length) = &args[0] {
+            let length = *length;
+            if !(1..=65_536).contains(&length) {
+                return Ok(Some(outcome(Err(("Range", 0)))));
+            }
+            let request = length.to_string();
+            let result = runtime.external_operation("entropy.bytes", request.as_bytes(), 131_136, || {
+                let mut buffer = vec![0u8; length as usize];
+                getrandom::getrandom(&mut buffer)
+                    .map(|()| serde_json::json!(rewind::crypto::to_hex(&buffer)))
+                    .map_err(|_| "EntropyFailure".into())
+            })?;
+            return Ok(Some(match result {
+                Ok(v) => outcome(
+                    v.as_str()
+                        .and_then(|hex| rewind::crypto::from_hex(hex).ok())
+                        .map(|out| Value::Bytes(out.into()))
+                        .ok_or(("ExternalFailure", 0)),
+                ),
+                Err(_) => outcome(Err(("ExternalFailure", 0))),
+            }));
+        }
     }
     if n == "stdGuiContinueInput" && args.is_empty() {
         runtime.gui_continue_input();
