@@ -3050,24 +3050,26 @@ impl Runtime {
         self.allocation_bytes_since_gc = self.allocation_bytes_since_gc.saturating_add(bytes);
         Ok(id)
     }
+    fn heap_value_bytes(&self, value: &Value) -> usize {
+        let mut total = Self::value_bytes(value);
+        if self.numeric_accounting.is_some() {
+            total = total.saturating_sub(Self::numeric_payload_bytes(value));
+        }
+        if let Some(a) = &self.shared_accounting {
+            total = total.saturating_sub(Self::shared_payload_bytes(value));
+            if a.includes_bytes() {
+                total = total.saturating_sub(Self::byte_payload_info(value).0);
+            }
+            if a.includes_containers() {
+                total = total.saturating_sub(Self::container_logical_discount(value));
+            }
+        }
+        total
+    }
     pub fn heap_set(&mut self, id: u64, value: Value) -> Result<()> {
-        let bytes = |value: &Value| {
-            let mut total = Self::value_bytes(value);
-            if self.numeric_accounting.is_some() {
-                total = total.saturating_sub(Self::numeric_payload_bytes(value));
-            }
-            if let Some(a) = &self.shared_accounting {
-                total = total.saturating_sub(Self::shared_payload_bytes(value));
-                if a.includes_bytes() {
-                    total = total.saturating_sub(Self::byte_payload_info(value).0);
-                }
-                if a.includes_containers() {
-                    total = total.saturating_sub(Self::container_logical_discount(value));
-                }
-            }
-            total
-        };
-        let growth = bytes(&value).saturating_sub(self.state.heap.get(&id).map_or(0, bytes));
+        let growth = self
+            .heap_value_bytes(&value)
+            .saturating_sub(self.state.heap.get(&id).map_or(0, |old| self.heap_value_bytes(old)));
         let previous = self.state.heap.clone();
         let heap = Arc::make_mut(&mut self.state.heap);
         if !heap.contains_key(&id) {
@@ -3082,6 +3084,44 @@ impl Runtime {
         }
         self.allocation_bytes_since_gc = self.allocation_bytes_since_gc.saturating_add(growth);
         Ok(())
+    }
+    /// 文字列の `+=` を、ヒープ上の値を移動して追記し、書き戻す。
+    /// 追記先が文字列でない場合は何もせず `false` を返す。
+    pub fn heap_append_text(&mut self, id: u64, suffix: &text_storage::Text) -> Result<bool> {
+        let (old_len, old_bytes) = match self.state.heap.get(&id) {
+            Some(old @ Value::Text(text)) => (text.len(), self.heap_value_bytes(old)),
+            _ => return Ok(false),
+        };
+        {
+            // スロットから外して唯一の所有者にしてから追記し、書き戻す。
+            // 旧値の複製をスロットに残すと、追記のたびに全体が複製される。
+            let heap = Arc::make_mut(&mut self.state.heap);
+            let Some(Value::Text(text)) = heap.get(&id).cloned() else {
+                return Ok(false);
+            };
+            heap.remove(id);
+            heap.insert(id, Value::Text(text + suffix));
+        }
+        let new_bytes = self
+            .state
+            .heap
+            .get(&id)
+            .map_or(0, |value| self.heap_value_bytes(value));
+        if let Err(error) = self.enforce_budget() {
+            // 予算超過時は追記分を切り詰めて元の内容に戻す。
+            let heap = Arc::make_mut(&mut self.state.heap);
+            if let Some(Value::Text(text)) = heap.get(&id).cloned() {
+                let mut owned = text.into_owned();
+                owned.truncate(old_len);
+                heap.remove(id);
+                heap.insert(id, Value::Text(text_storage::Text::from(owned)));
+            }
+            return Err(error);
+        }
+        self.allocation_bytes_since_gc = self
+            .allocation_bytes_since_gc
+            .saturating_add(new_bytes.saturating_sub(old_bytes));
+        Ok(true)
     }
     pub fn heap_get(&self, id: u64) -> Option<&Value> {
         self.state.heap.get(&id)

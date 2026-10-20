@@ -2694,6 +2694,15 @@ impl<R: BufRead> Vm<R> {
         if !mutable {
             return Err(self.error(at, format!("cannot assign to let binding {name}")));
         }
+        // 文字列の `+=` は、ヒープ上の値を移動して追記する。
+        // 右辺の複製や旧値の複製を経由しないので、追記の費用は追加分に比例する。
+        if op == "+=" {
+            if let (Value::CellRef(id), Value::Text(suffix)) = (&old_value, &rhs) {
+                if self.engine.runtime.heap_append_text(*id, suffix)? {
+                    return Ok(());
+                }
+            }
+        }
         let mut value = if op == "=" {
             rhs
         } else {
