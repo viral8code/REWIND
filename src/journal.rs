@@ -157,6 +157,14 @@ impl Journal {
         }
         ids
     }
+    /// Visits the segments from the newest to the oldest without allocating.
+    pub(crate) fn for_each_segment(&self, mut f: impl FnMut(&Arc<Segment>)) {
+        let mut node = self.tail.as_ref();
+        while let Some(current) = node {
+            f(&current.segment);
+            node = current.prev.as_ref();
+        }
+    }
     pub(crate) fn segments(&self) -> Vec<Arc<Segment>> {
         let mut segments = Vec::new();
         let mut node = self.tail.as_ref();

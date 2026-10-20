@@ -774,7 +774,20 @@ struct LedgerCache {
     disk: usize,
     ptrs: PtrSet,
 }
+/// Pointer sets `enforce_budget` reuses from call to call.
+#[derive(Default)]
+struct BudgetScratch {
+    seen_segments: PtrSet,
+    seen_compute: PtrSet,
+    gui_roots: PtrSet,
+}
 impl PtrSet {
+    fn clear(&mut self) {
+        self.len = 0;
+        if let Some(spill) = &mut self.spill {
+            spill.clear();
+        }
+    }
     fn contains(&self, value: usize) -> bool {
         match &self.spill {
             Some(spill) => spill.contains(&value),
@@ -953,6 +966,7 @@ pub struct Runtime {
     gui_window_last_polled: Option<String>,
     external_entries: Vec<external::Entry>,
     external_ledger_cache: RefCell<LedgerCache>,
+    budget_scratch: std::cell::Cell<Option<Box<BudgetScratch>>>,
     external_high_water: usize,
     external_memory_bytes: usize,
     external_pending: usize,
@@ -1929,6 +1943,7 @@ impl Runtime {
             gui_window_last_polled: None,
             external_entries: Vec::new(),
             external_ledger_cache: RefCell::default(),
+            budget_scratch: std::cell::Cell::new(None),
             external_high_water: 0,
             external_memory_bytes: 0,
             external_pending: 0,
@@ -2170,9 +2185,88 @@ impl Runtime {
         Ok(())
     }
     fn enforce_budget(&self) -> Result<()> {
-        let mut segments = Vec::new();
-        let mut seen_segments = PtrSet::default();
-        let mut seen_compute = PtrSet::default();
+        // The pointer sets are reused between calls; a re-entrant call just builds fresh ones.
+        let mut scratch = self.budget_scratch.take().unwrap_or_default();
+        scratch.seen_segments.clear();
+        scratch.seen_compute.clear();
+        scratch.gui_roots.clear();
+        let result = self.enforce_budget_with(&mut scratch);
+        self.budget_scratch.set(Some(scratch));
+        result
+    }
+    /// Calls `f` for every journal segment reachable from the byte input, the live state, the
+    /// checkpoints, the branch roots and the external ledger tail (and the completed prefix when
+    /// `include_prefix`). A segment may be visited more than once.
+    fn visit_budget_segments(
+        &self,
+        ledger_len: usize,
+        include_prefix: bool,
+        mut f: impl FnMut(&Arc<Segment>),
+    ) {
+        for (_, bytes) in &self.byte_input {
+            f(bytes);
+        }
+        let mut visit_state = |state: &State| {
+            for journal in [&state.stdout, &state.stderr] {
+                journal.for_each_segment(&mut f);
+            }
+            for content in state.files.values().flatten() {
+                for page in content.pages.values() {
+                    f(page);
+                }
+            }
+            for handle in state.handles.values() {
+                if let Some(snapshot) = &handle.snapshot {
+                    for page in snapshot.pages.values() {
+                        f(page);
+                    }
+                }
+            }
+        };
+        visit_state(&self.state);
+        for checkpoint in self.checkpoints.values() {
+            visit_state(&checkpoint.state);
+        }
+        for root in self.branch_roots.borrow().iter() {
+            if let Some(state) = Weak::upgrade(root) {
+                visit_state(&state);
+            }
+        }
+        for journal in [&self.published_stdout, &self.published_stderr] {
+            journal.for_each_segment(&mut f);
+        }
+        for content in self.virtual_files.values().flatten() {
+            for page in content.pages.values() {
+                f(page);
+            }
+        }
+        for observation in self.observations.values() {
+            for block in observation.blocks.values() {
+                f(block);
+            }
+        }
+        for outcome in self.external_entries[ledger_len..]
+            .iter()
+            .chain(self.external_live_entries.values().map(|live| &live.entry))
+            .filter_map(|e| e.outcome.as_ref())
+        {
+            f(&outcome.segment);
+        }
+        if include_prefix {
+            for outcome in self.external_entries[..ledger_len]
+                .iter()
+                .filter_map(|e| e.outcome.as_ref())
+            {
+                f(&outcome.segment);
+            }
+        }
+    }
+    fn enforce_budget_with(&self, scratch: &mut BudgetScratch) -> Result<()> {
+        let BudgetScratch {
+            seen_segments,
+            seen_compute,
+            gui_roots,
+        } = scratch;
         let mut compute_memory = self.byte_input.len().saturating_mul(32);
         if self.allocation_accounting {
             compute_memory =
@@ -2216,17 +2310,6 @@ impl Runtime {
                     .sum::<usize>(),
             );
         }
-        for (_, bytes) in &self.byte_input {
-            if seen_segments.insert(Arc::as_ptr(bytes) as usize) {
-                segments.push(bytes.clone());
-            }
-        }
-        let branch_roots = self
-            .branch_roots
-            .borrow()
-            .iter()
-            .filter_map(Weak::upgrade)
-            .collect::<Vec<_>>();
         if self.incremental_publish {
             compute_memory =
                 compute_memory.saturating_add(self.published_operations.len().saturating_mul(32));
@@ -2247,44 +2330,17 @@ impl Runtime {
             mut last_stack,
             mut last_call_frames,
         ) = (0usize, 0usize, 0usize, 0usize, 0usize);
-        for state in std::iter::once(&self.state)
-            .chain(self.checkpoints.values().map(|c| &c.state))
-            .chain(branch_roots.iter().map(AsRef::as_ref))
-        {
+        let mut scan_state = |state: &State| {
             if fresh_ptr(
-                &mut seen_compute,
+                seen_compute,
                 &mut last_native_owners,
                 Arc::as_ptr(&state.native_owners) as usize,
             ) {
                 compute_memory =
                     compute_memory.saturating_add(state.native_owners.len().saturating_mul(64));
             }
-            for journal in [&state.stdout, &state.stderr] {
-                for segment in journal.segments() {
-                    let ptr = Arc::as_ptr(&segment) as usize;
-                    if seen_segments.insert(ptr) {
-                        segments.push(segment);
-                    }
-                }
-            }
-            for content in state.files.values().flatten() {
-                for page in content.pages.values() {
-                    if seen_segments.insert(Arc::as_ptr(page) as usize) {
-                        segments.push(page.clone());
-                    }
-                }
-            }
-            for handle in state.handles.values() {
-                if let Some(snapshot) = &handle.snapshot {
-                    for page in snapshot.pages.values() {
-                        if seen_segments.insert(Arc::as_ptr(page) as usize) {
-                            segments.push(page.clone());
-                        }
-                    }
-                }
-            }
             if fresh_ptr(
-                &mut seen_compute,
+                seen_compute,
                 &mut last_globals,
                 Arc::as_ptr(&state.globals) as usize,
             ) {
@@ -2301,7 +2357,7 @@ impl Runtime {
                 );
             }
             if fresh_ptr(
-                &mut seen_compute,
+                seen_compute,
                 &mut last_heap,
                 Arc::as_ptr(&state.heap) as usize,
             ) {
@@ -2333,7 +2389,7 @@ impl Runtime {
                 compute_memory = compute_memory.saturating_add(bytes);
             }
             if fresh_ptr(
-                &mut seen_compute,
+                seen_compute,
                 &mut last_stack,
                 Arc::as_ptr(&state.stack) as usize,
             ) {
@@ -2346,7 +2402,7 @@ impl Runtime {
                 );
             }
             if fresh_ptr(
-                &mut seen_compute,
+                seen_compute,
                 &mut last_call_frames,
                 Arc::as_ptr(&state.call_frames) as usize,
             ) {
@@ -2363,27 +2419,14 @@ impl Runtime {
                         .sum(),
                 );
             }
+        };
+        scan_state(&self.state);
+        for checkpoint in self.checkpoints.values() {
+            scan_state(&checkpoint.state);
         }
-        for journal in [&self.published_stdout, &self.published_stderr] {
-            for segment in journal.segments() {
-                let ptr = Arc::as_ptr(&segment) as usize;
-                if seen_segments.insert(ptr) {
-                    segments.push(segment);
-                }
-            }
-        }
-        for content in self.virtual_files.values().flatten() {
-            for page in content.pages.values() {
-                if seen_segments.insert(Arc::as_ptr(page) as usize) {
-                    segments.push(page.clone());
-                }
-            }
-        }
-        for observation in self.observations.values() {
-            for block in observation.blocks.values() {
-                if seen_segments.insert(Arc::as_ptr(block) as usize) {
-                    segments.push(block.clone());
-                }
+        for root in self.branch_roots.borrow().iter() {
+            if let Some(state) = Weak::upgrade(root) {
+                scan_state(&state);
             }
         }
         // The completed prefix of the ledger is summed incrementally; only the tail and the live
@@ -2408,16 +2451,6 @@ impl Runtime {
                 ledger.disk = ledger.disk.saturating_add(disk);
             }
             ledger.len += 1;
-        }
-        for outcome in self.external_entries[ledger.len..]
-            .iter()
-            .chain(self.external_live_entries.values().map(|live| &live.entry))
-            .filter_map(|e| e.outcome.as_ref())
-        {
-            let ptr = Arc::as_ptr(&outcome.segment) as usize;
-            if !ledger.ptrs.contains(ptr) && seen_segments.insert(ptr) {
-                segments.push(outcome.segment.clone());
-            }
         }
         compute_memory = compute_memory.saturating_add(
             self.gui_observations
@@ -2483,11 +2516,7 @@ impl Runtime {
         compute_memory = compute_memory
             .saturating_add(self.gui_window_observation_bytes)
             .saturating_add(self.gui_window_scripted_bytes);
-        let mut gui_roots = PtrSet::default();
-        for state in std::iter::once(&self.state)
-            .chain(self.checkpoints.values().map(|c| &c.state))
-            .chain(branch_roots.iter().map(AsRef::as_ref))
-        {
+        let mut scan_gui = |state: &State| {
             compute_memory = compute_memory.saturating_add(
                 state
                     .gui_windows_pending
@@ -2508,6 +2537,15 @@ impl Runtime {
                 if gui_roots.insert(Arc::as_ptr(frame) as usize) {
                     compute_memory = compute_memory.saturating_add(frame.bytes());
                 }
+            }
+        };
+        scan_gui(&self.state);
+        for checkpoint in self.checkpoints.values() {
+            scan_gui(&checkpoint.state);
+        }
+        for root in self.branch_roots.borrow().iter() {
+            if let Some(state) = Weak::upgrade(root) {
+                scan_gui(&state);
             }
         }
         if let Some(frame) = &self.gui_displayed {
@@ -2544,14 +2582,14 @@ impl Runtime {
         }
         let mut journal_memory = ledger.mem;
         let mut storage = ledger.disk;
-        for segment in &segments {
-            if ledger.ptrs.contains(Arc::as_ptr(segment) as usize) {
-                continue;
+        self.visit_budget_segments(ledger.len, false, |segment| {
+            let ptr = Arc::as_ptr(segment) as usize;
+            if seen_segments.insert(ptr) && !ledger.ptrs.contains(ptr) {
+                let (mem, disk) = segment.usage();
+                journal_memory = journal_memory.saturating_add(mem);
+                storage = storage.saturating_add(disk);
             }
-            let (mem, disk) = segment.usage();
-            journal_memory = journal_memory.saturating_add(mem);
-            storage = storage.saturating_add(disk);
-        }
+        });
         if storage > self.budget.history_storage {
             self.history_budget_kind.set("HistoryStorage");
             return Err(Error::HistoryBudgetExceeded);
@@ -2560,16 +2598,15 @@ impl Runtime {
             .budget
             .spill_threshold
             .min(self.budget.history_memory - compute_memory);
+        let mut segments = Vec::new();
         if journal_memory > target {
-            // Spilling may be needed: bring the cached prefix into the candidate list.
-            for outcome in self.external_entries[..ledger.len]
-                .iter()
-                .filter_map(|e| e.outcome.as_ref())
-            {
-                if seen_segments.insert(Arc::as_ptr(&outcome.segment) as usize) {
-                    segments.push(outcome.segment.clone());
+            // Spilling may be needed: rebuild the candidate list, including the cached prefix.
+            seen_segments.clear();
+            self.visit_budget_segments(ledger.len, true, |segment| {
+                if seen_segments.insert(Arc::as_ptr(segment) as usize) {
+                    segments.push(segment.clone());
                 }
-            }
+            });
             segments.sort_by_key(|segment| segment.id);
         }
         for segment in segments {
