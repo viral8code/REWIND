@@ -1243,6 +1243,16 @@ impl Array {
         Ok(result)
     }
     pub fn matmul(&self, other: &Self) -> Result<Self> {
+        // Small products stay serial, since thread start-up would cost more than the work.
+        let threads = match (self.shape.as_slice(), other.shape.as_slice()) {
+            ([m, k], [_, n]) if *m >= 2 && m.saturating_mul(*n).saturating_mul(*k) >= 1 << 21 => {
+                std::thread::available_parallelism().map_or(1, |p| p.get()).min(8)
+            }
+            _ => 1,
+        };
+        self.matmul_threads(other, threads)
+    }
+    fn matmul_threads(&self, other: &Self, threads: usize) -> Result<Self> {
         if self.dtype != DType::Float64 || other.dtype != self.dtype {
             return Err(Error::Type);
         }
@@ -1256,12 +1266,53 @@ impl Array {
         if *m == 0 || *n == 0 || *k == 0 {
             return Self::zeros(DType::Float64, vec![*m, *n]);
         }
+        let (m, n, k) = (*m, *n, *k);
         let mut output = vec![0.0; m * n];
-        for i in 0..*m {
-            for j in 0..*n {
+        let threads = threads.max(1).min(m);
+        if threads == 1 {
+            self.matmul_rows(other, 0, n, k, &mut output)?;
+        } else {
+            // Rows are split into contiguous blocks; each block keeps the serial per-element order.
+            let rows_per_thread = m.div_ceil(threads);
+            let results: Vec<Result<()>> = std::thread::scope(|scope| {
+                let handles: Vec<_> = output
+                    .chunks_mut(rows_per_thread * n)
+                    .enumerate()
+                    .map(|(index, rows)| {
+                        let first_row = index * rows_per_thread;
+                        scope.spawn(move || self.matmul_rows(other, first_row, n, k, rows))
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .map(|handle| match handle.join() {
+                        Ok(result) => result,
+                        Err(panic) => std::panic::resume_unwind(panic),
+                    })
+                    .collect()
+            });
+            // Blocks are joined in row order, so the first error is the one with the smallest row.
+            for result in results {
+                result?;
+            }
+        }
+        Self::floats(vec![m, n], &output)
+    }
+    /// Computes whole output rows starting at `first_row`. `rows` holds `n` values per row.
+    fn matmul_rows(
+        &self,
+        other: &Self,
+        first_row: usize,
+        n: usize,
+        k: usize,
+        rows: &mut [f64],
+    ) -> Result<()> {
+        for (local, row) in rows.chunks_mut(n).enumerate() {
+            let i = first_row + local;
+            for j in 0..n {
                 let mut sum = 0.0;
                 let mut correction = 0.0;
-                for p in 0..*k {
+                for p in 0..k {
                     // Rank, shape and all descriptor bounds were validated before the kernel.
                     // Avoid repeating fallible multidimensional indexing for each multiply.
                     let ai = (self.offset
@@ -1284,10 +1335,10 @@ impl Array {
                 if !value.is_finite() {
                     return Err(Error::NonFinite);
                 }
-                output[i * n + j] = value;
+                row[j] = value;
             }
         }
-        Self::floats(vec![*m, *n], &output)
+        Ok(())
     }
     /// Partial-pivot LU solve. No inverse is formed. The caller reserves O(n^3) work and O(n^2) temporary bytes.
     pub fn solve(&self, right: &Self, tolerance: f64) -> Result<Self> {
@@ -1451,6 +1502,81 @@ mod tests {
                 .float_values()
                 .unwrap(),
             vec![0.0; 6]
+        );
+    }
+    fn lcg_floats(len: usize, seed: u64) -> Vec<f64> {
+        let mut state = seed;
+        (0..len)
+            .map(|_| {
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                ((state >> 11) as f64 / (1u64 << 53) as f64) * 2.0 - 1.0
+            })
+            .collect()
+    }
+    fn bits(values: Vec<f64>) -> Vec<u64> {
+        values.into_iter().map(f64::to_bits).collect()
+    }
+    #[test]
+    fn matmul_threads_match_serial_bit_for_bit() {
+        let a = Array::floats(vec![70, 50], &lcg_floats(70 * 50, 1)).unwrap();
+        let b = Array::floats(vec![50, 90], &lcg_floats(50 * 90, 2)).unwrap();
+        let serial = bits(a.matmul_threads(&b, 1).unwrap().float_values().unwrap());
+        for threads in [2, 3, 8] {
+            let parallel = a.matmul_threads(&b, threads).unwrap();
+            assert_eq!(bits(parallel.float_values().unwrap()), serial);
+        }
+        // 70 * 90 * 50 is below the automatic threshold, so this checks the serial choice.
+        assert_eq!(bits(a.matmul(&b).unwrap().float_values().unwrap()), serial);
+    }
+    #[test]
+    fn matmul_threads_handles_small_and_reversed_inputs() {
+        let a = Array::floats(vec![1, 3], &[1.0, 2.0, 3.0]).unwrap();
+        let b = Array::floats(vec![3, 2], &[1.0, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();
+        for threads in [1, 2, 8] {
+            assert_eq!(
+                a.matmul_threads(&b, threads).unwrap().float_values().unwrap(),
+                vec![4.0, 5.0]
+            );
+        }
+        let a = Array::floats(vec![2, 3], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let reverse = a.slice(1, 2, 3, -1).unwrap();
+        let transposed = reverse.transpose(&[1, 0]).unwrap();
+        for threads in [1, 2, 3, 8] {
+            assert_eq!(
+                reverse
+                    .matmul_threads(&transposed, threads)
+                    .unwrap()
+                    .float_values()
+                    .unwrap(),
+                vec![14.0, 32.0, 32.0, 77.0]
+            );
+        }
+    }
+    #[test]
+    fn matmul_threads_report_non_finite_like_serial() {
+        let a = Array::floats(vec![4, 2], &[1e308; 8]).unwrap();
+        let b = Array::floats(vec![2, 3], &[10.0; 6]).unwrap();
+        assert_eq!(a.matmul_threads(&b, 1), Err(Error::NonFinite));
+        for threads in [2, 3, 8] {
+            assert_eq!(a.matmul_threads(&b, threads), Err(Error::NonFinite));
+        }
+    }
+    #[test]
+    #[ignore]
+    fn matmul_timing_300_cube() {
+        let a = Array::floats(vec![300, 300], &lcg_floats(300 * 300, 3)).unwrap();
+        let b = Array::floats(vec![300, 300], &lcg_floats(300 * 300, 4)).unwrap();
+        let start = std::time::Instant::now();
+        let serial = a.matmul_threads(&b, 1).unwrap();
+        eprintln!("matmul 300x300x300 serial: {:?}", start.elapsed());
+        let start = std::time::Instant::now();
+        let parallel = a.matmul(&b).unwrap();
+        eprintln!("matmul 300x300x300 auto: {:?}", start.elapsed());
+        assert_eq!(
+            bits(serial.float_values().unwrap()),
+            bits(parallel.float_values().unwrap())
         );
     }
     #[test]
