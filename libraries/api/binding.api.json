@@ -1,0 +1,4104 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "3.6.0",
+  "symbols": {
+    "dependency:datetime.rw": {
+      "fn:$import$datetime$add": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "delta"
+        ],
+        "parameters": [
+          "&Instant",
+          "&Duration"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$addDurations": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
+        "parameters": [
+          "&Duration",
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$calendar": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "zone"
+        ],
+        "parameters": [
+          "&Instant",
+          "String"
+        ],
+        "return": "Result<$import$datetime$LocalTime,StdError>"
+      },
+      "fn:$import$datetime$calendarOffset": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
+        "parameters": [
+          "&Instant",
+          "Int"
+        ],
+        "return": "Result<$import$datetime$LocalTime,StdError>"
+      },
+      "fn:$import$datetime$databaseVersion": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$difference": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
+        "parameters": [
+          "&Instant",
+          "&Instant"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$duration": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "seconds",
+          "nanoseconds"
+        ],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$durationFromJson": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$durationNanoseconds": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$durationSeconds": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$durationToJson": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Json,StdError>"
+      },
+      "fn:$import$datetime$format": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$formatOffset": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
+        "parameters": [
+          "&Instant",
+          "Int"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$datetime$fromJson": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$instant": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "seconds",
+          "nanoseconds"
+        ],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$nanoseconds": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$negateDuration": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$parse": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "text"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$resolve": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "zone",
+          "ambiguity"
+        ],
+        "parameters": [
+          "$import$datetime$Calendar",
+          "String",
+          "$import$datetime$Ambiguity"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$resolveOffset": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "offsetSeconds"
+        ],
+        "parameters": [
+          "$import$datetime$Calendar",
+          "Int"
+        ],
+        "return": "Result<Instant,StdError>"
+      },
+      "fn:$import$datetime$seconds": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$datetime$subtractDurations": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
+        "parameters": [
+          "&Duration",
+          "&Duration"
+        ],
+        "return": "Result<Duration,StdError>"
+      },
+      "fn:$import$datetime$toJson": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Instant"
+        ],
+        "return": "Result<Json,StdError>"
+      },
+      "type:$import$datetime$Ambiguity": {
+        "generics": [],
+        "variants": {
+          "Earlier": [],
+          "Later": [],
+          "Reject": []
+        }
+      },
+      "type:$import$datetime$Calendar": {
+        "bounds": {},
+        "fields": [
+          [
+            "year",
+            "Int"
+          ],
+          [
+            "month",
+            "Int"
+          ],
+          [
+            "day",
+            "Int"
+          ],
+          [
+            "hour",
+            "Int"
+          ],
+          [
+            "minute",
+            "Int"
+          ],
+          [
+            "second",
+            "Int"
+          ],
+          [
+            "nanosecond",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$datetime$LocalTime": {
+        "bounds": {},
+        "fields": [
+          [
+            "calendar",
+            "$import$datetime$Calendar"
+          ],
+          [
+            "offsetSeconds",
+            "Int"
+          ],
+          [
+            "weekday",
+            "Int"
+          ],
+          [
+            "dayOfYear",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": false
+      }
+    },
+    "dependency:decimal.rw": {
+      "fn:$import$decimal$add": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$coefficient": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<BigInt,StdError>"
+      },
+      "fn:$import$decimal$compare": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "left",
+          "right"
+        ],
+        "parameters": [
+          "&Decimal",
+          "&Decimal"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$decimal$divide": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "left",
+          "right",
+          "scale",
+          "precision",
+          "rounding"
+        ],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$format": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$decimal$fromCoefficient": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "scale"
+        ],
+        "parameters": [
+          "&BigInt",
+          "Int"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$fromJson": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$multiply": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$parse": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$quantize": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "scale",
+          "precision",
+          "rounding"
+        ],
+        "parameters": [
+          "&Decimal",
+          "Int",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$representation": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$decimal$scale": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$decimal$subtract": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "left",
+          "right",
+          "precision",
+          "rounding"
+        ],
+        "parameters": [
+          "&Decimal",
+          "&Decimal",
+          "Int",
+          "DecimalRounding"
+        ],
+        "return": "Result<Decimal,StdError>"
+      },
+      "fn:$import$decimal$toJson": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "&Decimal"
+        ],
+        "return": "Result<Json,StdError>"
+      }
+    },
+    "dependency:gui.rw": {
+      "alias:$import$gui$GuiError": {
+        "params": [],
+        "target": "StdError"
+      },
+      "fn:$import$gui$applyLayout": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "layout",
+          "bounds"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&$import$gui$Layout",
+          "$import$gui$Rect"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$arrange": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "columns",
+          "gap"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&List<String>",
+          "$import$gui$Rect",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$arrangeColumn": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "weights",
+          "gap"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&List<String>",
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$arrangeRow": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "ids",
+          "bounds",
+          "weights",
+          "gap"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "&List<String>",
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$background": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "color"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$bounds": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view"
+        ],
+        "parameters": [
+          "&$import$gui$View"
+        ],
+        "return": "$import$gui$Rect"
+      },
+      "fn:$import$gui$button": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$checkbox": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "checked",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "String",
+          "Bool",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$checked": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
+        "parameters": [
+          "&$import$gui$View",
+          "String"
+        ],
+        "return": "Result<Bool,StdError>"
+      },
+      "fn:$import$gui$close": {
+        "async": false,
+        "defaults": [],
+        "effects": [
+          "gui"
+        ],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$column": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "children",
+          "gap"
+        ],
+        "parameters": [
+          "&List<$import$gui$WeightedLayout>",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$componentId": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "scope",
+          "local"
+        ],
+        "parameters": [
+          "&$import$gui$ComponentScope",
+          "String"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$gui$componentLocalId": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "scope",
+          "widgetId"
+        ],
+        "parameters": [
+          "&$import$gui$ComponentScope",
+          "String"
+        ],
+        "return": "Option<String>"
+      },
+      "fn:$import$gui$componentPrefix": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "scope"
+        ],
+        "parameters": [
+          "&$import$gui$ComponentScope"
+        ],
+        "return": "String"
+      },
+      "fn:$import$gui$componentScope": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "name"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<$import$gui$ComponentScope,StdError>"
+      },
+      "fn:$import$gui$continueInput": {
+        "async": false,
+        "defaults": [],
+        "effects": [
+          "gui"
+        ],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "Unit"
+      },
+      "fn:$import$gui$crossSized": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "child",
+          "minimum",
+          "maximum"
+        ],
+        "parameters": [
+          "$import$gui$WeightedLayout",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
+      },
+      "fn:$import$gui$dispatch": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "event"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "$import$gui$Event"
+        ],
+        "return": "Option<$import$gui$Action>"
+      },
+      "fn:$import$gui$edit": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "event"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "$import$gui$Event"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$focus": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$focused": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view"
+        ],
+        "parameters": [
+          "&$import$gui$View"
+        ],
+        "return": "Option<String>"
+      },
+      "fn:$import$gui$graphemeEditing": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "enabled"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "Bool"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$graphemeMode": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view"
+        ],
+        "parameters": [
+          "&$import$gui$View"
+        ],
+        "return": "Bool"
+      },
+      "fn:$import$gui$label": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$leaf": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "id"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$line": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "x1",
+          "y1",
+          "x2",
+          "y2",
+          "color"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$nextEvent": {
+        "async": false,
+        "defaults": [],
+        "effects": [
+          "gui"
+        ],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "Result<$import$gui$Event,StdError>"
+      },
+      "fn:$import$gui$overlay": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "base",
+          "layer"
+        ],
+        "parameters": [
+          "&$import$gui$View",
+          "&$import$gui$View"
+        ],
+        "return": "Result<$import$gui$View,StdError>"
+      },
+      "fn:$import$gui$overlayLayout": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "children"
+        ],
+        "parameters": [
+          "&List<$import$gui$Layout>"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$padded": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "layout",
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$pollEvent": {
+        "async": false,
+        "defaults": [],
+        "effects": [
+          "gui"
+        ],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "Result<Option<$import$gui$Event>,StdError>"
+      },
+      "fn:$import$gui$present": {
+        "async": false,
+        "defaults": [],
+        "effects": [
+          "gui"
+        ],
+        "generics": [],
+        "names": [
+          "view"
+        ],
+        "parameters": [
+          "&$import$gui$View"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$rectangle": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "x",
+          "y",
+          "width",
+          "height",
+          "color"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$remove": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$resize": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "width",
+          "height"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$row": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "children",
+          "gap"
+        ],
+        "parameters": [
+          "&List<$import$gui$WeightedLayout>",
+          "Int"
+        ],
+        "return": "Result<$import$gui$Layout,StdError>"
+      },
+      "fn:$import$gui$scene": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view"
+        ],
+        "parameters": [
+          "&$import$gui$View"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$gui$scrollPosition": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
+        "parameters": [
+          "&$import$gui$View",
+          "String"
+        ],
+        "return": "Result<Int,StdError>"
+      },
+      "fn:$import$gui$selection": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
+        "parameters": [
+          "&$import$gui$View",
+          "String"
+        ],
+        "return": "Result<Tuple<Int,Int>,StdError>"
+      },
+      "fn:$import$gui$setChecked": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "checked"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Bool"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$setEnabled": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "enabled"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Bool"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$setScrollPosition": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "line"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$setSelection": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "cursor",
+          "anchor"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$setText": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "String"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$sized": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "layout",
+          "weight",
+          "minimum",
+          "maximum"
+        ],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
+      },
+      "fn:$import$gui$splitColumn": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "bounds",
+          "weights",
+          "gap"
+        ],
+        "parameters": [
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<List<$import$gui$Rect>,StdError>"
+      },
+      "fn:$import$gui$splitRow": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "bounds",
+          "weights",
+          "gap"
+        ],
+        "parameters": [
+          "$import$gui$Rect",
+          "&List<Int>",
+          "Int"
+        ],
+        "return": "Result<List<$import$gui$Rect>,StdError>"
+      },
+      "fn:$import$gui$style": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "foreground",
+          "background"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$text": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id"
+        ],
+        "parameters": [
+          "&$import$gui$View",
+          "String"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "fn:$import$gui$textArea": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$textBox": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "view",
+          "id",
+          "caption",
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "parameters": [
+          "&mut $import$gui$View",
+          "String",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$gui$weighted": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "layout",
+          "weight"
+        ],
+        "parameters": [
+          "$import$gui$Layout",
+          "Int"
+        ],
+        "return": "Result<$import$gui$WeightedLayout,StdError>"
+      },
+      "fn:$import$gui$window": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "title",
+          "width",
+          "height"
+        ],
+        "parameters": [
+          "String",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$gui$View,StdError>"
+      },
+      "type:$import$gui$Action": {
+        "generics": [],
+        "variants": {
+          "Activate": [
+            [
+              "0",
+              "String"
+            ]
+          ],
+          "Changed": [
+            [
+              "0",
+              "String"
+            ],
+            [
+              "1",
+              "Bool"
+            ]
+          ],
+          "Close": [],
+          "Key": [
+            [
+              "0",
+              "String"
+            ],
+            [
+              "1",
+              "String"
+            ]
+          ],
+          "Resize": [
+            [
+              "0",
+              "Int"
+            ],
+            [
+              "1",
+              "Int"
+            ]
+          ]
+        }
+      },
+      "type:$import$gui$ComponentScope": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$gui$Event": {
+        "bounds": {},
+        "fields": [
+          [
+            "kind",
+            "String"
+          ],
+          [
+            "x",
+            "Int"
+          ],
+          [
+            "y",
+            "Int"
+          ],
+          [
+            "key",
+            "String"
+          ],
+          [
+            "width",
+            "Int"
+          ],
+          [
+            "height",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$gui$Layout": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$gui$Rect": {
+        "bounds": {},
+        "fields": [
+          [
+            "x",
+            "Int"
+          ],
+          [
+            "y",
+            "Int"
+          ],
+          [
+            "width",
+            "Int"
+          ],
+          [
+            "height",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$gui$View": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$gui$WeightedLayout": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      }
+    },
+    "dependency:guiForm.rw": {
+      "alias:$import$guiForm$FormError": {
+        "params": [],
+        "target": "StdError"
+      },
+      "fn:$import$guiForm$create": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "fields",
+          "visibleRows"
+        ],
+        "parameters": [
+          "&List<$import$guiForm$Field>",
+          "Int"
+        ],
+        "return": "Result<$import$guiForm$Form,StdError>"
+      },
+      "fn:$import$guiForm$createWithRules": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "fields",
+          "rules",
+          "visibleRows"
+        ],
+        "parameters": [
+          "&List<$import$guiForm$Field>",
+          "&List<$import$guiForm$Relation>",
+          "Int"
+        ],
+        "return": "Result<$import$guiForm$Form,StdError>"
+      },
+      "fn:$import$guiForm$dispatch": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form",
+          "panel",
+          "event",
+          "prefix"
+        ],
+        "parameters": [
+          "&mut $import$guiForm$Form",
+          "&mut $import$gui$View",
+          "$import$gui$Event",
+          "String"
+        ],
+        "return": "Result<Option<$import$guiForm$Action>,StdError>"
+      },
+      "fn:$import$guiForm$error": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form",
+          "id"
+        ],
+        "parameters": [
+          "&$import$guiForm$Form",
+          "String"
+        ],
+        "return": "Result<Option<String>,StdError>"
+      },
+      "fn:$import$guiForm$position": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form"
+        ],
+        "parameters": [
+          "&$import$guiForm$Form"
+        ],
+        "return": "Int"
+      },
+      "fn:$import$guiForm$render": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form",
+          "title",
+          "width",
+          "height",
+          "rowHeight",
+          "prefix"
+        ],
+        "parameters": [
+          "&$import$guiForm$Form",
+          "String",
+          "Int",
+          "Int",
+          "Int",
+          "String"
+        ],
+        "return": "Result<$import$gui$View,StdError>"
+      },
+      "fn:$import$guiForm$reset": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form"
+        ],
+        "parameters": [
+          "&mut $import$guiForm$Form"
+        ],
+        "return": "Unit"
+      },
+      "fn:$import$guiForm$scroll": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form",
+          "delta"
+        ],
+        "parameters": [
+          "&mut $import$guiForm$Form",
+          "Int"
+        ],
+        "return": "Unit"
+      },
+      "fn:$import$guiForm$setValue": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form",
+          "id",
+          "value"
+        ],
+        "parameters": [
+          "&mut $import$guiForm$Form",
+          "String",
+          "String"
+        ],
+        "return": "Result<Unit,StdError>"
+      },
+      "fn:$import$guiForm$toJson": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form"
+        ],
+        "parameters": [
+          "&$import$guiForm$Form"
+        ],
+        "return": "Result<Json,StdError>"
+      },
+      "fn:$import$guiForm$toSchemaValue": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "form",
+          "rule",
+          "convert"
+        ],
+        "parameters": [
+          "&$import$guiForm$Form",
+          "$import$schema$Schema",
+          "fn(Json)->Result<T,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<T,$import$guiForm$SchemaSubmitError<E>>"
+      },
+      "fn:$import$guiForm$toValue": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "form",
+          "convert"
+        ],
+        "parameters": [
+          "&$import$guiForm$Form",
+          "fn(Json)->Result<T,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<T,$import$guiForm$SubmitError<E>>"
+      },
+      "fn:$import$guiForm$validate": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form"
+        ],
+        "parameters": [
+          "&mut $import$guiForm$Form"
+        ],
+        "return": "Bool"
+      },
+      "fn:$import$guiForm$value": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "form",
+          "id"
+        ],
+        "parameters": [
+          "&$import$guiForm$Form",
+          "String"
+        ],
+        "return": "Result<String,StdError>"
+      },
+      "type:$import$guiForm$Action": {
+        "generics": [],
+        "variants": {
+          "Close": [],
+          "Edited": [
+            [
+              "0",
+              "String"
+            ]
+          ],
+          "Invalid": [],
+          "Resize": [
+            [
+              "0",
+              "Int"
+            ],
+            [
+              "1",
+              "Int"
+            ]
+          ],
+          "Scrolled": [
+            [
+              "0",
+              "Int"
+            ]
+          ],
+          "Submitted": [
+            [
+              "0",
+              "Json"
+            ]
+          ]
+        }
+      },
+      "type:$import$guiForm$Field": {
+        "bounds": {},
+        "fields": [
+          [
+            "id",
+            "String"
+          ],
+          [
+            "caption",
+            "String"
+          ],
+          [
+            "kind",
+            "$import$guiForm$Kind"
+          ],
+          [
+            "required",
+            "Bool"
+          ],
+          [
+            "maxBytes",
+            "Int"
+          ],
+          [
+            "initial",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$guiForm$Form": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": false
+      },
+      "type:$import$guiForm$Kind": {
+        "generics": [],
+        "variants": {
+          "Check": [],
+          "Integer": [
+            [
+              "0",
+              "Int"
+            ],
+            [
+              "1",
+              "Int"
+            ]
+          ],
+          "Multiline": [],
+          "Real": [
+            [
+              "0",
+              "Float"
+            ],
+            [
+              "1",
+              "Float"
+            ]
+          ],
+          "Text": [],
+          "Timestamp": []
+        }
+      },
+      "type:$import$guiForm$Relation": {
+        "generics": [],
+        "variants": {
+          "Equal": [
+            [
+              "0",
+              "String"
+            ],
+            [
+              "1",
+              "String"
+            ]
+          ],
+          "IntLessEqual": [
+            [
+              "0",
+              "String"
+            ],
+            [
+              "1",
+              "String"
+            ]
+          ],
+          "RequiredWhenChecked": [
+            [
+              "0",
+              "String"
+            ],
+            [
+              "1",
+              "String"
+            ]
+          ]
+        }
+      },
+      "type:$import$guiForm$SchemaSubmitError": {
+        "generics": [
+          "E"
+        ],
+        "variants": {
+          "Conversion": [
+            [
+              "0",
+              "E"
+            ]
+          ],
+          "Form": [
+            [
+              "0",
+              "StdError"
+            ]
+          ],
+          "Schema": [
+            [
+              "0",
+              "$import$schema$ValidationError"
+            ]
+          ]
+        }
+      },
+      "type:$import$guiForm$SubmitError": {
+        "generics": [
+          "E"
+        ],
+        "variants": {
+          "Conversion": [
+            [
+              "0",
+              "E"
+            ]
+          ],
+          "Form": [
+            [
+              "0",
+              "StdError"
+            ]
+          ]
+        }
+      }
+    },
+    "dependency:lens.rw": {
+      "fn:$import$lens$after": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "change"
+        ],
+        "parameters": [
+          "$import$lens$Change<R,V,E>"
+        ],
+        "return": "V"
+      },
+      "fn:$import$lens$apply": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "change",
+          "root",
+          "same"
+        ],
+        "parameters": [
+          "$import$lens$Change<R,V,E>",
+          "R",
+          "fn(V,V)->Bool!{}~{Send+Share}"
+        ],
+        "return": "Result<R,$import$lens$ApplyError<E>>"
+      },
+      "fn:$import$lens$asOptional": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path"
+        ],
+        "parameters": [
+          "$import$lens$Lens<R,V,E>"
+        ],
+        "return": "$import$lens$OptionalLens<R,V,E>"
+      },
+      "fn:$import$lens$before": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "change"
+        ],
+        "parameters": [
+          "$import$lens$Change<R,V,E>"
+        ],
+        "return": "V"
+      },
+      "fn:$import$lens$checkLaws": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path",
+          "root",
+          "first",
+          "second",
+          "sameRoot",
+          "sameValue"
+        ],
+        "parameters": [
+          "$import$lens$Lens<R,V,E>",
+          "R",
+          "V",
+          "V",
+          "fn(R,R)->Bool!{}~{Send+Share}",
+          "fn(V,V)->Bool!{}~{Send+Share}"
+        ],
+        "return": "Result<$import$lens$LawReport,E>"
+      },
+      "fn:$import$lens$compose": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "M",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "outer",
+          "inner"
+        ],
+        "parameters": [
+          "$import$lens$Lens<R,M,E>",
+          "$import$lens$Lens<M,V,E>"
+        ],
+        "return": "$import$lens$Lens<R,V,E>"
+      },
+      "fn:$import$lens$composeOptional": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "M",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "outer",
+          "inner"
+        ],
+        "parameters": [
+          "$import$lens$OptionalLens<R,M,E>",
+          "$import$lens$OptionalLens<M,V,E>"
+        ],
+        "return": "$import$lens$OptionalLens<R,V,E>"
+      },
+      "fn:$import$lens$create": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "read",
+          "write"
+        ],
+        "parameters": [
+          "fn(R)->V!{}~{Send+Share}",
+          "fn(R,V)->Result<R,E>!{}~{Send+Share}"
+        ],
+        "return": "$import$lens$Lens<R,V,E>"
+      },
+      "fn:$import$lens$get": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path",
+          "root"
+        ],
+        "parameters": [
+          "$import$lens$Lens<R,V,E>",
+          "R"
+        ],
+        "return": "V"
+      },
+      "fn:$import$lens$inverse": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "change"
+        ],
+        "parameters": [
+          "$import$lens$Change<R,V,E>"
+        ],
+        "return": "$import$lens$Change<R,V,E>"
+      },
+      "fn:$import$lens$modify": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path",
+          "root",
+          "transform"
+        ],
+        "parameters": [
+          "$import$lens$Lens<R,V,E>",
+          "R",
+          "fn(V)->Result<V,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<R,E>"
+      },
+      "fn:$import$lens$modifyIfPresent": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path",
+          "root",
+          "transform"
+        ],
+        "parameters": [
+          "$import$lens$OptionalLens<R,V,E>",
+          "R",
+          "fn(V)->Result<V,E>!{}~{Send+Share}"
+        ],
+        "return": "Result<Option<R>,E>"
+      },
+      "fn:$import$lens$optional": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "read",
+          "write"
+        ],
+        "parameters": [
+          "fn(R)->Option<V>!{}~{Send+Share}",
+          "fn(R,V)->Result<Option<R>,E>!{}~{Send+Share}"
+        ],
+        "return": "$import$lens$OptionalLens<R,V,E>"
+      },
+      "fn:$import$lens$plan": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path",
+          "root",
+          "value"
+        ],
+        "parameters": [
+          "$import$lens$Lens<R,V,E>",
+          "R",
+          "V"
+        ],
+        "return": "$import$lens$Change<R,V,E>"
+      },
+      "fn:$import$lens$preview": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path",
+          "root"
+        ],
+        "parameters": [
+          "$import$lens$OptionalLens<R,V,E>",
+          "R"
+        ],
+        "return": "Option<V>"
+      },
+      "fn:$import$lens$set": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path",
+          "root",
+          "value"
+        ],
+        "parameters": [
+          "$import$lens$Lens<R,V,E>",
+          "R",
+          "V"
+        ],
+        "return": "Result<R,E>"
+      },
+      "fn:$import$lens$setIfPresent": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "R",
+            "Share"
+          ],
+          [
+            "V",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "path",
+          "root",
+          "value"
+        ],
+        "parameters": [
+          "$import$lens$OptionalLens<R,V,E>",
+          "R",
+          "V"
+        ],
+        "return": "Result<Option<R>,E>"
+      },
+      "type:$import$lens$ApplyError": {
+        "bounds": {
+          "E": "Share"
+        },
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "cause",
+            "Option<E>"
+          ]
+        ],
+        "generics": [
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$lens$Change": {
+        "bounds": {
+          "E": "Share",
+          "R": "Share",
+          "V": "Share"
+        },
+        "fields": [],
+        "generics": [
+          "R",
+          "V",
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$lens$LawReport": {
+        "bounds": {},
+        "fields": [
+          [
+            "getPut",
+            "Bool"
+          ],
+          [
+            "putGet",
+            "Bool"
+          ],
+          [
+            "putPut",
+            "Bool"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$lens$Lens": {
+        "bounds": {
+          "E": "Share",
+          "R": "Share",
+          "V": "Share"
+        },
+        "fields": [],
+        "generics": [
+          "R",
+          "V",
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$lens$OptionalLens": {
+        "bounds": {
+          "E": "Share",
+          "R": "Share",
+          "V": "Share"
+        },
+        "fields": [],
+        "generics": [
+          "R",
+          "V",
+          "E"
+        ],
+        "immutable": true
+      }
+    },
+    "dependency:schema.rw": {
+      "fn:$import$schema$any": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$array": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "item",
+          "minimum",
+          "maximum"
+        ],
+        "parameters": [
+          "$import$schema$Schema",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$boolean": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$csvRow": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "schema",
+          "headers",
+          "row",
+          "nullToken"
+        ],
+        "parameters": [
+          "$import$schema$Schema",
+          "&List<String>",
+          "&List<String>",
+          "Option<String>"
+        ],
+        "return": "Result<Json,$import$schema$ValidationError>"
+      },
+      "fn:$import$schema$decimal": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$decode": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "decoder",
+          "value"
+        ],
+        "parameters": [
+          "$import$schema$Decoder<T,E>",
+          "Json"
+        ],
+        "return": "Result<T,$import$schema$DecodeError<E>>"
+      },
+      "fn:$import$schema$field": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "name",
+          "schema",
+          "required",
+          "fallback"
+        ],
+        "parameters": [
+          "String",
+          "$import$schema$Schema",
+          "Bool",
+          "Option<Json>"
+        ],
+        "return": "Result<$import$schema$Field,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$integer": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "minimum",
+          "maximum"
+        ],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$mapped": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [
+          [
+            "T",
+            "Share"
+          ],
+          [
+            "E",
+            "Share"
+          ]
+        ],
+        "names": [
+          "schema",
+          "convert"
+        ],
+        "parameters": [
+          "$import$schema$Schema",
+          "fn(Json)->Result<T,E>!{}~{Send+Share}"
+        ],
+        "return": "$import$schema$Decoder<T,E>"
+      },
+      "fn:$import$schema$nullable": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "schema"
+        ],
+        "parameters": [
+          "$import$schema$Schema"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$number": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$object": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "fields",
+          "policy"
+        ],
+        "parameters": [
+          "&List<$import$schema$Field>",
+          "$import$schema$Unknown"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$text": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "minimum",
+          "maximum"
+        ],
+        "parameters": [
+          "Int",
+          "Int"
+        ],
+        "return": "Result<$import$schema$Schema,$import$schema$SchemaError>"
+      },
+      "fn:$import$schema$timestamp": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [],
+        "parameters": [],
+        "return": "$import$schema$Schema"
+      },
+      "fn:$import$schema$validate": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "schema",
+          "value"
+        ],
+        "parameters": [
+          "$import$schema$Schema",
+          "Json"
+        ],
+        "return": "Result<Json,$import$schema$ValidationError>"
+      },
+      "type:$import$schema$DecodeError": {
+        "bounds": {
+          "E": "Share"
+        },
+        "fields": [
+          [
+            "stage",
+            "String"
+          ],
+          [
+            "validation",
+            "Option<$import$schema$ValidationError>"
+          ],
+          [
+            "conversion",
+            "Option<E>"
+          ]
+        ],
+        "generics": [
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$schema$Decoder": {
+        "bounds": {
+          "E": "Share",
+          "T": "Share"
+        },
+        "fields": [],
+        "generics": [
+          "T",
+          "E"
+        ],
+        "immutable": true
+      },
+      "type:$import$schema$Field": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$Schema": {
+        "bounds": {},
+        "fields": [],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$SchemaError": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "field",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$schema$Segment": {
+        "generics": [],
+        "variants": {
+          "Field": [
+            [
+              "0",
+              "String"
+            ]
+          ],
+          "Index": [
+            [
+              "0",
+              "Int"
+            ]
+          ]
+        }
+      },
+      "type:$import$schema$Unknown": {
+        "generics": [],
+        "variants": {
+          "Drop": [],
+          "Keep": [],
+          "Reject": []
+        }
+      },
+      "type:$import$schema$ValidationError": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "path",
+            "Frozen<List<$import$schema$Segment>>"
+          ],
+          [
+            "expected",
+            "String"
+          ],
+          [
+            "actual",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      }
+    },
+    "fn:accept": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&mut Binding<R>"
+      ],
+      "return": "Unit"
+    },
+    "fn:bind": {
+      "async": false,
+      "cost": "O(1) map lookup; at most 128 fields.",
+      "defaults": [],
+      "effects": [],
+      "failure": "BindingId/BindingLimit; the id must be 1..64 bytes, unique and free of NUL.",
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b",
+        "id",
+        "read",
+        "write"
+      ],
+      "parameters": [
+        "&mut Binding<R>",
+        "String",
+        "fn(R)->String!{}~{Send+Share}",
+        "fn(R,String)->Result<R,String>!{}~{Send+Share}"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:bindLens": {
+      "async": false,
+      "cost": "O(1) plus one lens get or set and one parse per read or edit",
+      "defaults": [],
+      "effects": [],
+      "failure": "BindingId/BindingLimit; the lens and conversions run only when the field is read or edited.",
+      "generics": [
+        [
+          "R",
+          "Share"
+        ],
+        [
+          "V",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b",
+        "id",
+        "path",
+        "format",
+        "parse"
+      ],
+      "parameters": [
+        "&mut Binding<R>",
+        "String",
+        "$import$lens$Lens<R,V,String>",
+        "fn(V)->String!{}~{Send+Share}",
+        "fn(String)->Result<V,String>!{}~{Send+Share}"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:canRedo": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&Binding<R>"
+      ],
+      "return": "Bool"
+    },
+    "fn:canUndo": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&Binding<R>"
+      ],
+      "return": "Bool"
+    },
+    "fn:changedSince": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b",
+        "since"
+      ],
+      "parameters": [
+        "&Binding<R>",
+        "Int"
+      ],
+      "return": "Bool"
+    },
+    "fn:create": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "initial"
+      ],
+      "parameters": [
+        "R"
+      ],
+      "return": "Binding<R>"
+    },
+    "fn:dirtyFields": {
+      "async": false,
+      "cost": "O(fields) reads of current and original; ids in bind order.",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&Binding<R>"
+      ],
+      "return": "List<String>"
+    },
+    "fn:edit": {
+      "async": false,
+      "cost": "one write call; O(1) plus the write function",
+      "defaults": [],
+      "effects": [],
+      "failure": "BindingUnknown; a write rejection is not an error of edit: it returns Ok(false) and the message is read by error.",
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b",
+        "id",
+        "input"
+      ],
+      "parameters": [
+        "&mut Binding<R>",
+        "String",
+        "String"
+      ],
+      "return": "Result<Bool,StdError>"
+    },
+    "fn:error": {
+      "async": false,
+      "cost": "O(1) map lookup",
+      "defaults": [],
+      "effects": [],
+      "failure": "BindingUnknown",
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b",
+        "id"
+      ],
+      "parameters": [
+        "&Binding<R>",
+        "String"
+      ],
+      "return": "Result<Option<String>,StdError>"
+    },
+    "fn:hasErrors": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&Binding<R>"
+      ],
+      "return": "Bool"
+    },
+    "fn:isDirty": {
+      "async": false,
+      "cost": "O(fields) reads of current and original",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&Binding<R>"
+      ],
+      "return": "Bool"
+    },
+    "fn:pullFromForm": {
+      "async": false,
+      "cost": "O(fields) form lookups plus one edit per changed bound field",
+      "defaults": [],
+      "effects": [],
+      "failure": "propagates the error of text or edit; ids missing from the form are skipped.",
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b",
+        "form"
+      ],
+      "parameters": [
+        "&mut Binding<R>",
+        "&$import$guiForm$Form"
+      ],
+      "return": "Result<Int,StdError>"
+    },
+    "fn:pushToForm": {
+      "async": false,
+      "cost": "O(fields) map lookups plus one setValue per bound field present in the form",
+      "defaults": [],
+      "effects": [],
+      "failure": "GuiInvalidText from setValue; fields written before the failure keep their new text.",
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b",
+        "form"
+      ],
+      "parameters": [
+        "&Binding<R>",
+        "&mut $import$guiForm$Form"
+      ],
+      "return": "Result<Unit,StdError>"
+    },
+    "fn:redo": {
+      "async": false,
+      "cost": "O(1) plus one copy of the record",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&mut Binding<R>"
+      ],
+      "return": "Bool"
+    },
+    "fn:revert": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&mut Binding<R>"
+      ],
+      "return": "Unit"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "fn:text": {
+      "async": false,
+      "cost": "O(1) map lookup plus one read",
+      "defaults": [],
+      "effects": [],
+      "failure": "BindingUnknown; an unknown id is an error and never returns an empty string.",
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b",
+        "id"
+      ],
+      "parameters": [
+        "&Binding<R>",
+        "String"
+      ],
+      "return": "Result<String,StdError>"
+    },
+    "fn:undo": {
+      "async": false,
+      "cost": "O(1) plus one copy of the record",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&mut Binding<R>"
+      ],
+      "return": "Bool"
+    },
+    "fn:value": {
+      "async": false,
+      "cost": "O(1) copy of the record",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&Binding<R>"
+      ],
+      "return": "R"
+    },
+    "fn:version": {
+      "async": false,
+      "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&Binding<R>"
+      ],
+      "return": "Int"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Binding": {
+      "bounds": {
+        "R": "Share"
+      },
+      "constructor": false,
+      "fields": [],
+      "generics": [
+        "R"
+      ],
+      "kind": "struct"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

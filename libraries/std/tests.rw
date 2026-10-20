@@ -3970,3 +3970,176 @@ test fn gui_date_draw_checks_prefix() effects {} {
         takeGuiResult(guiDate.draw(&p,&view,"date"));
     }}
 }
+
+import binding as binding;
+record BindPerson {name:String,age:Int}
+fn bindPersonName()->lens.Lens<BindPerson,String,String> effects {} {
+    return lens.create(
+        |root:BindPerson|->String{return root.name;},
+        |root:BindPerson,value:String|->Result<BindPerson,String>{return Ok(BindPerson(value,root.age));}
+    );
+}
+fn bindPersonAge()->lens.Lens<BindPerson,Int,String> effects {} {
+    return lens.create(
+        |root:BindPerson|->Int{return root.age;},
+        |root:BindPerson,value:Int|->Result<BindPerson,String>{return Ok(BindPerson(root.name,value));}
+    );
+}
+fn bindFormatAge(age:Int)->String effects {} {return "${age}";}
+fn bindParseAge(input:String)->Result<Int,String> effects {} {
+    match stdParseInt(input,10) {
+        Err(_)=>{return Err("not a number");},
+        Ok(n)=>{if n<0 || n>150 {return Err("out of range");} return Ok(n);}
+    }
+}
+fn bindParseName(input:String)->Result<String,String> effects {} {
+    if input=="" {return Err("empty");}
+    return Ok(input);
+}
+fn bindFormatName(name:String)->String effects {} {return name;}
+
+test fn binding_core_edits_validates_and_tracks_dirty_state()->Unit effects {} {
+    var b=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut b,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"age",bindPersonAge(),bindFormatAge,bindParseAge),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"age",bindPersonAge(),bindFormatAge,bindParseAge),Err(StdError("BindingId",0)));
+    assert_eq(binding.bindLens(&mut b,"",bindPersonAge(),bindFormatAge,bindParseAge),Err(StdError("BindingId",0)));
+    assert_eq(binding.text(&b,"age"),Ok("30"));
+    assert_eq(binding.text(&b,"zzz"),Err(StdError("BindingUnknown",0)));
+    assert_eq(binding.version(&b),0);
+    assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+    let after=binding.value(&b);
+    assert_eq(after.age,41);
+    assert_eq(binding.version(&b),1);
+    assert_eq(binding.edit(&mut b,"age","old"),Ok(false));
+    let kept=binding.value(&b);
+    assert_eq(kept.age,41);
+    assert_eq(binding.text(&b,"age"),Ok("old"));
+    assert_eq(binding.error(&b,"age"),Ok(Some("not a number")));
+    assert(binding.hasErrors(&b));
+    assert_eq(binding.version(&b),2);
+    assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+    assert(!binding.hasErrors(&b));
+    assert_eq(binding.text(&b,"age"),Ok("41"));
+    assert_eq(binding.version(&b),3);
+    assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+    assert_eq(binding.version(&b),3);
+    binding.accept(&mut b);
+    assert(!binding.isDirty(&b));
+    assert_eq(binding.edit(&mut b,"name","Bob"),Ok(true));
+    assert(binding.isDirty(&b));
+    let dirty=binding.dirtyFields(&b);assert_eq(dirty.len(),1);assert_eq(dirty.get(0),"name");
+    binding.accept(&mut b);
+    assert(!binding.isDirty(&b));
+    assert_eq(binding.edit(&mut b,"name",""),Ok(false));
+    assert_eq(binding.text(&b,"name"),Ok(""));
+    binding.revert(&mut b);
+    let reverted=binding.value(&b);
+    assert_eq(reverted.name,"Bob");
+    assert_eq(binding.text(&b,"name"),Ok("Bob"));
+    assert(!binding.hasErrors(&b));
+}
+
+test fn binding_form_sync_pushes_and_pulls_text()->Unit effects {} {
+    var b=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut b,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"age",bindPersonAge(),bindFormatAge,bindParseAge),Ok(()));
+    let defs=List<guiForm.Field>();
+    defs.add(guiForm.Field("name","Name",guiForm.Kind::Text,true,32,"Ann"));
+    defs.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"30"));
+    defs.add(guiForm.Field("note","Note",guiForm.Kind::Text,false,32,"x"));
+    match guiForm.create(&defs,3) {
+        Err(_)=>{panic("form creation");},
+        Ok(model)=>{
+            let seen=binding.version(&b);
+            assert_eq(binding.pushToForm(&b,&mut model),Ok(()));
+            assert_eq(guiForm.value(&model,"age"),Ok("30"));
+            assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+            assert(binding.changedSince(&b,seen));
+            assert_eq(binding.pushToForm(&b,&mut model),Ok(()));
+            assert_eq(guiForm.value(&model,"age"),Ok("41"));
+            assert_eq(guiForm.setValue(&mut model,"age","x"),Ok(()));
+            assert_eq(binding.pullFromForm(&mut b,&model),Ok(0));
+            assert_eq(binding.error(&b,"age"),Ok(Some("not a number")));
+            let kept=binding.value(&b);
+            assert_eq(kept.age,41);
+            assert_eq(guiForm.setValue(&mut model,"age","50"),Ok(()));
+            assert_eq(binding.pullFromForm(&mut b,&model),Ok(1));
+            let pulled=binding.value(&b);
+            assert_eq(pulled.age,50);
+            assert_eq(binding.error(&b,"age"),Ok(None));
+            assert_eq(guiForm.setValue(&mut model,"note","changed"),Ok(()));
+            assert_eq(binding.pullFromForm(&mut b,&model),Ok(0));
+        }
+    }
+    var missing=List<guiForm.Field>();
+    missing.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"30"));
+    match guiForm.create(&missing,1) {
+        Err(_)=>{panic("form creation");},
+        Ok(small)=>{assert_eq(binding.pushToForm(&b,&mut small),Ok(()));assert_eq(guiForm.value(&small,"age"),Ok("50"));}
+    }
+}
+
+test fn binding_undo_redo_limits_and_id_errors()->Unit effects {} {
+    var b=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut b,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"age",bindPersonAge(),bindFormatAge,bindParseAge),Ok(()));
+    assert(!binding.canUndo(&b));
+    assert(!binding.undo(&mut b));
+    assert_eq(binding.edit(&mut b,"name","Bob"),Ok(true));
+    assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+    assert_eq(binding.edit(&mut b,"age","zz"),Ok(false));
+    assert(binding.undo(&mut b));
+    let undone=binding.value(&b);
+    assert_eq(undone.age,30);
+    assert_eq(undone.name,"Bob");
+    assert(binding.canRedo(&b));
+    assert(!binding.hasErrors(&b));
+    assert(binding.redo(&mut b));
+    let redone=binding.value(&b);
+    assert_eq(redone.age,41);
+    assert(!binding.canRedo(&b));
+    assert(binding.undo(&mut b));
+    assert_eq(binding.edit(&mut b,"name","Cy"),Ok(true));
+    assert(!binding.canRedo(&b));
+    assert(binding.undo(&mut b));
+    assert_eq(binding.undo(&mut b),true);
+    assert_eq(binding.undo(&mut b),false);
+    let first=binding.value(&b);
+    assert_eq(first.name,"Ann");
+    var c=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut c,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    var i=0;
+    while i<300 {
+        let input="n${i}";
+        assert_eq(binding.edit(&mut c,"name",input),Ok(true));
+        i=i+1;
+    }
+    var steps=0;
+    while binding.undo(&mut c) {steps=steps+1;}
+    assert_eq(steps,256);
+    assert_eq(binding.version(&c)>0,true);
+    match binding.bind(&mut c,"name",|r:BindPerson|->String{return r.name;},|r:BindPerson,s:String|->Result<BindPerson,String>{return Ok(r);}) {
+        Err(e)=>{assert_eq(e.code,"BindingId");},
+        Ok(_)=>{panic("duplicate id accepted");}
+    }
+    match binding.edit(&mut c,"missing","x") {
+        Err(e)=>{assert_eq(e.code,"BindingUnknown");},
+        Ok(_)=>{panic("unknown id accepted");}
+    }
+    var full=binding.create(BindPerson("Ann",30));
+    var k=0;
+    while k<128 {
+        let id="f${k}";
+        assert_eq(binding.bind(&mut full,id,|r:BindPerson|->String{return r.name;},|r:BindPerson,s:String|->Result<BindPerson,String>{return Ok(r);}),Ok(()));
+        k=k+1;
+    }
+    match binding.bind(&mut full,"extra",|r:BindPerson|->String{return r.name;},|r:BindPerson,s:String|->Result<BindPerson,String>{return Ok(r);}) {
+        Err(e)=>{assert_eq(e.code,"BindingLimit");},
+        Ok(_)=>{panic("129th field accepted");}
+    }
+    match binding.bind(&mut full,"",|r:BindPerson|->String{return r.name;},|r:BindPerson,s:String|->Result<BindPerson,String>{return Ok(r);}) {
+        Err(e)=>{assert_eq(e.code,"BindingLimit");},
+        Ok(_)=>{panic("empty id accepted");}
+    }
+}

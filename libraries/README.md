@@ -163,6 +163,7 @@
 | `timeline` | 有界なデータ履歴と取り消し・やり直し | `create`, `length`, `position`, `canUndo`, `canRedo`, `current` |
 | `changes` | 文字列キーの Map に対する変更集合（差分、逆変換、適用、合成、マージ） | `length`, `edits`, `fromChanges`, `diff`, `inverse`, `apply` |
 | `lens` | 型付きのアクセス経路（取得、設定、変更） | `create`, `get`, `set`, `modify`, `compose`, `optional` |
+| `binding` | record の値と名前つきの文字列欄の同期（版番号、差分、取り消し・やり直し、guiForm への受け渡し） | `create`, `bind`, `bindLens`, `text`, `edit`, `version`, `changedSince`, `dirtyFields`, `accept`, `revert`, `pushToForm`, `pullFromForm`, `undo`, `redo` |
 | `lazy` | 明示的な遅延計算（一度だけ評価し結果を保持） | `create`, `isForced`, `peek`, `force`, `fork`, `clear` |
 | `memo` | 版付きキーを持つ LRU 型のメモ化キャッシュ | `key`, `domain`, `revision`, `input`, `create`, `length` |
 | `persistentSet` | 不変版を持つ素集合（併合、代表元の検索） | `create`, `length`, `components`, `root`, `same`, `size` |

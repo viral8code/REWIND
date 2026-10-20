@@ -477,3 +477,4 @@ Compiler, runtime, tests, and API generation remain unverified because the execu
 2026-10-20: std.crypto.randomBytes 追加（版は上げない）。OS の乱数源から 1〜65536 バイトを返す。`external` と `random` の権限が必要で、実行時に記録され replay で再生される（native は `src/v2/v092.rs`、API baseline は `libraries/api/crypto.api.json`）。
 2026-10-20: std.fastx の大きな入力 (1 レコード 1M 塩基) で formatFasta を文字単位の切り出しからバイト単位の切り出しに変えた結果、width 60 の書き出しは 15.94 秒から 1.05 秒になった (250K: 1.19 → 0.36 秒)。parseFasta は行末の検出を native の stdBytesIndexOf に変えた結果、1M 塩基で 19.30 秒から 3.91 秒になった (250K: 4.93 → 1.21 秒、500K: 9.73 → 1.89 秒)。parseFastq は 250K 塩基で 10.69 秒から 0.36 秒、500K 塩基で 21.17 秒から 0.44 秒になった (400K 塩基 0.38 秒。1M 塩基は 1 MiB を超えるため測定対象外)。いずれも線形。
 2026-10-20: std.guiTabs / std.guiCombo / std.guiDate 追加（版は上げない）。タブ、上限付きの選択式リスト、1900〜2200 年の日付選択を純粋な .rw で実装し、gui の画面へ重ねて描画する。
+2026-10-20: std.binding 追加（版は上げない）。1 つの record の値と、欄の id つきの文字列の読み書きを束ね、版番号と差分で画面の再描画を判断する。guiForm との受け渡し、取り消し・やり直しを純粋な .rw で実装する。

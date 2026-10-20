@@ -2504,13 +2504,17 @@ error[DivisionByZero]: division by zero
 | グラフと幾何 | graph、graphLarge、graphLargeAsync、flow、matching、geometry |
 | データ形式と解析 | json、jsonStream、csv、csvStream、config、args、scanner、stream、parser、schema、logfmt、compress、image、base64、dna、fastx |
 | 暗号 | crypto、auth |
-| 履歴と状態 | snapshot、history、historyGraph、timeline、changes、persistentSet、memo、lazy、lens |
+| 履歴と状態 | snapshot、history、historyGraph、timeline、changes、persistentSet、memo、lazy、lens、binding |
 | 数値計算 | numeric とその Async 系、matrix、sparse、sparseAsync、fft、fftAsync、distributions |
 | 機械学習 | autodiff 系、optimize、training、models、evaluation、plot |
 | タスクと通信 | task、taskError、retry、external、http、httpHeaders、httpRouter、httpServer、tcp、web |
 | データベース | db、dbDatetime、dbDecimal、dbMigration、dbTransaction |
 | GUI | gui、guiCombo、guiDate、guiDialog、guiField、guiForm、guiMenu、guiTabs、guiTable、guiWindows |
 | テスト支援 | proptest |
+
+`std.binding` は、1 つの record の値（current）と、id を付けた欄ごとの文字列の読み書きを束ねます。画面（`std.guiForm` など）とは欄ごとの文字列でやり取りします。`edit` は、書き込みが受理されたときだけ current を差し替えます。record は不変なので、変更は新しい値への置き換えとして反映されます。
+
+画面は、毎回すべての欄を読み直さずに、`changedSince` で版番号が進んだかを確かめ、進んだときだけ描き直してください。`pushToForm` と `pullFromForm` で、`std.guiForm` の欄と同期できます。`undo` と `redo` は、受理された編集を最大 256 件まで戻します。欄は最大 128 件です。
 
 `std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq`、`randomBytes` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。`randomBytes(length)` は OS の乱数源から 1〜65536 バイトを返します。範囲外の長さは `Range`、乱数源が使えないときは `ExternalFailure` で返します。`external` 領域の中で呼び、`external` と `random` の権限が必要です。実行時に記録され、replay では同じ値が再生されます。鍵、salt、セッション ID のような秘密に使う値は `randomBytes` で作ってください。`Random.next()` は再現可能な擬似乱数なので、秘密には使えません。
 

@@ -1,0 +1,172 @@
+import lens as lens;
+import guiForm as guiForm;
+// A binding set: one record value R (current) with named text fields. Each field is read and written as a String.
+// The screen (guiForm and others) exchanges text with the binding by field id. R is immutable, so an accepted edit replaces current.
+// version grows on every change that the screen must redraw; compare it with changedSince instead of re-reading all fields.
+// At most 128 fields; ids are 1..64 bytes and unique; undo and redo each keep at most 256 snapshots.
+pub struct Binding<R:Share> {private current:R,private original:R,private entries:List<Entry<R>>,private indices:Map<String,Int>,private pending:Map<String,String>,private errors:Map<String,String>,private version:Int,private undoStack:List<R>,private redoStack:List<R>}
+record Entry<R:Share> {id:String,read:fn(R)->String effects {} captures {Send,Share},write:fn(R,String)->Result<R,String> effects {} captures {Send,Share}}
+
+fn idValid(id:String)->Bool effects {} {return id!="" && id.byteLen()<=64 && stdTextFind(id,"\0")==None;}
+fn entryIndex<R:Share>(b:&Binding<R>,id:String)->Result<Int,StdError> effects {} {
+ match b.indices.get(id){Some(i)=>{return Ok(i);},None=>{return Err(StdError("BindingUnknown",0));}}
+}
+fn readField<R:Share>(b:&Binding<R>,i:Int)->String effects {} {let e=b.entries.get(i);let read=e.read;return read(b.current);}
+fn clearField<R:Share>(b:&mut Binding<R>,id:String)->Unit effects {} {b.pending.remove(id);b.errors.remove(id);}
+
+// @api create cost O(1)
+pub fn create<R:Share>(initial:R)->Binding<R> effects {} {
+ return Binding<R>(initial,initial,List<Entry<R>>(),Map<String,Int>(),Map<String,String>(),Map<String,String>(),0,List<R>(),List<R>());
+}
+// @api bind cost O(1) map lookup; at most 128 fields.
+// @api bind failure BindingId/BindingLimit; the id must be 1..64 bytes, unique and free of NUL.
+pub fn bind<R:Share>(b:&mut Binding<R>,id:String,read:fn(R)->String effects {} captures {Send,Share},write:fn(R,String)->Result<R,String> effects {} captures {Send,Share})->Result<Unit,StdError> effects {} {
+ if b.entries.len()>=128{return Err(StdError("BindingLimit",0));}
+ if !idValid(id) || b.indices.get(id)!=None{return Err(StdError("BindingId",0));}
+ b.indices.set(id,b.entries.len());
+ b.entries.add(Entry<R>(id,read,write));
+ return Ok(());
+}
+// @api bindLens cost O(1) plus one lens get or set and one parse per read or edit
+// @api bindLens failure BindingId/BindingLimit; the lens and conversions run only when the field is read or edited.
+pub fn bindLens<R:Share,V:Share>(b:&mut Binding<R>,id:String,path:lens.Lens<R,V,String>,format:fn(V)->String effects {} captures {Send,Share},parse:fn(String)->Result<V,String> effects {} captures {Send,Share})->Result<Unit,StdError> effects {} {
+ let read=|root:R|->String{return format(lens.get(path,root));};
+ let write=|root:R,input:String|->Result<R,String>{
+  match parse(input) {Err(message)=>{return Err(message);},Ok(value)=>{return lens.set(path,root,value);}}
+ };
+ return bind(b,id,read,write);
+}
+
+// text is the pending input of the field when an edit was rejected, otherwise the text read from current.
+// @api text cost O(1) map lookup plus one read
+// @api text failure BindingUnknown; an unknown id is an error and never returns an empty string.
+pub fn text<R:Share>(b:&Binding<R>,id:String)->Result<String,StdError> effects {} {
+ let i=entryIndex(b,id)?;
+ match b.pending.get(id) {Some(input)=>{return Ok(input);},None=>{return Ok(readField(b,i));}}
+}
+// An accepted input replaces current, bumps version and clears the field's pending text and error.
+// A rejected input leaves current unchanged, keeps the text as pending with its message, and returns Ok(false).
+// @api edit cost one write call; O(1) plus the write function
+// @api edit failure BindingUnknown; a write rejection is not an error of edit: it returns Ok(false) and the message is read by error.
+pub fn edit<R:Share>(b:&mut Binding<R>,id:String,input:String)->Result<Bool,StdError> effects {} {
+ let i=entryIndex(b,id)?;
+ let shown=readField(b,i);
+ if input==shown && b.pending.get(id)==None {return Ok(true);}
+ if input==shown {
+  clearField(b,id);b.version=b.version+1;return Ok(true);
+ }
+ let e=b.entries.get(i);let write=e.write;
+ match write(b.current,input) {
+  Ok(next)=>{
+   if b.undoStack.len()>=256 {b.undoStack.removeAt(0);}
+   b.undoStack.add(b.current);b.redoStack=List<R>();
+   b.current=next;clearField(b,id);b.version=b.version+1;return Ok(true);
+  },
+  Err(message)=>{b.pending.set(id,input);b.errors.set(id,message);b.version=b.version+1;return Ok(false);}
+ }
+}
+// @api error cost O(1) map lookup
+// @api error failure BindingUnknown
+pub fn error<R:Share>(b:&Binding<R>,id:String)->Result<Option<String>,StdError> effects {} {
+ entryIndex(b,id)?;
+ return Ok(b.errors.get(id));
+}
+// @api hasErrors cost O(1)
+pub fn hasErrors<R:Share>(b:&Binding<R>)->Bool effects {} {return b.errors.len()>0;}
+// @api value cost O(1) copy of the record
+pub fn value<R:Share>(b:&Binding<R>)->R effects {} {return b.current;}
+// @api version cost O(1)
+pub fn version<R:Share>(b:&Binding<R>)->Int effects {} {return b.version;}
+
+fn dirtyAt<R:Share>(b:&Binding<R>,i:Int)->Bool effects {} {
+ let e=b.entries.get(i);let read=e.read;
+ return read(b.current)!=read(b.original);
+}
+// @api isDirty cost O(fields) reads of current and original
+pub fn isDirty<R:Share>(b:&Binding<R>)->Bool effects {} {
+ for i in 0..b.entries.len(){if dirtyAt(b,i){return true;}}
+ return false;
+}
+// @api dirtyFields cost O(fields) reads of current and original; ids in bind order.
+pub fn dirtyFields<R:Share>(b:&Binding<R>)->List<String> effects {} {
+ let out=List<String>();
+ for i in 0..b.entries.len(){if dirtyAt(b,i){out.add(b.entries.get(i).id);}}
+ return out;
+}
+// accept makes the current value the original value and clears undo and redo.
+// @api accept cost O(1)
+pub fn accept<R:Share>(b:&mut Binding<R>)->Unit effects {} {
+ b.original=b.current;b.undoStack=List<R>();b.redoStack=List<R>();b.version=b.version+1;
+}
+// revert restores the original value, clears pending text and errors, and clears undo and redo.
+// @api revert cost O(1)
+pub fn revert<R:Share>(b:&mut Binding<R>)->Unit effects {} {
+ b.current=b.original;b.pending=Map<String,String>();b.errors=Map<String,String>();
+ b.undoStack=List<R>();b.redoStack=List<R>();b.version=b.version+1;
+}
+
+// pushToForm writes text(b,id) into every bound field that the form has. Ids missing from the form are skipped.
+// @api pushToForm cost O(fields) map lookups plus one setValue per bound field present in the form
+// @api pushToForm failure GuiInvalidText from setValue; fields written before the failure keep their new text.
+pub fn pushToForm<R:Share>(b:&Binding<R>,form:&mut guiForm.Form)->Result<Unit,StdError> effects {} {
+ for i in 0..b.entries.len(){
+  let id=b.entries.get(i).id;
+  match guiForm.value(form,id) {
+   Err(_)=>{},
+   Ok(_)=>{guiForm.setValue(form,id,text(b,id)?)?;}
+  }
+ }
+ return Ok(());
+}
+// pullFromForm edits each bound field whose form text differs from text(b,id). Returns how many edits were accepted.
+// Validation errors shown by the form are not changed.
+// @api pullFromForm cost O(fields) form lookups plus one edit per changed bound field
+// @api pullFromForm failure propagates the error of text or edit; ids missing from the form are skipped.
+pub fn pullFromForm<R:Share>(b:&mut Binding<R>,form:&guiForm.Form)->Result<Int,StdError> effects {} {
+ var accepted=0;
+ for i in 0..b.entries.len(){
+  let id=b.entries.get(i).id;
+  match guiForm.value(form,id) {
+   Err(_)=>{},
+   Ok(input)=>{
+    if input!=text(b,id)? {
+     if edit(b,id,input)? {accepted=accepted+1;}
+    }
+   }
+  }
+ }
+ return Ok(accepted);
+}
+// changedSince tells whether version is greater than since. A screen keeps the version of its last redraw.
+// @api changedSince cost O(1)
+pub fn changedSince<R:Share>(b:&Binding<R>,since:Int)->Bool effects {} {return b.version>since;}
+
+// @api canUndo cost O(1)
+pub fn canUndo<R:Share>(b:&Binding<R>)->Bool effects {} {return b.undoStack.len()>0;}
+// @api canRedo cost O(1)
+pub fn canRedo<R:Share>(b:&Binding<R>)->Bool effects {} {return b.redoStack.len()>0;}
+// undo makes the previous snapshot current; the replaced value goes to the redo stack. Pending text and errors are cleared.
+// @api undo cost O(1) plus one copy of the record
+pub fn undo<R:Share>(b:&mut Binding<R>)->Bool effects {} {
+ match b.undoStack.pop() {
+  None=>{return false;},
+  Some(previous)=>{
+   b.redoStack.add(b.current);b.current=previous;
+   b.pending=Map<String,String>();b.errors=Map<String,String>();
+   b.version=b.version+1;return true;
+  }
+ }
+}
+// redo reverses the last undo. Pending text and errors are cleared.
+// @api redo cost O(1) plus one copy of the record
+pub fn redo<R:Share>(b:&mut Binding<R>)->Bool effects {} {
+ match b.redoStack.pop() {
+  None=>{return false;},
+  Some(next)=>{
+   if b.undoStack.len()>=256 {b.undoStack.removeAt(0);}
+   b.undoStack.add(b.current);b.current=next;
+   b.pending=Map<String,String>();b.errors=Map<String,String>();
+   b.version=b.version+1;return true;
+  }
+ }
+}
