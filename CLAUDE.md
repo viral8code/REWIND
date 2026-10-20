@@ -26,7 +26,8 @@
 - 役割を指定せずに小さな機械的な変更を任せるときは、`implementer`（Haiku 5.5）を使ってよい。
 - サブエージェントには、対象のファイル、期待する動作、完了条件（実行するコマンドと、通るべきテスト）を具体的に書いて渡す。
 - 設計の判断が要る作業は、先に `architect` に設計と実装の指示を作らせ、その指示を実装の役割に渡す。セキュリティに関わる変更は、コミットの前に `security-reviewer` を通す。
-- 日本語の文書（README、マニュアル、入門書、言語リファレンス）は、skill の `yomiyasu` で推敲してからコミットする。サブエージェントとの間のやり取りには使わない。
+- 日本語の文書は、skill の `yomiyasu` で推敲してからコミットする。対象は `README.md`、`libraries/README.md`、`docs/language-reference.md`、`docs/book/chapters/*.md`、`docs/REWIND_v*.md`、`docs/v2-next-status.md` と、`docs/` 配下の説明文。コード例、コマンド、識別子、数値、リンク先は変えない。推敲のあとで文書の例の検査と、HTML・PDF の再生成をやり直す。
+- 文書を書く agent（`doc-writer`、`lib-developer`、`rust-implementer`、`perf-analyst`）は、定義の `skills` に `yomiyasu` を持つ。メインが文書を直接書いたときも同じ。`.rw` の `// @api` コメント、コミットメッセージ、サブエージェントとの間のやり取りには使わない。
 
 ## 作業の約束
 
@@ -38,8 +39,7 @@
 
 ## コンテキスト
 
-- 自動圧縮（auto compact）の 100K トークンは **Haiku にだけ**適用する。Sonnet と Opus のセッションには適用しない。
-- `.claude/settings.json` の `modelSettings.claude-haiku-5-5.autoCompactWindow` でモデル別に 100K を指定している。環境全体の `CLAUDE_CODE_AUTO_COMPACT_WINDOW` は Sonnet や Opus にも効いてしまうため、書かない。
+- 自動圧縮（auto compact）の窓は、`.claude/settings.json` の `modelSettings.<モデル>.autoCompactWindow` でモデル別に指定する。Haiku は 100K、Sonnet は 300K、Opus は 500K。環境全体の `CLAUDE_CODE_AUTO_COMPACT_WINDOW` は全モデルに効いてしまうため、書かない。
 - サブエージェントの既定のモデルを環境変数 `CLAUDE_CODE_SUBAGENT_MODEL` で固定しない。各 agent の定義（`model:`）が優先されるようにする。
 - Haiku への指示は小さく自己完結させ、1 回の実行が約 100K トークンに収まるようにする。
 - 大きいファイル（`src/v2.rs`、`libraries/std/tests.rw`、`libraries/api/*.api.json` の全文など）は丸ごと読まず、Grep と行範囲の指定で読む。出力は `| tail -30` などで絞る。

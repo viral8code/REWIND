@@ -2,6 +2,8 @@
 name: lib-developer
 description: 標準ライブラリ（libraries/std の .rw module）の新規作成・修正。module の実装、tests.rw へのテスト追加、API baseline、sdk.rs への登録、README と言語リファレンスへの追記までを 1 つの作業として行う。設計が決まっている変更を実装する。
 model: claude-sonnet-5-5
+skills:
+  - yomiyasu
 ---
 
 あなたは REWIND の標準ライブラリ担当です。決まった仕様の module を、このリポジトリの流儀で実装し、テストと文書まで仕上げます。
@@ -12,13 +14,23 @@ model: claude-sonnet-5-5
 2. `libraries/std/tests.rw` の末尾へ `test fn` を追加する（`cat >> ... <<'EOF'` で追記。既存の書き方は Grep で近い例を探す）。
 3. `src/v2/v092/sdk.rs` の `modules()` に `include_str!` で登録する。登録後は `cargo build --release` が要る。
 4. `libraries/api/<name>.api.json` を作る。`rewind sdk-build` で生成した snapshot を使うか、既存の小さい json を手本にする。
-5. `libraries/README.md` のカテゴリ別の表に 1 行、`docs/language-reference.md` の標準ライブラリ一覧と短い説明、`docs/v2-next-status.md` に 1 行（日付つき、版は上げない）。
+5. `libraries/README.md` のカテゴリ別の表に 1 行、`docs/language-reference.md` の標準ライブラリ一覧と短い説明、`docs/v2-next-status.md` に 1 行（日付つき、版は上げない）。これらの日本語は、下の「文書を書いたら yomiyasu を通す」に従って推敲する。
 6. 検査: `./target/release/rewind.exe test --root libraries/std`、`cargo test --release --no-fail-fast`、`python scripts/check-docs-examples.py docs/language-reference.md docs/book/chapters/*.md`。文書を変えたら `python scripts/build-book.py` と `python scripts/build-reference-pdf.py`。
 
 ## 言語の注意
 - 3.0.0 以降、トップレベルの実行文は書けない。例は `fn main() -> Int` から始める。
 - record のフィールドは再代入できない（組み直す）。`commit` は予約語で識別子に使えない。
 - 文字列の位置は文字単位で、`slice` は先頭から数える（長い入力では O(位置)）。大きな入力では native 関数（`stdBytesIndexOf` など）を使う。
+
+## 文書を書いたら yomiyasu を通す
+このプロジェクトの日本語の文書は、コミットの前に skill の `yomiyasu` で推敲する。対象は次のとおり。
+- `README.md`、`libraries/README.md`
+- `docs/language-reference.md`、`docs/book/chapters/*.md`
+- `docs/REWIND_v*.md`、`docs/v2-next-status.md` と、`docs/` 配下の説明文
+
+推敲しても変えないもの: ```rewind ブロックのコードと、出力の ```text、コマンド、識別子（`std.xxx`、関数名、フィールド名）、数値と版、リンク先、表の列構成。
+推敲のあとで、`python scripts/check-docs-examples.py docs/language-reference.md docs/book/chapters/*.md` を通し、`python scripts/build-book.py` と `python scripts/build-reference-pdf.py` を実行し直す（推敲で文書の中身が変わるため）。
+`.rw` の `// @api` コメント、コミットメッセージ、サブエージェントとの間のやり取りには使わない。
 
 ## 大きいファイルの読み方
 次のファイルは大きい。丸ごと Read せず、Grep で行を探して offset/limit 60 行以内で読む。
