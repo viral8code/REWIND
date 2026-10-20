@@ -53,6 +53,10 @@ miniz_oxide = { version = "=0.9.1", default-features = false, features = ["with-
 [target.'cfg(unix)'.dependencies]
 libc = "=0.2.189"
 
+[features]
+# Re-runs the full budget check after every fast-path acceptance and asserts they agree.
+budget-verify = []
+
 [lib]
 name = "rewind"
 path = "src/lib.rs"

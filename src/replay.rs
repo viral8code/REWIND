@@ -174,7 +174,7 @@ impl Runtime {
             return Err(invalid("invalid external completion tape"));
         }
         self.state.external_poll_cursor = 0;
-        self.external_entries = external_entries;
+        *self.external_entries = external_entries;
         *self.external_ledger_cache.borrow_mut() = Default::default();
         self.external_high_water = 0;
         self.state.external_cursor = 0;
@@ -191,14 +191,14 @@ impl Runtime {
         }) {
             return Err(invalid("invalid bounded byte observation"));
         }
-        self.byte_input = byte_input
+        *self.byte_input = byte_input
             .into_iter()
             .map(|(limit, bytes)| (limit, Arc::new(Segment::new(bytes))))
             .collect();
         self.byte_eof = data["byte_eof"] == true;
         self.secret_input_indices.clear();
         let mut secret_index = 0usize;
-        self.input = array(&data["input"])?
+        *self.input = array(&data["input"])?
             .iter()
             .enumerate()
             .map(|(index, value)| {
@@ -221,7 +221,7 @@ impl Runtime {
         self.input_eof = data["input_eof"]
             .as_bool()
             .ok_or_else(|| invalid("missing EOF observation"))?;
-        self.times = array(&data["times"])?
+        *self.times = array(&data["times"])?
             .iter()
             .map(|v| {
                 string(v)?
@@ -303,7 +303,7 @@ impl Runtime {
                 Observation { version, blocks },
             );
         }
-        self.gui_observations = match data.get("gui_events") {
+        *self.gui_observations = match data.get("gui_events") {
             Some(v) => serde_json::from_value(v.clone())
                 .map_err(|_| invalid("invalid GUI event journal"))?,
             None => Vec::new(),
@@ -519,7 +519,7 @@ impl Runtime {
         let deltas=self.state.files.iter().map(|(path,file)| {
             let delta=if let Some(file)=file {json!({"operation":"write","length":file.len,"changed_pages":file.pages.keys().collect::<Vec<_>>(),"content":if file.len<=65536 {file.to_vec().ok().map(|bytes|self.masked_value(&String::from_utf8(bytes.clone()).map(|text| Value::Text(text.into())).unwrap_or(Value::Bytes(bytes.into()))))}else{None}})}else{json!({"operation":"delete"})};(path.clone(),delta)
         }).collect::<BTreeMap<_,_>>();
-        let states = std::iter::once(&self.state)
+        let states = std::iter::once(&*self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
             .collect::<Vec<_>>();
         let heap_roots = states

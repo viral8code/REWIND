@@ -16,7 +16,7 @@ impl Runtime {
         }
         let previous = self.gui_scripted.replace(events.into());
         if let Err(error) = self.enforce_budget() {
-            self.gui_scripted = previous;
+            *self.gui_scripted = previous;
             return Err(error);
         }
         Ok(())
@@ -137,7 +137,7 @@ impl Runtime {
                 host.close();
             }
         }
-        self.gui_displayed = request.frame.clone();
+        *self.gui_displayed = request.frame.clone();
         Ok(())
     }
     pub fn gui_displayed_frame(&self) -> Option<&Frame> {
