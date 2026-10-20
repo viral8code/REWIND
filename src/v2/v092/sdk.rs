@@ -232,6 +232,9 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/guiDialog.rw"),
         ),
         ("guiMenu", include_str!("../../../libraries/std/guiMenu.rw")),
+        ("guiTabs", include_str!("../../../libraries/std/guiTabs.rw")),
+        ("guiCombo", include_str!("../../../libraries/std/guiCombo.rw")),
+        ("guiDate", include_str!("../../../libraries/std/guiDate.rw")),
         ("guiForm", include_str!("../../../libraries/std/guiForm.rw")),
         (
             "guiTable",

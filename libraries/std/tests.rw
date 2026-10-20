@@ -340,6 +340,9 @@ test fn cooperative_numeric_domain_is_inner_result()->Unit effects {tasks} {
 import guiForm as guiForm;
 import guiTable as guiTable;
 import guiField as guiField;
+import guiTabs as guiTabs;
+import guiCombo as guiCombo;
+import guiDate as guiDate;
 test fn form_and_empty_table_contracts() {
  let defs=List<guiForm.Field>();defs.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"-"));
  match guiForm.create(&defs,1){Err(_)=>{panic("form creation");},Ok(model)=>{
@@ -3697,4 +3700,273 @@ test fn web_redirect_location_same_origin_only()->Unit effects {} {
     assert_eq(webCode(web.redirectLocation("//evil.example/")),"Redirect");
     assert_eq(webCode(web.redirectLocation("/\\evil")),"Redirect");
     assert_eq(webCode(web.redirectLocation("home")),"Redirect");
+}
+
+test fn gui_tabs_add_and_select_contracts() effects {} {
+    var tabs=guiTabs.create();
+    takeGuiResult(guiTabs.add(&mut tabs,"a","Alpha"));
+    takeGuiResult(guiTabs.add(&mut tabs,"b","Beta"));
+    takeGuiResult(guiTabs.add(&mut tabs,"c","Gamma"));
+    assert_eq(guiTabs.selected(&tabs),None);
+    match guiTabs.add(&mut tabs,"a","Dup"){Ok(_)=>{panic("duplicate tab id accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsId");}}
+    match guiTabs.add(&mut tabs,"","Empty"){Ok(_)=>{panic("empty tab id accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsId");}}
+    match guiTabs.add(&mut tabs,"d",""){Ok(_)=>{panic("empty tab label accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsText");}}
+    var longId="";
+    for i in 0..65{longId=longId+"x";}
+    match guiTabs.add(&mut tabs,longId,"Long"){Ok(_)=>{panic("65-byte tab id accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsId");}}
+    takeGuiResult(guiTabs.select(&mut tabs,"a"));
+    assert_eq(guiTabs.selected(&tabs),Some("a"));
+}
+
+test fn gui_tabs_limit_contracts() effects {} {
+    var tabs=guiTabs.create();
+    for i in 0..32{takeGuiResult(guiTabs.add(&mut tabs,"t"+i.format(),"Tab"));}
+    match guiTabs.add(&mut tabs,"extra","Extra"){Ok(_)=>{panic("33rd tab accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsLimit");}}
+}
+
+test fn gui_tabs_keyboard_stops_at_edges() effects {} {
+    var tabs=guiTabs.create();
+    takeGuiResult(guiTabs.add(&mut tabs,"a","Alpha"));
+    takeGuiResult(guiTabs.add(&mut tabs,"b","Beta"));
+    takeGuiResult(guiTabs.add(&mut tabs,"c","Gamma"));
+    takeGuiResult(guiTabs.select(&mut tabs,"a"));
+    let left=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Left",0,0));
+    assert_eq(left.changed,false);
+    assert_eq(left.selected,Some("a"));
+    let right=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Right",0,0));
+    assert_eq(right.changed,true);
+    assert_eq(right.selected,Some("b"));
+    takeGuiResult(guiTabs.select(&mut tabs,"c"));
+    let past=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Right",0,0));
+    assert_eq(past.changed,false);
+    assert_eq(past.selected,Some("c"));
+    let home=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Home",0,0));
+    assert_eq(home.changed,true);
+    assert_eq(home.selected,Some("a"));
+    let end=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"End",0,0));
+    assert_eq(end.changed,true);
+    assert_eq(end.selected,Some("c"));
+}
+
+test fn gui_tabs_disabled_tabs_are_skipped() effects {} {
+    var tabs=guiTabs.create();
+    takeGuiResult(guiTabs.add(&mut tabs,"a","Alpha"));
+    takeGuiResult(guiTabs.add(&mut tabs,"b","Beta"));
+    takeGuiResult(guiTabs.add(&mut tabs,"c","Gamma"));
+    takeGuiResult(guiTabs.setEnabled(&mut tabs,"b",false));
+    match guiTabs.select(&mut tabs,"b"){Ok(_)=>{panic("disabled tab selected");},Err(e)=>{assert_eq(e.code,"GuiTabsDisabled");}}
+    takeGuiResult(guiTabs.select(&mut tabs,"a"));
+    let right=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Right",0,0));
+    assert_eq(right.changed,true);
+    assert_eq(right.selected,Some("c"));
+}
+
+test fn gui_tabs_click_selects_enabled_tab() effects {} {
+    var tabs=guiTabs.create();
+    takeGuiResult(guiTabs.add(&mut tabs,"a","Alpha"));
+    takeGuiResult(guiTabs.add(&mut tabs,"b","Beta"));
+    takeGuiResult(guiTabs.add(&mut tabs,"c","Gamma"));
+    takeGuiResult(guiTabs.setEnabled(&mut tabs,"b",false));
+    let outside=guiTabs.dispatch(&mut tabs,gui.Event("pointer",250,30,"",0,0));
+    assert_eq(outside.changed,false);
+    assert_eq(outside.selected,None);
+    let disabled=guiTabs.dispatch(&mut tabs,gui.Event("pointer",130,5,"",0,0));
+    assert_eq(disabled.changed,false);
+    assert_eq(disabled.selected,None);
+    let clicked=guiTabs.dispatch(&mut tabs,gui.Event("pointer",250,5,"",0,0));
+    assert_eq(clicked.changed,true);
+    assert_eq(clicked.selected,Some("c"));
+    let again=guiTabs.dispatch(&mut tabs,gui.Event("pointer",250,5,"",0,0));
+    assert_eq(again.changed,false);
+    assert_eq(again.selected,Some("c"));
+}
+
+test fn gui_combo_rejects_duplicates_and_empty_text() effects {} {
+    var options=List<String>();options.add("Red");options.add("Red");
+    match guiCombo.create(&options) {Ok(_)=>{panic("duplicate accepted");},Err(e)=>{assert_eq(e.code,"GuiComboDuplicate");}}
+    var blank=List<String>();blank.add("");
+    match guiCombo.create(&blank) {Ok(_)=>{panic("empty text accepted");},Err(e)=>{assert_eq(e.code,"GuiComboText");}}
+}
+
+test fn gui_combo_limits_and_range() effects {} {
+    var many=List<String>();
+    for i in 0..257{many.add("o"+i.format());}
+    match guiCombo.create(&many) {Ok(_)=>{panic("257 options accepted");},Err(e)=>{assert_eq(e.code,"GuiComboLimit");}}
+    var full=List<String>();
+    for i in 0..256{full.add("o"+i.format());}
+    var combo=takeGuiResult(guiCombo.create(&full));
+    takeGuiResult(guiCombo.setSelected(&mut combo,255));
+    assert_eq(guiCombo.selected(&combo),Some(255));
+    match guiCombo.setSelected(&mut combo,256) {Ok(_)=>{panic("index 256 accepted");},Err(e)=>{assert_eq(e.code,"GuiComboRange");}}
+    var long=List<String>();
+    var text="";
+    for i in 0..129{text=text+"x";}
+    long.add(text);
+    match guiCombo.create(&long) {Ok(_)=>{panic("129-byte text accepted");},Err(e)=>{assert_eq(e.code,"GuiComboText");}}
+}
+
+test fn gui_combo_keyboard_stops_at_edges() effects {} {
+    var options=List<String>();options.add("One");options.add("Two");options.add("Three");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    guiCombo.open(&mut combo);
+    let up=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Up",0,0));
+    assert_eq(up.changed,false);
+    let down=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));
+    assert_eq(down.changed,false);
+    let end=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"End",0,0));
+    assert_eq(end.changed,false);
+    let past=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));
+    assert_eq(past.changed,false);
+    let commit=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(commit.changed,true);
+    assert_eq(commit.index,Some(2));
+    assert_eq(guiCombo.isOpen(&combo),false);
+}
+
+test fn gui_combo_escape_discards_highlight() effects {} {
+    var options=List<String>();options.add("One");options.add("Two");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    guiCombo.open(&mut combo);
+    guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));
+    let out=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Escape",0,0));
+    assert_eq(out.changed,false);
+    assert_eq(out.index,None);
+    assert_eq(guiCombo.isOpen(&combo),false);
+}
+
+test fn gui_combo_header_and_row_clicks() effects {} {
+    var options=List<String>();options.add("One");options.add("Two");options.add("Three");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    let opened=guiCombo.dispatch(&mut combo,gui.Event("pointer",10,5,"",0,0));
+    assert_eq(guiCombo.isOpen(&combo),true);
+    assert_eq(opened.changed,false);
+    let picked=guiCombo.dispatch(&mut combo,gui.Event("pointer",10,24+24+5,"",0,0));
+    assert_eq(picked.changed,true);
+    assert_eq(picked.index,Some(1));
+    assert_eq(guiCombo.isOpen(&combo),false);
+    guiCombo.dispatch(&mut combo,gui.Event("pointer",10,5,"",0,0));
+    let away=guiCombo.dispatch(&mut combo,gui.Event("pointer",300,200,"",0,0));
+    assert_eq(away.changed,false);
+    assert_eq(guiCombo.isOpen(&combo),false);
+}
+
+test fn gui_combo_scrolls_past_eight_rows() effects {} {
+    var options=List<String>();
+    for i in 0..10{options.add("Item"+i.format());}
+    var combo=takeGuiResult(guiCombo.create(&options));
+    guiCombo.open(&mut combo);
+    for i in 0..9{guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));}
+    let first=guiCombo.dispatch(&mut combo,gui.Event("pointer",10,24+5,"",0,0));
+    assert_eq(first.changed,true);
+    assert_eq(first.index,Some(2));
+}
+
+test fn gui_combo_typed_prefix_moves_to_next_match() effects {} {
+    var options=List<String>();options.add("Apple");options.add("Banana");options.add("Blueberry");options.add("Cherry");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    let first=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"B",0,0));
+    assert_eq(first.index,Some(1));
+    let second=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"B",0,0));
+    assert_eq(second.index,Some(2));
+    let none=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"z",0,0));
+    assert_eq(none.changed,false);
+    assert_eq(guiCombo.selectedText(&combo),Some("Blueberry"));
+}
+
+test fn gui_combo_draw_checks_prefix() effects {} {
+    var options=List<String>();options.add("Red");options.add("Green");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    guiCombo.open(&mut combo);
+    match gui.window("test",320,200) {Err(_)=>{panic("window");},Ok(view)=>{
+        match guiCombo.draw(&combo,&view,"") {Ok(_)=>{panic("empty prefix accepted");},Err(e)=>{assert_eq(e.code,"GuiComboId");}}
+        takeGuiResult(guiCombo.draw(&combo,&view,"combo"));
+    }}
+}
+
+test fn gui_date_leap_years_and_month_lengths() effects {} {
+    assert_eq(guiDate.isLeap(2024),true);
+    assert_eq(guiDate.isLeap(2000),true);
+    assert_eq(guiDate.isLeap(1900),false);
+    assert_eq(guiDate.isLeap(2025),false);
+    assert_eq(takeGuiResult(guiDate.daysInMonth(2024,2)),29);
+    assert_eq(takeGuiResult(guiDate.daysInMonth(2025,2)),28);
+    assert_eq(takeGuiResult(guiDate.daysInMonth(2026,10)),31);
+    match guiDate.daysInMonth(2026,13) {Ok(_)=>{panic("month 13 accepted");},Err(e)=>{assert_eq(e.code,"GuiDateRange");}}
+    match guiDate.create(2025,2,29) {Ok(_)=>{panic("2025-02-29 accepted");},Err(e)=>{assert_eq(e.code,"GuiDateRange");}}
+    takeGuiResult(guiDate.create(2024,2,29));
+}
+
+test fn gui_date_weekday_contracts() effects {} {
+    assert_eq(takeGuiResult(guiDate.weekday(2026,10,20)),2);
+    assert_eq(takeGuiResult(guiDate.weekday(2000,1,1)),6);
+}
+
+test fn gui_date_parse_and_iso_text() effects {} {
+    assert_eq(guiDate.isoText(takeGuiResult(guiDate.parse("2026-10-20"))),"2026-10-20");
+    match guiDate.parse("2026/10/20") {Ok(_)=>{panic("slash accepted");},Err(e)=>{assert_eq(e.code,"GuiDateParse");}}
+    match guiDate.parse("2026-1-20") {Ok(_)=>{panic("short month accepted");},Err(e)=>{assert_eq(e.code,"GuiDateParse");}}
+    match guiDate.parse("2026-1x-20") {Ok(_)=>{panic("letter accepted");},Err(e)=>{assert_eq(e.code,"GuiDateParse");}}
+    match guiDate.parse("2025-02-29") {Ok(_)=>{panic("missing day accepted");},Err(e)=>{assert_eq(e.code,"GuiDateRange");}}
+}
+
+test fn gui_date_page_down_clamps_to_month_end() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(2025,1,31)));
+    guiDate.open(&mut p);
+    let moved=guiDate.dispatch(&mut p,gui.Event("key",0,0,"PageDown",0,0));
+    assert_eq(moved.changed,false);
+    let out=guiDate.dispatch(&mut p,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(out.changed,true);
+    assert_eq(out.value,"2025-02-28");
+    assert_eq(guiDate.isOpen(&p),false);
+}
+
+test fn gui_date_keys_and_escape_contracts() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(2026,10,20)));
+    guiDate.open(&mut p);
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"Right",0,0));
+    let out=guiDate.dispatch(&mut p,gui.Event("key",0,0,"Escape",0,0));
+    assert_eq(out.changed,false);
+    assert_eq(out.value,"2026-10-20");
+    assert_eq(guiDate.isOpen(&p),false);
+    let opened=guiDate.dispatch(&mut p,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(opened.changed,false);
+    assert_eq(guiDate.isOpen(&p),true);
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"Down",0,0));
+    let picked=guiDate.dispatch(&mut p,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(picked.changed,true);
+    assert_eq(picked.value,"2026-10-27");
+}
+
+test fn gui_date_steps_clamp_at_limits() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(1900,1,1)));
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"Left",0,0));
+    assert_eq(guiDate.isoText(guiDate.value(&p)),"1900-01-01");
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"Down",0,0));
+    assert_eq(guiDate.isoText(guiDate.value(&p)),"1900-01-08");
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"PageUp",0,0));
+    assert_eq(guiDate.isoText(guiDate.value(&p)),"1900-01-08");
+}
+
+test fn gui_date_header_and_cell_clicks() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(2026,10,1)));
+    let opened=guiDate.dispatch(&mut p,gui.Event("pointer",10,5,"",0,0));
+    assert_eq(guiDate.isOpen(&p),true);
+    assert_eq(opened.changed,false);
+    let clicked=guiDate.dispatch(&mut p,gui.Event("pointer",73,149,"",0,0));
+    assert_eq(clicked.changed,true);
+    assert_eq(clicked.value,"2026-10-20");
+    assert_eq(guiDate.isOpen(&p),false);
+    guiDate.dispatch(&mut p,gui.Event("pointer",10,5,"",0,0));
+    let away=guiDate.dispatch(&mut p,gui.Event("pointer",300,200,"",0,0));
+    assert_eq(away.changed,false);
+    assert_eq(guiDate.isOpen(&p),false);
+}
+
+test fn gui_date_draw_checks_prefix() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(2026,10,20)));
+    guiDate.open(&mut p);
+    match gui.window("test",320,240) {Err(_)=>{panic("window");},Ok(view)=>{
+        match guiDate.draw(&p,&view,"") {Ok(_)=>{panic("empty prefix accepted");},Err(e)=>{assert_eq(e.code,"GuiDateId");}}
+        takeGuiResult(guiDate.draw(&p,&view,"date"));
+    }}
 }

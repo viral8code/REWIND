@@ -2509,7 +2509,7 @@ error[DivisionByZero]: division by zero
 | 機械学習 | autodiff 系、optimize、training、models、evaluation、plot |
 | タスクと通信 | task、taskError、retry、external、http、httpHeaders、httpRouter、httpServer、tcp、web |
 | データベース | db、dbDatetime、dbDecimal、dbMigration、dbTransaction |
-| GUI | gui、guiDialog、guiField、guiForm、guiMenu、guiTable、guiWindows |
+| GUI | gui、guiCombo、guiDate、guiDialog、guiField、guiForm、guiMenu、guiTabs、guiTable、guiWindows |
 | テスト支援 | proptest |
 
 `std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq`、`randomBytes` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。`randomBytes(length)` は OS の乱数源から 1〜65536 バイトを返します。範囲外の長さは `Range`、乱数源が使えないときは `ExternalFailure` で返します。`external` 領域の中で呼び、`external` と `random` の権限が必要です。実行時に記録され、replay では同じ値が再生されます。鍵、salt、セッション ID のような秘密に使う値は `randomBytes` で作ってください。`Random.next()` は再現可能な擬似乱数なので、秘密には使えません。

@@ -1,0 +1,201 @@
+import gui as gui;
+// A date picker for one day between 1900-01-01 and 2200-12-31. The header is 240 pixels wide and 24 pixels high; below it are a month heading, a Sunday-first weekday row and up to six rows of day cells (34 by 24 pixels each).
+// State is plain VM data. Left and Right move by one day, Up and Down by one week, PageUp and PageDown by one month (the day is clamped to the month end). Keys stop at the calendar limits.
+pub record Outcome {changed:Bool,value:String}
+pub struct Date {private year:Int,private month:Int,private day:Int}
+// selected is the chosen date; cursor is the date the keyboard works on and the grid shows its month.
+pub struct DatePicker {private selected:Date,private cursor:Date,private visible:Bool}
+// copyOf makes a fresh Date from a field, so a field of a borrowed picker is never moved out.
+fn copyOf(date:&Date)->Date effects {} {return Date(date.year,date.month,date.day);}
+// @api isLeap cost O(1)
+pub fn isLeap(year:Int)->Bool effects {} {
+ if year%100==0{return year%400==0;}
+ return year%4==0;
+}
+fn monthLength(year:Int,month:Int)->Int effects {} {
+ if month==2{if isLeap(year){return 29;}return 28;}
+ if month==4 || month==6 || month==9 || month==11{return 30;}
+ return 31;
+}
+// @api daysInMonth failure GuiDateRange; month must be 1..12 and year 1900..2200.
+// @api daysInMonth cost O(1)
+pub fn daysInMonth(year:Int,month:Int)->Result<Int,StdError> effects {} {
+ if year<1900 || year>2200 || month<1 || month>12{return Err(StdError("GuiDateRange",0));}
+ return Ok(monthLength(year,month));
+}
+// @api create failure GuiDateRange; the year must be 1900..2200 and the day must exist in that month.
+// @api create cost O(1)
+pub fn create(year:Int,month:Int,day:Int)->Result<Date,StdError> effects {} {
+ let count=daysInMonth(year,month)?;
+ if day<1 || day>count{return Err(StdError("GuiDateRange",0));}
+ return Ok(Date(year,month,day));
+}
+// weekdayOf uses the Sakamoto method; 0 is Sunday and 6 is Saturday.
+fn weekdayOf(date:Date)->Int effects {} {
+ let offset=List<Int>();
+ offset.add(0);offset.add(3);offset.add(2);offset.add(5);offset.add(0);offset.add(3);
+ offset.add(5);offset.add(1);offset.add(4);offset.add(6);offset.add(2);offset.add(4);
+ var y=date.year;
+ if date.month<3{y=y-1;}
+ return (y+y/4-y/100+y/400+offset.get(date.month-1)+date.day)%7;
+}
+// @api weekday failure GuiDateRange; the date must be valid.
+// @api weekday cost O(1)
+pub fn weekday(year:Int,month:Int,day:Int)->Result<Int,StdError> effects {} {
+ let date=create(year,month,day)?;
+ return Ok(weekdayOf(copyOf(&date)));
+}
+fn padded(n:Int,width:Int)->String effects {} {
+ var text=n.format();
+ while text.byteLen()<width{text="0"+text;}
+ return text;
+}
+// @api isoText cost O(1); returns YYYY-MM-DD.
+pub fn isoText(date:Date)->String effects {} {
+ return padded(date.year,4)+"-"+padded(date.month,2)+"-"+padded(date.day,2);
+}
+fn charAt(text:String,index:Int)->String effects {} {
+ match stdTextSlice(text,index,index+1){Ok(c)=>{return c;},Err(_)=>{return "";}}
+}
+fn digitValue(c:String)->Int effects {} {
+ match stdTextFind("0123456789",c){Some(v)=>{return v;},None=>{return -1;}}
+}
+// digitsAt reads the digits from..to as a number, or returns -1 when one of them is not a digit.
+fn digitsAt(text:String,from:Int,to:Int)->Int effects {} {
+ var value=0;
+ for i in from..to{
+  let d=digitValue(charAt(text,i));
+  if d<0{return -1;}
+  value=value*10+d;
+ }
+ return value;
+}
+// @api parse failure GuiDateParse for text that is not YYYY-MM-DD; GuiDateRange when the date does not exist.
+// @api parse cost O(text bytes)
+pub fn parse(text:String)->Result<Date,StdError> effects {} {
+ if text.byteLen()!=10{return Err(StdError("GuiDateParse",0));}
+ if charAt(text,4)!="-" || charAt(text,7)!="-"{return Err(StdError("GuiDateParse",0));}
+ let year=digitsAt(text,0,4);let month=digitsAt(text,5,7);let day=digitsAt(text,8,10);
+ if year<0 || month<0 || day<0{return Err(StdError("GuiDateParse",0));}
+ return create(year,month,day);
+}
+// dayAfter moves one day forward or back, returning the date unchanged at the calendar limits.
+fn dayAfter(date:Date,direction:Int)->Date effects {} {
+ let y=date.year;let m=date.month;let d=date.day;
+ if direction>0{
+  if d<monthLength(y,m){return Date(y,m,d+1);}
+  if m<12{return Date(y,m+1,1);}
+  if y<2200{return Date(y+1,1,1);}
+  return date;
+ }
+ if d>1{return Date(y,m,d-1);}
+ if m>1{return Date(y,m-1,monthLength(y,m-1));}
+ if y>1900{return Date(y-1,12,31);}
+ return date;
+}
+fn shiftDays(date:Date,count:Int)->Date effects {} {
+ var cur=copyOf(&date);
+ var k=count;var direction=1;
+ if k<0{k=0-k;direction=-1;}
+ for i in 0..k{cur=dayAfter(copyOf(&cur),direction);}
+ return cur;
+}
+// monthAfter moves by whole months and clamps the day to the end of the new month.
+fn monthAfter(date:Date,count:Int)->Date effects {} {
+ var y=date.year;var m=date.month+count;
+ while m>12{m=m-12;y=y+1;}
+ while m<1{m=m+12;y=y-1;}
+ if y<1900 || y>2200{return date;}
+ var d=date.day;
+ let last=monthLength(y,m);
+ if d>last{d=last;}
+ return Date(y,m,d);
+}
+// @api picker cost O(1); starts closed with the given date selected.
+pub fn picker(date:Date)->DatePicker effects {} {return DatePicker(date,date,false);}
+// @api value cost O(1)
+pub fn value(picker:&DatePicker)->Date effects {} {return copyOf(&picker.selected);}
+// @api isOpen cost O(1)
+pub fn isOpen(picker:&DatePicker)->Bool effects {} {return picker.visible;}
+// open starts the keyboard cursor at the selected date.
+// @api open cost O(1)
+pub fn open(picker:&mut DatePicker)->Unit effects {} {
+ picker.cursor=copyOf(&picker.selected);
+ picker.visible=true;
+}
+// @api close cost O(1)
+pub fn close(picker:&mut DatePicker)->Unit effects {} {picker.visible=false;}
+// moveTo puts the cursor on date; a closed picker also selects it, so keyboard moves work without opening the list.
+fn moveTo(picker:&mut DatePicker,date:Date)->Unit effects {} {
+ picker.cursor=copyOf(&date);
+ if !picker.visible{picker.selected=copyOf(&date);}
+}
+// dayAtPoint returns the day of the cursor's month under the point, or 0 when no day is there.
+fn dayAtPoint(picker:&DatePicker,x:Int,y:Int)->Int effects {} {
+ if x<0 || x>=238 || y<72 || y>=216{return 0;}
+ let index=((y-72)/24)*7+x/34;
+ let first=weekdayOf(Date(picker.cursor.year,picker.cursor.month,1));
+ let day=index-first+1;
+ if day<1 || day>monthLength(picker.cursor.year,picker.cursor.month){return 0;}
+ return day;
+}
+// @api dispatch cost O(1) for keys and clicks; a click on the header toggles the list, and a click on a day commits it.
+pub fn dispatch(picker:&mut DatePicker,event:gui.Event)->Outcome effects {} {
+ let before=isoText(copyOf(&picker.selected));var picked=false;
+ if !picker.visible{picker.cursor=copyOf(&picker.selected);}
+ if event.kind=="pointer"{
+  if event.x>=0 && event.x<240 && event.y>=0 && event.y<24{if picker.visible{picker.visible=false;}else{open(picker);}}
+  else{
+   if picker.visible{
+    let day=dayAtPoint(picker,event.x,event.y);
+    if day>0{picker.selected=Date(picker.cursor.year,picker.cursor.month,day);picker.cursor=copyOf(&picker.selected);picker.visible=false;picked=true;}
+    else{picker.visible=false;}
+   }
+  }
+ }
+ if event.kind=="key"{
+  if event.key=="Escape"{picker.visible=false;}
+  if event.key=="Enter" || event.key=="Space"{
+   if picker.visible{picked=true;picker.selected=copyOf(&picker.cursor);picker.visible=false;}else{open(picker);}
+  }
+  if event.key=="Left"{moveTo(picker,shiftDays(copyOf(&picker.cursor),-1));}
+  if event.key=="Right"{moveTo(picker,shiftDays(copyOf(&picker.cursor),1));}
+  if event.key=="Up"{moveTo(picker,shiftDays(copyOf(&picker.cursor),-7));}
+  if event.key=="Down"{moveTo(picker,shiftDays(copyOf(&picker.cursor),7));}
+  if event.key=="PageUp"{moveTo(picker,monthAfter(copyOf(&picker.cursor),-1));}
+  if event.key=="PageDown"{moveTo(picker,monthAfter(copyOf(&picker.cursor),1));}
+ }
+ let changed=picked || isoText(copyOf(&picker.selected))!=before;
+ return Outcome(changed,isoText(copyOf(&picker.selected)));
+}
+// @api draw cost O(42); failure GuiDateId. The base view and picker remain unchanged.
+pub fn draw(picker:&DatePicker,base:&gui.View,prefix:String)->Result<gui.View,StdError> effects {} {
+ if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiDateId",0));}
+ let bounds=gui.bounds(base);let layer=gui.window("",bounds.width,bounds.height)?;gui.graphemeEditing(&mut layer,gui.graphemeMode(base))?;
+ gui.rectangle(&mut layer,prefix+":header",0,0,240,24,0xffffff)?;
+ gui.label(&mut layer,prefix+":text",isoText(copyOf(&picker.selected)),8,4,224,16)?;
+ gui.style(&mut layer,prefix+":text",0x111827,0xffffff)?;
+ if picker.visible{
+  gui.label(&mut layer,prefix+":month",padded(picker.cursor.year,4)+"-"+padded(picker.cursor.month,2),8,28,224,16)?;
+  gui.style(&mut layer,prefix+":month",0x111827,0xffffff)?;
+  let names=List<String>();
+  names.add("日");names.add("月");names.add("火");names.add("水");names.add("木");names.add("金");names.add("土");
+  for col in 0..7{
+   gui.label(&mut layer,prefix+":week:"+col.format(),names.get(col),col*34+6,52,22,16)?;
+   gui.style(&mut layer,prefix+":week:"+col.format(),0x6b7280,0xffffff)?;
+  }
+  let first=weekdayOf(Date(picker.cursor.year,picker.cursor.month,1));
+  let count=monthLength(picker.cursor.year,picker.cursor.month);
+  let stop=count+1;
+  for day in 1..stop{
+   let index=first+day-1;let x=(index%7)*34;let y=72+(index/7)*24;
+   var background=0xffffff;
+   if picker.selected.year==picker.cursor.year && picker.selected.month==picker.cursor.month && picker.selected.day==day{background=0xe5e7eb;}
+   if day==picker.cursor.day{background=0xdbeafe;}
+   gui.rectangle(&mut layer,prefix+":cell:"+day.format(),x,y,34,24,background)?;
+   gui.label(&mut layer,prefix+":day:"+day.format(),day.format(),x+6,y+4,22,16)?;
+   gui.style(&mut layer,prefix+":day:"+day.format(),0x111827,background)?;
+  }
+ }
+ return gui.overlay(base,&layer);
+}
