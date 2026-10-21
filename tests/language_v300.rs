@@ -537,6 +537,95 @@ fn short_closure_without_context_asks_for_annotations() {
 }
 
 #[test]
+fn short_closure_in_annotated_let_is_typed_from_the_annotation() {
+    let out = run(
+        "fn main()->Int effects {output} {\n    let add: fn(Int, Int) -> Int effects {} = |a, b| a + b;\n    let k = 2;\n    let scale: fn(Int) -> Int effects {} = |n| n * k;\n    Out.println(add(1, 2));\n    Out.println(scale(5));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "3\n10\n");
+}
+
+#[test]
+fn short_closure_in_annotated_let_compiles_like_it_runs() {
+    let root = project(
+        "fn main()->Int effects {output} {\n    let add: fn(Int, Int) -> Int effects {} = |a, b| a + b;\n    Out.println(add(1, 2));\n    return 0;\n}\n",
+    );
+    let ran = call(&root, &["run", "--root", "."]);
+    assert!(ran.status.success(), "{}", stderr(&ran));
+    let compiled = call(&root, &["compile", "main.rw"]);
+    assert!(compiled.status.success(), "{}", stderr(&compiled));
+    let out = call(&root, &["run", "main.rwc"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), stdout(&ran));
+    assert_eq!(stdout(&out), "3\n");
+}
+
+fn assert_rejected_before_running(body: &str, needle: &str) {
+    let out = run(&format!(
+        "fn main()->Int effects {{output}} {{\n    Out.println(\"ran\");\n{body}\n    return 0;\n}}\n"
+    ));
+    assert!(!out.status.success(), "{}", stdout(&out));
+    assert!(!stdout(&out).contains("ran"), "{}", stdout(&out));
+    assert!(stderr(&out).contains(needle), "{}", stderr(&out));
+}
+
+#[test]
+fn short_closure_in_let_rejects_bad_annotations_before_running() {
+    assert_rejected_before_running(
+        "    let f: fn(Int, Int) -> Int effects {} = |a| a;",
+        "closure takes 1 parameters but the annotation fn(Int,Int)->Int!{} takes 2",
+    );
+    assert_rejected_before_running(
+        "    let f: fn(Int, Int) -> Int effects {} = |a, b| a.nosuch();",
+        "nosuch",
+    );
+    assert_rejected_before_running(
+        "    let f: fn(Int) -> Int effects {} = |a| { Out.println(a); a };",
+        "type mismatch",
+    );
+    assert_rejected_before_running("    let x: Int = |a| a;", "type mismatch");
+    assert_rejected_before_running(
+        "    let f = |a, b| a + b;",
+        "cannot infer the type of closure parameter a",
+    );
+}
+
+#[test]
+fn short_closure_effect_violation_is_rejected_before_running() {
+    assert_rejected_before_running(
+        "    let f: fn(Int) -> Int effects {} = |a| Out.println(a);",
+        "type mismatch",
+    );
+}
+
+#[test]
+fn short_closures_require_language_3_0_0() {
+    let source = "fn main()->Int effects {} {\n    let add: fn(Int, Int) -> Int effects {} = |a, b| a + b;\n    return add(1, 2);\n}\n";
+    for (language, accepted) in [("2.0.0", false), ("3.0.0", true)] {
+        let root = project(source);
+        fs::write(
+            root.join("rewind.toml"),
+            format!(
+                "language = \"{language}\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"\"\n"
+            ),
+        )
+        .unwrap();
+        assert!(call(&root, &["update"]).status.success());
+        let out = call(&root, &["run", "--root", "."]);
+        if accepted {
+            assert_eq!(out.status.code(), Some(3), "{}", stderr(&out));
+        } else {
+            assert!(!out.status.success());
+            assert!(
+                stderr(&out).contains("short closures"),
+                "{}",
+                stderr(&out)
+            );
+        }
+    }
+}
+
+#[test]
 fn print_writes_without_a_newline() {
     let out = run("fn main()->Int effects {output} {\n    Out.print(\"a\");\n    Out.print(1);\n    Out.println(\"b\");\n    return 0;\n}\n");
     assert!(out.status.success(), "{}", stderr(&out));

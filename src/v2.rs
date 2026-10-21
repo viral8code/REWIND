@@ -311,6 +311,32 @@ fn plain_version(text: &str) -> Option<(u64, u64, u64)> {
     (index == 2 && digits > 0).then_some((parts[0], parts[1], parts[2]))
 }
 
+/// Copy of a short closure (`|a, b| expr`) with its parameter types filled in
+/// from `wanted`. `None` when the expression is not an untyped closure or the
+/// parameter count differs. The executable AST is never rewritten.
+fn typed_closure(expr: &Expr, wanted: &[String]) -> Option<Expr> {
+    match &expr.kind {
+        ExprKind::Closure(params, ret, body)
+            if params.iter().any(|(_, t)| t == "Unknown") && wanted.len() == params.len() =>
+        {
+            let params = params
+                .iter()
+                .zip(wanted)
+                .map(|((name, ty), wanted)| {
+                    (
+                        name.clone(),
+                        if ty == "Unknown" { wanted.clone() } else { ty.clone() },
+                    )
+                })
+                .collect();
+            Some(Expr {
+                kind: ExprKind::Closure(params, ret.clone(), body.clone()),
+                at: expr.at.clone(),
+            })
+        }
+        _ => None,
+    }
+}
 fn language_at_least(actual: &str, minimum: &str) -> bool {
     // Called on every VM step; avoid two full semver parses for the usual plain versions.
     if let (Some(actual), Some(minimum)) = (plain_version(actual), plain_version(minimum)) {
@@ -10996,6 +11022,12 @@ impl Checker<'_> {
             }
             ExprKind::Closure(params, ret, body) => {
                 if params.iter().any(|(_, t)| t == "Unknown") {
+                    if !language_at_least(&self.program.language, "3.0.0") {
+                        return Err(diagnostic(
+                            &e.at,
+                            "short closures (|a, b| expr) require language 3.0.0; annotate the parameter types (|a: Int| -> Int { ... })",
+                        ));
+                    }
                     // Parameter types come from the call that receives the closure
                     // (`contextual_closures`); the typed copy is checked there.
                     return Ok(v06::fn_type(params, ret, &Default::default()));
@@ -11335,7 +11367,7 @@ impl Checker<'_> {
     /// when something changed.
     fn contextual_closures(&self, target: &Expr, args: &[Expr]) -> Option<Vec<Expr>> {
         let untyped = |a: &Expr| matches!(&a.kind, ExprKind::Closure(params, _, _) if params.iter().any(|(_, t)| t == "Unknown"));
-        if !args.iter().any(untyped) {
+        if !args.iter().any(untyped) || !language_at_least(&self.program.language, "3.0.0") {
             return None;
         }
         let mut expected: Vec<Option<Vec<String>>> = vec![None; args.len()];
@@ -11384,27 +11416,12 @@ impl Checker<'_> {
         let rewritten = args
             .iter()
             .zip(expected)
-            .map(|(arg, wanted)| match (&arg.kind, wanted) {
-                (ExprKind::Closure(params, ret, body), Some(wanted))
-                    if untyped(arg) && wanted.len() == params.len() =>
-                {
+            .map(|(arg, wanted)| match wanted.and_then(|w| typed_closure(arg, &w)) {
+                Some(typed) => {
                     changed = true;
-                    let params = params
-                        .iter()
-                        .zip(wanted)
-                        .map(|((name, ty), wanted)| {
-                            (
-                                name.clone(),
-                                if ty == "Unknown" { wanted } else { ty.clone() },
-                            )
-                        })
-                        .collect();
-                    Expr {
-                        kind: ExprKind::Closure(params, ret.clone(), body.clone()),
-                        at: arg.at.clone(),
-                    }
+                    typed
                 }
-                _ => arg.clone(),
+                None => arg.clone(),
             })
             .collect();
         changed.then_some(rewritten)
@@ -11412,16 +11429,43 @@ impl Checker<'_> {
     fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match &stmt.kind {
             StmtKind::Let(name, mutable, ty, expr) => {
+                let mut typed_expr = None;
                 if let ExprKind::Closure(params, _, _) = &expr.kind {
                     if let Some((param, _)) = params.iter().find(|(_, t)| t == "Unknown") {
-                        return Err(diagnostic(
-                            &expr.at,
-                            format!(
-                                "cannot infer the type of closure parameter {param}; annotate it (|{param}: Int| -> Int {{ ... }}) or pass the closure directly where the function type is known"
-                            ),
-                        ));
+                        let annotated = ty
+                            .as_ref()
+                            .map(|ty| rename_type(ty, &self.program.import_aliases))
+                            .and_then(|ty| function_signature(&ty).map(|(p, _)| (ty, p)));
+                        match annotated {
+                            Some((annotation, wanted))
+                                if language_at_least(&self.program.language, "3.0.0") =>
+                            {
+                                if wanted.len() != params.len() {
+                                    return Err(diagnostic(
+                                        &expr.at,
+                                        format!(
+                                            "closure takes {} parameters but the annotation {annotation} takes {}",
+                                            params.len(),
+                                            wanted.len()
+                                        ),
+                                    ));
+                                }
+                                typed_expr = typed_closure(expr, &wanted);
+                            }
+                            Some(_) => {}
+                            None if ty.is_some() => {}
+                            None => {
+                                return Err(diagnostic(
+                                    &expr.at,
+                                    format!(
+                                        "cannot infer the type of closure parameter {param}; annotate it (|{param}: Int| -> Int {{ ... }}), write the function type on the binding (let add: fn(Int, Int) -> Int effects {{}} = |a, b| ...), or pass the closure directly where the function type is known"
+                                    ),
+                                ));
+                            }
+                        }
                     }
                 }
+                let expr = typed_expr.as_ref().unwrap_or(expr);
                 let inferred = self.expr(expr)?;
                 let annotation = ty
                     .as_ref()
