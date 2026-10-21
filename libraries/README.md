@@ -28,7 +28,7 @@
 
 | module | 説明 | 主な関数 |
 |---|---|---|
-| `text` | Unicodeスカラー単位の文字列操作 | `length`, `trim`, `split`, `tokens`, `slice`, `find` |
+| `text` | Unicodeスカラー単位の文字列操作、コードポイントとの相互変換、実行環境の改行 | `length`, `trim`, `split`, `tokens`, `slice`, `find`, `codePoints`, `fromCodePoints`, `lineSeparator` |
 | `regex` | 正規表現（コンパイル、検索、一致判定、UTF-8 バイト位置） | `compile`, `compileBytes`, `compileOptions`, `compileBytesOptions`, `findFrom`, `find` |
 | `unicode` | 拡張書記素クラスタ・正規化・単語境界 | `normalize`, `isNormalized`, `graphemeCount`, `graphemeSlice`, `graphemes`, `graphemeOffsets` |
 | `stringSearch` | バイト列でのprefix検索・KMP・Z関数 | `prefix`, `kmp`, `z` |
@@ -163,7 +163,7 @@
 | `timeline` | 有界なデータ履歴と取り消し・やり直し | `create`, `length`, `position`, `canUndo`, `canRedo`, `current` |
 | `changes` | 文字列キーの Map に対する変更集合（差分、逆変換、適用、合成、マージ） | `length`, `edits`, `fromChanges`, `diff`, `inverse`, `apply` |
 | `lens` | 型付きのアクセス経路（取得、設定、変更） | `create`, `get`, `set`, `modify`, `compose`, `optional` |
-| `binding` | record の値と名前つきの文字列欄の同期（版番号、差分、取り消し・やり直し、guiForm への受け渡し） | `create`, `bind`, `bindLens`, `text`, `edit`, `version`, `changedSince`, `dirtyFields`, `accept`, `revert`, `pushToForm`, `pullFromForm`, `undo`, `redo` |
+| `binding` | record の値と名前つきの文字列欄の同期（版番号、差分、取り消し・やり直し、guiForm への受け渡し） | `create`, `bind`, `bindLens`, `text`, `edit`, `version`, `changedSince`, `dirtyFields`, `accept`, `reset`, `revert`（非推奨）, `pushToForm`, `pullFromForm`, `undo`, `redo` |
 | `lazy` | 明示的な遅延計算（一度だけ評価し結果を保持） | `create`, `isForced`, `peek`, `force`, `fork`, `clear` |
 | `memo` | 版付きキーを持つ LRU 型のメモ化キャッシュ | `key`, `domain`, `revision`, `input`, `create`, `length` |
 | `persistentSet` | 不変版を持つ素集合（併合、代表元の検索） | `create`, `length`, `components`, `root`, `same`, `size` |

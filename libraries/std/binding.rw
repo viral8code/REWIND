@@ -98,11 +98,16 @@ pub fn dirtyFields<R:Share>(b:&Binding<R>)->List<String> effects {} {
 pub fn accept<R:Share>(b:&mut Binding<R>)->Unit effects {} {
  b.original=b.current;b.undoStack=List<R>();b.redoStack=List<R>();b.version=b.version+1;
 }
-// revert restores the original value, clears pending text and errors, and clears undo and redo.
-// @api revert cost O(1)
-pub fn revert<R:Share>(b:&mut Binding<R>)->Unit effects {} {
+// reset discards the edits: it restores the original value, clears pending text and errors, and clears undo and redo. It pairs with accept.
+// @api reset cost O(1)
+pub fn reset<R:Share>(b:&mut Binding<R>)->Unit effects {} {
  b.current=b.original;b.pending=Map<String,String>();b.errors=Map<String,String>();
  b.undoStack=List<R>();b.redoStack=List<R>();b.version=b.version+1;
+}
+// revert does the same as reset. deprecated: use reset (revert is planned for removal in 4.0.0).
+// @api revert cost O(1); deprecated: use reset.
+pub fn revert<R:Share>(b:&mut Binding<R>)->Unit effects {} {
+ reset(b);
 }
 
 // pushToForm writes text(b,id) into every bound field that the form has. Ids missing from the form are skipped.

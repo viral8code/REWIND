@@ -38,6 +38,7 @@ pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str>
         .or_else(|| csv_stream::parameter(name, index))
         .or_else(|| json_stream::parameter(name, index))
         .or_else(|| (name == "stdBytesFromInts" && index == 0).then_some("&List<Int>"))
+        .or_else(|| (name == "stdTextFromCodePoints" && index == 0).then_some("&List<Int>"))
 }
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
@@ -268,6 +269,9 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdTextSlice",
         "stdTextFind",
         "stdTextLength",
+        "stdTextCodePoints",
+        "stdTextFromCodePoints",
+        "stdExternalLineSeparator",
         "stdDecode",
         "stdEncode",
         "stdBytesGet",
@@ -1462,6 +1466,9 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdTextSlice" => (&["String", "Int", "Int"], "Result<String,StdError>"),
         "stdTextFind" => (&["String", "String"], "Option<Int>"),
         "stdTextLength" => (&["String"], "Int"),
+        "stdTextCodePoints" => (&["String"], "List<Int>"),
+        "stdTextFromCodePoints" => (&["&List<Int>"], "Result<String,StdError>"),
+        "stdExternalLineSeparator" => (&[], "String"),
         "stdDecode" => (&["Bytes"], "Result<String,StdError>"),
         "stdEncode" => (&["String"], "Result<Bytes,StdError>"),
         "stdBytesGet" => (&["Bytes", "Int"], "Result<Int,StdError>"),
@@ -1749,6 +1756,19 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
             Err(_) => outcome(Err(("ExternalFailure", 0))),
         }));
     }
+    // 実行環境の改行。クロックや乱数と同じ外部の観測として記録し、replay は記録した値を返す。
+    if n == "stdExternalLineSeparator" && args.is_empty() {
+        let result = runtime.external_operation("env.lineSeparator", b"", 64, || {
+            Ok(serde_json::json!(if cfg!(windows) { "\r\n" } else { "\n" }))
+        })?;
+        return match result {
+            Ok(v) => match v.as_str() {
+                Some(sep @ ("\n" | "\r\n")) => Ok(Some(Value::Text(sep.into()))),
+                _ => Err(Error::InvalidOperation("ExternalFailure: line separator".into())),
+            },
+            Err(_) => Err(Error::InvalidOperation("ExternalFailure: line separator".into())),
+        };
+    }
     // 範囲外の長さは外部操作を記録せずに Range で返す。記録する値は 16 進文字列で、上限は長さの 2 倍と JSON の包みの分。
     if n == "stdExternalRandomBytes" && args.len() == 1 {
         if let Value::Int(length) = &args[0] {
@@ -1890,6 +1910,15 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
     // Scalar-only results stay scalar. Bounded codecs consistently return Result.
     let value = match n {
         "stdTextLength" => Value::Int(text(0)?.chars().count() as i64),
+        // 戻り値が List なので、上限を超える入力は Err にできない。実行時エラーで止める（stdTextFind と同じ）。
+        "stdTextCodePoints" => {
+            let s = text(0)?;
+            if s.len() > LIMIT {
+                return Err(Error::InvalidOperation("text code point limit exceeded".into()));
+            }
+            let values: Vec<Value> = s.chars().map(|c| Value::Int(i64::from(u32::from(c)))).collect();
+            Value::TypedList("Int".into(), values.into())
+        }
         "stdBytesLength" => Value::Int(bytes(0)?.len() as i64),
         "stdCrc32" => {
             let mut crc = 0xffff_ffffu32;
@@ -2421,6 +2450,51 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                             match failure {
                                 Some(e) => Err(e),
                                 None => Ok(Value::Bytes(output.into())),
+                            }
+                        }
+                        Some(Value::TypedList(_, _)) => Err(("Limit", 0)),
+                        _ => {
+                            return Err(Error::InvalidOperation(
+                                "expected borrowed List<Int>".into(),
+                            ))
+                        }
+                    }
+                }
+                "stdTextFromCodePoints" => {
+                    let target = match args.first() {
+                        Some(Value::HeapRef(id)) => runtime.heap_get(*id),
+                        other => other,
+                    };
+                    match target {
+                        Some(Value::TypedList(_, values)) if values.len() <= LIMIT => {
+                            let mut output = String::with_capacity(values.len());
+                            let mut failure = None;
+                            for (index, value) in values.iter().enumerate() {
+                                match value {
+                                    Value::Int(v) if (0xD800..=0xDFFF).contains(v) => {
+                                        failure = Some(("Surrogate", index));
+                                        break;
+                                    }
+                                    Value::Int(v) => match u32::try_from(*v).ok().and_then(char::from_u32) {
+                                        Some(c) => output.push(c),
+                                        None => {
+                                            failure = Some(("Range", index));
+                                            break;
+                                        }
+                                    },
+                                    _ => {
+                                        failure = Some(("Range", index));
+                                        break;
+                                    }
+                                }
+                                if output.len() > LIMIT {
+                                    failure = Some(("Limit", index));
+                                    break;
+                                }
+                            }
+                            match failure {
+                                Some(e) => Err(e),
+                                None => Ok(Value::Text(output.into())),
                             }
                         }
                         Some(Value::TypedList(_, _)) => Err(("Limit", 0)),

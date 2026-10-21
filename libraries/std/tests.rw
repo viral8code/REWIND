@@ -4157,3 +4157,59 @@ test fn binding_undo_redo_limits_and_id_errors()->Unit effects {} {
         Ok(_)=>{panic("empty id accepted");}
     }
 }
+
+test fn text_code_points_cover_japanese_emoji_and_empty()->Unit effects {} {
+    let empty=text.codePoints("");
+    assert_eq(empty.len(),0);
+    match text.fromCodePoints(&empty) {Ok(s)=>{assert_eq(s,"");},Err(_)=>{panic("empty list rejected");}}
+    let jp=text.codePoints("日本語");
+    assert_eq(jp.len(),3);assert_eq(jp.get(0),26085);assert_eq(jp.get(1),26412);assert_eq(jp.get(2),35486);
+    // an emoji is one scalar value (U+1F600), not a surrogate pair.
+    let emoji=text.codePoints("a😀é");
+    assert_eq(emoji.len(),3);assert_eq(emoji.get(0),97);assert_eq(emoji.get(1),128512);assert_eq(emoji.get(2),233);
+    match text.fromCodePoints(&emoji) {Ok(s)=>{assert_eq(s,"a😀é");},Err(_)=>{panic("round trip failed");}}
+    match text.fromCodePoints(&jp) {Ok(s)=>{assert_eq(s,"日本語");},Err(_)=>{panic("round trip failed");}}
+    let ascii=text.codePoints("Hi\n");
+    assert_eq(ascii.len(),3);assert_eq(ascii.get(2),10);
+    var edge=List<Int>();edge.add(0);edge.add(1114111);
+    match text.fromCodePoints(&edge) {Ok(s)=>{assert_eq(text.length(s),2);},Err(_)=>{panic("limits rejected");}}
+}
+
+test fn text_from_code_points_rejects_invalid_values()->Unit effects {} {
+    var negative=List<Int>();negative.add(65);negative.add(-1);
+    assert_eq(text.fromCodePoints(&negative),Err(StdError("Range",1)));
+    var big=List<Int>();big.add(1114112);
+    assert_eq(text.fromCodePoints(&big),Err(StdError("Range",0)));
+    var low=List<Int>();low.add(55296);
+    assert_eq(text.fromCodePoints(&low),Err(StdError("Surrogate",0)));
+    var high=List<Int>();high.add(65);high.add(57343);
+    assert_eq(text.fromCodePoints(&high),Err(StdError("Surrogate",1)));
+    // a UTF-16 surrogate pair written as two values is not a code point sequence.
+    var pair=List<Int>();pair.add(55357);pair.add(56832);
+    assert_eq(text.fromCodePoints(&pair),Err(StdError("Surrogate",0)));
+}
+
+test fn binding_reset_matches_revert_and_pairs_with_accept()->Unit effects {} {
+    var a=binding.create(BindPerson("Ann",30));
+    var b=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut a,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.edit(&mut a,"name","Bob"),Ok(true));
+    assert_eq(binding.edit(&mut b,"name","Bob"),Ok(true));
+    assert(binding.isDirty(&a));
+    binding.reset(&mut a);
+    binding.revert(&mut b);
+    assert(!binding.isDirty(&a));
+    assert_eq(binding.text(&a,"name"),Ok("Ann"));
+    assert_eq(binding.text(&a,"name"),binding.text(&b,"name"));
+    assert_eq(binding.version(&a),binding.version(&b));
+    let va=binding.value(&a);let vb=binding.value(&b);
+    assert_eq(va.name,"Ann");assert_eq(vb.name,"Ann");
+    assert_eq(binding.edit(&mut a,"name","Cy"),Ok(true));
+    binding.accept(&mut a);
+    assert_eq(binding.edit(&mut a,"name","Di"),Ok(true));
+    binding.reset(&mut a);
+    let kept=binding.value(&a);
+    assert_eq(kept.name,"Cy");
+    assert(!binding.hasErrors(&a));
+}

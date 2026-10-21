@@ -3285,9 +3285,28 @@
       ],
       "return": "Bool"
     },
-    "fn:revert": {
+    "fn:reset": {
       "async": false,
       "cost": "O(1)",
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "R",
+          "Share"
+        ]
+      ],
+      "names": [
+        "b"
+      ],
+      "parameters": [
+        "&mut Binding<R>"
+      ],
+      "return": "Unit"
+    },
+    "fn:revert": {
+      "async": false,
+      "cost": "O(1); deprecated: use reset.",
       "defaults": [],
       "effects": [],
       "generics": [

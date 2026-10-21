@@ -2308,6 +2308,10 @@ Err(InvalidIntOrOverflow)
 
 Unicode のスカラー値は、人が見る「一文字」と一致するとは限りません（結合文字など）。文字単位の操作は `std.text`、一文字（書記素クラスタ）単位の操作は `std.unicode` を使います。
 
+`std.text` の `codePoints` は、文字列を Unicode スカラー値（0 から 0x10FFFF）の `List<Int>` にします。絵文字は 1 つの値になり、サロゲートペアには分かれません。入力は 1 MiB までで、超えると実行が止まります。`fromCodePoints` はその逆で、範囲外の値は `Range`、サロゲート（0xD800 から 0xDFFF）は `Surrogate`、要素数が 1,048,576 を超えるときと、結果が 1 MiB を超えるときは `Limit` の `Err` になります。
+
+`std.text` の `lineSeparator` は、実行環境の改行を返します。Windows では `"\r\n"`、それ以外では `"\n"` です。値は時刻や乱数と同じ外部の観測として記録されるので、`external` の効果を許可し、`external` 領域の中で呼びます。記録した実行を replay すると、記録したときの値が返ります。文字列リテラルの `"\n"` は、どの環境でも LF のままです。
+
 ### 15.5 `List` と `Map` の組み込みメソッド
 
 | 型 | メソッド |
@@ -2515,6 +2519,8 @@ error[DivisionByZero]: division by zero
 `std.binding` は、1 つの record の値（current）と、id を付けた欄ごとの文字列の読み書きを束ねます。画面（`std.guiForm` など）とは欄ごとの文字列でやり取りします。`edit` は、書き込みが受理されたときだけ current を差し替えます。record は不変なので、変更は新しい値への置き換えとして反映されます。
 
 画面は、毎回すべての欄を読み直さずに、`changedSince` で版番号が進んだかを確かめ、進んだときだけ描き直してください。`pushToForm` と `pullFromForm` で、`std.guiForm` の欄と同期できます。`undo` と `redo` は、受理された編集を最大 256 件まで戻します。欄は最大 128 件です。
+
+`reset` は、編集を捨てて元の値に戻します。`accept` と対になる名前です。`revert` は同じ動作の古い名前で、非推奨です。4.0.0 で削除する予定なので、`reset` を使ってください。
 
 `std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq`、`randomBytes` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。`randomBytes(length)` は OS の乱数源から 1〜65536 バイトを返します。範囲外の長さは `Range`、乱数源が使えないときは `ExternalFailure` で返します。`external` 領域の中で呼び、`external` と `random` の権限が必要です。実行時に記録され、replay では同じ値が再生されます。鍵、salt、セッション ID のような秘密に使う値は `randomBytes` で作ってください。`Random.next()` は再現可能な擬似乱数なので、秘密には使えません。
 

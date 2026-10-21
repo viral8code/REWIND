@@ -1,6 +1,16 @@
+effects {external};
 pub fn length(value:String)->Int effects {} {return stdTextLength(value);}
 pub fn trim(value:String)->Result<String,StdError> effects {} {return stdTextTrim(value);}
 pub fn split(value:String,delimiter:String)->Result<List<String>,StdError> effects {} {return stdTextSplit(value,delimiter);}
 pub fn tokens(value:String)->Result<List<String>,StdError> effects {} {return stdTextTokens(value);}
 pub fn slice(value:String,start:Int,end:Int)->Result<String,StdError> effects {} {return stdTextSlice(value,start,end);}
 pub fn find(value:String,needle:String)->Option<Int> effects {} {return stdTextFind(value,needle);}
+// @api codePoints cost O(bytes); one Int per Unicode scalar value. A String over 1 MiB stops the run (the result is a plain List, not a Result).
+// @api codePoints failure none for Strings up to 1 MiB; a longer String is a runtime error.
+pub fn codePoints(value:String)->List<Int> effects {} {return stdTextCodePoints(value);}
+// @api fromCodePoints cost O(values); builds a String from Unicode scalar values.
+// @api fromCodePoints failure StdError Range (outside 0 to 0x10FFFF), Surrogate (0xD800 to 0xDFFF), Limit (more than 1,048,576 elements, or a result over 1 MiB); offset = index of the element.
+pub fn fromCodePoints(values:&List<Int>)->Result<String,StdError> effects {} {return stdTextFromCodePoints(values);}
+// @api lineSeparator cost O(1) external observation; recorded once per external ledger position, so replay returns the recorded value.
+// @api lineSeparator failure requires an external region and the external effect; a corrupt recorded value stops the run.
+pub fn lineSeparator()->String effects {external} {return stdExternalLineSeparator();}

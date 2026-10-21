@@ -479,3 +479,4 @@ Compiler, runtime, tests, and API generation remain unverified because the execu
 2026-10-20: std.guiTabs / std.guiCombo / std.guiDate 追加（版は上げない）。タブ、上限付きの選択式リスト、1900〜2200 年の日付選択を純粋な .rw で実装し、gui の画面へ重ねて描画する。
 2026-10-20: std.binding 追加（版は上げない）。1 つの record の値と、欄の id つきの文字列の読み書きを束ね、版番号と差分で画面の再描画を判断する。guiForm との受け渡し、取り消し・やり直しを純粋な .rw で実装する。
 2026-10-21: std.guiCombo の文字入力による検索を、大文字小文字を区別しない形に変更（版は上げない）。候補の順序と返す値は変えず、`std.unicode.lower` で小文字にそろえて比べる。`examples/gui-controls2.rw` に guiTabs / guiCombo / guiDate / binding を使う例を追加した。
+2026-10-21: std.text に codePoints / fromCodePoints / lineSeparator を追加し、std.binding に reset を追加した（版は上げない）。lineSeparator は実行環境の改行を外部の観測として記録し、replay は記録した値を返す。binding.revert は reset と同じ動作のまま非推奨にし、4.0.0 で削除する予定。
