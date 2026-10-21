@@ -1103,6 +1103,11 @@ struct Parser {
     toks: Vec<Tok>,
     pos: usize,
     type_depth: usize,
+    /// Start of the innermost if/while/match condition being parsed.
+    cond_start: Option<usize>,
+    /// Positions of `>=` tokens that `eat(">")` rewrote to `=`, so a
+    /// backtrack can restore them.
+    splits: Vec<usize>,
 }
 impl Parser {
     fn current(&self) -> &Tok {
@@ -1128,10 +1133,60 @@ impl Parser {
     fn is(&self, s: &str) -> bool {
         self.current().text == s
     }
+    /// Parses an if/while/match condition or a for iterable; an empty `{}` right after a
+    /// path at the top level of it is the body, not an empty construction.
+    fn cond_expr(&mut self) -> Result<Expr> {
+        self.cond_expr_from(0)
+    }
+    fn cond_expr_from(&mut self, min: u8) -> Result<Expr> {
+        let saved = self.cond_start.replace(self.pos);
+        let result = self.expr(min);
+        self.cond_start = saved;
+        result
+    }
+    /// At `{` after an enum path: is this a named construction?
+    /// `{ name :` or `{ }` (the latter not at the top level of a condition).
+    fn named_construction_follows(&self) -> bool {
+        if !self.is("{") {
+            return false;
+        }
+        let next = self.toks.get(self.pos + 1);
+        let is_name = |t: &Tok| {
+            t.text
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_alphabetic() || c == '_')
+        };
+        if next.is_some_and(|t| t.text == "}") {
+            let Some(start) = self.cond_start else {
+                return true;
+            };
+            let mut depth = 0i64;
+            for t in &self.toks[start..self.pos] {
+                match t.text.as_str() {
+                    "(" | "[" | "{" => depth += 1,
+                    ")" | "]" | "}" => depth -= 1,
+                    _ => {}
+                }
+            }
+            return depth > 0;
+        }
+        next.is_some_and(is_name) && self.toks.get(self.pos + 2).is_some_and(|t| t.text == ":")
+    }
+    /// Returns to `pos`, undoing the `>=` splits made since then.
+    fn backtrack(&mut self, pos: usize, splits: usize) {
+        while self.splits.len() > splits {
+            let at = self.splits.pop().unwrap();
+            self.toks[at].text = ">=".into();
+            self.toks[at].col -= 1;
+        }
+        self.pos = pos;
+    }
     fn eat(&mut self, s: &str) -> bool {
         if s == ">" && self.is(">=") {
             self.toks[self.pos].text = "=".into();
             self.toks[self.pos].col += 1;
+            self.splits.push(self.pos);
             return true;
         }
         if self.is(s) {
@@ -2186,7 +2241,7 @@ impl Parser {
                 // `if let Pat = value { yes } else { no }` is a two-arm match.
                 let pattern = self.pattern()?;
                 self.need("=")?;
-                let value = self.expr(0)?;
+                let value = self.cond_expr()?;
                 let yes = self.block()?;
                 let no = if self.eat("else") {
                     if self.is("if") {
@@ -2222,7 +2277,7 @@ impl Parser {
                     at,
                 });
             }
-            let cond = self.expr(0)?;
+            let cond = self.cond_expr()?;
             let yes = self.block()?;
             let no = if self.eat("else") {
                 if self.is("if") {
@@ -2239,7 +2294,7 @@ impl Parser {
                 // `while let Pat = value { body }` repeats while the pattern matches.
                 let pattern = self.pattern()?;
                 self.need("=")?;
-                let value = self.expr(0)?;
+                let value = self.cond_expr()?;
                 let body = self.block()?;
                 return Ok(Stmt {
                     kind: StmtKind::While(
@@ -2275,7 +2330,7 @@ impl Parser {
                     at,
                 });
             }
-            let cond = self.expr(0)?;
+            let cond = self.cond_expr()?;
             StmtKind::While(cond, self.block()?)
         } else if self.eat("for") {
             // `for (a, b) in iterator { ... }` destructures each item.
@@ -2290,9 +2345,9 @@ impl Parser {
                 self.name()?
             };
             self.need("in")?;
-            let start = self.expr(1)?;
+            let start = self.cond_expr_from(1)?;
             if destructure.is_none() && self.eat("..") {
-                let end = self.expr(0)?;
+                let end = self.cond_expr()?;
                 StmtKind::For(name, start, end, self.block()?)
             } else {
                 let body = self.block()?;
@@ -2465,7 +2520,7 @@ impl Parser {
             }
             StmtKind::Runtime(b, steps)
         } else if self.eat("match") {
-            let value = self.expr(0)?;
+            let value = self.cond_expr()?;
             self.need("{")?;
             let mut arms = Vec::new();
             while !self.eat("}") {
@@ -2614,11 +2669,12 @@ impl Parser {
             }
             let block_like = self.is("if") || self.is("match") || self.is("{");
             let saved = self.pos;
+            let splits_saved = self.splits.len();
             let lhs = match self.expr(0) {
                 Ok(lhs) => lhs,
                 Err(_) if block_like => {
                     // Fall back to the statement form of `if` / `match`.
-                    self.pos = saved;
+                    self.backtrack(saved, splits_saved);
                     let stmt = self.stmt()?;
                     Self::push_stmt(&mut body, stmt);
                     continue;
@@ -2763,9 +2819,9 @@ impl Parser {
         let (condition, then_pattern) = if self.eat("let") {
             let pattern = self.pattern()?;
             self.need("=")?;
-            (self.expr(0)?, pattern)
+            (self.cond_expr()?, pattern)
         } else {
-            (self.expr(0)?, Pattern::Literal(Value::Bool(true)))
+            (self.cond_expr()?, Pattern::Literal(Value::Bool(true)))
         };
         let else_pattern = if matches!(then_pattern, Pattern::Literal(Value::Bool(true))) {
             Pattern::Literal(Value::Bool(false))
@@ -2910,7 +2966,7 @@ impl Parser {
             "[" => self.list_literal(&at)?,
             "if" => self.if_expression(&at)?,
             "match" => {
-                let value = self.expr(0)?;
+                let value = self.cond_expr()?;
                 self.need("{")?;
                 let mut arms = Vec::new();
                 while !self.eat("}") {
@@ -3068,6 +3124,7 @@ impl Parser {
             {
                 let mut name = at.text.clone();
                 let saved = self.pos;
+                let splits_saved = self.splits.len();
                 if self.eat("<") {
                     name.push('<');
                     let parsed = (|| -> Result<()> {
@@ -3087,7 +3144,7 @@ impl Parser {
                         Ok(())
                     })();
                     if parsed.is_err() || !(self.is("(") || self.is("::")) {
-                        self.pos = saved;
+                        self.backtrack(saved, splits_saved);
                         name = at.text.clone();
                     }
                 }
@@ -3095,7 +3152,7 @@ impl Parser {
                     name.push_str("::");
                     name.push_str(&self.name()?);
                 }
-                if name.contains("::") && self.eat("{") {
+                if name.contains("::") && self.named_construction_follows() && self.eat("{") {
                     let mut fields = Vec::new();
                     while !self.eat("}") {
                         let field = self.name()?;
@@ -3141,7 +3198,7 @@ impl Parser {
                     _ => return Err(diagnostic(&at, "invalid enum path")),
                 };
                 let name = format!("{prefix}::{variant}");
-                if self.eat("{") {
+                if self.named_construction_follows() && self.eat("{") {
                     let mut fields = Vec::new();
                     while !self.eat("}") {
                         let field = self.name()?;
@@ -3209,6 +3266,7 @@ impl Parser {
                 let field = self.name()?;
                 if let ExprKind::Name(module) = &lhs.kind {
                     let saved = self.pos;
+                    let splits_saved = self.splits.len();
                     if self.eat("<") {
                         let mut name = format!("{module}.{field}<");
                         let parsed = (|| -> Result<()> {
@@ -3234,7 +3292,7 @@ impl Parser {
                             };
                             continue;
                         }
-                        self.pos = saved;
+                        self.backtrack(saved, splits_saved);
                     }
                 }
                 lhs = Expr {
@@ -3924,6 +3982,8 @@ fn load_program_overlay(
             },
             pos: 0,
             type_depth: 0,
+            cond_start: None,
+            splits: Vec::new(),
         };
         let parsed = parser.program()?;
         v100::syntax_budget(&parsed)?;
@@ -5511,6 +5571,8 @@ pub fn format_source(source: &str) -> Result<String> {
         toks: lex(source)?,
         pos: 0,
         type_depth: 0,
+        cond_start: None,
+        splits: Vec::new(),
     };
     parser.program()?;
     let mut out = String::new();

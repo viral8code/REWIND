@@ -178,7 +178,7 @@ pub fn parser_verdict(entry: Entry, texts: &[String]) -> (Result<(), String>, bo
         toks.push(Tok { source: String::new(), text: "{".into(), line: 1, col: texts.len() + 1 });
     }
     toks.push(Tok { source: String::new(), text: "<eof>".into(), line: 1, col: texts.len() + 2 });
-    let mut p = Parser { toks, pos: 0, type_depth: 0 };
+    let mut p = Parser { toks, pos: 0, type_depth: 0, cond_start: None, splits: Vec::new() };
     let r = catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
         match entry {
             Entry::Type => p.ty().map(|_| ()),
@@ -231,7 +231,7 @@ pub struct Res {
 }
 
 pub fn compare(entry: Entry, texts: &[String]) -> Res {
-    let (pr, mutated) = parser_verdict(entry, texts);
+    let (pr, _) = parser_verdict(entry, texts);
     let er = earley_result(entry, texts);
     let ok_e = er.is_ok();
     let parser_ok = pr.is_ok();
@@ -251,8 +251,6 @@ pub fn compare(entry: Entry, texts: &[String]) -> Res {
         (Err(e), true) => {
             if NON_SYNTACTIC.iter().any(|m| e.contains(m)) {
                 Class::NonSyntactic
-            } else if mutated {
-                Class::KnownGap("名前の先読みが `>=` を `=` に書き換えたまま位置を戻す（癖 1）")
             } else {
                 Class::Mismatch(format!("Parser は拒否（{}）、EBNF は受理", e.chars().take(100).collect::<String>()))
             }
@@ -838,8 +836,12 @@ mod tests {
         ("{ a: }", false),
         ("{ : 1 }", false),
         ("{ f(x): 2 }", false),
-        ("match E::A { _ => 1 }", false),
-        ("if x == E::A { 1 }", false),
+        ("match E::A { _ => 1 }", true),
+        ("if x == E::A { 1 }", true),
+        ("if x == E::A {} else { 1 }", true),
+        ("if x == E::A {}", true),
+        ("if x == E::A { y: 1 } { 2 }", true),
+        ("if f(E::A {}) { 1 }", true),
         ("if { 1 }", false),
         ("if a { 1 } else", false),
         ("match x { 1 => 2 3 => 4 }", false),
@@ -868,8 +870,8 @@ mod tests {
         ("a = b", false),
         ("9223372036854775808", false),
         ("\"a\\q\"", false),
-        ("a < b >= c", false),
-        ("a.b < c >= d", false),
+        ("a < b >= c", true),
+        ("a.b < c >= d", true),
     ];
 
     #[test]

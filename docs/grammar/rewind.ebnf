@@ -199,9 +199,13 @@ NON_ASCII ::= [#x80-#x10FFFF]
    曖昧さの解消（Parser が選ぶ規則。CFG では曖昧になるものを、文章で書く）
      - 名前の直後の `<` は、まず型引数として読む。`>` で閉じ、直後が `(` か `::` のときだけ型引数になる。
        そうでなければ位置を戻し、`<` は比較演算子になる。`a.f<T>(x)` も同じ（`.名前 <` を試し、`(` が続くときだけ）。
-     - `X::Y` のように `::` を含む名前の直後の `{` は、必ず名前つき構築の `{` になる。
-       `if x == E::A { ... }` と `match E::A { ... }` は、`E::A {` を構築と読み、本体の `}` までを
-       フィールドとして読むので、ふつうは誤りになる。`(E::A)` のように括弧で囲めば本体の `{` になる。
+     - `X::Y` のように `::` を含む名前の直後の `{` が名前つき構築になるのは、`{` の次が `名前 :`（欄）のとき、
+       または `}`（空の構築）のときだけ。それ以外は構築でない（`{` は本体のブロック）。ただし if・while・match の
+       条件部と for の繰り返しの対象（以下、条件部）では、括弧・角括弧・波括弧に囲まれていない位置の空の `{ }` は
+       構築でなく本体のブロックと読む。`if x == E::A { ... }`、`match E::A { ... }`、`if x == E::A {}` は
+       本体を持つ。条件部の外と、条件部の中の括弧などの内側では、`E::A {}` は空の構築。
+       この文法では、条件部を CExpr（Expr と同じ形で、括弧などに囲まれない位置の空の構築だけを除いたもの）で書く。
+       `名前 :` の先読みは、曖昧な文法で書く（`E::A { x: 1 }` は構築、`{ x: 1 }` はブロックにならない）。
      - 前置の `|` と `||` は、式の先頭ではクロージャの始まりで、`||` は中置では論理和になる。
      - クロージャの短い形 `|a| 式` の本体は、できるだけ長い式をとる（右に伸びる）。
      - `&` の直後の `mut` は、必ず `&mut` の一部になる。
@@ -210,10 +214,7 @@ NON_ASCII ::= [#x80-#x10FFFF]
      - 後置（`::`、`[ ]`、`.数`、`.名前`、`.名前<T>(`、`( )`、`?`）は、優先順位に関係なく必ず結合する。
 
    Parser の癖（実装が正なので、そのまま写している。不具合に見えるものを含む）
-     1. 名前の先読みに失敗して位置を戻すとき、`>=` を `=` に書き換えたトークンを元に戻さない。
-        `a < b >= c` は、`<` のあとで型 `b` を読み、`>=` を `>` として食べ（トークンは `=` になる）、直後が
-        `(` でも `::` でもないので位置を戻すが、そのトークンは `=` のままなので、比較演算子として読めず、
-        式が `a < b` で終わって `= c` が残る。この文法は比較演算子として受理する（実装の不具合に見える）。
+     1. （修正済み。番号は変えない）
      2. 文字列のパターンは expr(0) で読み、値になったときだけ受理する。後置や二項演算が続くと拒否する。
      3. パターンの `-` と範囲の端は、トークンが整数かどうかを integer_literal で見る。整数でないと
         「integer literal overflow」と報告する（文言が実際の原因と合わない）。
@@ -369,8 +370,8 @@ CaptureClosure ::= ClosureHead Expr
    `(a)::B`、`(a.b)::C`）。それ以外の括弧は PostO。 */
 PostN ::= NameAtom
         | '(' PostN ')'
-        | PostM '::' Name [ ns: '{' ]
-        | PostN '::' Name [ ns: '{' ]
+        | PostM '::' Name
+        | PostN '::' Name
 
 PostM ::= PostN '.' Name
         | PostN '.' INT
@@ -399,12 +400,12 @@ PostO ::= OtherAtom
         | PostO '[' Expr ']'
         | PostO '?'
 
-/* `::` を含まない名前、または `::` を含み `{` が続かない名前。 */
+/* 名前。`{` が続いても名前のまま読める（`{` が構築になる場合は、CtorAtom でも読める。曖昧な文法）。 */
 NameAtom ::= ExprHead
-           | ExprHead ( '::' Name )+ [ ns: '{' ]
-           | ExprHead TypeArgs ( '::' Name )+ [ ns: '{' ]
+           | ExprHead ( '::' Name )+
+           | ExprHead TypeArgs ( '::' Name )+
 
-/* `::` を含む名前のあとの `{` は、必ず構築のフィールド（癖はコメントの先頭を参照）。 */
+/* `::` を含む名前のあとの `{ 名前 :` と `{ }` は構築（曖昧さの解消の説明を参照）。 */
 CtorAtom ::= ExprHead ( '::' Name )+ CtorFields
            | ExprHead TypeArgs ( '::' Name )+ CtorFields
 
@@ -420,7 +421,10 @@ CallArgs ::= '(' ( CallArg ( ',' CallArg )* ','? )? ')'
 CallArg ::= IDENT ':' Expr
           | Expr
 
-OtherAtom ::= INT
+OtherAtom ::= OtherAtomBase
+            | ClosureExpr
+
+OtherAtomBase ::= INT
             | FLOAT
             | STRING
             | RAW_STRING
@@ -436,7 +440,81 @@ OtherAtom ::= INT
             | BlockExpr
             | IfExpr
             | MatchExpr
-            | ClosureExpr
+
+/* 条件部（if・while・match の条件、if let と while let の値、for の繰り返しの対象と範囲の端）の式。
+   Expr と同じ形で、括弧・角括弧・波括弧に囲まれない位置の空の構築 `E::A {}` だけを除く（そこでは `{ }` は本体）。
+   括弧などの内側は、Expr に戻る。 */
+CExpr ::= COrExpr
+
+COrExpr ::= COrExpr '||' CAndExpr | CAndExpr
+
+CAndExpr ::= CAndExpr '&&' CEqExpr | CEqExpr
+
+CEqExpr ::= CEqExpr ( '==' | '!=' ) CCmpExpr | CCmpExpr
+
+CCmpExpr ::= CCmpExpr CmpOp CAddExpr | CAddExpr
+
+CAddExpr ::= CAddExpr ( '+' | '-' ) CMulExpr | CMulExpr
+
+CMulExpr ::= CMulExpr ( '*' | '/' | '%' ) CUnaryExpr | CUnaryExpr
+
+CUnaryExpr ::= '-' CUnaryExpr
+             | '!' CUnaryExpr
+             | 'await' CUnaryExpr
+             | 'spawn' CUnaryExpr
+             | 'move' CUnaryExpr
+             | '&' 'mut' CUnaryExpr
+             | '&' [ ns: 'mut' ] CUnaryExpr
+             | CCaptureExpr
+             | CPostN
+             | CPostM
+             | CPostO
+
+CCaptureExpr ::= 'capture' ( 'value' | 'move' | 'borrow' ) CCaptureClosure
+
+CCaptureClosure ::= ClosureHead CExpr
+                  | ClosureHead '->' Type FnBlock [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '::' ] [ ns: '?' ]
+
+CPostN ::= NameAtom
+         | '(' PostN ')'
+         | CPostM '::' Name
+         | CPostN '::' Name
+
+CPostM ::= CPostN '.' Name
+         | CPostN '.' INT
+         | '(' PostM ')'
+
+CPostO ::= OtherAtomBase
+         | CClosureExpr
+         | CCtorAtom
+         | GenericCall
+         | CPostN '.' FLOAT
+         | CPostN '.' Name TypeArgs CallArgs
+         | CPostN CallArgs
+         | CPostN '[' Expr ']'
+         | CPostN '?'
+         | CPostM '.' Name
+         | CPostM '.' INT
+         | CPostM '.' FLOAT
+         | CPostM CallArgs
+         | CPostM '[' Expr ']'
+         | CPostM '?'
+         | CPostM '::' Name CtorFieldsNE
+         | CPostN '::' Name CtorFieldsNE
+         | CPostO '.' Name
+         | CPostO '.' INT
+         | CPostO '.' FLOAT
+         | CPostO CallArgs
+         | CPostO '[' Expr ']'
+         | CPostO '?'
+
+CCtorAtom ::= ExprHead ( '::' Name )+ CtorFieldsNE
+            | ExprHead TypeArgs ( '::' Name )+ CtorFieldsNE
+
+CtorFieldsNE ::= '{' CtorField ( ',' CtorField )* ','? '}'
+
+CClosureExpr ::= ClosureHead CExpr
+               | ClosureHead '->' Type FnBlock
 
 ListLit ::= '[' Expr ( ',' Expr )* ','? ']'
 
@@ -461,10 +539,10 @@ ClosureHead ::= '||'
 ClosureParam ::= Name ( ':' Type )?
 
 /* `else` が続けば、必ず else 節になる（else のない `if` の直後は `else` でない）。 */
-IfExpr ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) Expr BlockExpr
+IfExpr ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) CExpr BlockExpr
            ( 'else' ( IfExpr | BlockExpr ) | [ ns: 'else' ] )
 
-MatchExpr ::= 'match' Expr '{' MatchArms '}'
+MatchExpr ::= 'match' CExpr '{' MatchArms '}'
 
 /* 腕のあいだは `,`。結果がブロックかリストかマップのとき（ただし直後に二項演算子や後置が続かないとき）は、
    `,` を省ける。省いた場合、次の腕のパターンが `(`、`[`、`-` で始まると、前の結果の後置・演算子として
@@ -538,14 +616,14 @@ LetStmt ::= ( 'let' | 'var' ) ( Name | TuplePattern ) ( ':' Type )? '=' Expr ';'
 /* revert と resume は、`begin` だけ名前として書ける。 */
 LabelName ::= 'begin' | Name
 
-IfStmt ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) Expr FnBlock
+IfStmt ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) CExpr FnBlock
            ( 'else' ( IfStmt | FnBlock ) | [ ns: 'else' ] )
 
-WhileStmt ::= 'while' ( 'let' Pattern '=' | [ ns: 'let' ] ) Expr FnBlock
+WhileStmt ::= 'while' ( 'let' Pattern '=' | [ ns: 'let' ] ) CExpr FnBlock
 
 /* `..` の範囲は、名前の形のときだけ。括弧のパターンのときは、式の 1 つだけ。 */
-ForStmt ::= 'for' TuplePattern 'in' Expr FnBlock
-          | 'for' Name 'in' Expr ( '..' Expr )? FnBlock
+ForStmt ::= 'for' TuplePattern 'in' CExpr FnBlock
+          | 'for' Name 'in' CExpr ( '..' CExpr )? FnBlock
 
 /* 設定名は 4 つ。値は 10 進の数字だけのトークンで、単位（KB KiB MB MiB GB GiB）を続けられる。 */
 RuntimeStmt ::= 'runtime' '{' RuntimeSetting* '}'
@@ -557,7 +635,7 @@ RuntimeName ::= 'historyMemory' | 'historyStorage' | 'spillThreshold' | 'executi
 RuntimeUnit ::= 'KB' | 'KiB' | 'MB' | 'MiB' | 'GB' | 'GiB'
 
 /* match の文。腕のあいだは必ず `,` で、`{ }` の腕のあとにも要る。 */
-MatchStmt ::= 'match' Expr '{' ( StmtArm ( ',' StmtArm )* ','? )? '}'
+MatchStmt ::= 'match' CExpr '{' ( StmtArm ( ',' StmtArm )* ','? )? '}'
 
 StmtArm ::= Pattern ( 'if' Expr )? '=>' ArmBody
 
