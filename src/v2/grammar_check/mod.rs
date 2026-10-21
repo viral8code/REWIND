@@ -8,6 +8,8 @@
 
 pub mod earley;
 pub mod ebnf;
+#[cfg(test)]
+pub mod lexcheck;
 
 #[cfg(test)]
 mod tests {

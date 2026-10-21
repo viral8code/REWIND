@@ -66,7 +66,23 @@ impl<'b> Earley<'b> {
     }
 
     pub fn recognize<T: Token>(&self, toks: &[T]) -> Result<Stats, RecognizeError> {
+        self.scan(toks, false).map(|(stats, _)| stats)
+    }
+
+    /// 入力の先頭から受理できる最も長い接頭辞の長さ（最長一致）。受理できる接頭辞がなければ
+    /// `None`。空の接頭辞が受理できれば `Some(0)` になりうる。
+    pub fn longest_prefix<T: Token>(&self, toks: &[T]) -> Option<usize> {
+        self.scan(toks, true).ok().and_then(|(_, best)| best)
+    }
+
+    /// `prefix` が偽なら全体を認識する（成功時の長さは `Some(n)`）。真なら受理できた最も長い接頭辞を返す。
+    fn scan<T: Token>(
+        &self,
+        toks: &[T],
+        prefix: bool,
+    ) -> Result<(Stats, Option<usize>), RecognizeError> {
         let bnf = self.bnf;
+        let mut best: Option<usize> = None;
         let n = toks.len();
         let start = bnf.start;
         // 各集合で「次に非終端を待つ項目」を、その非終端の番号で整列して持つ。
@@ -166,15 +182,24 @@ impl<'b> Earley<'b> {
             }
             stats.items += items.len();
             stats.max_set = stats.max_set.max(items.len());
-            if i == n {
-                return if accepted {
-                    Ok(stats)
-                } else {
-                    Err(RecognizeError { pos: n })
-                };
-            }
-            if next.is_empty() {
-                return Err(RecognizeError { pos: i });
+            if prefix {
+                if accepted {
+                    best = Some(i);
+                }
+                if i == n || next.is_empty() {
+                    return Ok((stats, best));
+                }
+            } else {
+                if i == n {
+                    return if accepted {
+                        Ok((stats, Some(n)))
+                    } else {
+                        Err(RecognizeError { pos: n })
+                    };
+                }
+                if next.is_empty() {
+                    return Err(RecognizeError { pos: i });
+                }
             }
             waiting.sort_by_key(|&(nt, _)| nt);
             sets.push(waiting);
