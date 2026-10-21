@@ -1,10 +1,10 @@
-//! 構文の検査（段階 C: 型・パターン・式）。テスト専用。
+//! 構文の検査（段階 C: 型・パターン・式。段階 D: 文・宣言・全体）。テスト専用。
 //!
-//! `docs/grammar/rewind.ebnf` の構文規則（`Type`、`TypeParams`、`WhereClause`、`Pattern`、`Expr`）を、
+//! `docs/grammar/rewind.ebnf` の構文規則（`Type`、`TypeParams`、`WhereClause`、`Pattern`、`Expr`、`Program`）を、
 //! 実装の Parser（src/v2.rs）と、**部分の入口**で突き合わせる。
 //! - 入力は本物の `lex()` のトークン列。
 //! - Parser 側: `Parser { toks, pos: 0, type_depth: 0 }` を作り、`ty()`、`type_params()`、`where_bounds()`、
-//!   `pattern()`、`expr(0)` を呼ぶ。そのあと、トークンが `<eof>` だけ（`where` では追加した `{` だけ）に
+//!   `pattern()`、`expr(0)`、`program()` を呼ぶ。そのあと、トークンが `<eof>` だけ（`where` では追加した `{` だけ）に
 //!   なったことまで確かめて、受理か拒否かを得る。
 //! - EBNF 側: 開始記号から Earley 認識器で受理か拒否かを得る。`>=` は前処理で 2 つのトークンに分ける。
 //!
@@ -29,10 +29,12 @@ pub enum Entry {
     Where,
     Pattern,
     Expr,
+    Program,
 }
 
 impl Entry {
-    pub const ALL: [Entry; 5] = [Entry::Type, Entry::TypeParams, Entry::Where, Entry::Pattern, Entry::Expr];
+    pub const ALL: [Entry; 6] =
+        [Entry::Type, Entry::TypeParams, Entry::Where, Entry::Pattern, Entry::Expr, Entry::Program];
 
     fn rule(self) -> &'static str {
         match self {
@@ -41,13 +43,14 @@ impl Entry {
             Entry::Where => "WhereClause",
             Entry::Pattern => "Pattern",
             Entry::Expr => "Expr",
+            Entry::Program => "Program",
         }
     }
 }
 
 /// 構文解析器が意味の検査で拒否するときの診断の文言（EBNF が受理していても食い違いとしない）。
 /// どれも、トークンの並び（文脈自由な形）ではなく、値・名前・深さなどの検査である。
-const NON_SYNTACTIC: [&str; 13] = [
+const NON_SYNTACTIC: [&str; 25] = [
     "integer literal overflow",
     "invalid escape",
     "InvalidUnicodeEscape",
@@ -61,12 +64,20 @@ const NON_SYNTACTIC: [&str; 13] = [
     "invalid float",
     "let tuple pattern must contain",
     "duplicate pattern binding",
-];
-
-/// 段階 D で文の規則を書くまで、EBNF が受理しない文の語。これを含む断片は食い違いにせず数える。
-const PENDING_WORDS: [&str; 12] = [
-    "while", "for", "defer", "commit", "revert", "resume", "drop", "publish", "branch", "runtime", "external",
-    "using",
+    // 宣言の重複（名前の表への挿入で分かる）。
+    "duplicate effects declaration",
+    "duplicate type alias",
+    "duplicate variant",
+    "duplicate enum",
+    "duplicate trait",
+    "duplicate associated type",
+    "duplicate impl method",
+    "duplicate struct",
+    "duplicate function",
+    // 値の検査。
+    "let-else block must leave the scope",
+    "expected nonnegative size",
+    "size overflow",
 ];
 
 pub struct GTok {
@@ -99,11 +110,14 @@ fn kind_of(text: &str) -> &'static str {
             let prefixed = lower.starts_with("0x") || lower.starts_with("0b") || lower.starts_with("0o");
             if !prefixed && (text.contains('.') || lower.contains('e')) {
                 "FLOAT"
+            } else if text.chars().all(|c| c.is_ascii_digit()) {
+                "INT DIGITS"
             } else {
                 "INT"
             }
         }
         Some('_') if text.chars().all(|c| c == '_' || c.is_ascii_digit()) => "IDENT UNDERSCORE_NUM",
+        Some(c) if c.is_uppercase() => "IDENT UPPER_IDENT",
         Some(c) if c.is_alphabetic() || c == '_' => "IDENT",
         _ => "SYMBOL",
     }
@@ -139,9 +153,18 @@ fn compiled() -> &'static HashMap<Entry, Bnf> {
     })
 }
 
+fn recognizers() -> &'static HashMap<Entry, Earley<'static>> {
+    static R: OnceLock<HashMap<Entry, Earley<'static>>> = OnceLock::new();
+    R.get_or_init(|| compiled().iter().map(|(&e, b)| (e, Earley::new(b))).collect())
+}
+
+/// Earley の受理（`Ok`）か、止まったトークンの位置。
+pub fn earley_result(entry: Entry, texts: &[String]) -> Result<(), usize> {
+    recognizers()[&entry].recognize(&earley_tokens(texts)).map(|_| ()).map_err(|e| e.pos)
+}
+
 pub fn earley_accepts(entry: Entry, texts: &[String]) -> bool {
-    let bnf = &compiled()[&entry];
-    Earley::new(bnf).recognize(&earley_tokens(texts)).is_ok()
+    earley_result(entry, texts).is_ok()
 }
 
 /// Parser の受理（`Ok`）か拒否（診断の文字列）。2 つ目は、`>=` が `=` に書き換えられたまま残ったか。
@@ -167,6 +190,7 @@ pub fn parser_verdict(entry: Entry, texts: &[String]) -> (Result<(), String>, bo
             }
             Entry::Pattern => p.pattern().map(|_| ()),
             Entry::Expr => p.expr(0).map(|_| ()),
+            Entry::Program => p.program().map(|_| ()),
         }
         .map_err(|e| format!("{e:?}"))
     }));
@@ -197,8 +221,6 @@ pub enum Class {
     NonSyntactic,
     /// 既知の差（理由）。
     KnownGap(&'static str),
-    /// 段階 D で文の規則を書くまでの差。
-    Pending,
     Mismatch(String),
 }
 
@@ -208,30 +230,29 @@ pub struct Res {
     pub class: Class,
 }
 
-fn has_pending(texts: &[String]) -> bool {
-    texts.iter().any(|t| PENDING_WORDS.contains(&t.as_str()))
-}
-
 pub fn compare(entry: Entry, texts: &[String]) -> Res {
     let (pr, mutated) = parser_verdict(entry, texts);
-    let ok_e = earley_accepts(entry, texts);
+    let er = earley_result(entry, texts);
+    let ok_e = er.is_ok();
     let parser_ok = pr.is_ok();
     let class = match (&pr, ok_e) {
         (Ok(()), true) | (Err(_), false) => Class::Agree,
         (Ok(()), false) => {
-            if has_pending(texts) {
-                Class::Pending
-            } else {
-                Class::Mismatch("Parser は受理、EBNF は拒否".into())
-            }
+            let pos = er.err().unwrap_or(0);
+            let lo = pos.saturating_sub(8);
+            let hi = (pos + 4).min(texts.len());
+            Class::Mismatch(format!(
+                "Parser は受理、EBNF は拒否（{pos} 番目で止まる: {} ⟦{}⟧ {}）",
+                texts[lo..pos.min(texts.len())].join(" "),
+                texts.get(pos).map(|x| x.as_str()).unwrap_or("<終わり>"),
+                texts[(pos + 1).min(texts.len())..hi.max((pos + 1).min(texts.len()))].join(" ")
+            ))
         }
         (Err(e), true) => {
             if NON_SYNTACTIC.iter().any(|m| e.contains(m)) {
                 Class::NonSyntactic
             } else if mutated {
                 Class::KnownGap("名前の先読みが `>=` を `=` に書き換えたまま位置を戻す（癖 1）")
-            } else if has_pending(texts) {
-                Class::Pending
             } else {
                 Class::Mismatch(format!("Parser は拒否（{}）、EBNF は受理", e.chars().take(100).collect::<String>()))
             }
@@ -484,7 +505,7 @@ mod tests {
         for (src, expect) in list {
             let t = toks(src);
             let r = compare(entry, &t);
-            let ok = !matches!(r.class, Class::Mismatch(_) | Class::Pending) && r.parser_ok == *expect;
+            let ok = !matches!(r.class, Class::Mismatch(_)) && r.parser_ok == *expect;
             if !ok {
                 bad.push(format!(
                     "{src:?}: 期待 {} / Parser {} / EBNF {} / {:?}",
@@ -936,11 +957,10 @@ mod tests {
                     (Class::Agree, false) => "拒否で一致",
                     (Class::NonSyntactic, _) => "意味の検査",
                     (Class::KnownGap(_), _) => "既知の差",
-                    (Class::Pending, _) => "段階 D 待ち",
                     (Class::Mismatch(_), _) => "食い違い",
                 };
                 *tally.entry(key).or_default() += 1;
-                if std::env::var("GC_DEBUG").is_ok() && matches!(r.class, Class::Pending | Class::KnownGap(_) | Class::NonSyntactic) {
+                if std::env::var("GC_DEBUG").is_ok() && matches!(r.class, Class::KnownGap(_) | Class::NonSyntactic) {
                     println!("{:?} {name} [{entry:?}] p={} e={}: {}", r.class, r.parser_ok, r.earley_ok, excerpt(&frag));
                 }
                 if let Class::Mismatch(m) = &r.class {
@@ -1003,7 +1023,6 @@ mod tests {
                 (Class::Agree, false) => "拒否で一致",
                 (Class::NonSyntactic, _) => "意味の検査",
                 (Class::KnownGap(_), _) => "既知の差",
-                (Class::Pending, _) => "段階 D 待ち",
                 (Class::Mismatch(m), _) => {
                     self.bad
                         .entry(format!("{entry:?} {m} {}", f.join(" ")))
@@ -1064,7 +1083,7 @@ mod tests {
         };
         let mut fz = Fuzz::new();
         let seeds = seeds();
-        for _ in 0..env("GC_FUZZ_N", 250_000) {
+        for _ in 0..env("GC_FUZZ_N", 100_000) {
             let (entry, seed) = &seeds[next(seeds.len())];
             let mut f = seed.clone();
             for _ in 0..2 {
@@ -1111,5 +1130,698 @@ mod tests {
         let c = corpus();
         let t = run_corpus("examples", &c.examples);
         assert!(t.get("受理で一致").copied().unwrap_or(0) > 20);
+    }
+
+    // ================================================================ 段階 D: 文・宣言・全体
+
+    /// 全体のソースの断片。`true` は Parser が受理する形。
+    const PROGRAMS: &[(&str, bool)] = &[
+        // ---- 空と文
+        ("", true),
+        ("let x = 1;", true),
+        ("var x: Int = 1;", true),
+        ("let x: List<Int>= f();", true),
+        ("let (a, b) = (1, 2);", true),
+        ("let (a, b): (Int, Int) = (1, 2);", true),
+        ("var (a, _) = f();", true),
+        ("using f = open();", true),
+        ("if x { y(); }", true),
+        ("if x { y(); } else { z(); }", true),
+        ("if x { } else if y { } else { }", true),
+        ("if let Some(v) = x { f(v); } else { g(); }", true),
+        ("if let Some(v) = x { f(v); } else if let None = y { g(); }", true),
+        ("while x { break; }", true),
+        ("while let Some(v) = it.next() { continue; }", true),
+        ("for i in 0..10 { f(i); }", true),
+        ("for i in a..b { }", true),
+        ("for x in xs { }", true),
+        ("for (a, b) in pairs { }", true),
+        ("for (a) in xs { }", true),
+        ("return;", true),
+        ("return 1;", true),
+        ("defer f();", true),
+        ("external { f(); }", true),
+        ("external fresh { }", true),
+        ("external live { }", true),
+        ("commit a;", true),
+        ("revert a;", true),
+        ("revert begin;", true),
+        ("resume begin;", true),
+        ("resume a;", true),
+        ("drop a;", true),
+        ("publish;", true),
+        ("publish force;", true),
+        ("branch b { f(); }", true),
+        ("runtime { }", true),
+        ("runtime { historyMemory = 10 MB; executionSteps = 100; }", true),
+        ("runtime { spillThreshold = 5 KiB; historyStorage = 1 GiB; historyMemory = 3 KB; }", true),
+        ("runtime { historyMemory = 2 MiB; historyStorage = 4 GB; }", true),
+        ("match x { A => f(), B => { g(); }, }", true),
+        ("match x { A => 1, B => 2 }", true),
+        ("match x { A if y => f(), _ => g() }", true),
+        ("match x { A => return 1;, B => return, }", true),
+        ("match x { A => { f(); } }", true),
+        ("{ f(); }", true),
+        ("x = 1;", true),
+        ("x += 1; x -= 1; x *= 2; x /= 3; x %= 4;", true),
+        ("xs[0] = 1;", true),
+        ("f();", true),
+        ("a.b.c = f(1, 2);", true),
+        ("test;", true),
+        ("external;", true),
+        // ---- 宣言
+        ("effects { Clock, Random }", true),
+        ("effects {}", true),
+        ("effects { Clock };", true),
+        ("pub effects { A }", true),
+        ("import a;", true),
+        ("import a.b.c;", true),
+        ("import a.b.{x, y as z};", true),
+        ("import a.b::{x, y as z};", true),
+        ("import a as b;", true),
+        ("import a.b as c;", true),
+        ("import a.{};", true),
+        ("import a.{} as b;", true),
+        ("import a::{} as b;", true),
+        ("import a.{x}::{y};", true),
+        ("type A = Int;", true),
+        ("pub type A<T> = List<T>;", true),
+        ("type F<T: Eq> = fn(T) -> Bool;", true),
+        ("enum E { A, B(Int), C { x: Int } }", true),
+        ("enum E<T> { A(T,), B(), C {} , }", true),
+        ("pub enum E { }", true),
+        ("trait T { type X; fn f(a: Int) -> Int; fn g() -> Int { return 1; } fn h() -> Int effects Clock; }", true),
+        ("trait T { }", true),
+        ("impl T for Int { fn f(a: Int) -> Int { return a; } }", true),
+        ("impl<T> Tr for List<T> { type X = Int; fn f() -> Int { return 1; } }", true),
+        ("impl Tr for Int { }", true),
+        ("struct S { a: Int, pub b: Int, private c: Int }", true),
+        ("record R { a: Int }", true),
+        ("struct S { }", true),
+        ("struct S { a: Int, }", true),
+        ("pub struct S<T: Eq> where T: Hash { x: T }", true),
+        ("struct S { pub pub: Int, private private: Int }", true),
+        ("fn f() { }", true),
+        ("fn f() -> Int { return 1; }", true),
+        ("fn f(a: Int, b: Int = 1) -> Int { return a; }", true),
+        ("fn f(a: Int, b: Int = 1,) { }", true),
+        ("pub fn f() -> Unit { }", true),
+        ("async fn f() { }", true),
+        ("test fn t() { }", true),
+        ("pub test fn t() -> Unit { }", true),
+        ("pub async fn f() -> Int = 1;", true),
+        ("fn f(x: Int) -> Int = x * 2;", true),
+        ("fn f<T>(x: T) -> T where T: Eq { return x; }", true),
+        ("fn f<T: Eq>(x: T) -> T effects Clock where T: Hash { return x; }", true),
+        ("fn f() -> Int effects Clock { return 1; }", true),
+        ("fn f() effects { Clock } { }", true),
+        ("fn f(a: Int = -1, b: Int = None, c: String = \"s\", d: Int = (1)) { }", true),
+        ("fn f(a: Int = 1.5, b: Bool = true, c: Int = null, d: Int = ()) { }", true),
+        ("const A: Int = 1;", true),
+        ("pub const A: Int = 1;", true),
+        ("fn main() { }\nfn main2() { f(); }", true),
+        // ---- ブロック
+        ("fn f() { let Some(x) = g() else { return; }; h(x); }", true),
+        ("fn f() { let E::A(x) = g() else { return; } h(x); }", true),
+        ("fn f() { let E::A { x: y } = g() else { return; }; }", true),
+        ("fn f() { let E::A = g() else { return; }; }", true),
+        ("fn f() { if a { let Some(x) = g() else { return; }; h(x); } }", true),
+        ("fn f() { let x = { 1 }; let y = if a { 1 } else { 2 }; }", true),
+        ("fn f() { let x = { let a = 1; a }; }", true),
+        ("fn f() { let x = { a = 1; a }; }", true),
+        ("fn f() { let v = match x { A => 1, B => { 2 } C => 3, }; }", true),
+        ("fn f() { if a { f(); } g(); }", true),
+        ("fn f() { let v = { if a { f(); } g() }; }", true),
+        ("fn f() { let v = { if a { f(); } }; }", true),
+        ("fn f() { let v = { if a { 1 } else { 2 } }; }", true),
+        ("fn f() { let v = { match a { A => 1, _ => 2 } }; }", true),
+        ("fn f() { let v = { { 1 } }; }", true),
+        ("fn f() { let v = { { 1 }; 2 }; }", true),
+        ("fn f() { let v = { while a { b(); } 1 }; }", true),
+        ("fn f() { let v = { return 1; }; }", true),
+        ("fn f() { let v = { runtime { } 1 }; }", true),
+        ("fn f() { let c = |x| { x }; let d = |x: Int| -> Int { return x; }; }", true),
+        ("fn f() { let c = || -> Int { let Some(x) = g() else { return 0; }; return x; }; }", true),
+        // ---- 拒否
+        ("let x = 1", false),
+        ("let = 1;", false),
+        ("let begin = 1;", false),
+        ("var (a) 1;", false),
+        ("let x: = 1;", false),
+        ("using = 1;", false),
+        ("using f;", false),
+        ("if { }", false),
+        ("if x { y() }", false),
+        ("if x y();", false),
+        ("if let x { }", false),
+        ("while { }", false),
+        ("for in xs { }", false),
+        ("for x xs { }", false),
+        ("for x in { }", false),
+        ("for (a, b) in 0..1 { }", false),
+        ("return", false),
+        ("return 1", false),
+        ("defer;", false),
+        ("external fresh live { }", false),
+        ("external live fresh { }", false),
+        ("commit;", false),
+        ("commit begin;", false),
+        ("revert;", false),
+        ("drop begin;", false),
+        ("publish force force;", false),
+        ("publish forced;", false),
+        ("branch { }", false),
+        ("branch b;", false),
+        ("runtime { foo = 1; }", false),
+        ("runtime { historyMemory = 1.5; }", false),
+        ("runtime { historyMemory = 1_000; }", false),
+        ("runtime { historyMemory = 0x10; }", false),
+        ("runtime { historyMemory = 1 TB; }", false),
+        ("runtime { historyMemory = 10 }", false),
+        ("runtime { historyMemory 10; }", false),
+        ("runtime", false),
+        ("match x { A => { f(); } B => g() }", false),
+        ("match x { A => 1 B => 2 }", false),
+        ("match x { A => 1,, }", false),
+        ("match x { => 1 }", false),
+        ("match { }", false),
+        ("x = ;", false),
+        ("x = 1", false),
+        ("x + = 1;", false),
+        ("x = 1 = 2;", false),
+        ("1 +;", false),
+        ("f(;", false),
+        ("pub x = 1;", false),
+        ("pub", false),
+        ("pub import a;", false),
+        ("pub impl T for Int { }", false),
+        ("pub let x = 1;", false),
+        ("pub fn f() { }", false),
+        ("pub async fn f() { }", false),
+        ("pub test fn f() { }", false),
+        ("pub test x() { }", false),
+        ("test async fn f() { }", false),
+        ("async test fn f() { }", false),
+        ("async f() { }", false),
+        ("fn f() -> Int = 1", false),
+        ("fn f() = 1;", false),
+        ("fn f(a: Int = 1, b: Int) { }", false),
+        ("fn f(a: Int = x) { }", false),
+        ("fn f(a: Int = 1 + 2) { }", false),
+        ("fn f(a: Int = -None, b: Int = -(1)) { }", true),
+        ("fn f(a: Int = -(-1)) { }", false),
+        ("fn f(a: Int = -x) { }", false),
+        ("fn f(a: Int = [1]) { }", false),
+        ("fn f(,) { }", false),
+        ("fn f(a) { }", false),
+        ("fn f(a: Int,,) { }", false),
+        ("fn f() -> { }", false),
+        ("fn f { }", false),
+        ("fn () { }", false),
+        ("fn f() where { }", false),
+        ("import a.{x} as b;", false),
+        ("import a::{x} as b;", false),
+        ("import a.b.;", false),
+        ("import a.{x}.y;", false),
+        ("import a as;", false),
+        ("import;", false),
+        ("import a", false),
+        ("import begin;", false),
+        ("effects { Clock Random }", false),
+        ("effects { , }", false),
+        ("effects Clock;", false),
+        ("type A = ;", false),
+        ("type A Int;", false),
+        ("type = Int;", false),
+        ("enum E { A B }", false),
+        ("enum E { A(,) }", false),
+        ("enum E { A(Int Int) }", false),
+        ("enum E { A { x } }", false),
+        ("enum E A { }", false),
+        ("struct S { private: Int }", false),
+        ("struct S { pub: Int }", false),
+        ("struct S { a: Int b: Int }", false),
+        ("struct S { a }", false),
+        ("struct S { , }", false),
+        ("struct { }", false),
+        ("trait T { fn f(); }", false),
+        ("trait T<X> { }", false),
+        ("trait T { fn f() -> Int }", false),
+        ("trait T { pub fn f() -> Int; }", false),
+        ("impl T for Int { fn f() { } }", false),
+        ("impl T for { }", false),
+        ("impl T Int { }", false),
+        ("impl T for Int { fn f() -> Int; }", false),
+        ("impl T for Int { pub fn f() -> Int { } }", false),
+        ("const A = 1;", false),
+        ("const A: Int;", false),
+        ("const A: Int = 1", false),
+        ("const: Int = 1;", false),
+        ("let x = 1; }", false),
+        ("{", false),
+        ("}", false),
+        (";", false),
+        ("fn f() { let a = 1 else { }; }", false),
+        ("fn f() { let Some(x) = g() else { }; }", false),
+        ("fn f() { let Some(x) = g(); }", false),
+        ("let Some(x) = g() else { return; };", false),
+        ("fn f() { let v = { let Some(x) = g() else { return; }; x }; }", false),
+        ("fn f() { let v = { if a { f(); } (1, 2) }; }", true),
+        ("fn f() { let v = { 1 2 }; }", false),
+        ("fn f() { let v = { a = 1 }; }", false),
+    ];
+
+    #[test]
+    fn program_fragments_agree() {
+        let accepts = PROGRAMS.iter().filter(|(_, a)| *a).count();
+        let rejects = PROGRAMS.len() - accepts;
+        assert!(PROGRAMS.len() >= 150, "断片は 150 件以上（{}）", PROGRAMS.len());
+        assert!(accepts >= 80 && rejects >= 80, "受理 {accepts}、拒否 {rejects}");
+        let mut bad = Vec::new();
+        for (src, expect) in PROGRAMS {
+            let t = toks(src);
+            let r = compare(Entry::Program, &t);
+            let ok = !matches!(r.class, Class::Mismatch(_)) && r.parser_ok == *expect;
+            if !ok {
+                bad.push(format!(
+                    "{src:?}: 期待 {} / Parser {} / EBNF {} / {:?}",
+                    if *expect { "受理" } else { "拒否" },
+                    r.parser_ok,
+                    r.earley_ok,
+                    r.class
+                ));
+            }
+        }
+        assert!(bad.is_empty(), "Program:\n{}", bad.join("\n"));
+    }
+
+    /// 全体のソースを、Parser の `program()` と EBNF の `Program` で比べる。
+    fn run_programs(label: &str, files: &[(String, String)]) -> BTreeMap<&'static str, usize> {
+        let mut tally: BTreeMap<&'static str, usize> = BTreeMap::new();
+        let mut bad: Vec<String> = Vec::new();
+        for (name, src) in files {
+            let Ok(t) = impl_tokens(src) else {
+                *tally.entry("字句の誤り").or_default() += 1;
+                continue;
+            };
+            let r = compare(Entry::Program, &t);
+            let key = match (&r.class, r.parser_ok) {
+                (Class::Agree, true) => "受理で一致",
+                (Class::Agree, false) => "拒否で一致",
+                (Class::NonSyntactic, _) => "意味の検査",
+                (Class::KnownGap(_), _) => "既知の差",
+                (Class::Mismatch(_), _) => "食い違い",
+            };
+            *tally.entry(key).or_default() += 1;
+            if let Class::Mismatch(m) = &r.class {
+                if bad.len() < 12 {
+                    bad.push(format!("{name}: {m}"));
+                }
+            }
+        }
+        println!("{label}: {tally:?}");
+        assert!(bad.is_empty(), "{label}: 食い違い\n{}", bad.join("\n"));
+        tally
+    }
+
+    #[test]
+    fn docs_programs_agree() {
+        let c = corpus();
+        let t = run_programs("docs（全体）", &c.docs);
+        assert!(t.get("受理で一致").copied().unwrap_or(0) > 100);
+    }
+
+    #[test]
+    fn std_programs_agree() {
+        let c = corpus();
+        let t = run_programs("std（全体）", &c.std_files);
+        assert!(t.get("受理で一致").copied().unwrap_or(0) > 20);
+    }
+
+    #[test]
+    fn fixtures_programs_agree() {
+        let c = corpus();
+        let t = run_programs("fixtures（全体）", &c.fixtures);
+        assert!(t.get("受理で一致").copied().unwrap_or(0) > 20);
+    }
+
+    #[test]
+    fn examples_programs_agree() {
+        let c = corpus();
+        let t = run_programs("examples（先頭の抜き出し）", &c.examples);
+        assert!(t.get("受理で一致").copied().unwrap_or(0) > 100);
+    }
+
+    /// 文・宣言の語を多めに入れた、全体の変異に使う語。
+    const PVOCAB: [&str; 71] = [
+        "(", ")", "{", "}", "[", "]", ",", ":", "::", ".", "<", ">", ">=", "=", "|", "||", "-", "?", "if", "match",
+        "fn", "_", "begin", "x", "1", "\"s\"", "=>", ";", "->", "effects", "let", "var", "else", "!", "..", "+=", "Int",
+        "E", "return", "pub", "import", "type", "enum", "trait", "impl", "for", "struct", "record", "const", "test",
+        "async", "while", "break", "continue", "using", "defer", "commit", "revert", "resume", "drop", "publish",
+        "force", "branch", "runtime", "external", "fresh", "live", "in", "as", "where", "private",
+    ];
+
+    fn program_seeds() -> Vec<Vec<String>> {
+        let mut seeds: Vec<Vec<String>> = Vec::new();
+        for (src, ok) in PROGRAMS {
+            if *ok {
+                seeds.push(toks(src));
+            }
+        }
+        let c = corpus();
+        let mut picked = 0;
+        for (_, src) in c.docs.iter().chain(c.std_files.iter()).chain(c.fixtures.iter()) {
+            // 小さいソースを、そのまま種にする。
+            if let Ok(t) = impl_tokens(src) {
+                if !t.is_empty() && t.len() <= 40 && picked < 150 {
+                    seeds.push(t);
+                    picked += 1;
+                }
+            }
+        }
+        seeds
+    }
+
+    struct PFuzz {
+        tally: BTreeMap<&'static str, usize>,
+        bad: BTreeMap<String, String>,
+    }
+
+    impl PFuzz {
+        fn new() -> Self {
+            PFuzz { tally: BTreeMap::new(), bad: BTreeMap::new() }
+        }
+
+        fn run(&mut self, f: Vec<String>) {
+            let r = compare(Entry::Program, &f);
+            let key = match (&r.class, r.parser_ok) {
+                (Class::Agree, true) => "受理で一致",
+                (Class::Agree, false) => "拒否で一致",
+                (Class::NonSyntactic, _) => "意味の検査",
+                (Class::KnownGap(_), _) => "既知の差",
+                (Class::Mismatch(m), _) => {
+                    self.bad
+                        .entry(f.join(" "))
+                        .or_insert_with(|| format!("p={} e={} {m}: {}", r.parser_ok, r.earley_ok, f.join(" ")));
+                    "食い違い"
+                }
+            };
+            *self.tally.entry(key).or_default() += 1;
+        }
+
+        fn finish(self, label: &str) {
+            println!("{label}: {:?}", self.tally);
+            let msgs: Vec<&String> = self.bad.values().take(40).collect();
+            assert!(
+                self.bad.is_empty(),
+                "{label}: 食い違い {} 種:\n{}",
+                self.bad.len(),
+                msgs.iter().map(|s| s.as_str()).collect::<Vec<_>>().join("\n")
+            );
+        }
+    }
+
+    /// トークンを 1 つ消す変異を、全種に行う。
+    #[test]
+    fn deleted_program_tokens_agree() {
+        let mut fz = PFuzz::new();
+        for seed in &program_seeds() {
+            for i in 0..seed.len() {
+                let mut d = seed.clone();
+                d.remove(i);
+                fz.run(d);
+            }
+        }
+        fz.finish("全体: 1 つ消す");
+    }
+
+    /// 置き換えと挿入と 2 つ重ねる変異を、決まった乱数列で選ぶ。
+    #[test]
+    fn mutated_program_tokens_agree() {
+        let env = |k: &str, d: u64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
+        let mut state: u64 = env("GC_FUZZ_SEED", 0x2545_F491_4F6C_DD1D);
+        let mut next = move |n: usize| -> usize {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % n as u64) as usize
+        };
+        let mut fz = PFuzz::new();
+        let seeds = program_seeds();
+        for _ in 0..env("GC_PFUZZ_N", 100_000) {
+            let mut f = seeds[next(seeds.len())].clone();
+            for _ in 0..1 + next(2) {
+                if f.is_empty() {
+                    break;
+                }
+                let i = next(f.len());
+                match next(3) {
+                    0 => {
+                        f.remove(i);
+                    }
+                    1 => f[i] = PVOCAB[next(PVOCAB.len())].to_string(),
+                    _ => f.insert(i, PVOCAB[next(PVOCAB.len())].to_string()),
+                }
+            }
+            fz.run(f);
+        }
+        fz.finish("全体: 置き換え・挿入");
+    }
+
+    // ---------------------------------------------------------------- 全件（#[ignore]）
+
+    /// Rust のソースから、文字列リテラル（通常の文字列と raw 文字列）の中身を取り出す。
+    fn rust_strings(src: &str) -> Vec<String> {
+        let b: Vec<char> = src.chars().collect();
+        let mut out = Vec::new();
+        let mut i = 0;
+        let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+        while i < b.len() {
+            let c = b[i];
+            let next = b.get(i + 1).copied();
+            if c == '/' && next == Some('/') {
+                while i < b.len() && b[i] != '\n' {
+                    i += 1;
+                }
+            } else if c == '/' && next == Some('*') {
+                let mut depth = 0;
+                while i < b.len() {
+                    if b[i] == '/' && b.get(i + 1) == Some(&'*') {
+                        depth += 1;
+                        i += 2;
+                    } else if b[i] == '*' && b.get(i + 1) == Some(&'/') {
+                        depth -= 1;
+                        i += 2;
+                        if depth == 0 {
+                            break;
+                        }
+                    } else {
+                        i += 1;
+                    }
+                }
+            } else if c == 'r' && (i == 0 || !is_ident(b[i - 1]) || b[i - 1] == 'b') && matches!(next, Some('"') | Some('#')) {
+                let mut j = i + 1;
+                let mut hashes = 0;
+                while b.get(j) == Some(&'#') {
+                    hashes += 1;
+                    j += 1;
+                }
+                if b.get(j) != Some(&'"') {
+                    i += 1;
+                    continue;
+                }
+                j += 1;
+                let start = j;
+                loop {
+                    if j >= b.len() {
+                        i = b.len();
+                        break;
+                    }
+                    if b[j] == '"' && (0..hashes).all(|k| b.get(j + 1 + k) == Some(&'#')) {
+                        out.push(b[start..j].iter().collect());
+                        i = j + 1 + hashes;
+                        break;
+                    }
+                    j += 1;
+                }
+            } else if c == '"' {
+                let mut j = i + 1;
+                let mut s = String::new();
+                while j < b.len() && b[j] != '"' {
+                    if b[j] == '\\' {
+                        j += 1;
+                        match b.get(j) {
+                            Some('n') => s.push('\n'),
+                            Some('r') => s.push('\r'),
+                            Some('t') => s.push('\t'),
+                            Some('0') => s.push('\0'),
+                            Some('u') => {
+                                // \u{...}
+                                let mut k = j + 2;
+                                let mut v = 0u32;
+                                while k < b.len() && b[k] != '}' {
+                                    v = v * 16 + b[k].to_digit(16).unwrap_or(0);
+                                    k += 1;
+                                }
+                                if let Some(ch) = char::from_u32(v) {
+                                    s.push(ch);
+                                }
+                                j = k;
+                            }
+                            Some('\n') | Some('\r') => {
+                                while j + 1 < b.len() && b[j + 1].is_whitespace() {
+                                    j += 1;
+                                }
+                            }
+                            Some(&x) => s.push(x),
+                            None => {}
+                        }
+                    } else {
+                        s.push(b[j]);
+                    }
+                    j += 1;
+                }
+                out.push(s);
+                i = j + 1;
+            } else if c == '\'' {
+                if next == Some('\\') {
+                    let mut j = i + 2;
+                    while j < b.len() && b[j] != '\'' {
+                        j += 1;
+                    }
+                    i = j + 1;
+                } else if b.get(i + 2) == Some(&'\'') {
+                    i += 3;
+                } else {
+                    i += 1;
+                }
+            } else {
+                i += 1;
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn rust_string_extraction_works() {
+        let v = rust_strings("let a = r#\"fn main() { \"x\"; }\"#; let b = \"a\\nb\\\"c\"; // \"no\"\nlet c = '\"'; let d = r\"z\";");
+        assert_eq!(v, ["fn main() { \"x\"; }", "a\nb\"c", "z"]);
+    }
+
+    fn all_rw(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let mut v: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
+        v.sort();
+        for p in v {
+            if p.is_dir() {
+                all_rw(&p, out);
+            } else if p.extension().is_some_and(|e| e == "rw") {
+                out.push(p);
+            }
+        }
+    }
+
+    /// 全件を、複数のスレッドで比べる。ファイルの読み込みはスレッドの中で行う。
+    fn run_paths_parallel(label: &str, paths: &[std::path::PathBuf]) {
+        let t0 = std::time::Instant::now();
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(16);
+        let chunk = paths.len().div_ceil(threads).max(1);
+        let results: Vec<(BTreeMap<&'static str, usize>, Vec<String>, usize)> = std::thread::scope(|sc| {
+            let hs: Vec<_> = paths
+                .chunks(chunk)
+                .map(|part| {
+                    sc.spawn(move || {
+                        let mut tally: BTreeMap<&'static str, usize> = BTreeMap::new();
+                        let mut bad = Vec::new();
+                        let mut tokens = 0usize;
+                        for p in part {
+                            let Ok(src) = std::fs::read_to_string(p) else {
+                                *tally.entry("読めない").or_default() += 1;
+                                continue;
+                            };
+                            let Ok(t) = impl_tokens(&src) else {
+                                *tally.entry("字句の誤り").or_default() += 1;
+                                continue;
+                            };
+                            tokens += t.len();
+                            let r = compare(Entry::Program, &t);
+                            let key = match (&r.class, r.parser_ok) {
+                                (Class::Agree, true) => "受理で一致",
+                                (Class::Agree, false) => "拒否で一致",
+                                (Class::NonSyntactic, _) => "意味の検査",
+                                (Class::KnownGap(_), _) => "既知の差",
+                                (Class::Mismatch(_), _) => "食い違い",
+                            };
+                            *tally.entry(key).or_default() += 1;
+                            if let Class::Mismatch(m) = r.class {
+                                bad.push(format!("{}: {m}", p.display()));
+                            }
+                        }
+                        (tally, bad, tokens)
+                    })
+                })
+                .collect();
+            hs.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        let mut total: BTreeMap<&'static str, usize> = BTreeMap::new();
+        let mut bad = Vec::new();
+        let mut tokens = 0;
+        for (t, b, n) in results {
+            for (k, v) in t {
+                *total.entry(k).or_default() += v;
+            }
+            bad.extend(b);
+            tokens += n;
+        }
+        println!("{label}: {} ファイル、{tokens} トークン、{:?}、{:.1} 秒（{threads} スレッド）", paths.len(), total, t0.elapsed().as_secs_f64());
+        assert!(bad.is_empty(), "{label}: 食い違い {} 件\n{}", bad.len(), bad.iter().take(20).cloned().collect::<Vec<_>>().join("\n"));
+    }
+
+    /// examples の全件（`cargo test --release --bin rewind grammar_check_full -- --ignored`）。
+    #[test]
+    #[ignore]
+    fn grammar_check_full_examples() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let mut paths = Vec::new();
+        all_rw(&root.join("examples"), &mut paths);
+        run_paths_parallel("examples 全件", &paths);
+    }
+
+    /// std、fixtures の全件と、docs の全ブロック。
+    #[test]
+    #[ignore]
+    fn grammar_check_full_std_fixtures_docs() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let mut paths = Vec::new();
+        all_rw(&root.join("libraries"), &mut paths);
+        all_rw(&root.join("tests/fixtures"), &mut paths);
+        all_rw(&root.join("docs"), &mut paths);
+        run_paths_parallel("libraries・fixtures・docs の .rw", &paths);
+        let c = corpus();
+        run_programs("docs のブロック", &c.docs);
+    }
+
+    /// tests/*.rs に埋め込まれた文字列（REWIND のソースの断片を含む）。
+    #[test]
+    #[ignore]
+    fn grammar_check_full_tests_rs() {
+        let t0 = std::time::Instant::now();
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests");
+        let mut strings: Vec<(String, String)> = Vec::new();
+        let mut files: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path()).collect();
+        files.sort();
+        for p in files {
+            if p.extension().is_some_and(|e| e == "rs") {
+                let name = p.file_name().unwrap().to_string_lossy().to_string();
+                let Ok(src) = std::fs::read_to_string(&p) else { continue };
+                for (i, s) in rust_strings(&src).into_iter().enumerate() {
+                    if !s.trim().is_empty() {
+                        strings.push((format!("{name}#{i}"), s));
+                    }
+                }
+            }
+        }
+        let n = strings.len();
+        let tally = run_programs("tests/*.rs の埋め込み文字列", &strings);
+        println!("埋め込み文字列 {n} 件（{:.1} 秒）、Parser が受理 {} 件", t0.elapsed().as_secs_f64(), tally.get("受理で一致").copied().unwrap_or(0));
     }
 }

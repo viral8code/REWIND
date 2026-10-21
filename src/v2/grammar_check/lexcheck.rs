@@ -16,7 +16,7 @@ const EBNF: &str = include_str!("../../../docs/grammar/rewind.ebnf");
 
 /// 文法全体の入口の規則（字句の TOKEN と SKIP、構文の Type、TypeParams、WhereClause、Pattern、Expr）。
 /// 字句の検査が使うのは、このうち TOKEN と SKIP だけ。
-const ROOTS: [&str; 7] = ["TOKEN", "SKIP", "Type", "TypeParams", "WhereClause", "Pattern", "Expr"];
+const ROOTS: [&str; 8] = ["TOKEN", "SKIP", "Type", "TypeParams", "WhereClause", "Pattern", "Expr", "Program"];
 
 fn compiled() -> &'static (Bnf, Bnf) {
     static C: OnceLock<(Bnf, Bnf)> = OnceLock::new();

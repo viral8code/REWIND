@@ -1,6 +1,7 @@
 /*
  REWIND の形式文法（EBNF）。
- 字句の節（段階 B）と、型・パターン・式の節（段階 C）を持つ。文と宣言は段階 D で足す。
+ 字句の節（段階 B）、型・パターン・式の節（段階 C）、文・ブロック・宣言・全体の節（段階 D）を持つ。
+ 全体の入口は Program で、Parser の program()（構文解析だけ。型検査は含まない）と受理が一致する。
 
  書き方
    - 名前が UPPER_CASE（小文字を含まない）の規則が字句規則で、1 文字ずつの列に対して働く。
@@ -175,7 +176,7 @@ NON_ASCII_NON_SPACE ::= NON_ASCII - WS_CHAR
 
 NON_ASCII ::= [#x80-#x10FFFF]
 
-/* ================================================================ 構文（段階 C: 型・パターン・式）
+/* ================================================================ 構文（段階 C: 型・パターン・式。段階 D: 文・宣言・全体）
    構文規則は CamelCase で書き、終端には字句規則の名前（種別）と、記号・語のリテラルを使う。
    種別は IDENT、INT、FLOAT、STRING、RAW_STRING、SYMBOL。lex() のトークン列に対して働く。
    予約語は字句では区別されず、名前として扱われる（Parser の name() は `begin` だけを拒否する）。
@@ -234,6 +235,25 @@ NON_ASCII ::= [#x80-#x10FFFF]
         publish branch runtime external）は、式の名前としては読まれない。`if` の直後の `let` も、`if let` の始まり。
     14. `( 式 )` は中の式をそのまま返すので、中が名前だけなら、括弧のあとにも `::` を続けられる（`(a)::B`、`(a.b)::C`）。
     15. else のない `if` の直後の `else` は、必ず else 節として読まれる。`else` が名前として次の文の先頭になることはない。
+    16. （段階 D）`test` は直後が `fn` のときだけ接頭辞になる。`test async fn` は誤りで、`async test fn` も誤り。
+        `async` は、トップレベルでは必ず関数宣言の始まりとして読まれる。
+    17. `pub` のあとは宣言だけ。`pub import`、`pub impl`、`pub let` などは誤り。`pub fn` は `->` が必要。
+        宣言の先頭の語（effects import type enum trait impl struct record fn async const pub）は、トップレベルでは
+        式の名前にならない。
+    18. 構造体の欄は、修飾（`private`、`pub`）がないと、名前を `private` と `pub` にできない（修飾として読まれる）。
+        実装の不具合に見える。
+    19. `runtime` の値は、トークンの文字列を usize として読む。`1_000` や `0x10` は、整数のリテラルとしては
+        書けるが、ここでは誤りになる（実装の不具合に見える）。桁あふれと単位の掛け算の桁あふれは値の検査。
+    20. let-else は、名前が大文字（char::is_uppercase）で始まり、直後が `(` か `::` のときだけ。
+        `Option<Int>::Some(x)` のような形は、通常の `let` として読まれて拒否される。UPPER_IDENT の本体は
+        ASCII の [A-Z] で書いたが、実際の種別はテストが char::is_uppercase でつけるので、ASCII 以外の大文字でも成り立つ。
+        else のブロックが抜け出す文で終わること（return、break、continue、panic）は値の検査。
+    21. 式のブロックの中で、`if`・`match`・`{` で始まる文は、まず式として読む。式として読めたあとの失敗では、
+        文として読み直さない。文法は「式が続く記号の先読み」（NoContinue）で近似する。式として読めない場合に
+        限って文の読み直しが効く部分（読み直した文のあとに `(` や `-` が続く形）は、実装より狭く拒否する。
+        既定のテストと変異（約 360 万件）では、この近似による食い違いは見つかっていない。
+    22. match の文は、腕のあいだの `,` を必ず要る（`{ }` の腕のあとにも）。式の match は、結果が `{ }`・リスト・マップなら省ける。
+    23. `external` が文の先頭で、直後が `{`・`fresh`・`live` でないときは、名前の式の文として読まれる（`external;`）。
 */
 
 /* ---------------------------------------------------------------- 名前 */
@@ -339,7 +359,7 @@ UnaryExpr ::= '-' UnaryExpr
 CaptureExpr ::= 'capture' ( 'value' | 'move' | 'borrow' ) CaptureClosure
 
 CaptureClosure ::= ClosureHead Expr
-                 | ClosureHead '->' Type StmtBlock [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '::' ] [ ns: '?' ]
+                 | ClosureHead '->' Type FnBlock [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '::' ] [ ns: '?' ]
 
 /* 後置の連鎖は、項の形で 3 つの状態に分ける（Parser が項の種類を見て `::` と `.名前<` を許すため）。
      PostN: 名前だけの項（`a`、`E::A`）。`.名前<T>(` を試せる。
@@ -432,7 +452,7 @@ MapKey1 ::= [ ns: 'if' ] [ ns: 'match' ] [ ns: 'await' ] [ ns: 'spawn' ] [ ns: '
           | RAW_STRING
 
 ClosureExpr ::= ClosureHead Expr
-              | ClosureHead '->' Type StmtBlock
+              | ClosureHead '->' Type FnBlock
 
 ClosureHead ::= '||'
               | '|' '|'
@@ -459,32 +479,226 @@ MatchArmLast ::= Pattern ( 'if' Expr )? '=>' Expr
 
 ArmBlockLike ::= BlockExpr | ListLit | MapLit
 
-/* ---------------------------------------------------------------- 文（段階 D で書き直す仮の規則）
-   段階 C では、式の中のブロックが読めるように、最小の文だけを置く。
-   while、for、defer、commit、revert、using、match の文の形などは、段階 D で足す。
-   `let (a, b) = e;` の括弧の中は、束縛・タプル・`_` に限る（destructure が検査する。この検査は値の検査として扱い、
-   ここでは Pattern と同じ形で受理する）。 */
-BlockExpr ::= '{' Stmt* StmtExpr? '}'
+/* ---------------------------------------------------------------- 文とブロック（段階 D）
+   ブロックは 2 種類ある。
+   - FnBlock（Parser の block()）: 関数本体、`if`・`while`・`for` などの文の本体、`branch`、`external`、
+     match の文の腕の `{ }`、`->` つきクロージャの本体。文だけを並べる（末尾の式は置けない）。
+     let-else（`let 大文字の名前( … ) = 式 else { … }`）は、この形のブロックにだけ書ける。
+     let-else は、そのブロックの残りの全部（閉じの `}` まで）を、続きの文として取る。
+   - BlockExpr（Parser の block_expression()）: 式としての `{ }` と、式の `if` の本体。末尾の `;` のない式が
+     ブロックの値になる。let-else は書けない。
+   文の先頭の語（let var using while for break continue return defer commit revert resume drop publish branch
+   runtime external）で始まる文は、BlockExpr の中でも FnBlock の中でも、必ず文として読まれる。
+   BlockExpr の中の `if`・`match`・`{` で始まる文は、まず式として読み、式として読めなければ文として読み直す。
+   この順序つきの選択は、曖昧な文法（どちらでも受理する）と、式が続く記号の先読み（NoContinue）で書く。 */
 
-StmtBlock ::= '{' Stmt* '}'
+FnBlock ::= '{' FnBody
 
-Stmt ::= ( 'let' | 'var' ) ( Name | TuplePattern ) ( ':' Type )? '=' Expr ';'
-       | 'return' Expr? ';'
-       | 'break' ';'
-       | 'continue' ';'
-       | StmtExpr AssignOp Expr ';'
-       | StmtExpr ';'
-       | IfExpr
-       | MatchExpr
-       | BlockExpr
+/* 閉じの `}` まで。let-else があれば、その続きが残りの本体になる。 */
+FnBody ::= Stmt* ( '}' | LetElse FnBody )
 
-/* 文の先頭の式。文の先頭の語は、ブロックの中で必ず文として読まれ、式の名前にはならない。 */
-StmtExpr ::= [ ns: 'let' ] [ ns: 'var' ] [ ns: 'using' ] [ ns: 'while' ] [ ns: 'for' ] [ ns: 'break' ]
-             [ ns: 'continue' ] [ ns: 'return' ] [ ns: 'defer' ] [ ns: 'commit' ] [ ns: 'revert' ]
-             [ ns: 'resume' ] [ ns: 'drop' ] [ ns: 'publish' ] [ ns: 'branch' ] [ ns: 'runtime' ]
-             [ ns: 'external' ] Expr
+/* 名前が大文字で始まり、直後が `(` か `::` のときだけ let-else になる（`let_else_ahead`）。
+   大文字は char::is_uppercase の結果で、テスト側が種別 UPPER_IDENT をつける。 */
+LetElse ::= 'let' LetElsePattern '=' Expr 'else' FnBlock ';'?
+
+LetElsePattern ::= UPPER_IDENT PatArgs
+                 | UPPER_IDENT ( '::' Name )+ ( PatArgs | PatFields )?
+
+PatArgs ::= '(' ( Pattern ( ',' Pattern )* ','? )? ')'
+
+PatFields ::= '{' ( FieldPattern ( ',' FieldPattern )* ','? )? '}'
+
+Stmt ::= KeywordStmt
+       | IfStmt
+       | MatchStmt
+       | FnBlock
+       | ExprStmt
+
+/* 先頭の語で決まる文。 */
+KeywordStmt ::= LetStmt
+              | 'using' Name '=' Expr ';'
+              | WhileStmt
+              | ForStmt
+              | 'break' ';'
+              | 'continue' ';'
+              | 'return' Expr? ';'
+              | 'defer' Expr ';'
+              | 'external' ( 'live' | 'fresh' )? FnBlock
+              | 'commit' Name ';'
+              | 'revert' LabelName ';'
+              | 'resume' LabelName ';'
+              | 'drop' Name ';'
+              | 'publish' 'force'? ';'
+              | 'branch' Name FnBlock
+              | RuntimeStmt
+
+/* `let (a, b) = e;` の括弧の中は Pattern と同じ形で受理する（束縛・タプル・`_` だけという検査は値の検査）。 */
+LetStmt ::= ( 'let' | 'var' ) ( Name | TuplePattern ) ( ':' Type )? '=' Expr ';'
+
+/* revert と resume は、`begin` だけ名前として書ける。 */
+LabelName ::= 'begin' | Name
+
+IfStmt ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) Expr FnBlock
+           ( 'else' ( IfStmt | FnBlock ) | [ ns: 'else' ] )
+
+WhileStmt ::= 'while' ( 'let' Pattern '=' | [ ns: 'let' ] ) Expr FnBlock
+
+/* `..` の範囲は、名前の形のときだけ。括弧のパターンのときは、式の 1 つだけ。 */
+ForStmt ::= 'for' TuplePattern 'in' Expr FnBlock
+          | 'for' Name 'in' Expr ( '..' Expr )? FnBlock
+
+/* 設定名は 4 つ。値は 10 進の数字だけのトークンで、単位（KB KiB MB MiB GB GiB）を続けられる。 */
+RuntimeStmt ::= 'runtime' '{' RuntimeSetting* '}'
+
+RuntimeSetting ::= RuntimeName '=' DIGITS RuntimeUnit? ';'
+
+RuntimeName ::= 'historyMemory' | 'historyStorage' | 'spillThreshold' | 'executionSteps'
+
+RuntimeUnit ::= 'KB' | 'KiB' | 'MB' | 'MiB' | 'GB' | 'GiB'
+
+/* match の文。腕のあいだは必ず `,` で、`{ }` の腕のあとにも要る。 */
+MatchStmt ::= 'match' Expr '{' ( StmtArm ( ',' StmtArm )* ','? )? '}'
+
+StmtArm ::= Pattern ( 'if' Expr )? '=>' ArmBody
+
+ArmBody ::= 'return' ( Expr ';'? )?
+          | FnBlock
+          | [ ns: 'return' ] [ ns: '{' ] Expr
+
+/* 文の先頭の語（external を除く）は、式の名前として読まれない。 */
+KwNot ::= [ ns: 'let' ] [ ns: 'var' ] [ ns: 'using' ] [ ns: 'while' ] [ ns: 'for' ] [ ns: 'break' ]
+          [ ns: 'continue' ] [ ns: 'return' ] [ ns: 'defer' ] [ ns: 'commit' ] [ ns: 'revert' ]
+          [ ns: 'resume' ] [ ns: 'drop' ] [ ns: 'publish' ] [ ns: 'branch' ] [ ns: 'runtime' ]
+
+/* FnBlock の中では、`if`・`match`・`{` で始まる文は、必ず文の形で読まれる。 */
+ExprStmt ::= KwNot [ ns: 'if' ] [ ns: 'match' ] [ ns: '{' ] Expr ( AssignOp Expr )? ';'
 
 AssignOp ::= '=' | '+=' | '-=' | '*=' | '/=' | '%='
+
+/* ---------------------------------------------------------------- 式としてのブロックの中身 */
+
+BlockExpr ::= '{' BlockItem* BlockTail? '}'
+
+BlockStart ::= KwNot [ ns: 'external' ]
+
+/* 文の先頭の語は、ブロックの値になる式の先頭でも名前にならない。ただし `external` が式の名前の文は、
+   文の読み方（stmt()）で読まれるので、ExprStmt として書ける。 */
+BlockItem ::= KeywordStmt
+            | ExprStmt
+            | BlockStart Expr AssignOp Expr ';'
+            | BlockStart Expr ';'
+            | BlockStart BlockLike NoContinue
+            | BlockFallback NoContinue
+
+BlockTail ::= BlockStart Expr
+
+/* `;` を省けるのは、式の全体が `if`・`match`・`{ }`・マップ（Parser の式の種類が Block か Match）のとき。 */
+BlockLike ::= IfExpr | MatchExpr | BlockExpr | MapLit
+
+/* 式として読めなかったときの、文としての読み直し。 */
+BlockFallback ::= IfStmt | MatchStmt | FnBlock
+
+/* 式が続く記号。直後にこれが来ると、前の `if`・`match`・`{ }` は式の一部になる。 */
+NoContinue ::= [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '?' ] [ ns: '||' ] [ ns: '&&' ] [ ns: '==' ]
+               [ ns: '!=' ] [ ns: '<' ] [ ns: '<=' ] [ ns: '>' ] [ ns: '+' ] [ ns: '-' ] [ ns: '*' ]
+               [ ns: '/' ] [ ns: '%' ]
+
+/* ================================================================ 宣言と全体（段階 D）
+   Parser の program()。`pub` のあとは、宣言だけが続く（そうでなければ誤り）。`pub import` と `pub impl` は誤り。
+   `pub fn` は `->` が必要。どの宣言の先頭の語でもないものは、文として読む。
+   2.0.0 以前のトップレベルの文と、3.x の `fn main` の規則は、構文では区別しない（どちらも Item の列）。
+   入力の終わり（EOF）は、トークン列の終わりで表す。 */
+
+Program ::= Item*
+
+Item ::= Decl
+       | 'pub' Decl
+       | FnDecl
+       | 'pub' PubFnDecl
+       | ImportDecl
+       | ImplDecl
+       | TopStmt
+
+Decl ::= EffectsDecl | TypeDecl | EnumDecl | TraitDecl | StructDecl | ConstDecl
+
+/* 宣言の先頭の語は、トップレベルでは必ず宣言として読まれ、式の名前にならない。 */
+TopStmt ::= [ ns: 'pub' ] [ ns: 'effects' ] [ ns: 'import' ] [ ns: 'type' ] [ ns: 'enum' ] [ ns: 'trait' ]
+            [ ns: 'impl' ] [ ns: 'struct' ] [ ns: 'record' ] [ ns: 'fn' ] [ ns: 'async' ] [ ns: 'const' ] Stmt
+
+EffectsDecl ::= 'effects' '{' ( Name ( ',' Name )* ','? )? '}' ';'?
+
+/* `import a.b`、`import a.b.{x, y as z}`、`import a.b::{x}`、`import a.b as c`。
+   別名は、選ぶ名前の一覧が空か、ないときだけ書ける。 */
+ImportDecl ::= 'import' ImportPath ( ( '.' ImportList )? ( '::' ImportList )?
+                                   | ( '.' ImportEmpty )? ( '::' ImportEmpty )? 'as' Name ) ';'
+
+ImportPath ::= Name ( '.' Name )*
+
+ImportList ::= '{' ( ImportItem ( ',' ImportItem )* ','? )? '}'
+
+ImportEmpty ::= '{' '}'
+
+ImportItem ::= Name ( 'as' Name )?
+
+TypeDecl ::= 'type' Name TypeParams '=' Type ';'
+
+EnumDecl ::= 'enum' Name TypeParams '{' ( Variant ( ',' Variant )* ','? )? '}'
+
+Variant ::= Name ( '(' ( Type ( ',' Type )* ','? )? ')'
+                 | '{' ( FieldDecl1 ( ',' FieldDecl1 )* ','? )? '}' )?
+
+FieldDecl1 ::= Name ':' Type
+
+TraitDecl ::= 'trait' Name '{' TraitItem* '}'
+
+TraitItem ::= 'type' Name ';'
+            | 'fn' Name '(' ( FieldDecl1 ( ',' FieldDecl1 )* ','? )? ')' '->' Type EffectSet? ( FnBlock | ';' )
+
+ImplDecl ::= 'impl' TypeParams Name 'for' Type '{' ImplItem* '}'
+
+ImplItem ::= 'type' Name '=' Type ';'
+           | 'fn' Name '(' ( FieldDecl1 ( ',' FieldDecl1 )* ','? )? ')' '->' Type EffectSet? FnBlock
+
+/* 欄の前の `private` か `pub`。修飾なしの欄の名前は `private` と `pub` にできない。 */
+StructDecl ::= ( 'struct' | 'record' ) Name TypeParams WhereClause? '{' ( StructField ( ',' StructField )* ','? )? '}'
+
+StructField ::= ( 'private' | 'pub' ) Name ':' Type
+              | [ ns: 'private' ] [ ns: 'pub' ] Name ':' Type
+
+ConstDecl ::= 'const' Name ':' Type '=' Expr ';'
+
+/* `test` は直後が `fn` のときだけ接頭辞になる（`test async fn` は誤り）。 */
+FnPrefix ::= 'test' 'fn' | 'async' 'fn' | 'fn'
+
+FnDecl ::= FnPrefix Name TypeParams FnParams
+           ( '->' Type EffectSet? WhereClause? FnBody1
+           | EffectSet? WhereClause? FnBlock )
+
+PubFnDecl ::= FnPrefix Name TypeParams FnParams '->' Type EffectSet? WhereClause? FnBody1
+
+FnBody1 ::= FnBlock | '=' Expr ';'
+
+/* 既定値のある引数は、既定値のない引数のあとに、まとめて置く。 */
+FnParams ::= '(' ')' | '(' ParamSeq ','? ')'
+
+ParamSeq ::= Param ( ',' Param )* ( ',' DefParam )*
+           | DefParam ( ',' DefParam )*
+
+Param ::= Name ':' Type
+
+DefParam ::= Name ':' Type '=' DefaultValue
+
+/* 既定値は、リテラル（`None` と `null` と `()` を含む）か、`-` のあとにリテラル。Parser の式の種類が値のもの
+   だけを受理する。括弧は式をそのまま返すので、囲んでもよい（`(-1)` は受理、`-(-1)` は拒否）。 */
+DefaultValue ::= DefLit | '-' DefLit | '(' DefaultValue ')'
+
+DefLit ::= INT | FLOAT | STRING | RAW_STRING | 'true' | 'false' | 'null' | 'None' | '(' ')' | '(' DefLit ')'
+
+/* 数字だけのトークン（runtime の値）。テスト側が種別 DIGITS をつける。 */
+DIGITS ::= [0-9]+
+
+/* 先頭が大文字（char::is_uppercase）の名前。テスト側が種別 UPPER_IDENT をつける。 */
+UPPER_IDENT ::= [A-Z] IDENT_CHAR*
 
 /* 前処理で `>=` を分けたトークンの種別。lex() が出す種別ではない（上の説明を参照）。 */
 GE_FIRST ::= '>'
