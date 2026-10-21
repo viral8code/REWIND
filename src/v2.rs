@@ -501,6 +501,158 @@ fn integer_literal(at: &Tok, negative: bool) -> Result<i64> {
     i64::try_from(value).map_err(|_| diagnostic(at, "integer literal overflow"))
 }
 
+/// Reads a raw string literal (`"""..."""`, three or more quotes) whose first quote
+/// is already consumed. Returns the literal exactly as written, delimiters included.
+/// Updates `line` and `col` so later tokens keep correct positions.
+fn lex_raw_string(
+    it: &mut std::iter::Peekable<std::str::Chars>,
+    line: &mut usize,
+    col: &mut usize,
+    start_line: usize,
+    start_col: usize,
+) -> Result<String> {
+    let fail = |line: usize, col: usize, message: String| {
+        diagnostic(
+            &Tok {
+                source: String::new(),
+                text: "\"\"\"".into(),
+                line,
+                col,
+            },
+            message,
+        )
+    };
+    let mut text = String::from("\"");
+    let mut n = 1usize;
+    while it.peek() == Some(&'"') {
+        it.next();
+        text.push('"');
+        *col += 1;
+        n += 1;
+    }
+    // Multiline form: only spaces and tabs follow the opening quotes on their line.
+    let multiline = {
+        let mut ahead = it.clone();
+        loop {
+            match ahead.next() {
+                Some(' ' | '\t') => {}
+                Some('\n' | '\r') => break true,
+                _ => break false,
+            }
+        }
+    };
+    let hint = if n >= 6 && n % 2 == 0 {
+        format!("; a run of {n} quotes opens a raw string, it is not an empty raw string (write \"\" for the empty string)")
+    } else {
+        String::new()
+    };
+    let (mut run, mut run_line, mut run_col, mut run_blank) = (0usize, 0usize, 0usize, false);
+    // Whether only whitespace precedes the current position on its line.
+    let mut blank = false;
+    loop {
+        let next = it.peek().copied();
+        if next == Some('"') {
+            it.next();
+            text.push('"');
+            if run == 0 {
+                (run_line, run_col, run_blank) = (*line, *col, blank);
+            }
+            run += 1;
+            blank = false;
+            *col += 1;
+            continue;
+        }
+        if run > 0 {
+            if run == n && (!multiline || run_blank) {
+                return Ok(text);
+            }
+            if run >= n {
+                return Err(fail(
+                    run_line,
+                    run_col,
+                    if run > n {
+                        format!("RawStringQuote: {run} quotes in a row are as many as or more than the {n} quotes that open this raw string; open it with more than {run} quotes")
+                    } else {
+                        format!("RawStringQuote: {n} quotes in a row end the raw string, but they must be alone on their line; open it with more than {n} quotes to write them in the text")
+                    },
+                ));
+            }
+            run = 0;
+        }
+        let Some(ch) = next else {
+            return Err(fail(
+                start_line,
+                start_col,
+                format!("RawStringUnterminated: close the raw string with {n} quotes{hint}"),
+            ));
+        };
+        it.next();
+        text.push(ch);
+        match ch {
+            '\n' | '\r' => {
+                if ch == '\r' && it.peek() == Some(&'\n') {
+                    it.next();
+                    text.push('\n');
+                }
+                if !multiline {
+                    return Err(fail(
+                        start_line,
+                        start_col,
+                        format!("RawStringOpening: text follows the opening quotes, so the closing quotes must be on the same line; to write several lines, put a line break right after the opening quotes{hint}"),
+                    ));
+                }
+                *line += 1;
+                *col = 1;
+                blank = true;
+            }
+            ' ' | '\t' => *col += 1,
+            _ => {
+                *col += 1;
+                blank = false;
+            }
+        }
+    }
+}
+
+/// The value of a raw string literal token: the body with the closing line's
+/// indentation removed from every line, and line breaks normalized to LF.
+fn raw_string_value(tok: &Tok) -> Result<String> {
+    let text = tok.text.replace("\r\n", "\n").replace('\r', "\n");
+    let n = text.chars().take_while(|c| *c == '"').count();
+    let inner = &text[n..text.len() - n];
+    let Some(first) = inner.find('\n') else {
+        return Ok(inner.to_string());
+    };
+    // Multiline form: the last line holds the indentation before the closing quotes.
+    let last = inner.rfind('\n').unwrap_or(first);
+    let indent = &inner[last + 1..];
+    if first == last {
+        return Ok(String::new());
+    }
+    let mut lines = Vec::new();
+    for (i, l) in inner[first + 1..last].split('\n').enumerate() {
+        if l.chars().all(|c| c == ' ' || c == '\t') {
+            lines.push("");
+        } else if let Some(rest) = l.strip_prefix(indent) {
+            lines.push(rest);
+        } else {
+            return Err(diagnostic(
+                &Tok {
+                    source: tok.source.clone(),
+                    text: "\"\"\"".into(),
+                    line: tok.line + 1 + i,
+                    col: 1,
+                },
+                format!(
+                    "RawStringIndent: this line is not indented like the closing quotes; start every line of the body with the same {} spaces or tabs that come before the closing quotes",
+                    indent.chars().count()
+                ),
+            ));
+        }
+    }
+    Ok(lines.join("\n"))
+}
+
 fn lex(src: &str) -> Result<Vec<Tok>> {
     let mut out = Vec::new();
     let mut it = src.chars().peekable();
@@ -565,6 +717,22 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
             continue;
         }
         let mut text = c.to_string();
+        if c == '"' && {
+            let mut ahead = it.clone();
+            ahead.next() == Some('"') && ahead.next() == Some('"')
+        } {
+            text = lex_raw_string(&mut it, &mut line, &mut col, start_line, start_col)?;
+            let tok = Tok {
+                source: String::new(),
+                text,
+                line: start_line,
+                col: start_col,
+            };
+            // Validate the indentation now so the error points at the source.
+            raw_string_value(&tok)?;
+            out.push(tok);
+            continue;
+        }
         if c == '"' {
             let mut closed = false;
             while let Some(n) = it.next() {
@@ -2808,6 +2976,10 @@ impl Parser {
                     }
                 }
             }
+            _ if at.text.starts_with("\"\"\"") => Expr {
+                kind: ExprKind::Value(Value::Text(raw_string_value(&at)?.into())),
+                at: at.clone(),
+            },
             _ if at.text.starts_with('"') => {
                 let raw = &at.text[1..at.text.len() - 1];
                 let mut s = String::new();
@@ -5343,14 +5515,16 @@ pub fn format_source(source: &str) -> Result<String> {
     let mut depth = 0usize;
     let mut quoted = false;
     let mut comment_depth = 0usize;
+    // Number of quotes that open the raw string we are inside, if any.
+    let mut raw: Option<usize> = None;
     for line in source.lines() {
         // Preserve whitespace inside multiline String literals.
-        let line = if quoted || comment_depth != 0 || line.contains('"') {
+        let line = if quoted || raw.is_some() || comment_depth != 0 || line.contains('"') {
             line
         } else {
             line.trim_end()
         };
-        if quoted || comment_depth != 0 {
+        if quoted || raw.is_some() || comment_depth != 0 {
             out.push_str(line);
             out.push('\n');
         } else if line.trim().is_empty() {
@@ -5364,6 +5538,29 @@ pub fn format_source(source: &str) -> Result<String> {
         }
         let mut chars = line.chars().peekable();
         while let Some(c) = chars.next() {
+            if comment_depth == 0 && (raw.is_some() || (!quoted && c == '"')) {
+                // Raw strings (`""".."""`): no escapes, and the body is kept as written.
+                let mut run = usize::from(c == '"');
+                while chars.peek() == Some(&'"') {
+                    chars.next();
+                    run += 1;
+                }
+                match raw {
+                    Some(n) => {
+                        if run >= n {
+                            raw = None;
+                        }
+                    }
+                    None if run >= 3 => raw = Some(run),
+                    None => {
+                        // `""` is the empty string; a single `"` opens a normal string.
+                        if run == 1 {
+                            quoted = true;
+                        }
+                    }
+                }
+                continue;
+            }
             if !quoted && c == '/' && chars.peek() == Some(&'*') {
                 chars.next();
                 comment_depth += 1;

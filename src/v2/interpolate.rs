@@ -61,6 +61,8 @@ fn stmt_kind(kind: &mut StmtKind) -> Result<()> {
 
 fn expr(e: &mut Expr) -> Result<()> {
     match &mut e.kind {
+        // A raw string (`"""..."""`) is never interpolated.
+        ExprKind::Value(Value::Text(_)) if e.at.text.starts_with("\"\"\"") => {}
         ExprKind::Value(Value::Text(text)) if text.contains("${") || text.contains("$${") => {
             let at = e.at.clone();
             let replacement = interpolate(text, &at)?;
