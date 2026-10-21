@@ -3493,16 +3493,23 @@ impl Runtime {
                 .as_ref()
                 .map_or(true, |a| a.generation() == self.shared_checked_generation.get());
         let before = tracked.then(|| self.budget_heap_bytes(&self.state.heap, false));
-        let previous = self.state.heap.clone();
+        // A tracked heap is uniquely owned, so keep the old store (an O(1) clone of its root)
+        // after the copy-on-write step; an untracked heap keeps its Arc so a failure restores it.
+        let mut previous_arc = None;
+        let mut previous_store = None;
         let heap = if tracked {
             Arc::make_mut(&mut self.state.quiet().heap)
         } else {
+            previous_arc = Some(self.state.heap.clone());
             Arc::make_mut(&mut self.state.heap)
         };
         if !heap.contains_key(&id) {
             return Err(Error::InvalidOperation(format!(
                 "unknown heap object: {id}"
             )));
+        }
+        if tracked {
+            previous_store = Some(heap.clone());
         }
         heap.insert(id, value);
         let proved = before.is_some_and(|before| {
@@ -3532,10 +3539,10 @@ impl Runtime {
         });
         if !proved {
             if let Err(error) = self.enforce_budget() {
-                if tracked {
-                    self.state.quiet().heap = previous;
-                } else {
-                    self.state.heap = previous;
+                if let Some(store) = previous_store {
+                    *Arc::make_mut(&mut self.state.quiet().heap) = store;
+                } else if let Some(arc) = previous_arc {
+                    self.state.heap = arc;
                 }
                 return Err(error);
             }

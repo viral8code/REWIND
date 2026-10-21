@@ -465,6 +465,10 @@ impl HeapStore {
     }
     pub fn insert(&mut self, id: u64, value: Value) {
         assert!(id != 0);
+        if self.0.heap_entry(id).is_some() {
+            let _ = self.0.heap_replace_existing(id, value);
+            return;
+        }
         self.0.set(Self::key(id), value);
     }
     pub fn remove(&mut self, id: u64) {
