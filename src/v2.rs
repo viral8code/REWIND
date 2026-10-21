@@ -1049,6 +1049,9 @@ impl Parser {
                         break;
                     }
                     self.need(",")?;
+                    if self.eat(")") {
+                        break;
+                    }
                 }
             }
             self.need("->")?;
@@ -1108,6 +1111,10 @@ impl Parser {
                     break;
                 }
                 self.need(",")?;
+                if self.eat(">") {
+                    name.push('>');
+                    break;
+                }
                 name.push(',');
             }
         }
@@ -1140,7 +1147,7 @@ impl Parser {
                     Some(previous) => format!("{previous}+{bound}"),
                     None => bound,
                 });
-                if !self.eat(",") {
+                if !self.eat(",") || self.is("{") || self.is("=") || self.is(";") {
                     break;
                 }
             }
@@ -1168,6 +1175,9 @@ impl Parser {
                     break;
                 }
                 self.need(",")?;
+                if self.eat(">") {
+                    break;
+                }
             }
         }
         Ok(params)
@@ -1310,6 +1320,9 @@ impl Parser {
                                     break;
                                 }
                                 self.need(",")?;
+                                if self.eat(")") {
+                                    break;
+                                }
                             }
                         }
                     } else if self.eat("{") {
@@ -1376,6 +1389,9 @@ impl Parser {
                                 break;
                             }
                             self.need(",")?;
+                            if self.eat(")") {
+                                break;
+                            }
                         }
                     }
                     self.need("->")?;
@@ -1474,6 +1490,9 @@ impl Parser {
                                 break;
                             }
                             self.need(",")?;
+                            if self.eat(")") {
+                                break;
+                            }
                         }
                     }
                     self.need("->")?;
@@ -1629,6 +1648,9 @@ impl Parser {
                             break;
                         }
                         self.need(",")?;
+                        if self.eat(")") {
+                            break;
+                        }
                     }
                 }
                 let annotated = self.eat("->");
@@ -1886,6 +1908,10 @@ impl Parser {
                     break;
                 }
                 self.need(",")?;
+                if self.eat(">") {
+                    name.push('>');
+                    break;
+                }
                 name.push(',');
             }
         }
@@ -2754,6 +2780,9 @@ impl Parser {
                             break;
                         }
                         self.need(",")?;
+                        if self.eat("|") {
+                            break;
+                        }
                     }
                 }
                 if self.is("->") {
@@ -2875,6 +2904,10 @@ impl Parser {
                                 break;
                             }
                             self.need(",")?;
+                            if self.eat(">") {
+                                name.push('>');
+                                break;
+                            }
                             name.push(',');
                         }
                         Ok(())
@@ -3012,6 +3045,10 @@ impl Parser {
                                     break;
                                 }
                                 self.need(",")?;
+                                if self.eat(">") {
+                                    name.push('>');
+                                    break;
+                                }
                                 name.push(',');
                             }
                             Ok(())
@@ -3069,6 +3106,9 @@ impl Parser {
                             break;
                         }
                         self.need(",")?;
+                        if self.eat(")") {
+                            break;
+                        }
                     }
                 }
                 lhs = Expr {
