@@ -2811,6 +2811,43 @@ fn main()->Int {
 | 並行 | `spawn 式`、`await 式` |
 | 予算 | `runtime { 設定 = 値; }` |
 
+### 文法の抜粋
+
+形式文法の正本は [`grammar/rewind.ebnf`](grammar/rewind.ebnf)（W3C 形式の EBNF）です。実装の字句解析器と構文解析器との突き合わせテストが、文法の正しさを確かめています。読み方、実装の癖、エディタ向けのキーワードの一覧は [`grammar/README.md`](grammar/README.md) にあります。
+
+次は、正本から字句と主な構文規則を抜き出したものです。`UPPER_CASE` が字句規則、`CamelCase` が構文規則です。`[ nf: X ]` は「直後の 1 文字が X でない」、`[ ns: X ]` は「次のトークンが X でない」を表します。
+
+```ebnf
+IDENT      ::= IDENT_START IDENT_CHAR*
+IDENT_START ::= UNICODE_ALPHABETIC | '_'
+SYMBOL2    ::= '==' | '!=' | '<=' | '>=' | '&&' | '||'
+             | '+=' | '-=' | '*=' | '/=' | '%='
+             | '->' | '=>' | '::' | '..'
+DEC_INT    ::= DEC_RUN [ nf: [_eE] ]
+LINE_COMMENT ::= '//' [^
+]*
+
+Program    ::= Item*
+FnDecl     ::= FnPrefix Name TypeParams FnParams
+               ( '->' Type EffectSet? WhereClause? FnBody1
+               | EffectSet? WhereClause? FnBlock )
+FnPrefix   ::= 'test' 'fn' | 'async' 'fn' | 'fn'
+FnBlock    ::= '{' FnBody
+LetStmt    ::= ( 'let' | 'var' ) ( Name | TuplePattern ) ( ':' Type )? '=' Expr ';'
+IfStmt     ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) Expr FnBlock
+               ( 'else' ( IfStmt | FnBlock ) | [ ns: 'else' ] )
+ForStmt    ::= 'for' TuplePattern 'in' Expr FnBlock
+             | 'for' Name 'in' Expr ( '..' Expr )? FnBlock
+MatchExpr  ::= 'match' Expr '{' MatchArms '}'
+MatchArm   ::= Pattern ( 'if' Expr )? '=>' Expr
+Expr       ::= OrExpr
+OrExpr     ::= OrExpr '||' AndExpr | AndExpr
+AddExpr    ::= AddExpr ( '+' | '-' ) MulExpr | MulExpr
+MulExpr    ::= MulExpr ( '*' | '/' | '%' ) UnaryExpr | UnaryExpr
+```
+
+予約語は字句では区別せず、すべて名前（`IDENT`）として切り出します。構文解析器が文の先頭などの決まった位置でだけ語の意味を決めます。2 文字の記号は上の 15 個だけです。この文法には、実装の癖をそのまま写した部分もあります。たとえば、名前の直後の `<` はまず型引数として読みます。詳しくは [`grammar/README.md`](grammar/README.md) を参照してください。
+
 ## 付録 B. 言語バージョンの違い
 
 REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプログラムを検査します。単体のファイルの実行では、コンパイラと同じ版（3.6.0）が使われます。
