@@ -3168,7 +3168,7 @@ impl<R: BufRead> Vm<R> {
         name: String,
         value: Value,
         mutable: bool,
-        ty: Option<String>,
+        ty: Option<&str>,
         at: &Tok,
     ) -> Result<()> {
         self.declare_mode(name, value, mutable, ty, at, true)
@@ -3178,15 +3178,26 @@ impl<R: BufRead> Vm<R> {
         name: String,
         mut value: Value,
         mutable: bool,
-        ty: Option<String>,
+        ty: Option<&str>,
         at: &Tok,
         own: bool,
     ) -> Result<()> {
-        let actual = value_type(&value, &self.engine.runtime);
-        let ty = ty.unwrap_or(actual.clone());
-        if !compatible(&ty, &actual) {
-            return Err(self.error(at, format!("type mismatch: expected {ty}, found {actual}")));
-        }
+        // 宣言された型が値の型と同じスカラーなら、型名の生成と互換性の検査を省く（`store` と同じ考え方）。
+        let value_scalar = scalar_type_name_of(&value);
+        let ty = match (ty, value_scalar) {
+            (Some(t), Some(s)) if scalar_type_name(t) == Some(s) => t.to_string(),
+            (None, Some(s)) => s.to_string(),
+            _ => {
+                let actual = value_type(&value, &self.engine.runtime);
+                let ty = ty.map_or_else(|| actual.clone(), str::to_string);
+                if !compatible(&ty, &actual) {
+                    return Err(
+                        self.error(at, format!("type mismatch: expected {ty}, found {actual}"))
+                    );
+                }
+                ty
+            }
+        };
         if let Some((id, lease)) = if own {
             self.engine.runtime.claim_native(&mut value)?
         } else {
@@ -3437,6 +3448,9 @@ impl<R: BufRead> Vm<R> {
         self.run_cleanups(pending, at)
     }
     fn run_cleanups(&mut self, pending: Vec<Cleanup>, at: &Tok) -> Result<()> {
+        if pending.is_empty() {
+            return Ok(());
+        }
         let mut first_error = None;
         let mut suppressed = Vec::new();
         let mut typed_causes = Vec::new();
@@ -5135,10 +5149,9 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Push(value) => self.push(value.clone())?,
                 Op::Load(name) => {
-                    let name = name.clone();
-                    let value = if let Some(binding) = self.get(&name) {
+                    let value = if let Some(binding) = self.get(name) {
                         self.resolve(&binding.value)
-                    } else if let Some(f) = self.engine.program.functions.get(&name) {
+                    } else if let Some(f) = self.engine.program.functions.get(name) {
                         Value::Function(
                             name.clone(),
                             if matches!(
@@ -5299,9 +5312,8 @@ impl<R: BufRead> Vm<R> {
                     self.push(value)?;
                 }
                 Op::Declare(name, mutable, ty) => {
-                    let (name, mutable, ty) = (name.clone(), *mutable, ty.clone());
                     let value = self.pop()?;
-                    self.declare(name, value, mutable, ty, &inst.at)?;
+                    self.declare(name.clone(), value, *mutable, ty.as_deref(), &inst.at)?;
                 }
                 Op::Store(name, op) => {
                     let value = self.pop()?;

@@ -1,0 +1,51 @@
+struct Counter { value: Int, label: String }
+
+enum Shape {
+    Circle(Int),
+    Rect(Int, Int),
+    Empty
+}
+
+fn area(s: Shape) -> Int effects {} {
+    match s {
+        Shape::Circle(r) => { return 3 * r * r; },
+        Shape::Rect(w, h) if w == h => { return w * w; },
+        Shape::Rect(w, h) => { return w * h; },
+        Shape::Empty => { return 0; }
+    }
+}
+
+fn add(a: Int, b: Int) -> Int effects {} {
+    return a + b;
+}
+
+fn main() -> Int {
+    let base: Int = 1;
+    let ratio: Float = 1.5;
+    let flag: Bool = true;
+    let name = "rewind";
+    var n = 0;
+    var text = "a";
+    let c = Counter(1, "x");
+    for i in 0..10 {
+        n += add(i, base);
+        text += "b";
+        if i % 2 == 0 { continue; }
+    }
+    c.value += 2;
+    c.label += "y";
+    let bump = || -> Unit { n += 1; };
+    bump();
+    let double = |x: Int| -> Int { return x * 2; };
+    let total = area(Shape::Rect(2, 5)) + area(Shape::Circle(2)) + double(base);
+    defer || -> Unit { Out.println("done"); };
+    var k = 0;
+    while k < 3 { k += 1; }
+    if flag && ratio > 1.0 { n -= 1; } else { n *= 2; }
+    Out.println(n);
+    Out.println(text);
+    Out.println(c.value);
+    Out.println(name);
+    Out.println(total);
+    return 0;
+}
