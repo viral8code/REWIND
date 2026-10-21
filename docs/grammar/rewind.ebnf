@@ -1,6 +1,6 @@
 /*
  REWIND の形式文法（EBNF）。
- この版は字句の節だけを持つ。構文の節は段階 C で足す。
+ 字句の節（段階 B）と、型・パターン・式の節（段階 C）を持つ。文と宣言は段階 D で足す。
 
  書き方
    - 名前が UPPER_CASE（小文字を含まない）の規則が字句規則で、1 文字ずつの列に対して働く。
@@ -174,6 +174,325 @@ OTHER_CHAR ::= NON_ASCII_NON_SPACE - UNICODE_ALPHABETIC
 NON_ASCII_NON_SPACE ::= NON_ASCII - WS_CHAR
 
 NON_ASCII ::= [#x80-#x10FFFF]
+
+/* ================================================================ 構文（段階 C: 型・パターン・式）
+   構文規則は CamelCase で書き、終端には字句規則の名前（種別）と、記号・語のリテラルを使う。
+   種別は IDENT、INT、FLOAT、STRING、RAW_STRING、SYMBOL。lex() のトークン列に対して働く。
+   予約語は字句では区別されず、名前として扱われる（Parser の name() は `begin` だけを拒否する）。
+   そのため、語を名前から除く箇所は [ ns: 'if' ] のように先読みで書く。
+
+   先読みの注釈（CFG では書けない選択）
+     [ ns: X ]   次のトークンが X でない。長さ 0。
+   Parser の判断は、次の 1 つを除いて 1 トークンの先読みで書ける。
+     - `{` がマップかブロックか: `{` の次のトークンが `}` でなく、その次が `:` ならマップ。
+       これは MapLit の最初の鍵を 1 トークンの形（MapKey1）に限ることで書く。ブロックは `X :` で
+       始まれないので、2 つは重ならない。
+
+   トークンの前処理（テスト側）
+     `>=` は、型引数を閉じる `>` と、その後ろの `=` に分かれることがある（Parser の eat(">") が `>=` の
+     テキストを `=` に書き換える）。このため、文法の検査では `>=` のトークンを常に 2 つに分け、
+     種別を GE_FIRST（text は `>`）と GE_SECOND（text は `=`）にして渡す。比較演算子の `>=` は
+     GE_FIRST GE_SECOND と書き、型引数を閉じる `>` は text が `>` のトークン（GE_FIRST を含む）に当たる。
+     `> =`（間に空白がある）は種別が SYMBOL なので、比較演算子にならない。
+
+   曖昧さの解消（Parser が選ぶ規則。CFG では曖昧になるものを、文章で書く）
+     - 名前の直後の `<` は、まず型引数として読む。`>` で閉じ、直後が `(` か `::` のときだけ型引数になる。
+       そうでなければ位置を戻し、`<` は比較演算子になる。`a.f<T>(x)` も同じ（`.名前 <` を試し、`(` が続くときだけ）。
+     - `X::Y` のように `::` を含む名前の直後の `{` は、必ず名前つき構築の `{` になる。
+       `if x == E::A { ... }` と `match E::A { ... }` は、`E::A {` を構築と読み、本体の `}` までを
+       フィールドとして読むので、ふつうは誤りになる。`(E::A)` のように括弧で囲めば本体の `{` になる。
+     - 前置の `|` と `||` は、式の先頭ではクロージャの始まりで、`||` は中置では論理和になる。
+     - クロージャの短い形 `|a| 式` の本体は、できるだけ長い式をとる（右に伸びる）。
+     - `&` の直後の `mut` は、必ず `&mut` の一部になる。
+     - 二項演算子は左結合。優先順位は低い順に `||`、`&&`、`== !=`、`< <= > >=`、`+ -`、`* / %`。
+       前置演算子（`- ! & &mut await spawn move capture`）の被演算子は、後置を含む項だけ。
+     - 後置（`::`、`[ ]`、`.数`、`.名前`、`.名前<T>(`、`( )`、`?`）は、優先順位に関係なく必ず結合する。
+
+   Parser の癖（実装が正なので、そのまま写している。不具合に見えるものを含む）
+     1. 名前の先読みに失敗して位置を戻すとき、`>=` を `=` に書き換えたトークンを元に戻さない。
+        `a < b >= c` は、`<` のあとで型 `b` を読み、`>=` を `>` として食べ（トークンは `=` になる）、直後が
+        `(` でも `::` でもないので位置を戻すが、そのトークンは `=` のままなので、比較演算子として読めず、
+        式が `a < b` で終わって `= c` が残る。この文法は比較演算子として受理する（実装の不具合に見える）。
+     2. 文字列のパターンは expr(0) で読み、値になったときだけ受理する。後置や二項演算が続くと拒否する。
+     3. パターンの `-` と範囲の端は、トークンが整数かどうかを integer_literal で見る。整数でないと
+        「integer literal overflow」と報告する（文言が実際の原因と合わない）。
+     4. match の腕は、結果の式がブロック `{ }` のとき、`,` を省ける。リスト `[ ]` とマップ `{ k: v }` も
+        ブロックとして数えられるので、`,` を省ける。`if` と `match` の式は省けない。
+     5. `x.0.1` は `x`、`.`、FLOAT `0.1` で、タプルの添字 2 つとして読む。添字のトークンは、数字だけ（と `.`）
+        でなければ誤りになる（`x.1e5`、`x.0x1`、`x.1_0`）。この検査は値の検査なので、文法では INT か FLOAT として受理する。
+     6. `[]`（空のリスト）は拒否する（診断で型の書き方を案内する）。
+     7. クロージャのゼロ個の引数は、`||` のほかに `| |`（2 トークン）でも書ける。
+     8. 入れ子の深さは、型・パターン・式・ブロック・文で共通の 64 まで。超えると拒否する（深さの検査は文法の外）。
+     9. `capture value|move|borrow` の被演算子は、クロージャそのものでなければならない。
+        ブロックの形のクロージャのあとに後置が続くと、クロージャでなくなるので拒否する。
+    10. 型では、`A<B>.C` のように型引数のあとに続けられない。`&&T` は `&&` が 1 トークンなので拒否する。
+    11. `fn` は型の先頭では必ず関数型の始まりで、名前にはならない。
+    12. パターンの `-` のあとと範囲の終わりは、integer_literal が読む。integer_magnitude は `_` を取り除いて数字を
+        数えるので、`_`、`__`、`_1` のような名前も整数として受理する（`-_` は 0、`0.._1` は範囲）。
+        式の `-` に続く `_9223372036854775808` も同じ理由で、i64 の最小値の値として読まれる（文法では区別しない）。
+    13. ブロックの中で、文の先頭の語（let var using while for break continue return defer commit revert resume drop
+        publish branch runtime external）は、式の名前としては読まれない。`if` の直後の `let` も、`if let` の始まり。
+    14. `( 式 )` は中の式をそのまま返すので、中が名前だけなら、括弧のあとにも `::` を続けられる（`(a)::B`、`(a.b)::C`）。
+    15. else のない `if` の直後の `else` は、必ず else 節として読まれる。`else` が名前として次の文の先頭になることはない。
+*/
+
+/* ---------------------------------------------------------------- 名前 */
+
+/* name() が受理する名前。`begin` だけを拒否する。 */
+Name ::= [ ns: 'begin' ] IDENT
+
+/* 式の先頭の名前。特別に扱われる語は、別の規則で読む。 */
+ExprHead ::= [ ns: 'if' ] [ ns: 'match' ] [ ns: 'await' ] [ ns: 'spawn' ] [ ns: 'move' ]
+             [ ns: 'true' ] [ ns: 'false' ] [ ns: 'None' ] [ ns: 'null' ] IDENT
+
+/* ---------------------------------------------------------------- 型 */
+
+Type ::= '(' ')'
+       | '(' Type ')'
+       | '(' Type ',' ( Type ( ',' Type )* ','? )? ')'
+       | '&' 'mut' Type
+       | '&' [ ns: 'mut' ] Type
+       | 'fn' '(' ( Type ( ',' Type )* ','? )? ')' '->' Type EffectSet? CapturesSet?
+       | TypeHead ( ( '.' | '::' ) Name )* TypeArgs?
+
+TypeHead ::= [ ns: 'fn' ] Name
+
+TypeArgs ::= '<' Type ( ',' Type )* ','? '>'
+
+EffectSet ::= 'effects' ( '{' ( Name ( ',' Name )* ','? )? '}' | Name )
+
+CapturesSet ::= 'captures' '{' ( CaptureFlag ( ',' CaptureFlag )* ','? )? '}'
+
+CaptureFlag ::= 'Send' | 'Share'
+
+/* 型パラメータ（宣言の `<T, U: Bound>`）。`<` がなければ空。 */
+TypeParams ::= ( '<' TypeParam ( ',' TypeParam )* ','? '>' )?
+
+TypeParam ::= Name ( ':' BoundsList )?
+
+BoundsList ::= Name ( '+' Name )*
+
+/* where 節。直後は `{`、`=`、`;` のどれか。 */
+WhereClause ::= 'where' WhereItem ( ',' WhereItem )* ','?
+
+WhereItem ::= Name ':' BoundsList
+
+/* ---------------------------------------------------------------- パターン */
+
+Pattern ::= '_'
+          | TuplePattern
+          | '[' ( Pattern ( ',' Pattern )* ','? )? ']'
+          | 'true'
+          | 'false'
+          | STRING
+          | RAW_STRING
+          | '-' IntLike ( '..' '-'? IntLike )?
+          | INT ( '..' '-'? IntLike )?
+          | PatternPath ( '(' ( Pattern ( ',' Pattern )* ','? )? ')'
+                        | '{' ( FieldPattern ( ',' FieldPattern )* ','? )? '}' )?
+
+/* integer_literal が受理するトークン。INT のほか、`_` と数字だけの名前（`_`、`_1`、`__`）も受理する（癖 12）。 */
+IntLike ::= INT | UNDERSCORE_NUM
+
+TuplePattern ::= '(' ( Pattern ( ',' Pattern )* ','? )? ')'
+
+FieldPattern ::= Name ':' Pattern
+
+PatternPath ::= PatternHead ( '.' Name )* TypeArgs? ( '::' Name )*
+
+PatternHead ::= [ ns: '_' ] [ ns: 'true' ] [ ns: 'false' ] Name
+
+/* ---------------------------------------------------------------- 式 */
+
+Expr ::= OrExpr
+
+OrExpr ::= OrExpr '||' AndExpr | AndExpr
+
+AndExpr ::= AndExpr '&&' EqExpr | EqExpr
+
+EqExpr ::= EqExpr ( '==' | '!=' ) CmpExpr | CmpExpr
+
+CmpExpr ::= CmpExpr CmpOp AddExpr | AddExpr
+
+CmpOp ::= '<' | '<=' | '>' | GE_FIRST GE_SECOND
+
+AddExpr ::= AddExpr ( '+' | '-' ) MulExpr | MulExpr
+
+MulExpr ::= MulExpr ( '*' | '/' | '%' ) UnaryExpr | UnaryExpr
+
+/* 前置。被演算子は、前置か、後置を含む項。 */
+UnaryExpr ::= '-' UnaryExpr
+            | '!' UnaryExpr
+            | 'await' UnaryExpr
+            | 'spawn' UnaryExpr
+            | 'move' UnaryExpr
+            | '&' 'mut' UnaryExpr
+            | '&' [ ns: 'mut' ] UnaryExpr
+            | CaptureExpr
+            | PostN
+            | PostM
+            | PostO
+
+/* `capture value|move|borrow` の被演算子は、後置のつかないクロージャ。ブロックの形のクロージャのあとに後置が
+   続くと、Parser は（外側がどう読めるかに関わらず）その場で誤りにする。そのため、後置の始まりを [ ns: ] で除く。
+   短い形の本体は後置を含めて読み切るので、除く必要がない。 */
+CaptureExpr ::= 'capture' ( 'value' | 'move' | 'borrow' ) CaptureClosure
+
+CaptureClosure ::= ClosureHead Expr
+                 | ClosureHead '->' Type StmtBlock [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '::' ] [ ns: '?' ]
+
+/* 後置の連鎖は、項の形で 3 つの状態に分ける（Parser が項の種類を見て `::` と `.名前<` を許すため）。
+     PostN: 名前だけの項（`a`、`E::A`）。`.名前<T>(` を試せる。
+     PostM: 名前のメンバー（`a.b`、`a.0`）。`::` を続けられる（`a.b::C`）。
+     PostO: それ以外。`::` も `.名前<` も続けられない。
+   括弧は、中が名前だけの項（PostN、PostM）なら、その状態のまま（Parser の `( 式 )` は中の式をそのまま返す。
+   `(a)::B`、`(a.b)::C`）。それ以外の括弧は PostO。 */
+PostN ::= NameAtom
+        | '(' PostN ')'
+        | PostM '::' Name [ ns: '{' ]
+        | PostN '::' Name [ ns: '{' ]
+
+PostM ::= PostN '.' Name
+        | PostN '.' INT
+        | '(' PostM ')'
+
+PostO ::= OtherAtom
+        | CtorAtom
+        | GenericCall
+        | PostN '.' FLOAT
+        | PostN '.' Name TypeArgs CallArgs
+        | PostN CallArgs
+        | PostN '[' Expr ']'
+        | PostN '?'
+        | PostM '.' Name
+        | PostM '.' INT
+        | PostM '.' FLOAT
+        | PostM CallArgs
+        | PostM '[' Expr ']'
+        | PostM '?'
+        | PostM '::' Name CtorFields
+        | PostN '::' Name CtorFields
+        | PostO '.' Name
+        | PostO '.' INT
+        | PostO '.' FLOAT
+        | PostO CallArgs
+        | PostO '[' Expr ']'
+        | PostO '?'
+
+/* `::` を含まない名前、または `::` を含み `{` が続かない名前。 */
+NameAtom ::= ExprHead
+           | ExprHead ( '::' Name )+ [ ns: '{' ]
+           | ExprHead TypeArgs ( '::' Name )+ [ ns: '{' ]
+
+/* `::` を含む名前のあとの `{` は、必ず構築のフィールド（癖はコメントの先頭を参照）。 */
+CtorAtom ::= ExprHead ( '::' Name )+ CtorFields
+           | ExprHead TypeArgs ( '::' Name )+ CtorFields
+
+CtorFields ::= '{' ( CtorField ( ',' CtorField )* ','? )? '}'
+
+CtorField ::= Name ':' Expr
+
+/* 名前 `<型引数>` のあとが `(` のとき、型引数つきの呼び出しになる。 */
+GenericCall ::= ExprHead TypeArgs CallArgs
+
+CallArgs ::= '(' ( CallArg ( ',' CallArg )* ','? )? ')'
+
+CallArg ::= IDENT ':' Expr
+          | Expr
+
+OtherAtom ::= INT
+            | FLOAT
+            | STRING
+            | RAW_STRING
+            | 'true'
+            | 'false'
+            | 'None'
+            | 'null'
+            | '(' ')'
+            | '(' Expr ')'
+            | '(' Expr ',' ( Expr ( ',' Expr )* ','? )? ')'
+            | ListLit
+            | MapLit
+            | BlockExpr
+            | IfExpr
+            | MatchExpr
+            | ClosureExpr
+
+ListLit ::= '[' Expr ( ',' Expr )* ','? ']'
+
+/* `{` の次が `}` でなく、その次が `:` のとき、マップ。最初の鍵は 1 トークンの式に限る。 */
+MapLit ::= '{' MapKey1 ':' Expr ( ',' MapEntry )* ','? '}'
+
+MapEntry ::= Expr ':' Expr
+
+MapKey1 ::= [ ns: 'if' ] [ ns: 'match' ] [ ns: 'await' ] [ ns: 'spawn' ] [ ns: 'move' ] IDENT
+          | INT
+          | FLOAT
+          | STRING
+          | RAW_STRING
+
+ClosureExpr ::= ClosureHead Expr
+              | ClosureHead '->' Type StmtBlock
+
+ClosureHead ::= '||'
+              | '|' '|'
+              | '|' ClosureParam ( ',' ClosureParam )* ','? '|'
+
+ClosureParam ::= Name ( ':' Type )?
+
+/* `else` が続けば、必ず else 節になる（else のない `if` の直後は `else` でない）。 */
+IfExpr ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) Expr BlockExpr
+           ( 'else' ( IfExpr | BlockExpr ) | [ ns: 'else' ] )
+
+MatchExpr ::= 'match' Expr '{' MatchArms '}'
+
+/* 腕のあいだは `,`。結果がブロックかリストかマップのとき（ただし直後に二項演算子や後置が続かないとき）は、
+   `,` を省ける。省いた場合、次の腕のパターンが `(`、`[`、`-` で始まると、前の結果の後置・演算子として
+   読まれるので、その形は結果が続く式になる（[ ns: ] で書く）。最後の腕は `,` なしでよい。 */
+MatchArms ::= ( MatchArm ',' | BlockArm )* MatchArmLast?
+
+MatchArm ::= Pattern ( 'if' Expr )? '=>' Expr
+
+BlockArm ::= Pattern ( 'if' Expr )? '=>' ArmBlockLike ( ',' | [ ns: '(' ] [ ns: '[' ] [ ns: '-' ] )
+
+MatchArmLast ::= Pattern ( 'if' Expr )? '=>' Expr
+
+ArmBlockLike ::= BlockExpr | ListLit | MapLit
+
+/* ---------------------------------------------------------------- 文（段階 D で書き直す仮の規則）
+   段階 C では、式の中のブロックが読めるように、最小の文だけを置く。
+   while、for、defer、commit、revert、using、match の文の形などは、段階 D で足す。
+   `let (a, b) = e;` の括弧の中は、束縛・タプル・`_` に限る（destructure が検査する。この検査は値の検査として扱い、
+   ここでは Pattern と同じ形で受理する）。 */
+BlockExpr ::= '{' Stmt* StmtExpr? '}'
+
+StmtBlock ::= '{' Stmt* '}'
+
+Stmt ::= ( 'let' | 'var' ) ( Name | TuplePattern ) ( ':' Type )? '=' Expr ';'
+       | 'return' Expr? ';'
+       | 'break' ';'
+       | 'continue' ';'
+       | StmtExpr AssignOp Expr ';'
+       | StmtExpr ';'
+       | IfExpr
+       | MatchExpr
+       | BlockExpr
+
+/* 文の先頭の式。文の先頭の語は、ブロックの中で必ず文として読まれ、式の名前にはならない。 */
+StmtExpr ::= [ ns: 'let' ] [ ns: 'var' ] [ ns: 'using' ] [ ns: 'while' ] [ ns: 'for' ] [ ns: 'break' ]
+             [ ns: 'continue' ] [ ns: 'return' ] [ ns: 'defer' ] [ ns: 'commit' ] [ ns: 'revert' ]
+             [ ns: 'resume' ] [ ns: 'drop' ] [ ns: 'publish' ] [ ns: 'branch' ] [ ns: 'runtime' ]
+             [ ns: 'external' ] Expr
+
+AssignOp ::= '=' | '+=' | '-=' | '*=' | '/=' | '%='
+
+/* 前処理で `>=` を分けたトークンの種別。lex() が出す種別ではない（上の説明を参照）。 */
+GE_FIRST ::= '>'
+
+GE_SECOND ::= '='
+
+/* `_` と ASCII の数字だけの名前。種別は IDENT のほかにこれも持つ（1 つのトークンが複数の種別を持てる）。 */
+UNDERSCORE_NUM ::= '_' [_0-9]*
 
 /* ================================================================ 付録 A: Unicode の表
    次の 3 つの表は、Rust の標準ライブラリ（char::is_alphabetic、char::is_alphanumeric、

@@ -3,13 +3,16 @@
 //! - `ebnf`: W3C 形式の EBNF の読み込み、層の検査、BNF への展開。
 //! - `earley`: Earley 認識器（認識だけ）。
 //!
-//! この段階では REWIND の文法そのものは書かず、玩具の文法で動作を確かめる。
+//! 玩具の文法で動作を確かめる単体テストのほか、`lexcheck`（字句）と `syntaxcheck`（型・パターン・式）が
+//! `docs/grammar/rewind.ebnf` を実装と突き合わせる。
 #![allow(dead_code)]
 
 pub mod earley;
 pub mod ebnf;
 #[cfg(test)]
 pub mod lexcheck;
+#[cfg(test)]
+pub mod syntaxcheck;
 
 #[cfg(test)]
 mod tests {

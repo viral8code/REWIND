@@ -14,8 +14,9 @@ use std::sync::OnceLock;
 
 const EBNF: &str = include_str!("../../../docs/grammar/rewind.ebnf");
 
-/// 字句の入口の規則。
-const ROOTS: [&str; 2] = ["TOKEN", "SKIP"];
+/// 文法全体の入口の規則（字句の TOKEN と SKIP、構文の Type、TypeParams、WhereClause、Pattern、Expr）。
+/// 字句の検査が使うのは、このうち TOKEN と SKIP だけ。
+const ROOTS: [&str; 7] = ["TOKEN", "SKIP", "Type", "TypeParams", "WhereClause", "Pattern", "Expr"];
 
 fn compiled() -> &'static (Bnf, Bnf) {
     static C: OnceLock<(Bnf, Bnf)> = OnceLock::new();

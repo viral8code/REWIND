@@ -105,7 +105,8 @@ impl Terminal {
     pub fn matches<T: Token>(&self, tok: &T) -> bool {
         match self {
             Terminal::Text(s) => tok.text() == s,
-            Terminal::Kind(k) => tok.kind() == k,
+            // 1 つのトークンが複数の種別を持てる（空白区切り）。
+            Terminal::Kind(k) => tok.kind().split(' ').any(|x| x == k),
             Terminal::Class(c) => {
                 let mut it = tok.text().chars();
                 match (it.next(), it.next()) {
