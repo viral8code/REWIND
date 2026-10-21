@@ -8613,6 +8613,20 @@ impl Checker<'_> {
                 }
                 let contextual = self.contextual_closures(target, args);
                 let args = contextual.as_ref().unwrap_or(args);
+                if language_at_least(&self.program.language, "3.0.0") {
+                    for arg in args {
+                        if let ExprKind::Closure(params, _, _) = &arg.kind {
+                            if let Some((param, _)) = params.iter().find(|(_, t)| t == "Unknown") {
+                                return Err(diagnostic(
+                                    &arg.at,
+                                    format!(
+                                        "cannot infer the type of closure parameter {param}; annotate the parameter or use it where the parameter type is known (e.g. in a let with a function type)"
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
                 let types = args
                     .iter()
                     .map(|a| self.expr(a))
@@ -11028,8 +11042,10 @@ impl Checker<'_> {
                             "short closures (|a, b| expr) require language 3.0.0; annotate the parameter types (|a: Int| -> Int { ... })",
                         ));
                     }
-                    // Parameter types come from the call that receives the closure
-                    // (`contextual_closures`); the typed copy is checked there.
+                    // Positions that know the parameter types (calls, let, return,
+                    // assignment) check a typed copy instead (`contextual_closures`,
+                    // `closure_for_type`); call arguments left untyped are rejected
+                    // where the call is checked.
                     return Ok(v06::fn_type(params, ret, &Default::default()));
                 }
                 let mut scoped = Checker {
@@ -11399,19 +11415,56 @@ impl Checker<'_> {
                 }
             }
             ExprKind::Name(name) => {
+                if let Some((ty, _)) = self.find(name) {
+                    // A local binding of function type: its parameter types are known.
+                    if let Some((params, _)) = function_signature(ty) {
+                        for (slot, param) in expected.iter_mut().zip(&params) {
+                            *slot = function_signature(param).map(|(p, _)| p);
+                        }
+                    }
+                    return self.typed_arguments(args, expected);
+                }
                 let resolved = resolve_alias(self.program, name);
                 let function = self
                     .program
                     .functions
                     .get(resolved.split('<').next().unwrap_or(&resolved))?;
+                let type_params: Vec<String> =
+                    function.type_params.iter().map(|(n, _)| n.clone()).collect();
+                let mut substitutions = BTreeMap::new();
+                if !type_params.is_empty() {
+                    // Fix the type parameters from the arguments that are not short closures.
+                    for (arg, (_, ty)) in args.iter().zip(&function.params) {
+                        if !untyped(arg) {
+                            if let Ok(actual) = self.expr(arg) {
+                                unify_type(ty, &actual, &type_params, &mut substitutions);
+                            }
+                        }
+                    }
+                }
                 for (index, (_, ty)) in function.params.iter().enumerate().take(args.len()) {
                     if let Some((params, _)) = function_signature(ty) {
-                        expected[index] = Some(params);
+                        let params: Vec<String> = params
+                            .iter()
+                            .map(|p| substitute_type(p, &substitutions))
+                            .collect();
+                        // A parameter type that still mentions an unbound type parameter
+                        // is not known; leave the closure for the caller to reject.
+                        let unbound = params.iter().any(|p| {
+                            p.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                                .any(|token| type_params.iter().any(|t| t == token))
+                        });
+                        if !unbound {
+                            expected[index] = Some(params);
+                        }
                     }
                 }
             }
             _ => {}
         }
+        self.typed_arguments(args, expected)
+    }
+    fn typed_arguments(&self, args: &[Expr], expected: Vec<Option<Vec<String>>>) -> Option<Vec<Expr>> {
         let mut changed = false;
         let rewritten = args
             .iter()
@@ -11425,6 +11478,34 @@ impl Checker<'_> {
             })
             .collect();
         changed.then_some(rewritten)
+    }
+    /// A typed copy of a short closure for a position whose type is `wanted`
+    /// (a function type). `Ok(None)` when `expr` is not an untyped closure, the
+    /// language is older than 3.0.0, or `wanted` is not a function type.
+    fn closure_for_type(&self, expr: &Expr, wanted: &str) -> Result<Option<Expr>> {
+        let ExprKind::Closure(params, _, _) = &expr.kind else {
+            return Ok(None);
+        };
+        if !params.iter().any(|(_, t)| t == "Unknown")
+            || !language_at_least(&self.program.language, "3.0.0")
+        {
+            return Ok(None);
+        }
+        let wanted = rename_type(wanted, &self.program.import_aliases);
+        let Some((wanted_params, _)) = function_signature(&wanted) else {
+            return Ok(None);
+        };
+        if wanted_params.len() != params.len() {
+            return Err(diagnostic(
+                &expr.at,
+                format!(
+                    "closure takes {} parameters but {wanted} takes {}",
+                    params.len(),
+                    wanted_params.len()
+                ),
+            ));
+        }
+        Ok(typed_closure(expr, &wanted_params))
     }
     fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
         match &stmt.kind {
@@ -11634,7 +11715,14 @@ impl Checker<'_> {
                         return Err(diagnostic(&lhs.at, "cannot mutate Frozen<T>; use thaw"));
                     }
                 }
-                let right = self.expr(rhs)?;
+                let typed_rhs = match &lhs.kind {
+                    ExprKind::Name(name) => match self.find(name) {
+                        Some((expected, _)) => self.closure_for_type(rhs, expected)?,
+                        None => None,
+                    },
+                    _ => None,
+                };
+                let right = self.expr(typed_rhs.as_ref().unwrap_or(rhs))?;
                 match &lhs.kind {
                     ExprKind::Name(name) => {
                         let (expected, mutable) = self.find(name).ok_or_else(|| {
@@ -11742,7 +11830,8 @@ impl Checker<'_> {
                     .as_ref()
                     .ok_or_else(|| diagnostic(&stmt.at, "return outside function"))?;
                 let actual = if let Some(e) = expr {
-                    self.expr(e)?
+                    let typed = self.closure_for_type(e, expected)?;
+                    self.expr(typed.as_ref().unwrap_or(e))?
                 } else {
                     "Unit".into()
                 };

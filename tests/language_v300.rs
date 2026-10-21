@@ -591,6 +591,59 @@ fn short_closure_in_let_rejects_bad_annotations_before_running() {
 }
 
 #[test]
+fn short_closure_in_return_and_assign_is_typed_from_the_expected_type() {
+    let out = run(
+        "fn mk(k: Int) -> fn(Int) -> Int effects {} { return |n| n + k; }\nfn main()->Int effects {output} {\n    var f: fn(Int) -> Int effects {} = mk(1);\n    f = |n| n * 3;\n    Out.println(f(4));\n    Out.println(mk(2)(5));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "12\n7\n");
+}
+
+#[test]
+fn short_closure_in_return_and_assign_rejects_bad_bodies() {
+    let prelude = "fn mk() -> fn(Int) -> Int effects {} { return |n| { Out.println(n); n.nosuch() }; }\n";
+    let out = run(&format!("{prelude}fn main()->Int effects {{output}} {{ Out.println(\"ran\"); return 0; }}\n"));
+    assert!(!out.status.success());
+    assert!(!stdout(&out).contains("ran"), "{}", stdout(&out));
+    assert!(stderr(&out).contains("nosuch"), "{}", stderr(&out));
+    assert_rejected_before_running(
+        "    var f: fn(Int) -> Int effects {} = |n| n;\n    f = |n| Out.println(n);",
+        "type mismatch",
+    );
+    let out = run("fn mk() -> fn(Int) -> Int effects {} { return |n| Out.println(n); }\nfn main()->Int effects {output} { return 0; }\n");
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("mismatch"), "{}", stderr(&out));
+}
+
+#[test]
+fn short_closure_argument_to_local_function_value_is_typed_or_rejected() {
+    let out = run(
+        "fn run2(f: fn(Int) -> Int effects {}, x: Int) -> Int effects {} { return f(x); }\nfn main()->Int effects {output} {\n    let h: fn(fn(Int) -> Int effects {}, Int) -> Int effects {} = run2;\n    Out.println(h(|n| n + 1, 1));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "2\n");
+    assert_rejected_before_running(
+        "    let h: fn(fn(Int) -> Int effects {}, Int) -> Int effects {} = |g, x| g(x);\n    Out.println(h(|n| n.nosuch(), 1));",
+        "nosuch",
+    );
+}
+
+#[test]
+fn short_closure_for_generic_function_is_typed_from_other_arguments() {
+    let out = run(
+        "fn ap<T>(f: fn(T) -> T effects {}, x: T) -> T effects {} { return f(x); }\nfn main()->Int effects {output} {\n    Out.println(ap(|n| n + 1, 4));\n    return 0;\n}\n",
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "5\n");
+    let out = run(
+        "fn ap<T>(f: fn(T) -> T effects {}) -> Int effects {} { return 0; }\nfn main()->Int effects {output} {\n    Out.println(\"ran\");\n    Out.println(ap(|n| n));\n    return 0;\n}\n",
+    );
+    assert!(!out.status.success());
+    assert!(!stdout(&out).contains("ran"), "{}", stdout(&out));
+    assert!(stderr(&out).contains("closure parameter n"), "{}", stderr(&out));
+}
+
+#[test]
 fn short_closure_effect_violation_is_rejected_before_running() {
     assert_rejected_before_running(
         "    let f: fn(Int) -> Int effects {} = |a| Out.println(a);",
