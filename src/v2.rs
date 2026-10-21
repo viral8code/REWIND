@@ -20,6 +20,8 @@ mod v092;
 mod v100;
 mod v11;
 mod v15;
+#[cfg(test)]
+mod grammar_check;
 fn program_v09(p: &Program) -> bool {
     matches!(
         p.language.as_str(),
