@@ -1,4 +1,5 @@
 import gui as gui;
+import unicode as unicode;
 // A drop-down choice of up to 256 unique options. The header is 240 pixels wide and 24 pixels high; the list shows up to 8 rows below it.
 // State is plain VM data. Keyboard moves stop at the first and last option (no wrap); a typed character moves to the next option starting with it.
 pub record Outcome {changed:Bool,index:Option<Int>}
@@ -55,10 +56,12 @@ fn step(combo:&mut Combo,direction:Int)->Unit effects {} {
  moveTo(combo,i);
 }
 fn firstChar(text:String)->String effects {} {match stdTextSlice(text,0,1){Ok(c)=>{return c;},Err(_)=>{return "";}}}
-// findTyped returns the first option after the highlight, wrapping around, whose first character is key; -1 when none matches.
+// foldChar lowercases a typed character with std.unicode (case-insensitive match, like a WinForms ComboBox); the input is kept if lowering fails.
+fn foldChar(text:String)->String effects {} {match unicode.lower(&text){Ok(c)=>{return c;},Err(_)=>{return text;}}}
+// findTyped returns the first option after the highlight, wrapping around, whose first character equals key ignoring case; -1 when none matches.
 fn findTyped(combo:&Combo,key:String)->Int effects {} {
- let n=combo.options.len();
- for k in 0..n{let i=(combo.highlight+1+k)%n;if firstChar(combo.options.get(i))==key{return i;}}
+ let n=combo.options.len();let want=foldChar(key);
+ for k in 0..n{let i=(combo.highlight+1+k)%n;if foldChar(firstChar(combo.options.get(i)))==want{return i;}}
  return -1;
 }
 // commitHighlight selects the highlighted option and closes the list.
@@ -66,7 +69,7 @@ fn commitHighlight(combo:&mut Combo)->Unit effects {} {
  if combo.options.len()>0{combo.selected=combo.highlight;}
  combo.visible=false;
 }
-// @api dispatch cost O(options) for typed-character search; a click on the header toggles the list, and a click on a row commits it.
+// @api dispatch cost O(options) for typed-character search (case-insensitive); a click on the header toggles the list, and a click on a row commits it.
 pub fn dispatch(combo:&mut Combo,event:gui.Event)->Outcome effects {} {
  let before=combo.selected;var picked=false;let n=combo.options.len();
  if !combo.visible{combo.highlight=combo.selected;}

@@ -147,7 +147,7 @@
 | `guiForm` | 複数項目のフォームの値、検証、JSON 変換 | `create`, `createWithRules`, `value`, `error`, `setValue`, `validate` |
 | `guiMenu` | メニューの開閉、項目の選択と有効・無効、チェック状態 | `create`, `add`, `open`, `close`, `isOpen`, `selected` |
 | `guiTabs` | タブの追加、選択、無効化、キーボードとクリックでの切り替え | `create`, `add`, `setEnabled`, `select`, `selected`, `dispatch`, `draw` |
-| `guiCombo` | 上限 256 件の選択式リスト（開閉、キーボード移動、文字による検索） | `create`, `setSelected`, `selected`, `selectedText`, `open`, `dispatch`, `draw` |
+| `guiCombo` | 上限 256 件の選択式リスト（開閉、キーボード移動、大文字小文字を区別しない文字による検索） | `create`, `setSelected`, `selected`, `selectedText`, `open`, `dispatch`, `draw` |
 | `guiDate` | 1900〜2200 年の日付選択（月カレンダー、閏年、曜日、ISO 形式の読み書き） | `create`, `parse`, `isoText`, `weekday`, `daysInMonth`, `picker`, `dispatch`, `draw` |
 | `guiTable` | 行 ID を持つ表（並べ替え、列幅、選択） | `create`, `createWithIds`, `rows`, `visibleRows`, `columns`, `setColumnWeights` |
 | `guiWindows` | ウィンドウの表示、閉じる、イベント取得 | `present`, `close`, `poll`, `nextEvent`, `pollAny`, `nextEventAny` |

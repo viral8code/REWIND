@@ -3873,6 +3873,20 @@ test fn gui_combo_typed_prefix_moves_to_next_match() effects {} {
     assert_eq(guiCombo.selectedText(&combo),Some("Blueberry"));
 }
 
+test fn gui_combo_typed_search_ignores_case() effects {} {
+    var options=List<String>();options.add("Apple");options.add("Banana");options.add("Blueberry");options.add("Cherry");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    let first=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"b",0,0));
+    assert_eq(first.index,Some(1));
+    let second=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"B",0,0));
+    assert_eq(second.index,Some(2));
+    let upper=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"c",0,0));
+    assert_eq(upper.index,Some(3));
+    let lowerOption=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"A",0,0));
+    assert_eq(lowerOption.index,Some(0));
+    assert_eq(guiCombo.selectedText(&combo),Some("Apple"));
+}
+
 test fn gui_combo_draw_checks_prefix() effects {} {
     var options=List<String>();options.add("Red");options.add("Green");
     var combo=takeGuiResult(guiCombo.create(&options));

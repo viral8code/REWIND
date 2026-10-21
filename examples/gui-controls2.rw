@@ -1,0 +1,114 @@
+// guiTabs, guiCombo, guiDate and binding in one window: an Input tab (text, drop-down, date) and a Confirm tab.
+// A Profile record is kept in a binding; the screen reads and writes it as text by field id.
+// Windowless run: rewind run gui-controls2.rw --allow-effects gui --gui-window-events gui-controls2.events.json --native-work 100000000
+// The drawn controls start at the window origin, so the drop-down and the date picker are drawn over the page while they are open.
+import std.gui as gui;
+import std.guiWindows as windows;
+import std.guiTabs as tabs;
+import std.guiCombo as combo;
+import std.guiDate as date;
+import std.binding as binding;
+
+pub record Profile {name:String,color:String,day:String}
+
+fn take<T,E>(r:Result<T,E>)->T effects {} {
+    match move r {Ok(v)=>{return move v;},Err(_)=>{panic("GUI operation failed");}}
+}
+fn readName(p:Profile)->String effects {} {return p.name;}
+fn writeName(p:Profile,input:String)->Result<Profile,String> effects {} {
+    if input.byteLen()>40 {return Err("name is too long");}
+    return Ok(Profile(input,p.color,p.day));
+}
+fn readColor(p:Profile)->String effects {} {return p.color;}
+fn writeColor(p:Profile,input:String)->Result<Profile,String> effects {} {return Ok(Profile(p.name,input,p.day));}
+fn readDay(p:Profile)->String effects {} {return p.day;}
+fn writeDay(p:Profile,input:String)->Result<Profile,String> effects {} {return Ok(Profile(p.name,p.color,input));}
+
+// The input page: a text box plus two buttons that open the drop-down and the date picker.
+fn inputPage(b:&binding.Binding<Profile>)->gui.View effects {} {
+    let view=take(gui.window("REWIND controls",360,260));
+    take(gui.label(&mut view,"nameCaption","Name",10,40,100,20));
+    take(gui.textBox(&mut view,"name",take(binding.text(b,"name")),10,62,300,28));
+    take(gui.button(&mut view,"pickColor","Color: "+take(binding.text(b,"color")),10,110,300,30));
+    take(gui.button(&mut view,"pickDay","Date: "+take(binding.text(b,"day")),10,150,300,30));
+    take(gui.focus(&mut view,"name"));
+    return view;
+}
+// The confirm page shows what the binding holds.
+fn confirmPage(b:&binding.Binding<Profile>)->gui.View effects {} {
+    let view=take(gui.window("REWIND controls",360,260));
+    take(gui.label(&mut view,"name","Name: "+take(binding.text(b,"name")),10,50,300,24));
+    take(gui.label(&mut view,"color","Color: "+take(binding.text(b,"color")),10,80,300,24));
+    take(gui.label(&mut view,"day","Date: "+take(binding.text(b,"day")),10,110,300,24));
+    return view;
+}
+fn show(page:&gui.View,header:&tabs.Tabs,colors:&combo.Combo,days:&date.DatePicker,editing:Int)->Unit effects {gui} {
+    var view=take(tabs.draw(header,page,"tabs"));
+    if editing==1 {view=take(combo.draw(colors,&view,"color"));}
+    if editing==2 {view=take(date.draw(days,&view,"day"));}
+    take(windows.present("main",&view));publish;
+}
+fn main()->Int {
+    let model=binding.create(Profile("","Red","2026-10-21"));
+    take(binding.bind(&mut model,"name",readName,writeName));
+    take(binding.bind(&mut model,"color",readColor,writeColor));
+    take(binding.bind(&mut model,"day",readDay,writeDay));
+
+    let header=tabs.create();
+    take(tabs.add(&mut header,"input","Input"));
+    take(tabs.add(&mut header,"confirm","Confirm"));
+    take(tabs.select(&mut header,"input"));
+    let options=List<String>();options.add("Red");options.add("Green");options.add("Blue");
+    let colors=take(combo.create(&options));
+    take(combo.setSelected(&mut colors,0));
+    let days=date.picker(take(date.create(2026,10,21)));
+
+    // editing: 0 = none, 1 = the drop-down is open, 2 = the date picker is open.
+    var editing=0;
+    var page=inputPage(&model);
+    show(&page,&header,&colors,&days,editing);
+    var running=true;
+    while running {
+        let received=take(windows.nextEventAny());
+        let event=received.event;
+        if event.kind=="close" {running=false;}
+        else {
+            if editing==1 {
+                let out=combo.dispatch(&mut colors,event);
+                if out.changed {match combo.selectedText(&colors) {Some(text)=>{take(binding.edit(&mut model,"color",text));},None=>{}}}
+                if !combo.isOpen(&colors) {editing=0;page=inputPage(&model);}
+            } else {
+                if editing==2 {
+                    let out=date.dispatch(&mut days,event);
+                    if out.changed {take(binding.edit(&mut model,"day",out.value));}
+                    if !date.isOpen(&days) {editing=0;page=inputPage(&model);}
+                } else {
+                    if event.kind=="pointer" && event.y<24 {
+                        let out=tabs.dispatch(&mut header,event);
+                        if out.changed {
+                            match out.selected {
+                                Some("confirm")=>{page=confirmPage(&model);},
+                                _=>{page=inputPage(&model);}
+                            }
+                        }
+                    } else {
+                        match gui.dispatch(&mut page,event) {
+                            Some(gui.Action::Activate("pickColor"))=>{combo.open(&mut colors);editing=1;},
+                            Some(gui.Action::Activate("pickDay"))=>{date.open(&mut days);editing=2;},
+                            _=>{}
+                        }
+                        // The text box is the only editable widget, so mirror it into the record after every event.
+                        if tabs.selected(&header)==Some("input") && editing==0 {
+                            match gui.text(&page,"name") {Ok(text)=>{take(binding.edit(&mut model,"name",text));},Err(_)=>{}}
+                        }
+                    }
+                }
+            }
+            let record=binding.value(&model);
+            Out.println(record.name+"|"+record.color+"|"+record.day);
+            show(&page,&header,&colors,&days,editing);
+        }
+    }
+    take(windows.close("main"));publish;
+    return 0;
+}

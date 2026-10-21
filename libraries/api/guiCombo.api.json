@@ -1053,7 +1053,7 @@
     },
     "fn:dispatch": {
       "async": false,
-      "cost": "O(options) for typed-character search; a click on the header toggles the list, and a click on a row commits it.",
+      "cost": "O(options) for typed-character search (case-insensitive); a click on the header toggles the list, and a click on a row commits it.",
       "defaults": [],
       "effects": [],
       "generics": [],

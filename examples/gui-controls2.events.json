@@ -1,0 +1,13 @@
+[
+ {"window":"main","event":{"kind":"text","x":0,"y":0,"key":"A","width":0,"height":0}},
+ {"window":"main","event":{"kind":"text","x":0,"y":0,"key":"d","width":0,"height":0}},
+ {"window":"main","event":{"kind":"text","x":0,"y":0,"key":"a","width":0,"height":0}},
+ {"window":"main","event":{"kind":"pointer","x":20,"y":120,"key":"","width":0,"height":0}},
+ {"window":"main","event":{"kind":"text","x":0,"y":0,"key":"g","width":0,"height":0}},
+ {"window":"main","event":{"kind":"key","x":0,"y":0,"key":"Enter","width":0,"height":0}},
+ {"window":"main","event":{"kind":"pointer","x":20,"y":160,"key":"","width":0,"height":0}},
+ {"window":"main","event":{"kind":"key","x":0,"y":0,"key":"Right","width":0,"height":0}},
+ {"window":"main","event":{"kind":"key","x":0,"y":0,"key":"Enter","width":0,"height":0}},
+ {"window":"main","event":{"kind":"pointer","x":130,"y":10,"key":"","width":0,"height":0}},
+ {"window":"main","event":{"kind":"close","x":0,"y":0,"key":"","width":0,"height":0}}
+]
