@@ -363,6 +363,7 @@ mod tests {
     fn task_quota_is_shared_across_restore_and_released_with_last_checkpoint() {
         let mut vm = vm();
         vm.engine.program.language = "1.9.20".into();
+        vm.flags = LangFlags::new("1.9.20");
         let mut task = vm.scheduler.tasks[&0].clone();
         task.instructions = Arc::new(std::cell::Cell::new(0));
         task.observed = true;
@@ -391,6 +392,7 @@ mod tests {
     fn fresh_task_after_restore_has_its_own_quota_even_when_scheduler_id_repeats() {
         let mut vm = vm();
         vm.engine.program.language = "1.9.20".into();
+        vm.flags = LangFlags::new("1.9.20");
         let snapshot = vm.snapshot();
         let at = vm.scheduler.tasks[&0].at.clone();
         let first = vm

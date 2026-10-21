@@ -318,7 +318,7 @@ pub(super) fn handle_id(value: &Value) -> Option<u64> {
 }
 impl<R: BufRead> Vm<R> {
     fn shared_task_quota(&self) -> bool {
-        language_at_least(&self.engine.program.language, "1.9.20")
+        self.flags.shared_task_quota
     }
     /// The scheduling decisions are only read by traces, profiles, schedule exploration and
     /// schedule replay. A plain run would otherwise keep two entries per task switch forever.
