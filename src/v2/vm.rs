@@ -5189,6 +5189,19 @@ impl<R: BufRead> Vm<R> {
                     let Value::HeapRef(id) = receiver else {
                         return Err(self.error(&inst.at, "field assignment requires a struct"));
                     };
+                    // 文字列フィールドへの `+=` は、構造体の複製と文字列の再構築を避けて追記する。
+                    // 現在値が文字列なら結果も文字列で、型は現在値と同じなので検査は不要。
+                    if op == "+=" {
+                        if let Value::Text(suffix) = &rhs {
+                            if self
+                                .engine
+                                .runtime
+                                .heap_append_struct_text(id, &field, suffix)?
+                            {
+                                continue;
+                            }
+                        }
+                    }
                     let mut data = self
                         .engine
                         .runtime

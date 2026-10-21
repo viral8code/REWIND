@@ -1973,6 +1973,13 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                         Err(("Limit", 0))
                     } else if start < 0 || end < start {
                         Err(("Range", 0))
+                    } else if s.is_ascii() {
+                        // ASCII では文字位置とバイト位置が一致するので、走査せずに切り出す。
+                        if (end as u128) <= s.len() as u128 {
+                            Ok(Value::Text(s[start as usize..end as usize].into()))
+                        } else {
+                            Err(("Range", 0))
+                        }
                     } else {
                         // Locate only the two scalar boundaries; avoid a full O(n)
                         // offset table and stop as soon as the requested end is found.

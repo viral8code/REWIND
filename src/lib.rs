@@ -3581,6 +3581,58 @@ impl Runtime {
             .saturating_add(new_bytes.saturating_sub(old_bytes));
         Ok(true)
     }
+    /// 構造体のフィールドが文字列のとき、その `+=` を旧値の複製なしで追記する。
+    /// 対象が構造体でない、またはフィールドが文字列でない場合は何もせず `false` を返す。
+    pub fn heap_append_struct_text(
+        &mut self,
+        id: u64,
+        field: &str,
+        suffix: &text_storage::Text,
+    ) -> Result<bool> {
+        let (old_len, old_bytes) = match self.state.heap.get(&id) {
+            Some(old @ Value::Struct(_, fields)) => match fields.get(field) {
+                Some(Value::Text(text)) => (text.len(), self.heap_value_bytes(old)),
+                _ => return Ok(false),
+            },
+            _ => return Ok(false),
+        };
+        {
+            // スロットから外し、フィールドの文字列も取り出して唯一の所有者にしてから追記する。
+            let heap = Arc::make_mut(&mut self.state.heap);
+            let Some(Value::Struct(name, mut fields)) = heap.get(&id).cloned() else {
+                return Ok(false);
+            };
+            heap.remove(id);
+            if let Some(Value::Text(text)) = fields.get_mut(field) {
+                let taken = std::mem::take(text);
+                *text = taken + suffix;
+            }
+            heap.insert(id, Value::Struct(name, fields));
+        }
+        let new_bytes = self
+            .state
+            .heap
+            .get(&id)
+            .map_or(0, |value| self.heap_value_bytes(value));
+        if let Err(error) = self.enforce_budget() {
+            // 予算超過時は追記分を切り詰めて元の内容に戻す。
+            let heap = Arc::make_mut(&mut self.state.heap);
+            if let Some(Value::Struct(name, mut fields)) = heap.get(&id).cloned() {
+                heap.remove(id);
+                if let Some(Value::Text(text)) = fields.get_mut(field) {
+                    let mut owned = std::mem::take(text).into_owned();
+                    owned.truncate(old_len);
+                    *text = text_storage::Text::from(owned);
+                }
+                heap.insert(id, Value::Struct(name, fields));
+            }
+            return Err(error);
+        }
+        self.allocation_bytes_since_gc = self
+            .allocation_bytes_since_gc
+            .saturating_add(new_bytes.saturating_sub(old_bytes));
+        Ok(true)
+    }
     pub fn heap_get(&self, id: u64) -> Option<&Value> {
         self.state.heap.get(&id)
     }
