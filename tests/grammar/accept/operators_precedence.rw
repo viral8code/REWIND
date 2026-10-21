@@ -1,0 +1,8 @@
+// 二項演算子と前置演算子
+fn f() {
+    let a = 1 + 2 * 3 - 4 / 2 % 3;
+    let b = !x && y || z;
+    let c = -a == b != c;
+    let d = &x;
+    let e = &mut y;
+}

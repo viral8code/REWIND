@@ -1,0 +1,4 @@
+// トレーリングカンマ: クロージャの仮引数
+fn main() {
+    let c = |a: Int, b: Int,| -> Int { return a; };
+}

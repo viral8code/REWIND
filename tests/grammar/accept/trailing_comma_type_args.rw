@@ -1,0 +1,3 @@
+// トレーリングカンマ: 型引数と型パラメータ
+type M = Map<String, Int,>;
+fn f<T, U,>(a: T, b: U) { }

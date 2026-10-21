@@ -1,0 +1,4 @@
+// if 式と else if
+fn f() {
+    let v = if a { 1 } else if b { 2 } else { 3 };
+}

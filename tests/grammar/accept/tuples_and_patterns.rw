@@ -1,0 +1,7 @@
+// タプルとパターン: let、var、for
+fn f() {
+    let (a, b) = (1, 2);
+    var (c, _) = g();
+    for (k, v) in pairs { h(k, v); }
+    let (p, q): (Int, Int) = (3, 4);
+}

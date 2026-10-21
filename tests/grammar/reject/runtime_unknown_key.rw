@@ -1,0 +1,4 @@
+// runtime の未知の設定名
+fn f() {
+    runtime { foo = 1; }
+}

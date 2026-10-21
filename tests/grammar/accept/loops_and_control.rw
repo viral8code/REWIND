@@ -1,0 +1,7 @@
+// while、for、break、continue、return
+fn f() {
+    while x { break; }
+    while let Some(v) = it.next() { continue; }
+    for i in 0..10 { g(i); }
+    return;
+}

@@ -1,0 +1,2 @@
+// トレーリングカンマ: enum の variant と欄
+enum E { A(Int,), B { x: Int, }, C, }

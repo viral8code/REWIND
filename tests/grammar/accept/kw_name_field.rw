@@ -1,0 +1,2 @@
+// キーワード（pub と private）を欄の名前に使う. 現状の挙動。4.0.0 で予約語になる予定。
+struct S { pub pub: Int, private private: Int }

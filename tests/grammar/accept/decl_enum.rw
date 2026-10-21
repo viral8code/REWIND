@@ -1,0 +1,3 @@
+// enum の宣言
+enum E { A, B(Int), C { x: Int } }
+pub enum F<T> { Some(T), None }

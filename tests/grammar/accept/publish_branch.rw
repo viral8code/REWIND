@@ -1,0 +1,6 @@
+// publish と branch の各文
+fn f() {
+    publish;
+    publish force;
+    branch b { g(); }
+}

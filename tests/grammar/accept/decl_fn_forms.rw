@@ -1,0 +1,7 @@
+// fn の宣言: 本体、= 式、async、test、pub、effects
+fn f() -> Int { return 1; }
+fn g(x: Int) -> Int = x * 2;
+pub async fn h() -> Int = 1;
+test fn t() { }
+fn k() -> Int effects Clock { return 1; }
+fn m<T: Eq>(x: T) -> T where T: Hash { return x; }

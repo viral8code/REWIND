@@ -1,0 +1,2 @@
+// test async fn は拒否. 実装の癖。文法の癖の一覧を参照。
+test async fn f() { }

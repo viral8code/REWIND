@@ -1,0 +1,2 @@
+// 修飾なしでは欄の名前を private や pub にできない. 実装の癖。文法の癖の一覧を参照。
+struct S { private: Int }

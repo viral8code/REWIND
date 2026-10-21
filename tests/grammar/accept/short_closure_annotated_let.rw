@@ -1,0 +1,4 @@
+// 短いクロージャ: 型注釈つき let
+fn main() {
+    let f: fn(Int) -> Int = |x| x + 1;
+}

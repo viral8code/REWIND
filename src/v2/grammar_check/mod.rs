@@ -10,6 +10,8 @@
 pub mod earley;
 pub mod ebnf;
 #[cfg(test)]
+pub mod examples;
+#[cfg(test)]
 pub mod lexcheck;
 #[cfg(test)]
 pub mod syntaxcheck;

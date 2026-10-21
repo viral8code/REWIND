@@ -1,0 +1,5 @@
+// defer 文
+fn f() {
+    defer close();
+    defer g(1, 2);
+}

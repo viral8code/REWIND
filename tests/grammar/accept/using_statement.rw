@@ -1,0 +1,4 @@
+// using 文
+fn f() {
+    using h = open();
+}

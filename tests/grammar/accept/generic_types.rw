@@ -1,0 +1,5 @@
+// 型: ジェネリクス、関数型、参照、タプル
+type A = List<Map<String, Int>>;
+type B = fn(Int) -> (Int, Bool);
+type C = (Int, &String);
+type D = fn() -> Unit;

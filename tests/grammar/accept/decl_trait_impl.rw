@@ -1,0 +1,4 @@
+// trait と impl の宣言
+trait T { type X; fn f(a: Int) -> Int; fn g() -> Int { return 1; } }
+impl T for Int { fn f(a: Int) -> Int { return a; } }
+impl<U> T for List<U> { type X = Int; }

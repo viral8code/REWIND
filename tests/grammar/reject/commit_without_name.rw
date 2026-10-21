@@ -1,0 +1,4 @@
+// commit に名前がない
+fn f() {
+    commit;
+}

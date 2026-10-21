@@ -1,0 +1,3 @@
+// トレーリングカンマ: 仮引数
+fn f(a: Int, b: Int,) -> Int { return a; }
+fn g(a: Int = 1,) { }

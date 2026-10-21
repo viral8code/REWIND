@@ -1,0 +1,5 @@
+// raw 文字列: 複数行の形
+let s = """
+    hello
+    world
+    """;

@@ -1,0 +1,3 @@
+// raw 文字列: 1 行の形
+let s = """abc""";
+let t = """a "quoted" b""";
