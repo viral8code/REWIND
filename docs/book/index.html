@@ -555,7 +555,14 @@ wide: 10</code></pre></div>
 }</code></pre></div>
 <div class="code"><div class="cap out">出力</div><pre><code>2
 10</code></pre></div>
-<p><code>let add = |a, b| a + b;</code> のように、変数に束縛するときは、型を決める手がかりが無いので、<code>cannot infer the type of closure parameter</code> と拒否されます。そのときは、前に説明した、型を書く形を使ってください。</p>
+<p>型は、関数の引数、<code>Iterator</code> の <code>map</code>・<code>filter</code>・<code>fold</code>、<code>Result</code> の <code>map</code>・<code>andThen</code>・<code>mapErr</code>、<code>return</code>、代入のほか、型注釈つきの <code>let</code> でも決まります。注釈の関数型から、引数の型を決められるためです。</p>
+<div class="code"><div class="cap">REWIND</div><pre><code>fn main()-&gt;Int {
+    let f: fn(Int, Int) -&gt; Int effects {} = |a, b| a + b;
+    Out.println(f(1, 2));
+    return 0;
+}</code></pre></div>
+<div class="code"><div class="cap out">出力</div><pre><code>3</code></pre></div>
+<p><code>let add = |a, b| a + b;</code> のように、注釈のない <code>let</code> で変数に束縛するときは、型を決める手がかりが無いので、<code>cannot infer the type of closure parameter</code> と拒否されます。そのときは、注釈をつけるか、前に説明した、型を書く形を使ってください。短い形は、<code>language</code> 3.0.0 以上でだけ使えます。</p>
 <h3 id="関数を引数に渡す">関数を引数に渡す</h3>
 <p>関数を受け取る引数には、関数型 <code>fn(引数の型) -&gt; 戻り値の型 effects { ... }</code> を書きます。名前付きの関数も、クロージャも渡せます。</p>
 <div class="code"><div class="cap">REWIND</div><pre><code>fn apply(f: fn(Int) -&gt; Int effects {}, x: Int) -&gt; Int effects {} {

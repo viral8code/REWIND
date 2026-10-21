@@ -130,7 +130,21 @@ fn main()->Int {
 10
 ```
 
-`let add = |a, b| a + b;` のように、変数に束縛するときは、型を決める手がかりが無いので、`cannot infer the type of closure parameter` と拒否されます。そのときは、前に説明した、型を書く形を使ってください。
+型は、関数の引数、`Iterator` の `map`・`filter`・`fold`、`Result` の `map`・`andThen`・`mapErr`、`return`、代入のほか、型注釈つきの `let` でも決まります。注釈の関数型から、引数の型を決められるためです。
+
+```rewind
+fn main()->Int {
+    let f: fn(Int, Int) -> Int effects {} = |a, b| a + b;
+    Out.println(f(1, 2));
+    return 0;
+}
+```
+
+```text
+3
+```
+
+`let add = |a, b| a + b;` のように、注釈のない `let` で変数に束縛するときは、型を決める手がかりが無いので、`cannot infer the type of closure parameter` と拒否されます。そのときは、注釈をつけるか、前に説明した、型を書く形を使ってください。短い形は、`language` 3.0.0 以上でだけ使えます。
 
 ### 関数を引数に渡す
 

@@ -167,9 +167,7 @@ fn main()->Int {
 
 識別子は英字、数字、`_` で構成し、数字では始められません。Unicode の文字も使えます（`let 変数 = 1;`）。大文字と小文字は区別されます。慣習として、型・trait・enum の variant は大文字で始め、関数・変数は小文字で始めます。
 
-次の語は名前として使えません: `if`、`match`、`move`、`spawn`、`await`、`true`、`false`、`None`、`begin`（チェックポイントの予約名）。
-
-`fn`、`let`、`for`、`struct`、`commit` など、そのほかのキーワードは文の先頭など決まった位置でだけ意味を持つため、名前に使えてしまいます。紛らわしいので使わないでください。
+名前として拒否されるのは `begin`（最初のチェックポイントの予約名）だけです。`if`、`match`、`fn`、`let`、`for`、`struct`、`commit` など、そのほかのキーワードは文の先頭など決まった位置でだけ意味を持つため、`let if = 3;` のように名前に使えてしまいます。紛らわしいので使わないでください。4.0.0 で予約語を増やす予定です（[付録 B](#付録-b-言語バージョンの違い)の「4.0.0 の予定」）。
 
 ### 3.3 整数と浮動小数点数のリテラル
 
@@ -211,7 +209,48 @@ fn main()->Int {
 | `\0` | NUL 文字 |
 | `\u{754c}` | Unicode のコードポイント（1〜6 桁の 16 進数） |
 
-上記以外のエスケープ（`\q` など）はエラーです。文字を表す単独のリテラル（`'a'`）や、エスケープを無効にする raw 文字列はありません。
+上記以外のエスケープ（`\q` など）はエラーです。文字を表す単独のリテラル（`'a'`）はありません。文字は長さ 1 の `String` で表します。エスケープを無効にしたいときは、次の raw 文字列を使います。
+
+#### raw 文字列
+
+3 個以上の `"` で開き、同じ個数の `"` で閉じると raw 文字列になります。本文ではエスケープも補間（`${}`）も働きません。
+
+複数行の形では、開きの `"` の直後で改行します。閉じの `"` だけが並ぶ行の字下げを、本文の各行から取り除きます。最後の改行は本文に含まれません。1 行の形では、開きと閉じを同じ行に書きます。
+
+```rewind
+fn main()->Int {
+    let a = """
+        line1 "q" ${x} 
+
+          indented
+        """;
+    Out.println(a);
+    let b = """one "" line""";
+    Out.println(b);
+    let c = """"has """ inside"""";
+    Out.println(c);
+    return 0;
+}
+```
+
+```text
+line1 "q" ${x} 
+
+  indented
+one "" line
+has """ inside
+```
+
+区切りより短い `"` の連続は、本文にそのまま書けます。本文に区切りと同じ個数以上の `"` を書きたいときは、区切りをそれより多くします（`""""` で開けば、本文に `"""` を書けます）。本文の改行が CRLF でも、LF として扱います。
+
+| エラー | 起きる場合 |
+|---|---|
+| `RawStringIndent` | 本文の行が、閉じの区切りの行の字下げで始まっていない |
+| `RawStringQuote` | 本文に、区切りと同じ個数以上の `"` が並んでいる |
+| `RawStringUnterminated` | 閉じの区切りがない |
+| `RawStringOpening` | 開きの区切りの直後に文字があるのに、閉じが同じ行にない |
+
+`$` を付けた補間つきの形（`$"""`）は将来のために空けてあり、今は使えません。
 
 ### 3.5 文字列補間
 
@@ -229,6 +268,28 @@ fn main()->Int {
 ```text
 REWIND: 4 件 (${n})
 ```
+
+### 3.6 末尾のカンマ
+
+カンマで区切って並べる箇所では、最後の要素のあとにカンマを書けます。関数の仮引数、呼び出しの引数、型引数、関数型、クロージャの仮引数、`enum` の variant、trait のメソッド、`where` の境界、リスト、マップ、タプル、レコードなどが対象です。どの `language` の版でも受理されます。
+
+```rewind
+fn add(a: Int, b: Int,) -> Int effects {} { return a + b; }
+
+fn main()->Int {
+    let xs = [1, 2,];
+    Out.println(add(1, 2,));
+    Out.println(xs.len());
+    return 0;
+}
+```
+
+```text
+3
+2
+```
+
+要素のないカンマ（`f(,)`、`f(a,,b)`）は `expected an expression` で拒否されます。
 
 ## 4. 型
 
@@ -876,6 +937,7 @@ fn 名前<型引数>(引数: 型, ...) -> 戻り値の型 effects { 効果, ... 
 
 - 引数と戻り値には型を書きます。戻り値を書かない関数は `Unit` を返します。ただし `pub` な関数は戻り値の型を省略できません（`-> Unit` と書きます）。
 - `effects { ... }` はその関数が行う外部操作の宣言です。何もしない関数は `effects {}` と書きます（[第 12 章](#12-効果)）。`main` に限り省略できます。
+- 本体の値は `return` で返します。本体の末尾に式だけを書くことはできません（`fn main() -> Int { 3 }` は `expected ';'` で拒否されます）。本体全体が一つの式なら、後述の `= 式` の形を使います。
 - 関数は宣言の順に関係なく、ファイルのどこからでも呼べます。互いを呼び合う再帰も書けます。関数の中に関数を宣言することはできません。
 
 ```rewind
@@ -987,7 +1049,43 @@ fn main()->Int {
 5
 ```
 
-型が決まる手がかりが無いと、短い形は使えません。`let` で変数に束縛するときなどは、型を書いた形にします。
+短い形を使える場所は、型が決まる場所です。
+
+- 関数の引数（`apply(|n| n + 1, 4)`）
+- `Iterator` の `map`、`filter`、`fold` などと、`Result` の `map`、`andThen`、`mapErr`
+- 関数型のローカル変数の呼び出しの引数
+- `return` する値と、関数型の変数への代入
+- 型注釈つきの `let`
+
+型注釈つきの `let` では、注釈の関数型から引数の型が決まります。
+
+```rewind
+fn adder() -> fn(Int, Int) -> Int effects {} {
+    return |a, b| a + b;
+}
+
+fn main()->Int {
+    let f: fn(Int, Int) -> Int effects {} = |a, b| a * b;
+    Out.println(f(3, 4));
+    var g: fn(Int) -> Int effects {} = |n| n;
+    g = |n| n + 100;
+    Out.println(g(1));
+    Out.println(adder()(2, 5));
+    return 0;
+}
+```
+
+```text
+12
+101
+7
+```
+
+仮引数の個数が注釈の関数型と合わないときは、`closure takes 1 parameters but the annotation fn(Int,Int)->Int!{} takes 2` のように拒否されます。
+
+短い形は `language` 3.0.0 以上でだけ使えます。それより前の版では `short closures (|a, b| expr) require language 3.0.0` と拒否されます。
+
+型が決まらない場所では使えません。注釈のない `let` もその一つです。
 
 ```rewind-error cannot infer the type of closure parameter
 fn main()->Int {
@@ -996,6 +1094,8 @@ fn main()->Int {
     return 0;
 }
 ```
+
+`||` は、式の先頭では引数のないクロージャ（`|| -> Unit { ... }`、`|| 3`）、二つの式のあいだでは論理和（[5.1](#51-演算子の優先順位)）です。
 
 短い形の戻り値の型は、式の型です。本体が複数の文のときは、従来の形（`|a: Int| -> Int { ... }`）を使います。
 
@@ -2722,6 +2822,17 @@ REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプ�
 | 3.6.0 | 名前付きの引数と既定値の引数 |
 
 3.x では、`const` の宣言とマップのキーの `for` による反復が使えない不具合があり、この版で修正されました。2.0.0 以前の言語の仕様は、それぞれの版の文書（[REWIND_v2.0.md](REWIND_v2.0.md) など）にあります。版ごとの詳しい変更点は `docs/REWIND_v*.md` を参照してください。
+
+### 4.0.0 の予定
+
+版はまだ上げておらず、ここに書く内容は **予定であって、今は実装されていません**。
+
+- 宣言・制御・チェックポイント・式の約 45 語を予約語にし、名前として使えなくします: `fn let var const struct record enum trait impl type import as pub private async mut if else match while for in break continue return defer using commit revert resume drop publish branch runtime external begin move spawn await true false None null`
+- 修飾語（`value capture borrow force live fresh test where effects captures`）は、文脈によって意味が決まる語のままにします。
+- `language` が 3.0.0 未満の指定を受け付けなくします。
+- ソースの `null` リテラルを廃止します。内部の値としての `null` は、DB と JSON のために残ります。
+- 通常の文字列の CRLF を LF に正規化します。
+- `binding.revert` を削除し、`historyGraph` の名前付き引数 `branch:` を `branchName` に改名します。
 
 ## 付録 C. 既知の制約
 
