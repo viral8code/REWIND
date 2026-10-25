@@ -1,4 +1,0 @@
-// runtime の値に 1_000 は書けない. 実装の癖。文法の癖の一覧を参照。
-fn f() {
-    runtime { historyMemory = 1_000; }
-}

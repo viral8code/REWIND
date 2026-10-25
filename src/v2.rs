@@ -492,7 +492,26 @@ fn integer_magnitude(text: &str) -> Option<u64> {
                 .checked_add((byte as char).to_digit(radix)? as u64)
         })
 }
+/// True when the token text is an integer literal token (decimal, or 0x/0b/0o).
+/// Names such as `_` or `_1`, and float tokens, are not integer tokens.
+fn is_int_token(text: &str) -> bool {
+    if !text.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        return false;
+    }
+    if text.len() > 2
+        && matches!(
+            &text[..2],
+            "0x" | "0X" | "0b" | "0B" | "0o" | "0O"
+        )
+    {
+        return true;
+    }
+    text.bytes().all(|b| b.is_ascii_digit() || b == b'_')
+}
 fn integer_literal(at: &Tok, negative: bool) -> Result<i64> {
+    if !is_int_token(&at.text) {
+        return Err(diagnostic(at, "expected an integer"));
+    }
     let magnitude =
         integer_magnitude(&at.text).ok_or_else(|| diagnostic(at, "integer literal overflow"))?;
     let value = if negative {
@@ -900,7 +919,7 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
                     col += 1;
                 }
             }
-            if text.len() == 1 && !"=+-*/%(),;{}.!<>?:[]|&".contains(c) {
+            if text.chars().count() == 1 && !"=+-*/%(),;{}.!<>?:[]|&".contains(c) {
                 return Err(diagnostic(
                     &Tok {
                         source: String::new(),
@@ -2100,9 +2119,15 @@ impl Parser {
             return Ok(Pattern::Literal(Value::Bool(at.text == "true")));
         }
         if at.text.starts_with('"') {
-            let expr = self.expr(0)?;
+            // Only a single string literal token is a pattern; binary operators are
+            // never consumed here (min_bp above every operator), so `"a" + x` is a
+            // syntax error at `+`.
+            let start = self.pos;
+            let expr = self.expr(u8::MAX)?;
             if let ExprKind::Value(v) = expr.kind {
-                return Ok(Pattern::Literal(v));
+                if self.pos == start + 1 {
+                    return Ok(Pattern::Literal(v));
+                }
             }
             return Err(diagnostic(&at, "invalid literal pattern"));
         }
@@ -2492,10 +2517,12 @@ impl Parser {
                 self.need("=")?;
                 let t = self.current().clone();
                 self.pos += 1;
-                let mut v: usize = t
-                    .text
-                    .parse()
-                    .map_err(|_| diagnostic(&t, "expected nonnegative size"))?;
+                if !is_int_token(&t.text) {
+                    return Err(diagnostic(&t, "expected nonnegative size"));
+                }
+                let mut v: usize = integer_magnitude(&t.text)
+                    .and_then(|m| usize::try_from(m).ok())
+                    .ok_or_else(|| diagnostic(&t, "expected nonnegative size"))?;
                 if matches!(
                     self.current().text.as_str(),
                     "KB" | "KiB" | "MB" | "MiB" | "GB" | "GiB"
@@ -2904,7 +2931,9 @@ impl Parser {
                     }
                 }
             }
-            "-" if integer_magnitude(&self.current().text) == Some(1u64 << 63) => {
+            "-" if is_int_token(&self.current().text)
+                && integer_magnitude(&self.current().text) == Some(1u64 << 63) =>
+            {
                 self.pos += 1;
                 Expr {
                     kind: ExprKind::Value(Value::Int(i64::MIN)),

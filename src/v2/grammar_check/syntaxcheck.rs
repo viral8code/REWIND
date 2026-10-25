@@ -110,13 +110,10 @@ fn kind_of(text: &str) -> &'static str {
             let prefixed = lower.starts_with("0x") || lower.starts_with("0b") || lower.starts_with("0o");
             if !prefixed && (text.contains('.') || lower.contains('e')) {
                 "FLOAT"
-            } else if text.chars().all(|c| c.is_ascii_digit()) {
-                "INT DIGITS"
             } else {
                 "INT"
             }
         }
-        Some('_') if text.chars().all(|c| c == '_' || c.is_ascii_digit()) => "IDENT UNDERSCORE_NUM",
         Some(c) if c.is_uppercase() => "IDENT UPPER_IDENT",
         Some(c) if c.is_alphabetic() || c == '_' => "IDENT",
         _ => "SYMBOL",
@@ -1296,8 +1293,8 @@ mod tests {
         ("branch b;", false),
         ("runtime { foo = 1; }", false),
         ("runtime { historyMemory = 1.5; }", false),
-        ("runtime { historyMemory = 1_000; }", false),
-        ("runtime { historyMemory = 0x10; }", false),
+        ("runtime { historyMemory = 1_000; }", true),
+        ("runtime { historyMemory = 0x10; }", true),
         ("runtime { historyMemory = 1 TB; }", false),
         ("runtime { historyMemory = 10 }", false),
         ("runtime { historyMemory 10; }", false),

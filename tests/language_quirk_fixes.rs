@@ -122,3 +122,66 @@ fn type_arguments_closing_with_greater_equal_still_split() {
         "2\n",
     );
 }
+
+fn run_body(body: &str) -> Output {
+    run(&format!("{ENUM}fn main() -> Int {{\n{body}\n    return 0;\n}}\n"))
+}
+
+#[test]
+fn runtime_values_accept_integer_literal_forms() {
+    expect_output(
+        "    runtime { executionSteps = 1_000_000; historyMemory = 0x10 KiB; spillThreshold = 0b1000 KB; }\n    Out.println(\"ok\");",
+        "ok\n",
+    );
+}
+
+#[test]
+fn runtime_values_reject_non_integer_tokens() {
+    let out = run_body("    runtime { executionSteps = 1.5; }");
+    assert!(!out.status.success());
+    let out = run_body("    runtime { executionSteps = _1; }");
+    assert!(!out.status.success());
+}
+
+#[test]
+fn string_pattern_is_a_single_literal_token() {
+    expect_output(
+        "    match \"a\" {\n        \"a\" => { Out.println(\"hit\"); },\n        _ => { Out.println(\"miss\"); },\n    }",
+        "hit\n",
+    );
+    let out = run_body("    let x = \"b\";\n    match \"a\" {\n        \"a\" + x => { Out.println(\"hit\"); },\n        _ => { Out.println(\"miss\"); },\n    }");
+    assert!(!out.status.success());
+    assert!(!stderr(&out).contains("invalid literal pattern"), "{}", stderr(&out));
+}
+
+#[test]
+fn non_ascii_symbols_are_rejected_by_the_lexer() {
+    for body in ["    let x = 1 ☃ 2;", "    let ② = 1;", "    let x = 1\u{200b};"] {
+        let out = run_body(body);
+        assert!(!out.status.success(), "{body}");
+        assert!(stderr(&out).contains("unexpected character"), "{body}: {}", stderr(&out));
+    }
+    // 名前の 2 文字目以降は is_alphanumeric なので、x² は 1 つの名前。
+    expect_output("    let x² = 3;\n    Out.println(x²);", "3\n");
+    // 文字列とコメントの中は何でも書ける。
+    expect_output("    // ☃\n    Out.println(\"☃ ②\");", "☃ ②\n");
+}
+
+#[test]
+fn integer_patterns_accept_only_integer_tokens() {
+    expect_output(
+        "    match -5 {\n        -5..-1 => { Out.println(\"neg\"); },\n        _ => { Out.println(\"other\"); },\n    }",
+        "neg\n",
+    );
+    for pattern in ["-_", "0.._1", "-__", "-1.5"] {
+        let out = run_body(&format!("    match 1 {{\n        {pattern} => {{ Out.println(\"x\"); }},\n        _ => {{ Out.println(\"y\"); }},\n    }}"));
+        assert!(!out.status.success(), "{pattern}");
+        let err = stderr(&out);
+        assert!(err.contains("expected an integer"), "{pattern}: {err}");
+        assert!(!err.contains("integer literal overflow"), "{pattern}: {err}");
+    }
+    let out = run_body("    match 1 {\n        99999999999999999999 => { Out.println(\"x\"); },\n        _ => { Out.println(\"y\"); },\n    }");
+    assert!(stderr(&out).contains("integer literal overflow"), "{}", stderr(&out));
+    let out = run_body("    let v = -_9223372036854775808;");
+    assert!(!out.status.success());
+}

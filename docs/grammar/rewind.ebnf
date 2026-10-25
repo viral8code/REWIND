@@ -21,10 +21,9 @@
    4. `1..2` は `1`、`..`、`2`。`1.` は INT `1` と `.`。`1.0.2` は FLOAT `1.0`、`.`、INT `2`。
    5. 名前の 2 文字目以降は is_alphanumeric で、Unicode の数字（例: ²）も入る。
       先頭は is_alphabetic か _ だけで、ASCII 以外の数字は先頭にならない。
-   6. 空白は Unicode の White_Space。ASCII の記号以外の文字（`$`、`@`、`'`、`#` など）は
-      「想定外の文字」で拒否される。ただし lex() の検査は文字の長さを UTF-8 のバイト数で測るので、
-      ASCII 以外の文字は、空白でも英字でもなければ（絵文字、²、①、BOM、ゼロ幅の空白など）
-      拒否されず、その 1 文字が 1 つのトークンになる（実装の不具合に見える。OTHER_CHAR で写している）。
+   6. 空白は Unicode の White_Space。ASCII の記号以外の文字（`$`、`@`、`'`、`#` など）と、
+      空白でも英字でもない ASCII 以外の文字（絵文字、②、BOM、ゼロ幅の空白など）は
+      「想定外の文字」で拒否される（名前の 2 文字目以降は is_alphanumeric なので、癖 5 のとおり `x²` は 1 つの名前）。
    7. `//` と `/*` で始まる位置は、必ずコメントになる（`/` 単独の記号にはならない）。
       行コメントは改行まで（\r も含めて）を捨てる。
    8. 文字列のエスケープは字句では検査しない。`\` の次の 1 文字は何でも読み飛ばす。
@@ -41,7 +40,7 @@
 
 /* ================================================================ 入口 */
 
-TOKEN ::= IDENT | INT | FLOAT | STRING | RAW_STRING | SYMBOL | OTHER_CHAR
+TOKEN ::= IDENT | INT | FLOAT | STRING | RAW_STRING | SYMBOL
 
 SKIP ::= WHITESPACE | LINE_COMMENT | BLOCK_COMMENT
 
@@ -167,15 +166,6 @@ SYMBOL2 ::= '==' | '!=' | '<=' | '>=' | '&&' | '||'
 SYMBOL1 ::= [=+\-*%(),;{}.!<>?:\[\]|&]
           | '/' [ nf: [/*] ]
 
-/* ================================================================ ASCII 以外の 1 文字（癖 6） */
-
-/* 空白でも is_alphabetic でもない ASCII 以外の 1 文字。1 文字で 1 つのトークンになる。 */
-OTHER_CHAR ::= NON_ASCII_NON_SPACE - UNICODE_ALPHABETIC
-
-NON_ASCII_NON_SPACE ::= NON_ASCII - WS_CHAR
-
-NON_ASCII ::= [#x80-#x10FFFF]
-
 /* ================================================================ 構文（段階 C: 型・パターン・式。段階 D: 文・宣言・全体）
    構文規則は CamelCase で書き、終端には字句規則の名前（種別）と、記号・語のリテラルを使う。
    種別は IDENT、INT、FLOAT、STRING、RAW_STRING、SYMBOL。lex() のトークン列に対して働く。
@@ -215,9 +205,8 @@ NON_ASCII ::= [#x80-#x10FFFF]
 
    Parser の癖（実装が正なので、そのまま写している。不具合に見えるものを含む）
      1. （修正済み。番号は変えない）
-     2. 文字列のパターンは expr(0) で読み、値になったときだけ受理する。後置や二項演算が続くと拒否する。
-     3. パターンの `-` と範囲の端は、トークンが整数かどうかを integer_literal で見る。整数でないと
-        「integer literal overflow」と報告する（文言が実際の原因と合わない）。
+     2. （修正済み。番号は変えない）
+     3. （修正済み。番号は変えない）
      4. match の腕は、結果の式がブロック `{ }` のとき、`,` を省ける。リスト `[ ]` とマップ `{ k: v }` も
         ブロックとして数えられるので、`,` を省ける。`if` と `match` の式は省けない。
      5. `x.0.1` は `x`、`.`、FLOAT `0.1` で、タプルの添字 2 つとして読む。添字のトークンは、数字だけ（と `.`）
@@ -229,9 +218,7 @@ NON_ASCII ::= [#x80-#x10FFFF]
         ブロックの形のクロージャのあとに後置が続くと、クロージャでなくなるので拒否する。
     10. 型では、`A<B>.C` のように型引数のあとに続けられない。`&&T` は `&&` が 1 トークンなので拒否する。
     11. `fn` は型の先頭では必ず関数型の始まりで、名前にはならない。
-    12. パターンの `-` のあとと範囲の終わりは、integer_literal が読む。integer_magnitude は `_` を取り除いて数字を
-        数えるので、`_`、`__`、`_1` のような名前も整数として受理する（`-_` は 0、`0.._1` は範囲）。
-        式の `-` に続く `_9223372036854775808` も同じ理由で、i64 の最小値の値として読まれる（文法では区別しない）。
+    12. （修正済み。番号は変えない）
     13. ブロックの中で、文の先頭の語（let var using while for break continue return defer commit revert resume drop
         publish branch runtime external）は、式の名前としては読まれない。`if` の直後の `let` も、`if let` の始まり。
     14. `( 式 )` は中の式をそのまま返すので、中が名前だけなら、括弧のあとにも `::` を続けられる（`(a)::B`、`(a.b)::C`）。
@@ -243,8 +230,7 @@ NON_ASCII ::= [#x80-#x10FFFF]
         式の名前にならない。
     18. 構造体の欄は、修飾（`private`、`pub`）がないと、名前を `private` と `pub` にできない（修飾として読まれる）。
         実装の不具合に見える。
-    19. `runtime` の値は、トークンの文字列を usize として読む。`1_000` や `0x10` は、整数のリテラルとしては
-        書けるが、ここでは誤りになる（実装の不具合に見える）。桁あふれと単位の掛け算の桁あふれは値の検査。
+    19. （修正済み。番号は変えない）
     20. let-else は、名前が大文字（char::is_uppercase）で始まり、直後が `(` か `::` のときだけ。
         `Option<Int>::Some(x)` のような形は、通常の `let` として読まれて拒否される。UPPER_IDENT の本体は
         ASCII の [A-Z] で書いたが、実際の種別はテストが char::is_uppercase でつけるので、ASCII 以外の大文字でも成り立つ。
@@ -307,13 +293,10 @@ Pattern ::= '_'
           | 'false'
           | STRING
           | RAW_STRING
-          | '-' IntLike ( '..' '-'? IntLike )?
-          | INT ( '..' '-'? IntLike )?
+          | '-' INT ( '..' '-'? INT )?
+          | INT ( '..' '-'? INT )?
           | PatternPath ( '(' ( Pattern ( ',' Pattern )* ','? )? ')'
                         | '{' ( FieldPattern ( ',' FieldPattern )* ','? )? '}' )?
-
-/* integer_literal が受理するトークン。INT のほか、`_` と数字だけの名前（`_`、`_1`、`__`）も受理する（癖 12）。 */
-IntLike ::= INT | UNDERSCORE_NUM
 
 TuplePattern ::= '(' ( Pattern ( ',' Pattern )* ','? )? ')'
 
@@ -628,7 +611,7 @@ ForStmt ::= 'for' TuplePattern 'in' CExpr FnBlock
 /* 設定名は 4 つ。値は 10 進の数字だけのトークンで、単位（KB KiB MB MiB GB GiB）を続けられる。 */
 RuntimeStmt ::= 'runtime' '{' RuntimeSetting* '}'
 
-RuntimeSetting ::= RuntimeName '=' DIGITS RuntimeUnit? ';'
+RuntimeSetting ::= RuntimeName '=' INT RuntimeUnit? ';'
 
 RuntimeName ::= 'historyMemory' | 'historyStorage' | 'spillThreshold' | 'executionSteps'
 
@@ -772,9 +755,6 @@ DefaultValue ::= DefLit | '-' DefLit | '(' DefaultValue ')'
 
 DefLit ::= INT | FLOAT | STRING | RAW_STRING | 'true' | 'false' | 'null' | 'None' | '(' ')' | '(' DefLit ')'
 
-/* 数字だけのトークン（runtime の値）。テスト側が種別 DIGITS をつける。 */
-DIGITS ::= [0-9]+
-
 /* 先頭が大文字（char::is_uppercase）の名前。テスト側が種別 UPPER_IDENT をつける。 */
 UPPER_IDENT ::= [A-Z] IDENT_CHAR*
 
@@ -782,9 +762,6 @@ UPPER_IDENT ::= [A-Z] IDENT_CHAR*
 GE_FIRST ::= '>'
 
 GE_SECOND ::= '='
-
-/* `_` と ASCII の数字だけの名前。種別は IDENT のほかにこれも持つ（1 つのトークンが複数の種別を持てる）。 */
-UNDERSCORE_NUM ::= '_' [_0-9]*
 
 /* ================================================================ 付録 A: Unicode の表
    次の 3 つの表は、Rust の標準ライブラリ（char::is_alphabetic、char::is_alphanumeric、

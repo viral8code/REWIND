@@ -1,0 +1,4 @@
+// runtime の値に 1_000 や 0x10 のような整数リテラルを書ける。
+fn f() {
+    runtime { historyMemory = 1_000; spillThreshold = 0x10 KiB; executionSteps = 1_000; }
+}
