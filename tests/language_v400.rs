@@ -173,7 +173,6 @@ fn standalone_files_never_run_as_an_older_language_in_a_released_compiler() {
     fs::write(root.join("main.rw"), "Out.println(1);\n").unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_rewind"))
         .current_dir(&root)
-        .env_remove("REWIND_LEGACY_LANGUAGES")
         .env("REWIND_STANDALONE_LANGUAGE", "auto")
         .args(["run", "main.rw"])
         .output()
@@ -182,7 +181,6 @@ fn standalone_files_never_run_as_an_older_language_in_a_released_compiler() {
     assert!(stderr(&out).contains("top-level statements"), "{}", stderr(&out));
     let out = Command::new(env!("CARGO_BIN_EXE_rewind"))
         .current_dir(&root)
-        .env_remove("REWIND_LEGACY_LANGUAGES")
         .env("REWIND_STANDALONE_LANGUAGE", "2.0.0")
         .args(["run", "main.rw"])
         .output()

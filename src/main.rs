@@ -1585,10 +1585,7 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
                 root = locate_project_root(&full)
                     .unwrap_or_else(|| full.parent().unwrap().to_path_buf());
                 options.standalone = !root.join("rewind.toml").exists();
-            } else if file.ends_with(".rw")
-                && !root.join("rewind.toml").exists()
-                && env::var_os("REWIND_LEGACY_EXPLICIT_ROOT").is_none()
-            {
+            } else if file.ends_with(".rw") && !root.join("rewind.toml").exists() {
                 // An explicit root without a manifest is a standalone boundary, not the
                 // legacy project path. The source must stay inside it.
                 let boundary = std::fs::canonicalize(&root)?;

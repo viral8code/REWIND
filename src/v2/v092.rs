@@ -389,111 +389,7 @@ pub(super) fn names() -> &'static [&'static str] {
     ]
 }
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !matches!(
-        p.language.as_str(),
-        "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-            | "4.0.0"
-    ) {
+    if !true {
         return Ok(());
     }
     if p.structs.contains_key("StdError")
@@ -571,7 +467,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.25") {
+    if true {
         for (name, fields) in [
             (
                 "HttpServer",
@@ -617,7 +513,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             );
         }
     }
-    if language_at_least(&p.language, "1.9.23") {
+    if true {
         for (name, fields) in [
             ("TcpSocket", vec![("peer", "String")]),
             (
@@ -649,7 +545,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             );
         }
     }
-    if language_at_least(&p.language, "1.7.0") {
+    if true {
         for (name, fields) in [
             ("DbConnection", vec![("backend", "String")]),
             (
@@ -873,111 +769,7 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
     Some(work.max(1))
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !matches!(
-        p.language.as_str(),
-        "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-            | "4.0.0"
-    ) || !names().contains(&n)
+    if !true || !names().contains(&n)
     {
         return Ok(None);
     }
@@ -1006,162 +798,60 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Ok(Some(result));
     }
     if n == "stdBytesFromList"
-        && !matches!(
-            p.language.as_str(),
-            "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-                | "4.0.0"
-        )
+        && !true
     {
         return Ok(None);
     }
-    if n.starts_with("stdExternal") && !language_at_least(&p.language, "1.5.0") {
+    if n.starts_with("stdExternal") && !true {
         return Err(diagnostic(at, "external operations require language 1.5.0"));
     }
-    if n.starts_with("stdExternalHttpServer") && !language_at_least(&p.language, "1.9.25") {
+    if n.starts_with("stdExternalHttpServer") && !true {
         return Err(diagnostic(at, "HTTP server requires language 1.9.25"));
     }
     if matches!(
         n,
         "stdExternalHttpServerListenTls" | "stdExternalHttpServerTlsCredential"
-    ) && !language_at_least(&p.language, "1.9.29")
+    ) && !true
     {
         return Err(diagnostic(at, "HTTP server TLS requires language 1.9.29"));
     }
     if matches!(
         n,
         "stdExternalHttpServerBearerCredential" | "stdExternalHttpServerListenTlsAuthenticated"
-    ) && !language_at_least(&p.language, "1.9.30")
+    ) && !true
     {
         return Err(diagnostic(
             at,
             "HTTP server authentication requires language 1.9.30",
         ));
     }
-    if n == "stdExternalTcpTls" && !language_at_least(&p.language, "1.9.24") {
+    if n == "stdExternalTcpTls" && !true {
         return Err(diagnostic(at, "TCP TLS requires language 1.9.24"));
     }
-    if n.starts_with("stdExternalTcp") && !language_at_least(&p.language, "1.9.23") {
+    if n.starts_with("stdExternalTcp") && !true {
         return Err(diagnostic(at, "TCP requires language 1.9.23"));
     }
-    if n.starts_with("stdExternalHttp") && !language_at_least(&p.language, "1.6.0") {
+    if n.starts_with("stdExternalHttp") && !true {
         return Err(diagnostic(at, "HTTP requires language 1.6.0"));
     }
     if matches!(n, "stdExternalDbPostgres" | "stdExternalDbCredentials")
-        && !language_at_least(&p.language, "1.7.1")
+        && !true
     {
         return Err(diagnostic(
             at,
             "PostgreSQL primitives require language 1.7.1",
         ));
     }
-    if n == "stdExternalGuiDialog" && !language_at_least(&p.language, "1.9.60") {
+    if n == "stdExternalGuiDialog" && !true {
         return Err(diagnostic(
             at,
             "native file dialogs require language 1.9.60",
         ));
     }
-    if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
+    if n.starts_with("stdExternalDb") && !true {
         return Err(diagnostic(at, "database primitives require language 1.7.0"));
     }
-    if n == "stdGuiScene" && !language_at_least(&p.language, "1.9.13") {
+    if n == "stdGuiScene" && !true {
         return Err(diagnostic(
             at,
             "GUI scene serialization requires language 1.9.13",
@@ -1171,10 +861,10 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         n,
         "stdGuiWindowNextAnyAsync" | "stdGuiWindowNextAnyLiveAsync"
     ) {
-        if n == "stdGuiWindowNextAnyLiveAsync" && !language_at_least(&p.language, "1.9.22") {
+        if n == "stdGuiWindowNextAnyLiveAsync" && !true {
             return Err(diagnostic(at, "live GUI input requires language 1.9.22"));
         }
-        if !language_at_least(&p.language, "1.9.19") {
+        if !true {
             return Err(diagnostic(
                 at,
                 "asynchronous GUI input requires language 1.9.19",
@@ -1196,22 +886,22 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         }
         return Ok(Some(format!("Task<{ret}>")));
     }
-    if n == "stdTaskYieldNow" && !language_at_least(&p.language, "1.9.10") {
+    if n == "stdTaskYieldNow" && !true {
         return Err(diagnostic(at, "task yield requires language 1.9.10"));
     }
-    if n.starts_with("stdGuiWindow") && !language_at_least(&p.language, "1.9.9") {
+    if n.starts_with("stdGuiWindow") && !true {
         return Err(diagnostic(
             at,
             "named GUI primitives require language 1.9.9",
         ));
     }
-    if n == "stdGuiEditGrapheme" && !language_at_least(&p.language, "1.9.7") {
+    if n == "stdGuiEditGrapheme" && !true {
         return Err(diagnostic(at, "grapheme editing requires language 1.9.7"));
     }
-    if n.starts_with("stdGui") && !language_at_least(&p.language, "1.3.0") {
+    if n.starts_with("stdGui") && !true {
         return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
     }
-    if matches!(n, "stdGuiEdit" | "stdGuiPollEvent") && !language_at_least(&p.language, "1.4.0") {
+    if matches!(n, "stdGuiEdit" | "stdGuiPollEvent") && !true {
         return Err(diagnostic(
             at,
             "GUI editing and polling require language 1.4.0",
@@ -1226,7 +916,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdExternalHttpWrite"
             | "stdExternalHttpFinish"
             | "stdExternalHttpCloseUpload"
-    ) && !language_at_least(&p.language, "1.6.1")
+    ) && !true
     {
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }

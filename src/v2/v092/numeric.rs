@@ -1,7 +1,7 @@
 use super::*;
 use rewind::numeric::{Array, DType, Error as NumericError};
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !language_at_least(&p.language, "1.8.0") {
+    if !true {
         return Ok(());
     }
     for name in ["FloatArray", "IntArray"] {
@@ -24,7 +24,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.56") {
+    if true {
         let name = "GraphBfsWork";
         if p.structs.contains_key(name)
             || p.enums.contains_key(name)
@@ -47,7 +47,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.42") {
+    if true {
         if p.structs.contains_key("LeastSquaresWork")
             || p.enums.contains_key("LeastSquaresWork")
             || p.aliases.contains_key("LeastSquaresWork")
@@ -69,7 +69,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.62") {
+    if true {
         if p.structs.contains_key("TensorIdentityWork")
             || p.enums.contains_key("TensorIdentityWork")
             || p.aliases.contains_key("TensorIdentityWork")
@@ -91,7 +91,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.38") {
+    if true {
         if p.structs.contains_key("EigenWork")
             || p.enums.contains_key("EigenWork")
             || p.aliases.contains_key("EigenWork")
@@ -111,7 +111,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.37") {
+    if true {
         for (name, fields) in [
             ("QrWork", vec![]),
             (
@@ -153,7 +153,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             );
         }
     }
-    if language_at_least(&p.language, "1.9.33") {
+    if true {
         if p.structs.contains_key("SolveWork")
             || p.enums.contains_key("SolveWork")
             || p.aliases.contains_key("SolveWork")
@@ -173,7 +173,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.27") {
+    if true {
         if p.structs.contains_key("SparseWork")
             || p.enums.contains_key("SparseWork")
             || p.aliases.contains_key("SparseWork")
@@ -193,7 +193,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.26") {
+    if true {
         if p.structs.contains_key("FftWork")
             || p.enums.contains_key("FftWork")
             || p.aliases.contains_key("FftWork")
@@ -213,7 +213,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.8.1") {
+    if true {
         for (name, fields) in [
             (
                 "QrResult",
@@ -302,7 +302,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericFromFloatStep"
             | "stdNumericFromIntInit"
             | "stdNumericFromIntStep"
-    ) && !language_at_least(&p.language, "1.9.64")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -312,7 +312,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if !n.starts_with("stdNumeric") {
         return Ok(None);
     }
-    if !language_at_least(&p.language, "1.8.0") {
+    if !true {
         return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
     }
     if matches!(
@@ -321,7 +321,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericReshapeLogicalStep"
             | "stdNumericSumShapeInit"
             | "stdNumericSumShapeStep"
-    ) && !language_at_least(&p.language, "1.9.57")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -334,7 +334,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericGraphBfsStep"
             | "stdNumericGraphBfsDone"
             | "stdNumericGraphBfsResult"
-    ) && !language_at_least(&p.language, "1.9.56")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -342,7 +342,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         ));
     }
     if matches!(n, "stdNumericSumStep" | "stdNumericMomentsStep")
-        && !language_at_least(&p.language, "1.9.55")
+        && !true
     {
         return Err(diagnostic(
             at,
@@ -350,7 +350,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         ));
     }
     if matches!(n, "stdNumericUnaryInit" | "stdNumericUnaryStep")
-        && !language_at_least(&p.language, "1.9.53")
+        && !true
     {
         return Err(diagnostic(
             at,
@@ -360,7 +360,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if matches!(
         n,
         "stdNumericGraphAdjacency" | "stdNumericGraphBfs" | "stdNumericRangeInt"
-    ) && !language_at_least(&p.language, "1.9.49")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -375,7 +375,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericWithFlatInt"
             | "stdNumericLengthFloat"
             | "stdNumericLengthInt"
-    ) && !language_at_least(&p.language, "1.9.48")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -388,7 +388,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericLeastSquaresStep"
             | "stdNumericLeastSquaresDone"
             | "stdNumericLeastSquaresResult"
-    ) && !language_at_least(&p.language, "1.9.42")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -401,7 +401,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericEigenStep"
             | "stdNumericEigenDone"
             | "stdNumericEigenResult"
-    ) && !language_at_least(&p.language, "1.9.38")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -411,7 +411,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if matches!(
         n,
         "stdNumericQrInit" | "stdNumericQrStep" | "stdNumericQrDone" | "stdNumericQrResult"
-    ) && !language_at_least(&p.language, "1.9.37")
+    ) && !true
     {
         return Err(diagnostic(at, "cooperative QR requires language 1.9.37"));
     }
@@ -421,7 +421,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericSolveStep"
             | "stdNumericSolveDone"
             | "stdNumericSolveResult"
-    ) && !language_at_least(&p.language, "1.9.33")
+    ) && !true
     {
         return Err(diagnostic(at, "cooperative solve requires language 1.9.33"));
     }
@@ -431,7 +431,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericSparseStep"
             | "stdNumericSparseDone"
             | "stdNumericSparseResult"
-    ) && !language_at_least(&p.language, "1.9.27")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -441,7 +441,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if matches!(
         n,
         "stdNumericFftInit" | "stdNumericFftStep" | "stdNumericFftDone" | "stdNumericFftResult"
-    ) && !language_at_least(&p.language, "1.9.26")
+    ) && !true
     {
         return Err(diagnostic(at, "cooperative FFT requires language 1.9.26"));
     }
@@ -454,7 +454,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericCorrelation"
             | "stdNumericQuantile"
             | "stdNumericHistogram"
-    ) && !language_at_least(&p.language, "1.8.1")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -462,14 +462,14 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         ));
     }
     if matches!(n, "stdNumericSuffixArray" | "stdNumericSuffixSearch")
-        && !language_at_least(&p.language, "1.9.8")
+        && !true
     {
         return Err(diagnostic(at, "suffix primitives require language 1.9.8"));
     }
     if matches!(
         n,
         "stdNumericVectorInit" | "stdNumericVectorStep" | "stdNumericNormStep"
-    ) && !language_at_least(&p.language, "1.9.31")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -479,7 +479,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if matches!(
         n,
         "stdNumericDotStep" | "stdNumericMatmulInit" | "stdNumericMatmulStep"
-    ) && !language_at_least(&p.language, "1.9.10")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -494,7 +494,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericSparseMatvec"
             | "stdNumericScale"
             | "stdNumericNorm2"
-    ) && !language_at_least(&p.language, "1.9.15")
+    ) && !true
     {
         return Err(diagnostic(
             at,
@@ -512,12 +512,12 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericModelEncode"
             | "stdNumericModelDecode"
             | "stdNumericModelCheck"
-    ) && !language_at_least(&p.language, "1.9.16")
+    ) && !true
     {
         return Err(diagnostic(at, "tensor primitives require language 1.9.16"));
     }
     if matches!(n, "stdNumericSgdStep" | "stdNumericAdamStep")
-        && !language_at_least(&p.language, "1.9.16")
+        && !true
     {
         return Err(diagnostic(at, "optimizer kernels require language 1.9.16"));
     }
@@ -529,7 +529,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdNumericIdentityDone"
             | "stdNumericIdentityKey"
             | "stdNumericIdentityValue"
-    ) && !language_at_least(&p.language, "1.9.62")
+    ) && !true
     {
         return Err(diagnostic(
             at,

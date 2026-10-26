@@ -28,7 +28,7 @@ pub(super) fn validate_records(program: &Program) -> Result<()> {
                     Some("Share") => false,
                     // 2.0.0 accepts Send when every field is still Share, as
                     // with Frozen<T>; the field check below enforces that.
-                    Some("Send") => !language_at_least(&program.language, "2.0.0"),
+                    Some("Send") => !true,
                     _ => true,
                 })
         {

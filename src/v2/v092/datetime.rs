@@ -1,7 +1,7 @@
 use super::*;
 use rewind::datetime::{self as dt, Duration, Error as DateError, Instant};
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !language_at_least(&p.language, "1.8.4") {
+    if !true {
         return Ok(());
     }
     for n in ["Instant", "Duration"] {
@@ -56,7 +56,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
-    if !language_at_least(&p.language, "1.8.4") {
+    if !true {
         return Err(diagnostic(at, "datetime requires language 1.8.4"));
     }
     if args.len() != params.len() || params.iter().zip(args).any(|(p, a)| !compatible(p, a)) {

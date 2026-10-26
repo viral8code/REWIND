@@ -1,7 +1,7 @@
 use super::*;
 use rewind::bigint::{Error as BigError, IntegerValue, MAX_BITS};
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !language_at_least(&p.language, "1.8.2") {
+    if !true {
         return Ok(());
     }
     if p.structs.contains_key("BigInt")
@@ -50,7 +50,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
-    if !language_at_least(&p.language, "1.8.2") {
+    if !true {
         return Err(diagnostic(at, "BigInt requires language 1.8.2"));
     }
     if args.len() != params.len() || params.iter().zip(args).any(|(p, a)| !compatible(p, a)) {

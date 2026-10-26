@@ -20,7 +20,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
-    if !language_at_least(&p.language, "1.8.5") {
+    if !true {
         return Err(diagnostic(at, "Unicode API requires language 1.8.5"));
     }
     if args.len() != params.len() || params.iter().zip(args).any(|(p, a)| !compatible(p, a)) {
