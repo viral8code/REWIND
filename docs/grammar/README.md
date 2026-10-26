@@ -188,28 +188,29 @@ raw 文字列は、N 個（3 個以上）の引用符で開き、ちょうど N 
 
 エディタが補完や診断を出すときは、この規則（条件部の中かどうか）を、構文の解釈に入れてください。
 
-## 4.0.0 で変わる予定のこと
+## 4.0.0 で変わったこと
 
-[言語リファレンスの付録 B](../language-reference.md#400-の予定)に、4.0.0 の予定が書いてあります。予定であって、今は実装されていません。文法に関係する主な点は次のとおりです。
+[言語リファレンスの付録 B](../language-reference.md#400-の変更)に、4.0.0 の変更が書いてあります。文法に関係する主な点は次のとおりです。
 
-- 宣言・制御・チェックポイント・式の約 45 語が予約語になり、名前として使えなくなります。今は、予約語として拒否される名前は `begin` だけです。
-- `null` リテラルが廃止されます。内部の値としての `null` は、DB と JSON のために残ります。
-- `language` が 3.0.0 未満の指定は受け付けなくなります。
+- 言語 4.0.0 では、宣言・制御・チェックポイント・式の約 45 語が予約語になり、名前として使えません。ただし、この文法（`rewind.ebnf`）は予約語を特別に扱いません。文法は、予約語を名前として使う書き方も構文としては受理します。拒否するのは、構文解析のあとに行う検査で、言語が 4.0.0 のときだけです。エディタは、構文の木を作ったあとで、名前の位置にある予約語に警告を出してください。
+- 言語 4.0.0 では、`null` リテラルを書けません。文法は `null` を名前の一つとして受理します。`null` の検査も、予約語の検査と同じ段階で行います。
+- REWIND 4 は、`language` が 3.0.0 未満の指定を受け付けません。
+- どの言語でも、通常の文字列リテラルの中の改行は LF になります。文法は、ソースの文字をそのまま受理します。
 
-`tests/grammar/` には、今は名前として使えるキーワードの例があります（`accept/kw_let_if.rw`、`accept/kw_name_field.rw` など）。先頭行に「現状の挙動。4.0.0 で予約語になる予定。」と書いてあります。これらは、今の構文解析器が受理するので、受理の例に入れています。4.0.0 で実装が変わると、拒否の例に移る予定です。エディタは、これらの語を名前として使う入力に、4.0.0 の予約語として警告を出す程度の扱いにとどめておくと、将来の変更に備えられます。
+`tests/grammar/` の `accept/kw_let_if.rw`、`accept/kw_name_field.rw` などは、キーワードを名前に使う例です。先頭行に「現状の挙動。4.0.0 で予約語になる予定。」と書いてあります。構文としては今も受理するので、受理の例に置いています。実際の拒否は、構文解析のあとの検査で行います（言語 4.0.0 のとき）。
 
 ## 色付けに使うキーワードの一覧
 
-今の構文解析器（`src/v2.rs` の `Parser`）が文脈で見ている語を、種類ごとにまとめます。名前として使えてしまう語（`begin` 以外）も含みます。
+構文解析器（`src/v2.rs` の `Parser`）が文脈で見ている語を、種類ごとにまとめます。言語 3.x では名前として使えてしまう語（`begin` 以外）も含みます。
 
-予約語の予定は、言語リファレンスの付録 B にある 45 語です。次の表の「予約語になる予定」の列に、その印を付けました。
+言語 4.0.0 で予約語になる語は、言語リファレンスの 3.2 節の表にある約 45 語です。次の表の「4.0.0 の予約語」の列に、その印を付けました。`None` は、variant の名前に使えるように、予約語にしていません。
 
-| 種類 | 語 | 予約語になる予定 | 補足 |
+| 種類 | 語 | 4.0.0 の予約語 | 補足 |
 |---|---|---|---|
 | 宣言 | `fn` `struct` `record` `enum` `trait` `impl` `type` `const` `import` `as` `pub` `private` `async` `mut` | はい | `mut` は `&mut` の中の語。`private` は構造体の欄の修飾 |
 | 制御 | `if` `else` `match` `while` `for` `in` `break` `continue` `return` `let` `var` `defer` `using` | はい | `for` は `impl 型 for 型` でも使う。`let` は `if let` と `while let` でも使う |
-| チェックポイント | `commit` `revert` `resume` `drop` `publish` `branch` `runtime` `external` `begin` | はい | `begin` は最初のチェックポイントの予約名。今も名前にできない唯一の語 |
-| 式 | `move` `spawn` `await` `true` `false` `None` `null` | はい | `move` は前置演算子としても、`capture move` の中でも使う |
+| チェックポイント | `commit` `revert` `resume` `drop` `publish` `branch` `runtime` `external` `begin` | はい | `begin` は最初のチェックポイントの予約名。言語 3.x でも名前にできない唯一の語 |
+| 式 | `move` `spawn` `await` `true` `false` `None` `null` | `None` 以外ははい | `move` は前置演算子としても、`capture move` の中でも使う。`None` は名前に使える |
 | 修飾語 | `value` `capture` `borrow` `force` `live` `fresh` `test` `where` `effects` `captures` | いいえ | 文脈によって意味が決まる語のまま残る。`capture value\|move\|borrow`、`publish force`、`external live\|fresh`、`test fn`、`where` 節、`effects { }`、`captures { }` |
 | 設定名 | `historyMemory` `historyStorage` `spillThreshold` `executionSteps` | いいえ | `runtime { ... }` の中だけ。単位は `KB` `KiB` `MB` `MiB` `GB` `GiB` |
 | 捕捉の旗 | `Send` `Share` | いいえ | `captures { Send, Share }` の中だけ |

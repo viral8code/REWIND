@@ -2,7 +2,7 @@
 
 REWIND は、`commit` / `revert` / `publish` で VM の状態と入出力を扱う、Rust 製のプログラミング言語です。名前付きの保存点、決定的な replay、仮想的な入出力を組み合わせ、外部へ出る操作を `publish` まで保留できます。
 
-現在の版は 3.6.0 で、開発は `codex/develop` branch で行っています。
+現在の版は 4.0.0 で、開発は `codex/develop` branch で行っています。
 
 ## クイックスタート
 
@@ -79,9 +79,9 @@ fn main() -> Int {
 
 ## ドキュメント
 
-- [入門書（HTML）](docs/book/index.html) / [入門書（PDF）](docs/book/REWIND-3.6.0-book.pdf): 3.6.0 を対象に、基本から実用までを 25 章で説明します。
+- [入門書（HTML）](docs/book/index.html) / [入門書（PDF）](docs/book/REWIND-4.0.0-book.pdf): 4.0.0 を対象に、基本から実用までを 25 章で説明します。
 - [言語リファレンス](docs/language-reference.md)（[PDF 版](docs/language-reference.pdf)）: 言語の正確な定義です。
-- [使い方](docs/getting-started.md)、[GUI](docs/gui.md)、[3.6.0 の変更点](docs/REWIND_v3.6.md)
+- [使い方](docs/getting-started.md)、[GUI](docs/gui.md)、[4.0.0 の変更点](docs/REWIND_v4.0.md)
 - [入門書の編集と再生成](docs/book/README.md)、[ロードマップ](docs/ROADMAP_v2-next.md)
 
 ## 開発

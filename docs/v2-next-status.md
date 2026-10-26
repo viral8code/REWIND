@@ -18,16 +18,16 @@
 - Windowsのネイティブ GUI は、ローカルの実機で実際のウィンドウを開き、マウス・キーボード入力、Undo、保存、リサイズ後の再配置を確かめました（[docs/gui.md](gui.md)、`scripts/gui-smoke-windows.ps1`）。Linux/X11（WSLg の XWayland）でも、同じ確認を行い、`resize` イベントが止まらなくなる不具合を直しました（`scripts/gui-smoke-linux.sh`）。IME の変換中表示と、Wayland のネイティブ実装の確認は残っています。
 - 残っているもの: GUIの自然寸法測定・IME再描画、PERF-01の共通測定形式、Linux・GUI・HTTP・PostgreSQLの測定、言語の使い勝手の改善のうち、`unwrap`/`expect`と入力前の自動`publish`は、「失敗を無視しない」「`publish`するまで外へ出ない」という言語の方針と衝突するため採用していません（[v3.0の未実装一覧](REWIND_v3.0.md)）。
 
-## 4.0.0 の予定（まだ実装していません）
+## 4.0.0 の変更（2026-10-26）
 
-版はまだ上げていません。次は予定であって、今は実装されていません。詳しくは[言語リファレンスの付録 B](language-reference.md#400-の予定)にあります。
+コンパイラと言語の版を 4.0.0 に上げました。詳しくは[言語リファレンスの付録 B](language-reference.md#400-の変更)と[4.0.0 の変更点](REWIND_v4.0.md)にあります。
 
-- 宣言・制御・チェックポイント・式の約 45 語を予約語にします。修飾語（`value capture borrow force live fresh test where effects captures`）は文脈依存のままです。
-- `language` 3.0.0 未満を受け付けなくします。
-- ソースの `null` リテラルを廃止します（内部の値は DB と JSON のために残ります）。
-- 通常の文字列の CRLF を LF に正規化します。
-- `binding.revert` を削除し、`historyGraph` の名前付き引数 `branch:` を `branchName` に改名します。
-
+- 言語 4.0.0 では、宣言・制御・チェックポイント・式の約 45 語が予約語になり、名前に使えません。修飾語（`value capture borrow force live fresh test where effects captures`）は文脈依存のままです。
+- 言語 4.0.0 では、ソースの `null` リテラルを書けません。内部の値は DB と JSON のために残ります。
+- REWIND 4 は `language` 3.0.0 未満を受け付けません。テストの一部が、旧版の言語を使うため、環境変数 `REWIND_LEGACY_LANGUAGES`（`.cargo/config.toml` で設定、リリースには含めない）で旧版を動かしています。旧版の分岐コードとテストの整理は、これからの作業です。
+- どの言語でも、通常の文字列リテラルの中の改行は LF になります。
+- `binding.revert` を削除し、`historyGraph` の名前付き引数 `branch:` を `branchName` に改名しました。
+- 型注釈つき `let` の短いクロージャ、末尾のカンマ、raw 文字列を追加し、`match E::A {` と `a < b >= c` を読めるようにしました。
 
 - 作業とcommit/pushは`codex/develop`だけ。今回mainへ統合しない。
 - 公開CI/CDを動かさない。commit messageに`[skip ci]`を付ける。

@@ -1,6 +1,6 @@
 # REWIND 言語リファレンス
 
-対象は REWIND 3.6.0（言語バージョン `3.6.0`）です。言語の構文は 3.0.0 から変わっておらず、3.x の各版で増えたのは標準ライブラリとツールです。2.0.0 以前の言語（トップレベルに文を並べる書き方など）は、`rewind.toml` で言語バージョンを指定したときだけ使えます。この文書では扱いません。
+対象は REWIND 4.0.0（言語バージョン `4.0.0`）です。REWIND 4 が実行できる言語は 3.0.0 以降です。3.0.0 未満の言語（トップレベルに文を並べる書き方など）は受け付けないので、古い言語のプログラムは REWIND 3 のコンパイラで実行してください。3.x の言語と 4.0.0 の違いは[付録 B](#付録-b-言語バージョンの違い)にあります。
 
 この文書は **言語そのもの** の仕様書です。次のものは別の文書にあります。
 
@@ -11,7 +11,7 @@
 | ネイティブ GUI | [gui.md](gui.md) |
 | デバッガ（DAP） | [debugger.md](debugger.md) |
 | 版ごとの変更点と契約 | [REWIND_v3.0.md](REWIND_v3.0.md) など `REWIND_v*.md` |
-| 章立てで読む入門書 | [book/index.html](book/index.html)（[PDF 版](book/REWIND-3.6.0-book.pdf)） |
+| 章立てで読む入門書 | [book/index.html](book/index.html)（[PDF 版](book/REWIND-4.0.0-book.pdf)） |
 
 ## この文書の読み方
 
@@ -127,7 +127,7 @@ rewind run main.rwc         # 成果物を実行する。ソースは不要
 ファイルが複数あるプログラムや、権限・依存関係を固定したいプログラムは、ディレクトリに `rewind.toml` を置いてプロジェクトにします。
 
 ```toml
-language = "3.6.0"
+language = "4.0.0"
 source_root = "src"
 entry = "main.rw"
 effects = "output,fileRead"
@@ -167,7 +167,18 @@ fn main()->Int {
 
 識別子は英字、数字、`_` で構成し、数字では始められません。Unicode の文字も使えます（`let 変数 = 1;`）。大文字と小文字は区別されます。慣習として、型・trait・enum の variant は大文字で始め、関数・変数は小文字で始めます。
 
-名前として拒否されるのは `begin`（最初のチェックポイントの予約名）だけです。`if`、`match`、`fn`、`let`、`for`、`struct`、`commit` など、そのほかのキーワードは文の先頭など決まった位置でだけ意味を持つため、`let if = 3;` のように名前に使えてしまいます。紛らわしいので使わないでください。4.0.0 で予約語を増やす予定です（[付録 B](#付録-b-言語バージョンの違い)の「4.0.0 の予定」）。
+言語 4.0.0 では、次の語を名前に使えません。使うと `ReservedWord` で拒否されます。
+
+| 分類 | 予約語 |
+|---|---|
+| 宣言 | `fn` `let` `var` `const` `struct` `record` `enum` `trait` `impl` `type` `import` `as` `pub` `private` `async` `mut` |
+| 制御 | `if` `else` `match` `while` `for` `in` `break` `continue` `return` `defer` `using` |
+| チェックポイント | `commit` `revert` `resume` `drop` `publish` `branch` `runtime` `external` `begin` |
+| 式 | `move` `spawn` `await` `true` `false` `null` |
+
+`value`、`capture`、`borrow`、`force`、`live`、`fresh`、`test`、`where`、`effects`、`captures` は、決まった位置でだけ意味を持つ語なので、名前に使えます。`None` も名前に使えます（`enum Level { None, Low }` のように variant の名前にできます）。`import std.external as host;` の `external` のような import の経路と、`effects { }` に書く効果の名前は、名前ではないので予約語の対象外です。名前が予約語と重なったときは、`commit` を `committed` にするように、別の名前に変えてください。
+
+3.x の言語で名前として拒否されるのは `begin`（最初のチェックポイントの予約名）だけです。`let if = 3;` のようにほかのキーワードも通りますが、紛らわしいので使わないでください。
 
 ### 3.3 整数と浮動小数点数のリテラル
 
@@ -2620,7 +2631,7 @@ error[DivisionByZero]: division by zero
 
 画面は、毎回すべての欄を読み直さずに、`changedSince` で版番号が進んだかを確かめ、進んだときだけ描き直してください。`pushToForm` と `pullFromForm` で、`std.guiForm` の欄と同期できます。`undo` と `redo` は、受理された編集を最大 256 件まで戻します。欄は最大 128 件です。
 
-`reset` は、編集を捨てて元の値に戻します。`accept` と対になる名前です。`revert` は同じ動作の古い名前で、非推奨です。4.0.0 で削除する予定なので、`reset` を使ってください。
+`reset` は、編集を捨てて元の値に戻します。`accept` と対になる名前です。以前の `revert` は 4.0.0 で削除しました。
 
 `std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq`、`randomBytes` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。`randomBytes(length)` は OS の乱数源から 1〜65536 バイトを返します。範囲外の長さは `Range`、乱数源が使えないときは `ExternalFailure` で返します。`external` 領域の中で呼び、`external` と `random` の権限が必要です。実行時に記録され、replay では同じ値が再生されます。鍵、salt、セッション ID のような秘密に使う値は `randomBytes` で作ってください。`Random.next()` は再現可能な擬似乱数なので、秘密には使えません。
 
@@ -2850,26 +2861,28 @@ MulExpr    ::= MulExpr ( '*' | '/' | '%' ) UnaryExpr | UnaryExpr
 
 ## 付録 B. 言語バージョンの違い
 
-REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプログラムを検査します。単体のファイルの実行では、コンパイラと同じ版（3.6.0）が使われます。
+REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプログラムを検査します。単体のファイルの実行では、コンパイラと同じ版（4.0.0）が使われます。
 
 | 版 | 言語の変更 |
 |---|---|
 | 3.0.0 | 実行コードは関数の中だけに書く。`fn main` から始まる。ブロック式、`if` 式、`let ... else`、`if let`、コレクションのリテラル `[ ]` `{ : }`、添字、`.0` によるタプルの要素、文字列補間 `${}`、式本体の関数 `= 式`。`main` が戻ると自動で公開する。文字列の大小比較、`Float.floorChecked` / `roundChecked`、`.format()` |
 | 3.1.0〜3.5.0 | 構文の変更なし。ツール（診断、デバッガ、profile、CLI）と標準ライブラリの追加 |
 | 3.6.0 | 名前付きの引数と既定値の引数 |
+| 4.0.0 | 約 45 語が予約語になり、名前に使えない。ソースの `null` リテラルを廃止。3.0.0 未満の言語を受け付けない |
 
-3.x では、`const` の宣言とマップのキーの `for` による反復が使えない不具合があり、この版で修正されました。2.0.0 以前の言語の仕様は、それぞれの版の文書（[REWIND_v2.0.md](REWIND_v2.0.md) など）にあります。版ごとの詳しい変更点は `docs/REWIND_v*.md` を参照してください。
+3.x では、`const` の宣言とマップのキーの `for` による反復が使えない不具合があり、この版で修正されました。2.0.0 以前の言語の仕様は、それぞれの版の文書（[REWIND_v2.0.md](REWIND_v2.0.md) など）にありますが、REWIND 4 では実行できません。版ごとの詳しい変更点は `docs/REWIND_v*.md` を参照してください。
 
-### 4.0.0 の予定
+### 4.0.0 の変更
 
-版はまだ上げておらず、ここに書く内容は **予定であって、今は実装されていません**。
+REWIND 4.0.0 では、次の点が変わりました。3.x の言語を指定したプログラムの挙動は、このうち「どの言語でも同じ」と書いた項目を除いて変わりません。
 
-- 宣言・制御・チェックポイント・式の約 45 語を予約語にし、名前として使えなくします: `fn let var const struct record enum trait impl type import as pub private async mut if else match while for in break continue return defer using commit revert resume drop publish branch runtime external begin move spawn await true false None null`
-- 修飾語（`value capture borrow force live fresh test where effects captures`）は、文脈によって意味が決まる語のままにします。
-- `language` が 3.0.0 未満の指定を受け付けなくします。
-- ソースの `null` リテラルを廃止します。内部の値としての `null` は、DB と JSON のために残ります。
-- 通常の文字列の CRLF を LF に正規化します。
-- `binding.revert` を削除し、`historyGraph` の名前付き引数 `branch:` を `branchName` に改名します。
+- 言語 4.0.0 では、約 45 語（[3.2 節](#32-識別子)の表）が予約語になり、名前に使えません。修飾語（`value capture borrow force live fresh test where effects captures`）は、これまでどおり文脈で意味が決まる語です。
+- 言語 4.0.0 では、ソースの `null` リテラルを書けません。`null` と書くと `ReservedWord` で拒否されます。値がないことは `Option` の `None` で表します。DB の NULL や JSON の null は、専用の型と関数で、これまでどおり扱えます。
+- REWIND 4 は、`language` が 3.0.0 未満の指定を `unsupported language version` で拒否します。`rewind.toml` の指定も、単体のファイルの実行も同じです。
+- どの言語でも、通常の文字列リテラルの中の改行は、ソースファイルの改行コード（CRLF、CR、LF）によらず LF になります。OS に合わせた改行が必要なときは、`external { }` の中で `std.text.lineSeparator()` を呼びます。
+- 標準ライブラリでは、`binding.revert` を削除しました（`binding.reset` を使います）。`historyGraph` の `setHead`、`head`、`dropHead` の引数名 `branch` は `branchName` に変わりました。名前付きの引数で呼んでいたプログラムは、名前を直してください。
+
+次の記法は、言語の版によらず使えます。型注釈つきの `let` で書く短いクロージャ（3.0.0 以上）、カンマ区切りの全箇所の末尾のカンマ、raw 文字列です。
 
 ## 付録 C. 既知の制約
 

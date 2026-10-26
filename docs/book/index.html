@@ -54,7 +54,7 @@ blockquote { margin: 3mm 0; padding: 1mm 4mm; border-left: 3px solid #b6c3da; ba
 <p><code>99</code> は画面に出ません。<code>revert</code> が、保存したあとの変更と保留中の出力をまとめて取り消したからです。</p>
 <p>ただし、何でも取り消せるわけではありません。すでに外へ出てしまったもの（表示した文字、送信済みの通信など）は、戻せません。REWIND は「戻せるもの」と「戻せないもの」の境目を言語の中にはっきり持っていて、その境目を理解することが、この言語を使いこなす中心になります。この本では、その境目を何度も例で確かめます。</p>
 <h3 id="この本の対象と読み方">この本の対象と読み方</h3>
-<p>対象は <strong>REWIND 3.6.0</strong> です。ほかの言語でプログラムを書いた経験があれば読み進められるように書いています。</p>
+<p>対象は <strong>REWIND 4.0.0</strong> です。ほかの言語でプログラムを書いた経験があれば読み進められるように書いています。</p>
 <ul>
 <li>第2章〜第8章は、変数・制御構造・関数・コレクション・型といった基本です。どの言語にも似たものがあるので、早く進めてかまいません。</li>
 <li>第9章〜第14章が、REWIND らしい部分です。所有権、エラーの扱い、チェックポイント、公開と外部領域、効果、module を扱います。腰を据えて読んでください。</li>
@@ -166,6 +166,7 @@ caused by[MissingEffect]: operation requires effect output
 }</code></pre></div>
 <div class="code"><div class="cap out">出力</div><pre><code>3
 0.5</code></pre></div>
+<p>変数の名前には、<code>let</code> や <code>if</code>、<code>commit</code> のようなキーワードを使えません。名前に使えない語の一覧は、言語リファレンスの 3.2 節にあります。たとえば <code>commit</code> という変数が欲しくなったら、<code>committed</code> のように別の名前にします。</p>
 <h3 id="基本の型">基本の型</h3>
 <table>
 <thead>
@@ -1855,7 +1856,7 @@ fn main()-&gt;Int {
 <p>module の最上位に書けるのは宣言だけです。<code>const</code> を除いて、module が <strong>状態を持つことはできません</strong>。状態は、値として作って、引数や戻り値で受け渡します。巻き戻しの対象が、いつも「いま動いている関数の中の値」に限られるのは、このためです。</p>
 <h3 id="プロジェクトにする">プロジェクトにする</h3>
 <p>ファイルが複数あるプログラムや、権限・依存関係を固定したいプログラムは、ディレクトリに <code>rewind.toml</code> を置いてプロジェクトにします。</p>
-<div class="code"><pre><code>language = &quot;3.6.0&quot;
+<div class="code"><pre><code>language = &quot;4.0.0&quot;
 source_root = &quot;src&quot;
 entry = &quot;main.rw&quot;
 effects = &quot;output,fileRead&quot;</code></pre></div>
@@ -3665,7 +3666,7 @@ pear: 2</code></pre></div>
 </tbody>
 </table>
 <h2 id="付録d-現状の制約">付録D 現状の制約</h2>
-<p>この本の版（REWIND 3.6.0）の実装で、期待と異なる動作をする点を挙げます。今後の版で変わる可能性があります。</p>
+<p>この本の版（REWIND 4.0.0）の実装で、期待と異なる動作をする点を挙げます。今後の版で変わる可能性があります。</p>
 <ul>
 <li><strong><code>?</code> のエラー型の不一致は、組み込みの型どうしなら実行前に拒否されます。</strong> <code>record</code> や標準ライブラリの型が絡むときは、<code>Err</code> の経路を通ったときの実行時エラーになります（第10章）。</li>
 <li><strong><code>List</code> と <code>Map</code> を <code>==</code> や <code>assert_eq</code> で比べると、中身ではなく同一性を調べます。</strong> 比べたいときは <code>freeze</code> します（第3章）。</li>

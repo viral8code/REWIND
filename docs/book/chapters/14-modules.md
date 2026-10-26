@@ -68,7 +68,7 @@ module の最上位に書けるのは宣言だけです。`const` を除いて�
 ファイルが複数あるプログラムや、権限・依存関係を固定したいプログラムは、ディレクトリに `rewind.toml` を置いてプロジェクトにします。
 
 ```toml
-language = "3.6.0"
+language = "4.0.0"
 source_root = "src"
 entry = "main.rw"
 effects = "output,fileRead"
