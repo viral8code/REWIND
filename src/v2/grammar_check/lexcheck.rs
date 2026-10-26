@@ -113,9 +113,19 @@ fn known_gap(src: &str, impl_err: Option<&str>) -> Option<&'static str> {
     None
 }
 
+/// `lex()` turns every line break inside a normal string literal into LF (language 4.0.0);
+/// the grammar describes the source text, so the comparison applies the same rule.
+fn normalize_string_token(text: String) -> String {
+    if text.starts_with('"') && !text.starts_with("\"\"\"") && text.contains('\r') {
+        text.replace("\r\n", "\n").replace('\r', "\n")
+    } else {
+        text
+    }
+}
+
 pub fn compare(lx: &EbnfLexer, src: &str) -> Outcome {
     let imp = impl_tokens(src);
-    let ebnf = lx.tokenize(src);
+    let ebnf = lx.tokenize(src).map(|v| v.into_iter().map(normalize_string_token).collect::<Vec<_>>());
     match (imp, ebnf) {
         (Ok(a), Ok(b)) => {
             if a == b {

@@ -794,6 +794,11 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
                     "unterminated string; add a closing quote",
                 ));
             }
+            // Language 4.0.0: a line break inside a string literal is always LF,
+            // whatever line endings the source file uses.
+            if text.contains('\r') {
+                text = text.replace("\r\n", "\n").replace('\r', "\n");
+            }
         } else if c.is_ascii_digit() {
             if c == '0' && matches!(it.peek(), Some('x' | 'X' | 'b' | 'B' | 'o' | 'O')) {
                 let prefix = it.next().unwrap();

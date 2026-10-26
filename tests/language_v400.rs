@@ -143,3 +143,20 @@ fn bundled_std_modules_compile_in_language_4_0_0() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "ok\n");
 }
+
+#[test]
+fn line_breaks_inside_string_literals_are_lf_whatever_the_source_uses() {
+    let lf = "fn main() -> Int {\n    let s = \"a\nb\";\n    Out.println(s.charLen());\n    return 0;\n}\n";
+    let crlf = lf.replace('\n', "\r\n");
+    let cr = lf.replace('\n', "\r");
+    let a = run_standalone(lf);
+    assert!(a.status.success(), "{}", stderr(&a));
+    // "a", line break, "b": three characters, in every kind of source.
+    assert_eq!(stdout(&a), "3\n");
+    let b = run_standalone(&crlf);
+    assert!(b.status.success(), "{}", stderr(&b));
+    assert_eq!(stdout(&b), "3\n");
+    let c = run_standalone(&cr);
+    assert!(c.status.success(), "{}", stderr(&c));
+    assert_eq!(stdout(&c), "3\n");
+}
