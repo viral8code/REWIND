@@ -61,6 +61,11 @@ pub(in crate::v2) fn value_flags(
             seen.remove(id);
             result
         }
+        // A closure's flags were computed from its captures when it was made, so a chain of
+        // closures that capture each other is not walked again at every creation.
+        Value::Closure(_, ty, _) if ty.contains("~{") => {
+            flags(ty).contains(if shared { "Share" } else { "Send" })
+        }
         Value::Closure(_, _, captures) => captures
             .values()
             .all(|v| value_flags(program, rt, v, shared, seen)),
