@@ -72,7 +72,7 @@ pub(in crate::v2) fn constant_values(program: &Program) -> Result<BTreeMap<Strin
     })?;
     let mut checker = Checker {
         program,
-        scopes: vec![BTreeMap::new()],
+        scopes: vec![crate::v2::Scope::default()],
         return_ty: None,
         loop_depth: 0,
         bounds: BTreeMap::new(),

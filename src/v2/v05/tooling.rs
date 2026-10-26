@@ -467,7 +467,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                     let Some(f) = p.functions.get(&name) else {
                         let mut checker = Checker {
                             program: &p,
-                            scopes: vec![BTreeMap::new()],
+                            scopes: vec![crate::v2::Scope::default()],
                             return_ty: None,
                             loop_depth: 0,
                             bounds: BTreeMap::new(),

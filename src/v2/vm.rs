@@ -73,7 +73,7 @@ struct FunctionChunk {
     code: Vec<Inst>,
     closures: BTreeMap<String, Function>,
     hidden: usize,
-    closure_typing: BTreeMap<String, Vec<BTreeMap<String, (String, bool)>>>,
+    closure_typing: BTreeMap<String, Vec<crate::v2::Scope>>,
 }
 fn relocate(code: &mut [Inst], base: usize, relative: bool) {
     for inst in code {
@@ -113,13 +113,16 @@ struct Compiler {
     depth: usize,
     hidden: usize,
     closure_defs: BTreeMap<String, Function>,
+    /// Names of closures in the order they were defined, so a function can find the ones it
+    /// added without scanning every closure defined so far.
+    closure_log: Vec<String>,
     aliases: BTreeMap<String, String>,
     type_params: Vec<(String, Option<String>)>,
     typing_program: Program,
-    typing_scopes: Vec<BTreeMap<String, (String, bool)>>,
+    typing_scopes: Vec<crate::v2::Scope>,
     typing_origin: PathBuf,
     typing_key: String,
-    closure_typing: BTreeMap<String, Vec<BTreeMap<String, (String, bool)>>>,
+    closure_typing: BTreeMap<String, Vec<crate::v2::Scope>>,
 }
 impl Compiler {
     fn into_parts(self) -> CompiledParts {
@@ -234,9 +237,10 @@ impl Compiler {
             depth: 0,
             hidden: 0,
             closure_defs: BTreeMap::new(),
+            closure_log: Vec::new(),
             aliases: BTreeMap::new(),
             typing_program: Program::default(),
-            typing_scopes: vec![BTreeMap::new()],
+            typing_scopes: vec![crate::v2::Scope::default()],
             typing_origin: PathBuf::new(),
             typing_key: String::new(),
             closure_typing: BTreeMap::new(),
@@ -263,7 +267,7 @@ impl Compiler {
         }
     }
     fn enter(&mut self, at: &Tok) {
-        self.typing_scopes.push(BTreeMap::new());
+        self.typing_scopes.push(crate::v2::Scope::default());
         self.emit(Op::Enter, at);
         self.depth += 1;
     }
@@ -356,28 +360,36 @@ impl Compiler {
     }
     fn compile_function(&mut self, name: &str, f: &Function, program: &Program) -> Result<()> {
         let root = program.root_origin.parent().unwrap_or(Path::new("."));
-        let key = v06::cache::key(&(
-            f,
-            &self.aliases,
-            self.hidden,
-            &program.language,
-            (program.language == "0.9.2").then_some(program),
-            &self.typing_key,
-            self.closure_typing.get(name),
-        ))
-        .unwrap_or_default();
+        // A closure is compiled in the typing context of every variable around it. Hashing that
+        // context for each closure would make a function with many closures quadratic, and the
+        // closure is cheap to compile again, so only named functions go through the cache.
+        let cacheable = !name.starts_with("$closure");
+        let key = if cacheable {
+            v06::cache::key(&(
+                f,
+                &self.aliases,
+                self.hidden,
+                &program.language,
+                &self.typing_key,
+                self.closure_typing.get(name),
+            ))
+            .unwrap_or_default()
+        } else {
+            String::new()
+        };
         let base = self.code.len();
-        {
+        if cacheable {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
                 relocate(&mut chunk.code, base, false);
                 self.code.extend(chunk.code);
+                self.closure_log.extend(chunk.closures.keys().cloned());
                 self.closure_defs.extend(chunk.closures);
                 self.closure_typing.extend(chunk.closure_typing);
                 self.hidden = chunk.hidden;
                 return Ok(());
             }
         }
-        let before = self.closure_defs.keys().cloned().collect::<BTreeSet<_>>();
+        let mark = self.closure_log.len();
         let typing_scopes = self.typing_scopes.clone();
         let typing_origin = self.typing_origin.clone();
         if let Some(context) = self.closure_typing.get(name) {
@@ -402,14 +414,17 @@ impl Compiler {
         self.depth = 0;
         self.typing_scopes = typing_scopes;
         self.typing_origin = typing_origin;
-        {
+        if cacheable {
             let mut code = self.code[base..].to_vec();
             relocate(&mut code, base, true);
-            let closures = self
-                .closure_defs
+            let added = &self.closure_log[mark..];
+            let closures = added
                 .iter()
-                .filter(|(n, _)| !before.contains(*n))
-                .map(|(n, f)| (n.clone(), f.clone()))
+                .filter_map(|n| self.closure_defs.get(n).map(|f| (n.clone(), f.clone())))
+                .collect();
+            let closure_typing = added
+                .iter()
+                .filter_map(|n| self.closure_typing.get(n).map(|c| (n.clone(), c.clone())))
                 .collect();
             v06::cache::put(
                 root,
@@ -419,11 +434,33 @@ impl Compiler {
                     code,
                     closures,
                     hidden: self.hidden,
-                    closure_typing: self.closure_typing.clone(),
+                    closure_typing,
                 },
             );
         }
         Ok(())
+    }
+    /// What a closure body needs to know about the variables around it: the global layer, plus
+    /// the type of each outer variable the body names. Keeping the whole table for every closure
+    /// would copy it again each time a variable is added after a closure, which makes a function
+    /// with many closures quadratic.
+    fn closure_context(&self, params: &[(String, String)], body: &[Stmt]) -> Vec<crate::v2::Scope> {
+        let mut local = BTreeMap::new();
+        for name in v05::free_names(body, params) {
+            if let Some(entry) = self
+                .typing_scopes
+                .iter()
+                .skip(1)
+                .rev()
+                .find_map(|scope| scope.get(&name))
+            {
+                local.insert(name, entry.clone());
+            }
+        }
+        vec![
+            self.typing_scopes[0].clone(),
+            crate::v2::Scope::from(local),
+        ]
     }
     fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
         let at = &stmt.at;
@@ -842,8 +879,8 @@ impl Compiler {
             ExprKind::Closure(params, ret, body) => {
                 self.hidden += 1;
                 let name = format!("$closure{}", self.hidden);
-                self.closure_typing
-                    .insert(name.clone(), self.typing_scopes.clone());
+                let context = self.closure_context(params, body);
+                self.closure_typing.insert(name.clone(), context);
                 let ty = format!(
                     "fn({})->{ret}",
                     params
@@ -852,6 +889,7 @@ impl Compiler {
                         .collect::<Vec<_>>()
                         .join(",")
                 );
+                self.closure_log.push(name.clone());
                 self.closure_defs.insert(
                     name.clone(),
                     Function {

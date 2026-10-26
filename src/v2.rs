@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
+mod persistent;
 mod call_args;
 mod interpolate;
 mod namespacing;
@@ -3816,12 +3817,15 @@ fn load_program_overlay(
                     }
                     error
                 })?;
+                // Computed once: asking the file system per token would let a large
+                // source turn into hundreds of thousands of system calls.
+                let source_name = full
+                    .strip_prefix(&project_root)
+                    .map_err(|_| Error::InvalidPath(full.display().to_string()))?
+                    .to_string_lossy()
+                    .replace('\\', "/");
                 for t in &mut tokens {
-                    t.source = full
-                        .strip_prefix(fs::canonicalize(root)?)
-                        .map_err(|_| Error::InvalidPath(full.display().to_string()))?
-                        .to_string_lossy()
-                        .replace('\\', "/");
+                    t.source = source_name.clone();
                 }
                 tokens
             },
@@ -4977,7 +4981,7 @@ fn check_program(program: &Program) -> Result<()> {
     }
     let mut checker = Checker {
         program,
-        scopes: vec![BTreeMap::new()],
+        scopes: vec![Scope::default()],
         return_ty: None,
         loop_depth: 0,
         bounds: BTreeMap::new(),
@@ -5071,7 +5075,7 @@ fn check_program(program: &Program) -> Result<()> {
                         .map(|(name, value)| (name.clone(), value.clone()))
                         .collect()
                 },
-                BTreeMap::new(),
+                Scope::default(),
             ],
             return_ty: Some(f.ret.clone()),
             loop_depth: 0,
@@ -5144,9 +5148,12 @@ fn guarantees_return(body: &[Stmt]) -> bool {
     })
 }
 
+/// One layer of the type checker's variable table. It is a persistent map, so branching on a
+/// large function (blocks, closures, match arms) shares the table instead of copying it.
+type Scope = persistent::PMap<String, (String, bool)>;
 struct Checker<'a> {
     program: &'a Program,
-    scopes: Vec<BTreeMap<String, (String, bool)>>,
+    scopes: Vec<Scope>,
     return_ty: Option<String>,
     loop_depth: usize,
     bounds: BTreeMap<String, String>,
@@ -5455,7 +5462,7 @@ impl Checker<'_> {
         self.scopes.iter().rev().find_map(|s| s.get(name))
     }
     fn block(&mut self, body: &[Stmt]) -> Result<()> {
-        self.scopes.push(BTreeMap::new());
+        self.scopes.push(Scope::default());
         for stmt in body {
             self.stmt(stmt)?;
         }
@@ -6777,7 +6784,7 @@ impl Checker<'_> {
                         program: self.program,
                         scopes: {
                             let mut scopes = self.scopes.clone();
-                            scopes.push(bindings);
+                            scopes.push(Scope::from(bindings));
                             scopes
                         },
                         return_ty: self.return_ty.clone(),
@@ -6817,7 +6824,7 @@ impl Checker<'_> {
                     bounds: self.bounds.clone(),
                     origin: self.origin.clone(),
                 };
-                scoped.scopes.push(BTreeMap::new());
+                scoped.scopes.push(Scope::default());
                 for stmt in body {
                     scoped.stmt(stmt)?;
                 }
@@ -6844,7 +6851,7 @@ impl Checker<'_> {
                     bounds: self.bounds.clone(),
                     origin: self.origin.clone(),
                 };
-                scoped.scopes.push(BTreeMap::new());
+                scoped.scopes.push(Scope::default());
                 for (name, ty) in params {
                     if scoped
                         .scopes
@@ -7374,7 +7381,7 @@ impl Checker<'_> {
                     return Err(diagnostic(&stmt.at, "range bounds must be Int"));
                 }
                 self.loop_depth += 1;
-                self.scopes.push(BTreeMap::new());
+                self.scopes.push(Scope::default());
                 self.scopes
                     .last_mut()
                     .unwrap()
@@ -7438,7 +7445,7 @@ impl Checker<'_> {
                         &stmt.at,
                         &mut bindings,
                     )?;
-                    self.scopes.push(BTreeMap::new());
+                    self.scopes.push(Scope::default());
                     self.scopes.last_mut().unwrap().extend(bindings);
                     if let Some(guard) = guard {
                         if self.expr(guard)? != "Bool" {

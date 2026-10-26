@@ -13,13 +13,182 @@ struct Owner {
     moved_at: Option<Tok>,
     capture_borrows: BTreeSet<String>,
 }
+/// The variables the ownership analysis knows about, plus their types as the type checker wants
+/// them. Both are persistent maps: branching on a large function (every block, closure and match
+/// arm clones the state) shares the tables instead of copying them. `Owner::ty` never changes
+/// after an owner is inserted, which is what keeps `types` in step with `owners`.
+///
+/// The table also logs which names were touched. Merging a branch back, or leaving a scope, only
+/// has to look at those names instead of every variable of the function. A clone starts with an
+/// empty log; clearing, filtering or replacing the whole table counts as a reset, after which the
+/// caller must fall back to looking at every name.
+#[derive(Default)]
+struct Vars {
+    owners: crate::v2::persistent::PMap<String, Owner>,
+    types: crate::v2::Scope,
+    log: Vec<String>,
+    resets: usize,
+    /// Names of the owners that currently hold a borrow or a capture borrow. The checks that ask
+    /// "is anything borrowing this place?" look at these instead of at every variable.
+    holders: BTreeSet<String>,
+}
+impl Clone for Vars {
+    fn clone(&self) -> Self {
+        Vars {
+            owners: self.owners.clone(),
+            types: self.types.clone(),
+            log: Vec::new(),
+            resets: 0,
+            holders: self.holders.clone(),
+        }
+    }
+}
+fn holds_borrow(owner: &Owner) -> bool {
+    owner.borrow.is_some() || !owner.capture_borrows.is_empty()
+}
+/// A mutable view of one owner; when it goes away the borrow index is brought up to date.
+struct OwnerMut<'a> {
+    owner: &'a mut Owner,
+    holders: &'a mut BTreeSet<String>,
+    name: &'a str,
+}
+impl std::ops::Deref for OwnerMut<'_> {
+    type Target = Owner;
+    fn deref(&self) -> &Owner {
+        self.owner
+    }
+}
+impl std::ops::DerefMut for OwnerMut<'_> {
+    fn deref_mut(&mut self) -> &mut Owner {
+        self.owner
+    }
+}
+impl Drop for OwnerMut<'_> {
+    fn drop(&mut self) {
+        if holds_borrow(self.owner) {
+            if !self.holders.contains(self.name) {
+                self.holders.insert(self.name.to_string());
+            }
+        } else {
+            self.holders.remove(self.name);
+        }
+    }
+}
+/// A position in the change log of a table.
+struct Mark {
+    len: usize,
+    resets: usize,
+}
+impl std::ops::Deref for Vars {
+    type Target = crate::v2::persistent::PMap<String, Owner>;
+    fn deref(&self) -> &Self::Target {
+        &self.owners
+    }
+}
+impl<'a> IntoIterator for &'a Vars {
+    type Item = (&'a String, &'a Owner);
+    type IntoIter = crate::v2::persistent::Iter<'a, String, Owner>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.owners.iter()
+    }
+}
+impl Vars {
+    fn note(&mut self, name: &str) {
+        if self.log.last().map(String::as_str) != Some(name) {
+            self.log.push(name.to_string());
+        }
+    }
+    fn insert(&mut self, name: String, owner: Owner) -> Option<Owner> {
+        self.note(&name);
+        self.types.insert(name.clone(), (owner.ty.clone(), true));
+        if holds_borrow(&owner) {
+            self.holders.insert(name.clone());
+        } else {
+            self.holders.remove(name.as_str());
+        }
+        self.owners.insert(name, owner)
+    }
+    fn remove(&mut self, name: &str) -> Option<Owner> {
+        self.note(name);
+        self.types.remove(name);
+        self.holders.remove(name);
+        self.owners.remove(name)
+    }
+    /// The caller may change flags of the owner, never its `ty`.
+    fn get_mut<'a>(&'a mut self, name: &'a str) -> Option<OwnerMut<'a>> {
+        if !self.owners.contains_key(name) {
+            return None;
+        }
+        self.note(name);
+        let owner = self.owners.get_mut(name)?;
+        Some(OwnerMut {
+            owner,
+            holders: &mut self.holders,
+            name,
+        })
+    }
+    /// The owners that hold a borrow or a capture borrow.
+    fn holders(&self) -> impl Iterator<Item = &Owner> {
+        self.holders.iter().filter_map(|n| self.owners.get(n.as_str()))
+    }
+    fn reindex(&mut self) {
+        self.types = self
+            .owners
+            .iter()
+            .map(|(n, v)| (n.clone(), (v.ty.clone(), true)))
+            .collect();
+        self.holders = self
+            .owners
+            .iter()
+            .filter(|(_, v)| holds_borrow(v))
+            .map(|(n, _)| n.clone())
+            .collect();
+    }
+    fn retain(&mut self, keep: impl FnMut(&String, &mut Owner) -> bool) {
+        self.resets += 1;
+        self.owners.retain(keep);
+        self.reindex();
+    }
+    fn clear(&mut self) {
+        self.resets += 1;
+        self.owners.clear();
+        self.types = Default::default();
+        self.holders.clear();
+    }
+    /// Replaces the whole table (a revert to a checkpoint).
+    fn replace_with(&mut self, other: &Vars) {
+        self.resets += 1;
+        self.owners = other.owners.clone();
+        self.types = other.types.clone();
+        self.holders = other.holders.clone();
+    }
+    fn extend(&mut self, items: impl IntoIterator<Item = (String, Owner)>) {
+        for (name, owner) in items {
+            self.insert(name, owner);
+        }
+    }
+    fn mark(&self) -> Mark {
+        Mark {
+            len: self.log.len(),
+            resets: self.resets,
+        }
+    }
+    /// The names touched since `mark`, or `None` when the whole table was replaced meanwhile.
+    fn changed_since(&self, mark: &Mark) -> Option<BTreeSet<String>> {
+        (self.resets == mark.resets).then(|| self.log[mark.len..].iter().cloned().collect())
+    }
+    /// The names touched since this table was cloned (or created), or `None` after a reset.
+    fn changed(&self) -> Option<BTreeSet<String>> {
+        self.changed_since(&Mark { len: 0, resets: 0 })
+    }
+}
 #[derive(Clone)]
 struct Flow<'a> {
     program: &'a Program,
     bounds: BTreeMap<String, String>,
     origin: PathBuf,
-    vars: BTreeMap<String, Owner>,
-    checkpoints: BTreeMap<String, BTreeMap<String, Owner>>,
+    vars: Vars,
+    checkpoints: BTreeMap<String, Vars>,
 }
 impl Flow<'_> {
     fn place(e: &Expr) -> Option<String> {
@@ -45,7 +214,7 @@ impl Flow<'_> {
                 &[(self.moved_site(place).as_ref(), "value moved here")],
             ));
         }
-        if self.vars.values().any(|v| {
+        if self.vars.holders().any(|v| {
             v.borrow
                 .as_ref()
                 .is_some_and(|(target, m)| *m && Self::overlaps(target, place))
@@ -124,10 +293,7 @@ impl Flow<'_> {
                         .is_none_or(|v| v.shareable && !v.mutable && v.borrow.is_none())
                 })
             }
-            _ => self
-                .checker()
-                .expr(e)
-                .is_ok_and(|t| self.transfer_ty(&t, true)),
+            _ => self.quiet_type(e).is_ok_and(|t| self.transfer_ty(&t, true)),
         }
     }
     fn sendable(&self, e: &Expr) -> bool {
@@ -165,7 +331,7 @@ impl Flow<'_> {
             }
             ExprKind::NamedConstructor(_, fields) => fields.iter().all(|(_, v)| self.sendable(v)),
             ExprKind::Call(target, args) => {
-                let ty = self.checker().expr(e).unwrap_or_default();
+                let ty = self.quiet_type(e).unwrap_or_default();
                 // A borrowed argument cannot end up inside the result (borrowed
                 // return types are not supported), so only owned arguments matter.
                 self.transfer_ty(&ty, false)
@@ -178,20 +344,17 @@ impl Flow<'_> {
                         _ => true,
                     }
             }
-            _ => self
-                .checker()
-                .expr(e)
-                .is_ok_and(|t| self.transfer_ty(&t, false)),
+            _ => self.quiet_type(e).is_ok_and(|t| self.transfer_ty(&t, false)),
         }
+    }
+    /// The type of an expression, for callers that ignore a failure: no spelling hints are built.
+    fn quiet_type(&self, e: &Expr) -> Result<String> {
+        super::super::v11::quietly(|| self.checker().expr(e))
     }
     fn checker(&self) -> Checker<'_> {
         Checker {
             program: self.program,
-            scopes: vec![self
-                .vars
-                .iter()
-                .map(|(n, v)| (n.clone(), (v.ty.clone(), true)))
-                .collect()],
+            scopes: vec![self.vars.types.clone()],
             // Ownership analysis is not the return-type check; a block
             // expression may contain `return`, so accept any return type here.
             return_ty: Some("Unknown".into()),
@@ -202,7 +365,7 @@ impl Flow<'_> {
     }
     /// Where the borrow that currently blocks `n` started, if known.
     fn borrow_site(&self, n: &str) -> Option<Tok> {
-        self.vars.values().find_map(|v| {
+        self.vars.holders().find_map(|v| {
             v.borrow
                 .as_ref()
                 .filter(|(target, _)| Self::overlaps(target, n))
@@ -223,7 +386,7 @@ impl Flow<'_> {
     }
 
     fn borrowed(&self, n: &str) -> bool {
-        self.vars.values().any(|v| {
+        self.vars.holders().any(|v| {
             v.capture_borrows
                 .iter()
                 .any(|target| Self::overlaps(target, n))
@@ -268,7 +431,7 @@ impl Flow<'_> {
                         if self.borrowed(&n) {
                             return Err(diagnostic(&e.at, "cannot capture move while borrowed"));
                         }
-                        if let Some(v) = self.vars.get_mut(&n) {
+                        if let Some(mut v) = self.vars.get_mut(&n) {
                             if v.borrow.is_some() {
                                 return Err(diagnostic(&e.at, "cannot capture move from a borrow"));
                             }
@@ -279,7 +442,7 @@ impl Flow<'_> {
                 } else {
                     let mut nested = self.clone();
                     for n in captured {
-                        if let Some(v) = nested.vars.get_mut(&n) {
+                        if let Some(mut v) = nested.vars.get_mut(&n) {
                             v.borrow = Some((format!("$capture:{n}"), false));
                             v.transferable = false;
                             v.shareable = false;
@@ -314,11 +477,11 @@ impl Flow<'_> {
                             return Err(diagnostic(&e.at, "cannot move a borrowed field"));
                         }
                         let root = place.split('.').next().unwrap();
-                        if let Some(owner) = self.vars.get_mut(root) {
+                        if let Some(mut owner) = self.vars.get_mut(root) {
                             if owner.borrow.is_some() {
                                 return Err(diagnostic(&e.at, "cannot move from a borrow"));
                             }
-                            owner.moved_fields.insert(place);
+                            owner.moved_fields.insert(place.clone());
                         }
                         return Ok(());
                     }
@@ -330,7 +493,7 @@ impl Flow<'_> {
                 if self.borrowed(n) {
                     return Err(diagnostic(&e.at, "cannot move a borrowed owner"));
                 }
-                if let Some(v) = self.vars.get_mut(n) {
+                if let Some(mut v) = self.vars.get_mut(n) {
                     if v.borrow.is_some() {
                         return Err(diagnostic(&e.at, "cannot move a borrowed value"));
                     }
@@ -408,7 +571,7 @@ impl Flow<'_> {
                     }
                     if let ExprKind::Member(base, method) = &target.kind {
                         if let Some(place) = Self::place(base) {
-                            let ty = self.checker().expr(base).unwrap_or_default();
+                            let ty = self.quiet_type(base).unwrap_or_default();
                             let shared = self
                                 .vars
                                 .get(place.split('.').next().unwrap())
@@ -569,7 +732,7 @@ impl Flow<'_> {
                             None
                         };
                         imported.or_else(|| {
-                            self.checker().expr(base).ok().and_then(|ty| {
+                            self.quiet_type(base).ok().and_then(|ty| {
                                 matching_methods(self.program, &ty, method)
                                     .first()
                                     .and_then(|symbol| self.program.functions.get(symbol))
@@ -582,17 +745,11 @@ impl Flow<'_> {
                 let asynchronous = function.is_some_and(|f| f.asynchronous)
                     || (function.is_none()
                         && !matches!(&target.kind,ExprKind::Name(n) if v092::native_borrow(n).is_some())
-                        && self
-                            .checker()
-                            .expr(target)
-                            .ok()
+                        && self.quiet_type(target).ok()
                             .and_then(|t| function_signature(&t))
                             .is_some_and(|(_, ret)| ret.starts_with("Task<")));
                 let send = matches!(&target.kind,ExprKind::Member(_,m) if m=="send");
-                let signature = self
-                    .checker()
-                    .expr(target)
-                    .ok()
+                let signature = self.quiet_type(target).ok()
                     .and_then(|t| function_signature(&t));
                 let mut call_borrows: BTreeMap<String, bool> = BTreeMap::new();
                 let offset = usize::from(
@@ -844,7 +1001,7 @@ impl Flow<'_> {
                         && args.iter().any(|v| !self.sendable(v))
                     {
                         if let ExprKind::Name(n) = &base.kind {
-                            if let Some(v) = self.vars.get_mut(n) {
+                            if let Some(mut v) = self.vars.get_mut(n) {
                                 v.transferable = false;
                             }
                         }
@@ -895,14 +1052,7 @@ impl Flow<'_> {
                 if let Some(tail) = tail {
                     inner.expr(tail)?;
                 }
-                for (n, owner) in &mut self.vars {
-                    if let Some(v) = inner.vars.get(n) {
-                        owner.moved |= v.moved;
-                        owner.moved_fields.extend(v.moved_fields.clone());
-                        owner.transferable &= v.transferable;
-                        owner.shareable &= v.shareable;
-                    }
-                }
+                self.merge_branch(&inner);
             }
             ExprKind::Match(v, arms) => {
                 let ty = self.checker().expr(v)?;
@@ -937,14 +1087,7 @@ impl Flow<'_> {
                         branch.expr(g)?;
                     }
                     branch.expr(a)?;
-                    for (n, owner) in &mut self.vars {
-                        if let Some(v) = branch.vars.get(n) {
-                            owner.moved |= v.moved;
-                            owner.moved_fields.extend(v.moved_fields.clone());
-                            owner.transferable &= v.transferable;
-                            owner.shareable &= v.shareable;
-                        }
-                    }
+                    self.merge_branch(&branch);
                 }
             }
             ExprKind::NamedConstructor(_, fields) => {
@@ -954,7 +1097,7 @@ impl Flow<'_> {
                     {
                         return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
                     }
-                    if self.checker().expr(v).is_ok_and(|t| t.starts_with('&'))
+                    if self.quiet_type(v).is_ok_and(|t| t.starts_with('&'))
                     {
                         return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
                     }
@@ -965,6 +1108,61 @@ impl Flow<'_> {
         }
         Ok(())
     }
+    /// Whether, since `mark`, an owner from before the loop (`old`) was moved or had more fields
+    /// moved. Only names touched since the mark can have changed.
+    fn moved_since(&self, old: &Vars, mark: &Mark) -> bool {
+        let moved = |n: &String, v: &Owner| {
+            (v.moved && !old.get(n).is_some_and(|v| v.moved))
+                || old
+                    .get(n)
+                    .is_some_and(|old| !v.moved_fields.is_subset(&old.moved_fields))
+        };
+        match self.vars.changed_since(mark) {
+            Some(names) => names
+                .iter()
+                .any(|n| self.vars.get(n).is_some_and(|v| moved(n, v))),
+            None => self.vars.iter().any(|(n, v)| moved(n, v)),
+        }
+    }
+    /// The names a branch may have changed: what it logged, or every name after a reset.
+    fn touched_by(&self, branch: &Flow<'_>) -> Vec<String> {
+        match branch.vars.changed() {
+            Some(names) => names.into_iter().collect(),
+            None => self.vars.keys().cloned().collect(),
+        }
+    }
+    /// Merges what a branch did to the outer owners back (an `if` without `else`, a block, a
+    /// match arm). Only names the branch touched can differ from `self`.
+    fn merge_branch(&mut self, branch: &Flow<'_>) {
+        for n in self.touched_by(branch) {
+            if let (Some(v), Some(mut owner)) = (branch.vars.get(&n), self.vars.get_mut(&n)) {
+                owner.moved |= v.moved;
+                owner.moved_fields.extend(v.moved_fields.iter().cloned());
+                owner.transferable &= v.transferable;
+                owner.shareable &= v.shareable;
+            }
+        }
+    }
+    /// Merges the two sides of an `if`/`else`. A name neither side touched keeps its state.
+    fn merge_either(&mut self, left: &Flow<'_>, right: &Flow<'_>) {
+        let mut names = self.touched_by(left);
+        names.extend(self.touched_by(right));
+        names.sort();
+        names.dedup();
+        for n in names {
+            let Some(mut v) = self.vars.get_mut(&n) else { continue };
+            let (l, r) = (left.vars.get(&n), right.vars.get(&n));
+            v.moved = l.is_some_and(|v| v.moved) || r.is_some_and(|v| v.moved);
+            if let Some(l) = l {
+                v.moved_fields.extend(l.moved_fields.iter().cloned());
+            }
+            if let Some(r) = r {
+                v.moved_fields.extend(r.moved_fields.iter().cloned());
+            }
+            v.transferable &= l.is_none_or(|v| v.transferable) && r.is_none_or(|v| v.transferable);
+            v.shareable &= l.is_none_or(|v| v.shareable) && r.is_none_or(|v| v.shareable);
+        }
+    }
     fn scope(&mut self, body: &[Stmt]) -> Result<()> {
         let before = self.vars.clone();
         let shadowed = body
@@ -974,9 +1172,19 @@ impl Flow<'_> {
                 _ => None,
             })
             .collect::<BTreeSet<_>>();
-        let names = self.vars.keys().cloned().collect::<BTreeSet<_>>();
+        let mark = self.vars.mark();
         self.body(body)?;
-        self.vars.retain(|n, _| names.contains(n));
+        // Names the body introduced leave with the scope.
+        match self.vars.changed_since(&mark) {
+            Some(changed) => {
+                for n in changed {
+                    if !before.contains_key(n.as_str()) {
+                        self.vars.remove(&n);
+                    }
+                }
+            }
+            None => self.vars.retain(|n, _| before.contains_key(n.as_str())),
+        }
         for n in shadowed {
             if let Some(v) = before.get(&n) {
                 self.vars.insert(n, v.clone());
@@ -1132,7 +1340,7 @@ impl Flow<'_> {
                     self.expr(a)?;
                     self.expr(b)?;
                     if let ExprKind::Name(n) = &a.kind {
-                        if let Some(owner) = self.vars.get_mut(n) {
+                        if let Some(mut owner) = self.vars.get_mut(n) {
                             owner.transferable = transferable;
                             owner.shareable = shareable;
                             owner.moved = false;
@@ -1165,7 +1373,7 @@ impl Flow<'_> {
                             ));
                         }
                     }
-                    if self.checker().expr(e).is_ok_and(|t| t.starts_with("fn("))
+                    if self.quiet_type(e).is_ok_and(|t| t.starts_with("fn("))
                         && !self.sendable(e)
                     {
                         return Err(diagnostic(&e.at,"closure containing resources or borrows cannot escape; capture a transferable snapshot"));
@@ -1192,31 +1400,14 @@ impl Flow<'_> {
                     left.scope(a)?;
                     let mut right = self.clone();
                     right.scope(b)?;
-                    for (n, v) in &mut self.vars {
-                        v.moved = left.vars.get(n).is_some_and(|v| v.moved)
-                            || right.vars.get(n).is_some_and(|v| v.moved);
-                        if let Some(left) = left.vars.get(n) {
-                            v.moved_fields.extend(left.moved_fields.clone());
-                        }
-                        if let Some(right) = right.vars.get(n) {
-                            v.moved_fields.extend(right.moved_fields.clone());
-                        }
-                        v.transferable &= left.vars.get(n).is_none_or(|v| v.transferable)
-                            && right.vars.get(n).is_none_or(|v| v.transferable);
-                        v.shareable &= left.vars.get(n).is_none_or(|v| v.shareable)
-                            && right.vars.get(n).is_none_or(|v| v.shareable);
-                    }
+                    self.merge_either(&left, &right);
                 }
                 StmtKind::While(e, b) => {
                     self.expr(e)?;
                     let old = self.vars.clone();
+                    let mark = self.vars.mark();
                     self.scope(b)?;
-                    if self.vars.iter().any(|(n, v)| {
-                        (v.moved && !old.get(n).is_some_and(|v| v.moved))
-                            || old
-                                .get(n)
-                                .is_some_and(|old| !v.moved_fields.is_subset(&old.moved_fields))
-                    }) {
+                    if self.moved_since(&old, &mark) {
                         return Err(diagnostic(
                             &s.at,
                             "moving an outer owner inside a repeated loop is not allowed",
@@ -1225,6 +1416,7 @@ impl Flow<'_> {
                 }
                 StmtKind::For(n, a, b, stmts) => {
                     let old = self.vars.clone();
+                    let mark = self.vars.mark();
                     self.expr(a)?;
                     self.expr(b)?;
                     self.vars.insert(
@@ -1244,12 +1436,7 @@ impl Flow<'_> {
                     );
                     self.scope(stmts)?;
                     self.vars.remove(n);
-                    if self.vars.iter().any(|(n, v)| {
-                        (v.moved && !old.get(n).is_some_and(|v| v.moved))
-                            || old
-                                .get(n)
-                                .is_some_and(|old| !v.moved_fields.is_subset(&old.moved_fields))
-                    }) {
+                    if self.moved_since(&old, &mark) {
                         return Err(diagnostic(
                             &s.at,
                             "moving an outer owner inside a repeated loop is not allowed",
@@ -1293,12 +1480,12 @@ impl Flow<'_> {
                         }
                         branch.scope(std::slice::from_ref(b))?;
                         for (n, v) in &branch.vars {
-                            if let Some(owner) = self.vars.get_mut(n) {
+                            if let Some(mut owner) = self.vars.get_mut(n) {
                                 owner.transferable &= v.transferable;
                                 owner.shareable &= v.shareable;
                             }
                             if v.moved {
-                                if let Some(v) = self.vars.get_mut(n) {
+                                if let Some(mut v) = self.vars.get_mut(n) {
                                     v.moved = true;
                                 }
                             }
@@ -1325,7 +1512,7 @@ impl Flow<'_> {
                                 (n.clone(), v)
                             })
                             .collect::<BTreeMap<_, _>>();
-                        self.vars = vars.clone();
+                        self.vars.replace_with(vars);
                         self.vars.extend(invalidated);
                     }
                 }
@@ -1343,7 +1530,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
         program,
         bounds: BTreeMap::new(),
         origin: program.root_origin.clone(),
-        vars: BTreeMap::new(),
+        vars: Vars::default(),
         checkpoints: BTreeMap::new(),
     };
     flow.body(&program.stmts)?;

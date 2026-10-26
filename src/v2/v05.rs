@@ -1002,10 +1002,13 @@ pub(super) fn names(body: &[Stmt]) -> BTreeSet<String> {
     names
 }
 pub(super) fn free_names(body: &[Stmt], params: &[(String, String)]) -> BTreeSet<String> {
-    fn expr(e: &Expr, locals: &BTreeSet<String>, out: &mut BTreeSet<String>) {
+    // The names bound so far. Every block, closure and match arm starts from a copy of it, so it
+    // is a persistent set: copying a plain set made a function with many variables quadratic.
+    type Locals = crate::v2::persistent::PMap<String, ()>;
+    fn expr(e: &Expr, locals: &Locals, out: &mut BTreeSet<String>) {
         match &e.kind {
             ExprKind::Name(n) => {
-                if !locals.contains(n) {
+                if !locals.contains_key(n.as_str()) {
                     out.insert(n.clone());
                 }
             }
@@ -1024,7 +1027,7 @@ pub(super) fn free_names(body: &[Stmt], params: &[(String, String)]) -> BTreeSet
             }
             ExprKind::Closure(params, _, body) => {
                 let mut local = locals.clone();
-                local.extend(params.iter().map(|(n, _)| n.clone()));
+                local.extend(params.iter().map(|(n, _)| (n.clone(), ())));
                 stmts(body, &mut local, out);
             }
             ExprKind::Block(body, tail) => {
@@ -1053,10 +1056,10 @@ pub(super) fn free_names(body: &[Stmt], params: &[(String, String)]) -> BTreeSet
             _ => {}
         }
     }
-    fn pattern(p: &Pattern, locals: &mut BTreeSet<String>) {
+    fn pattern(p: &Pattern, locals: &mut Locals) {
         match p {
             Pattern::Bind(n) => {
-                locals.insert(n.clone());
+                locals.insert(n.clone(), ());
             }
             Pattern::Variant(_, p) | Pattern::List(p) => {
                 for p in p {
@@ -1071,12 +1074,12 @@ pub(super) fn free_names(body: &[Stmt], params: &[(String, String)]) -> BTreeSet
             _ => {}
         }
     }
-    fn stmts(body: &[Stmt], locals: &mut BTreeSet<String>, out: &mut BTreeSet<String>) {
+    fn stmts(body: &[Stmt], locals: &mut Locals, out: &mut BTreeSet<String>) {
         for s in body {
             match &s.kind {
                 StmtKind::Let(n, _, _, e) | StmtKind::Using(n, e) => {
                     expr(e, locals, out);
-                    locals.insert(n.clone());
+                    locals.insert(n.clone(), ());
                 }
                 StmtKind::Assign(a, _, b) => {
                     expr(a, locals, out);
@@ -1101,7 +1104,7 @@ pub(super) fn free_names(body: &[Stmt], params: &[(String, String)]) -> BTreeSet
                     expr(a, locals, out);
                     expr(b, locals, out);
                     let mut local = locals.clone();
-                    local.insert(n.clone());
+                    local.insert(n.clone(), ());
                     stmts(body, &mut local, out);
                 }
                 StmtKind::Match(v, arms) => {
@@ -1120,7 +1123,7 @@ pub(super) fn free_names(body: &[Stmt], params: &[(String, String)]) -> BTreeSet
         }
     }
     let mut names = BTreeSet::new();
-    let mut locals = params.iter().map(|(n, _)| n.clone()).collect();
+    let mut locals: Locals = params.iter().map(|(n, _)| (n.clone(), ())).collect();
     stmts(body, &mut locals, &mut names);
     names
 }
@@ -1152,7 +1155,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
             {
                 let checker = Checker {
                     program,
-                    scopes: vec![BTreeMap::new()],
+                    scopes: vec![crate::v2::Scope::default()],
                     return_ty: None,
                     loop_depth: 0,
                     bounds: f
