@@ -11,6 +11,8 @@ fn compiled_tcp_records_once_replays_disconnected_and_live_reuses_pending_receip
     for live in [false, true] {
         let root =
             std::env::temp_dir().join(format!("rewind-v1923-tcp-{}-{live}", std::process::id()));
+        // A directory left by an earlier process with the same id must not break this run.
+        let _ = fs::remove_dir_all(&root);
         fs::create_dir(&root).unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();

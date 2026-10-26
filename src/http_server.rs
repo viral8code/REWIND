@@ -384,15 +384,6 @@ impl Host {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn submit(
-        &mut self,
-        id: usize,
-        operation: Operation,
-        timeout: u64,
-    ) -> std::result::Result<(), &'static str> {
-        self.submit_with_tls(id, operation, timeout, None, None)
-    }
     fn submit_with_tls(
         &mut self,
         id: usize,

@@ -11,6 +11,8 @@ fn documented_route_publishes_only_selected_branch() {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let script = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/route.rw");
     let output = Command::new(env!("CARGO_BIN_EXE_rewind"))
@@ -39,6 +41,8 @@ fn list_handle_and_branch_state_restore() {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let script = root.join("program.rw");
     fs::write(
@@ -83,6 +87,8 @@ fn runtime_budget_and_file_handle_reads_work_in_scripts() {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let script = root.join("program.rw");
     fs::write(

@@ -215,9 +215,11 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for PMap<K, V> {
     }
 }
 impl<K, V> PMap<K, V> {
+    #[cfg(test)]
     pub(in crate::v2) fn len(&self) -> usize {
         size(&self.root)
     }
+    #[cfg(test)]
     pub(in crate::v2) fn is_empty(&self) -> bool {
         self.root.is_none()
     }

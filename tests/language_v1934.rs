@@ -2,6 +2,8 @@ use std::{fs, process::Command};
 #[test]
 fn real_http_client_cache_source_free_keepalive_eviction_and_replay() {
     let root = std::env::temp_dir().join(format!("rewind-v1934-http-{}", std::process::id()));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let out = Command::new(if cfg!(windows) { "python" } else { "python3" })

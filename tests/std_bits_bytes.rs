@@ -3,6 +3,8 @@ use std::{fs, process::Command};
 #[test]
 fn std_bits_bytes_check_values_and_errors() {
     let root = std::env::temp_dir().join(format!("rewind-std-bits-bytes-{}", std::process::id()));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let file = root.join("main.rw");
     // Each line of output is one checked result. Errors print their StdError code.

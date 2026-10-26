@@ -26,6 +26,8 @@ fn secret_aliases_typed_pg_rows_and_source_free_replay_do_not_reconnect() {
     }
     let Some(dsn) = dsn else { return };
     let root = std::env::temp_dir().join(format!("rewind-pg-cli-{}", std::process::id()));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     fs::write(
         root.join("main.rw"),

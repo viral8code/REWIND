@@ -13,6 +13,8 @@ fn project(source: &str) -> PathBuf {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     fs::write(root.join("main.rw"), source).unwrap();
     fs::write(

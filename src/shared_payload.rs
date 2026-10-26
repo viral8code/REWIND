@@ -254,6 +254,7 @@ impl Owners {
             self.rest.get_or_insert_with(Default::default).push(x);
         }
     }
+    #[cfg(test)]
     fn len(&self) -> usize {
         usize::from(self.first.is_some()) + self.rest.as_ref().map_or(0, |r| r.len())
     }

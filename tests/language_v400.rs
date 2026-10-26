@@ -11,6 +11,8 @@ fn project(language: &str, source: &str) -> PathBuf {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     fs::write(root.join("main.rw"), source).unwrap();
     fs::write(
@@ -39,6 +41,8 @@ fn run_standalone(source: &str) -> Output {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     fs::write(root.join("main.rw"), source).unwrap();
     call(&root, &["run", "main.rw"])
@@ -167,6 +171,8 @@ fn standalone_files_never_run_as_an_older_language_in_a_released_compiler() {
         "rewind-v400-old-standalone-{}",
         std::process::id()
     ));
+    let _ = fs::remove_dir_all(&root);
+    // A directory left by an earlier process with the same id must not break this run.
     let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     // A file without `fn main` used to run as language 2.0.0 (`auto`).

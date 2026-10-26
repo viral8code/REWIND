@@ -22,6 +22,8 @@ fn main() -> Int {\n\
 fn root(name: &str) -> std::path::PathBuf {
     let root = std::env::temp_dir().join(format!("rewind-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     root
 }

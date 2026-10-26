@@ -3,6 +3,8 @@ use std::{fs, path::Path, process::Command};
 #[test]
 fn authenticated_server_records_no_credentials_and_replays_without_a_peer() {
     let root = std::env::temp_dir().join(format!("rewind-v1930-{}", std::process::id()));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     let repo = Path::new(env!("CARGO_MANIFEST_DIR"));
     let result = Command::new(if cfg!(windows) { "python" } else { "python3" })
         .arg(repo.join("scripts/smoke-http-server-auth-sdk.py"))

@@ -27,6 +27,8 @@ fn connect(port: u16) -> TcpStream {
 fn source_free_http_server_has_one_reply_and_disconnected_replay_or_live_reclamation() {
     for mode in ["debug", "compact", "live"] {
         let root = std::env::temp_dir().join(format!("rewind-v1925-{mode}-{}", std::process::id()));
+        // A directory left by an earlier process with the same id must not break this run.
+        let _ = fs::remove_dir_all(&root);
         fs::create_dir(&root).unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();

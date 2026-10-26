@@ -755,12 +755,6 @@ impl DebugEngine {
     pub fn current(&self) -> &Json {
         &self.current
     }
-    pub fn trace(&self) -> &Json {
-        &self.trace
-    }
-    pub fn selected_task(&self) -> Option<u64> {
-        self.selected_task
-    }
     pub fn state_available(&self) -> bool {
         self.indexed || self.parsed.is_some()
     }

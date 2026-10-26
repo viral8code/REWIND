@@ -26,6 +26,8 @@ fn run(imports: &str, body: &str) -> (i32, String) {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let source = format!("{imports}{HELPERS}fn main() -> Int {{\n{body}\n    return 0;\n}}\n");
     fs::write(root.join("main.rw"), source).unwrap();

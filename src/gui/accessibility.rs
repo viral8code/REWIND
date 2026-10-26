@@ -26,8 +26,6 @@ pub(super) struct Node {
     pub y: i32,
     pub width: i32,
     pub height: i32,
-    pub cursor: usize,
-    pub anchor: usize,
 }
 #[derive(Default)]
 struct Published {
@@ -96,8 +94,6 @@ impl Tree {
                 y: 0,
                 width: frame.width,
                 height: frame.height,
-                cursor: 0,
-                anchor: 0,
             });
         };
         let item = frame.items.iter().find(|i| i.id == id)?;
@@ -132,8 +128,6 @@ impl Tree {
             y: item.y,
             width: item.width,
             height: item.height,
-            cursor: item.cursor,
-            anchor: item.anchor,
         })
     }
     pub fn default_action(&self, id: &str) -> Option<Event> {

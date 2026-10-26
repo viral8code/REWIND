@@ -2,6 +2,8 @@ use std::{fs, process::Command};
 #[test]
 fn source_free_live_gui_reuses_held_input_cancels_without_consuming_and_releases_observations() {
     let root = std::env::temp_dir().join(format!("rewind-v1922-gui-{}", std::process::id()));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     fs::write(
         root.join("main.rw"),

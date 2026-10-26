@@ -3,6 +3,8 @@ use std::{fs, process::Command};
 #[test]
 fn std_crypto_limits_inputs_over_one_mebibyte() {
     let root = std::env::temp_dir().join(format!("rewind-std-crypto-{}", std::process::id()));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let file = root.join("main.rw");
     // The input is 2^20 + 1 bytes, one byte over the 1 MiB limit. It is built by doubling in the
