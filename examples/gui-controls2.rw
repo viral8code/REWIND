@@ -104,8 +104,8 @@ fn main()->Int {
                     }
                 }
             }
-            let record=binding.value(&model);
-            Out.println(record.name+"|"+record.color+"|"+record.day);
+            let profile=binding.value(&model);
+            Out.println(profile.name+"|"+profile.color+"|"+profile.day);
             show(&page,&header,&colors,&days,editing);
         }
     }

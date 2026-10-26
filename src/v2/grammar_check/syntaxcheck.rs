@@ -175,7 +175,7 @@ pub fn parser_verdict(entry: Entry, texts: &[String]) -> (Result<(), String>, bo
         toks.push(Tok { source: String::new(), text: "{".into(), line: 1, col: texts.len() + 1 });
     }
     toks.push(Tok { source: String::new(), text: "<eof>".into(), line: 1, col: texts.len() + 2 });
-    let mut p = Parser { toks, pos: 0, type_depth: 0, cond_start: None, splits: Vec::new() };
+    let mut p = Parser { toks, pos: 0, type_depth: 0, cond_start: None, splits: Vec::new(), reserved: Vec::new() };
     let r = catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
         match entry {
             Entry::Type => p.ty().map(|_| ()),

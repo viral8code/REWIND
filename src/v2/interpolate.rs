@@ -163,6 +163,7 @@ fn interpolate(text: &str, at: &Tok) -> Result<Expr> {
                 type_depth: 0,
                 cond_start: None,
                 splits: Vec::new(),
+                reserved: Vec::new(),
             };
             let inner = parser.expr(0)?;
             if !parser.is("<eof>") {

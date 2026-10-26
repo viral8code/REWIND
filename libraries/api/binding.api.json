@@ -3304,25 +3304,6 @@
       ],
       "return": "Unit"
     },
-    "fn:revert": {
-      "async": false,
-      "cost": "O(1); deprecated: use reset.",
-      "defaults": [],
-      "effects": [],
-      "generics": [
-        [
-          "R",
-          "Share"
-        ]
-      ],
-      "names": [
-        "b"
-      ],
-      "parameters": [
-        "&mut Binding<R>"
-      ],
-      "return": "Unit"
-    },
     "fn:stdListOf": {
       "async": false,
       "defaults": [],

@@ -1831,10 +1831,10 @@ test fn schemas_apply_explicit_unknown_policies_and_validate_declarations()->Uni
     let fields=List<schema.Field>();
     let known=transformTake(schema.field("known",schema.boolean(),false,None));fields.add(known);
     let keep=transformTake(schema.object(&fields,SchemaUnknown::Keep));
-    let drop=transformTake(schema.object(&fields,SchemaUnknown::Drop));
+    let dropped=transformTake(schema.object(&fields,SchemaUnknown::Drop));
     let input=transformTake(json.parse("{\"known\":true,\"extra\":7}"));
     assert_eq(json.get(transformTake(schema.validate(keep,input)),"extra"),Some(Json::Int(7)));
-    assert_eq(json.get(transformTake(schema.validate(drop,input)),"extra"),None);
+    assert_eq(json.get(transformTake(schema.validate(dropped,input)),"extra"),None);
     fields.add(known);
     match schema.object(&fields,SchemaUnknown::Keep) {Err(e)=>{assert_eq(e.code,"DuplicateField");},Ok(_)=>{panic("duplicate declaration");}}
     let integer=transformTake(schema.integer(0,9));
@@ -3817,9 +3817,9 @@ test fn gui_combo_keyboard_stops_at_edges() effects {} {
     assert_eq(end.changed,false);
     let past=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));
     assert_eq(past.changed,false);
-    let commit=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Enter",0,0));
-    assert_eq(commit.changed,true);
-    assert_eq(commit.index,Some(2));
+    let committed=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(committed.changed,true);
+    assert_eq(committed.index,Some(2));
     assert_eq(guiCombo.isOpen(&combo),false);
 }
 
@@ -4047,7 +4047,7 @@ test fn binding_core_edits_validates_and_tracks_dirty_state()->Unit effects {} {
     assert(!binding.isDirty(&b));
     assert_eq(binding.edit(&mut b,"name",""),Ok(false));
     assert_eq(binding.text(&b,"name"),Ok(""));
-    binding.revert(&mut b);
+    binding.reset(&mut b);
     let reverted=binding.value(&b);
     assert_eq(reverted.name,"Bob");
     assert_eq(binding.text(&b,"name"),Ok("Bob"));
@@ -4189,22 +4189,16 @@ test fn text_from_code_points_rejects_invalid_values()->Unit effects {} {
     assert_eq(text.fromCodePoints(&pair),Err(StdError("Surrogate",0)));
 }
 
-test fn binding_reset_matches_revert_and_pairs_with_accept()->Unit effects {} {
+test fn binding_reset_discards_edits_and_pairs_with_accept()->Unit effects {} {
     var a=binding.create(BindPerson("Ann",30));
-    var b=binding.create(BindPerson("Ann",30));
     assert_eq(binding.bindLens(&mut a,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
-    assert_eq(binding.bindLens(&mut b,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
     assert_eq(binding.edit(&mut a,"name","Bob"),Ok(true));
-    assert_eq(binding.edit(&mut b,"name","Bob"),Ok(true));
     assert(binding.isDirty(&a));
     binding.reset(&mut a);
-    binding.revert(&mut b);
     assert(!binding.isDirty(&a));
     assert_eq(binding.text(&a,"name"),Ok("Ann"));
-    assert_eq(binding.text(&a,"name"),binding.text(&b,"name"));
-    assert_eq(binding.version(&a),binding.version(&b));
-    let va=binding.value(&a);let vb=binding.value(&b);
-    assert_eq(va.name,"Ann");assert_eq(vb.name,"Ann");
+    let va=binding.value(&a);
+    assert_eq(va.name,"Ann");
     assert_eq(binding.edit(&mut a,"name","Cy"),Ok(true));
     binding.accept(&mut a);
     assert_eq(binding.edit(&mut a,"name","Di"),Ok(true));

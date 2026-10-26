@@ -1090,6 +1090,9 @@ struct Program {
     /// checked once every module's traits are known.
     #[serde(default)]
     bound_sites: Vec<(Tok, String)>,
+    /// Keywords of language 4.0.0 used as names, in source order.
+    #[serde(default)]
+    reserved_uses: Vec<Tok>,
     #[serde(default)]
     aliases: BTreeMap<String, AliasDef>,
     #[serde(default, with = "v05::pairs")]
@@ -1120,6 +1123,21 @@ struct Program {
     module_effects: BTreeMap<PathBuf, BTreeSet<String>>,
 }
 
+/// Words that language 4.0.0 reserves: they cannot be used as names.
+/// `None` stays usable as a variant name; `value`, `capture` and the other
+/// qualifiers stay contextual.
+fn is_hard_keyword(word: &str) -> bool {
+    matches!(
+        word,
+        "fn" | "let" | "var" | "const" | "struct" | "record" | "enum" | "trait" | "impl"
+            | "type" | "import" | "as" | "pub" | "private" | "async" | "mut"
+            | "if" | "else" | "match" | "while" | "for" | "in" | "break" | "continue"
+            | "return" | "defer" | "using"
+            | "commit" | "revert" | "resume" | "drop" | "publish" | "branch" | "runtime"
+            | "external" | "begin"
+            | "move" | "spawn" | "await" | "true" | "false" | "null"
+    )
+}
 struct Parser {
     toks: Vec<Tok>,
     pos: usize,
@@ -1129,6 +1147,9 @@ struct Parser {
     /// Positions of `>=` tokens that `eat(">")` rewrote to `=`, so a
     /// backtrack can restore them.
     splits: Vec<usize>,
+    /// Keywords of language 4.0.0 that were used as names. Whether this is an
+    /// error depends on the project language, so it is checked later.
+    reserved: Vec<Tok>,
 }
 impl Parser {
     fn current(&self) -> &Tok {
@@ -1139,12 +1160,12 @@ impl Parser {
             return Ok(None);
         }
         if !self.is("{") {
-            return Ok(Some(BTreeSet::from([self.name()?])));
+            return Ok(Some(BTreeSet::from([self.name_unreserved()?])));
         }
         self.need("{")?;
         let mut effects = BTreeSet::new();
         while !self.eat("}") {
-            effects.insert(self.name()?);
+            effects.insert(self.name_unreserved()?);
             if !self.is("}") {
                 self.need(",")?;
             }
@@ -1228,6 +1249,14 @@ impl Parser {
         }
     }
     fn name(&mut self) -> Result<String> {
+        self.name_with(true)
+    }
+    /// A name in a position where words that are keywords elsewhere are plain
+    /// names: import paths, effect sets, capture sets.
+    fn name_unreserved(&mut self) -> Result<String> {
+        self.name_with(false)
+    }
+    fn name_with(&mut self, record: bool) -> Result<String> {
         let t = self.current().clone();
         if t.text == "begin" {
             return Err(diagnostic(
@@ -1241,6 +1270,9 @@ impl Parser {
             .is_some_and(|c| c.is_alphabetic() || c == '_')
             && t.text != "<eof>"
         {
+            if record && is_hard_keyword(&t.text) {
+                self.reserved.push(t.clone());
+            }
             self.pos += 1;
             Ok(t.text)
         } else {
@@ -1436,7 +1468,7 @@ impl Parser {
                 self.need("{")?;
                 let mut declared = BTreeSet::new();
                 while !self.eat("}") {
-                    declared.insert(self.name()?);
+                    declared.insert(self.name_unreserved()?);
                     if !self.is("}") {
                         self.need(",")?;
                     }
@@ -1449,7 +1481,7 @@ impl Parser {
                 if public {
                     return Err(diagnostic(self.current(), "import cannot be public"));
                 }
-                let mut path = self.name()?;
+                let mut path = self.name_unreserved()?;
                 let mut selected = Vec::new();
                 while self.eat(".") {
                     if self.eat("{") {
@@ -1468,7 +1500,7 @@ impl Parser {
                         break;
                     }
                     path.push('/');
-                    path.push_str(&self.name()?);
+                    path.push_str(&self.name_unreserved()?);
                 }
                 if self.eat("::") {
                     self.need("{")?;
@@ -1977,6 +2009,7 @@ impl Parser {
                 Self::push_stmt(&mut p.stmts, stmt);
             }
         }
+        p.reserved_uses = std::mem::take(&mut self.reserved);
         Ok(p)
     }
     fn push_stmt(body: &mut Vec<Stmt>, stmt: Stmt) {
@@ -2986,10 +3019,13 @@ impl Parser {
                 kind: ExprKind::Value(Value::Option(None)),
                 at: at.clone(),
             },
-            "null" => Expr {
-                kind: ExprKind::Value(Value::Null),
-                at: at.clone(),
-            },
+            "null" => {
+                self.reserved.push(at.clone());
+                Expr {
+                    kind: ExprKind::Value(Value::Null),
+                    at: at.clone(),
+                }
+            }
             "{" if self.toks.get(self.pos + 1).is_some_and(|t| t.text == ":") && !self.is("}") => {
                 self.map_literal(&at)?
             }
@@ -3153,6 +3189,9 @@ impl Parser {
                 .next()
                 .is_some_and(|c| c.is_alphabetic() || c == '_') =>
             {
+                if is_hard_keyword(&at.text) {
+                    self.reserved.push(at.clone());
+                }
                 let mut name = at.text.clone();
                 let saved = self.pos;
                 let splits_saved = self.splits.len();
@@ -4015,6 +4054,7 @@ fn load_program_overlay(
             type_depth: 0,
             cond_start: None,
             splits: Vec::new(),
+            reserved: Vec::new(),
         };
         let parsed = parser.program()?;
         v100::syntax_budget(&parsed)?;
@@ -4288,6 +4328,7 @@ fn load_program_overlay(
                     }
                 }
                 program.bound_sites.extend(imported.bound_sites.clone());
+                program.reserved_uses.extend(imported.reserved_uses.clone());
                 for (name, s) in imported.structs {
                     if program.structs.insert(name.clone(), s).is_some() {
                         return Err(diagnostic(
@@ -4409,6 +4450,7 @@ fn load_program_overlay(
         }
     }
     program.bound_sites.extend(own.bound_sites.clone());
+    program.reserved_uses.extend(own.reserved_uses.clone());
     for (name, s) in own.structs {
         if program.structs.insert(name.clone(), s).is_some() {
             return Err(Error::InvalidOperation(format!("duplicate struct {name}")));
@@ -5610,6 +5652,7 @@ pub fn format_source(source: &str) -> Result<String> {
         type_depth: 0,
         cond_start: None,
         splits: Vec::new(),
+        reserved: Vec::new(),
     };
     parser.program()?;
     let mut out = String::new();
@@ -5974,6 +6017,21 @@ fn check_program(program: &Program) -> Result<()> {
         f.body.clear();
     }
     let interface_key = v06::cache::key(&(interfaces, &globals)).unwrap_or_default();
+    if language_at_least(&program.language, "4.0.0") {
+        if let Some(at) = program.reserved_uses.first() {
+            let word = &at.text;
+            return Err(diagnostic(
+                at,
+                if word == "null" {
+                    "ReservedWord: the null literal was removed in language 4.0.0; use an Option (None) to express a missing value".to_string()
+                } else {
+                    format!(
+                        "ReservedWord: '{word}' is a keyword since language 4.0.0 and cannot be used as a name; rename it (for example {word}Value)"
+                    )
+                },
+            ));
+        }
+    }
     if language_at_least(&program.language, "3.0.0") {
         for (at, name) in &program.bound_sites {
             if !matches!(

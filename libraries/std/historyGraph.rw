@@ -72,25 +72,25 @@ pub fn addSnapshot<T:Send>(graph:&mut HistoryGraph<T>,name:String,parents:&List<
 }
 
 // @api setHead cost Creating a version and moving a branch head are independent operations.
-pub fn setHead<T:Send>(graph:&mut HistoryGraph<T>,branch:String,version:String)->Result<Unit,GraphError> effects {} {
-    if !validName(branch) {return Err(GraphError("InvalidName",branch));}
+pub fn setHead<T:Send>(graph:&mut HistoryGraph<T>,branchName:String,version:String)->Result<Unit,GraphError> effects {} {
+    if !validName(branchName) {return Err(GraphError("InvalidName",branchName));}
     match graph.versions.get(version) {Some(_)=>{},None=>{return Err(GraphError("UnknownVersion",version));}}
-    match graph.heads.get(branch) {
+    match graph.heads.get(branchName) {
         Some(_)=>{},
-        None=>{if graph.heads.len()>=graph.capacity {return Err(GraphError("BranchCapacity",branch));}}
+        None=>{if graph.heads.len()>=graph.capacity {return Err(GraphError("BranchCapacity",branchName));}}
     }
-    graph.heads.set(branch,version);
+    graph.heads.set(branchName,version);
     return Ok(());
 }
 
-pub fn head<T:Send>(graph:&HistoryGraph<T>,branch:String)->Option<Version<T>> effects {} {
-    match graph.heads.get(branch) {Some(version)=>{return graph.versions.get(version);},None=>{return None;}}
+pub fn head<T:Send>(graph:&HistoryGraph<T>,branchName:String)->Option<Version<T>> effects {} {
+    match graph.heads.get(branchName) {Some(version)=>{return graph.versions.get(version);},None=>{return None;}}
 }
 
 // @api dropHead cost Removes only the branch name. The graph and detached Version values retain their data roots.
-pub fn dropHead<T:Send>(graph:&mut HistoryGraph<T>,branch:String)->Bool effects {} {
-    match graph.heads.get(branch) {
-        Some(_)=>{graph.heads.remove(branch);return true;},
+pub fn dropHead<T:Send>(graph:&mut HistoryGraph<T>,branchName:String)->Bool effects {} {
+    match graph.heads.get(branchName) {
+        Some(_)=>{graph.heads.remove(branchName);return true;},
         None=>{return false;}
     }
 }

@@ -1045,6 +1045,7 @@ fn install_literal_helpers(p: &mut Program) -> Result<()> {
         type_depth: 0,
         cond_start: None,
         splits: Vec::new(),
+            reserved: Vec::new(),
     };
     let parsed = parser.program()?;
     for (name, mut function) in parsed.functions {
