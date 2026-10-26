@@ -1241,6 +1241,9 @@ impl Parser {
         while !self.is("<eof>") {
             let public = self.eat("pub");
             if self.eat("effects") {
+                if public {
+                    return Err(diagnostic(self.current(), "effects cannot be public"));
+                }
                 self.need("{")?;
                 let mut declared = BTreeSet::new();
                 while !self.eat("}") {
@@ -1825,8 +1828,7 @@ impl Parser {
     }
     /// `let Pat = value else { diverge };` — the statements that follow become
     /// the matching arm, so the pattern's bindings stay in scope for them.
-    fn let_else(&mut self) -> Result<Stmt> {
-        let at = self.current().clone();
+    fn let_else_head(&mut self) -> Result<(Pattern, Expr, Vec<Stmt>)> {
         self.need("let")?;
         let pattern = self.pattern()?;
         self.need("=")?;
@@ -1841,6 +1843,11 @@ impl Parser {
             ));
         }
         self.eat(";");
+        Ok((pattern, value, otherwise))
+    }
+    fn let_else(&mut self) -> Result<Stmt> {
+        let at = self.current().clone();
+        let (pattern, value, otherwise) = self.let_else_head()?;
         let rest = self.block_rest()?;
         Ok(Stmt {
             kind: StmtKind::Match(
@@ -2392,8 +2399,10 @@ impl Parser {
                         at: arm_at,
                     }
                 };
+                // A block arm may omit the comma, as in the expression form.
+                let block_arm = matches!(body.kind, StmtKind::Block(..));
                 arms.push((pattern, guard, body));
-                if !self.is("}") {
+                if !self.eat(",") && !block_arm && !self.is("}") {
                     self.need(",")?;
                 }
             }
@@ -2499,6 +2508,25 @@ impl Parser {
             }
             if self.is("<eof>") {
                 return Err(diagnostic(self.current(), "unclosed block; add '}'"));
+            }
+            if self.let_else_ahead() {
+                // The rest of the block, tail included, becomes the matching arm.
+                let let_at = self.current().clone();
+                let (pattern, value, otherwise) = self.let_else_head()?;
+                let rest = self.block_expression(at)?;
+                let else_arm = Expr {
+                    kind: ExprKind::Block(otherwise, None),
+                    at: let_at.clone(),
+                };
+                let matched = Expr {
+                    kind: ExprKind::Match(
+                        Box::new(value),
+                        vec![(pattern, None, rest), (Pattern::Wildcard, None, else_arm)],
+                    ),
+                    at: let_at,
+                };
+                tail = Some(Box::new(matched));
+                break;
             }
             if self.starts_statement_keyword() {
                 let stmt = self.stmt()?;

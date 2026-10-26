@@ -174,12 +174,12 @@ raw 文字列は、N 個（3 個以上）の引用符で開き、ちょうど N 
 | 14 | `( 式 )` は中の式をそのまま返すので、中が名前だけなら、括弧のあとにも `::` を続けられる | enum `E` に対して `(E)::A` が動く |
 | 15 | else のない `if` の直後の `else` は、必ず else 節として読まれる | `if x == 1 { ... }` の次の行に `else { ... }` を書くと、1 つの `if` として動く |
 | 16 | `test` は直後が `fn` のときだけ接頭辞になる。`async` は、トップレベルでは必ず関数宣言の始まり | `test async fn t() -> Unit { }` はエラー（expected ';'） |
-| 17 | `pub` のあとは宣言だけ。`pub import`、`pub impl`、`pub let` は誤り。`pub fn` は `->` が必要 | `pub let x = 1;` はエラー（pub requires a declaration） |
+| 17 | `pub` のあとは宣言だけ。`pub import`、`pub impl`、`pub effects`、`pub let` は誤り。`pub fn` は `->` が必要 | `pub let x = 1;` はエラー（pub requires a declaration） |
 | 18 | **不具合に見える。** 構造体の欄は、修飾（`private`、`pub`）がないと、名前を `private` や `pub` にできない | `struct S { pub: Int }` はエラー（expected a name）。`struct S { pub pub: Int }` は動く |
 | 19 | （修正済み。番号は変えない）以前は、`runtime` の値が usize の文字列としてしか読めず、`_` や `0x10` が書けなかった。今は整数リテラルとして読むので、`1_000` や `0x10` も書ける | `runtime { executionSteps = 1_000; }` は動く |
-| 20 | let-else は、名前が大文字で始まり、直後が `(` か `::` のときだけ。`Option<Int>::Some(x)` のような形は通常の `let` として読まれて拒否される | `let Option<Int>::Some(x) = ... else { ... };` はエラー（expected '='）。`let Option::Some(x) = ...` は構文を通る |
+| 20 | let-else は、関数本体などの文のブロックと、式としてのブロック（式の `if` の本体を含む）に書ける。名前が大文字で始まり、直後が `(` か `::` のときだけ。`Option<Int>::Some(x)` のような形は通常の `let` として読まれて拒否される | `let Option<Int>::Some(x) = ... else { ... };` はエラー（expected '='）。`let Option::Some(x) = ...` は構文を通る |
 | 21 | 式のブロックの中で、`if`・`match`・`{` で始まる文は、まず式として読む。式として読めたあとの失敗では、文として読み直さない | `let v = { if a > 1 { 1 } else { 2 } - 1 };` は、`if` 式から引き算が続く 1 つの式になり、`a = 3` で `0` を出力する |
-| 22 | match の文は、腕のあいだに `,` が必ず要る。`{ }` の腕のあとにも要る | 文の match で `1 => { ... }` の次の行に `_ => { ... }` と書くとエラー（expected ','）。式の match で、結果がリスト `[1]` なら省けて動く |
+| 22 | （修正済み。番号は変えない）以前は、match の文は `{ }` の腕のあとにも `,` が必要だった。今は式の match と同じに、`{ }` の腕のあとの `,` を省ける | 文の match で `1 => { ... }` の次の行に `_ => { ... }` と書ける。`{ }` でない腕のあとの `,` は省けない |
 | 23 | `external` が文の先頭で、直後が `{`・`fresh`・`live` でないときは、名前の式の文として読まれる | `let external = 5; external;` は動く |
 
 ### 実装の挙動に起因する拒否

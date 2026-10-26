@@ -1,0 +1,14 @@
+// let-else は、式としてのブロックにも書ける。残りの全部（末尾の式を含む）が、続きになる。
+fn f(o: Option<Int>) -> Int {
+    let v = {
+        let Some(x) = o else { return 0; };
+        x + 1
+    };
+    let w = if v > 0 {
+        let Some(y) = o else { return 1; };
+        y
+    } else {
+        2
+    };
+    return v + w;
+}

@@ -544,10 +544,10 @@ ArmBlockLike ::= BlockExpr | ListLit | MapLit
    ブロックは 2 種類ある。
    - FnBlock（Parser の block()）: 関数本体、`if`・`while`・`for` などの文の本体、`branch`、`external`、
      match の文の腕の `{ }`、`->` つきクロージャの本体。文だけを並べる（末尾の式は置けない）。
-     let-else（`let 大文字の名前( … ) = 式 else { … }`）は、この形のブロックにだけ書ける。
+     let-else（`let 大文字の名前( … ) = 式 else { … }`）は、この形のブロックにも、BlockExpr にも書ける。
      let-else は、そのブロックの残りの全部（閉じの `}` まで）を、続きの文として取る。
    - BlockExpr（Parser の block_expression()）: 式としての `{ }` と、式の `if` の本体。末尾の `;` のない式が
-     ブロックの値になる。let-else は書けない。
+     ブロックの値になる。let-else のあとの残りは、末尾の式まで含めて、続きのブロックになる。
    文の先頭の語（let var using while for break continue return defer commit revert resume drop publish branch
    runtime external）で始まる文は、BlockExpr の中でも FnBlock の中でも、必ず文として読まれる。
    BlockExpr の中の `if`・`match`・`{` で始まる文は、まず式として読み、式として読めなければ文として読み直す。
@@ -617,8 +617,12 @@ RuntimeName ::= 'historyMemory' | 'historyStorage' | 'spillThreshold' | 'executi
 
 RuntimeUnit ::= 'KB' | 'KiB' | 'MB' | 'MiB' | 'GB' | 'GiB'
 
-/* match の文。腕のあいだは必ず `,` で、`{ }` の腕のあとにも要る。 */
-MatchStmt ::= 'match' CExpr '{' ( StmtArm ( ',' StmtArm )* ','? )? '}'
+/* match の文。腕のあいだは `,`。腕が `{ }` のときは、式の match と同じに `,` を省ける。 */
+MatchStmt ::= 'match' CExpr '{' StmtArms '}'
+
+StmtArms ::= ( StmtArm ',' | BlockStmtArm )* StmtArm?
+
+BlockStmtArm ::= Pattern ( 'if' Expr )? '=>' FnBlock
 
 StmtArm ::= Pattern ( 'if' Expr )? '=>' ArmBody
 
@@ -638,7 +642,11 @@ AssignOp ::= '=' | '+=' | '-=' | '*=' | '/=' | '%='
 
 /* ---------------------------------------------------------------- 式としてのブロックの中身 */
 
-BlockExpr ::= '{' BlockItem* BlockTail? '}'
+BlockExpr ::= '{' BlockExprBody
+
+/* 閉じの `}` まで。let-else があれば、その続き（末尾の式を含む）が残りの本体になる。 */
+BlockExprBody ::= BlockItem* BlockTail? '}'
+                | BlockItem* LetElse BlockExprBody
 
 BlockStart ::= KwNot [ ns: 'external' ]
 
@@ -673,14 +681,17 @@ NoContinue ::= [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '?' ] [ ns: '||' ] [ ns
 Program ::= Item*
 
 Item ::= Decl
-       | 'pub' Decl
+       | 'pub' PubDecl
        | FnDecl
        | 'pub' PubFnDecl
        | ImportDecl
        | ImplDecl
        | TopStmt
 
-Decl ::= EffectsDecl | TypeDecl | EnumDecl | TraitDecl | StructDecl | ConstDecl
+Decl ::= EffectsDecl | PubDecl
+
+/* `effects` はモジュールの宣言で、`pub` は付けられない。 */
+PubDecl ::= TypeDecl | EnumDecl | TraitDecl | StructDecl | ConstDecl
 
 /* 宣言の先頭の語は、トップレベルでは必ず宣言として読まれ、式の名前にならない。 */
 TopStmt ::= [ ns: 'pub' ] [ ns: 'effects' ] [ ns: 'import' ] [ ns: 'type' ] [ ns: 'enum' ] [ ns: 'trait' ]
