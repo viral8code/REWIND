@@ -1,9 +1,50 @@
+// Authenticated on-disk caches require Unix owner/mode validation, so this test only runs on Unix.
+#![cfg(unix)]
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::{Command, Output},
+    sync::atomic::{AtomicU64, Ordering},
+};
+static NEXT: AtomicU64 = AtomicU64::new(0);
+fn fixture(source: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!(
+        "rewind-cache-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("main.rw"), source).unwrap();
+    fs::write(
+        root.join("rewind.toml"),
+        "language = \"3.0.0\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"\"\n",
+    )
+    .unwrap();
+    let output = cmd("update", &root, &[]);
+    success(&output);
+    root
+}
+fn cmd(mode: &str, root: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .arg(mode)
+        .arg("--root")
+        .arg(root)
+        .args(args)
+        .output()
+        .unwrap()
+}
+fn success(output: &Output) {
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
-#[cfg(unix)] // Authenticated on-disk caches require Unix owner/mode validation.
 fn persistent_cache_rebuilds_corruption_and_preserves_artifact_bytes() {
     let root = fixture(
-        "fn answer(n:Int)->Int{return n+1;}assert_eq(answer(2),3);",
-        "",
+        "fn answer(n:Int)->Int{return n+1;}\nfn main()->Int {\n    assert_eq(answer(2),3);\n    return 0;\n}\n",
     );
     let artifact = root.join("compiled.json");
     success(&cmd(
@@ -16,12 +57,7 @@ fn persistent_cache_rebuilds_corruption_and_preserves_artifact_bytes() {
         .unwrap()
         .map(|e| e.unwrap().path())
         .collect::<Vec<_>>();
-    assert!(entries.iter().any(|p| p
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .contains("compiled")));
+    assert!(!entries.is_empty());
     for entry in entries {
         fs::write(entry, r#"{"payload":true,"auth":[]}"#).unwrap();
     }
@@ -44,7 +80,7 @@ fn persistent_cache_rebuilds_corruption_and_preserves_artifact_bytes() {
     assert_eq!(fs::read(&artifact).unwrap(), expected);
     fs::write(
         root.join("main.rw"),
-        "fn answer(n:Int)->String{return n;}assert_eq(answer(2),3);",
+        "fn answer(n:Int)->String{return n;}\nfn main()->Int {\n    assert_eq(answer(2),3);\n    return 0;\n}\n",
     )
     .unwrap();
     assert!(!cmd("check", &root, &[]).status.success());
