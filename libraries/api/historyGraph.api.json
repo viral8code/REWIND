@@ -231,7 +231,7 @@
       ],
       "names": [
         "graph",
-        "branch"
+        "branchName"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -289,7 +289,7 @@
       ],
       "names": [
         "graph",
-        "branch"
+        "branchName"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -553,7 +553,7 @@
       ],
       "names": [
         "graph",
-        "branch",
+        "branchName",
         "version"
       ],
       "parameters": [

@@ -20,7 +20,7 @@
     },
     "fn:byteSwap": {
       "async": false,
-      "cost": "O(1)",
+      "cost": "O(1); reverses the byte order of the 64-bit value.",
       "defaults": [],
       "effects": [],
       "generics": [],
@@ -47,10 +47,9 @@
     },
     "fn:deposit": {
       "async": false,
-      "cost": "O(1)",
+      "cost": "O(1); writes value into width bits starting at start and returns the new 64-bit pattern. failure StdError Range (start or width out of range, or value does not fit in width bits or is negative).",
       "defaults": [],
       "effects": [],
-      "failure": "StdError Range (start or width out of range, or value does not fit in width bits or is negative).",
       "generics": [],
       "names": [
         "a",
@@ -68,10 +67,9 @@
     },
     "fn:extract": {
       "async": false,
-      "cost": "O(1)",
+      "cost": "O(1); reads width bits (1 to 64) starting at bit start (0 to 63), as an unsigned pattern. failure StdError Range (start, width, or start + width out of range).",
       "defaults": [],
       "effects": [],
-      "failure": "StdError Range (start, width, or start + width out of range).",
       "generics": [],
       "names": [
         "a",
@@ -87,7 +85,7 @@
     },
     "fn:leadingZeros": {
       "async": false,
-      "cost": "O(1)",
+      "cost": "O(1); counts from the most significant bit of the 64-bit value (0 gives 64).",
       "defaults": [],
       "effects": [],
       "generics": [],
@@ -129,7 +127,7 @@
     },
     "fn:reverseBits": {
       "async": false,
-      "cost": "O(1)",
+      "cost": "O(1); reverses the order of the 64 bits.",
       "defaults": [],
       "effects": [],
       "generics": [],
@@ -143,10 +141,9 @@
     },
     "fn:rotateLeft": {
       "async": false,
-      "cost": "O(1)",
+      "cost": "O(1); rotates the 64-bit pattern, count 0 to 63. failure StdError Range (count out of range).",
       "defaults": [],
       "effects": [],
-      "failure": "StdError Range (count out of range).",
       "generics": [],
       "names": [
         "a",
@@ -160,10 +157,9 @@
     },
     "fn:rotateRight": {
       "async": false,
-      "cost": "O(1)",
+      "cost": "O(1); rotates the 64-bit pattern, count 0 to 63. failure StdError Range (count out of range).",
       "defaults": [],
       "effects": [],
-      "failure": "StdError Range (count out of range).",
       "generics": [],
       "names": [
         "a",
@@ -264,7 +260,7 @@
     },
     "fn:trailingZeros": {
       "async": false,
-      "cost": "O(1)",
+      "cost": "O(1); counts from the least significant bit of the 64-bit value (0 gives 64).",
       "defaults": [],
       "effects": [],
       "generics": [],
