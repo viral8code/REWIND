@@ -117,16 +117,15 @@ fn raw_strings_work_in_const_and_default_arguments() {
 }
 
 #[test]
-fn raw_strings_are_accepted_in_every_language_version() {
+fn raw_strings_are_accepted_in_every_supported_language_version() {
     let source = "fn main()->Int effects {output} {\n    Out.println(\"\"\"a ${b}\"\"\");\n    return 0;\n}\n";
-    let root = project_with("1.8.2", source);
-    let out = call(&root, &["run", "--root", "."]);
-    // Old languages may reject the program for other reasons; the literal itself must lex.
-    let err = stderr(&out);
-    assert!(
-        !err.contains("unterminated string") && !err.contains("RawString"),
-        "{err}"
-    );
+    for language in ["3.0.0", "3.6.0", "4.0.0"] {
+        let root = project_with(language, source);
+        let out = call(&root, &["run", "--root", "."]);
+        assert!(out.status.success(), "{language}: {}", stderr(&out));
+        let printed = String::from_utf8_lossy(&out.stdout).replace("\r\n", "\n");
+        assert_eq!(printed, "a ${b}\n", "{language}");
+    }
 }
 
 #[test]

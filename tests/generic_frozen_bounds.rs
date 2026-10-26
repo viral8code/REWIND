@@ -50,14 +50,19 @@ fn wrapped<T:Send>(value:Saved<T>)->Saved<T> effects {} {
     let first=share(value);
     return share(value);
 }
-let values=List<Int>();values.add(10);
-let frozen=root(freeze(values));
-let saved=wrapped(Saved<List<Int>>(frozen));
-values.set(0,99);
-assert_eq(frozen.get(0),10);
-assert_eq(saved.value.get(0),10);
-let copy=thaw(saved.value);copy.set(0,7);
-assert_eq(frozen.get(0),10);
+fn main() -> Int {
+    let values=List<Int>();
+    values.add(10);
+    let frozen=root(freeze(values));
+    let saved=wrapped(Saved<List<Int>>(frozen));
+    values.set(0,99);
+    assert_eq(frozen.get(0),10);
+    assert_eq(saved.value.get(0),10);
+    let copy=thaw(saved.value);
+    copy.set(0,7);
+    assert_eq(frozen.get(0),10);
+    return 0;
+}
 "#,
     );
     let output = fixture.call("run");
@@ -101,24 +106,31 @@ fn thaw_removes_only_the_outer_layer_and_preserves_nested_frozen_values() {
     let fixture = Fixture::new(
         r#"
 record Box<T:Share> {value:T}
-let data=List<Int>();data.add(10);
-let first=freeze(data);
-let second=freeze(first);
-let stillFrozen=thaw(second);
-assert_eq(stillFrozen.get(0),10);
-let editable=thaw(stillFrozen);editable.set(0,7);
-assert_eq(first.get(0),10);
-let wrapped=Box<Frozen<List<Int>>>(first);
-let copy=thaw(freeze(wrapped));
-let member=copy.value;
-assert_eq(member.get(0),10);
-let independent=thaw(member);independent.set(0,9);
-assert_eq(first.get(0),10);
-let values=List<Frozen<List<Int>>>();values.add(first);
-let restored=thaw(freeze(values));
-let item=restored.get(0);
-assert_eq(thaw(item).get(0),10);
-for item in freeze(values) {assert_eq(item.get(0),10);}
+fn main() -> Int {
+    let data=List<Int>();
+    data.add(10);
+    let first=freeze(data);
+    let second=freeze(first);
+    let stillFrozen=thaw(second);
+    assert_eq(stillFrozen.get(0),10);
+    let editable=thaw(stillFrozen);
+    editable.set(0,7);
+    assert_eq(first.get(0),10);
+    let wrapped=Box<Frozen<List<Int>>>(first);
+    let copy=thaw(freeze(wrapped));
+    let member=copy.value;
+    assert_eq(member.get(0),10);
+    let independent=thaw(member);
+    independent.set(0,9);
+    assert_eq(first.get(0),10);
+    let values=List<Frozen<List<Int>>>();
+    values.add(first);
+    let restored=thaw(freeze(values));
+    let item=restored.get(0);
+    assert_eq(thaw(item).get(0),10);
+    for item in freeze(values) {assert_eq(item.get(0),10);}
+    return 0;
+}
 "#,
     );
     let output = fixture.call("run");

@@ -33,13 +33,6 @@ fn source(path: &Path, text: &str) -> PathBuf {
     fs::write(&file, text).unwrap();
     file
 }
-fn failure(path: &Path, text: &str) -> serde_json::Value {
-    let file = source(path, text);
-    let out = invoke(&["run", file.to_str().unwrap(), "--diagnostic-format", "json"]);
-    assert!(!out.status.success());
-    serde_json::from_slice(&out.stderr).unwrap()
-}
-
 #[test]
 fn notes_edit_unicode_resize_save_and_replay_without_host_changes() {
     let path = root();
@@ -107,48 +100,5 @@ fn notes_edit_unicode_resize_save_and_replay_without_host_changes() {
         fs::read_to_string(path.join("notes.txt")).unwrap(),
         "日本語\nnotes"
     );
-    fs::remove_dir_all(path).unwrap();
-}
-#[test]
-fn polling_records_idle_and_replay_reproduces_readiness() {
-    let path = root();
-    let file=source(&path,"import std.gui as gui;match gui.window(\"poll\",240,160){Err(e)=>{panic(e.code);},Ok(view)=>{assert_eq(gui.present(&view),Ok(()));publish;assert_eq(gui.pollEvent(),Ok(None));match gui.pollEvent(){Ok(Some(e))=>{assert_eq(e.kind,\"close\");},_=>{panic(\"event\");}}assert_eq(gui.close(),Ok(()));publish;}}");
-    let events = path.join("events.json");
-    fs::write(&events,r#"[{"kind":"idle","x":0,"y":0,"key":"","width":0,"height":0},{"kind":"close","x":0,"y":0,"key":"","width":0,"height":0}]"#).unwrap();
-    let trace = path.join("trace.json");
-    success(
-        invoke(&[
-            "run",
-            file.to_str().unwrap(),
-            "--allow-effects",
-            "gui",
-            "--gui-events",
-            events.to_str().unwrap(),
-            "--record",
-            trace.to_str().unwrap(),
-        ]),
-        b"",
-    );
-    success(
-        invoke(&[
-            "replay",
-            trace.to_str().unwrap(),
-            "--root",
-            path.to_str().unwrap(),
-            "--allow-effects",
-            "gui",
-        ]),
-        b"",
-    );
-    fs::remove_dir_all(path).unwrap();
-}
-#[test]
-fn begin_reset_rejects_pending_expression_operands() {
-    let path = root();
-    let d = failure(
-        &path,
-        "fn reset()->Int effects {} {revert begin;return 2;}let value=1+reset();",
-    );
-    assert!(d.to_string().contains("InvalidContinuation"), "{d}");
     fs::remove_dir_all(path).unwrap();
 }

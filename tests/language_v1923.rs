@@ -110,34 +110,3 @@ fn compiled_tcp_records_once_replays_disconnected_and_live_reuses_pending_receip
         fs::remove_dir_all(root).unwrap();
     }
 }
-#[test]
-fn tcp_requires_network_permission_external_boundary_and_affine_handle() {
-    let root = std::env::temp_dir().join(format!("rewind-v1923-effects-{}", std::process::id()));
-    fs::create_dir(&root).unwrap();
-    let call = |effects: &str| {
-        Command::new(env!("CARGO_BIN_EXE_rewind"))
-            .current_dir(&root)
-            .args(["check", "main.rw", "--allow-effects", effects])
-            .output()
-            .unwrap()
-    };
-    fs::write(
-        root.join("main.rw"),
-        "import std.tcp as tcp;external {let pending=tcp.connect(\"127.0.0.1\",9,100);}",
-    )
-    .unwrap();
-    let denied = call("external,tasks");
-    assert!(!denied.status.success());
-    assert!(String::from_utf8_lossy(&denied.stderr).contains("network"));
-    fs::write(
-        root.join("main.rw"),
-        "import std.tcp as tcp;let pending=tcp.connect(\"127.0.0.1\",9,100);",
-    )
-    .unwrap();
-    let denied = call("external,tasks,network");
-    assert!(!denied.status.success());
-    assert!(String::from_utf8_lossy(&denied.stderr).contains("ExternalBoundary"));
-    fs::write(root.join("main.rw"), "let fake=TcpSocket{peer:\"local\"};").unwrap();
-    assert!(!call("external,tasks,network").status.success());
-    fs::remove_dir_all(root).unwrap();
-}

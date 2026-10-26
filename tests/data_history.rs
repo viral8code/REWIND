@@ -60,20 +60,24 @@ fn initial()->Snapshot<List<Int>> effects {} {
     let data=List<Int>();data.add(10);
     return snapshots.capture(&data);
 }
-let saved=initial();
-let model=snapshots.fork(saved);
-let versions=take(createHistory<List<Int>>(2));
-assert_eq(history.save(&mut versions,"initial",&model),Ok(()));
-model.set(0,99);
-assert_eq(history.save(&mut versions,"latest",&model),Ok(()));
-history.clear(&mut versions);
-assert_eq(history.length(&versions),0);
-Out.println(snapshots.read(saved).get(0));
-Out.println(model.get(0));
-let fork=snapshots.fork(saved);fork.set(0,7);
-Out.println(fork.get(0));
-assert_eq(snapshots.read(saved).get(0),10);
-publish;
+fn main() -> Int {
+    let saved=initial();
+    let model=snapshots.fork(saved);
+    let versions=take(createHistory<List<Int>>(2));
+    assert_eq(history.save(&mut versions,"initial",&model),Ok(()));
+    model.set(0,99);
+    assert_eq(history.save(&mut versions,"latest",&model),Ok(()));
+    history.clear(&mut versions);
+    assert_eq(history.length(&versions),0);
+    Out.println(snapshots.read(saved).get(0));
+    Out.println(model.get(0));
+    let fork=snapshots.fork(saved);
+    fork.set(0,7);
+    Out.println(fork.get(0));
+    assert_eq(snapshots.read(saved).get(0),10);
+    publish;
+    return 0;
+}
 "#,
     );
     success(&fixture.call(&["compile", "main.rw"]));
@@ -107,30 +111,34 @@ import std.history.{create as createHistory};
 fn take<T,E>(value:Result<T,E>)->T effects {} {
     match move value {Ok(v)=>{return move v;},Err(_)=>{panic("setup");}}
 }
-let versions=take(createHistory<List<Int>>(4));
-let data=List<Int>();data.add(10);
-assert_eq(history.save(&mut versions,"initial",&data),Ok(()));
-commit saved;
-data.set(0,99);
-assert_eq(history.save(&mut versions,"later",&data),Ok(()));
-assert_eq(history.length(&versions),2);
-history.clear(&mut versions);
-assert_eq(history.length(&versions),0);
-assert_eq(history.save(&mut versions,"replacement",&data),Ok(()));
-revert saved;
-assert_eq(history.length(&versions),1);
-assert(history.contains(&versions,"initial"));
-assert(!history.contains(&versions,"later"));
-assert(!history.contains(&versions,"replacement"));
-assert_eq(data.get(0),10);
-match history.get(&versions,"initial") {
-    Some(first)=>{
-        let edited=snapshots.fork(first);edited.set(0,7);
-        assert_eq(snapshots.read(first).get(0),10);
-    },
-    None=>{panic("lost initial snapshot");}
+fn main() -> Int {
+    let versions=take(createHistory<List<Int>>(4));
+    let data=List<Int>();
+    data.add(10);
+    assert_eq(history.save(&mut versions,"initial",&data),Ok(()));
+    commit saved;
+    data.set(0,99);
+    assert_eq(history.save(&mut versions,"later",&data),Ok(()));
+    assert_eq(history.length(&versions),2);
+    history.clear(&mut versions);
+    assert_eq(history.length(&versions),0);
+    assert_eq(history.save(&mut versions,"replacement",&data),Ok(()));
+    revert saved;
+    assert_eq(history.length(&versions),1);
+    assert(history.contains(&versions,"initial"));
+    assert(!history.contains(&versions,"later"));
+    assert(!history.contains(&versions,"replacement"));
+    assert_eq(data.get(0),10);
+    match history.get(&versions,"initial") {
+        Some(first)=>{
+            let edited=snapshots.fork(first);edited.set(0,7);
+            assert_eq(snapshots.read(first).get(0),10);
+        },
+        None=>{panic("lost initial snapshot");}
+    }
+    drop saved;
+    return 0;
 }
-drop saved;
 "#,
     );
     success(&fixture.call(&["run", "main.rw"]));
@@ -146,15 +154,18 @@ fn model()->Model effects {} {
     let values=List<Int>();values.add(10);
     return Model(move values);
 }
-let current=model();
-let saved=snapshots.capture(&current);
-current.data.set(0,99);
-let left=snapshots.fork(saved);
-let right=snapshots.fork(saved);
-left.data.set(0,7);
-assert_eq(current.data.get(0),99);
-assert_eq(left.data.get(0),7);
-assert_eq(right.data.get(0),10);
+fn main() -> Int {
+    let current=model();
+    let saved=snapshots.capture(&current);
+    current.data.set(0,99);
+    let left=snapshots.fork(saved);
+    let right=snapshots.fork(saved);
+    left.data.set(0,7);
+    assert_eq(current.data.get(0),99);
+    assert_eq(left.data.get(0),7);
+    assert_eq(right.data.get(0),10);
+    return 0;
+}
 "#,
     );
     success(&fixture.call(&["run", "main.rw"]));
@@ -164,19 +175,19 @@ assert_eq(right.data.get(0),10);
 fn snapshot_does_not_expose_mutation_or_private_construction() {
     for (source, message) in [
         (
-            "import std.snapshot as s;let xs=List<Int>();xs.add(1);let saved=s.capture(&xs);let view=s.read(saved);view.add(2);",
+            "import std.snapshot as s;fn main()->Int {let xs=List<Int>();xs.add(1);let saved=s.capture(&xs);let view=s.read(saved);view.add(2);return 0;}",
             "cannot mutate Frozen",
         ),
         (
-            "import std.snapshot.{Snapshot};let saved=Snapshot<Int>(freeze(1));",
+            "import std.snapshot.{Snapshot};fn main()->Int {let saved=Snapshot<Int>(freeze(1));return 0;}",
             "private",
         ),
         (
-            "import std.snapshot as s;let value=1;let saved=s.capture(&value);let raw=saved.value;",
+            "import std.snapshot as s;fn main()->Int {let value=1;let saved=s.capture(&value);let raw=saved.value;return 0;}",
             "private",
         ),
         (
-            "import std.snapshot as s;fn save(file:&FileHandle)->Unit effects {} {s.capture(file);}",
+            "import std.snapshot as s;fn save(file:&FileHandle)->Unit effects {} {s.capture(file);}fn main()->Int {return 0;}",
             "Send",
         ),
     ] {

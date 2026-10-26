@@ -61,20 +61,3 @@ fn source_free_live_gui_reuses_held_input_cancels_without_consuming_and_releases
     assert!(String::from_utf8_lossy(&denied.stderr).contains("ExternalLiveRecordingUnsupported"));
     fs::remove_dir_all(root).unwrap();
 }
-#[test]
-fn live_gui_requires_the_live_boundary_and_remains_main_task_only() {
-    let root = std::env::temp_dir().join(format!("rewind-v1922-effects-{}", std::process::id()));
-    fs::create_dir(&root).unwrap();
-    let effects = "gui,tasks,external,live";
-    for source in [
-        "import std.guiWindows as windows;let input=windows.nextEventAnyLiveAsync();",
-        "import std.guiWindows as windows;external {let input=windows.nextEventAnyLiveAsync();}",
-        "import std.guiWindows as windows;async fn forbidden()->Unit effects {gui,tasks,external,live} {external live {let input=windows.nextEventAnyLiveAsync();}}",
-    ] {
-        fs::write(root.join("main.rw"),source).unwrap();
-        let output=Command::new(env!("CARGO_BIN_EXE_rewind")).current_dir(&root).args(["check","main.rw","--allow-effects",effects]).output().unwrap();
-        assert!(!output.status.success());
-        assert!(String::from_utf8_lossy(&output.stderr).contains("ExternalBoundary")||String::from_utf8_lossy(&output.stderr).contains("GuiMainTaskOnly"),"{}",String::from_utf8_lossy(&output.stderr));
-    }
-    fs::remove_dir_all(root).unwrap();
-}

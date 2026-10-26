@@ -1,11 +1,3 @@
 # The Windows SDK should run without a separate Visual C++ redistributable.
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
-
-# Most integration tests exercise the 2.0.0 language through standalone files (those without fn main);
-# new-language tests select 3.0.0 explicitly through rewind.toml.
-[env]
-REWIND_STANDALONE_LANGUAGE = "auto"
-# REWIND 4 rejects languages older than 3.0.0. The tests of the older languages stay until the
-# legacy code paths are removed; this switch is for the test suite only and is not in any release.
-REWIND_LEGACY_LANGUAGES = "1"

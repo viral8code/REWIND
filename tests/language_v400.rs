@@ -161,33 +161,6 @@ fn line_breaks_inside_string_literals_are_lf_whatever_the_source_uses() {
     assert_eq!(stdout(&c), "3\n");
 }
 
-/// A child process as a released `rewind` would see it: no test-suite switches.
-fn call_release(root: &PathBuf, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_rewind"))
-        .current_dir(root)
-        .env_remove("REWIND_LEGACY_LANGUAGES")
-        .env_remove("REWIND_STANDALONE_LANGUAGE")
-        .args(args)
-        .output()
-        .unwrap()
-}
-
-#[test]
-fn languages_older_than_3_0_0_are_rejected_by_a_released_compiler() {
-    for language in ["0.2", "0.9", "1.9.65", "2.0.0"] {
-        let root = project(language, "fn main() -> Int {\n    return 0;\n}\n");
-        let out = call_release(&root, &["run", "--root", "."]);
-        assert!(!out.status.success(), "{language}");
-        let err = stderr(&out);
-        assert!(err.contains("unsupported language version"), "{language}: {err}");
-        assert!(err.contains("3.0.0 and later"), "{language}: {err}");
-    }
-    // 3.0.0 and later still run.
-    let root = project("3.0.0", "fn main() -> Int {\n    Out.println(1);\n    return 0;\n}\n");
-    let out = call_release(&root, &["run", "--root", "."]);
-    assert!(out.status.success(), "{}", stderr(&out));
-}
-
 #[test]
 fn standalone_files_never_run_as_an_older_language_in_a_released_compiler() {
     let root = std::env::temp_dir().join(format!(

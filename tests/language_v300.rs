@@ -154,31 +154,6 @@ fn block_expressions_respect_ownership() {
 }
 
 #[test]
-fn older_languages_reject_block_expressions() {
-    let root = std::env::temp_dir().join(format!("rewind-v300-old-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&root);
-    fs::create_dir(&root).unwrap();
-    fs::write(
-        root.join("main.rw"),
-        "fn main()->Int effects {} { let x={ 1 }; return x; }\n",
-    )
-    .unwrap();
-    fs::write(
-        root.join("rewind.toml"),
-        "language = \"2.0.0\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"\"\n",
-    )
-    .unwrap();
-    assert!(call(&root, &["update"]).status.success());
-    let out = call(&root, &["run", "--root", "."]);
-    assert!(!out.status.success());
-    assert!(
-        stderr(&out).contains("require language 3.0.0"),
-        "{}",
-        stderr(&out)
-    );
-}
-
-#[test]
 fn while_true_without_break_needs_no_trailing_return() {
     let out = main_output(
         r#"fn firstOver(limit:Int)->Int effects {} {
@@ -649,33 +624,6 @@ fn short_closure_effect_violation_is_rejected_before_running() {
         "    let f: fn(Int) -> Int effects {} = |a| Out.println(a);",
         "type mismatch",
     );
-}
-
-#[test]
-fn short_closures_require_language_3_0_0() {
-    let source = "fn main()->Int effects {} {\n    let add: fn(Int, Int) -> Int effects {} = |a, b| a + b;\n    return add(1, 2);\n}\n";
-    for (language, accepted) in [("2.0.0", false), ("3.0.0", true)] {
-        let root = project(source);
-        fs::write(
-            root.join("rewind.toml"),
-            format!(
-                "language = \"{language}\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"\"\n"
-            ),
-        )
-        .unwrap();
-        assert!(call(&root, &["update"]).status.success());
-        let out = call(&root, &["run", "--root", "."]);
-        if accepted {
-            assert_eq!(out.status.code(), Some(3), "{}", stderr(&out));
-        } else {
-            assert!(!out.status.success());
-            assert!(
-                stderr(&out).contains("short closures"),
-                "{}",
-                stderr(&out)
-            );
-        }
-    }
 }
 
 #[test]

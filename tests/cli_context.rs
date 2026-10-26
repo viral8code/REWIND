@@ -70,10 +70,10 @@ fn nearest_parent_manifest_wins_regardless_of_cwd() {
     fs::create_dir(project.join("src")).unwrap();
     fs::write(
         project.join("rewind.toml"),
-        "language = \"2.0.0\"\nsource_root = \"src\"\nentry = \"main.rw\"\neffects = \"output\"\n",
+        "language = \"3.0.0\"\nsource_root = \"src\"\nentry = \"main.rw\"\neffects = \"output\"\n",
     )
     .unwrap();
-    fs::write(project.join("src/main.rw"), "Out.println(1);publish;\n").unwrap();
+    fs::write(project.join("src/main.rw"), "fn main() -> Int {\n    Out.println(1);\n    publish;\n    return 0;\n}\n").unwrap();
     let ok = rewind(&project, &["update"]);
     assert!(ok.status.success(), "{}", stderr(&ok));
     let cwd = dir();
