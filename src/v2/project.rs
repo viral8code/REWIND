@@ -177,6 +177,16 @@ impl Manifest {
                 "language {language} requires a newer compiler"
             )));
         }
+        // REWIND 4 runs language 3.0.0 and later. The test suite still exercises the
+        // older languages through the `REWIND_LEGACY_LANGUAGES` switch set in
+        // `.cargo/config.toml`; it is not part of any release.
+        if std::env::var_os("REWIND_LEGACY_LANGUAGES").is_none()
+            && !semver::Version::parse(&language).is_ok_and(|v| v >= semver::Version::new(3, 0, 0))
+        {
+            return Err(Error::InvalidOperation(format!(
+                "unsupported language version {language}; REWIND 4 supports language 3.0.0 and later (use a REWIND 3 compiler for older projects)"
+            )));
+        }
         if !matches!(
             language.as_str(),
             "0.2"

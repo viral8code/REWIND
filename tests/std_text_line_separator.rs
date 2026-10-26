@@ -10,7 +10,7 @@ fn main() -> Int {\n\
     }\n\
     Out.println(text.length(first));\n\
     Out.println(text.length(second));\n\
-    Out.println(first==\"\n\" || first==\"\r\n\");\n\
+    Out.println(first==\"\\n\" || first==\"\\r\\n\");\n\
     Out.println(first==second);\n\
     return 0;\n\
 }\n";

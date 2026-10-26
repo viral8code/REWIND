@@ -358,7 +358,13 @@ fn standalone_language(entry: &Path) -> String {
     let Ok(wanted) = std::env::var("REWIND_STANDALONE_LANGUAGE") else {
         return current.into();
     };
+    // REWIND 4 runs language 3.0.0 and later. Only the test suite, which sets
+    // `REWIND_LEGACY_LANGUAGES` in `.cargo/config.toml`, can still select older ones.
+    let legacy = std::env::var_os("REWIND_LEGACY_LANGUAGES").is_some();
     if wanted == "auto" {
+        if !legacy {
+            return current.into();
+        }
         let has_main = fs::read_to_string(entry).is_ok_and(|text| {
             text.lines().any(|line| {
                 let line = line.trim_start();
@@ -373,8 +379,10 @@ fn standalone_language(entry: &Path) -> String {
             "2.0.0".into()
         };
     }
-    let valid = semver::Version::parse(&wanted)
-        .is_ok_and(|v| v <= semver::Version::parse(current).unwrap());
+    let valid = semver::Version::parse(&wanted).is_ok_and(|v| {
+        v <= semver::Version::parse(current).unwrap()
+            && (legacy || v >= semver::Version::new(3, 0, 0))
+    });
     if valid {
         wanted
     } else {
