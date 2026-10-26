@@ -128,6 +128,7 @@ fn program_v09(p: &Program) -> bool {
             | "3.4.0"
             | "3.5.0"
             | "3.6.0"
+            | "4.0.0"
     )
 }
 mod vm;
@@ -239,6 +240,7 @@ fn program_v07(p: &Program) -> bool {
             | "3.4.0"
             | "3.5.0"
             | "3.6.0"
+            | "4.0.0"
     )
 }
 thread_local! {
@@ -4609,6 +4611,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         )
     });
     program.language = manifest
@@ -4740,6 +4743,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -4857,6 +4861,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             v05::artifact(
                 &program,
@@ -5024,6 +5029,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         )
     });
     program.language = manifest
@@ -5142,6 +5148,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             v05::validate(&program, config)?;
         } else if config.language == "0.4" {
@@ -5519,6 +5526,7 @@ pub fn lock_project(root: &Path) -> Result<()> {
             | "3.4.0"
             | "3.5.0"
             | "3.6.0"
+            | "4.0.0"
     ) {
         return Err(Error::InvalidOperation(
             "use 'rewind update' to update v0.4 dependencies".into(),
@@ -5801,6 +5809,7 @@ fn check_program(program: &Program) -> Result<()> {
             | "3.4.0"
             | "3.5.0"
             | "3.6.0"
+            | "4.0.0"
     ) {
         let entries = program.impls.iter().collect::<Vec<_>>();
         for (i, ((tr, target), methods)) in entries.iter().enumerate() {
@@ -6091,6 +6100,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
             continue;
@@ -6256,6 +6266,7 @@ fn check_program(program: &Program) -> Result<()> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             v06::cache::put(root, "checked", &key, &true);
         }
@@ -6411,6 +6422,7 @@ impl Checker<'_> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) && def.origin != self.origin
             && def.private_fields.contains(field)
         {
@@ -6523,6 +6535,7 @@ impl Checker<'_> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) && def.origin != self.origin
             && !def.private_fields.is_empty()
         {
@@ -6646,6 +6659,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) && exposed.iter().any(|local| {
                         resolve_alias(self.program, local).split('<').next()
                             == resolve_alias(self.program, name).split('<').next()
@@ -6921,6 +6935,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) {
                         return Err(diagnostic(at, "tuple pattern requires language 0.6"));
                     }
@@ -7225,6 +7240,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) {
                         v06::borrowed_type(&binding.0).into()
                     } else {
@@ -7350,6 +7366,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) {
                         let ty = v06::fn_type(
                             &f.params,
@@ -7489,6 +7506,7 @@ impl Checker<'_> {
                                 | "3.4.0"
                                 | "3.5.0"
                                 | "3.6.0"
+                                | "4.0.0"
                         ) {
                             v11::unknown_name(
                                 &e.at,
@@ -7612,6 +7630,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) {
                         return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
                     }
@@ -7754,6 +7773,7 @@ impl Checker<'_> {
                                     | "3.4.0"
                                     | "3.5.0"
                                     | "3.6.0"
+                                    | "4.0.0"
                             ) {
                                 "TaskError"
                             } else {
@@ -7871,6 +7891,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) && op != "move"
                     {
                         return Ok(format!(
@@ -7996,6 +8017,7 @@ impl Checker<'_> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) && (self.expr(a)?.starts_with("Secret<")
                     || self.expr(b)?.starts_with("Secret<"))
                 {
@@ -8182,6 +8204,7 @@ impl Checker<'_> {
                                     | "3.4.0"
                                     | "3.5.0"
                                     | "3.6.0"
+                                    | "4.0.0"
                             ) {
                                 return Ok(v06::fn_type(
                                     &f.params,
@@ -8333,6 +8356,7 @@ impl Checker<'_> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) && t.starts_with("Secret<")
                 {
                     let inner = Expr {
@@ -8453,6 +8477,7 @@ impl Checker<'_> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
                     {
@@ -8575,6 +8600,7 @@ impl Checker<'_> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) && t.starts_with("Frozen<")
                 {
                     let inner = Expr {
@@ -8734,6 +8760,7 @@ impl Checker<'_> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if let Ok(ty) = self.expr(base) {
@@ -8894,6 +8921,7 @@ impl Checker<'_> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
@@ -9077,6 +9105,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) {
                         return Err(diagnostic(&e.at, "tuple values require language 0.6"));
                     }
@@ -9197,6 +9226,7 @@ impl Checker<'_> {
                                 | "3.4.0"
                                 | "3.5.0"
                                 | "3.6.0"
+                                | "4.0.0"
                         ) {
                             if let Some(result) =
                                 v06::checker_method(self, &ty, method, &types, &e.at)?
@@ -9313,6 +9343,7 @@ impl Checker<'_> {
                                 | "3.4.0"
                                 | "3.5.0"
                                 | "3.6.0"
+                                | "4.0.0"
                         ) {
                             if method == "iter" && types.is_empty() {
                                 if let Some(item) = v05::iterator_item(&ty) {
@@ -9460,6 +9491,7 @@ impl Checker<'_> {
                                     | "3.4.0"
                                     | "3.5.0"
                                     | "3.6.0"
+                                    | "4.0.0"
                             ) {
                                 if method == "timeout" && types == ["Int"] {
                                     return Ok(ty);
@@ -9586,6 +9618,7 @@ impl Checker<'_> {
                                     | "3.4.0"
                                     | "3.5.0"
                                     | "3.6.0"
+                                    | "4.0.0"
                             ) && types.is_empty()
                             {
                                 if method == "isDone"
@@ -9771,6 +9804,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     )
                 {
                     if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
@@ -9905,6 +9939,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) && matches!(name.as_str(), "secret" | "reveal")
                     {
                         if types.len() != 1 {
@@ -10029,6 +10064,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) && matches!(name.as_str(), "freeze" | "thaw")
                     {
                         if types.len() != 1 {
@@ -10330,6 +10366,7 @@ impl Checker<'_> {
                                     | "3.4.0"
                                     | "3.5.0"
                                     | "3.6.0"
+                                    | "4.0.0"
                             ) && matches!(
                                 name.as_str(),
                                 "assert"
@@ -10552,6 +10589,7 @@ impl Checker<'_> {
                                         | "3.4.0"
                                         | "3.5.0"
                                         | "3.6.0"
+                                        | "4.0.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readSecretLine") | ("Env", "getSecret")
@@ -10662,6 +10700,7 @@ impl Checker<'_> {
                                         | "3.4.0"
                                         | "3.5.0"
                                         | "3.6.0"
+                                        | "4.0.0"
                                 ) && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readChunk") | ("Out", "writeBytes")
@@ -10853,6 +10892,7 @@ impl Checker<'_> {
                                     | "3.4.0"
                                     | "3.5.0"
                                     | "3.6.0"
+                                    | "4.0.0"
                             ) && base_type == "List"
                                 && method == "pop"
                                 && types.is_empty())
@@ -11023,6 +11063,7 @@ impl Checker<'_> {
                                             | "3.4.0"
                                             | "3.5.0"
                                             | "3.6.0"
+                                            | "4.0.0"
                                     ) =>
                                 {
                                     format!(
@@ -11210,6 +11251,7 @@ impl Checker<'_> {
                                         | "3.4.0"
                                         | "3.5.0"
                                         | "3.6.0"
+                                        | "4.0.0"
                                 ) =>
                             {
                                 format!(
@@ -11528,6 +11570,7 @@ impl Checker<'_> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
                     v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
@@ -12037,6 +12080,7 @@ impl Checker<'_> {
                             | "3.4.0"
                             | "3.5.0"
                             | "3.6.0"
+                            | "4.0.0"
                     ) && self.expr(base)?.starts_with("Tuple<")
                     {
                         return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
@@ -12554,6 +12598,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             runtime.enable_incremental_publish();
         }
@@ -13354,6 +13399,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) && !self
             .program
             .functions
@@ -13471,6 +13517,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             if self.program.language == "0.9.9" {
                 if let Some(work) = v092::work(name, &args, &self.runtime) {
@@ -13589,6 +13636,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             if let Some(value) = v091::call(&self.runtime, name, &args).map_err(Flow::Error)? {
                 return Ok(value);
@@ -13703,6 +13751,7 @@ impl<R: BufRead> Engine<R> {
                     | "3.4.0"
                     | "3.5.0"
                     | "3.6.0"
+                    | "4.0.0"
             )
         {
             return Ok(Value::Struct(
@@ -13828,6 +13877,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) && matches!(name, "secret" | "reveal")
         {
             if args.len() != 1 {
@@ -13941,6 +13991,7 @@ impl<R: BufRead> Engine<R> {
                     | "3.4.0"
                     | "3.5.0"
                     | "3.6.0"
+                    | "4.0.0"
             ) {
                 self.runtime.register_secret_value(&args[0]);
                 self.runtime.check_sensitive_accounting()?;
@@ -14065,6 +14116,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) && matches!(name, "freeze" | "thaw")
         {
             if args.len() != 1 {
@@ -14182,6 +14234,7 @@ impl<R: BufRead> Engine<R> {
                     | "3.4.0"
                     | "3.5.0"
                     | "3.6.0"
+                    | "4.0.0"
             ) && matches!(
                 &args[0],
                 Value::Bool(_)
@@ -14841,6 +14894,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             self.runtime
                 .charge_native_work(v100::method_work(&target, method, &args, &self.runtime))
@@ -15228,6 +15282,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) {
             if let Some(inner) = v05::unsecret(&target) {
                 let value = self.method(inner.clone(), method, args, at)?;
@@ -15357,6 +15412,7 @@ impl<R: BufRead> Engine<R> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         ) && args.is_empty()
         {
             if method == "iter" {
@@ -15487,6 +15543,7 @@ impl<R: BufRead> Engine<R> {
                                 | "3.4.0"
                                 | "3.5.0"
                                 | "3.6.0"
+                                | "4.0.0"
                         ) {
                             v06::immutable_tuple(value, &self.runtime)
                         } else {
@@ -15801,6 +15858,7 @@ impl<R: BufRead> Engine<R> {
                                         | "3.4.0"
                                         | "3.5.0"
                                         | "3.6.0"
+                                        | "4.0.0"
                                 ) =>
                             {
                                 let value = list.pop();
@@ -16098,6 +16156,7 @@ impl<R: BufRead> Engine<R> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) =>
             {
                 Ok(Value::Option(
@@ -16215,6 +16274,7 @@ impl<R: BufRead> Engine<R> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) =>
             {
                 Ok(Value::Option(
@@ -16325,6 +16385,7 @@ impl<R: BufRead> Engine<R> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) =>
             {
                 let Value::Int(limit) = args[0] else {
@@ -16441,6 +16502,7 @@ impl<R: BufRead> Engine<R> {
                         | "3.4.0"
                         | "3.5.0"
                         | "3.6.0"
+                        | "4.0.0"
                 ) =>
             {
                 let Value::Bytes(bytes) = &args[0] else {
@@ -17000,6 +17062,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
             | "3.4.0"
             | "3.5.0"
             | "3.6.0"
+            | "4.0.0"
     ) && matches!(bound, "Send" | "Share")
     {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
@@ -17130,6 +17193,7 @@ fn impl_matches(
             | "3.4.0"
             | "3.5.0"
             | "3.6.0"
+            | "4.0.0"
     ) {
         return false;
     }
@@ -17428,6 +17492,7 @@ fn trait_method_return(
                     | "3.4.0"
                     | "3.5.0"
                     | "3.6.0"
+                    | "4.0.0"
             ) {
                 !compatible(t, ty)
             } else {
@@ -18002,6 +18067,7 @@ pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
                 | "3.4.0"
                 | "3.5.0"
                 | "3.6.0"
+                | "4.0.0"
         )
     }) {
         v09::repl(root, record)
