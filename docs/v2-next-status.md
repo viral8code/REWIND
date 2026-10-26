@@ -24,7 +24,7 @@
 
 - 言語 4.0.0 では、宣言・制御・チェックポイント・式の約 45 語が予約語になり、名前に使えません。修飾語（`value capture borrow force live fresh test where effects captures`）は文脈依存のままです。
 - 言語 4.0.0 では、ソースの `null` リテラルを書けません。内部の値は DB と JSON のために残ります。
-- REWIND 4 は `language` 3.0.0 未満を受け付けません。テストの一部が、旧版の言語を使うため、環境変数 `REWIND_LEGACY_LANGUAGES`（`.cargo/config.toml` で設定、リリースには含めない）で旧版を動かしています。旧版の分岐コードとテストの整理は、これからの作業です。
+- REWIND 4 は `language` 3.0.0 未満を受け付けません。旧版の言語だけに必要だったテスト（約 380 件）、examples、fixtures と、旧版の分岐コード（版の列挙 196 箇所、`language_at_least` 137 箇所、旧版専用の検査器 2 つ）を削除しました。ソースは約 2 万行減っています。
 - どの言語でも、通常の文字列リテラルの中の改行は LF になります。
 - `binding.revert` を削除し、`historyGraph` の名前付き引数 `branch:` を `branchName` に改名しました。
 - 型注釈つき `let` の短いクロージャ、末尾のカンマ、raw 文字列を追加し、`match E::A {` と `a < b >= c` を読めるようにしました。
