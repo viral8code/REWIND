@@ -113,8 +113,16 @@ fn replay_returns_the_recorded_separator_not_the_host_value() {
         &root,
         &["replay", "trace2.json", "--allow-effects", "external"],
     );
-    let expected = if cfg!(windows) { "1" } else { "2" };
-    let out = String::from_utf8(result.stdout).unwrap();
-    assert_eq!(out.lines().next(), Some(expected));
+    if cfg!(windows) {
+        // The edited value is shorter than the recorded one, so replay reaches the program.
+        let out = String::from_utf8(result.stdout).unwrap();
+        assert_eq!(out.lines().next(), Some("1"));
+    } else {
+        // On other hosts the edit makes the value longer, which the bounded external ledger
+        // of the trace rejects before the program runs: replay never falls back to the host.
+        assert!(!result.status.success());
+        let err = String::from_utf8_lossy(&result.stderr);
+        assert!(err.contains("ReplayMismatch"), "{err}");
+    }
     fs::remove_dir_all(root).unwrap();
 }
