@@ -1,6 +1,5 @@
 use super::*;
 mod artifact;
-mod capabilities;
 pub mod dap;
 pub mod debug_values;
 mod ownership;
@@ -41,9 +40,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     v091::prepare(program)?;
     v092::prepare(program)?;
     v100::prepare(program)?;
-    if !true {
-        return Ok(());
-    }
+    
     for name in [
         "Frozen",
         "Secret",
@@ -74,7 +71,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             "TaskError and Diagnostic are reserved standard types".into(),
         ));
     }
-    if true && ["WaitEdge", "WaitTarget", "Tuple"]
+    if ["WaitEdge", "WaitTarget", "Tuple"]
         .iter()
         .any(|n| program.structs.contains_key(*n) || program.enums.contains_key(*n))
     {
@@ -142,7 +139,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
             origin: program.root_origin.clone(),
         },
     );
-    if true {
+    {
         program
             .enums
             .get_mut("TaskError")
@@ -366,10 +363,7 @@ pub(super) fn task_error(error: &str) -> Value {
 
 pub(super) fn validate(program: &Program, config: &project::ProjectConfig) -> Result<()> {
     ownership::validate(program)?;
-    if true {
-        return v06::validate(program, config);
-    }
-    capabilities::validate(program, config)
+    v06::validate(program, config)
 }
 
 pub(super) fn unfrozen(value: &Value) -> Option<&Value> {
@@ -736,11 +730,7 @@ pub(super) fn contains_native_type(
     if !seen.insert(ty.into()) {
         return false;
     }
-    if rewind::native_resources::resource_type(ty)
-        && (!matches!(ty, "HttpServer" | "HttpServerRequest")
-            || true)
-        && (!ty.starts_with("Db") || true)
-    {
+    if rewind::native_resources::resource_type(ty) {
         return true;
     }
     if let Some((_, inner)) = ty.split_once('<') {
@@ -795,11 +785,7 @@ fn transfer_type_with_bounds(
     if ty.starts_with('&') {
         return false;
     }
-    if rewind::native_resources::resource_type(ty)
-        && (!matches!(ty, "HttpServer" | "HttpServerRequest")
-            || true)
-        && (!ty.starts_with("Db") || true)
-    {
+    if rewind::native_resources::resource_type(ty) {
         return !shared;
     }
     if matches!(
@@ -812,14 +798,14 @@ fn transfer_type_with_bounds(
         return true;
     }
     if ty == "Json"
-        && true
+        
     {
         return true;
     }
     if ty == "FileError" {
         return true;
     }
-    if true {
+    {
         if let Some((base, inner)) = ty.split_once('<') {
             if matches!(base, "Option" | "Result") {
                 return split_type_args(outer_type_end(inner))
@@ -829,10 +815,8 @@ fn transfer_type_with_bounds(
         }
     }
     if ty.starts_with("fn(") {
-        return if true {
+        return {
             v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
-        } else {
-            !shared
         };
     }
     if matches!(ty, "FileHandle") {
@@ -844,7 +828,7 @@ fn transfer_type_with_bounds(
     if let Some(t) = ty.strip_prefix("Secret<").and_then(|s| s.strip_suffix('>')) {
         return transfer_type_with_bounds(program, t, shared, bounds, seen);
     }
-    if true {
+    {
         if let Some(t) = ty.strip_prefix("Tuple<").and_then(|s| s.strip_suffix('>')) {
             return split_type_args(t)
                 .iter()
@@ -1165,7 +1149,7 @@ pub(super) fn needed_globals(program: &Program, name: &str) -> BTreeSet<String> 
                     }
                 }
             });
-            if true {
+            {
                 let checker = Checker {
                     program,
                     scopes: vec![BTreeMap::new()],

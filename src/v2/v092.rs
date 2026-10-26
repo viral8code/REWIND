@@ -389,9 +389,7 @@ pub(super) fn names() -> &'static [&'static str] {
     ]
 }
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !true {
-        return Ok(());
-    }
+    
     if p.structs.contains_key("StdError")
         || p.enums.contains_key("StdError")
         || names().iter().any(|n| {
@@ -467,7 +465,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         for (name, fields) in [
             (
                 "HttpServer",
@@ -513,7 +511,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             );
         }
     }
-    if true {
+    {
         for (name, fields) in [
             ("TcpSocket", vec![("peer", "String")]),
             (
@@ -545,7 +543,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             );
         }
     }
-    if true {
+    {
         for (name, fields) in [
             ("DbConnection", vec![("backend", "String")]),
             (
@@ -769,7 +767,7 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
     Some(work.max(1))
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !true || !names().contains(&n)
+    if false || !names().contains(&n)
     {
         return Ok(None);
     }
@@ -798,60 +796,60 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         return Ok(Some(result));
     }
     if n == "stdBytesFromList"
-        && !true
+        && false
     {
         return Ok(None);
     }
-    if n.starts_with("stdExternal") && !true {
+    if n.starts_with("stdExternal") && false {
         return Err(diagnostic(at, "external operations require language 1.5.0"));
     }
-    if n.starts_with("stdExternalHttpServer") && !true {
+    if n.starts_with("stdExternalHttpServer") && false {
         return Err(diagnostic(at, "HTTP server requires language 1.9.25"));
     }
     if matches!(
         n,
         "stdExternalHttpServerListenTls" | "stdExternalHttpServerTlsCredential"
-    ) && !true
+    ) && false
     {
         return Err(diagnostic(at, "HTTP server TLS requires language 1.9.29"));
     }
     if matches!(
         n,
         "stdExternalHttpServerBearerCredential" | "stdExternalHttpServerListenTlsAuthenticated"
-    ) && !true
+    ) && false
     {
         return Err(diagnostic(
             at,
             "HTTP server authentication requires language 1.9.30",
         ));
     }
-    if n == "stdExternalTcpTls" && !true {
+    if n == "stdExternalTcpTls" && false {
         return Err(diagnostic(at, "TCP TLS requires language 1.9.24"));
     }
-    if n.starts_with("stdExternalTcp") && !true {
+    if n.starts_with("stdExternalTcp") && false {
         return Err(diagnostic(at, "TCP requires language 1.9.23"));
     }
-    if n.starts_with("stdExternalHttp") && !true {
+    if n.starts_with("stdExternalHttp") && false {
         return Err(diagnostic(at, "HTTP requires language 1.6.0"));
     }
     if matches!(n, "stdExternalDbPostgres" | "stdExternalDbCredentials")
-        && !true
+        && false
     {
         return Err(diagnostic(
             at,
             "PostgreSQL primitives require language 1.7.1",
         ));
     }
-    if n == "stdExternalGuiDialog" && !true {
+    if n == "stdExternalGuiDialog" && false {
         return Err(diagnostic(
             at,
             "native file dialogs require language 1.9.60",
         ));
     }
-    if n.starts_with("stdExternalDb") && !true {
+    if n.starts_with("stdExternalDb") && false {
         return Err(diagnostic(at, "database primitives require language 1.7.0"));
     }
-    if n == "stdGuiScene" && !true {
+    if n == "stdGuiScene" && false {
         return Err(diagnostic(
             at,
             "GUI scene serialization requires language 1.9.13",
@@ -861,15 +859,10 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         n,
         "stdGuiWindowNextAnyAsync" | "stdGuiWindowNextAnyLiveAsync"
     ) {
-        if n == "stdGuiWindowNextAnyLiveAsync" && !true {
+        if n == "stdGuiWindowNextAnyLiveAsync" && false {
             return Err(diagnostic(at, "live GUI input requires language 1.9.22"));
         }
-        if !true {
-            return Err(diagnostic(
-                at,
-                "asynchronous GUI input requires language 1.9.19",
-            ));
-        }
+        
         let Some((params, ret)) = args.first().and_then(|ty| function_signature(ty)) else {
             return Err(diagnostic(at, "GUI wait requires a pure event decoder"));
         };
@@ -886,22 +879,22 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         }
         return Ok(Some(format!("Task<{ret}>")));
     }
-    if n == "stdTaskYieldNow" && !true {
+    if n == "stdTaskYieldNow" && false {
         return Err(diagnostic(at, "task yield requires language 1.9.10"));
     }
-    if n.starts_with("stdGuiWindow") && !true {
+    if n.starts_with("stdGuiWindow") && false {
         return Err(diagnostic(
             at,
             "named GUI primitives require language 1.9.9",
         ));
     }
-    if n == "stdGuiEditGrapheme" && !true {
+    if n == "stdGuiEditGrapheme" && false {
         return Err(diagnostic(at, "grapheme editing requires language 1.9.7"));
     }
-    if n.starts_with("stdGui") && !true {
+    if n.starts_with("stdGui") && false {
         return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
     }
-    if matches!(n, "stdGuiEdit" | "stdGuiPollEvent") && !true {
+    if matches!(n, "stdGuiEdit" | "stdGuiPollEvent") && false {
         return Err(diagnostic(
             at,
             "GUI editing and polling require language 1.4.0",
@@ -916,7 +909,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdExternalHttpWrite"
             | "stdExternalHttpFinish"
             | "stdExternalHttpCloseUpload"
-    ) && !true
+    ) && false
     {
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }

@@ -130,9 +130,7 @@ impl Compiler {
         }
     }
     fn expression_type(&self, e: &Expr) -> Option<String> {
-        if !true {
-            return None;
-        }
+        
         let checker = Checker {
             program: &self.typing_program,
             scopes: self.typing_scopes.clone(),
@@ -148,7 +146,7 @@ impl Compiler {
         checker.expr(e).ok()
     }
     fn call_name(&self, name: &str, args: &[Expr], at: &Tok) -> String {
-        if !true || name.contains('<')
+        if false || name.contains('<')
         {
             return name.into();
         }
@@ -288,7 +286,7 @@ impl Compiler {
         c.typing_program = program.clone();
         c.typing_origin = program.root_origin.clone();
         for stmt in &program.stmts {
-            let guard = if true && stmt.at.text == "@application-entry"
+            let guard = if stmt.at.text == "@application-entry"
             {
                 Some(c.emit(Op::ApplicationEntry(0), &stmt.at))
             } else {
@@ -306,7 +304,7 @@ impl Compiler {
             col: 1,
         });
         c.emit(Op::Halt, &end);
-        if true {
+        {
             let signatures = program
                 .functions
                 .iter()
@@ -369,7 +367,7 @@ impl Compiler {
         ))
         .unwrap_or_default();
         let base = self.code.len();
-        if true {
+        {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
                 relocate(&mut chunk.code, base, false);
                 self.code.extend(chunk.code);
@@ -404,7 +402,7 @@ impl Compiler {
         self.depth = 0;
         self.typing_scopes = typing_scopes;
         self.typing_origin = typing_origin;
-        if true {
+        {
             let mut code = self.code[base..].to_vec();
             relocate(&mut code, base, true);
             let closures = self
@@ -628,8 +626,7 @@ impl Compiler {
                     self.pattern_types(pattern, value_type.as_deref(), at);
                     self.emit(Op::Load(hidden.clone()), at);
                     let miss = self.emit(
-                        if true
-                            && matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
+                        if matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
                         {
                             Op::BorrowPatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
                         } else {
@@ -811,8 +808,7 @@ impl Compiler {
                     self.pattern_types(pattern, value_type.as_deref(), &e.at);
                     self.emit(Op::Load(hidden.clone()), &e.at);
                     let miss = self.emit(
-                        if true
-                            && matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
+                        if matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
                         {
                             Op::BorrowPatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
                         } else {
@@ -1134,34 +1130,8 @@ impl<R: BufRead> Vm<R> {
 /// Language-version dependent switches, computed once when the `Vm` is built.
 /// The program's language never changes while a `Vm` runs, so the per-instruction
 /// checks read these fields instead of comparing the version text.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct LangFlags {
-    timeouts: bool,
-    gc: bool,
-    record_index_state: bool,
-    record_event: bool,
-    binary_work: bool,
-    scheduler_gc: bool,
-    shared_task_quota: bool,
-}
-
-impl LangFlags {
-    fn new(language: &str) -> Self {
-        Self {
-            timeouts: true,
-            gc: true,
-            record_index_state: true,
-            record_event: true,
-            binary_work: true,
-            scheduler_gc: true,
-            shared_task_quota: true,
-        }
-    }
-}
-
 struct Vm<R: BufRead> {
     engine: Engine<R>,
-    flags: LangFlags,
     code: Vec<Arc<Inst>>,
     functions: BTreeMap<String, usize>,
     globals: Vec<BTreeMap<String, Binding>>,
@@ -1191,7 +1161,6 @@ struct Vm<R: BufRead> {
     debug_bytes: usize,
     audit: Vec<serde_json::Value>,
     inspections: Vec<serde_json::Value>,
-    task_instructions: BTreeMap<u64, usize>,
     task_instruction_total: u64,
     choice_widths: Vec<usize>,
     choices_used: Vec<usize>,
@@ -1225,7 +1194,7 @@ impl<R: BufRead> Vm<R> {
             || options.replay.is_some()
             || options.inspect
             || options.pause_after.is_some())
-            && true
+            
             && v06::entry_effects(&program, test_mode)?.contains("live")
         {
             return Err(Error::InvalidOperation("ExternalLiveRecordingUnsupported: live effects require execution without record, replay or inspection".into()));
@@ -1354,37 +1323,37 @@ impl<R: BufRead> Vm<R> {
             engine.runtime.enable_work_profile();
             engine.runtime.enable_gc_profiling();
         }
-        if true {
+        {
             engine.runtime.enable_cached_heap_entries();
         }
-        if true {
+        {
             engine.runtime.enable_cached_heap_traversal();
         }
-        if true {
+        {
             engine.runtime.enable_container_accounting();
         }
-        if true {
+        {
             engine.runtime.enable_byte_payload_accounting();
         }
-        if true {
+        {
             engine.runtime.enable_shared_payload_accounting();
         }
-        if true {
+        {
             engine.runtime.enable_numeric_accounting();
         }
-        if true {
+        {
             engine.runtime.enable_sensitive_accounting();
         }
-        if true {
+        {
             engine.runtime.enable_gui_clipboard();
         }
-        if true {
+        {
             engine.runtime.enable_gui_command_keys();
         }
-        if true {
+        {
             engine.runtime.enable_gui_ime();
         }
-        if true {
+        {
             engine.runtime.enable_gui_accessibility();
         }
         engine.runtime.set_budget(history_budget)?;
@@ -1450,13 +1419,13 @@ impl<R: BufRead> Vm<R> {
                 .runtime
                 .import_observations(&replay["observations"])?;
         }
-        if true {
+        {
             engine.runtime.enable_allocation_accounting();
             if let Some(limit) = options.execution_steps {
                 engine.runtime.configure_execution_work(limit);
             }
         }
-        if true {
+        {
             engine
                 .runtime
                 .configure_native_work(options.native_work.unwrap_or(1_000_000));
@@ -1468,7 +1437,6 @@ impl<R: BufRead> Vm<R> {
         engine.trace_json = options.trace_json;
         engine.test_mode = test_mode;
         let mut vm = Self {
-            flags: LangFlags::new(&engine.program.language),
             engine,
             code: compiled.code.into_iter().map(Arc::new).collect(),
             functions: compiled.functions,
@@ -1499,7 +1467,6 @@ impl<R: BufRead> Vm<R> {
             debug_bytes: 0,
             audit: Vec::new(),
             inspections: Vec::new(),
-            task_instructions: BTreeMap::new(),
             task_instruction_total: 0,
             choice_widths: Vec::new(),
             choices_used: Vec::new(),
@@ -1508,40 +1475,37 @@ impl<R: BufRead> Vm<R> {
             callback_stop: None,
             current_pc: None,
         };
-        if true {
+        {
             vm.engine.runtime.install_begin()?;
             vm.snapshots.insert("begin".into(), vm.snapshot());
         }
         Ok(vm)
     }
     fn error(&self, at: &Tok, message: impl AsRef<str>) -> Error {
-        if true {
-            let message = self
-                .engine
-                .runtime
-                .masked_value(&Value::Text(message.as_ref().into()));
-            let code = v06::diagnostics::code(&message).to_string();
-            return Error::Diagnostic(Box::new(rewind::DiagnosticRecord {
-                code: code.clone(),
-                message,
+        let message = self
+            .engine
+            .runtime
+            .masked_value(&Value::Text(message.as_ref().into()));
+        let code = v06::diagnostics::code(&message).to_string();
+        Error::Diagnostic(Box::new(rewind::DiagnosticRecord {
+            code: code.clone(),
+            message,
 
-                source: at.source.clone(),
-                line: at.line,
-                column: at.col,
-                task_id: Some(self.scheduler.active),
-                frames: vec![],
-                hints: vec![],
-                frames_truncated: false,
-                causes: vec![],
-                wait_edges: if code == "TaskDeadlock" {
-                    self.scheduler.wait_edges()
-                } else {
-                    vec![]
-                },
-                related: Vec::new(),
-            }));
-        }
-        diagnostic(at, message)
+            source: at.source.clone(),
+            line: at.line,
+            column: at.col,
+            task_id: Some(self.scheduler.active),
+            frames: vec![],
+            hints: vec![],
+            frames_truncated: false,
+            causes: vec![],
+            wait_edges: if code == "TaskDeadlock" {
+                self.scheduler.wait_edges()
+            } else {
+                vec![]
+            },
+            related: Vec::new(),
+        }))
     }
     fn inspection(&self) -> serde_json::Value {
         serde_json::json!({"event":self.events.len(),"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"task_frames":self.task_frame_views(),"frames":self.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|scope|scope.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>()})).collect::<Vec<_>>()})
@@ -1591,7 +1555,7 @@ impl<R: BufRead> Vm<R> {
         if matches!(error, Error::HistoryBudgetExceeded) {
             d.code = self.engine.runtime.history_budget_kind().into();
         }
-        if true {
+        {
             v11::enrich(&mut d);
         }
         d
@@ -1916,7 +1880,6 @@ impl<R: BufRead> Vm<R> {
             return Ok(());
         }
         let mut first_error = None;
-        let mut suppressed = Vec::new();
         let mut typed_causes = Vec::new();
         for cleanup in pending.into_iter().rev() {
             if let Err(error) = self.run_cleanup(cleanup, at) {
@@ -1924,29 +1887,14 @@ impl<R: BufRead> Vm<R> {
                     first_error = Some(error);
                 } else {
                     typed_causes.push(self.record_error(&error, at, self.scheduler.active));
-                    suppressed.push(error.to_string());
                 }
             }
         }
-        if true {
-            return first_error.map_or(Ok(()), |e| {
-                let mut d = self.record_error(&e, at, self.scheduler.active);
-                d.causes.extend(typed_causes);
-                Err(Error::Diagnostic(Box::new(d)))
-            });
-        }
-        if true {
-            first_error.map_or(Ok(()), |e| {
-                let mut message = e.to_string();
-                for cause in suppressed {
-                    message.push_str("; cleanup: ");
-                    message.push_str(&cause);
-                }
-                Err(Error::InvalidOperation(message))
-            })
-        } else {
-            first_error.map_or(Ok(()), Err)
-        }
+        first_error.map_or(Ok(()), |e| {
+            let mut d = self.record_error(&e, at, self.scheduler.active);
+            d.causes.extend(typed_causes);
+            Err(Error::Diagnostic(Box::new(d)))
+        })
     }
     fn call_user_captured(
         &mut self,
@@ -2171,16 +2119,13 @@ impl<R: BufRead> Vm<R> {
             }
         };
         if result.is_ok()
-            && true
+            
         {
-            if true {
+            {
                 if let Some(error) = self.unhandled_task_diagnostic() {
                     result = Err(Error::Diagnostic(Box::new(error)));
                 }
-            } else if let Some(error) = self.unhandled_task_error() {
-                result = Err(Error::InvalidOperation(error));
-            }
-        }
+            }}
         if result.is_err() {
             let mut causes = Vec::new();
             let mut typed_causes = Vec::new();
@@ -2232,27 +2177,18 @@ impl<R: BufRead> Vm<R> {
                     causes.push(e.to_string());
                 }
             }
-            if true {
+            {
                 let mut failure =
                     self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
                 failure.causes.extend(typed_causes);
                 result = Err(Error::Diagnostic(Box::new(failure)));
-            } else if true && !causes.is_empty()
-            {
-                let mut message = result.unwrap_err().to_string();
-                for cause in causes {
-                    message.push_str("; cleanup: ");
-                    message.push_str(&cause);
-                }
-                result = Err(Error::InvalidOperation(message));
-            }
-        }
+            }}
         result
     }
     fn finish_tools(&self, execution_error: Option<&Error>) -> Result<()> {
         let digest = self.engine.runtime.state_digest()?;
         let mut outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string().into())))});
-        if true {
+        {
             outcome["diagnostic"] = execution_error
                 .and_then(|e| {
                     if let Error::Diagnostic(d) = e {
@@ -2312,7 +2248,7 @@ impl<R: BufRead> Vm<R> {
                 }
             }
             if !compact
-                && true
+                
             {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
@@ -2401,9 +2337,7 @@ impl<R: BufRead> Vm<R> {
             self.current_pc = caller_pc;
         }
         result.map_err(|error| {
-            if !true {
-                return error;
-            }
+            
             let at = self
                 .current_pc
                 .and_then(|pc| self.code.get(pc))
@@ -2466,7 +2400,7 @@ impl<R: BufRead> Vm<R> {
             {
                 return Ok(());
             }
-            if self.flags.timeouts {
+            {
                 if self.scheduler.has_timeouts() {
                     self.expire_timeouts(&self.code[self.pc].at.clone())?;
                 }
@@ -2474,20 +2408,15 @@ impl<R: BufRead> Vm<R> {
             if self.cancellation_requested() {
                 return Err(self.error(&self.code[self.pc].at, "TaskCancelled"));
             }
-            let scheduler_gc = (self.engine.runtime.collection_due() || self.scheduler.gc_due())
-                && self.flags.scheduler_gc;
-            if self.flags.gc && (self.engine.runtime.collection_due() || scheduler_gc)
-            {
-                if scheduler_gc {
-                    self.collect_scheduler()?;
-                }
+            if self.engine.runtime.collection_due() || self.scheduler.gc_due() {
+                self.collect_scheduler()?;
                 self.collect_native_resources()?;
                 let limit = self
                     .engine
                     .runtime
                     .execution_work_remaining()
                     .map_or(self.steps, |n| n.min(self.steps));
-                let (_, work) = if self.flags.scheduler_gc {
+                let (_, work) = {
                     let roots = scheduler::gc::borrowed_roots(
                         &self.globals,
                         &self.engine.scopes,
@@ -2497,15 +2426,6 @@ impl<R: BufRead> Vm<R> {
                         &self.scheduler,
                     );
                     self.engine.runtime.collect_heap_refs(&roots, limit)?
-                } else {
-                    let mut roots = Vec::new();
-                    gc_scope_roots(&self.globals, &mut roots);
-                    gc_scope_roots(&self.engine.scopes, &mut roots);
-                    gc_frame_roots(&self.frames, &mut roots);
-                    gc_cleanup_roots(&self.global_cleanups, &mut roots);
-                    gc_branch_roots(&self.branches, &mut roots);
-                    self.scheduler.gc_roots(&mut roots);
-                    self.engine.runtime.collect_heap(&roots, limit)?
                 };
                 self.engine.runtime.charge_execution_work(work)?;
                 self.steps -= work;
@@ -2596,11 +2516,11 @@ impl<R: BufRead> Vm<R> {
                     .next()
                     .unwrap()
                     .to_string();
-                if self.flags.record_index_state {
+                {
                     self.index_state(&inst.at)?;
                 }
                 let mut event = serde_json::json!({"task":self.scheduler.active,"pc":self.pc,"operation":operation});
-                if self.flags.record_event {
+                {
                     event["source"] = serde_json::json!(inst.at.source);
                     event["line"] = serde_json::json!(inst.at.line);
                     event["column"] = serde_json::json!(inst.at.col);
@@ -2657,7 +2577,7 @@ impl<R: BufRead> Vm<R> {
                     } else if let Some(f) = self.engine.program.functions.get(name) {
                         Value::Function(
                             name.clone(),
-                            if true {
+                            {
                                 let ty = v06::fn_type(
                                     &f.params,
                                     &if f.asynchronous {
@@ -2683,20 +2603,6 @@ impl<R: BufRead> Vm<R> {
                                     })
                                 };
                                 v06::captures::with_flags(&ty, can(false), can(true))
-                            } else {
-                                format!(
-                                    "fn({})->{}",
-                                    f.params
-                                        .iter()
-                                        .map(|(_, t)| t.as_str())
-                                        .collect::<Vec<_>>()
-                                        .join(","),
-                                    if f.asynchronous {
-                                        format!("Task<{}>", f.ret)
-                                    } else {
-                                        f.ret.clone()
-                                    }
-                                )
                             },
                         )
                     } else if name.contains("::") {
@@ -2812,7 +2718,7 @@ impl<R: BufRead> Vm<R> {
                 Op::Binary(op) => {
                     let rhs = self.pop()?;
                     let lhs = self.pop()?;
-                    if self.flags.binary_work && (matches!(
+                    if (matches!(
                         lhs,
                         Value::Text(_)
                             | Value::Bytes(_)
@@ -2904,7 +2810,7 @@ impl<R: BufRead> Vm<R> {
                 Op::Call(name, count) => {
                     let count = *count;
                     let args = self.args(count)?;
-                    if true && name == "reveal"
+                    if name == "reveal"
                     {
                         self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
                     }
@@ -2918,7 +2824,7 @@ impl<R: BufRead> Vm<R> {
                         continue;
                     }
                     if name == "propertyInt"
-                        && true
+                        
                     {
                         let value = self.property_int(&args, &inst.at)?;
                         self.push(value)?;
@@ -2983,7 +2889,7 @@ impl<R: BufRead> Vm<R> {
                     let needed = v05::needed_globals(&self.engine.program, &name);
                     for scope in &self.globals {
                         for (name, binding) in scope {
-                            if true && !needed.contains(name)
+                            if !needed.contains(name)
                             {
                                 continue;
                             }
@@ -3000,7 +2906,7 @@ impl<R: BufRead> Vm<R> {
                     if let Some(frame) = self.frames.last() {
                         for scope in &frame.scopes {
                             for (name, binding) in scope {
-                                if true && !needed.contains(name)
+                                if !needed.contains(name)
                                 {
                                     continue;
                                 }
@@ -3015,7 +2921,7 @@ impl<R: BufRead> Vm<R> {
                             }
                         }
                     }
-                    let ty = if true {
+                    let ty = {
                         let f =
                             &self.engine.program.functions[name.split('<').next().unwrap_or(&name)];
                         let checker = Checker {
@@ -3078,8 +2984,6 @@ impl<R: BufRead> Vm<R> {
                             })
                         };
                         v06::captures::with_flags(&ty, can(false), can(true))
-                    } else {
-                        ty
                     };
                     let id = self
                         .engine
@@ -3091,7 +2995,7 @@ impl<R: BufRead> Vm<R> {
                     let count = *count;
                     let mut args = self.args(count)?;
                     let target = self.pop()?;
-                    if true {
+                    {
                         self.engine.runtime.charge_native_work(v100::method_work(
                             &target,
                             &method,
@@ -3099,7 +3003,7 @@ impl<R: BufRead> Vm<R> {
                             &self.engine.runtime,
                         ))?;
                     }
-                    if true {
+                    {
                         if let Some(value) =
                             self.result_adapter(&target, &method, &args, &inst.at)?
                         {
@@ -3138,7 +3042,7 @@ impl<R: BufRead> Vm<R> {
                 Op::Builtin(receiver, method, count) => {
                     let count = *count;
                     let args = self.args(count)?;
-                    if true {
+                    {
                         self.engine.runtime.charge_native_work(v100::call_work(
                             &format!("{receiver}.{method}"),
                             &args,
@@ -3146,7 +3050,7 @@ impl<R: BufRead> Vm<R> {
                             &self.engine.program.language,
                         ))?;
                     }
-                    if true && matches!(
+                    if matches!(
                         (receiver.as_str(), method.as_str()),
                         ("Env", "getSecret") | ("In", "readSecretLine")
                     ) {
@@ -3180,7 +3084,7 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::EnterExternal(fresh) => {
                     if (self.scheduler.active != 0
-                        && !true)
+                        && false)
                         || !self.branches.is_empty()
                     {
                         return Err(self.error(
@@ -3286,7 +3190,7 @@ impl<R: BufRead> Vm<R> {
                     _ => return Err(self.error(&inst.at, "condition must be Bool")),
                 },
                 Op::Return => {
-                    let failed = true && matches!(
+                    let failed = matches!(
                         self.engine.runtime.state().stack.last(),
                         Some(Value::Result(Err(_)))
                     );
@@ -3371,7 +3275,7 @@ impl<R: BufRead> Vm<R> {
                     let mut snap = self.snapshots.get(name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
-                    if name == "begin" && true
+                    if name == "begin" 
                     {
                         // Retain only the live continuation skeleton. All bindings,
                         // resources, deferred cleanups and tasks are initial again.
@@ -3481,7 +3385,7 @@ impl<R: BufRead> Vm<R> {
                     let snap = self.snapshots.get(name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
-                    if name == "begin" && true
+                    if name == "begin" 
                     {
                         self.engine.runtime.reset_begin()?;
                         self.snapshots.retain(|label, _| label == "begin");
@@ -3497,14 +3401,14 @@ impl<R: BufRead> Vm<R> {
                 Op::Publish(force) => {
                     let force = *force;
                     self.engine.runtime.require_internal()?;
-                    if true {
+                    {
                         if let Some(error) = self.unhandled_task_error() {
                             return Err(self.error(&inst.at, error));
                         }
                     }
                     if self.scheduler.active != 0
                         || (self.scheduler.has_live_tasks()
-                            && !true)
+                            && false)
                     {
                         return Err(self.error(&inst.at,"publish requires the application task and completed/cancelled children"));
                     }
@@ -3741,7 +3645,7 @@ fn build_artifact_mode(
         .collect::<Result<BTreeMap<_, _>>>()?;
     let functions=program.functions.iter().map(|(name,f)| (name.clone(),serde_json::json!({"async":f.asynchronous,"type_params":f.type_params,"parameters":f.params,"return":f.ret}))).collect::<BTreeMap<_,_>>();
     let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"module":inst.at.source,"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
-    let document = if true && !root.join("rewind.toml").exists()
+    let document = if !root.join("rewind.toml").exists()
     {
         serde_json::to_string(&functions).map_err(|e| Error::InvalidOperation(e.to_string()))?
     } else {
@@ -3811,7 +3715,7 @@ fn explore_test(
             vm.run()
         })();
         if run.is_err()
-            && true
+            
         {
             vm.options.record = options.record.clone();
             vm.finish_tools(run.as_ref().err())?;
@@ -3846,8 +3750,7 @@ pub(super) fn session_mode(
     strict: bool,
     budget: usize,
 ) -> Result<(Result<()>, serde_json::Value, serde_json::Value, usize)> {
-    if true
-        && v06::entry_effects(&program, false)?.contains("live")
+    if v06::entry_effects(&program, false)?.contains("live")
     {
         return Err(Error::InvalidOperation(
             "ExternalLiveRecordingUnsupported: REPL sessions require a complete observation tape"

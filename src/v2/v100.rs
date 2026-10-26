@@ -3,9 +3,7 @@
 use super::*;
 
 pub(super) fn prepare(program: &mut Program) -> Result<()> {
-    if !true {
-        return Ok(());
-    }
+    
     fn expected(p: &Program, expr: &mut Expr, ty: &str) -> Result<()> {
         let ExprKind::Call(target, _) = &mut expr.kind else {
             return Ok(());
@@ -107,10 +105,10 @@ pub(super) fn argument_work(value: &Value, runtime: &Runtime) -> usize {
         _ => Runtime::value_bytes(value).saturating_add(1),
     }
 }
-pub(super) fn call_work(name: &str, args: &[Value], runtime: &Runtime, language: &str) -> usize {
+pub(super) fn call_work(name: &str, args: &[Value], runtime: &Runtime, _language: &str) -> usize {
     // Older artifacts retain their published fixed identity fee. New source
     // accounts for cold hashing without depending on mutable cache warmth.
-    if name == "stdNumericTensorKey" && !true {
+    if name == "stdNumericTensorKey" && false {
         return 1024;
     }
     v092::work(name, args, runtime).unwrap_or_else(|| {

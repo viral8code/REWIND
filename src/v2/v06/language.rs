@@ -295,15 +295,8 @@ impl Expand<'_> {
 }
 
 pub(in crate::v2) fn prepare(program: &mut Program) -> Result<()> {
-    let uses_defaults = program.traits.values().any(|tr| !tr.defaults.is_empty());
-    if !true {
-        if !program.aliases.is_empty() || uses_defaults {
-            return Err(Error::InvalidOperation(
-                "type aliases and default trait methods require language 0.6".into(),
-            ));
-        }
-        return Ok(());
-    }
+    let _uses_defaults = program.traits.values().any(|tr| !tr.defaults.is_empty());
+    
     let snapshot = program.clone();
     for (n, alias) in &snapshot.aliases {
         if snapshot.structs.contains_key(n)

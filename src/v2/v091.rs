@@ -18,7 +18,7 @@ const NAMES: &[&str] = &[
 ];
 
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if true {
+    {
         install_literal_helpers(p)?;
         super::interpolate::expand(p)?;
         // From 3.0.0 a source file holds declarations only; executable code
@@ -38,9 +38,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             ));
         }
     }
-    if !true {
-        return Ok(());
-    }
+    
     for n in NAMES {
         if p.functions.contains_key(*n) || p.structs.contains_key(*n) || p.enums.contains_key(*n) {
             return Err(Error::InvalidOperation(format!(
@@ -163,9 +161,8 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     }
     Ok(())
 }
-pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !true || !NAMES.contains(&n)
-    {
+pub(super) fn call_type(_p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
+    if !NAMES.contains(&n) {
         return Ok(None);
     }
     let (params, ret): (&[&str], &str) = match n {

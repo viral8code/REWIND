@@ -1,9 +1,7 @@
 use super::*;
 use rewind::bigint::{Error as BigError, IntegerValue, MAX_BITS};
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !true {
-        return Ok(());
-    }
+    
     if p.structs.contains_key("BigInt")
         || p.enums.contains_key("BigInt")
         || p.aliases.contains_key("BigInt")
@@ -46,13 +44,11 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
 pub(super) fn parameter(n: &str, i: usize) -> Option<&'static str> {
     signature(n)?.0.get(i).copied()
 }
-pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
+pub(super) fn call_type(_p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
-    if !true {
-        return Err(diagnostic(at, "BigInt requires language 1.8.2"));
-    }
+    
     if args.len() != params.len() || params.iter().zip(args).any(|(p, a)| !compatible(p, a)) {
         return Err(diagnostic(
             at,

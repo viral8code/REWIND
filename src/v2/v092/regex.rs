@@ -1,9 +1,7 @@
 use super::*;
 use rewind::regular::{self as re, Error as RegexError, Pattern};
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !true {
-        return Ok(());
-    }
+    
     if p.structs.contains_key("Regex")
         || p.enums.contains_key("Regex")
         || p.aliases.contains_key("Regex")
@@ -49,13 +47,11 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
 pub(super) fn parameter(n: &str, i: usize) -> Option<&'static str> {
     signature(n)?.0.get(i).copied()
 }
-pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
+pub(super) fn call_type(_p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
-    if !true {
-        return Err(diagnostic(at, "regex requires language 1.8.6"));
-    }
+    
     if args.len() != params.len() || params.iter().zip(args).any(|(p, a)| !compatible(p, a)) {
         return Err(diagnostic(
             at,

@@ -4,7 +4,6 @@ use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 mod call_args;
-mod effects;
 mod interpolate;
 mod namespacing;
 mod packages;
@@ -22,11 +21,11 @@ mod v11;
 mod v15;
 #[cfg(test)]
 mod grammar_check;
-fn program_v09(p: &Program) -> bool {
+fn program_v09(_p: &Program) -> bool {
     true
 }
 mod vm;
-fn program_v07(p: &Program) -> bool {
+fn program_v07(_p: &Program) -> bool {
     true
 }
 thread_local! {
@@ -4317,7 +4316,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
         &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )?;
-    program.strict_visibility = manifest.as_ref().is_some_and(|m| {
+    program.strict_visibility = manifest.as_ref().is_some_and(|_m| {
         true
     });
     program.language = manifest
@@ -4329,7 +4328,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     // From 3.0.0 an application is its `fn main`; a run without one would
     // silently do nothing, so reject it before executing.
     if mode == "run"
-        && true
+        
         && !program
             .functions
             .get("main")
@@ -4340,15 +4339,12 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
         ));
     }
     if let Some(config) = &manifest {
-        if true {
+        {
             v05::validate(&program, config)?;
-        } else if config.language == "0.4" {
-            effects::validate(&program, config)?;
-        }
-    }
+        }}
     vm::validate(&program)?;
     if mode == "build" {
-        let artifact = if true {
+        let artifact = {
             v05::artifact(
                 &program,
                 root,
@@ -4356,8 +4352,6 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
                     .as_ref()
                     .ok_or_else(|| Error::InvalidOperation("artifact requires manifest".into()))?,
             )?
-        } else {
-            vm::build_artifact(&program, root)?
         };
         fs::write(
             options
@@ -4403,7 +4397,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
         &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )?;
-    program.strict_visibility = manifest.as_ref().is_some_and(|m| {
+    program.strict_visibility = manifest.as_ref().is_some_and(|_m| {
         true
     });
     program.language = manifest
@@ -4413,12 +4407,9 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
     v05::prepare(&mut program)?;
     check_program(&program)?;
     if let Some(config) = &manifest {
-        if true {
+        {
             v05::validate(&program, config)?;
-        } else if config.language == "0.4" {
-            effects::validate(&program, config)?;
-        }
-    }
+        }}
     let mut docs = BTreeMap::new();
     let mut pending = Vec::new();
     for line in fs::read_to_string(file)?.lines() {
@@ -4678,14 +4669,11 @@ pub fn debug_trace(path: &Path) -> Result<()> {
     Ok(())
 }
 pub fn lock_project(root: &Path) -> Result<()> {
-    let project = project::ProjectConfig::load(root)?
+    project::ProjectConfig::load(root)?
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
-    if true {
-        return Err(Error::InvalidOperation(
-            "use 'rewind update' to update v0.4 dependencies".into(),
-        ));
-    }
-    project.lock(root, true)
+    Err(Error::InvalidOperation(
+        "use 'rewind update' to update v0.4 dependencies".into(),
+    ))
 }
 pub fn update_preview(root: &Path, output: Option<&Path>) -> Result<()> {
     v06::update::preview(root, output)
@@ -4854,7 +4842,7 @@ fn check_program(program: &Program) -> Result<()> {
     v15::validate(program)?;
     v07::validate_records(program)?;
     v09::record_signatures(program)?;
-    if true {
+    {
         let entries = program.impls.iter().collect::<Vec<_>>();
         for (i, ((tr, target), methods)) in entries.iter().enumerate() {
             for ((other_tr, other_target), other_methods) in entries.iter().skip(i + 1) {
@@ -5033,7 +5021,7 @@ fn check_program(program: &Program) -> Result<()> {
             ));
         }
     }
-    if true {
+    {
         for (at, name) in &program.bound_sites {
             if !matches!(
                 name.as_str(),
@@ -5051,11 +5039,11 @@ fn check_program(program: &Program) -> Result<()> {
     for f in program.functions.values() {
         let root = program.root_origin.parent().unwrap_or(Path::new("."));
         let key = v06::cache::key(&(f, &interface_key)).unwrap_or_default();
-        if true && v06::cache::get::<bool>(root, "checked", &key) == Some(true)
+        if v06::cache::get::<bool>(root, "checked", &key) == Some(true)
         {
             continue;
         }
-        if true {
+        {
             for (param, bound) in &f.type_params {
                 for name in bound.iter().flat_map(|b| b.split('+')) {
                     if !matches!(name, "Share" | "Send" | "Ord" | "Eq" | "Hash" | "Display")
@@ -5073,7 +5061,7 @@ fn check_program(program: &Program) -> Result<()> {
         let mut checker = Checker {
             program,
             scopes: vec![
-                if true {
+                {
                     globals
                         .iter()
                         .filter(|(name, _)| {
@@ -5082,8 +5070,6 @@ fn check_program(program: &Program) -> Result<()> {
                         })
                         .map(|(name, value)| (name.clone(), value.clone()))
                         .collect()
-                } else {
-                    globals.clone()
                 },
                 BTreeMap::new(),
             ],
@@ -5108,7 +5094,7 @@ fn check_program(program: &Program) -> Result<()> {
                 format!("function returning {} needs a return on every path", f.ret),
             ));
         }
-        if true {
+        {
             v06::cache::put(root, "checked", &key, &true);
         }
     }
@@ -5168,7 +5154,7 @@ struct Checker<'a> {
 }
 impl Checker<'_> {
     fn field_visible(&self, def: &StructDef, field: &str, at: &Tok) -> Result<()> {
-        if true && def.origin != self.origin
+        if def.origin != self.origin
             && def.private_fields.contains(field)
         {
             return Err(diagnostic(
@@ -5185,7 +5171,7 @@ impl Checker<'_> {
                 "opaque type constructor is not available; use its standard-library factory",
             ));
         }
-        if true && def.origin != self.origin
+        if def.origin != self.origin
             && !def.private_fields.is_empty()
         {
             return Err(diagnostic(
@@ -5206,7 +5192,7 @@ impl Checker<'_> {
                 .get(&(self.origin.clone(), origin.to_path_buf()))
             {
                 if !exposed.contains(name)
-                    && !(true && exposed.iter().any(|local| {
+                    && !(exposed.iter().any(|local| {
                         resolve_alias(self.program, local).split('<').next()
                             == resolve_alias(self.program, name).split('<').next()
                     }))
@@ -5373,9 +5359,7 @@ impl Checker<'_> {
             }
             Pattern::Variant(name, parts) => {
                 let (head, field_types) = if name == "$tuple" {
-                    if !true {
-                        return Err(diagnostic(at, "tuple pattern requires language 0.6"));
-                    }
+                    
                     let inner = ty
                         .strip_prefix("Tuple<")
                         .and_then(|s| s.strip_suffix('>'))
@@ -5465,66 +5449,7 @@ impl Checker<'_> {
         Ok(())
     }
     fn check_match(&self, ty: &str, patterns: &[(&Pattern, bool)], at: &Tok) -> Result<()> {
-        if true {
-            return pattern_space::check(self.program, ty, patterns, at);
-        }
-
-        fn irrefutable(pattern: &Pattern) -> bool {
-            matches!(pattern, Pattern::Wildcard | Pattern::Bind(_))
-                || matches!(pattern, Pattern::Variant(n, parts) if n == "$tuple" && parts.iter().all(irrefutable))
-                || matches!(pattern,Pattern::Struct(n,fields) if !n.contains("::")&&fields.iter().all(|(_,p)|irrefutable(p)))
-        }
-        let required: Vec<String> = if ty.starts_with("Option<") {
-            vec!["Some".into(), "None".into()]
-        } else if ty.starts_with("Result<") {
-            vec!["Ok".into(), "Err".into()]
-        } else if ty == "Bool" {
-            vec!["true".into(), "false".into()]
-        } else if let Some(def) = self.program.enums.get(ty.split('<').next().unwrap_or(ty)) {
-            def.variants.keys().cloned().collect()
-        } else {
-            Vec::new()
-        };
-        let mut covered = BTreeSet::new();
-        let mut all = false;
-        for (pattern, guarded) in patterns {
-            let key = match pattern {
-                p if irrefutable(p) => None,
-                Pattern::Variant(name, parts) if parts.iter().all(irrefutable) => {
-                    Some(name.split("::").last().unwrap().to_string())
-                }
-                Pattern::Struct(name, fields)
-                    if name.contains("::") && fields.iter().all(|(_, p)| irrefutable(p)) =>
-                {
-                    Some(name.split("::").last().unwrap().to_string())
-                }
-                Pattern::Literal(Value::Bool(b)) => Some(b.to_string()),
-                _ => Some(String::new()),
-            };
-            if all
-                || key
-                    .as_ref()
-                    .is_some_and(|k| covered.contains(k) && !k.is_empty())
-            {
-                if program_v07(self.program) {
-                    return Err(diagnostic(at, "unreachable match arm"));
-                }
-                eprintln!("warning: {}:{}: unreachable match arm", at.line, at.col);
-            }
-            if !guarded {
-                if let Some(key) = key {
-                    if !key.is_empty() {
-                        covered.insert(key);
-                    }
-                } else {
-                    all = true;
-                }
-            }
-        }
-        if !all && (required.is_empty() || required.iter().any(|v| !covered.contains(v))) {
-            return Err(diagnostic(at, format!("non-exhaustive match for {ty}")));
-        }
-        Ok(())
+        pattern_space::check(self.program, ty, patterns, at)
     }
     fn find(&self, name: &str) -> Option<&(String, bool)> {
         self.scopes.iter().rev().find_map(|s| s.get(name))
@@ -5569,12 +5494,9 @@ impl Checker<'_> {
                     self.visible(*public, origin, &e.at, n)?;
                 }
                 if let Some(binding) = self.find(&resolved) {
-                    if true {
+                    {
                         v06::borrowed_type(&binding.0).into()
-                    } else {
-                        binding.0.clone()
-                    }
-                } else if let Some(f) = self
+                    }} else if let Some(f) = self
                     .program
                     .functions
                     .get(self.program.import_aliases.get(n).unwrap_or(n))
@@ -5586,7 +5508,7 @@ impl Checker<'_> {
                             "generic function requires a call for type inference",
                         ));
                     }
-                    if true {
+                    {
                         let ty = v06::fn_type(
                             &f.params,
                             &if f.asynchronous {
@@ -5601,22 +5523,7 @@ impl Checker<'_> {
                             &ty,
                             v05::needed_globals(self.program, &resolved),
                         )
-                    } else {
-                        format!(
-                            "fn({})->{}",
-                            f.params
-                                .iter()
-                                .map(|(_, t)| t.as_str())
-                                .collect::<Vec<_>>()
-                                .join(","),
-                            if f.asynchronous {
-                                format!("Task<{}>", f.ret)
-                            } else {
-                                f.ret.clone()
-                            }
-                        )
-                    }
-                } else if let Some(ty) = enum_constructor_type(
+                    }} else if let Some(ty) = enum_constructor_type(
                     self.program,
                     &resolve_alias(self.program, n),
                     &[],
@@ -5631,14 +5538,12 @@ impl Checker<'_> {
                     ty
                 } else {
                     return Err(
-                        if true {
+                        {
                             v11::unknown_name(
                                 &e.at,
                                 n,
                                 self.scopes.iter().rev().flat_map(|s| s.keys().cloned()),
                             )
-                        } else {
-                            diagnostic(&e.at, format!("unknown name {n}"))
                         },
                     );
                 }
@@ -5646,9 +5551,7 @@ impl Checker<'_> {
             ExprKind::Unary(op, inner) => {
                 let t = self.expr(inner)?;
                 if op.starts_with("$capture:") {
-                    if !true {
-                        return Err(diagnostic(&e.at, "explicit capture requires language 0.6"));
-                    }
+                    
                     return Ok(if op == "$capture:borrow" {
                         v06::captures::with_flags(&t, false, false)
                     } else {
@@ -5679,16 +5582,13 @@ impl Checker<'_> {
                     } else {
                         format!(
                             "Result<{inner},{}>",
-                            if true {
+                            {
                                 "TaskError"
-                            } else {
-                                "String"
-                            }
-                        )
+                            })
                     });
                 }
                 if matches!(op.as_str(), "move" | "borrow" | "borrowMut") {
-                    if true && op != "move"
+                    if op != "move"
                     {
                         return Ok(format!(
                             "&{}{}",
@@ -5704,8 +5604,8 @@ impl Checker<'_> {
                 t
             }
             ExprKind::Binary(op, a, b) => {
-                if true && (self.expr(a)?.starts_with("Secret<")
-                    || self.expr(b)?.starts_with("Secret<"))
+                if self.expr(a)?.starts_with("Secret<")
+                    || self.expr(b)?.starts_with("Secret<")
                 {
                     if matches!(op.as_str(), "&&" | "||") {
                         return Err(diagnostic(
@@ -5782,29 +5682,14 @@ impl Checker<'_> {
                                     "generic function requires a call for type inference",
                                 ));
                             }
-                            if true {
-                                return Ok(v06::fn_type(
-                                    &f.params,
-                                    &if f.asynchronous {
-                                        format!("Task<{}>", f.ret)
-                                    } else {
-                                        f.ret.clone()
-                                    },
-                                    &v06::function_effects(self.program, symbol),
-                                ));
-                            }
-                            return Ok(format!(
-                                "fn({})->{}",
-                                f.params
-                                    .iter()
-                                    .map(|(_, ty)| ty.as_str())
-                                    .collect::<Vec<_>>()
-                                    .join(","),
-                                if f.asynchronous {
+                            return Ok(v06::fn_type(
+                                &f.params,
+                                &if f.asynchronous {
                                     format!("Task<{}>", f.ret)
                                 } else {
                                     f.ret.clone()
-                                }
+                                },
+                                &v06::function_effects(self.program, symbol),
                             ));
                         }
                     }
@@ -5825,7 +5710,7 @@ impl Checker<'_> {
                     }
                 }
                 let t = self.expr(base)?;
-                if true && t.starts_with("Secret<")
+                if t.starts_with("Secret<")
                 {
                     let inner = Expr {
                         kind: ExprKind::Unary("$unsecret".into(), base.clone()),
@@ -5837,7 +5722,7 @@ impl Checker<'_> {
                     };
                     return Ok(format!("Secret<{}>", self.expr(&field_expr)?));
                 }
-                if true {
+                {
                     if let Some(inner) = t.strip_prefix("Tuple<").and_then(|t| t.strip_suffix('>'))
                     {
                         let index = field
@@ -5850,7 +5735,7 @@ impl Checker<'_> {
                             .ok_or_else(|| diagnostic(&e.at, "tuple field out of range"));
                     }
                 }
-                if true && t.starts_with("Frozen<")
+                if t.starts_with("Frozen<")
                 {
                     let inner = Expr {
                         kind: ExprKind::Unary("$unfreeze".into(), base.clone()),
@@ -5901,7 +5786,7 @@ impl Checker<'_> {
                 }
             }
             ExprKind::Call(target, args) => {
-                if true {
+                {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if let Ok(ty) = self.expr(base) {
                             if let Some(inner) =
@@ -5952,7 +5837,7 @@ impl Checker<'_> {
                         }
                     }
                 }
-                if true {
+                {
                     if let ExprKind::Member(base, method) = &target.kind {
                         if self.expr(base).is_ok_and(|t| t.starts_with("Frozen<")) {
                             if !matches!(
@@ -6001,7 +5886,7 @@ impl Checker<'_> {
                 }
                 let contextual = self.contextual_closures(target, args);
                 let args = contextual.as_ref().unwrap_or(args);
-                if true {
+                {
                     for arg in args {
                         if let ExprKind::Closure(params, _, _) = &arg.kind {
                             if let Some((param, _)) = params.iter().find(|(_, t)| t == "Unknown") {
@@ -6027,9 +5912,7 @@ impl Checker<'_> {
                     }
                 }
                 if matches!(&target.kind,ExprKind::Name(n) if n=="$tuple") {
-                    if !true {
-                        return Err(diagnostic(&e.at, "tuple values require language 0.6"));
-                    }
+                    
                     if types.iter().any(|t| t.starts_with('&')) {
                         return Err(diagnostic(&e.at, "tuple cannot contain a borrow"));
                     }
@@ -6039,14 +5922,14 @@ impl Checker<'_> {
                     let special = matches!(&base.kind,ExprKind::Name(n) if self.find(n).is_none() && (self.program.import_aliases.keys().any(|alias| alias.starts_with(&format!("{n}."))) || matches!(n.as_str(),"Out"|"Err"|"File"|"Directory"|"Time"|"Random"|"Args"|"Env"|"Locale"|"In")));
                     if !special {
                         let ty = self.expr(base)?;
-                        if true {
+                        {
                             if let Some(result) =
                                 v06::checker_method(self, &ty, method, &types, &e.at)?
                             {
                                 return Ok(result);
                             }
                         }
-                        if true {
+                        {
                             if method == "iter" && types.is_empty() {
                                 if let Some(item) = v05::iterator_item(&ty) {
                                     return Ok(format!("Iterator<{item}>"));
@@ -6079,13 +5962,13 @@ impl Checker<'_> {
                         }
                         if ty.starts_with("Task<") {
                             if method == "selectReady"
-                                && true
+                                
                                 && types.len() == 1
                                 && types[0].starts_with("Task<")
                             {
                                 return Ok("Task<Int>".into());
                             }
-                            if true {
+                            {
                                 if method == "timeout" && types == ["Int"] {
                                     return Ok(ty);
                                 }
@@ -6103,10 +5986,10 @@ impl Checker<'_> {
                                     ));
                                 }
                             }
-                            if true && types.is_empty()
+                            if types.is_empty()
                             {
                                 if method == "isDone"
-                                    && true
+                                    
                                 {
                                     return Ok("Bool".into());
                                 }
@@ -6180,7 +6063,7 @@ impl Checker<'_> {
                     return Ok(format!("Result<Unit,PropertyCase<{ty}>>"));
                 }
                 if matches!(&target.kind, ExprKind::Name(n) if n == "propertyInt")
-                    && true
+                    
                 {
                     if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
                         return Err(diagnostic(
@@ -6205,7 +6088,7 @@ impl Checker<'_> {
                     if let Some(ty) = v091::call_type(self.program, name, &types, &e.at)? {
                         return Ok(ty);
                     }
-                    if true && matches!(name.as_str(), "secret" | "reveal")
+                    if matches!(name.as_str(), "secret" | "reveal")
                     {
                         if types.len() != 1 {
                             return Err(diagnostic(&e.at, "secret/reveal requires one argument"));
@@ -6220,7 +6103,7 @@ impl Checker<'_> {
                                 .ok_or_else(|| diagnostic(&e.at, "reveal requires Secret<T>"))
                         };
                     }
-                    if true && matches!(name.as_str(), "freeze" | "thaw")
+                    if matches!(name.as_str(), "freeze" | "thaw")
                     {
                         if types.len() != 1 {
                             return Err(diagnostic(&e.at, "freeze/thaw requires one argument"));
@@ -6427,7 +6310,7 @@ impl Checker<'_> {
                                 // Element types may use module aliases (mod.Item).
                                 rename_type(name, &self.program.import_aliases)
                             }
-                            _ if true && matches!(
+                            _ if matches!(
                                 name.as_str(),
                                 "assert"
                                     | "assert_eq"
@@ -6541,7 +6424,7 @@ impl Checker<'_> {
                                 | "Locale"
                         ) {
                             {
-                                if !true && matches!(
+                                if false && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readSecretLine") | ("Env", "getSecret")
                                 ) {
@@ -6550,7 +6433,7 @@ impl Checker<'_> {
                                         "secret observations require language 0.6",
                                     ));
                                 }
-                                if !true && matches!(
+                                if false && matches!(
                                     (n.as_str(), method.as_str()),
                                     ("In", "readChunk") | ("Out", "writeBytes")
                                 ) {
@@ -6639,7 +6522,7 @@ impl Checker<'_> {
                                 }
                             }
                             let base_type = t.split('<').next().unwrap_or("");
-                            let arity_ok = (true && base_type == "List"
+                            let arity_ok = (base_type == "List"
                                 && method == "pop"
                                 && types.is_empty())
                                 || matches!(
@@ -6744,7 +6627,7 @@ impl Checker<'_> {
                         }
                     } else {
                         let t = self.expr(base)?;
-                        if true {
+                        {
                             if let Some(inner) =
                                 t.strip_prefix("Map<").and_then(|s| s.strip_suffix('>'))
                             {
@@ -6860,7 +6743,7 @@ impl Checker<'_> {
                     .strip_prefix("Result<")
                     .and_then(|s| s.strip_suffix('>'))
                     .unwrap();
-                if true {
+                {
                     if let Some(returned) = self.return_ty.as_deref() {
                         check_try_propagation(&e.at, inner, returned)?;
                     }
@@ -6925,12 +6808,7 @@ impl Checker<'_> {
                 result.unwrap_or("Unit".into())
             }
             ExprKind::Block(body, tail) => {
-                if !true {
-                    return Err(diagnostic(
-                        &e.at,
-                        "block and if expressions require language 3.0.0",
-                    ));
-                }
+                
                 let mut scoped = Checker {
                     program: self.program,
                     scopes: self.scopes.clone(),
@@ -6951,12 +6829,7 @@ impl Checker<'_> {
             }
             ExprKind::Closure(params, ret, body) => {
                 if params.iter().any(|(_, t)| t == "Unknown") {
-                    if !true {
-                        return Err(diagnostic(
-                            &e.at,
-                            "short closures (|a, b| expr) require language 3.0.0; annotate the parameter types (|a: Int| -> Int { ... })",
-                        ));
-                    }
+                    
                     // Positions that know the parameter types (calls, let, return,
                     // assignment) check a typed copy instead (`contextual_closures`,
                     // `closure_for_type`); call arguments left untyped are rejected
@@ -7005,20 +6878,10 @@ impl Checker<'_> {
                 } else {
                     ret
                 };
-                if true {
+                {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
                     v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
-                } else {
-                    format!(
-                        "fn({})->{ret}",
-                        params
-                            .iter()
-                            .map(|(_, t)| t.as_str())
-                            .collect::<Vec<_>>()
-                            .join(",")
-                    )
-                }
-            }
+                }}
             ExprKind::NamedConstructor(name, fields) => {
                 let resolved_name = resolve_alias(self.program, name);
                 let (enum_name, variant) = resolved_name.split_once("::").unwrap();
@@ -7190,7 +7053,7 @@ impl Checker<'_> {
     /// when something changed.
     fn contextual_closures(&self, target: &Expr, args: &[Expr]) -> Option<Vec<Expr>> {
         let untyped = |a: &Expr| matches!(&a.kind, ExprKind::Closure(params, _, _) if params.iter().any(|(_, t)| t == "Unknown"));
-        if !args.iter().any(untyped) || !true {
+        if !args.iter().any(untyped) || false {
             return None;
         }
         let mut expected: Vec<Option<Vec<String>>> = vec![None; args.len()];
@@ -7294,7 +7157,7 @@ impl Checker<'_> {
             return Ok(None);
         };
         if !params.iter().any(|(_, t)| t == "Unknown")
-            || !true
+            || false
         {
             return Ok(None);
         }
@@ -7406,7 +7269,7 @@ impl Checker<'_> {
             }
             StmtKind::Assign(lhs, _, rhs) => {
                 if let ExprKind::Member(base, _) = &lhs.kind {
-                    if true && self.expr(base)?.starts_with("Tuple<")
+                    if self.expr(base)?.starts_with("Tuple<")
                     {
                         return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
                     }
@@ -7551,7 +7414,7 @@ impl Checker<'_> {
                 }
             }
             StmtKind::Revert(name) | StmtKind::Resume(name)
-                if name == "begin" && true =>
+                if name == "begin"  =>
             {
                 for scope in &mut self.scopes {
                     scope.clear();
@@ -7822,7 +7685,7 @@ fn builtin_type(receiver: &str, method: &str, args: &[String], at: &Tok) -> Resu
 impl<R: BufRead> Engine<R> {
     fn new(program: Program, root: &Path, input: R) -> Result<Self> {
         let mut runtime = Runtime::new(root)?;
-        if true {
+        {
             runtime.enable_incremental_publish();
         }
         Ok(Self {
@@ -8527,7 +8390,7 @@ impl<R: BufRead> Engine<R> {
         self.call(name, args, at)
     }
     fn call(&mut self, name: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if true && !self
+        if !self
             .program
             .functions
             .contains_key(name.split('<').next().unwrap_or(name))
@@ -8541,27 +8404,25 @@ impl<R: BufRead> Engine<R> {
                 ))
                 .map_err(Flow::Error)?;
         }
-        if true {
+        {
             if self.program.language == "0.9.9" {
                 if let Some(work) = v092::work(name, &args, &self.runtime) {
                     self.runtime.charge_native_work(work).map_err(Flow::Error)?;
                 }
             }
             if let Some(v) = v092::call(name, &args, &mut self.runtime).map_err(Flow::Error)? {
-                return if true {
+                return {
                     self.own_native_result(v)
-                } else {
-                    Ok(v)
                 };
             }
         }
-        if true {
+        {
             if let Some(value) = v091::call(&self.runtime, name, &args).map_err(Flow::Error)? {
                 return Ok(value);
             }
         }
         if name == "$tuple"
-            && true
+            
         {
             return Ok(Value::Struct(
                 format!(
@@ -8577,12 +8438,12 @@ impl<R: BufRead> Engine<R> {
                     .collect(),
             ));
         }
-        if true && matches!(name, "secret" | "reveal")
+        if matches!(name, "secret" | "reveal")
         {
             if args.len() != 1 {
                 return Err(self.fail(at, "secret/reveal requires one argument"));
             }
-            if true {
+            {
                 self.runtime.register_secret_value(&args[0]);
                 self.runtime.check_sensitive_accounting()?;
             }
@@ -8597,7 +8458,7 @@ impl<R: BufRead> Engine<R> {
                     .ok_or_else(|| self.fail(at, "reveal requires Secret<T>"))
             };
         }
-        if true && matches!(name, "freeze" | "thaw")
+        if matches!(name, "freeze" | "thaw")
         {
             if args.len() != 1 {
                 return Err(self.fail(at, "freeze/thaw requires one argument"));
@@ -8611,7 +8472,7 @@ impl<R: BufRead> Engine<R> {
             }
             // Frozen generic reads preserve scalar values without a wrapper.
             // Their static type still requires thaw; scalars own no mutable state.
-            let value = if true && matches!(
+            let value = if matches!(
                 &args[0],
                 Value::Bool(_)
                     | Value::Int(_)
@@ -9172,7 +9033,7 @@ impl<R: BufRead> Engine<R> {
         Ok(Err(position))
     }
     fn method(&mut self, target: Value, method: &str, args: Vec<Value>, at: &Tok) -> Exec<Value> {
-        if true {
+        {
             self.runtime
                 .charge_native_work(v100::method_work(&target, method, &args, &self.runtime))
                 .map_err(Flow::Error)?;
@@ -9451,7 +9312,7 @@ impl<R: BufRead> Engine<R> {
                 return Ok(value);
             }
         }
-        if true {
+        {
             if let Some(inner) = v05::unsecret(&target) {
                 let value = self.method(inner.clone(), method, args, at)?;
                 return Ok(v05::secret(
@@ -9471,7 +9332,7 @@ impl<R: BufRead> Engine<R> {
                 v05::freeze_member(result, &self.runtime)
             });
         }
-        if true && args.is_empty()
+        if args.is_empty()
         {
             if method == "iter" {
                 let value = self.collection_snapshot(&target, at)?;
@@ -9490,10 +9351,8 @@ impl<R: BufRead> Engine<R> {
                     v05::iterator_next(&mut self.runtime, &target).map_err(Flow::Error)?
                 {
                     return Ok(
-                        if true {
+                        {
                             v06::immutable_tuple(value, &self.runtime)
-                        } else {
-                            value
                         },
                     );
                 }
@@ -10355,17 +10214,16 @@ fn trait_satisfied_in_context(
     bound.split('+').all(|required| {
         trait_satisfied(program, required, ty)
             || bound_provided(bounds, ty, required)
-            || (true
-                && matches!(required, "Send" | "Share")
+            || (matches!(required, "Send" | "Share")
                 && v05::transfer_bounded(program, ty, required == "Share", bounds))
     })
 }
-fn builtin_key_type(program: &Program, ty: &str) -> bool {
+fn builtin_key_type(_program: &Program, ty: &str) -> bool {
     matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes")
-        || (ty == "BigInt" && true)
-        || (ty == "Decimal" && true)
-        || (ty == "Regex" && true)
-        || (matches!(ty, "Instant" | "Duration") && true)
+        || (ty == "BigInt" )
+        || (ty == "Decimal" )
+        || (ty == "Regex" )
+        || (matches!(ty, "Instant" | "Duration") )
 }
 fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
     if bound.contains('+') {
@@ -10374,7 +10232,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
     if bound == "Effect" {
         return ty.starts_with('@');
     }
-    if true && matches!(bound, "Send" | "Share")
+    if matches!(bound, "Send" | "Share")
     {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
     }
@@ -10395,9 +10253,7 @@ fn impl_matches(
     if target == ty {
         return true;
     }
-    if !true {
-        return false;
-    }
+    
     let Some(f) = methods
         .values()
         .next()
@@ -10585,12 +10441,9 @@ fn trait_method_return(
     }
     if f.params.len() != args.len() + 1
         || f.params.first().is_none_or(|(_, t)| {
-            if true {
+            {
                 !compatible(t, ty)
-            } else {
-                t != ty
-            }
-        })
+            }})
         || f.params
             .iter()
             .skip(1)
@@ -11053,7 +10906,7 @@ pub fn timeline(
 
 pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
     let config = project::ProjectConfig::load(root)?;
-    if config.as_ref().is_some_and(|c| {
+    if config.as_ref().is_some_and(|_c| {
         true
     }) {
         v09::repl(root, record)

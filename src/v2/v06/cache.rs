@@ -25,7 +25,6 @@ pub(in crate::v2) fn stamp() -> String {
                 include_str!("../vm/scheduler.rs"),
                 include_str!("../vm/extensions.rs"),
                 include_str!("../v05/ownership.rs"),
-                include_str!("../v05/capabilities.rs"),
                 include_str!("../v05/artifact.rs"),
                 include_str!("../v05/tooling.rs"),
                 include_str!("../v05/tooling/symbols.rs"),

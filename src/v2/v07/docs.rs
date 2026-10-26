@@ -8,11 +8,7 @@ pub(in crate::v2) fn doctest(root: &Path, path: &Path) -> Result<()> {
     let config = project::ProjectConfig::load_for_test(root)?
         .ok_or_else(|| Error::InvalidOperation("doctest requires a manifest".into()))?;
     config.lock(root, false)?;
-    if !true {
-        return Err(Error::InvalidOperation(
-            "doctest requires language 0.7".into(),
-        ));
-    }
+    
     let root = fs::canonicalize(root)?;
     let mut active = false;
     let mut source = String::new();

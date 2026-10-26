@@ -1,8 +1,7 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Output},
-    sync::atomic::{AtomicUsize, Ordering},
 };
 fn ok(o: &Output) {
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));

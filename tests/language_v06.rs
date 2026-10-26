@@ -1,9 +1,3 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
-    sync::atomic::{AtomicU64, Ordering},
-};
 #[test]
 #[cfg(unix)] // Authenticated on-disk caches require Unix owner/mode validation.
 fn persistent_cache_rebuilds_corruption_and_preserves_artifact_bytes() {

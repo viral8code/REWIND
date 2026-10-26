@@ -26,8 +26,7 @@ pub(in crate::v2) fn record_arguments(
             {
                 // A non-Share argument may occur only inside Share fields such
                 // as Frozen<T>. Keep the earlier rule for older language modes.
-                let shared_fields = true
-                    && s.fields.iter().all(|(_, field)| {
+                let shared_fields = s.fields.iter().all(|(_, field)| {
                         v05::transfer_bounded(p, &substitute_type(field, sub), true, bounds)
                     });
                 if !shared_fields {
@@ -134,7 +133,7 @@ pub(super) fn install_production(root: &Path, output: &Path) -> Result<()> {
         let installed = project::ProjectConfig::load(output)?
             .ok_or_else(|| Error::InvalidOperation("missing installed manifest".into()))?;
         installed.lock(output, false)?;
-        if true {
+        {
             v091::write_release(output, &installed)?;
         }
         println!(

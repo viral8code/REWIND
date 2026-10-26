@@ -317,9 +317,6 @@ pub(super) fn handle_id(value: &Value) -> Option<u64> {
     None
 }
 impl<R: BufRead> Vm<R> {
-    fn shared_task_quota(&self) -> bool {
-        self.flags.shared_task_quota
-    }
     /// The scheduling decisions are only read by traces, profiles, schedule exploration and
     /// schedule replay. A plain run would otherwise keep two entries per task switch forever.
     fn schedule_log_wanted(&self) -> bool {
@@ -337,38 +334,23 @@ impl<R: BufRead> Vm<R> {
             || self.profile.is_some()
     }
     pub(super) fn task_instruction_count(&self, id: u64) -> usize {
-        if self.shared_task_quota() {
-            self.scheduler
-                .tasks
-                .get(&id)
-                .map_or(0, |task| task.instructions.get())
-        } else {
-            self.task_instructions.get(&id).copied().unwrap_or(0)
-        }
+        self.scheduler
+            .tasks
+            .get(&id)
+            .map_or(0, |task| task.instructions.get())
     }
     pub(super) fn charge_task_instruction(&mut self) {
         let id = self.scheduler.active;
-        if self.shared_task_quota() {
-            let count = &self.scheduler.tasks[&id].instructions;
-            count.set(count.get() + 1);
-        } else {
-            *self.task_instructions.entry(id).or_default() += 1;
-        }
+        let count = &self.scheduler.tasks[&id].instructions;
+        count.set(count.get() + 1);
         self.task_instruction_total += 1;
     }
     pub(super) fn task_instruction_profile(&self) -> BTreeMap<String, usize> {
-        if self.shared_task_quota() {
-            self.scheduler
-                .tasks
-                .iter()
-                .map(|(id, task)| (id.to_string(), task.instructions.get()))
-                .collect()
-        } else {
-            self.task_instructions
-                .iter()
-                .map(|(id, count)| (id.to_string(), *count))
-                .collect()
-        }
+        self.scheduler
+            .tasks
+            .iter()
+            .map(|(id, task)| (id.to_string(), task.instructions.get()))
+            .collect()
     }
     pub(super) fn task_frame_views(&self) -> BTreeMap<String, serde_json::Value> {
         self.scheduler.tasks.iter().map(|(id,t)| {
@@ -1290,10 +1272,8 @@ impl<R: BufRead> Vm<R> {
             }
             return Ok(Some(match (method, args) {
                 ("send", [value]) => {
-                    let value = if true {
+                    let value = {
                         v05::task_copy(&mut self.engine.runtime, value)?
-                    } else {
-                        unflow(self.engine.ordered_key(value, at), at)?
                     };
                     self.new_action(TaskBody::Send(id, value), "Unit".into(), Vec::new(), at)?
                 }
@@ -1317,7 +1297,7 @@ impl<R: BufRead> Vm<R> {
         if ty.starts_with("Task<") {
             if method == "isDone"
                 && args.is_empty()
-                && true
+                
             {
                 self.engine.runtime.require_internal()?;
                 self.pump_actions()?;
@@ -1460,7 +1440,7 @@ impl<R: BufRead> Vm<R> {
         Ok(None)
     }
     pub(super) fn task_result(&mut self, id: u64) -> Option<Value> {
-        if true {
+        {
             if let Some(failure) = self.scheduler.tasks.get(&id)?.failure.clone() {
                 self.scheduler.tasks.get_mut(&id)?.observed = true;
                 return Some(Value::Result(Err(Box::new(v06::diagnostics::task_error(
@@ -1494,7 +1474,7 @@ impl<R: BufRead> Vm<R> {
                         .map(Box::new)
                         .map_err(|e| {
                             Box::new(
-                                if true {
+                                {
                                     v06::diagnostics::task_error(&self.record_error(
                                         &e,
                                         &Tok {
@@ -1505,18 +1485,14 @@ impl<R: BufRead> Vm<R> {
                                         },
                                         id,
                                     ))
-                                } else {
-                                    v05::task_error(&e.to_string())
                                 },
                             )
                         })
                 }
                 Ok(value) => Ok(Box::new(value)),
                 Err(error) => Err(Box::new(
-                    if true {
+                    {
                         v05::task_error(&error)
-                    } else {
-                        Value::Text(error.into())
                     },
                 )),
             })
@@ -1543,7 +1519,7 @@ impl<R: BufRead> Vm<R> {
             }
         }
         let task = self.scheduler.tasks.get_mut(&id).unwrap();
-        if true && task.failure.is_none()
+        if task.failure.is_none()
         {
             if let Err(message) = &result {
                 task.failure = Some(rewind::DiagnosticRecord {
@@ -1574,7 +1550,7 @@ impl<R: BufRead> Vm<R> {
         task.result = Some(result);
         task.context = None;
         // Preserve older artifact accounting; new tasks discard execution-only inputs.
-        if true {
+        {
             task.globals.clear();
             task.global_scope_ids.clear();
             match &mut task.body {
@@ -1586,7 +1562,7 @@ impl<R: BufRead> Vm<R> {
         Ok(())
     }
     pub(super) fn set_task_failure(&mut self, failure: rewind::DiagnosticRecord) {
-        if true {
+        {
             self.scheduler
                 .tasks
                 .get_mut(&self.scheduler.active)
@@ -1629,7 +1605,7 @@ impl<R: BufRead> Vm<R> {
                 .map(|(id, t)| (*id, t.body.clone()))
                 .collect::<Vec<_>>();
             for (id, body) in &actions {
-                if true && self.scheduler.tasks[id].cancel_requested
+                if self.scheduler.tasks[id].cancel_requested
                     && matches!(
                         body,
                         TaskBody::Send(..)
@@ -1891,7 +1867,7 @@ impl<R: BufRead> Vm<R> {
                     _ => continue,
                 };
                 if let Some(result) = result {
-                    if true {
+                    {
                         if let TaskBody::Join(group) = body {
                             let failures = self
                                 .scheduler
@@ -2025,15 +2001,12 @@ impl<R: BufRead> Vm<R> {
                 .get(self.choices_used.len())
                 .copied()
                 .unwrap_or_else(|| {
-                    if true {
+                    {
                         candidates
                             .iter()
                             .position(|(_, id)| *id > active)
                             .unwrap_or(0)
-                    } else {
-                        0
-                    }
-                });
+                    }});
             if choice >= candidates.len() {
                 return Err(self.error(at, "ScheduleMismatch: choice is not runnable"));
             }
@@ -2114,10 +2087,8 @@ impl<R: BufRead> Vm<R> {
     ) -> Result<bool> {
         let result = match result {
             Ok(value) => Ok(
-                if true {
+                {
                     v05::task_copy(&mut self.engine.runtime, &value)?
-                } else {
-                    unflow(self.engine.ordered_key(&value, at), at)?
                 },
             ),
             Err(error) => Err(error),
@@ -2176,9 +2147,7 @@ impl<R: BufRead> Vm<R> {
         self.scheduler.tasks[&self.scheduler.active].cancel_requested
     }
     pub(super) fn drain_scope_groups(&mut self, depth: Option<usize>, at: &Tok) -> Result<bool> {
-        if !true {
-            return Ok(false);
-        }
+        
         let cleanups = self
             .frames
             .last()
@@ -2268,11 +2237,8 @@ impl<R: BufRead> Vm<R> {
             self.cancel_task(child, at)?;
         }
         if id == self.scheduler.active {
-            if true {
-                self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
-                return Ok(());
-            }
-            return Err(self.error(at, "cannot synchronously cancel active task"));
+            self.scheduler.tasks.get_mut(&id).unwrap().cancel_requested = true;
+            return Ok(());
         }
         let mut error = String::from("TaskCancelled");
         let mut failure = rewind::DiagnosticRecord {
@@ -2307,7 +2273,7 @@ impl<R: BufRead> Vm<R> {
             }
             self.install_context(current)?;
         }
-        if true {
+        {
             self.scheduler.tasks.get_mut(&id).unwrap().failure = Some(failure);
         }
         self.complete_task(id, Err(error))?;

@@ -1,9 +1,7 @@
 use super::*;
 use rewind::numeric::{Array, DType, Error as NumericError};
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !true {
-        return Ok(());
-    }
+    
     for name in ["FloatArray", "IntArray"] {
         if p.structs.contains_key(name)
             || p.enums.contains_key(name)
@@ -24,7 +22,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         let name = "GraphBfsWork";
         if p.structs.contains_key(name)
             || p.enums.contains_key(name)
@@ -47,7 +45,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         if p.structs.contains_key("LeastSquaresWork")
             || p.enums.contains_key("LeastSquaresWork")
             || p.aliases.contains_key("LeastSquaresWork")
@@ -69,7 +67,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         if p.structs.contains_key("TensorIdentityWork")
             || p.enums.contains_key("TensorIdentityWork")
             || p.aliases.contains_key("TensorIdentityWork")
@@ -91,7 +89,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         if p.structs.contains_key("EigenWork")
             || p.enums.contains_key("EigenWork")
             || p.aliases.contains_key("EigenWork")
@@ -111,7 +109,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         for (name, fields) in [
             ("QrWork", vec![]),
             (
@@ -153,7 +151,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             );
         }
     }
-    if true {
+    {
         if p.structs.contains_key("SolveWork")
             || p.enums.contains_key("SolveWork")
             || p.aliases.contains_key("SolveWork")
@@ -173,7 +171,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         if p.structs.contains_key("SparseWork")
             || p.enums.contains_key("SparseWork")
             || p.aliases.contains_key("SparseWork")
@@ -193,7 +191,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         if p.structs.contains_key("FftWork")
             || p.enums.contains_key("FftWork")
             || p.aliases.contains_key("FftWork")
@@ -213,7 +211,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if true {
+    {
         for (name, fields) in [
             (
                 "QrResult",
@@ -295,246 +293,9 @@ fn unary_operation(
     };
     Ok(rewind::numeric::VectorOperation::Unary(unary))
 }
-pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if matches!(
-        n,
-        "stdNumericFromFloatInit"
-            | "stdNumericFromFloatStep"
-            | "stdNumericFromIntInit"
-            | "stdNumericFromIntStep"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative numeric input requires language 1.9.64",
-        ));
-    }
+pub(super) fn call_type(_p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
     if !n.starts_with("stdNumeric") {
         return Ok(None);
-    }
-    if !true {
-        return Err(diagnostic(at, "numeric primitives require language 1.8.0"));
-    }
-    if matches!(
-        n,
-        "stdNumericReshapeLogicalInit"
-            | "stdNumericReshapeLogicalStep"
-            | "stdNumericSumShapeInit"
-            | "stdNumericSumShapeStep"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative shape kernels require language 1.9.57",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericGraphBfsInit"
-            | "stdNumericGraphBfsStep"
-            | "stdNumericGraphBfsDone"
-            | "stdNumericGraphBfsResult"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative graph traversal requires language 1.9.56",
-        ));
-    }
-    if matches!(n, "stdNumericSumStep" | "stdNumericMomentsStep")
-        && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative reductions require language 1.9.55",
-        ));
-    }
-    if matches!(n, "stdNumericUnaryInit" | "stdNumericUnaryStep")
-        && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative unary kernels require language 1.9.53",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericGraphAdjacency" | "stdNumericGraphBfs" | "stdNumericRangeInt"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "native graph/range kernels require language 1.9.49",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericGetFlatFloat"
-            | "stdNumericGetFlatInt"
-            | "stdNumericWithFlatFloat"
-            | "stdNumericWithFlatInt"
-            | "stdNumericLengthFloat"
-            | "stdNumericLengthInt"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "flat numeric indexing requires language 1.9.48",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericLeastSquaresInit"
-            | "stdNumericLeastSquaresStep"
-            | "stdNumericLeastSquaresDone"
-            | "stdNumericLeastSquaresResult"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative least squares requires language 1.9.42",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericEigenInit"
-            | "stdNumericEigenStep"
-            | "stdNumericEigenDone"
-            | "stdNumericEigenResult"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative eigen decomposition requires language 1.9.38",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericQrInit" | "stdNumericQrStep" | "stdNumericQrDone" | "stdNumericQrResult"
-    ) && !true
-    {
-        return Err(diagnostic(at, "cooperative QR requires language 1.9.37"));
-    }
-    if matches!(
-        n,
-        "stdNumericSolveInit"
-            | "stdNumericSolveStep"
-            | "stdNumericSolveDone"
-            | "stdNumericSolveResult"
-    ) && !true
-    {
-        return Err(diagnostic(at, "cooperative solve requires language 1.9.33"));
-    }
-    if matches!(
-        n,
-        "stdNumericSparseInit"
-            | "stdNumericSparseStep"
-            | "stdNumericSparseDone"
-            | "stdNumericSparseResult"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative sparse kernels require language 1.9.27",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericFftInit" | "stdNumericFftStep" | "stdNumericFftDone" | "stdNumericFftResult"
-    ) && !true
-    {
-        return Err(diagnostic(at, "cooperative FFT requires language 1.9.26"));
-    }
-    if matches!(
-        n,
-        "stdNumericQr"
-            | "stdNumericLeastSquares"
-            | "stdNumericEigenSymmetric"
-            | "stdNumericCovariance"
-            | "stdNumericCorrelation"
-            | "stdNumericQuantile"
-            | "stdNumericHistogram"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "advanced numeric primitives require language 1.8.1",
-        ));
-    }
-    if matches!(n, "stdNumericSuffixArray" | "stdNumericSuffixSearch")
-        && !true
-    {
-        return Err(diagnostic(at, "suffix primitives require language 1.9.8"));
-    }
-    if matches!(
-        n,
-        "stdNumericVectorInit" | "stdNumericVectorStep" | "stdNumericNormStep"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative vector kernels require language 1.9.31",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericDotStep" | "stdNumericMatmulInit" | "stdNumericMatmulStep"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative numeric primitives require language 1.9.10",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericFft"
-            | "stdNumericConvolve"
-            | "stdNumericCsr"
-            | "stdNumericSparseMatvec"
-            | "stdNumericScale"
-            | "stdNumericNorm2"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "transform and sparse primitives require language 1.9.15",
-        ));
-    }
-    if matches!(
-        n,
-        "stdNumericAffine"
-            | "stdNumericActivation"
-            | "stdNumericSumToShape"
-            | "stdNumericCheckFinite"
-            | "stdNumericTensorKey"
-            | "stdNumericReshapeLogical"
-            | "stdNumericModelEncode"
-            | "stdNumericModelDecode"
-            | "stdNumericModelCheck"
-    ) && !true
-    {
-        return Err(diagnostic(at, "tensor primitives require language 1.9.16"));
-    }
-    if matches!(n, "stdNumericSgdStep" | "stdNumericAdamStep")
-        && !true
-    {
-        return Err(diagnostic(at, "optimizer kernels require language 1.9.16"));
-    }
-    if matches!(
-        n,
-        "stdNumericFiniteStep"
-            | "stdNumericIdentityInit"
-            | "stdNumericIdentityStep"
-            | "stdNumericIdentityDone"
-            | "stdNumericIdentityKey"
-            | "stdNumericIdentityValue"
-    ) && !true
-    {
-        return Err(diagnostic(
-            at,
-            "cooperative tensor identity requires language 1.9.62",
-        ));
     }
     let Some((params, ret)) = signature(n) else {
         return Ok(None);

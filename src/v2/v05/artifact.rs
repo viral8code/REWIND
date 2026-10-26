@@ -175,47 +175,43 @@ fn run_with_policy(
         ..Program::default()
     };
     prepare(&mut standard)?;
-    if true && (serde_json::to_value(program.structs.get("StdError")).ok()
+    if serde_json::to_value(program.structs.get("StdError")).ok()
         != serde_json::to_value(standard.structs.get("StdError")).ok()
         || program.enums.contains_key("StdError")
         || v092::names()
             .iter()
-            .any(|n| program.functions.contains_key(*n)))
+            .any(|n| program.functions.contains_key(*n))
     {
         return Err(invalid("invalid standard primitive layout"));
     }
 
-    if true
-        && (serde_json::to_value(program.structs.get("JsonStreamState")).ok()
+    if serde_json::to_value(program.structs.get("JsonStreamState")).ok()
             != serde_json::to_value(standard.structs.get("JsonStreamState")).ok()
             || program.enums.contains_key("JsonStreamState")
             || program.aliases.contains_key("JsonStreamState")
             || serde_json::to_value(program.enums.get("JsonStreamEvent")).ok()
                 != serde_json::to_value(standard.enums.get("JsonStreamEvent")).ok()
             || program.structs.contains_key("JsonStreamEvent")
-            || program.aliases.contains_key("JsonStreamEvent"))
+            || program.aliases.contains_key("JsonStreamEvent")
     {
         return Err(invalid("invalid JSON stream layout"));
     }
-    if true
-        && (serde_json::to_value(program.structs.get("CsvStreamState")).ok()
+    if serde_json::to_value(program.structs.get("CsvStreamState")).ok()
             != serde_json::to_value(standard.structs.get("CsvStreamState")).ok()
             || program.enums.contains_key("CsvStreamState")
-            || program.aliases.contains_key("CsvStreamState"))
+            || program.aliases.contains_key("CsvStreamState")
     {
         return Err(invalid("invalid CSV stream layout"));
     }
-    if true
-        && (serde_json::to_value(program.structs.get("Regex")).ok()
+    if serde_json::to_value(program.structs.get("Regex")).ok()
             != serde_json::to_value(standard.structs.get("Regex")).ok()
             || program.enums.contains_key("Regex")
-            || program.aliases.contains_key("Regex"))
+            || program.aliases.contains_key("Regex")
     {
         return Err(invalid("invalid regex layout"));
     }
 
-    if true
-        && ["Instant", "Duration"].iter().any(|name| {
+    if ["Instant", "Duration"].iter().any(|name| {
             serde_json::to_value(program.structs.get(*name)).ok()
                 != serde_json::to_value(standard.structs.get(*name)).ok()
                 || program.enums.contains_key(*name)
@@ -225,30 +221,27 @@ fn run_with_policy(
         return Err(invalid("invalid datetime layout"));
     }
 
-    if true
-        && (serde_json::to_value(program.structs.get("Decimal")).ok()
+    if serde_json::to_value(program.structs.get("Decimal")).ok()
             != serde_json::to_value(standard.structs.get("Decimal")).ok()
             || program.enums.contains_key("Decimal")
             || program.aliases.contains_key("Decimal")
             || serde_json::to_value(program.enums.get("DecimalRounding")).ok()
                 != serde_json::to_value(standard.enums.get("DecimalRounding")).ok()
             || program.structs.contains_key("DecimalRounding")
-            || program.aliases.contains_key("DecimalRounding"))
+            || program.aliases.contains_key("DecimalRounding")
     {
         return Err(invalid("invalid decimal standard layout"));
     }
 
-    if true
-        && (serde_json::to_value(program.structs.get("BigInt")).ok()
+    if serde_json::to_value(program.structs.get("BigInt")).ok()
             != serde_json::to_value(standard.structs.get("BigInt")).ok()
             || program.enums.contains_key("BigInt")
-            || program.aliases.contains_key("BigInt"))
+            || program.aliases.contains_key("BigInt")
     {
         return Err(invalid("invalid exact integer layout"));
     }
 
-    if true
-        && ["FloatArray", "IntArray"].iter().any(|name| {
+    if ["FloatArray", "IntArray"].iter().any(|name| {
             serde_json::to_value(program.structs.get(*name)).ok()
                 != serde_json::to_value(standard.structs.get(*name)).ok()
                 || program.enums.contains_key(*name)
@@ -258,17 +251,15 @@ fn run_with_policy(
         return Err(invalid("invalid numeric primitive layout"));
     }
 
-    if true
-        && (serde_json::to_value(program.structs.get("TensorIdentityWork")).ok()
+    if serde_json::to_value(program.structs.get("TensorIdentityWork")).ok()
             != serde_json::to_value(standard.structs.get("TensorIdentityWork")).ok()
             || program.enums.contains_key("TensorIdentityWork")
-            || program.aliases.contains_key("TensorIdentityWork"))
+            || program.aliases.contains_key("TensorIdentityWork")
     {
         return Err(invalid("invalid tensor identity work layout"));
     }
 
-    if true
-        && ["QrResult", "EigenResult", "HistogramResult"]
+    if ["QrResult", "EigenResult", "HistogramResult"]
             .iter()
             .any(|name| {
                 serde_json::to_value(program.structs.get(*name)).ok()
@@ -279,7 +270,7 @@ fn run_with_policy(
     {
         return Err(invalid("invalid numeric result layout"));
     }
-    if true {
+    {
         for n in ["Json", "JsonError"] {
             if serde_json::to_value(program.structs.get(n)).ok()
                 != serde_json::to_value(standard.structs.get(n)).ok()
@@ -296,10 +287,10 @@ fn run_with_policy(
             return Err(invalid("reserved application function"));
         }
     }
-    if true && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
+    if serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
         || serde_json::to_value(program.enums.get("WaitTarget")).ok()
-            != serde_json::to_value(standard.enums.get("WaitTarget")).ok())
+            != serde_json::to_value(standard.enums.get("WaitTarget")).ok()
     {
         return Err(invalid("invalid wait graph layout"));
     }
@@ -329,12 +320,12 @@ fn run_with_policy(
             return Err(invalid("reserved standard type"));
         }
     }
-    if true && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
+    if serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
         return Err(invalid("invalid property failure layout"));
     }
-    if true && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
+    if program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple")
     {
         return Err(invalid("Tuple is a reserved standard type"));
     }
@@ -405,7 +396,7 @@ fn run_with_policy(
     if unsafe_literal || nodes > 100_000 {
         return Err(invalid("invalid literal/IR budget"));
     }
-    if true {
+    {
         v06::infer(&mut program)?;
     }
     check_program(&program)?;

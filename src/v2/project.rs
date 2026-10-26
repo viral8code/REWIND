@@ -183,16 +183,9 @@ impl Manifest {
                 "unsupported language version {language}; REWIND 4 supports language 3.0.0 and later (use a REWIND 3 compiler for older projects)"
             )));
         }
-        if !dev_deps.is_empty()
-            && !true
-        {
-            return Err(Error::InvalidOperation(
-                "dev_dependencies requires language 0.8".into(),
-            ));
-        }
         let production = dependency_mode == "production";
         if !dependency_mode.is_empty()
-            && (!true || !matches!(dependency_mode.as_str(), "production" | "development"))
+            && !matches!(dependency_mode.as_str(), "production" | "development")
         {
             return Err(Error::InvalidOperation(
                 "unsupported dependency_mode".into(),
@@ -227,7 +220,7 @@ impl ProjectConfig {
             ));
         }
 
-        if true {
+        {
             for (name, path) in &self.lock_imports {
                 if !name.is_empty()
                     && !self.imports.contains_key(name)
@@ -360,7 +353,7 @@ impl ProjectConfig {
         let entry = inside(&source_root, &entry)?;
         let mut imports = BTreeMap::new();
         imports.insert(String::new(), source_root.clone());
-        if true && deps
+        if deps
             .values()
             .chain(registry.values())
             .any(|s| s.contains('|'))
@@ -383,7 +376,7 @@ impl ProjectConfig {
                 }
                 imports.insert(name, full);
             }
-            if true {
+            {
                 let mut inspected = BTreeSet::new();
                 loop {
                     let pending = imports
@@ -442,7 +435,7 @@ impl ProjectConfig {
             }
         }
         let lock_imports = imports.clone();
-        if true && !include_dev
+        if !include_dev
         {
             let mut reachable = runtime_roots;
             let mut pending = reachable.iter().cloned().collect::<Vec<_>>();
@@ -504,66 +497,8 @@ impl ProjectConfig {
             revoked,
         }))
     }
-    fn digest(path: &Path, root: &Path, hash: &mut u128) -> Result<()> {
-        let mut children = fs::read_dir(path)?
-            .map(|e| e.map(|e| e.path()))
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        children.sort();
-        for child in children {
-            if fs::symlink_metadata(&child)?.file_type().is_symlink() {
-                return Err(Error::InvalidPath(child.display().to_string()));
-            }
-            let full = fs::canonicalize(&child)?;
-            if !full.starts_with(root) {
-                return Err(Error::InvalidPath(child.display().to_string()));
-            }
-            if full.is_dir() {
-                Self::digest(&full, root, hash)?;
-            } else if full.extension().is_some_and(|e| e == "rw") {
-                let rel = full
-                    .strip_prefix(root)
-                    .unwrap()
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                for byte in rel
-                    .as_bytes()
-                    .iter()
-                    .copied()
-                    .chain([0])
-                    .chain(fs::read(&full)?.into_iter())
-                {
-                    *hash ^= u128::from(byte);
-                    *hash = hash.wrapping_mul(0x0000000001000000000000000000013b);
-                }
-            }
-        }
-        Ok(())
-    }
     pub fn lock(&self, root: &Path, update: bool) -> Result<()> {
-        if true {
-            return self.secure_lock(root, update);
-        }
-        let mut expected = format!(
-            "version = 1\nlanguage = \"{}\"\n\n[dependencies]\n",
-            self.language
-        );
-        for (name, path) in &self.imports {
-            if name.is_empty() {
-                continue;
-            }
-            let mut hash = 0x6c62272e07bb014262b821756295c58du128;
-            Self::digest(path, &fs::canonicalize(root)?, &mut hash)?;
-            expected.push_str(&format!("{name} = \"{hash:032x}\"\n"));
-        }
-        let path = root.join("rewind.lock");
-        if !path.exists() || update {
-            fs::write(path, expected)?;
-        } else if fs::read_to_string(path)? != expected {
-            return Err(Error::InvalidOperation(
-                "rewind.lock dependency hash mismatch; run 'rewind lock' to update".into(),
-            ));
-        }
-        Ok(())
+        self.secure_lock(root, update)
     }
     pub(super) fn execution_lock_hash(&self, root: &Path) -> Result<String> {
         if self.production {
@@ -645,7 +580,7 @@ impl ProjectConfig {
                 }
             }
             let mut selected = serde_json::json!({"source":path.strip_prefix(fs::canonicalize(root)?).map_err(|_| Error::InvalidPath(name.clone()))?.to_string_lossy().replace('\\',"/"),"version":version,"sha256":hash,"signer":signer,"public_key":public,"signature":signature_hex.trim()});
-            if true {
+            {
                 selected["requirement"] = wanted.clone().into();
                 selected["dependencies"] = metadata
                     .get("dependencies")
@@ -657,11 +592,7 @@ impl ProjectConfig {
         }
         let mut document = serde_json::json!({"format":2,"language":self.language,"compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies});
         if !self.assets.is_empty() {
-            if !true {
-                return Err(Error::InvalidOperation(
-                    "assets require language 0.9.1".into(),
-                ));
-            }
+            
             document["assets"] = v091::asset_inventory(root, &self.assets)?;
         }
         let expected = serde_json::to_string_pretty(&document)
@@ -697,7 +628,7 @@ impl ProjectConfig {
         let dependencies = parsed["dependencies"].as_object().unwrap();
         let path = root.join("rewind.lock");
         if update {
-            if true {
+            {
                 let old: serde_json::Value = fs::read(&path)
                     .ok()
                     .and_then(|b| serde_json::from_slice(&b).ok())

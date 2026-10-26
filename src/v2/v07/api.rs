@@ -26,11 +26,7 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
     let config = project::ProjectConfig::load(root)?
         .ok_or_else(|| Error::InvalidOperation("API snapshot requires a manifest".into()))?;
     config.lock(root, false)?;
-    if !true {
-        return Err(Error::InvalidOperation(
-            "API snapshot requires language 0.7".into(),
-        ));
-    }
+    
     let mut p = load_program(
         &config.entry,
         root,
@@ -126,7 +122,7 @@ fn document(root: &Path) -> Result<Json> {
             );
         }
     }
-    if true {
+    {
         let source = fs::read_to_string(&p.root_origin)?;
         for line in source.lines() {
             let Some(rest) = line.trim().strip_prefix("// @api ") else {
