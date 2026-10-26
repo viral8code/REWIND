@@ -37,6 +37,7 @@
 ## 追加（tool）
 
 - `docs/grammar/rewind.ebnf` に形式文法を追加しました。エディタ向けの[説明](grammar/README.md)も付けています。文法は、実際の構文解析器と突き合わせるテストで検証しています。
+- エディタ向けの窓口を追加しました。`rewind editor-info`（語、記号、診断と LSP の呼び方）、`rewind tokens`（壊れたソースでも動くトークン分類とアウトライン）、LSP の `textDocument/documentSymbol` と `textDocument/semanticTokens/full` です。作り方は[エディタ作成ガイド](editor-guide.md)にまとめています。
 - VM の命令ごとの固定費を減らしました。100 万回のループが約 10 秒から約 2 秒になり、構造体のフィールドへの `+=` は償却 O(1) になりました。
 
 ## 互換性

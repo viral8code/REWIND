@@ -637,6 +637,10 @@ fn command_help(command: &str) -> Option<&'static str> {
         "sdk-build" => "rewind sdk-build --output DIR --key SEED\nBuilds a signed SDK directory (documentation, API snapshots, standard library).",
         "sdk-install" => "rewind sdk-install --root DIR --sdk SDK --public-key KEY\nInstalls the standard library of a verified SDK into a project.",
         "sdk-verify" => "rewind sdk-verify --sdk SDK --public-key KEY\nVerifies the signature and contents of an SDK directory.",
+        "editor-info" => "rewind editor-info
+Prints the language's words, symbols and the commands an editor can call, as JSON.",
+        "tokens" => "rewind tokens FILE.rw|-
+Prints the token classes and an outline of a source (or standard input with -) as JSON. Works on source that does not compile.",
         "compat" => "rewind compat [--json]\nPrints every versioned format on its own axis (compiler, language, artifact, trace, session, lock, API document, SDK manifest, ...): what is read and what happens on a mismatch.",
         "api-snapshot" => "rewind api-snapshot [--root DIR] [--output FILE]\nWrites the public API snapshot of the project entry.",
         "api-diff" => "rewind api-diff BEFORE AFTER [--deny-breaking]\nCompares two API snapshots; --deny-breaking fails on a breaking change.",
@@ -1132,6 +1136,38 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             &output.ok_or_else(|| Error::InvalidOperation("missing --output".into()))?,
             key.as_deref(),
         );
+    }
+    if script == "editor-info" {
+        if args.next().is_some() {
+            return Err(Error::InvalidOperation("usage: rewind editor-info".into()));
+        }
+        println!("{}", v2::editor_info());
+        return Ok(());
+    }
+    if script == "tokens" {
+        let target = args
+            .next()
+            .ok_or_else(|| Error::InvalidOperation("usage: rewind tokens FILE.rw|-".into()))?;
+        if args.next().is_some() {
+            return Err(Error::InvalidOperation("usage: rewind tokens FILE.rw|-".into()));
+        }
+        use std::io::Read as _;
+        let mut bytes = Vec::new();
+        if target == "-" {
+            io::stdin().take(1 << 20).read_to_end(&mut bytes)?;
+        } else {
+            let size = fs::metadata(&target)?.len();
+            if size > 1 << 20 {
+                return Err(Error::InvalidOperation(
+                    "CompilerBudgetExceeded: source is larger than 1 MiB".into(),
+                ));
+            }
+            bytes = fs::read(&target)?;
+        }
+        let source = String::from_utf8(bytes)
+            .map_err(|_| Error::InvalidOperation("source is not valid UTF-8".into()))?;
+        println!("{}", v2::editor_tokens_json(&source));
+        return Ok(());
     }
     if script == "compat" {
         let mut json = false;

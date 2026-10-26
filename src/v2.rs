@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
+mod editor;
 mod persistent;
 mod call_args;
 mod interpolate;
@@ -4592,6 +4593,14 @@ pub fn verify_file(path: &Path, signature: &Path, public: &str, kind: &str) -> R
 }
 pub fn lsp(root: &Path) -> Result<()> {
     v05::lsp(root)
+}
+/// `rewind editor-info`: the words and symbols of the language, as JSON.
+pub fn editor_info() -> String {
+    editor::info().to_string()
+}
+/// `rewind tokens`: token classes and an outline of `source`, as JSON. Works on broken source.
+pub fn editor_tokens_json(source: &str) -> String {
+    editor::tokens_json(source).to_string()
 }
 pub fn dap(root: &Path, options: RunOptions) -> Result<()> {
     v05::dap_serve(root, options)

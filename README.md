@@ -81,7 +81,7 @@ fn main() -> Int {
 
 - [入門書（HTML）](docs/book/index.html) / [入門書（PDF）](docs/book/REWIND-4.0.0-book.pdf): 4.0.0 を対象に、基本から実用までを 25 章で説明します。
 - [言語リファレンス](docs/language-reference.md)（[PDF 版](docs/language-reference.pdf)）: 言語の正確な定義です。
-- [使い方](docs/getting-started.md)、[GUI](docs/gui.md)、[4.0.0 の変更点](docs/REWIND_v4.0.md)
+- [使い方](docs/getting-started.md)、[GUI](docs/gui.md)、[4.0.0 の変更点](docs/REWIND_v4.0.md)、[エディタ作成ガイド](docs/editor-guide.md)
 - [入門書の編集と再生成](docs/book/README.md)、[ロードマップ](docs/ROADMAP_v2-next.md)
 
 ## 開発

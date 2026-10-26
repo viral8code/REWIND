@@ -220,7 +220,7 @@ pub fn lsp(root: &Path) -> Result<()> {
         let response = (|| -> Result<Json> {
             match method {
                 "initialize" => Ok(
-                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"documentFormattingProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental,"experimental":{"rewindTimeline":modern,"provisionalDeclarations":modern}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
+                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"documentFormattingProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental,"documentSymbolProvider":true,"semanticTokensProvider":{"legend":{"tokenTypes":crate::v2::editor::SEMANTIC_LEGEND,"tokenModifiers":[]},"full":true},"experimental":{"rewindTimeline":modern,"provisionalDeclarations":modern}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
                 ),
                 "shutdown" => {
                     shutdown = true;
@@ -376,6 +376,47 @@ pub fn lsp(root: &Path) -> Result<()> {
                     Ok(
                         json!([{"range":{"start":{"line":0,"character":0},"end":{"line":line,"character":column}},"newText":formatted}]),
                     )
+                }
+                "textDocument/documentSymbol" | "textDocument/semanticTokens/full" => {
+                    let uri = params["textDocument"]["uri"]
+                        .as_str()
+                        .ok_or_else(|| Error::InvalidOperation("missing document URI".into()))?;
+                    let path = document_path(uri)?;
+                    if !path.starts_with(fs::canonicalize(root)?) {
+                        return Err(Error::InvalidPath(uri.into()));
+                    }
+                    let text = documents
+                        .get(&path)
+                        .cloned()
+                        .map(Ok)
+                        .unwrap_or_else(|| fs::read_to_string(&path))?;
+                    if method == "textDocument/semanticTokens/full" {
+                        return Ok(json!({"data": crate::v2::editor::semantic_tokens(&text)}));
+                    }
+                    Ok(Json::Array(
+                        crate::v2::editor::symbols(&text)
+                            .iter()
+                            .map(|s| {
+                                let kind = match s["kind"].as_str().unwrap_or("") {
+                                    "function" => 12,
+                                    "method" => 6,
+                                    "struct" => 23,
+                                    "enum" => 10,
+                                    "trait" => 11,
+                                    "impl" => 5,
+                                    "const" => 14,
+                                    _ => 26,
+                                };
+                                let at = |line: &str, col: &str| {
+                                    let l = s[line].as_u64().unwrap_or(1) as usize - 1;
+                                    let c = s[col].as_u64().unwrap_or(1) as usize - 1;
+                                    json!({"line": l, "character": utf16_column(&text, l, c)})
+                                };
+                                let range = json!({"start": at("line", "column"), "end": at("endLine", "endColumn")});
+                                json!({"name": s["name"], "kind": kind, "range": range, "selectionRange": range})
+                            })
+                            .collect(),
+                    ))
                 }
                 "textDocument/codeAction" => {
                     if !incremental {
