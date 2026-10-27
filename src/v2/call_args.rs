@@ -214,7 +214,8 @@ impl Resolver {
             | StmtKind::Resume(_)
             | StmtKind::Drop(_)
             | StmtKind::Publish(_)
-            | StmtKind::Runtime(_, _) => {}
+            | StmtKind::Runtime(_, _)
+            | StmtKind::NativeWork(_) => {}
         }
         Ok(())
     }

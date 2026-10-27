@@ -9,7 +9,7 @@ REWIND のプログラムには、実行の量に上限があります。巻き�
 | 予算 | 指定 | 既定値 | 尽きたときの診断 |
 |---|---|---|---|
 | 実行ステップ（全体の累計） | `--steps N` | 1,000,000 | `ExecutionBudgetExceeded` |
-| ネイティブ処理量（全体の累計） | `--native-work N` | 1,000,000 | `NativeWorkBudgetExceeded` |
+| ネイティブ処理量（全体の累計） | `--native-work N`、`runtime { nativeWork = N; }` | 1,000,000（GUI の権限があるときは 256,000,000） | `NativeWorkBudgetExceeded` |
 | 1 タスクあたりのステップ | `--task-steps N` | 100,000 | `TaskBudgetExceeded` |
 | 履歴メモリ | `--history-memory SIZE` | 512 MiB | `HistoryMemory` |
 | 履歴ストレージ | `--history-storage SIZE` | 8 GiB | `HistoryStorage` |
@@ -63,7 +63,7 @@ fn main()->Int {
 
 ### ソースの中で指定する
 
-`runtime { 設定 = 値; }` をソースに書くと、プログラムの中から予算を指定できます。設定名は `executionSteps`、`historyMemory`、`historyStorage`、`spillThreshold` で、サイズには `KB`、`MB`、`GB`（`KiB`、`MiB`、`GiB`）を付けられます。
+`runtime { 設定 = 値; }` をソースに書くと、プログラムの中から予算を指定できます。設定名は `executionSteps`、`nativeWork`、`historyMemory`、`historyStorage`、`spillThreshold` で、サイズには `KB`、`MB`、`GB`（`KiB`、`MiB`、`GiB`）を付けられます。
 
 ```rewind-error ExecutionBudgetExceeded
 runtime { executionSteps = 1000; }
@@ -75,7 +75,7 @@ fn main()->Int {
 }
 ```
 
-すでに使った分を、ソースの設定や `revert` で回復することはできません。
+`nativeWork` と `executionSteps` は、実行する側が `--native-work` や `--steps` で上限を指定しているとき、それより小さくすることだけができます。すでに使った分を、ソースの設定や `revert` で回復することはできません。
 
 ### 呼び出しの深さと、そのほかの制限
 

@@ -2831,8 +2831,8 @@ coverage main.rw: 5/5 lines (uncovered: [])</code></pre></div>
 </tr>
 <tr>
   <td>ネイティブ処理量（全体の累計）</td>
-  <td><code>--native-work N</code></td>
-  <td>1,000,000</td>
+  <td><code>--native-work N</code>、<code>runtime { nativeWork = N; }</code></td>
+  <td>1,000,000（GUI の権限があるときは 256,000,000）</td>
   <td><code>NativeWorkBudgetExceeded</code></td>
 </tr>
 <tr>
@@ -2889,7 +2889,7 @@ coverage main.rw: 5/5 lines (uncovered: [])</code></pre></div>
 <h3 id="予算は巻き戻らない">予算は巻き戻らない</h3>
 <p>予算は <strong>累計</strong> です。<code>revert</code> や <code>resume</code> で状態を戻しても、使った分は戻りません。そのため、巻き戻しを繰り返すプログラムも、いつかは止まります。第11章の「終わらない <code>resume</code>」が、止まるのも同じ理由です。</p>
 <h3 id="ソースの中で指定する">ソースの中で指定する</h3>
-<p><code>runtime { 設定 = 値; }</code> をソースに書くと、プログラムの中から予算を指定できます。設定名は <code>executionSteps</code>、<code>historyMemory</code>、<code>historyStorage</code>、<code>spillThreshold</code> で、サイズには <code>KB</code>、<code>MB</code>、<code>GB</code>（<code>KiB</code>、<code>MiB</code>、<code>GiB</code>）を付けられます。</p>
+<p><code>runtime { 設定 = 値; }</code> をソースに書くと、プログラムの中から予算を指定できます。設定名は <code>executionSteps</code>、<code>nativeWork</code>、<code>historyMemory</code>、<code>historyStorage</code>、<code>spillThreshold</code> で、サイズには <code>KB</code>、<code>MB</code>、<code>GB</code>（<code>KiB</code>、<code>MiB</code>、<code>GiB</code>）を付けられます。</p>
 <div class="code"><div class="cap err">エラーになる例</div><pre><code>runtime { executionSteps = 1000; }
 
 fn main()-&gt;Int {
@@ -2897,7 +2897,7 @@ fn main()-&gt;Int {
     while i &lt; 100000 { i += 1; }
     return 0;
 }</code></pre></div>
-<p>すでに使った分を、ソースの設定や <code>revert</code> で回復することはできません。</p>
+<p><code>nativeWork</code> と <code>executionSteps</code> は、実行する側が <code>--native-work</code> や <code>--steps</code> で上限を指定しているとき、それより小さくすることだけができます。すでに使った分を、ソースの設定や <code>revert</code> で回復することはできません。</p>
 <h3 id="呼び出しの深さとそのほかの制限">呼び出しの深さと、そのほかの制限</h3>
 <p>関数の呼び出しの深さにも上限があり、再帰が約 1,000 段を超えると、<code>ExecutionBudgetExceeded</code>（call depth）で止まります。</p>
 <table>

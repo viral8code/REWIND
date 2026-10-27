@@ -101,6 +101,8 @@ pub(super) fn argument_work(value: &Value, runtime: &Runtime) -> usize {
         Value::List(v) => v.len().saturating_add(Runtime::value_bytes(value)),
         Value::TypedList(_, v) => v.len().saturating_add(v.logical_bytes()),
         Value::Map(v) | Value::TypedMap(_, _, v) => v.len().saturating_add(v.logical_bytes()),
+        // A number or a flag is passed in a register, not copied.
+        Value::Bool(_) | Value::Int(_) | Value::Float(_) | Value::Null | Value::Handle(_) => 1,
         _ => Runtime::value_bytes(value).saturating_add(1),
     }
 }
@@ -139,7 +141,10 @@ pub(super) fn method_work(
                     _ if method == "pop" => v.len().checked_sub(1),
                     _ => None,
                 };
-                index.and_then(|i| v.get(i)).map_or(0, Runtime::value_bytes)
+                // One unit per 64 bytes of the element, like text and byte copies elsewhere.
+                index
+                    .and_then(|i| v.get(i))
+                    .map_or(0, |element| Runtime::value_bytes(element) / 64)
             } else {
                 0
             };

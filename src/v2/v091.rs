@@ -29,7 +29,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             .find(|s| {
                 // `const NAME: T = expr;` is a declaration even though it is stored as a `let`.
                 let constant = matches!(&s.kind, StmtKind::Let(name, false, Some(_), _) if p.const_origins.contains_key(name));
-                !matches!(s.kind, StmtKind::Runtime(..)) && !constant
+                !matches!(s.kind, StmtKind::Runtime(..) | StmtKind::NativeWork(_)) && !constant
             })
         {
             return Err(diagnostic(

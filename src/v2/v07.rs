@@ -144,6 +144,7 @@ pub(in crate::v2) fn constant_values(program: &Program) -> Result<BTreeMap<Strin
                     | StmtKind::Defer(_)
                     | StmtKind::Using(_, _)
                     | StmtKind::Runtime(_, _)
+                    | StmtKind::NativeWork(_)
                     | StmtKind::Branch(_, _) => true,
                     StmtKind::External(_, b)
                     | StmtKind::Block(b)

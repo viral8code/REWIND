@@ -1291,6 +1291,7 @@ mod tests {
         ("branch b { f(); }", true),
         ("runtime { }", true),
         ("runtime { historyMemory = 10 MB; executionSteps = 100; }", true),
+        ("runtime { nativeWork = 50_000_000; }", true),
         ("runtime { spillThreshold = 5 KiB; historyStorage = 1 GiB; historyMemory = 3 KB; }", true),
         ("runtime { historyMemory = 2 MiB; historyStorage = 4 GB; }", true),
         ("match x { A => f(), B => { g(); }, }", true),

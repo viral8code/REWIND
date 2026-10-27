@@ -804,6 +804,8 @@ enum StmtKind {
     Branch(String, Vec<Stmt>),
     Runtime(ResourceBudget, Option<usize>),
     Match(Expr, Vec<(Pattern, Option<Expr>, Stmt)>),
+    /// `runtime { nativeWork = N; }` (language 4.1.0): the native-work limit of the program.
+    NativeWork(usize),
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct Function {
@@ -2364,6 +2366,7 @@ impl Parser {
             self.need("{")?;
             let mut b = ResourceBudget::default();
             let mut steps = None;
+            let mut native = None;
             while !self.eat("}") {
                 let name = self.name()?;
                 self.need("=")?;
@@ -2394,8 +2397,27 @@ impl Parser {
                     "historyStorage" => b.history_storage = v,
                     "spillThreshold" => b.spill_threshold = v,
                     "executionSteps" => steps = Some(v),
+                    "nativeWork" => native = Some(v),
                     _ => return Err(diagnostic(&at, "unknown runtime setting")),
                 }
+            }
+            if let Some(native) = native {
+                // Two statements that read as one; the marker makes the block flatten.
+                let mut marker = at.clone();
+                marker.text = "$destructure".into();
+                return Ok(Stmt {
+                    kind: StmtKind::Block(vec![
+                        Stmt {
+                            kind: StmtKind::Runtime(b, steps),
+                            at: at.clone(),
+                        },
+                        Stmt {
+                            kind: StmtKind::NativeWork(native),
+                            at,
+                        },
+                    ]),
+                    at: marker,
+                });
             }
             StmtKind::Runtime(b, steps)
         } else if self.eat("match") {
@@ -8153,6 +8175,10 @@ impl<R: BufRead> Engine<R> {
                 if let Some(steps) = steps {
                     self.remaining = *steps;
                 }
+                Ok(())
+            }
+            StmtKind::NativeWork(limit) => {
+                self.runtime.set_native_work_from_program(*limit);
                 Ok(())
             }
             StmtKind::Match(value, arms) => {

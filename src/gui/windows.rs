@@ -68,6 +68,7 @@ unsafe extern "system" {
     fn SetWindowTextW(hwnd: Handle, text: *const u16) -> i32;
     fn SetWindowLongPtrW(hwnd: Handle, index: i32, value: isize) -> isize;
     fn GetWindowLongPtrW(hwnd: Handle, index: i32) -> isize;
+    fn IsZoomed(hwnd: Handle) -> i32;
     fn AdjustWindowRect(rect: *mut Rect, style: u32, menu: i32) -> i32;
     fn SetWindowPos(
         hwnd: Handle,
@@ -1229,15 +1230,18 @@ impl Surface {
             if SetWindowTextW(self.window, title.as_ptr()) == 0 {
                 return Err(io::Error::last_os_error());
             }
-            if SetWindowPos(
-                self.window,
-                0,
-                0,
-                0,
-                rect.right - rect.left,
-                rect.bottom - rect.top,
-                0x16,
-            ) == 0
+            // A maximized window keeps the size the user gave it; fitting it to the view on every
+            // present would undo the maximize.
+            if IsZoomed(self.window) == 0
+                && SetWindowPos(
+                    self.window,
+                    0,
+                    0,
+                    0,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    0x16,
+                ) == 0
             {
                 return Err(io::Error::last_os_error());
             }

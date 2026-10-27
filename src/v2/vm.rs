@@ -56,6 +56,7 @@ enum Op {
     BeginBranch,
     EndBranch(String),
     Runtime(ResourceBudget, Option<usize>),
+    NativeWork(usize),
     PatternTest(Pattern, usize),
     BorrowPatternTest(Pattern, usize),
     FailMatch,
@@ -644,6 +645,9 @@ impl Compiler {
             StmtKind::Runtime(budget, steps) => {
                 self.emit(Op::Runtime(*budget, *steps), at);
             }
+            StmtKind::NativeWork(limit) => {
+                self.emit(Op::NativeWork(*limit), at);
+            }
             StmtKind::Match(value, arms) => {
                 let value_type = self.expression_type(value);
                 self.hidden += 1;
@@ -1086,6 +1090,25 @@ impl WorkProfile {
                 "task {task} {name}: {exclusive} instructions exclusive, {inclusive} inclusive, {work} native work"
             ));
         }
+        // Work charged to something that is not a function, such as the collector (`<gc>`), has no
+        // instructions of its own and would not appear above.
+        let named: BTreeSet<&String> = self.functions.keys().map(|(_, name)| name).collect();
+        let mut others: Vec<(&String, u64)> = native
+            .into_iter()
+            .flatten()
+            .filter(|(name, work)| **work > 0 && !named.contains(name))
+            .map(|(name, work)| (name, *work))
+            .collect();
+        others.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+        for (name, work) in &others {
+            top.push(format!(
+                "{name}: no instructions of its own, {work} native work"
+            ));
+        }
+        let other_rows = others
+            .iter()
+            .map(|(name, work)| serde_json::json!({"task":0,"function":name,"exclusive":0,"inclusive":0,"native_work":work}))
+            .collect::<Vec<_>>();
         serde_json::json!({
             "unit":"logical work: VM instructions and native-work units; not wall-clock time",
             "meaning":{
@@ -1096,7 +1119,7 @@ impl WorkProfile {
             "functions":functions.iter().take(1024).map(|((task, name),(exclusive, inclusive))| serde_json::json!({
                 "task":task,"function":name,"exclusive":exclusive,"inclusive":inclusive,
                 "native_work":native.and_then(|n| n.get(name)).copied().unwrap_or(0)
-            })).collect::<Vec<_>>(),
+            })).chain(other_rows).collect::<Vec<_>>(),
             "lines":lines.iter().take(256).map(|((source,line),steps)| serde_json::json!({"source":source,"line":line,"instructions":steps})).collect::<Vec<_>>(),
             "truncated":self.truncated || functions.len() > 1024 || lines.len() > 256,
             "summary":top,
@@ -1455,9 +1478,19 @@ impl<R: BufRead> Vm<R> {
             }
         }
         {
+            // A program that opens a window redraws it for as long as it runs, and each redraw
+            // is native work, so it starts with more than a program that only computes.
+            let default = if options.allowed_effects.contains("gui") {
+                256_000_000
+            } else {
+                1_000_000
+            };
             engine
                 .runtime
-                .configure_native_work(options.native_work.unwrap_or(1_000_000));
+                .configure_native_work(options.native_work.unwrap_or(default));
+            if options.native_work.is_some() {
+                engine.runtime.fix_native_work_ceiling();
+            }
         }
         if let Some(limit) = options.execution_steps {
             engine.remaining = limit;
@@ -3474,6 +3507,10 @@ impl<R: BufRead> Vm<R> {
                     if let Some(steps) = steps {
                         self.steps = steps;
                     }
+                }
+                Op::NativeWork(limit) => {
+                    let limit = *limit;
+                    self.engine.runtime.set_native_work_from_program(limit);
                 }
                 Op::PatternTest(pattern, miss) | Op::BorrowPatternTest(pattern, miss) => {
                     let miss = *miss;

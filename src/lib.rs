@@ -911,6 +911,9 @@ impl PtrSet {
     }
 }
 
+const GC_MIN_ALLOCATIONS: usize = 256;
+const GC_MAX_ALLOCATIONS: usize = 1 << 16;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ResourceBudget {
     pub history_memory: usize,
@@ -1122,6 +1125,15 @@ pub struct Runtime {
     storage_start: (usize, (usize, usize)),
     gc_metrics: Option<GcMetrics>,
     allocations_since_gc: usize,
+    /// Allocations between two collections. A collection walks everything that is live, so the
+    /// next one waits for as many allocations as that walk had steps: the cost per allocation stays
+    /// constant however large the live heap is.
+    gc_allocation_threshold: usize,
+    /// What the scheduler's own walk cost in the current cycle; it is as large as the heap walk
+    /// or larger when a big list is live, so it counts toward the next threshold as well.
+    scheduler_walk_work: usize,
+    /// Set when the host fixed a native-work limit; the program may lower it but not raise it.
+    native_ceiling: bool,
     allocation_bytes_since_gc: usize,
     native_remaining: Option<usize>,
     allocation_accounting: bool,
@@ -2112,6 +2124,9 @@ impl Runtime {
             storage_start: (map_storage::map_nodes_created(), storage::storage_work()),
             gc_metrics: None,
             allocations_since_gc: 0,
+            gc_allocation_threshold: GC_MIN_ALLOCATIONS,
+            scheduler_walk_work: 0,
+            native_ceiling: false,
             allocation_bytes_since_gc: 0,
             native_remaining: None,
             allocation_accounting: false,
@@ -3138,6 +3153,18 @@ impl Runtime {
     pub fn configure_native_work(&mut self, limit: usize) {
         self.native_remaining = Some(limit);
     }
+    /// A limit the host asked for (for example `--native-work`) cannot be raised by the program.
+    pub fn fix_native_work_ceiling(&mut self) {
+        self.native_ceiling = true;
+    }
+    /// `runtime { nativeWork = N; }`: the program sets its own limit; a host ceiling only lets it go
+    /// lower.
+    pub fn set_native_work_from_program(&mut self, limit: usize) {
+        self.native_remaining = Some(match self.native_remaining {
+            Some(current) if self.native_ceiling => current.min(limit),
+            _ => limit,
+        });
+    }
     /// Opt-in attribution of native work to the function that was running.
     pub fn enable_work_profile(&mut self) {
         self.work_profile.get_or_insert_with(WorkProfile::default);
@@ -3153,10 +3180,15 @@ impl Runtime {
         self.work_profile.as_ref().map(|p| &p.native)
     }
     pub fn charge_native_work(&mut self, amount: usize) -> Result<()> {
-        if let Some(profile) = &mut self.work_profile {
-            let scope = profile.scope.clone();
-            if profile.native.len() < 4096 || profile.native.contains_key(&scope) {
-                *profile.native.entry(scope).or_default() += amount as u64;
+        let scope = self.work_profile.as_ref().map(|p| p.scope.clone());
+        self.charge_native_work_in(scope.as_deref(), amount)
+    }
+    /// Like `charge_native_work`, but the profile attributes the work to `scope` (the collector's
+    /// work is shown as `<gc>` instead of the function that happened to be running).
+    pub fn charge_native_work_in(&mut self, scope: Option<&str>, amount: usize) -> Result<()> {
+        if let (Some(profile), Some(scope)) = (&mut self.work_profile, scope) {
+            if profile.native.len() < 4096 || profile.native.contains_key(scope) {
+                *profile.native.entry(scope.to_string()).or_default() += amount as u64;
             }
         }
         if let Some(remaining) = &mut self.native_remaining {
@@ -3166,6 +3198,9 @@ impl Runtime {
         }
         Ok(())
     }
+    pub fn note_scheduler_walk(&mut self, work: usize) {
+        self.scheduler_walk_work = work;
+    }
     pub fn collection_due(&self) -> bool {
         let numeric = self.numeric_accounting.as_ref().map_or(0, |a| {
             a.allocated_bytes().saturating_sub(self.numeric_gc_start)
@@ -3173,7 +3208,7 @@ impl Runtime {
         let shared = self.shared_accounting.as_ref().map_or(0, |a| {
             a.allocated_bytes().saturating_sub(self.shared_gc_start)
         });
-        self.allocations_since_gc >= 256
+        self.allocations_since_gc >= self.gc_allocation_threshold
             || self
                 .allocation_bytes_since_gc
                 .saturating_add(numeric)
@@ -3397,7 +3432,7 @@ impl Runtime {
         Ok((live, gc.work))
     }
     fn sweep_heap(&mut self, live: BTreeSet<u64>, work: usize) -> Result<(usize, usize)> {
-        self.charge_native_work(work)?;
+        self.charge_native_work_in(Some("<gc>"), work)?;
         let dead = self
             .state
             .heap
@@ -3418,6 +3453,8 @@ impl Runtime {
             a.prune_bytes();
         }
         self.allocations_since_gc = 0;
+        let walked = work.max(std::mem::take(&mut self.scheduler_walk_work));
+        self.gc_allocation_threshold = walked.clamp(GC_MIN_ALLOCATIONS, GC_MAX_ALLOCATIONS);
         self.allocation_bytes_since_gc = 0;
         self.numeric_gc_start = self
             .numeric_accounting

@@ -212,7 +212,7 @@ raw 文字列は、N 個（3 個以上）の引用符で開き、ちょうど N 
 | チェックポイント | `commit` `revert` `resume` `drop` `publish` `branch` `runtime` `external` `begin` | はい | `begin` は最初のチェックポイントの予約名。言語 3.x でも名前にできない唯一の語 |
 | 式 | `move` `spawn` `await` `true` `false` `None` `null` | `None` 以外ははい | `move` は前置演算子としても、`capture move` の中でも使う。`None` は名前に使える |
 | 修飾語 | `value` `capture` `borrow` `force` `live` `fresh` `test` `where` `effects` `captures` | いいえ | 文脈によって意味が決まる語のまま残る。`capture value\|move\|borrow`、`publish force`、`external live\|fresh`、`test fn`、`where` 節、`effects { }`、`captures { }` |
-| 設定名 | `historyMemory` `historyStorage` `spillThreshold` `executionSteps` | いいえ | `runtime { ... }` の中だけ。単位は `KB` `KiB` `MB` `MiB` `GB` `GiB` |
+| 設定名 | `historyMemory` `historyStorage` `spillThreshold` `executionSteps` `nativeWork` | いいえ | `runtime { ... }` の中だけ。単位は `KB` `KiB` `MB` `MiB` `GB` `GiB` |
 | 捕捉の旗 | `Send` `Share` | いいえ | `captures { Send, Share }` の中だけ |
 
 `freeze`、`thaw`、`panic`、`assert` や、`Some`、`Ok`、`Err` は、キーワードではなく、関数や名前です。色付けを分けたいときは、標準ライブラリの名前として扱ってください。

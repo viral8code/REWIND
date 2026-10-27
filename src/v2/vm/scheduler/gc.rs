@@ -10,6 +10,11 @@ enum Root<'a> {
     Value(&'a Value),
     Id(Id),
 }
+/// A list of numbers, flags, text or bytes cannot hold a task, a channel or a heap reference, so the
+/// walk does not visit its elements.
+fn holds_no_references(element_type: &str) -> bool {
+    matches!(element_type, "Int" | "Float" | "Bool" | "String" | "Bytes")
+}
 fn scopes<'a>(s: &'a [BTreeMap<String, Binding>], out: &mut Vec<Root<'a>>) {
     out.extend(
         s.iter()
@@ -204,6 +209,7 @@ impl<R: BufRead> Vm<R> {
                     Root::Value(value) => {
                         let children = match value {
                             Value::List(v) => v.len(),
+                            Value::TypedList(ty, _) if holds_no_references(ty) => 0,
                             Value::TypedList(_, v) => v.len(),
                             Value::Map(v) | Value::TypedMap(_, _, v) => v.len(),
                             Value::OrderedMap(_, _, v) => v.len().saturating_mul(2),
@@ -236,6 +242,7 @@ impl<R: BufRead> Vm<R> {
                                 }
                             }
                             Value::List(v) => pending.extend(v.iter().map(Root::Value)),
+                            Value::TypedList(ty, _) if holds_no_references(ty) => {}
                             Value::TypedList(_, v) => pending.extend(v.iter().map(Root::Value)),
                             Value::Map(v) | Value::TypedMap(_, _, v) => {
                                 pending.extend(v.values().map(Root::Value))
@@ -279,7 +286,10 @@ impl<R: BufRead> Vm<R> {
                 .saturating_add(self.scheduler.groups.len());
             (live, work)
         };
-        self.engine.runtime.charge_native_work(work)?;
+        self.engine.runtime.note_scheduler_walk(work);
+        self.engine
+            .runtime
+            .charge_native_work_in(Some("<gc>"), work)?;
         self.engine.runtime.charge_execution_work(work)?;
         self.steps = self.steps.checked_sub(work).ok_or_else(|| {
             self.error(

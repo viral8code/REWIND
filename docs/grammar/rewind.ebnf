@@ -613,7 +613,7 @@ RuntimeStmt ::= 'runtime' '{' RuntimeSetting* '}'
 
 RuntimeSetting ::= RuntimeName '=' INT RuntimeUnit? ';'
 
-RuntimeName ::= 'historyMemory' | 'historyStorage' | 'spillThreshold' | 'executionSteps'
+RuntimeName ::= 'historyMemory' | 'historyStorage' | 'spillThreshold' | 'executionSteps' | 'nativeWork'
 
 RuntimeUnit ::= 'KB' | 'KiB' | 'MB' | 'MiB' | 'GB' | 'GiB'
 

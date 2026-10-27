@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "4.0.0",
+  "language": "4.1.0",
   "symbols": {
     "fn:find": {
       "async": false,

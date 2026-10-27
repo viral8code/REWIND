@@ -1,6 +1,6 @@
 # REWIND 言語リファレンス
 
-対象は REWIND 4.0.0（言語バージョン `4.0.0`）です。REWIND 4 が実行できる言語は 3.0.0 以降です。3.0.0 未満の言語（トップレベルに文を並べる書き方など）は受け付けないので、古い言語のプログラムは REWIND 3 のコンパイラで実行してください。3.x の言語と 4.0.0 の違いは[付録 B](#付録-b-言語バージョンの違い)にあります。
+対象は REWIND 4.1.0（言語バージョン `4.1.0`）です。REWIND 4 が実行できる言語は 3.0.0 以降です。3.0.0 未満の言語（トップレベルに文を並べる書き方など）は受け付けないので、古い言語のプログラムは REWIND 3 のコンパイラで実行してください。3.x の言語と 4.0.0 の違いは[付録 B](#付録-b-言語バージョンの違い)にあります。
 
 この文書は **言語そのもの** の仕様書です。次のものは別の文書にあります。
 
@@ -11,7 +11,7 @@
 | ネイティブ GUI | [gui.md](gui.md) |
 | デバッガ（DAP） | [debugger.md](debugger.md) |
 | 版ごとの変更点と契約 | [REWIND_v3.0.md](REWIND_v3.0.md) など `REWIND_v*.md` |
-| 章立てで読む入門書 | [book/index.html](book/index.html)（[PDF 版](book/REWIND-4.0.0-book.pdf)） |
+| 章立てで読む入門書 | [book/index.html](book/index.html)（[PDF 版](book/REWIND-4.1.0-book.pdf)） |
 
 ## この文書の読み方
 
@@ -127,7 +127,7 @@ rewind run main.rwc         # 成果物を実行する。ソースは不要
 ファイルが複数あるプログラムや、権限・依存関係を固定したいプログラムは、ディレクトリに `rewind.toml` を置いてプロジェクトにします。
 
 ```toml
-language = "4.0.0"
+language = "4.1.0"
 source_root = "src"
 entry = "main.rw"
 effects = "output,fileRead"
@@ -2480,7 +2480,7 @@ REWIND のプログラムは、実行の量に上限を持ちます。無限ル�
 | 予算 | 指定 | 既定値 | 尽きたときの診断 |
 |---|---|---|---|
 | 実行ステップ（全体の累計） | `--steps N` | 1,000,000 | `ExecutionBudgetExceeded` |
-| ネイティブ処理量（全体の累計） | `--native-work N` | 1,000,000 | `NativeWorkBudgetExceeded` |
+| ネイティブ処理量（全体の累計） | `--native-work N`、`runtime { nativeWork = N; }` | 1,000,000（GUI の権限があるときは 256,000,000） | `NativeWorkBudgetExceeded` |
 | 1 タスクあたりのステップ | `--task-steps N` | 100,000 | `TaskBudgetExceeded` |
 | 履歴メモリ | `--history-memory 512MiB` | 512 MiB | `HistoryMemory` |
 | 履歴ストレージ | `--history-storage 8GiB` | 8 GiB | `HistoryStorage` |
@@ -2504,7 +2504,7 @@ fn main()->Int {
 
 ### 16.2 ソースの中で指定する: `runtime`
 
-`runtime { 設定 = 値; ... }` を宣言の位置に書くと、プログラムの中から予算を指定できます。設定名は `executionSteps`、`historyMemory`、`historyStorage`、`spillThreshold` で、サイズには `KB`、`MB`、`GB`（`KiB`、`MiB`、`GiB`）を付けられます。
+`runtime { 設定 = 値; ... }` を宣言の位置に書くと、プログラムの中から予算を指定できます。設定名は `executionSteps`、`nativeWork`、`historyMemory`、`historyStorage`、`spillThreshold` で、サイズには `KB`、`MB`、`GB`（`KiB`、`MiB`、`GiB`）を付けられます。
 
 ```rewind-error ExecutionBudgetExceeded
 runtime { executionSteps = 1000; }
@@ -2516,7 +2516,7 @@ fn main()->Int {
 }
 ```
 
-すでに使った累計の予算を、ソースの設定や `revert` で回復することはできません。
+`nativeWork` と `executionSteps` は、実行する側が `--native-work` や `--steps` で上限を指定しているとき、それより小さくすることだけができます。すでに使った累計の予算を、ソースの設定や `revert` で回復することはできません。
 
 ### 16.3 そのほかの制限
 
@@ -2869,6 +2869,7 @@ REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプ�
 | 3.1.0〜3.5.0 | 構文の変更なし。ツール（診断、デバッガ、profile、CLI）と標準ライブラリの追加 |
 | 3.6.0 | 名前付きの引数と既定値の引数 |
 | 4.0.0 | 約 45 語が予約語になり、名前に使えない。ソースの `null` リテラルを廃止。3.0.0 未満の言語を受け付けない |
+| 4.1.0 | `runtime { nativeWork = N; }` を追加。言語の規則は変えない |
 
 3.x では、`const` の宣言とマップのキーの `for` による反復が使えない不具合があり、この版で修正されました。2.0.0 以前の言語の仕様は、それぞれの版の文書（[REWIND_v2.0.md](REWIND_v2.0.md) など）にありますが、REWIND 4 では実行できません。版ごとの詳しい変更点は `docs/REWIND_v*.md` を参照してください。
 
@@ -2884,6 +2885,17 @@ REWIND 4.0.0 では、次の点が変わりました。3.x の言語を指定し
 - 標準ライブラリでは、`binding.revert` を削除しました（`binding.reset` を使います）。`historyGraph` の `setHead`、`head`、`dropHead` の引数名 `branch` は `branchName` に変わりました。名前付きの引数で呼んでいたプログラムは、名前を直してください。
 
 次の記法は、言語の版によらず使えます。型注釈つきの `let` で書く短いクロージャ（3.0.0 以上）、カンマ区切りの全箇所の末尾のカンマ、raw 文字列です。
+
+### 4.1.0 の変更
+
+REWIND 4.1.0 は、実行予算の数え方と GUI を直したバージョンです。言語の規則は変わりません。
+
+- `runtime { nativeWork = N; }` で、ネイティブ処理量の上限をソースに書けます（[16.2 節](#162-ソースの中で指定する-runtime)）。
+- 実行時のごみ集め（GC）の間隔を、生きている値の量に比例させました。大きな値を持ったまま確保を繰り返しても、確保 1 回あたりの費用は一定です。GC の費用は、プロファイルに `<gc>` の行として別に出ます。
+- 数や真偽値の引数は、ネイティブ処理量を 1 だけ使います。`record` の生成や、タプルを返す関数の呼び出しは、約 19 から約 3 になりました。
+- `List` の `get`、`set`、`pop` は、要素の大きさに 64 バイトごとに 1 を使います。
+- 画面の描画（`gui.present`）の費用は、ウィジェット 1 つあたり約 2,000 から約 100 になりました。GUI の権限（`gui`）があるときのネイティブ処理量の既定値は 256,000,000 です。
+- Windows で、最大化したウィンドウは、次の `present` で元の大きさに戻されません。
 
 ## 付録 C. 既知の制約
 

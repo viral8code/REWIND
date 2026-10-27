@@ -128,6 +128,7 @@ pub(in crate::v2) fn inspection_trace(mut value: Json) -> Result<Json> {
                     | "3.5.0"
                     | "3.6.0"
                     | "4.0.0"
+                    | "4.1.0"
             )
         )
         || value["debug"]["index"]["format"] != 1

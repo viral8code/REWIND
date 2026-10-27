@@ -191,7 +191,8 @@ pub(super) fn work(name: &str, args: &[Value], rt: &Runtime) -> Option<usize> {
                         .sum::<usize>(),
                     _ => 1,
                 };
-                sum.saturating_add(bytes.saturating_mul(12).saturating_add(1024))
+                // About one unit per byte of the widget in the scene JSON, plus a fixed part.
+                sum.saturating_add(bytes.saturating_add(32))
             }),
     })
 }

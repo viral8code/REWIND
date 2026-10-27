@@ -162,3 +162,9 @@ preedit / convert / commit、focus取消、終了の受入と検証範囲は
 [v1.9.65](REWIND_v1.9.65.md)を参照してください。SDK起動はOSの言語設定を変更しません。
 
 `std.guiField`は、ラベル、単一行入力、validation messageを持つ再利用可能な部品です。状態はtext、caret、anchor、errorだけを持つ通常のVM値で、native resourceを持ちません。そのためcheckpointの複製や取り消しで文字列と編集位置が戻ります。`render`はI/Oを行わず、`dispatch`は`stdGuiEdit`で文字列を更新して`Changed`または`Submitted`を返します。focusは引き続き呼び出し側が`gui.focus`で管理します。例は[gui-field.rw](../examples/gui-field.rw)を参照してください。
+
+## 4.1.0 での変更
+
+- GUI の権限（`gui`）があるときの、ネイティブ処理量の既定値は 256,000,000 です。権限がないときは 1,000,000 のままです。`runtime { nativeWork = N; }` で、プログラムの中から変えられます。
+- `present` の費用は、ウィジェット 1 つあたり約 100 になりました（以前は約 2,000）。
+- Windows で最大化したウィンドウは、次の `present` で元の大きさに戻りません。View の寸法に合わせるのは、最大化していないときだけです。最大化中に `resize` イベントが届くので、アプリは View を作り直して画面に合わせてください。
