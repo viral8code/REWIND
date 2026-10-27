@@ -675,29 +675,37 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
             }
         } else {
             if let Some(n) = it.peek().copied() {
-                if matches!(
-                    (c, n),
-                    ('=', '=')
-                        | ('!', '=')
-                        | ('<', '=')
-                        | ('>', '=')
-                        | ('&', '&')
-                        | ('|', '|')
-                        | ('+', '=')
-                        | ('-', '=')
-                        | ('*', '=')
-                        | ('/', '=')
-                        | ('%', '=')
-                        | ('-', '>')
-                        | ('=', '>')
-                        | (':', ':')
-                        | ('.', '.')
-                ) {
+                // `<<` and `>>` (not `<<=` / `>>=`, which stay `<` + `<=`, `>` + `>=`).
+                let shift = matches!((c, n), ('<', '<') | ('>', '>')) && {
+                    let mut ahead = it.clone();
+                    ahead.next();
+                    ahead.peek() != Some(&'=')
+                };
+                if shift
+                    || matches!(
+                        (c, n),
+                        ('=', '=')
+                            | ('!', '=')
+                            | ('<', '=')
+                            | ('>', '=')
+                            | ('&', '&')
+                            | ('|', '|')
+                            | ('+', '=')
+                            | ('-', '=')
+                            | ('*', '=')
+                            | ('/', '=')
+                            | ('%', '=')
+                            | ('-', '>')
+                            | ('=', '>')
+                            | (':', ':')
+                            | ('.', '.')
+                    )
+                {
                     text.push(it.next().unwrap());
                     col += 1;
                 }
             }
-            if text.chars().count() == 1 && !"=+-*/%(),;{}.!<>?:[]|&".contains(c) {
+            if text.chars().count() == 1 && !"=+-*/%(),;{}.!<>?:[]|&^".contains(c) {
                 return Err(diagnostic(
                     &Tok {
                         source: String::new(),
@@ -958,7 +966,7 @@ struct Parser {
     cond_start: Option<usize>,
     /// Positions of `>=` tokens that `eat(">")` rewrote to `=`, so a
     /// backtrack can restore them.
-    splits: Vec<usize>,
+    splits: Vec<(usize, &'static str)>,
     /// Keywords of language 4.0.0 that were used as names. Whether this is an
     /// error depends on the project language, so it is checked later.
     reserved: Vec<Tok>,
@@ -1030,17 +1038,22 @@ impl Parser {
     /// Returns to `pos`, undoing the `>=` splits made since then.
     fn backtrack(&mut self, pos: usize, splits: usize) {
         while self.splits.len() > splits {
-            let at = self.splits.pop().unwrap();
-            self.toks[at].text = ">=".into();
+            let (at, original) = self.splits.pop().unwrap();
+            self.toks[at].text = original.into();
             self.toks[at].col -= 1;
         }
         self.pos = pos;
     }
     fn eat(&mut self, s: &str) -> bool {
-        if s == ">" && self.is(">=") {
-            self.toks[self.pos].text = "=".into();
+        if s == ">" && (self.is(">=") || self.is(">>")) {
+            let (original, rest) = if self.is(">=") {
+                (">=", "=")
+            } else {
+                (">>", ">")
+            };
+            self.toks[self.pos].text = rest.into();
             self.toks[self.pos].col += 1;
-            self.splits.push(self.pos);
+            self.splits.push((self.pos, original));
             return true;
         }
         if self.is(s) {
@@ -3292,8 +3305,12 @@ impl Parser {
                 "&&" => 2,
                 "==" | "!=" => 3,
                 "<" | "<=" | ">" | ">=" => 4,
-                "+" | "-" => 5,
-                "*" | "/" | "%" => 6,
+                "|" => 5,
+                "^" => 6,
+                "&" => 7,
+                "<<" | ">>" => 8,
+                "+" | "-" => 9,
+                "*" | "/" | "%" => 10,
                 _ => break,
             };
             if bp < min_bp {
@@ -5728,6 +5745,15 @@ impl Checker<'_> {
                         "Bool".into()
                     }
                     "+" if x == "String" || y == "String" => "String".into(),
+                    "&" | "|" | "^" | "<<" | ">>" => {
+                        if x != "Int" || y != "Int" {
+                            return Err(diagnostic(
+                                &e.at,
+                                format!("bit operators require Int operands; found {x} and {y}"),
+                            ));
+                        }
+                        x
+                    }
                     "+" | "-" | "*" | "/" | "%" => {
                         if x != y || !matches!(x.as_str(), "Int" | "Float") {
                             return Err(diagnostic(
@@ -10813,6 +10839,19 @@ fn binary(op: &str, a: Value, b: Value, at: &Tok) -> Exec<Value> {
                 },
             ))
         }),
+        ("&", Value::Int(a), Value::Int(b)) => Ok(Value::Int(a & b)),
+        ("|", Value::Int(a), Value::Int(b)) => Ok(Value::Int(a | b)),
+        ("^", Value::Int(a), Value::Int(b)) => Ok(Value::Int(a ^ b)),
+        ("<<" | ">>", Value::Int(a), Value::Int(b)) => {
+            if !(0..64).contains(&b) {
+                return Err(Flow::Error(diagnostic(
+                    at,
+                    "shift amount must be between 0 and 63",
+                )));
+            }
+            // `<<` drops the bits that leave the 64-bit value; `>>` keeps the sign.
+            Ok(Value::Int(if op == "<<" { a << b } else { a >> b }))
+        }
         ("%", Value::Int(a), Value::Int(b)) => a.checked_rem(b).map(Value::Int).ok_or_else(|| {
             Flow::Error(diagnostic(
                 at,

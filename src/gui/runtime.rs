@@ -38,13 +38,18 @@ impl Runtime {
         })
     }
     pub fn gui_next_event(&mut self) -> Result<Event> {
-        self.gui_read_event(false)
+        self.gui_read_event(false, 0)
     }
     pub fn gui_poll_event(&mut self) -> Result<Option<Event>> {
-        let e = self.gui_read_event(true)?;
+        self.gui_wait_event(0)
+    }
+    /// Waits up to `milliseconds` for input. A timeout is journaled as an idle event, so a replay
+    /// returns at once and sees the same result.
+    pub fn gui_wait_event(&mut self, milliseconds: u64) -> Result<Option<Event>> {
+        let e = self.gui_read_event(true, milliseconds)?;
         Ok(if e.kind == "idle" { None } else { Some(e) })
     }
-    fn gui_read_event(&mut self, poll: bool) -> Result<Event> {
+    fn gui_read_event(&mut self, poll: bool, wait: u64) -> Result<Event> {
         if self.gui_displayed.is_none() {
             return Err(Error::InvalidOperation(
                 "GuiNotPublished: publish a GUI scene before reading input".into(),
@@ -73,7 +78,18 @@ impl Runtime {
                     .as_mut()
                     .ok_or_else(|| Error::InvalidOperation("GuiNotPublished".into()))?;
                 if poll {
-                    host.poll()?.unwrap_or_else(|| Event::simple("idle"))
+                    let deadline =
+                        std::time::Instant::now() + std::time::Duration::from_millis(wait);
+                    loop {
+                        if let Some(e) = host.poll()? {
+                            break e;
+                        }
+                        let left = deadline.saturating_duration_since(std::time::Instant::now());
+                        if left.is_zero() {
+                            break Event::simple("idle");
+                        }
+                        std::thread::sleep(left.min(std::time::Duration::from_millis(4)));
+                    }
                 } else {
                     host.event()?
                 }

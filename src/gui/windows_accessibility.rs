@@ -773,13 +773,13 @@ pub(super) fn changed(window: Handle, previous: Option<&super::Frame>, next: &su
     let old_ids: Vec<_> = previous
         .into_iter()
         .flat_map(|f| f.items.iter())
-        .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
+        .filter(|i| !matches!(i.kind.as_str(), "rect" | "line" | "ellipse"))
         .map(|i| &i.id)
         .collect();
     let new_ids: Vec<_> = next
         .items
         .iter()
-        .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
+        .filter(|i| !matches!(i.kind.as_str(), "rect" | "line" | "ellipse"))
         .map(|i| &i.id)
         .collect();
     unsafe {
@@ -792,7 +792,7 @@ pub(super) fn changed(window: Handle, previous: Option<&super::Frame>, next: &su
         for (index, i) in next
             .items
             .iter()
-            .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
+            .filter(|i| !matches!(i.kind.as_str(), "rect" | "line" | "ellipse"))
             .enumerate()
         {
             let child = index as i32 + 1;

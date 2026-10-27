@@ -21,9 +21,10 @@ const CONTEXTUAL_KEYWORDS: &[&str] = &[
 ];
 const LITERAL_WORDS: &[&str] = &["true", "false", "None"];
 const TWO_CHARACTER_OPERATORS: &[&str] = &[
-    "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "->", "=>", "::", "..",
+    "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "->", "=>", "::", "..", "<<",
+    ">>",
 ];
-const OPERATOR_CHARACTERS: &str = "=+-*/%.!<>?:|&";
+const OPERATOR_CHARACTERS: &str = "=+-*/%.!<>?:|&^";
 const PUNCTUATION_CHARACTERS: &str = "(),;{}[]";
 
 pub(super) struct Span {
@@ -270,7 +271,9 @@ pub(super) fn classify(source: &str) -> Vec<Span> {
             };
         } else {
             let two: String = [c, at(i + 1).unwrap_or('\0')].iter().collect();
-            let width = if TWO_CHARACTER_OPERATORS.contains(&two.as_str()) {
+            // `<<=` and `>>=` are `<` + `<=` and `>` + `>=`, as in the lexer.
+            let shift_assign = matches!(two.as_str(), "<<" | ">>") && at(i + 2) == Some('=');
+            let width = if TWO_CHARACTER_OPERATORS.contains(&two.as_str()) && !shift_assign {
                 2
             } else {
                 1

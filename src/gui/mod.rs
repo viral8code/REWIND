@@ -68,7 +68,14 @@ impl Frame {
         for v in &self.items {
             if !matches!(
                 v.kind.as_str(),
-                "label" | "button" | "checkbox" | "rect" | "line" | "textbox" | "textarea"
+                "label"
+                    | "button"
+                    | "checkbox"
+                    | "rect"
+                    | "line"
+                    | "ellipse"
+                    | "textbox"
+                    | "textarea"
             ) || v.id.is_empty()
                 || v.id.len() > 128
                 || v.id.contains('\0')

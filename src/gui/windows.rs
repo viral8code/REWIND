@@ -117,6 +117,7 @@ unsafe extern "system" {
     fn GetTextExtentPoint32W(dc: Handle, text: *const u16, len: i32, size: *mut Point) -> i32;
     fn MoveToEx(dc: Handle, x: i32, y: i32, old: *mut Point) -> i32;
     fn LineTo(dc: Handle, x: i32, y: i32) -> i32;
+    fn Ellipse(dc: Handle, left: i32, top: i32, right: i32, bottom: i32) -> i32;
     fn CreateSolidBrush(color: u32) -> Handle;
     fn CreatePen(style: i32, width: i32, color: u32) -> Handle;
     fn DeleteObject(object: Handle) -> i32;
@@ -834,6 +835,18 @@ unsafe fn draw(hwnd: Handle, frame: Option<&Frame>, preedit: Option<&(String, us
                     MoveToEx(dc, item.x, y1, std::ptr::null_mut());
                     LineTo(dc, item.x + item.width - 1, y2);
                     SelectObject(dc, old_pen);
+                    DeleteObject(pen);
+                    continue;
+                }
+                if item.kind == "ellipse" {
+                    let pen = CreatePen(0, 1, color(item.foreground));
+                    let brush = CreateSolidBrush(color(item.background));
+                    let old_pen = SelectObject(dc, pen);
+                    let old_brush = SelectObject(dc, brush);
+                    Ellipse(dc, rect.left, rect.top, rect.right, rect.bottom);
+                    SelectObject(dc, old_brush);
+                    SelectObject(dc, old_pen);
+                    DeleteObject(brush);
                     DeleteObject(pen);
                     continue;
                 }

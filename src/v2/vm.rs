@@ -57,6 +57,8 @@ enum Op {
     EndBranch(String),
     Runtime(ResourceBudget, Option<usize>),
     NativeWork(usize),
+    /// Pops an Int and jumps to the arm for that value (sorted by value), or to the last target.
+    SwitchInt(Vec<(i64, usize)>, usize),
     PatternTest(Pattern, usize),
     BorrowPatternTest(Pattern, usize),
     FailMatch,
@@ -90,6 +92,15 @@ fn relocate(code: &mut [Inst], base: usize, relative: bool) {
                 } else {
                     to.saturating_add(base)
                 };
+            }
+            Op::SwitchInt(table, default) => {
+                for to in table.iter_mut().map(|(_, to)| to).chain(Some(default)) {
+                    *to = if relative {
+                        to.saturating_sub(base)
+                    } else {
+                        to.saturating_add(base)
+                    };
+                }
             }
             _ => {}
         }
@@ -262,6 +273,7 @@ impl Compiler {
             | Op::JumpTrue(to)
             | Op::PatternTest(_, to)
             | Op::BorrowPatternTest(_, to) => *to = target,
+            Op::SwitchInt(_, default) => *default = target,
             _ => unreachable!(),
         }
     }
@@ -837,6 +849,48 @@ impl Compiler {
                 self.expr(value)?;
                 self.emit(Op::Declare(hidden.clone(), false, None), &e.at);
                 let mut ends = Vec::new();
+                // Integer literals only (and a final `_`): one table lookup instead of a test per arm.
+                let switch = value_type.as_deref() == Some("Int")
+                    && arms.len() >= 4
+                    && arms.iter().enumerate().all(|(i, (pattern, guard, _))| {
+                        guard.is_none()
+                            && match pattern {
+                                Pattern::Literal(Value::Int(_)) => true,
+                                Pattern::Wildcard => i + 1 == arms.len(),
+                                _ => false,
+                            }
+                    });
+                if switch {
+                    self.emit(Op::Load(hidden.clone()), &e.at);
+                    let jump = self.emit(Op::SwitchInt(Vec::new(), 0), &e.at);
+                    let mut table: Vec<(i64, usize)> = Vec::new();
+                    let mut default = None;
+                    for (pattern, _, arm) in arms {
+                        let label = self.code.len();
+                        match pattern {
+                            Pattern::Literal(Value::Int(n)) => {
+                                if !table.iter().any(|(k, _)| k == n) {
+                                    table.push((*n, label));
+                                }
+                            }
+                            _ => default = Some(label),
+                        }
+                        self.enter(&e.at);
+                        self.expr(arm)?;
+                        self.exit(&e.at);
+                        ends.push(self.emit(Op::Jump(0), &e.at));
+                    }
+                    let fail = self.code.len();
+                    self.emit(Op::FailMatch, &e.at);
+                    table.sort_by_key(|(k, _)| *k);
+                    self.code[jump].op = Op::SwitchInt(table, default.unwrap_or(fail));
+                    let end = self.code.len();
+                    for jump in ends {
+                        self.patch(jump, end);
+                    }
+                    self.exit(&e.at);
+                    return Ok(());
+                }
                 for (pattern, guard, arm) in arms {
                     self.enter(&e.at);
                     self.pattern_types(pattern, value_type.as_deref(), &e.at);
@@ -1212,6 +1266,8 @@ struct Vm<R: BufRead> {
     debug_deltas: Vec<serde_json::Value>,
     debug_anchors: Vec<serde_json::Value>,
     debug_bytes: usize,
+    /// The step index outgrew its budget; the trace keeps its events and checkpoints but no index.
+    debug_index_dropped: bool,
     audit: Vec<serde_json::Value>,
     inspections: Vec<serde_json::Value>,
     task_instruction_total: u64,
@@ -1527,6 +1583,7 @@ impl<R: BufRead> Vm<R> {
             debug_deltas: Vec::new(),
             debug_anchors: Vec::new(),
             debug_bytes: 0,
+            debug_index_dropped: false,
             audit: Vec::new(),
             inspections: Vec::new(),
             task_instruction_total: 0,
@@ -1573,6 +1630,9 @@ impl<R: BufRead> Vm<R> {
         serde_json::json!({"event":self.events.len(),"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"task_frames":self.task_frame_views(),"frames":self.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|scope|scope.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>()})).collect::<Vec<_>>()})
     }
     fn index_state(&mut self, at: &Tok) -> Result<()> {
+        if self.debug_index_dropped {
+            return Ok(());
+        }
         let value = self.inspection();
         let patch = (!self.debug_previous.is_null())
             .then(|| serde_json::json!(v06::debug::delta(&self.debug_previous, &value)));
@@ -1597,7 +1657,16 @@ impl<R: BufRead> Vm<R> {
             );
         }
         if bytes > 16 * 1024 * 1024 {
-            return Err(self.error(at, "TraceBudgetExceeded: debug index (16 MiB)"));
+            // A large, rebuilt state (a GUI view of hundreds of widgets) must not stop the program:
+            // drop the step index and keep recording events, so the trace still replays.
+            self.debug_index_dropped = true;
+            self.debug_initial = serde_json::Value::Null;
+            self.debug_previous = serde_json::Value::Null;
+            self.debug_deltas = Vec::new();
+            self.debug_anchors = Vec::new();
+            self.debug_bytes = 0;
+            let _ = at;
+            return Ok(());
         }
         if self.debug_previous.is_null() {
             self.debug_initial = value.clone();
@@ -2027,6 +2096,13 @@ impl<R: BufRead> Vm<R> {
                         {
                             *to = target + (*to - start)
                         }
+                        Op::SwitchInt(table, default) => {
+                            for to in table.iter_mut().map(|(_, to)| to).chain(Some(default)) {
+                                if *to >= start && *to <= end {
+                                    *to = target + (*to - start);
+                                }
+                            }
+                        }
                         Op::Declare(_, _, Some(ty)) | Op::Call(ty, _) | Op::CallNamed(ty, _) => {
                             *ty = substitute_type(ty, &substitutions)
                         }
@@ -2310,14 +2386,18 @@ impl<R: BufRead> Vm<R> {
                 }
             }
             if !compact {
-                let mut deltas = self.debug_deltas.clone();
-                if !self.debug_previous.is_null() {
-                    deltas.push(serde_json::json!(v06::debug::delta(
-                        &self.debug_previous,
-                        &self.inspection()
-                    )));
+                if self.debug_index_dropped {
+                    trace["debug"]["index_dropped"] = serde_json::json!("debug index (16 MiB)");
+                } else {
+                    let mut deltas = self.debug_deltas.clone();
+                    if !self.debug_previous.is_null() {
+                        deltas.push(serde_json::json!(v06::debug::delta(
+                            &self.debug_previous,
+                            &self.inspection()
+                        )));
+                    }
+                    trace["debug"]["index"]=self.engine.runtime.mask_debug_json(&serde_json::json!({"format":1,"initial":self.debug_initial,"deltas":deltas,"anchors":self.debug_anchors}));
                 }
-                trace["debug"]["index"]=self.engine.runtime.mask_debug_json(&serde_json::json!({"format":1,"initial":self.debug_initial,"deltas":deltas,"anchors":self.debug_anchors}));
                 trace["debug"]["checkpoints"] = self
                     .engine
                     .runtime
@@ -3525,6 +3605,16 @@ impl<R: BufRead> Vm<R> {
                     } else {
                         self.pc = miss;
                     }
+                }
+                Op::SwitchInt(table, default) => {
+                    let target = *default;
+                    let value = self.pop()?;
+                    self.pc = match &value {
+                        Value::Int(n) => table
+                            .binary_search_by_key(n, |(key, _)| *key)
+                            .map_or(target, |i| table[i].1),
+                        _ => target,
+                    };
                 }
                 Op::FailMatch => return Err(self.error(&inst.at, "non-exhaustive match")),
             }

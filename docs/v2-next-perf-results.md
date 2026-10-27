@@ -177,7 +177,7 @@ python scripts/perf_retention_win.py CANDIDATE.exe --cycles 2500 --output retent
 
 ### `--record-mode debug`の費用（未対応のREC-01課題）
 
-ループ1,000回（約1万命令）で、Windowsのpeak working setは debug 270 MiB・trace 14 MB、compact 14 MiB・trace 1.3 KB。debug記録は1命令ごとに状態の索引を残す設計で、メモリはtraceファイルの約19倍（JSON値の保持）になり、4,000回で`TraceBudgetExceeded: debug index`になります。compactは回数によらず一定です。長く走らせる記録にはcompactを使い、debugは短い再現用に限る、という使い分けが必要です。traceの保持形式（JSON値ではなく直列化済みbyte列）の見直しは別作業です。
+ループ1,000回（約1万命令）で、Windowsのpeak working setは debug 270 MiB・trace 14 MB、compact 14 MiB・trace 1.3 KB。debug記録は1命令ごとに状態の索引を残す設計で、メモリはtraceファイルの約19倍（JSON値の保持）になり、4,000回ほどで索引が16 MiBに達します。以降は索引を捨てて、イベントとチェックポイントだけを記録し続けます（トレースは `debug.index_dropped` を持ち、再生はできますが、ステップ実行の索引はありません）。compactは回数によらず一定です。長く走らせる記録にはcompactを使い、debugは短い再現用に限る、という使い分けが必要です。traceの保持形式（JSON値ではなく直列化済みbyte列）の見直しは別作業です。
 
 ## 打ち切りの判断
 

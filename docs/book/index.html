@@ -326,7 +326,7 @@ true
 true</code></pre></div>
 <h3 id="演算子の優先順位">演算子の優先順位</h3>
 <p>数学と同じように、<code>*</code>、<code>/</code>、<code>%</code> は <code>+</code>、<code>-</code> より先に計算されます。比較は算術よりも後、<code>&amp;&amp;</code> は <code>||</code> よりも先です。迷うときは <code>( )</code> で順序を明示してください。</p>
-<p>ビット演算子（<code>&amp;</code>、<code>|</code>、<code>^</code>、<code>&lt;&lt;</code>、<code>&gt;&gt;</code>）はありません。ビット操作が必要なときは、標準ライブラリの <code>std.bits</code> を使います。</p>
+<p><code>Int</code> には、ビット演算子 <code>&amp;</code>、<code>|</code>、<code>^</code>、<code>&lt;&lt;</code>、<code>&gt;&gt;</code> が使えます。優先順位は Rust と同じで、<code>a &amp; 1 == 0</code> は <code>(a &amp; 1) == 0</code> と読みます。<code>&lt;&lt;</code> は 64 ビットからあふれた分を捨て、<code>&gt;&gt;</code> は符号を保ちます。シフト量が 0 から 63 の外にあると、実行時のエラーです。</p>
 <h3 id="型に別名を付ける">型に別名を付ける</h3>
 <p><code>type</code> で、既存の型に別名を付けられます。別名は新しい型を作らないので、元の型と自由に代入し合えます。意味を読み手に伝えるのに便利です。</p>
 <div class="code"><div class="cap">REWIND</div><pre><code>type Score = Int;

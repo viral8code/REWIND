@@ -107,7 +107,7 @@ impl<R: BufRead> Vm<R> {
         let limit = self
             .engine
             .runtime
-            .native_work_remaining()
+            .gc_work_remaining()
             .map_or(limit, |n| n.min(limit));
         let (live, work) = {
             let mut pending = Vec::new();

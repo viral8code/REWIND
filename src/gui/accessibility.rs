@@ -76,7 +76,7 @@ impl Tree {
             .map_or_else(Vec::new, |f| {
                 f.items
                     .iter()
-                    .filter(|i| !matches!(i.kind.as_str(), "rect" | "line"))
+                    .filter(|i| !matches!(i.kind.as_str(), "rect" | "line" | "ellipse"))
                     .map(|i| i.id.clone())
                     .collect()
             })

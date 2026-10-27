@@ -372,6 +372,7 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdGuiScene",
         "stdGuiStage",
         "stdGuiPollEvent",
+        "stdGuiWaitEvent",
         "stdGuiWindowStage",
         "stdGuiWindowClose",
         "stdGuiWindowPoll",
@@ -1152,6 +1153,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             "Result<String,StdError>",
         ),
         "stdGuiPollEvent" => (&[], "Result<Option<String>,StdError>"),
+        "stdGuiWaitEvent" => (&["Int"], "Result<Option<String>,StdError>"),
         "stdGuiStage" => (&["String"], "Result<Unit,StdError>"),
         "stdGuiNextEvent" => (&[], "Result<String,StdError>"),
         "stdGuiClose" => (&[], "Result<Unit,StdError>"),
@@ -1538,6 +1540,14 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                     .map(|s| Value::Option(Some(Box::new(Value::Text(s.into())))))
                     .map_err(|e| Error::InvalidOperation(e.to_string())),
             }),
+            ("stdGuiWaitEvent", [Value::Int(ms)]) => {
+                runtime.gui_wait_event(*ms as u64).and_then(|e| match e {
+                    None => Ok(Value::Option(None)),
+                    Some(e) => serde_json::to_string(&e)
+                        .map(|s| Value::Option(Some(Box::new(Value::Text(s.into())))))
+                        .map_err(|e| Error::InvalidOperation(e.to_string())),
+                })
+            }
             ("stdGuiStage", [Value::Text(s)]) => {
                 if s.len() > LIMIT {
                     Err(Error::InvalidOperation("GuiSceneLimit".into()))

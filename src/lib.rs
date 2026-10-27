@@ -1136,6 +1136,9 @@ pub struct Runtime {
     native_ceiling: bool,
     allocation_bytes_since_gc: usize,
     native_remaining: Option<usize>,
+    /// The collector's own allowance: the same size as the native-work limit, but separate, so a
+    /// program that holds a large heap is not charged for walking it.
+    gc_remaining: Option<usize>,
     allocation_accounting: bool,
     cached_heap_traversal: bool,
     cached_heap_entries: bool,
@@ -2129,6 +2132,7 @@ impl Runtime {
             native_ceiling: false,
             allocation_bytes_since_gc: 0,
             native_remaining: None,
+            gc_remaining: None,
             allocation_accounting: false,
             cached_heap_traversal: false,
             cached_heap_entries: false,
@@ -3150,8 +3154,12 @@ impl Runtime {
     pub fn native_work_remaining(&self) -> Option<usize> {
         self.native_remaining
     }
+    pub fn gc_work_remaining(&self) -> Option<usize> {
+        self.gc_remaining
+    }
     pub fn configure_native_work(&mut self, limit: usize) {
         self.native_remaining = Some(limit);
+        self.gc_remaining = Some(limit);
     }
     /// A limit the host asked for (for example `--native-work`) cannot be raised by the program.
     pub fn fix_native_work_ceiling(&mut self) {
@@ -3164,6 +3172,7 @@ impl Runtime {
             Some(current) if self.native_ceiling => current.min(limit),
             _ => limit,
         });
+        self.gc_remaining = self.native_remaining;
     }
     /// Opt-in attribution of native work to the function that was running.
     pub fn enable_work_profile(&mut self) {
@@ -3191,10 +3200,18 @@ impl Runtime {
                 *profile.native.entry(scope.to_string()).or_default() += amount as u64;
             }
         }
-        if let Some(remaining) = &mut self.native_remaining {
+        let (remaining, message) = if scope == Some("<gc>") {
+            (
+                &mut self.gc_remaining,
+                "NativeWorkBudgetExceeded: collection",
+            )
+        } else {
+            (&mut self.native_remaining, "NativeWorkBudgetExceeded")
+        };
+        if let Some(remaining) = remaining {
             *remaining = remaining
                 .checked_sub(amount)
-                .ok_or_else(|| Error::InvalidOperation("NativeWorkBudgetExceeded".into()))?;
+                .ok_or_else(|| Error::InvalidOperation(message.into()))?;
         }
         Ok(())
     }
@@ -3261,9 +3278,7 @@ impl Runtime {
         external_roots: &[&Value],
         work_limit: usize,
     ) -> Result<(usize, usize)> {
-        let work_limit = self
-            .native_remaining
-            .map_or(work_limit, |n| n.min(work_limit));
+        let work_limit = self.gc_remaining.map_or(work_limit, |n| n.min(work_limit));
         if self.cached_heap_traversal {
             let (live, work) = self.trace_heap_cached(external_roots, work_limit)?;
             return self.sweep_heap(live, work);

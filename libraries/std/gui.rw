@@ -46,6 +46,27 @@ pub fn label(view:&mut View,id:String,caption:String,x:Int,y:Int,width:Int,heigh
 pub fn button(view:&mut View,id:String,caption:String,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"button",caption,x,y,width,height,0xe5e7eb,false);}
 pub fn checkbox(view:&mut View,id:String,caption:String,checked:Bool,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"checkbox",caption,x,y,width,height,0xf3f4f6,checked);}
 pub fn rectangle(view:&mut View,id:String,x:Int,y:Int,width:Int,height:Int,color:Int)->Result<Unit,GuiError> effects {} {return add(view,id,"rect","",x,y,width,height,color,false);}
+// @api ellipse cost one widget; a circle when width equals height. fill is the inside, border the 1 pixel outline. Not interactive.
+pub fn ellipse(view:&mut View,id:String,x:Int,y:Int,width:Int,height:Int,fill:Int,border:Int)->Result<Unit,GuiError> effects {} {
+ if border<0 || border>0xffffff{return Err(StdError("GuiInvalidColor",0));}
+ match add(view,id,"ellipse","",x,y,width,height,fill,false) {Err(e)=>{return Err(e);},Ok(_)=>{}}
+ let i=view.widgets.len()-1;
+ let s=view.widgets.get(i);
+ view.widgets.set(i,Widget(s.id,s.kind,s.x,s.y,s.width,s.height,s.caption,border,s.background,s.enabled,s.checked,s.cursor,s.anchor));
+ return Ok(());
+}
+// @api setBounds failure UnknownId/InvalidBounds; moves and resizes one widget without rebuilding the view.
+pub fn setBounds(view:&mut View,id:String,x:Int,y:Int,width:Int,height:Int)->Result<Unit,GuiError> effects {} {
+ if x<0 || y<0 || width<1 || height<1 || x>4096 || y>4096 || width>4096 || height>4096 || x+width>view.width || y+height>view.height{return Err(StdError("GuiInvalidBounds",0));}
+ match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);view.widgets.set(i,Widget(w.id,w.kind,x,y,width,height,w.caption,w.foreground,w.background,w.enabled,w.checked,w.cursor,w.anchor));}}
+ return Ok(());
+}
+// @api setColor failure UnknownId/InvalidColor; changes the fill of a widget, or the stroke of a line.
+pub fn setColor(view:&mut View,id:String,color:Int)->Result<Unit,GuiError> effects {} {
+ if color<0 || color>0xffffff{return Err(StdError("GuiInvalidColor",0));}
+ match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);if w.kind=="line"{view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,color,w.background,w.enabled,w.checked,w.cursor,w.anchor));}else{view.widgets.set(i,Widget(w.id,w.kind,w.x,w.y,w.width,w.height,w.caption,w.foreground,color,w.enabled,w.checked,w.cursor,w.anchor));}}}
+ return Ok(());
+}
 pub fn line(view:&mut View,id:String,x1:Int,y1:Int,x2:Int,y2:Int,color:Int)->Result<Unit,GuiError> effects {} {
  if x1<0 || y1<0 || x2<0 || y2<0 || x1>4096 || y1>4096 || x2>4096 || y2>4096{return Err(StdError("GuiInvalidBounds",0));}
  if color<0 || color>0xffffff{return Err(StdError("GuiInvalidColor",0));}
@@ -124,6 +145,11 @@ pub fn arrange(view:&mut View,ids:&List<String>,bounds:Rect,columns:Int,gap:Int)
  let rows=(n+columns-1)/columns;let width=(bounds.width-gap*(columns-1))/columns;let height=(bounds.height-gap*(rows-1))/rows;if width<1 || height<1{return Err(StdError("GuiInvalidBounds",0));}
  let seen=Map<String,Bool>();for i in 0..n{let id=ids.get(i);if view.indices.get(id)==None{return Err(StdError("GuiUnknownId",0));}if seen.get(id)!=None{return Err(StdError("GuiDuplicateId",0));}seen.set(id,true);}
  for i in 0..n{match view.indices.get(ids.get(i)){None=>{},Some(index)=>{let w=view.widgets.get(index);view.widgets.set(index,Widget(w.id,w.kind,bounds.x+(i%columns)*(width+gap),bounds.y+(i/columns)*(height+gap),width,height,w.caption,w.foreground,w.background,w.enabled,w.checked,w.cursor,w.anchor));}}}return Ok(());
+}
+// @api waitEvent failure GuiInvalidWait outside 0..60000; waits up to that many milliseconds for input and returns None on timeout. The wait is journaled, so replay does not sleep.
+pub fn waitEvent(milliseconds:Int)->Result<Option<Event>,GuiError> effects {gui} {
+ if milliseconds<0 || milliseconds>60000{return Err(StdError("GuiInvalidWait",0));}
+ match stdGuiWaitEvent(milliseconds)? {None=>{return Ok(None);},Some(caption)=>{match jsonParse(caption){Err(e)=>{return Err(StdError(e.code,e.offset));},Ok(j)=>{return Ok(Some(Event(string(j,"kind"),integer(j,"x"),integer(j,"y"),string(j,"key"),integer(j,"width"),integer(j,"height"))));}}}}
 }
 pub fn pollEvent()->Result<Option<Event>,GuiError> effects {gui} {
  match stdGuiPollEvent()? {None=>{return Ok(None);},Some(caption)=>{match jsonParse(caption){Err(e)=>{return Err(StdError(e.code,e.offset));},Ok(j)=>{return Ok(Some(Event(string(j,"kind"),integer(j,"x"),integer(j,"y"),string(j,"key"),integer(j,"width"),integer(j,"height"))));}}}}

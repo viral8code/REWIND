@@ -813,6 +813,17 @@ impl Flow<'_> {
                         let (owner, mutable) = match &arg.kind {
                             ExprKind::Unary(op, v) if op == "borrow" || op == "borrowMut" => {
                                 let Some(n) = Self::place(v) else {
+                                    // A temporary has no other name, so a shared borrow of it
+                                    // cannot conflict with anything.
+                                    if op == "borrow"
+                                        && matches!(
+                                            &v.kind,
+                                            ExprKind::Call(..) | ExprKind::Value(..)
+                                        )
+                                    {
+                                        self.expr(v)?;
+                                        continue;
+                                    }
                                     return Err(diagnostic(
                                         &arg.at,
                                         "borrow requires a named owner or field",

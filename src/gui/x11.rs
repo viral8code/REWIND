@@ -337,6 +337,8 @@ fn XFreeGC(*mut c_void,*mut c_void)->c_int;
 fn XSetForeground(*mut c_void,*mut c_void,c_ulong)->c_int;
 fn XFillRectangle(*mut c_void,Window,*mut c_void,c_int,c_int,c_uint,c_uint)->c_int;
 fn XDrawRectangle(*mut c_void,Window,*mut c_void,c_int,c_int,c_uint,c_uint)->c_int;
+fn XFillArc(*mut c_void,Window,*mut c_void,c_int,c_int,c_uint,c_uint,c_int,c_int)->c_int;
+fn XDrawArc(*mut c_void,Window,*mut c_void,c_int,c_int,c_uint,c_uint,c_int,c_int)->c_int;
 fn XCreateFontSet(*mut c_void,*const c_char,*mut *mut *mut c_char,*mut c_int,*mut *mut c_char)->*mut c_void;
 fn XFreeStringList(*mut *mut c_char)->();
 fn XFreeFontSet(*mut c_void,*mut c_void)->();
@@ -987,6 +989,35 @@ impl Surface {
                         y1,
                         item.x + item.width - 1,
                         y2,
+                    );
+                    continue;
+                }
+                if item.kind == "ellipse" {
+                    // Angles are in 1/64 degree: a full turn is 360 * 64.
+                    let (w, h) = ((item.width - 1) as u32, (item.height - 1) as u32);
+                    (self.api.XSetForeground)(self.display, self.gc, item.background as c_ulong);
+                    (self.api.XFillArc)(
+                        self.display,
+                        self.window,
+                        self.gc,
+                        item.x,
+                        item.y,
+                        w,
+                        h,
+                        0,
+                        360 * 64,
+                    );
+                    (self.api.XSetForeground)(self.display, self.gc, item.foreground as c_ulong);
+                    (self.api.XDrawArc)(
+                        self.display,
+                        self.window,
+                        self.gc,
+                        item.x,
+                        item.y,
+                        w,
+                        h,
+                        0,
+                        360 * 64,
                     );
                     continue;
                 }
