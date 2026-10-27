@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PERF-02 / NUM-01 / PERF-03 / PERF-05 local cases on Windows (see docs/v2-next-performance.md).
+"""PERF-02 / NUM-01 / PERF-03 / PERF-05 local cases on Windows (see docs/archive/v2-next-performance.md).
 
 Each case is compiled once (compilation excluded), then run `--warmup` + `--repetitions` times alternating
 between binaries. Output: JSON with environment, per-sample wall/cpu/peak working set/peak commit, and

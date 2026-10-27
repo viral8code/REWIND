@@ -1,7 +1,7 @@
 //! PERF-01 (deterministic part): the logical work of small reference programs is recorded in
 //! `tests/fixtures/logical-cost.json` and may not grow by more than 20 %. Logical work is the VM instruction count
 //! and the storage-work counters from `rewind profile`; it does not depend on the machine. Wall time, RSS and GC
-//! time are NOT measured here (see docs/v2-next-performance.md); their absence is not a zero.
+//! time are NOT measured here (see docs/archive/v2-next-performance.md); their absence is not a zero.
 //! Refresh the budgets after an intended change with `REWIND_UPDATE_LOGICAL_COST=1 cargo test --test logical_cost`.
 use std::{fs, path::Path, process::Command};
 

@@ -519,27 +519,27 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v1.1.md",
-            include_str!("../../../docs/REWIND_v1.1.md"),
+            include_str!("../../../docs/releases/REWIND_v1.1.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.4.md",
-            include_str!("../../../docs/REWIND_v1.4.md"),
+            include_str!("../../../docs/releases/REWIND_v1.4.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.5.md",
-            include_str!("../../../docs/REWIND_v1.5.md"),
+            include_str!("../../../docs/releases/REWIND_v1.5.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.6.md",
-            include_str!("../../../docs/REWIND_v1.6.md"),
+            include_str!("../../../docs/releases/REWIND_v1.6.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.6.1.md",
-            include_str!("../../../docs/REWIND_v1.6.1.md"),
+            include_str!("../../../docs/releases/REWIND_v1.6.1.md"),
         )?;
         write(
             &output,
@@ -554,33 +554,35 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/examples/http-stream/README.md",
-            include_str!("../../../examples/http-stream/README.md")
-                .replace("../../docs/REWIND_v1.6.1.md", "../../doc/REWIND_v1.6.1.md"),
+            include_str!("../../../examples/http-stream/README.md").replace(
+                "../../docs/releases/REWIND_v1.6.1.md",
+                "../../doc/REWIND_v1.6.1.md",
+            ),
         )?;
         write(
             &output,
             "share/rewind/doc/v2-design.md",
-            include_str!("../../../docs/v2-design.md"),
+            include_str!("../../../docs/archive/v2-design.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.3.md",
-            include_str!("../../../docs/REWIND_v1.8.3.md"),
+            include_str!("../../../docs/releases/REWIND_v1.8.3.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.6.md",
-            include_str!("../../../docs/REWIND_v1.8.6.md"),
+            include_str!("../../../docs/releases/REWIND_v1.8.6.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.7.md",
-            include_str!("../../../docs/REWIND_v1.8.7.md"),
+            include_str!("../../../docs/releases/REWIND_v1.8.7.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.8.md",
-            include_str!("../../../docs/REWIND_v1.8.8.md"),
+            include_str!("../../../docs/releases/REWIND_v1.8.8.md"),
         )?;
         write(
             &output,
@@ -980,285 +982,291 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         for (name, doc) in [
             (
                 "REWIND_v1.9.49.md",
-                include_str!("../../../docs/REWIND_v1.9.49.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.49.md"),
             ),
             (
                 "REWIND_v1.9.50.md",
-                include_str!("../../../docs/REWIND_v1.9.50.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.50.md"),
             ),
             (
                 "REWIND_v1.9.51.md",
-                include_str!("../../../docs/REWIND_v1.9.51.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.51.md"),
             ),
             (
                 "REWIND_v1.9.52.md",
-                include_str!("../../../docs/REWIND_v1.9.52.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.52.md"),
             ),
             (
                 "REWIND_v1.9.53.md",
-                include_str!("../../../docs/REWIND_v1.9.53.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.53.md"),
             ),
             (
                 "REWIND_v1.9.54.md",
-                include_str!("../../../docs/REWIND_v1.9.54.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.54.md"),
             ),
             (
                 "REWIND_v1.9.57.md",
-                include_str!("../../../docs/REWIND_v1.9.57.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.57.md"),
             ),
             (
                 "REWIND_v1.9.58.md",
-                include_str!("../../../docs/REWIND_v1.9.58.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.58.md"),
             ),
             (
                 "REWIND_v1.9.59.md",
-                include_str!("../../../docs/REWIND_v1.9.59.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.59.md"),
             ),
             (
                 "REWIND_v1.9.60.md",
-                include_str!("../../../docs/REWIND_v1.9.60.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.60.md"),
             ),
             (
                 "REWIND_v1.9.61.md",
-                include_str!("../../../docs/REWIND_v1.9.61.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.61.md"),
             ),
             (
                 "REWIND_v1.9.62.md",
-                include_str!("../../../docs/REWIND_v1.9.62.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.62.md"),
             ),
             (
                 "REWIND_v1.9.63.md",
-                include_str!("../../../docs/REWIND_v1.9.63.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.63.md"),
             ),
             (
                 "REWIND_v1.9.64.md",
-                include_str!("../../../docs/REWIND_v1.9.64.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.64.md"),
             ),
             (
                 "REWIND_v1.9.65.md",
-                include_str!("../../../docs/REWIND_v1.9.65.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.65.md"),
             ),
             (
                 "REWIND_v2.0.md",
-                include_str!("../../../docs/REWIND_v2.0.md"),
+                include_str!("../../../docs/releases/REWIND_v2.0.md"),
             ),
             (
                 "v2-acceptance.md",
-                include_str!("../../../docs/v2-acceptance.md"),
+                include_str!("../../../docs/archive/v2-acceptance.md"),
             ),
-            ("v2-status.md", include_str!("../../../docs/v2-status.md")),
-            ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
+            (
+                "v2-status.md",
+                include_str!("../../../docs/archive/v2-status.md"),
+            ),
+            (
+                "ROADMAP_v2.md",
+                include_str!("../../../docs/archive/ROADMAP_v2.md"),
+            ),
             (
                 "REWIND_v1.9.56.md",
-                include_str!("../../../docs/REWIND_v1.9.56.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.56.md"),
             ),
             (
                 "REWIND_v1.9.55.md",
-                include_str!("../../../docs/REWIND_v1.9.55.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.55.md"),
             ),
             (
                 "REWIND_v1.9.48.md",
-                include_str!("../../../docs/REWIND_v1.9.48.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.48.md"),
             ),
             (
                 "REWIND_v1.9.47.md",
-                include_str!("../../../docs/REWIND_v1.9.47.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.47.md"),
             ),
             (
                 "REWIND_v1.9.46.md",
-                include_str!("../../../docs/REWIND_v1.9.46.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.46.md"),
             ),
             (
                 "REWIND_v1.9.45.md",
-                include_str!("../../../docs/REWIND_v1.9.45.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.45.md"),
             ),
             (
                 "REWIND_v1.9.44.md",
-                include_str!("../../../docs/REWIND_v1.9.44.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.44.md"),
             ),
             (
                 "REWIND_v1.9.43.md",
-                include_str!("../../../docs/REWIND_v1.9.43.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.43.md"),
             ),
             (
                 "REWIND_v1.9.42.md",
-                include_str!("../../../docs/REWIND_v1.9.42.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.42.md"),
             ),
             (
                 "REWIND_v1.9.41.md",
-                include_str!("../../../docs/REWIND_v1.9.41.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.41.md"),
             ),
             (
                 "REWIND_v1.9.40.md",
-                include_str!("../../../docs/REWIND_v1.9.40.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.40.md"),
             ),
             (
                 "REWIND_v1.9.39.md",
-                include_str!("../../../docs/REWIND_v1.9.39.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.39.md"),
             ),
             (
                 "REWIND_v1.9.38.md",
-                include_str!("../../../docs/REWIND_v1.9.38.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.38.md"),
             ),
             (
                 "REWIND_v1.9.37.md",
-                include_str!("../../../docs/REWIND_v1.9.37.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.37.md"),
             ),
             (
                 "REWIND_v1.9.36.md",
-                include_str!("../../../docs/REWIND_v1.9.36.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.36.md"),
             ),
             (
                 "REWIND_v1.9.35.md",
-                include_str!("../../../docs/REWIND_v1.9.35.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.35.md"),
             ),
             (
                 "REWIND_v1.9.34.md",
-                include_str!("../../../docs/REWIND_v1.9.34.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.34.md"),
             ),
             (
                 "REWIND_v1.9.33.md",
-                include_str!("../../../docs/REWIND_v1.9.33.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.33.md"),
             ),
             (
                 "REWIND_v1.9.32.md",
-                include_str!("../../../docs/REWIND_v1.9.32.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.32.md"),
             ),
             (
                 "REWIND_v1.9.31.md",
-                include_str!("../../../docs/REWIND_v1.9.31.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.31.md"),
             ),
             (
                 "REWIND_v1.9.30.md",
-                include_str!("../../../docs/REWIND_v1.9.30.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.30.md"),
             ),
             (
                 "REWIND_v1.9.29.md",
-                include_str!("../../../docs/REWIND_v1.9.29.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.29.md"),
             ),
             (
                 "REWIND_v1.9.28.md",
-                include_str!("../../../docs/REWIND_v1.9.28.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.28.md"),
             ),
             (
                 "REWIND_v1.9.27.md",
-                include_str!("../../../docs/REWIND_v1.9.27.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.27.md"),
             ),
             (
                 "REWIND_v1.9.26.md",
-                include_str!("../../../docs/REWIND_v1.9.26.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.26.md"),
             ),
             (
                 "REWIND_v1.9.25.md",
-                include_str!("../../../docs/REWIND_v1.9.25.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.25.md"),
             ),
             (
                 "REWIND_v1.9.24.md",
-                include_str!("../../../docs/REWIND_v1.9.24.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.24.md"),
             ),
             (
                 "REWIND_v1.9.23.md",
-                include_str!("../../../docs/REWIND_v1.9.23.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.23.md"),
             ),
             (
                 "REWIND_v1.9.22.md",
-                include_str!("../../../docs/REWIND_v1.9.22.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.22.md"),
             ),
             (
                 "REWIND_v1.9.21.md",
-                include_str!("../../../docs/REWIND_v1.9.21.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.21.md"),
             ),
             (
                 "REWIND_v1.9.20.md",
-                include_str!("../../../docs/REWIND_v1.9.20.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.20.md"),
             ),
             (
                 "REWIND_v1.9.19.md",
-                include_str!("../../../docs/REWIND_v1.9.19.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.19.md"),
             ),
             (
                 "REWIND_v1.9.18.md",
-                include_str!("../../../docs/REWIND_v1.9.18.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.18.md"),
             ),
             (
                 "REWIND_v1.9.17.md",
-                include_str!("../../../docs/REWIND_v1.9.17.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.17.md"),
             ),
             (
                 "REWIND_v1.9.13.md",
-                include_str!("../../../docs/REWIND_v1.9.13.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.13.md"),
             ),
             (
                 "REWIND_v1.9.14.md",
-                include_str!("../../../docs/REWIND_v1.9.14.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.14.md"),
             ),
             (
                 "REWIND_v1.9.16.md",
-                include_str!("../../../docs/REWIND_v1.9.16.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.16.md"),
             ),
             (
                 "REWIND_v1.9.15.md",
-                include_str!("../../../docs/REWIND_v1.9.15.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.15.md"),
             ),
             (
                 "REWIND_v1.9.12.md",
-                include_str!("../../../docs/REWIND_v1.9.12.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.12.md"),
             ),
             (
                 "REWIND_v1.9.11.md",
-                include_str!("../../../docs/REWIND_v1.9.11.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.11.md"),
             ),
             (
                 "REWIND_v1.9.10.md",
-                include_str!("../../../docs/REWIND_v1.9.10.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.10.md"),
             ),
             (
                 "REWIND_v1.9.9.md",
-                include_str!("../../../docs/REWIND_v1.9.9.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.9.md"),
             ),
             (
                 "REWIND_v1.9.8.md",
-                include_str!("../../../docs/REWIND_v1.9.8.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.8.md"),
             ),
             (
                 "REWIND_v1.9.7.md",
-                include_str!("../../../docs/REWIND_v1.9.7.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.7.md"),
             ),
             (
                 "REWIND_v1.9.6.md",
-                include_str!("../../../docs/REWIND_v1.9.6.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.6.md"),
             ),
             (
                 "REWIND_v1.9.5.md",
-                include_str!("../../../docs/REWIND_v1.9.5.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.5.md"),
             ),
             (
                 "REWIND_v1.9.4.md",
-                include_str!("../../../docs/REWIND_v1.9.4.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.4.md"),
             ),
             (
                 "REWIND_v1.9.3.md",
-                include_str!("../../../docs/REWIND_v1.9.3.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.3.md"),
             ),
             (
                 "REWIND_v1.9.2.md",
-                include_str!("../../../docs/REWIND_v1.9.2.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.2.md"),
             ),
             (
                 "REWIND_v1.9.1.md",
-                include_str!("../../../docs/REWIND_v1.9.1.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.1.md"),
             ),
             (
                 "REWIND_v1.9.md",
-                include_str!("../../../docs/REWIND_v1.9.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.md"),
             ),
             (
                 "REWIND_v1.8.4.md",
-                include_str!("../../../docs/REWIND_v1.8.4.md"),
+                include_str!("../../../docs/releases/REWIND_v1.8.4.md"),
             ),
             (
                 "REWIND_v1.8.5.md",
-                include_str!("../../../docs/REWIND_v1.8.5.md"),
+                include_str!("../../../docs/releases/REWIND_v1.8.5.md"),
             ),
         ] {
             write(&output, &format!("share/rewind/doc/{name}"), doc)?;
@@ -1471,89 +1479,95 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         for (name, doc) in [
             (
                 "REWIND_v1.9.49.md",
-                include_str!("../../../docs/REWIND_v1.9.49.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.49.md"),
             ),
             (
                 "REWIND_v1.9.50.md",
-                include_str!("../../../docs/REWIND_v1.9.50.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.50.md"),
             ),
             (
                 "REWIND_v1.9.51.md",
-                include_str!("../../../docs/REWIND_v1.9.51.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.51.md"),
             ),
             (
                 "REWIND_v1.9.52.md",
-                include_str!("../../../docs/REWIND_v1.9.52.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.52.md"),
             ),
             (
                 "REWIND_v1.9.53.md",
-                include_str!("../../../docs/REWIND_v1.9.53.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.53.md"),
             ),
             (
                 "REWIND_v1.9.54.md",
-                include_str!("../../../docs/REWIND_v1.9.54.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.54.md"),
             ),
             (
                 "REWIND_v1.9.57.md",
-                include_str!("../../../docs/REWIND_v1.9.57.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.57.md"),
             ),
             (
                 "REWIND_v1.9.58.md",
-                include_str!("../../../docs/REWIND_v1.9.58.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.58.md"),
             ),
             (
                 "REWIND_v1.9.59.md",
-                include_str!("../../../docs/REWIND_v1.9.59.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.59.md"),
             ),
             (
                 "REWIND_v1.9.60.md",
-                include_str!("../../../docs/REWIND_v1.9.60.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.60.md"),
             ),
             (
                 "REWIND_v1.9.61.md",
-                include_str!("../../../docs/REWIND_v1.9.61.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.61.md"),
             ),
             (
                 "REWIND_v1.9.62.md",
-                include_str!("../../../docs/REWIND_v1.9.62.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.62.md"),
             ),
             (
                 "REWIND_v1.9.63.md",
-                include_str!("../../../docs/REWIND_v1.9.63.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.63.md"),
             ),
             (
                 "REWIND_v1.9.64.md",
-                include_str!("../../../docs/REWIND_v1.9.64.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.64.md"),
             ),
             (
                 "REWIND_v1.9.65.md",
-                include_str!("../../../docs/REWIND_v1.9.65.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.65.md"),
             ),
             (
                 "REWIND_v2.0.md",
-                include_str!("../../../docs/REWIND_v2.0.md"),
+                include_str!("../../../docs/releases/REWIND_v2.0.md"),
             ),
             (
                 "v2-acceptance.md",
-                include_str!("../../../docs/v2-acceptance.md"),
+                include_str!("../../../docs/archive/v2-acceptance.md"),
             ),
-            ("v2-status.md", include_str!("../../../docs/v2-status.md")),
-            ("ROADMAP_v2.md", include_str!("../../../docs/ROADMAP_v2.md")),
+            (
+                "v2-status.md",
+                include_str!("../../../docs/archive/v2-status.md"),
+            ),
+            (
+                "ROADMAP_v2.md",
+                include_str!("../../../docs/archive/ROADMAP_v2.md"),
+            ),
             (
                 "REWIND_v1.9.56.md",
-                include_str!("../../../docs/REWIND_v1.9.56.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.56.md"),
             ),
             (
                 "REWIND_v1.9.55.md",
-                include_str!("../../../docs/REWIND_v1.9.55.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.55.md"),
             ),
             (
                 "REWIND_v1.9.48.md",
-                include_str!("../../../docs/REWIND_v1.9.48.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.48.md"),
             ),
             (
                 "REWIND_v1.9.44.md",
-                include_str!("../../../docs/REWIND_v1.9.44.md"),
+                include_str!("../../../docs/releases/REWIND_v1.9.44.md"),
             ),
             (
                 "gui-controls",
@@ -1824,7 +1838,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.2.md",
-            include_str!("../../../docs/REWIND_v1.8.2.md"),
+            include_str!("../../../docs/releases/REWIND_v1.8.2.md"),
         )?;
         write(
             &output,
@@ -1840,7 +1854,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.1.md",
-            include_str!("../../../docs/REWIND_v1.8.1.md"),
+            include_str!("../../../docs/releases/REWIND_v1.8.1.md"),
         )?;
         write(
             &output,
@@ -1856,7 +1870,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v1.8.md",
-            include_str!("../../../docs/REWIND_v1.8.md"),
+            include_str!("../../../docs/releases/REWIND_v1.8.md"),
         )?;
         write(
             &output,
@@ -1947,7 +1961,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v1.7.1.md",
-            include_str!("../../../docs/REWIND_v1.7.1.md"),
+            include_str!("../../../docs/releases/REWIND_v1.7.1.md"),
         )?;
         write(
             &output,
@@ -1962,7 +1976,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v1.7.md",
-            include_str!("../../../docs/REWIND_v1.7.md"),
+            include_str!("../../../docs/releases/REWIND_v1.7.md"),
         )?;
         write(
             &output,
@@ -1987,7 +2001,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/ROADMAP_v2.md",
-            include_str!("../../../docs/ROADMAP_v2.md"),
+            include_str!("../../../docs/archive/ROADMAP_v2.md"),
         )?;
         write(
             &output,
@@ -2007,7 +2021,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v1.3.md",
-            include_str!("../../../docs/REWIND_v1.3.md"),
+            include_str!("../../../docs/releases/REWIND_v1.3.md"),
         )?;
         write(
             &output,
@@ -2033,7 +2047,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v1.2.md",
-            include_str!("../../../docs/REWIND_v1.2.md"),
+            include_str!("../../../docs/releases/REWIND_v1.2.md"),
         )?;
         write(
             &output,
@@ -2053,7 +2067,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v0.9.3.md",
-            include_str!("../../../docs/REWIND_v0.9.3.md").replace(
+            include_str!("../../../docs/releases/REWIND_v0.9.3.md").replace(
                 "[v0.9.2実装状況](v0.9.2-status.md)",
                 "[SDK guide](language.md)",
             ),
@@ -2061,7 +2075,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/v0.9.3-status.md",
-            include_str!("../../../docs/v0.9.3-status.md")
+            include_str!("../../../docs/archive/v0.9.3-status.md")
                 .replace("../libraries/README.md", "libraries.md")
                 .replace(
                     "../examples/v093/README.md",
@@ -2071,18 +2085,18 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/REWIND_v0.9.4.md",
-            include_str!("../../../docs/REWIND_v0.9.4.md"),
+            include_str!("../../../docs/releases/REWIND_v0.9.4.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/v0.9.4-status.md",
-            include_str!("../../../docs/v0.9.4-status.md")
+            include_str!("../../../docs/archive/v0.9.4-status.md")
                 .replace("../libraries/README.md", "libraries.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v0.9.5.md",
-            include_str!("../../../docs/REWIND_v0.9.5.md"),
+            include_str!("../../../docs/releases/REWIND_v0.9.5.md"),
         )?;
         write(
             &output,
@@ -2093,7 +2107,7 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/getting-started-v0.9.3.md",
-            include_str!("../../../docs/getting-started-v0.9.3.md"),
+            include_str!("../../../docs/archive/getting-started-v0.9.3.md"),
         )?;
         write(
             &output,
@@ -2108,32 +2122,32 @@ pub(in crate::v2) fn build(output: &Path, key: &Path) -> Result<()> {
         write(
             &output,
             "share/rewind/doc/v0.9.5-status.md",
-            include_str!("../../../docs/v0.9.5-status.md"),
+            include_str!("../../../docs/archive/v0.9.5-status.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/v0.9.6-status.md",
-            include_str!("../../../docs/v0.9.6-status.md"),
+            include_str!("../../../docs/archive/v0.9.6-status.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/v0.9.7-status.md",
-            include_str!("../../../docs/v0.9.7-status.md"),
+            include_str!("../../../docs/archive/v0.9.7-status.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/v0.9.8-status.md",
-            include_str!("../../../docs/v0.9.8-status.md"),
+            include_str!("../../../docs/archive/v0.9.8-status.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/v0.9.9-status.md",
-            include_str!("../../../docs/v0.9.9-status.md"),
+            include_str!("../../../docs/archive/v0.9.9-status.md"),
         )?;
         write(
             &output,
             "share/rewind/doc/REWIND_v1.0.md",
-            include_str!("../../../docs/REWIND_v1.0.md"),
+            include_str!("../../../docs/releases/REWIND_v1.0.md"),
         )?;
         write(
             &output,

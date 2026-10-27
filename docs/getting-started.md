@@ -1,22 +1,22 @@
-# REWIND 4.1.0を試す
+# REWIND 4.2.0を試す
 
-4.1.0はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](getting-started-v0.9.3.md)を参照してください。
+4.2.0はLinux x86_64とWindows x64用SDKを提供します。簡易CLI、Checkpoint/publishと呼び出しスタック付き診断を利用できます。旧Releaseは[0.9.3用の説明](archive/getting-started-v0.9.3.md)を参照してください。
 
-章立てで学ぶ[入門書](book/index.html)（[PDF版](book/REWIND-4.1.0-book.pdf)）と、[言語リファレンス](language-reference.md)（[PDF版](language-reference.pdf)）も利用できます。
+章立てで学ぶ[入門書](book/index.html)（[PDF版](book/REWIND-4.2.0-book.pdf)）と、[言語リファレンス](language-reference.md)（[PDF版](language-reference.pdf)）も利用できます。
 
 ## Linux SDKをダウンロードする
 
-[Release v4.1.0](https://github.com/viral8code/REWIND/releases/tag/v4.1.0)から次を同じdirectoryへ保存します。
+[Release v4.2.0](https://github.com/viral8code/REWIND/releases/tag/v4.2.0)から次を同じdirectoryへ保存します。
 
-- `rewind-4.1.0-linux-x86_64.tar.gz`：rewind/rewindc、129公開module、文書、例
-- `rewind-4.1.0-sdk.pub`：このreleaseの公開鍵
+- `rewind-4.2.0-linux-x86_64.tar.gz`：rewind/rewindc、129公開module、文書、例
+- `rewind-4.2.0-sdk.pub`：このreleaseの公開鍵
 - `SHA256SUMS`、`BUILD_INFO.json`：checksumと最低glibc等のbuild情報
 
 ```sh
 sha256sum --check --ignore-missing SHA256SUMS
-tar -xzf rewind-4.1.0-linux-x86_64.tar.gz
-SDK="$(pwd)/rewind-4.1.0-linux-x86_64"
-PUBLIC_KEY="$(cat rewind-4.1.0-sdk.pub)"
+tar -xzf rewind-4.2.0-linux-x86_64.tar.gz
+SDK="$(pwd)/rewind-4.2.0-linux-x86_64"
+PUBLIC_KEY="$(cat rewind-4.2.0-sdk.pub)"
 "$SDK/bin/rewind" sdk-verify --sdk "$SDK" --public-key "$PUBLIC_KEY"
 export PATH="$SDK/bin:$PATH"
 rewind --version
@@ -26,10 +26,10 @@ SDK archiveと公開鍵の両方がchecksum検証でOKになることを確認�
 
 ## Windows SDKをダウンロードする
 
-[Release v4.1.0](https://github.com/viral8code/REWIND/releases/tag/v4.1.0)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
+[Release v4.2.0](https://github.com/viral8code/REWIND/releases/tag/v4.2.0)から次を同じfolderへ保存します。Windows x64（MSVC、Windows 10以降）向けで、CIはWindows Server 2022上で実行しています。
 
-- `rewind-4.1.0-windows-x86_64.zip`
-- `rewind-4.1.0-windows-x86_64-sdk.pub`
+- `rewind-4.2.0-windows-x86_64.zip`
+- `rewind-4.2.0-windows-x86_64-sdk.pub`
 - `SHA256SUMS.windows`、`BUILD_INFO.windows.json`
 
 PowerShellでchecksumを確認し、展開してPATHへ追加します。
@@ -40,14 +40,14 @@ Get-Content .\SHA256SUMS.windows | ForEach-Object {
     $hash, $name = $_ -split '  ', 2
     $expected[$name] = $hash
 }
-foreach ($name in @('rewind-4.1.0-windows-x86_64.zip', 'rewind-4.1.0-windows-x86_64-sdk.pub')) {
+foreach ($name in @('rewind-4.2.0-windows-x86_64.zip', 'rewind-4.2.0-windows-x86_64-sdk.pub')) {
     if ((Get-FileHash $name -Algorithm SHA256).Hash.ToLower() -ne $expected[$name]) {
         throw "Checksum mismatch: $name"
     }
 }
-Expand-Archive .\rewind-4.1.0-windows-x86_64.zip -DestinationPath .
-$sdk = Join-Path (Get-Location) 'rewind-4.1.0-windows-x86_64'
-$publicKey = (Get-Content .\rewind-4.1.0-windows-x86_64-sdk.pub -Raw).Trim()
+Expand-Archive .\rewind-4.2.0-windows-x86_64.zip -DestinationPath .
+$sdk = Join-Path (Get-Location) 'rewind-4.2.0-windows-x86_64'
+$publicKey = (Get-Content .\rewind-4.2.0-windows-x86_64-sdk.pub -Raw).Trim()
 & "$sdk\bin\rewind.exe" sdk-verify --sdk $sdk --public-key $publicKey
 $env:Path = "$sdk\bin;$env:Path"
 rewind --version
@@ -57,7 +57,7 @@ RustやJVMのインストールは不要です。このPATH変更は現在のPow
 
 ## sourceからビルドする
 
-`rewind-4.1.0-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
+`rewind-4.2.0-source.tar.gz`、またはrepositoryの`codex/develop`を使います。Rust 1.98.1と依存lockを固定しています。
 
 ```sh
 cargo build --release --locked
@@ -147,14 +147,14 @@ rewind compile main.rw --allow-effects fileRead,fileWrite
 rewind run main.rwc --allow-effects fileRead,fileWrite
 ```
 
-成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effectsとlockを優先します。`.rwc`の実行ではsource / vendorを要求せず、assetは配布に含めます。source実行・compileでは依存graphも検証します。既存projectを新仕様に移す場合はlanguageを3.0.0（または4.1.0）へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
+成果物へ権限を記録しても、実行側の許可は必要です。manifestが近傍にある場合は、そのlanguage/effectsとlockを優先します。`.rwc`の実行ではsource / vendorを要求せず、assetは配布に含めます。source実行・compileでは依存graphも検証します。既存projectを新仕様に移す場合はlanguageを3.0.0（または4.2.0）へ変更して`rewind update --root DIR`を実行し、artifact/replayを作り直します。署名付き外部dependencyの導入は既存のsdk-install/updateを使います。
 
 ```sh
 rewind run main.rw --record trace.json
 rewind replay trace.json --root .
 ```
 
-実行・履歴・stream/collectionには上限があります。`--steps N` / `--native-work N`で累積実行予算を指定します。初期履歴予算は `--history-memory 512MiB` / `--history-storage 8GiB` / `--spill-threshold 8MiB` で指定できます。byte 数と KiB / MiB / GiB に対応し、spill threshold は 0 も指定できます。replay は記録した初期予算を復元します。Linuxのプロセスaddress-spaceは既定2,048 MiBで、`--memory-mib N`で指定できます。上限超過によるOS/allocatorの終了は言語のResultとして回復できません。履歴予算は RSS 上限とは異なります。[1.9.4 の費用・予算契約](REWIND_v1.9.4.md)を参照してください。
+実行・履歴・stream/collectionには上限があります。`--steps N` / `--native-work N`で累積実行予算を指定します。初期履歴予算は `--history-memory 512MiB` / `--history-storage 8GiB` / `--spill-threshold 8MiB` で指定できます。byte 数と KiB / MiB / GiB に対応し、spill threshold は 0 も指定できます。replay は記録した初期予算を復元します。Linuxのプロセスaddress-spaceは既定2,048 MiBで、`--memory-mib N`で指定できます。上限超過によるOS/allocatorの終了は言語のResultとして回復できません。履歴予算は RSS 上限とは異なります。[1.9.4 の費用・予算契約](releases/REWIND_v1.9.4.md)を参照してください。
 
 ## 診断・デバッグ・profile
 
@@ -164,7 +164,7 @@ rewind replay trace.json --root .
 
 v1.2はエラーコード、発生位置、callerと対処ヒントを表示します。`--diagnostic-format json`はstderrへJSONを出します。整形は`rewind fmt main.rw`、stdio LSPの起動は`rewind lsp --root DIR`です。manifestなしでもstd importとincremental診断・整形を利用できます。
 
-構文と動作は[言語リファレンス](language-reference.md)、変更点とWindowsの制限は[1.5仕様](REWIND_v1.5.md)を参照してください。WindowsではVM予算は有効ですがLinuxの`--memory-mib`によるOS上限は提供しません。
+構文と動作は[言語リファレンス](language-reference.md)、変更点とWindowsの制限は[1.5仕様](releases/REWIND_v1.5.md)を参照してください。WindowsではVM予算は有効ですがLinuxの`--memory-mib`によるOS上限は提供しません。
 
 ## ネイティブ GUI を試す
 
@@ -174,24 +174,24 @@ SDK の `share/rewind/examples/gui/main.rw` をコピーし、`rewind run main.r
 
 ## PostgreSQL
 
-`std.db` は SQLite に加えて、別プロセスの PostgreSQL への接続を提供する。SDK の `share/rewind/examples/postgres` を writable な root へコピーし、[PostgreSQL guide](REWIND_v1.7.1.md) と例の README に従って DER CA と秘密環境値を設定する。DB server 自体は SDK に含めない。
+`std.db` は SQLite に加えて、別プロセスの PostgreSQL への接続を提供する。SDK の `share/rewind/examples/postgres` を writable な root へコピーし、[PostgreSQL guide](releases/REWIND_v1.7.1.md) と例の README に従って DER CA と秘密環境値を設定する。DB server 自体は SDK に含めない。
 
-`std.numeric` と SDK の `share/rewind/examples/numeric` で型付き配列と行列計算を試せる。[数値契約](REWIND_v1.8.md)を参照。
+`std.numeric` と SDK の `share/rewind/examples/numeric` で型付き配列と行列計算を試せる。[数値契約](releases/REWIND_v1.8.md)を参照。
 
-長い計算を詳細なステップ表示なしで記録するには `rewind run main.rw --record trace.json --record-mode compact` を使います。`rewind replay trace.json` は方式を自動復元します。詳細な debug 履歴が必要なら既定の `--record-mode debug` を使います。[記録・費用契約](REWIND_v1.9.6.md)。
+長い計算を詳細なステップ表示なしで記録するには `rewind run main.rw --record trace.json --record-mode compact` を使います。`rewind replay trace.json` は方式を自動復元します。詳細な debug 履歴が必要なら既定の `--record-mode debug` を使います。[記録・費用契約](releases/REWIND_v1.9.6.md)。
 
 複数画面は SDK の `share/rewind/examples/gui-windows` をコピーして `rewind run main.rw --allow-effects gui` で試せる。[GUI guide](gui.md) に fixture と replay の手順を記載する。
 
-協調的な数値処理は SDK の `share/rewind/examples/numeric-async` をコピーし、`rewind run main.rw --native-work 100000000` で試せる。GUI と task を併用する loop には `std.task.yieldNow()` を使う。[契約](REWIND_v1.9.10.md)。
+協調的な数値処理は SDK の `share/rewind/examples/numeric-async` をコピーし、`rewind run main.rw --native-work 100000000` で試せる。GUI と task を併用する loop には `std.task.yieldNow()` を使う。[契約](releases/REWIND_v1.9.10.md)。
 
-1.9.11 以降は共有する数値 page を Runtime の履歴 memory 予算で一度だけ数えます。task の16MiB上限では数値 descriptor 等を数えます。checkpoint に保持した差分の page は、最後の参照を捨てるまで保持します。大きい計算の記録は compact を選べます。[会計の契約](REWIND_v1.9.11.md)を参照してください。
+1.9.11 以降は共有する数値 page を Runtime の履歴 memory 予算で一度だけ数えます。task の16MiB上限では数値 descriptor 等を数えます。checkpoint に保持した差分の page は、最後の参照を捨てるまで保持します。大きい計算の記録は compact を選べます。[会計の契約](releases/REWIND_v1.9.11.md)を参照してください。
 
 フォームと表の入力・検証・revert は SDK の `share/rewind/examples/gui-controls` に含む。[使い方](../examples/gui-controls/README.md)を参照する。
 
-HTTPS listener は SDK の `share/rewind/examples/http-server-auth` を参照してください。秘密鍵登録・接続予算・期限・replay の契約は [1.9.30仕様](REWIND_v1.9.30.md)に記載します。
+HTTPS listener は SDK の `share/rewind/examples/http-server-auth` を参照してください。秘密鍵登録・接続予算・期限・replay の契約は [1.9.30仕様](releases/REWIND_v1.9.30.md)に記載します。
 
-数値処理の協調的な scale / zipFloat / norm2 と途中 checkpoint は SDK の `share/rewind/examples/vector-async` と [1.9.31仕様](REWIND_v1.9.31.md)を参照してください。
+数値処理の協調的な scale / zipFloat / norm2 と途中 checkpoint は SDK の `share/rewind/examples/vector-async` と [1.9.31仕様](releases/REWIND_v1.9.31.md)を参照してください。
 
-GUI と HTTP / SQLite / PostgreSQL の統合例は SDK の `share/rewind/examples/gui-data` と [統合例の仕様](REWIND_v1.9.32.md)を参照してください。
+GUI と HTTP / SQLite / PostgreSQL の統合例は SDK の `share/rewind/examples/gui-data` と [統合例の仕様](releases/REWIND_v1.9.32.md)を参照してください。
 
-協調的な連立方程式ソルバーは SDK の `share/rewind/examples/solve-async` と [1.9.33仕様](REWIND_v1.9.33.md)を参照してください。
+協調的な連立方程式ソルバーは SDK の `share/rewind/examples/solve-async` と [1.9.33仕様](releases/REWIND_v1.9.33.md)を参照してください。

@@ -107,7 +107,7 @@ GUI 操作は main task に限ります。`gui` effect が必要な処理を asy
 
 SDK の `share/rewind/examples/notes` は編集、Save、Undo all、resize のサンプルです。`--allow-effects gui,fileRead,fileWrite` で利用できます。Save は publish してファイルを確定し、Undo は表示モデルだけを戻します。Undo 後にも確定済みファイルは残ります。record/replay、fixture、コンパイル済み配布にも対応します。
 
-GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cluster 単位で編集する。既定値は false。選択位置は scalar offset のままで、有効化時に境界へ切り上げ、有効化後は cluster 内部の `setSelection` を拒否する。モードも checkpoint の対象になる。[v1.9.7](REWIND_v1.9.7.md) と SDK の gui-grapheme 例を参照。
+GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cluster 単位で編集する。既定値は false。選択位置は scalar offset のままで、有効化時に境界へ切り上げ、有効化後は cluster 内部の `setSelection` を拒否する。モードも checkpoint の対象になる。[v1.9.7](releases/REWIND_v1.9.7.md) と SDK の gui-grapheme 例を参照。
 
 ## 1.9.9 の複数ウィンドウ
 
@@ -115,11 +115,11 @@ GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cl
 
 入力と画面は旧 gui の単一画面から独立する。名前付き画面の Undo は `revert saved; windows.continueInput();` として復元した View を再表示する。待機 API は VM task を進めないため、外部 I/O の完了確認との併用は pollAny と task.isDone() を使う。現在は `std.task.yieldNow` と `windows.nextEventAnyAsync` を利用できます。
 
-最大16画面、合計16,777,216 client pixels（旧単一画面を含む）、各 scene 1 MiB。ID、入力 fixture、記録・予算・部分公開の詳細は [v1.9.9](REWIND_v1.9.9.md)、実行例は [gui-windows](../examples/gui-windows/README.md)。`--gui-window-events` を使う fixture と replay は native 画面を開かない。
+最大16画面、合計16,777,216 client pixels（旧単一画面を含む）、各 scene 1 MiB。ID、入力 fixture、記録・予算・部分公開の詳細は [v1.9.9](releases/REWIND_v1.9.9.md)、実行例は [gui-windows](../examples/gui-windows/README.md)。`--gui-window-events` を使う fixture と replay は native 画面を開かない。
 
 ## 1.9.10 の task handoff
 
-通信や計算 task を持つ GUI loop では、pollAny で入力を確認し、task.isDone() で完了を確認して `std.task.yieldNow()` で VM 処理を渡す。tasks effect が必要。nextEventAny の待機中に VM task が進む変更ではない。dot / matmul の協調 API は [v1.9.10](REWIND_v1.9.10.md)。
+通信や計算 task を持つ GUI loop では、pollAny で入力を確認し、task.isDone() で完了を確認して `std.task.yieldNow()` で VM 処理を渡す。tasks effect が必要。nextEventAny の待機中に VM task が進む変更ではない。dot / matmul の協調 API は [v1.9.10](releases/REWIND_v1.9.10.md)。
 
 ## 再利用部品のID scope
 
@@ -133,7 +133,7 @@ scopeはID名前空間だけを持ち、modelやnative handleは保持しない�
 
 ## フォームと表
 
-1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。GUI table編集例は [gui-table-edits.rw](../examples/gui-table-edits.rw) を参照する。
+1.9.12 の `std.guiForm` / `std.guiTable` はモデルと View の構築を提供する。モデルを変更したら render して present / publish する。入力・型検証・容量・viewport の契約は [v1.9.12](releases/REWIND_v1.9.12.md)、動く例は [gui-controls](../examples/gui-controls/README.md) を参照する。GUI table編集例は [gui-table-edits.rw](../examples/gui-table-edits.rw) を参照する。
 
 `guiForm.toValue` first validates the form (including declared relations), then passes its typed JSON object to one pure mapper supplied by the application. The mapper can construct an application record explicitly. `SubmitError` keeps form validation errors separate from mapper errors, and the mapper is not called when form validation fails. See [gui-form-typed.rw](../examples/gui-form-typed.rw).
 
@@ -153,13 +153,13 @@ Windows uses Unicode clipboard text and Linux uses X11 CLIPBOARD UTF8_STRING.
 Only valid, NUL-free text of at most 4096 UTF-8 bytes is accepted. X11 transfers
 are asynchronous with a two-second reply deadline; unsupported formats and
 failed transfers cause no edit. X11 copy ownership expires when the window
-closes. See [v1.9.52](REWIND_v1.9.52.md) and the shipped gui-clipboard example.
+closes. See [v1.9.52](releases/REWIND_v1.9.52.md) and the shipped gui-clipboard example.
 
 Windowsの未確定入力はIMM対応のOSサービスを利用します。システムの入力contextを
 借用する場合と自前で作る場合の寿命を区別し、公開済み入力欄の文字位置問い合わせに
 回答します。確定文字だけがVMの記録へ入ります。実Microsoft日本語IMEの
 preedit / convert / commit、focus取消、終了の受入と検証範囲は
-[v1.9.65](REWIND_v1.9.65.md)を参照してください。SDK起動はOSの言語設定を変更しません。
+[v1.9.65](releases/REWIND_v1.9.65.md)を参照してください。SDK起動はOSの言語設定を変更しません。
 
 `std.guiField`は、ラベル、単一行入力、validation messageを持つ再利用可能な部品です。状態はtext、caret、anchor、errorだけを持つ通常のVM値で、native resourceを持ちません。そのためcheckpointの複製や取り消しで文字列と編集位置が戻ります。`render`はI/Oを行わず、`dispatch`は`stdGuiEdit`で文字列を更新して`Changed`または`Submitted`を返します。focusは引き続き呼び出し側が`gui.focus`で管理します。例は[gui-field.rw](../examples/gui-field.rw)を参照してください。
 

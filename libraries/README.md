@@ -191,7 +191,7 @@
 
 ### codex/developで追加中のmodule
 
-[構想から実装した機能](../docs/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMap、textIndex、lens、persistentSet、textEdit、schema、memo、lazyのsourceとtestに加え、既存csvStreamとschemaのrow連携、jsonStreamの非消費peek、BigInt/Decimal typed numeric API、nested Json materializerとschema-validation consumerを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
+[構想から実装した機能](../docs/archive/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMap、textIndex、lens、persistentSet、textEdit、schema、memo、lazyのsourceとtestに加え、既存csvStreamとschemaのrow連携、jsonStreamの非消費peek、BigInt/Decimal typed numeric API、nested Json materializerとschema-validation consumerを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
 
 | module | 公開API | 契約 |
 |---|---|---|
@@ -241,7 +241,7 @@
 
 
 
-[実行例](../examples/data-history.rw)と[型判定の変更](../docs/v2-next-frozen-bounds-implementation.md)を参照してください。
+[実行例](../examples/data-history.rw)と[型判定の変更](../docs/archive/v2-next-frozen-bounds-implementation.md)を参照してください。
 
 ### 既存ライブラリと配布の記録
 
@@ -315,7 +315,7 @@ rewind doc libraries/std/text.rw --root libraries/std --output /tmp/text-api.md
 rewind api-snapshot --root libraries/std --output /tmp/std-api.json
 ```
 
-当時の 10 件の契約テストで codec、Unicode index、bit/number 境界、Result の両分岐、collections、設定優先順位と引数失敗を検証する。SDK の組立てもこのテストを実行する。Host I/O は app で許可・観測・publish を明示する。SDK の例は sum と JSON 保存 app。配布手順は [v0.9.2仕様](../docs/REWIND_v0.9.2.md)、主要なアルゴリズムと性能改善は [v0.9.3草案](../docs/REWIND_v0.9.3.md) を参照。
+当時の 10 件の契約テストで codec、Unicode index、bit/number 境界、Result の両分岐、collections、設定優先順位と引数失敗を検証する。SDK の組立てもこのテストを実行する。Host I/O は app で許可・観測・publish を明示する。SDK の例は sum と JSON 保存 app。配布手順は [v0.9.2仕様](../docs/releases/REWIND_v0.9.2.md)、主要なアルゴリズムと性能改善は [v0.9.3草案](../docs/releases/REWIND_v0.9.3.md) を参照。
 
 ### v0.9.3 アルゴリズムと周辺API
 
@@ -341,7 +341,7 @@ List/heapのstorage操作はO(log(max(1,n/64)))、writeは最大64slotを共有c
 
 Generic factoryはselected importを使う：`import std.deque.{create as createDeque}; createDeque<Int>(4)`。Host inputはappで読み、Bytesへ変換してscannerへ渡す。chunkをまたぐ一般のstreaming decoderは未実装。SDKのshortest例を参照。
 
-v0.9.3 の時点で、source library の契約テストは 10 件でした。詳細は[v0.9.3実装状況](../docs/v0.9.3-status.md)、次段階は[v0.9.4草案](../docs/REWIND_v0.9.4.md)。
+v0.9.3 の時点で、source library の契約テストは 10 件でした。詳細は[v0.9.3実装状況](../docs/archive/v0.9.3-status.md)、次段階は[v0.9.4草案](../docs/releases/REWIND_v0.9.4.md)。
 
 ### v0.9.4 streamingとMap
 
@@ -349,13 +349,13 @@ v0.9.3 の時点で、source library の契約テストは 10 件でした。詳
 
 Host観測はapp側で`In.readChunk(limit)->Option<Bytes>`、出力は`Out.writeBytes(bytes)`と`publish`で明示する。EOFはNone、短いchunkを許し、revert時は記録済みbyteを再利用する。primitive keyのnative Mapはpersistent AVL treeでroot clone O(1)、更新のnode path O(log n)。payloadの生成・返却費用は別。user Ord keyのOrderedMapは従来の線形storageを維持する。
 
-v0.9.4 の時点で、source library の契約テストは 11 件でした。詳細は[v0.9.4実装状況](../docs/v0.9.4-status.md)、継続計画は[v0.9.5草案](../docs/REWIND_v0.9.5.md)。
+v0.9.4 の時点で、source library の契約テストは 11 件でした。詳細は[v0.9.4実装状況](../docs/archive/v0.9.4-status.md)、継続計画は[v0.9.5草案](../docs/releases/REWIND_v0.9.5.md)。
 
 ### v0.9.5〜v0.9.9
 
-v0.9.9 の時点で、SDK は 33 module でした（現在は 125 module）。追加moduleはstringSearch（byte KMP/prefix/Z）、bitset（packed bits）、range（sparse minimum）、rollbackSet（rollback DSU）、csv（bounded UTF-8 CSV）、matrix（checked product/power）、dp（LIS/0-1 knapsack）。graphにtopological/Bellman-Ford/SCC/minimumForest/ancestors/lcaを追加した。modular.inverseは正のInt64全域のmodulusを扱う。各容量・失敗・計算量は[v0.9.6](../docs/v0.9.6-status.md)、[v0.9.7](../docs/v0.9.7-status.md)、[v0.9.8](../docs/v0.9.8-status.md)を参照。
+v0.9.9 の時点で、SDK は 33 module でした（現在は 125 module）。追加moduleはstringSearch（byte KMP/prefix/Z）、bitset（packed bits）、range（sparse minimum）、rollbackSet（rollback DSU）、csv（bounded UTF-8 CSV）、matrix（checked product/power）、dp（LIS/0-1 knapsack）。graphにtopological/Bellman-Ford/SCC/minimumForest/ancestors/lcaを追加した。modular.inverseは正のInt64全域のmodulusを扱う。各容量・失敗・計算量は[v0.9.6](../docs/archive/v0.9.6-status.md)、[v0.9.7](../docs/archive/v0.9.7-status.md)、[v0.9.8](../docs/archive/v0.9.8-status.md)を参照。
 
-v0.9.9 の時点で、標準契約テストは 15 件でした。heap回収とwork budgetは[v0.9.9](../docs/v0.9.9-status.md)。公開fieldの不変条件やphysical/native予算など、残る課題は[1.0準備草案](../docs/REWIND_v1.0.md)。
+v0.9.9 の時点で、標準契約テストは 15 件でした。heap回収とwork budgetは[v0.9.9](../docs/archive/v0.9.9-status.md)。公開fieldの不変条件やphysical/native予算など、残る課題は[1.0準備草案](../docs/releases/REWIND_v1.0.md)。
 
 ### 1.0の公開境界
 
@@ -363,7 +363,7 @@ mutable collection/parserの内部fieldとconstructorはprivateです。公開fa
 
 error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換を提供します。sort.tryStableとsegment.tryUpdatedはResultを返すpure callbackを受け取り、新しい結果を構築するので、callbackや予算の失敗時に元の入力を変更しません。既存in-place API全体のatomic性を追加するものではありません。費用・失敗契約をAPI snapshotにも含めます。
 
-1.0 で提供した 35 module（現在は 125 module）と保証範囲は[1.0仕様](../docs/REWIND_v1.0.md)を参照してください。0.xの内部field直接操作はfactory/accessorへ移行し、lock/artifact/recordを再生成します。
+1.0 で提供した 35 module（現在は 125 module）と保証範囲は[1.0仕様](../docs/releases/REWIND_v1.0.md)を参照してください。0.xの内部field直接操作はfactory/accessorへ移行し、lock/artifact/recordを再生成します。
 
 1.1では[言語リファレンス](../docs/language-reference.md)とWindows SDKを追加し、std.text.sliceのoffset表allocationを削除しています。公開APIの基準は1.0のsnapshotを維持します。
 
@@ -375,39 +375,39 @@ error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換�
 
 ### std.external（1.5）
 
-`millis` は external 領域での UTC milliseconds 観測。操作位置ごとに結果を記録し、revert 後に再利用します。`external,clock` を明示許可してください。[1.5仕様](../docs/REWIND_v1.5.md) を参照。
+`millis` は external 領域での UTC milliseconds 観測。操作位置ごとに結果を記録し、revert 後に再利用します。`external,clock` を明示許可してください。[1.5仕様](../docs/releases/REWIND_v1.5.md) を参照。
 
 ### std.http（1.6）
 
-`get` / `request` / `configured` / `send` は external 領域で送信して Task を返します。await は領域外で行います。verified TLS、bounded body、複数 header、CA、credential alias に対応し、revert / replay で再送しません。権限・上限・失敗区分は [1.6仕様](../docs/REWIND_v1.6.md) を参照。
+`get` / `request` / `configured` / `send` は external 領域で送信して Task を返します。await は領域外で行います。verified TLS、bounded body、複数 header、CA、credential alias に対応し、revert / replay で再送しません。権限・上限・失敗区分は [1.6仕様](../docs/releases/REWIND_v1.6.md) を参照。
 
-1.6.1 は `download / read / close` と `upload / write / finish / closeUpload` を追加する。接続は Send / 非 Share、所有スコープで解放する。Request.body は upload 時に空 Bytes。chunk は read 1〜65,536 / write 0〜65,536 bytes、累積 1 GiB、upload 応答は 4 MiB。16 MiB の外部記録上限は別に適用する。[契約](../docs/REWIND_v1.6.1.md)、[逐次受信例](../examples/http-stream/main.rw)を参照。
+1.6.1 は `download / read / close` と `upload / write / finish / closeUpload` を追加する。接続は Send / 非 Share、所有スコープで解放する。Request.body は upload 時に空 Bytes。chunk は read 1〜65,536 / write 0〜65,536 bytes、累積 1 GiB、upload 応答は 4 MiB。16 MiB の外部記録上限は別に適用する。[契約](../docs/releases/REWIND_v1.6.1.md)、[逐次受信例](../examples/http-stream/main.rw)を参照。
 
 ### std.db（1.7）
 
-SQLite の接続、パラメータ束縛、prepared statement、逐次 cursor、batch 実行、独立した DB transaction を提供する。呼出しは external 領域、await は領域外。`external,db,tasks` の明示許可が必要。DB 書込みは VM revert で取り消さない。[契約](../docs/REWIND_v1.7.md)、[例](../examples/database/README.md)を参照。PostgreSQL の実接続・SCRAM・verified TLS・server cursor は [1.7.1](../docs/REWIND_v1.7.1.md) と [例](../examples/postgres/README.md)を参照。
+SQLite の接続、パラメータ束縛、prepared statement、逐次 cursor、batch 実行、独立した DB transaction を提供する。呼出しは external 領域、await は領域外。`external,db,tasks` の明示許可が必要。DB 書込みは VM revert で取り消さない。[契約](../docs/releases/REWIND_v1.7.md)、[例](../examples/database/README.md)を参照。PostgreSQL の実接続・SCRAM・verified TLS・server cursor は [1.7.1](../docs/releases/REWIND_v1.7.1.md) と [例](../examples/postgres/README.md)を参照。
 
 ### std.numeric
 
-FloatArray / IntArray の生成、所有値の COW 更新、view、明示 broadcast、scalar math、vector / matrix product、部分 pivot LU solve、補償和・mean / variance を提供する。全要素を VM List に変換せず native kernel を使える。数値配列は VM 内の巻き戻せる値であり、DB 等の外部作用とは区別する。[仕様](../docs/REWIND_v1.8.md)、[例](../examples/numeric/README.md)を参照。
+FloatArray / IntArray の生成、所有値の COW 更新、view、明示 broadcast、scalar math、vector / matrix product、部分 pivot LU solve、補償和・mean / variance を提供する。全要素を VM List に変換せず native kernel を使える。数値配列は VM 内の巻き戻せる値であり、DB 等の外部作用とは区別する。[仕様](../docs/releases/REWIND_v1.8.md)、[例](../examples/numeric/README.md)を参照。
 
-QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と online moments は [1.8.1](../docs/REWIND_v1.8.1.md) を参照。`std.distributions` は checkpointed generator の uniform / normal / exponential / Bernoulli sampling を提供し、random 効果を持つ。
+QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と online moments は [1.8.1](../docs/releases/REWIND_v1.8.1.md) を参照。`std.distributions` は checkpointed generator の uniform / normal / exponential / Bernoulli sampling を提供し、random 効果を持つ。
 
 ### v1.8.2 exact integers
 
-`std.bigint` の native BigInt は参照共有され、parse / format、整数・bit算術、Mapとexact JSON string を提供する。[契約](../docs/REWIND_v1.8.2.md)。Decimal・DB変換は次の数値型patchで追加する。
+`std.bigint` の native BigInt は参照共有され、parse / format、整数・bit算術、Mapとexact JSON string を提供する。[契約](../docs/releases/REWIND_v1.8.2.md)。Decimal・DB変換は次の数値型patchで追加する。
 
 ### v1.8.3 Decimal と exact DB
 
-`std.decimal` / `std.dbDecimal` は explicit rounding、JSON、PostgreSQL NUMERIC と SQLite BLOB の exact 変換を提供する。[契約](../docs/REWIND_v1.8.3.md)。
+`std.decimal` / `std.dbDecimal` は explicit rounding、JSON、PostgreSQL NUMERIC と SQLite BLOB の exact 変換を提供する。[契約](../docs/releases/REWIND_v1.8.3.md)。
 
-`std.datetime` は整数ナノ秒の Instant / Duration、RFC3339、暦、IANA zone と明示的な DST policy を提供します。`std.clock.now()` の時計観測は external、`std.dbDatetime` は精度を検査した PostgreSQL / SQLite 変換です。仕様は [v1.8.4](../docs/REWIND_v1.8.4.md)。
+`std.datetime` は整数ナノ秒の Instant / Duration、RFC3339、暦、IANA zone と明示的な DST policy を提供します。`std.clock.now()` の時計観測は external、`std.dbDatetime` は精度を検査した PostgreSQL / SQLite 変換です。仕様は [v1.8.4](../docs/releases/REWIND_v1.8.4.md)。
 
-`std.unicode` は明示的な Unicode 正規化、grapheme / word / sentence boundary と大小変換です。既存 scalar API と GUI cursor の単位は保ちます。[v1.8.5](../docs/REWIND_v1.8.5.md) を参照してください。
+`std.unicode` は明示的な Unicode 正規化、grapheme / word / sentence boundary と大小変換です。既存 scalar API と GUI cursor の単位は保ちます。[v1.8.5](../docs/releases/REWIND_v1.8.5.md) を参照してください。
 
 ### 最大流・マッチング（v1.9.5）
 
-`std.flow` は VM 内の residual network に iterative Dinic の増加処理を行います。`std.matching` は二部最大 matching と最小 vertex cover を返します。checkpoint で residual state を保持できます。[API・費用・容量](../docs/REWIND_v1.9.5.md)、[実行例](../examples/flow/main.rw)。
+`std.flow` は VM 内の residual network に iterative Dinic の増加処理を行います。`std.matching` は二部最大 matching と最小 vertex cover を返します。checkpoint で residual state を保持できます。[API・費用・容量](../docs/releases/REWIND_v1.9.5.md)、[実行例](../examples/flow/main.rw)。
 
 ### std.guiWindows（1.9.9）
 
@@ -415,31 +415,31 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 
 ### std.task / std.numericAsync（1.9.11）
 
-明示的な VM task handoff と、最大4096積和ごとに処理を渡す async 内積・行列積を提供する。入力は native storage を共有し、TaskError と数値 StdError を分ける。[契約](../docs/REWIND_v1.9.11.md)と [例](../examples/numeric-async/README.md)を参照。
+明示的な VM task handoff と、最大4096積和ごとに処理を渡す async 内積・行列積を提供する。入力は native storage を共有し、TaskError と数値 StdError を分ける。[契約](../docs/releases/REWIND_v1.9.11.md)と [例](../examples/numeric-async/README.md)を参照。
 
-1.9.11 は FloatArray / IntArray の共有 page の会計を改善し、task と checkpoint での重複計上を解消します。API と source module は継続します。[費用と保持の契約](../docs/REWIND_v1.9.11.md)を参照してください。
+1.9.11 は FloatArray / IntArray の共有 page の会計を改善し、task と checkpoint での重複計上を解消します。API と source module は継続します。[費用と保持の契約](../docs/releases/REWIND_v1.9.11.md)を参照してください。
 
 ### フォーム・表（1.9.12）
 
-`std.guiForm` は form内検証・共通schema検証・型付きrecord mapping、`std.guiTable` は frozen 行優先データの表示範囲描画を提供する。`std.gui` は focus / focused / setChecked / remove / style / textarea scroll の編集を追加した。`Layout` / `WeightedLayout` と `leaf` / `weighted` / `sized` / `row` / `column` で最大32階層のlayout treeを構成できる。`sized`はmain axisの最小・最大寸法を指定し、同じ値で固定できる。`applyLayout` は最大1024 nodeを走査し、全leaf IDとboundsを検証してから一括更新する。`splitRow` / `splitColumn` も維持し、`arrangeRow` / `arrangeColumn` はflatな配置に使える。いずれも logical View の変更は pure で、外部 surface への反映には present と publish を使う。[容量・失敗・費用契約](../docs/REWIND_v1.9.12.md)、[実行例](../examples/gui-controls/README.md)を参照する。
+`std.guiForm` は form内検証・共通schema検証・型付きrecord mapping、`std.guiTable` は frozen 行優先データの表示範囲描画を提供する。`std.gui` は focus / focused / setChecked / remove / style / textarea scroll の編集を追加した。`Layout` / `WeightedLayout` と `leaf` / `weighted` / `sized` / `row` / `column` で最大32階層のlayout treeを構成できる。`sized`はmain axisの最小・最大寸法を指定し、同じ値で固定できる。`applyLayout` は最大1024 nodeを走査し、全leaf IDとboundsを検証してから一括更新する。`splitRow` / `splitColumn` も維持し、`arrangeRow` / `arrangeColumn` はflatな配置に使える。いずれも logical View の変更は pure で、外部 surface への反映には present と publish を使う。[容量・失敗・費用契約](../docs/releases/REWIND_v1.9.12.md)、[実行例](../examples/gui-controls/README.md)を参照する。
 
-1.9.13 は `gui.scene` の一時 Map / Json 構築を直接の serializer へ置き換える。public API と JSON の値を維持し、事前の byte 上限 / native memory admission を行う。[費用・互換性・測定](../docs/REWIND_v1.9.13.md)を参照する。
+1.9.13 は `gui.scene` の一時 Map / Json 構築を直接の serializer へ置き換える。public API と JSON の値を維持し、事前の byte 上限 / native memory admission を行う。[費用・互換性・測定](../docs/releases/REWIND_v1.9.13.md)を参照する。
 
-1.9.14 は manifest / lock を保持した source-free `.rwc` の実行・replay に対応する。実行時に source / vendor の graph を開き直さず、effect と assets の検証は保持する。[契約](../docs/REWIND_v1.9.14.md)を参照。
+1.9.14 は manifest / lock を保持した source-free `.rwc` の実行・replay に対応する。実行時に source / vendor の graph を開き直さず、effect と assets の検証は保持する。[契約](../docs/releases/REWIND_v1.9.14.md)を参照。
 
-勾配・model の基本契約は[1.9.16](../docs/REWIND_v1.9.16.md)、module scope / optimizer の改善は[1.9.17](../docs/REWIND_v1.9.17.md)を参照。
+勾配・model の基本契約は[1.9.16](../docs/releases/REWIND_v1.9.16.md)、module scope / optimizer の改善は[1.9.17](../docs/releases/REWIND_v1.9.17.md)を参照。
 
-1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](../docs/REWIND_v1.9.18.md)を参照する。
+1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](../docs/releases/REWIND_v1.9.18.md)を参照する。
 
-1.9.19 は `std.guiWindows.nextEventAnyAsync` と native GUI / HTTP / SQLite の最小統合を追加する。主 Task の制約・待機中の協調動作・入力の cancellation・terminal error の journal・source-free / disconnected replay を検証する。[契約と残る作業](../docs/REWIND_v1.9.19.md)を参照する。
+1.9.19 は `std.guiWindows.nextEventAnyAsync` と native GUI / HTTP / SQLite の最小統合を追加する。主 Task の制約・待機中の協調動作・入力の cancellation・terminal error の journal・source-free / disconnected replay を検証する。[契約と残る作業](../docs/releases/REWIND_v1.9.19.md)を参照する。
 
-Task の予算・profile の寿命は [v1.9.20](../docs/REWIND_v1.9.20.md) を参照してください。
+Task の予算・profile の寿命は [v1.9.20](../docs/releases/REWIND_v1.9.20.md) を参照してください。
 
-名前解決は HTTP / TCP / PostgreSQL 共通の上限で処理する。cancel 後も OS の処理が終わるまで枠を保持し、再送や証明書検証の緩和は行わない。[1.9.28 の契約](../docs/REWIND_v1.9.28.md)を参照する。
+名前解決は HTTP / TCP / PostgreSQL 共通の上限で処理する。cancel 後も OS の処理が終わるまで枠を保持し、再送や証明書検証の緩和は行わない。[1.9.28 の契約](../docs/releases/REWIND_v1.9.28.md)を参照する。
 
-TLS HTTP server の秘密鍵登録・接続予算・期限は [1.9.29 の契約](../docs/REWIND_v1.9.29.md)を参照する。
+TLS HTTP server の秘密鍵登録・接続予算・期限は [1.9.29 の契約](../docs/releases/REWIND_v1.9.29.md)を参照する。
 
-TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay は [1.9.30 の契約](../docs/REWIND_v1.9.30.md)を参照する。
+TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay は [1.9.30 の契約](../docs/releases/REWIND_v1.9.30.md)を参照する。
 
 `numericIndex` (language 1.9.48) は型付き数値配列を単一の整数で読み書きします。`getFloat/Int` と `withFloat/Int` はビュー上の行優先順序、`lengthFloat/Int` は論理要素数です。座標 List を生成せず、broadcast の更新は NumericReadOnly、範囲外は NumericIndex になります。
 
@@ -447,15 +447,15 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 
 `std.training` provides named gradient extraction, mean-square loss, sample-weighted batch-mean merging and global-norm clipping. See [the nonlinear training example](../examples/nonlinear-training/README.md).
 
-`std.gui` / `std.guiWindows` のネイティブ text input は選択言語 1.9.52 で Ctrl+C / Ctrl+V / Ctrl+X に対応します。公開 scene の選択をコピーし、貼り付けを記録する text 入力として受け取ります。OS クリップボードの状態は巻き戻しません。[仕様と制限](../docs/REWIND_v1.9.52.md)、SDK の gui-clipboard 例を参照してください。
+`std.gui` / `std.guiWindows` のネイティブ text input は選択言語 1.9.52 で Ctrl+C / Ctrl+V / Ctrl+X に対応します。公開 scene の選択をコピーし、貼り付けを記録する text 入力として受け取ります。OS クリップボードの状態は巻き戻しません。[仕様と制限](../docs/releases/REWIND_v1.9.52.md)、SDK の gui-clipboard 例を参照してください。
 
-`std.numericTransformAsync` は選択言語 1.9.53 の協調的な単項数値変換・活性化関数です。既存の scalar 演算と精度・失敗契約を共有し、4096 要素以下の native step 間でタスクを切り替えます。autodiff.backward 自体は同期のままです。[契約と制限](../docs/REWIND_v1.9.53.md)、SDK の unary-async 例を参照してください。
+`std.numericTransformAsync` は選択言語 1.9.53 の協調的な単項数値変換・活性化関数です。既存の scalar 演算と精度・失敗契約を共有し、4096 要素以下の native step 間でタスクを切り替えます。autodiff.backward 自体は同期のままです。[契約と制限](../docs/releases/REWIND_v1.9.53.md)、SDK の unary-async 例を参照してください。
 
-`std.numericReduceAsync` は選択言語 1.9.55 の協調的な合計・平均・分散です。既存の Neumaier / Welford 順序を保ち、4096要素以下の native step 間でタスクを切り替えます。[契約と制限](../docs/REWIND_v1.9.55.md)。
+`std.numericReduceAsync` は選択言語 1.9.55 の協調的な合計・平均・分散です。既存の Neumaier / Welford 順序を保ち、4096要素以下の native step 間でタスクを切り替えます。[契約と制限](../docs/releases/REWIND_v1.9.55.md)。
 
-`std.graphLargeAsync.bfs` は選択言語 1.9.56 の協調的なグラフ構築・幅優先探索です。IntArray の辺入力を共有し、検証・構築・探索・距離配列の仕上げを4096単位以下に分割します。最短距離（未到達は -1）、途中の巻き戻しと取消を扱います。[契約と制限](../docs/REWIND_v1.9.56.md)。
+`std.graphLargeAsync.bfs` は選択言語 1.9.56 の協調的なグラフ構築・幅優先探索です。IntArray の辺入力を共有し、検証・構築・探索・距離配列の仕上げを4096単位以下に分割します。最短距離（未到達は -1）、途中の巻き戻しと取消を扱います。[契約と制限](../docs/releases/REWIND_v1.9.56.md)。
 
-`std.numericShapeAsync` は選択言語 1.9.57 の協調的な論理形状変更と broadcast の軸の合計です。寸法 List を所有し、数値入力のページを共有します。[契約と制限](../docs/REWIND_v1.9.57.md)。
+`std.numericShapeAsync` は選択言語 1.9.57 の協調的な論理形状変更と broadcast の軸の合計です。寸法 List を所有し、数値入力のページを共有します。[契約と制限](../docs/releases/REWIND_v1.9.57.md)。
 
 `std.autodiffAsync` は所有する Tape の逆伝播を協調実行します。既存の Node / Gradients、各微分の演算順序を保ち、履歴準備も分割します。前向き演算には `std.autodiffForwardAsync` の所有型Task APIも利用できます。`examples/autodiff-async` に checkpoint・取消を含む例があります。
 
@@ -463,6 +463,6 @@ TLS HTTP server の認証、秘密ヘッダーの除去、native 401 と replay 
 
 `std.guiDialog.openFile` / `saveFile` は、明示的な external 領域で作成するネイティブファイル選択 Task です。ユーザーによるキャンセル、VM の巻き戻しと OS の画面の寿命を分け、選択だけではファイルを作成・変更しません。Linux はシステムの GTK 3、Windows は標準ダイアログを使います。`examples/gui-dialog` に利用例があります。
 
-選択言語1.9.61では、GUIの公開した入力欄でネイティブIMEの変換途中を表示します。確定した文字だけが入力記録に入り、変換中のOS状態はcheckpointに含まれません。[IMEサンプル](../examples/gui-ime/README.md)と[v1.9.61仕様](../docs/REWIND_v1.9.61.md)を参照してください。
+選択言語1.9.61では、GUIの公開した入力欄でネイティブIMEの変換途中を表示します。確定した文字だけが入力記録に入り、変換中のOS状態はcheckpointに含まれません。[IMEサンプル](../examples/gui-ime/README.md)と[v1.9.61仕様](../docs/releases/REWIND_v1.9.61.md)を参照してください。
 
-`std.autodiffForwardAsync` はparameter・constant・既存の二項／単項演算・行列積・形状変換・集約を分割実行し、`Tuple<Tape,Node>`を返します。同期APIと同じ識別値・勾配を保ちます。`std.numericIdentityAsync` は有限値検証と保存領域のkey準備を分割します。[契約と追加費用](../docs/REWIND_v1.9.62.md)、[復元と取消](../examples/autodiff-forward/README.md)、[native入力](../examples/forward-gui/README.md)。
+`std.autodiffForwardAsync` はparameter・constant・既存の二項／単項演算・行列積・形状変換・集約を分割実行し、`Tuple<Tape,Node>`を返します。同期APIと同じ識別値・勾配を保ちます。`std.numericIdentityAsync` は有限値検証と保存領域のkey準備を分割します。[契約と追加費用](../docs/releases/REWIND_v1.9.62.md)、[復元と取消](../examples/autodiff-forward/README.md)、[native入力](../examples/forward-gui/README.md)。

@@ -2,7 +2,7 @@
 
 ## 役割分担
 
-- 日本語の文書は、skill の `yomiyasu` で推敲してからコミットする。対象は `README.md`、`libraries/README.md`、`docs/language-reference.md`、`docs/book/chapters/*.md`、`docs/REWIND_v*.md`、`docs/v2-next-status.md` と、`docs/` 配下の説明文。コード例、コマンド、識別子、数値、リンク先は変えない。推敲のあとで文書の例の検査と、HTML・PDF の再生成をやり直す。
+- 日本語の文書は、skill の `yomiyasu` で推敲してからコミットする。対象は `README.md`、`libraries/README.md`、`docs/language-reference.md`、`docs/book/chapters/*.md`、`docs/releases/REWIND_v*.md`、`docs/archive/v2-next-status.md` と、`docs/` 配下の説明文。コード例、コマンド、識別子、数値、リンク先は変えない。推敲のあとで文書の例の検査と、HTML・PDF の再生成をやり直す。
 
 ## 作業の約束
 

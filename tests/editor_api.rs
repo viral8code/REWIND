@@ -48,7 +48,7 @@ fn editor_info_lists_the_words_of_the_language() {
     let (code, info, stderr) = rewind(&["editor-info"], "");
     assert_eq!(code, 0, "{stderr}");
     assert_eq!(info["format"], 1);
-    assert_eq!(info["languages"]["latest"], "4.1.0");
+    assert_eq!(info["languages"]["latest"], "4.2.0");
     let words = |key: &str| -> Vec<&str> {
         info[key]
             .as_array()

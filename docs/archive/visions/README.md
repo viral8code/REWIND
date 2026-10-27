@@ -1,0 +1,112 @@
+# REWINDの自由構想集
+
+更新日：2026-10-10。**実装の約束ではなく、あったら使いたい機能・体験のアイデア集**です。実現難度や工数で先に絞らず、言語の将来像を広く考えます。現在629項目あります。
+
+[既定の開発計画](../ROADMAP_v2-next.md)と[58候補の選定表](../v2-next-selection.md)は、これまでどおり別に維持します。この構想集から選んだものだけ、後で具体的な設計・実装計画へ移します。既存機能があるものは発展形・統合体験の構想であり、現行版に機能がないという主張ではありません。
+
+## 分野別の入口
+
+| 分野 | 構想数 |
+|---|---|
+| [言語表現とメタプログラミング](01-language.md) | 16 |
+| [時間・分岐・デバッグの新しい体験](02-time-and-debugging.md) | 16 |
+| [GUI・描画・文書・メディア](03-gui-and-media.md) | 16 |
+| [データ処理・検索・知識の構造](04-data-and-knowledge.md) | 16 |
+| [数理・科学計算・simulation](05-science-and-mathematics.md) | 16 |
+| [AI・model・学習・評価](06-ai-and-models.md) | 16 |
+| [通信・分散・外部連携](07-network-and-distribution.md) | 16 |
+| [OS・hardware・storage・実行基盤](08-systems-and-hardware.md) | 16 |
+| [検証・故障探索・情報の境界](09-verification-and-security.md) | 16 |
+| [開発環境・配布・言語間連携](10-development-and-ecosystem.md) | 16 |
+| [高度なalgorithmとデータ構造](11-algorithms-and-structures.md) | 16 |
+| [金額・暦・文書・日常データのlibrary](12-domain-libraries.md) | 16 |
+| [文字・入力・言語・accessibility](13-text-and-interaction.md) | 16 |
+| [実験的な言語・計算モデル](14-experimental-computation.md) | 16 |
+| [simulation・game・roboticsのmodel](15-simulation-and-worlds.md) | 16 |
+| [プログラムから扱うcheckpointと複数版の値](16-programmable-checkpoints.md) | 9 |
+| [巻き戻しを使う関数・task・入力の契約](17-state-contracts.md) | 8 |
+| [時間と版を持つ値](18-temporal-values.md) | 12 |
+| [永続collectionをlibraryとして組み立てる](19-persistent-collections.md) | 12 |
+| [branchを使う探索と計算の再利用](20-branch-search.md) | 12 |
+| [外部作用を値として組み立てる](21-effect-values.md) | 12 |
+| [所有権・領域・値の費用](22-ownership-and-regions.md) | 12 |
+| [式・pattern・日常の書き方](23-expression-design.md) | 12 |
+| [型の合成・抽象化・polymorphism](24-type-composition.md) | 12 |
+| [streamとeventの合成](25-stream-algebra.md) | 12 |
+| [版を跨ぐ計算cacheと再計算](26-versioned-computation-cache.md) | 12 |
+| [module・生成code・linkの表現](27-modules-and-linking.md) | 12 |
+| [処理系backendと意味を保つ最適化](28-runtime-backends.md) | 12 |
+| [snapshotの保存形式・共有・復元](29-snapshot-formats.md) | 12 |
+| [protocol・資源の状態を表す型](30-protocol-types.md) | 12 |
+| [深い値の操作と双方向の変換](31-bidirectional-data.md) | 12 |
+| [数値計算の精度・形・結果の契約](32-numeric-contracts.md) | 12 |
+| [確率model・推論・実験の構成](33-probabilistic-models.md) | 12 |
+| [effect handler・継続・回復の表現](34-effect-handlers.md) | 12 |
+| [task群・model更新・並行処理の契約](35-concurrent-models.md) | 12 |
+| [reactive graph・画面・modelの再計算](36-reactive-models.md) | 12 |
+| [診断を値・履歴・説明として扱う](37-diagnostic-values.md) | 12 |
+| [objectの合成・公開面・拡張点](38-object-composition.md) | 12 |
+| [暗号library・鍵・認証されたdata](39-cryptographic-data.md) | 12 |
+| [DBの読取り版・query・更新の契約](40-database-contracts.md) | 12 |
+| [iterator・generator・列挙の体験](41-iteration-and-generators.md) | 12 |
+| [論理query・rule・制約のlibrary](42-logic-and-rules.md) | 12 |
+| [自動微分・感度・計算履歴](43-differentiable-computation.md) | 12 |
+| [GPU・device計算の値と実行plan](44-device-computation.md) | 12 |
+| [text・bytes・encodingの境界](45-text-codecs.md) | 12 |
+| [parserをlibraryとして組み立てる](46-parser-construction.md) | 12 |
+| [意味を持つsource workspace](47-semantic-workspace.md) | 12 |
+| [data履歴のgraph・branch・変更の運搬](48-history-graphs.md) | 12 |
+
+## 関心から辿る入口
+
+| 考えたいこと | 関連する分野 |
+|---|---|
+| 日常codeを短く、意図を保って書く | [式](23-expression-design.md)、[iterator](41-iteration-and-generators.md)、[深い更新](31-bidirectional-data.md) |
+| partial・生成・実装の差替えを組み合わせる | [module](27-modules-and-linking.md)、[object合成](38-object-composition.md)、[domain workspace](../../visions/sketches/11-domain-language-workspace.md) |
+| 動的checkpoint名から永続dataを作る | [checkpoint API](16-programmable-checkpoints.md)、[永続collection](19-persistent-collections.md)、[保存形式](29-snapshot-formats.md) |
+| 失敗した候補を戻し、試行の知識を残す | [state契約](17-state-contracts.md)、[探索](20-branch-search.md)、[effect handler](34-effect-handlers.md) |
+| 古い版を並べて読み、採用時に照合する | [時間付き値](18-temporal-values.md)、[計算cache](26-versioned-computation-cache.md)、[async model](35-concurrent-models.md) |
+| 型付きformや変化する画面を作る | [GUI](03-gui-and-media.md)、[field path](31-bidirectional-data.md)、[reactive graph](36-reactive-models.md) |
+| DB・通信・暗号の操作境界を設計する | [作用の値](21-effect-values.md)、[protocol型](30-protocol-types.md)、[DB](40-database-contracts.md)、[暗号](39-cryptographic-data.md) |
+| memoryの寿命と保持理由を把握する | [所有権と領域](22-ownership-and-regions.md)、[診断](37-diagnostic-values.md)、[native capsule](../../visions/sketches/08-native-computation-capsule.md) |
+| 精度・推論・gradientを説明できる計算にする | [数値contract](32-numeric-contracts.md)、[確率model](33-probabilistic-models.md)、[自動微分](43-differentiable-computation.md) |
+| 宣言した関係から解と根拠を得る | [高度algorithm](11-algorithms-and-structures.md)、[論理rule](42-logic-and-rules.md)、[探索](20-branch-search.md) |
+| backendやdeviceを選び、費用を測る | [実行backend](28-runtime-backends.md)、[device計算](44-device-computation.md)、[systems](08-systems-and-hardware.md) |
+| 実行中にcodeやschemaを更新する | [data](04-data-and-knowledge.md)、[module](27-modules-and-linking.md)、[live evolution](../../visions/sketches/12-live-module-evolution.md) |
+
+## 読み方
+
+各項目は「どう使えたら嬉しいか」を中心に記載します。仮の用語や操作は現行syntax/APIではありません。既存の58候補と重なる部分は、その先の使い方を考えるための材料です。
+
+VM内部の値・計算・未公開作用には巻き戻しを活用できます。確定済みの外部作用は記録・照合・補償等の別手段で扱う前提を維持します。面白い構想を考えるために、この境界を曖昧にはしません。
+
+## 組合せるとどんな体験になるか
+
+単独の機能だけでなく、複数の構想をつなぐと新しい使い方が生まれます。
+
+| 体験の案 | 組合せる構想 |
+|---|---|
+| 原因を説明するUndo付きeditor | [時間軸](02-time-and-debugging.md)のVTIME-01/08と[GUI](03-gui-and-media.md)のVGUI-07/10 |
+| 数式からsimulationまで辿る文書 | [科学計算](05-science-and-mathematics.md)のVSCI-04/05と[notebook](10-development-and-ecosystem.md)のVDEV-01/02 |
+| データの由来を示す分析画面 | [データ](04-data-and-knowledge.md)のVDATA-01/05と[GUI](03-gui-and-media.md)のVGUI-11 |
+| 失敗から自動で作る小さなreproducer | [時間軸](02-time-and-debugging.md)のVTIME-12と[検証](09-verification-and-security.md)のVQUAL-02/04 |
+| 仮説を比較するmodel開発環境 | [AI](06-ai-and-models.md)のVAI-05/16と[時間軸](02-time-and-debugging.md)のVTIME-05/06 |
+| protocolの型・実行・記録を一緒に見る | [実験言語](14-experimental-computation.md)のVEXP-03と[通信](07-network-and-distribution.md)のVNET-16 |
+| 暦・金額・根拠を保つreport | [domain library](12-domain-libraries.md)のVDOMAIN-01/05/10/15と[データ](04-data-and-knowledge.md)のVDATA-06 |
+| simulationと実測を比べるdigital twin | [world](15-simulation-and-worlds.md)のVWORLD-14/15と[科学計算](05-science-and-mathematics.md)のVSCI-13 |
+| 利用者ごとに操作方法を変える同じ画面 | [interaction](13-text-and-interaction.md)のVHUMAN-06/13/16と[GUI](03-gui-and-media.md)のVGUI-16 |
+| 異なる実行方式でも検証できる計算library | [systems](08-systems-and-hardware.md)のVSYS-09/14と[検証](09-verification-and-security.md)のVQUAL-06 |
+| 型からAPI・文書・testを育てる開発環境 | [言語](01-language.md)のVLANG-06/15と[開発](10-development-and-ecosystem.md)のVDEV-04/06 |
+| 大きな入力をmemory階層に合わせてquery | [データ](04-data-and-knowledge.md)のVDATA-02と[systems](08-systems-and-hardware.md)のVSYS-11/13 |
+
+この表は独立した追加項目として数えず、629項目の組合せ例です。採用を検討するときに、短い利用シナリオを作る出発点にできます。
+
+## 仮のcodeで考える利用体験
+
+[構想を組み合わせたsketch](../../visions/sketches/README.md)では、未実装APIを仮のcodeにして、状態・履歴・外部作用の分担まで掘り下げます。sketchは独立した追加機能として件数へ重ねて数えません。
+
+## 次に選ぶとき
+
+気になる項目を組み合わせて短い利用シナリオを作り、現行APIでできる部分と追加する差分を後から調べます。今の段階では、優先順位・版番号・期限・受入条件を全項目へ付けません。
+
+計画の保存はcodex/developのみ。公開CI/CD、main統合、Release、版更新は行いません。

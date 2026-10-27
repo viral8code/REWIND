@@ -10,4 +10,4 @@ DbValue::NullはJSON nullへ写すため、nullable schema fieldでだけ受け�
 
 :memory:をroot内のfile名に変更すると、実fileに保存する。再実行時もDB fileは残るため、この例のCREATE TABLEは既存tableに対して失敗する。VMのrevert/publishはDBの保存を取り消さない。
 
-APIと制約は[DB仕様](../../docs/REWIND_v1.7.md)を参照する。
+APIと制約は[DB仕様](../../docs/releases/REWIND_v1.7.md)を参照する。

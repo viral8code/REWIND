@@ -147,14 +147,14 @@ jobs:
         run: |
           set -euo pipefail
           NOTES="$RUNNER_TEMP/release-notes.md"
-          VERSION_DOC="docs/REWIND_${RELEASE_TAG}.md"
+          VERSION_DOC="docs/releases/REWIND_${RELEASE_TAG}.md"
           if [[ ! -f "$VERSION_DOC" ]]; then
-            VERSION_DOC="docs/REWIND_${RELEASE_TAG%.*}.md"
+            VERSION_DOC="docs/releases/REWIND_${RELEASE_TAG%.*}.md"
           fi
           if [[ -f "$VERSION_DOC" ]]; then
             cat "$VERSION_DOC" > "$NOTES"
-            # The notes are read on the release page, where links relative to docs/ do not resolve.
-            perl -pi -e 's{\]\((?!https?://|#)([^)]+)\)}{](https://github.com/$ENV{GITHUB_REPOSITORY}/blob/$ENV{RELEASE_TAG}/docs/$1)}g' "$NOTES"
+            # The notes are read on the release page, where links relative to docs/releases/ do not resolve.
+            perl -pi -e 's{\]\((?!https?://|#)([^)]+)\)}{](https://github.com/$ENV{GITHUB_REPOSITORY}/blob/$ENV{RELEASE_TAG}/docs/releases/$1)}g' "$NOTES"
             printf '\n' >> "$NOTES"
           else
             : > "$NOTES"
