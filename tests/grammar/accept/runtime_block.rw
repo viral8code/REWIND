@@ -1,0 +1,5 @@
+// runtime ブロック: 単位つきの設定
+fn f() {
+    runtime { historyMemory = 10 MB; executionSteps = 100; }
+    runtime { spillThreshold = 5 KiB; historyStorage = 1 GiB; }
+}

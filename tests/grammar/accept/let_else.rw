@@ -1,0 +1,5 @@
+// let-else: 大文字始まりのパターン
+fn f() {
+    let Some(x) = g() else { return; };
+    let E::A { x: y } = h() else { return; };
+}

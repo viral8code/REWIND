@@ -1,0 +1,4 @@
+// commit begin は拒否（begin は名前にできない）
+fn f() {
+    commit begin;
+}

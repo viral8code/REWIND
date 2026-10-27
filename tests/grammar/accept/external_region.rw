@@ -1,0 +1,6 @@
+// external 領域: 通常、fresh、live
+fn f() {
+    external { g(); }
+    external fresh { g(); }
+    external live { g(); }
+}

@@ -12,6 +12,8 @@ impl TestDir {
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
+        // A directory left by an earlier process with the same id must not break this run.
+        let _ = fs::remove_dir_all(&path);
         fs::create_dir(&path).unwrap();
         Self(path)
     }

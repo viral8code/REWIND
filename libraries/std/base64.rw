@@ -1,0 +1,137 @@
+// Base64 (RFC 4648) encoding and decoding over Bytes and String, in standard and URL-safe alphabets.
+// Decoding input is limited to 1 MiB; errors carry a code and the byte offset, never the input text.
+pub record Base64Error {code:String,offset:Int}
+
+fn decodeLimit()->Int effects {} {return 1048576;}
+
+fn byteAt(input:Bytes,index:Int)->Int effects {} {
+    match stdBytesGet(input,index) {
+        Ok(v)=>{return v;},
+        Err(_)=>{return 0;}
+    }
+}
+
+// Value of one ASCII symbol, or -1 when the symbol is not in the chosen alphabet.
+fn sextet(c:Int,url:Bool)->Int effects {} {
+    if c>=65 && c<=90 {return c-65;}
+    if c>=97 && c<=122 {return c-71;}
+    if c>=48 && c<=57 {return c+4;}
+    if url {
+        if c==45 {return 62;}
+        if c==95 {return 63;}
+    } else {
+        if c==43 {return 62;}
+        if c==47 {return 63;}
+    }
+    return -1;
+}
+
+// ASCII code of one 6-bit value in the chosen alphabet.
+fn symbol(v:Int,url:Bool)->Int effects {} {
+    if v<26 {return v+65;}
+    if v<52 {return v+71;}
+    if v<62 {return v-4;}
+    if v==62 {
+        if url {return 45;}
+        return 43;
+    }
+    if url {return 95;}
+    return 47;
+}
+
+fn encodeCore(data:Bytes,url:Bool)->String effects {} {
+    let n=stdBytesLength(data);
+    let out=List<Int>();
+    var i=0;
+    while i+3<=n {
+        let v=byteAt(data,i)*65536+byteAt(data,i+1)*256+byteAt(data,i+2);
+        out.add(symbol(v/262144,url));
+        out.add(symbol((v/4096)%64,url));
+        out.add(symbol((v/64)%64,url));
+        out.add(symbol(v%64,url));
+        i+=3;
+    }
+    let rest=n-i;
+    if rest==1 {
+        let v=byteAt(data,i)*16;
+        out.add(symbol(v/64,url));
+        out.add(symbol(v%64,url));
+        if !url {
+            out.add(61);
+            out.add(61);
+        }
+    }
+    if rest==2 {
+        let v=(byteAt(data,i)*256+byteAt(data,i+1))*4;
+        out.add(symbol(v/4096,url));
+        out.add(symbol((v/64)%64,url));
+        out.add(symbol(v%64,url));
+        if !url {out.add(61);}
+    }
+    match stdBytesFromList(&out) {
+        Ok(bytes)=>{
+            match stdDecode(bytes) {
+                Ok(text)=>{return text;},
+                Err(_)=>{return "";}
+            }
+        },
+        Err(_)=>{return "";}
+    }
+}
+
+fn decodeCore(text:String,url:Bool)->Result<Bytes,Base64Error> effects {} {
+    let source=match stdEncode(text) {
+        Ok(bytes)=>{bytes},
+        Err(_)=>{return Err(Base64Error("TooLarge",0));}
+    };
+    let n=stdBytesLength(source);
+    if n>decodeLimit() {return Err(Base64Error("TooLarge",0));}
+    var pad=0;
+    while pad<2 && pad<n && byteAt(source,n-1-pad)==61 {pad+=1;}
+    if (!url || pad>0) && n%4!=0 {return Err(Base64Error("BadLength",n));}
+    let data=n-pad;
+    let out=List<Int>();
+    var acc=0;
+    var k=0;
+    var i=0;
+    while i<data {
+        let v=sextet(byteAt(source,i),url);
+        if v<0 {return Err(Base64Error("BadChar",i));}
+        acc=acc*64+v;
+        k+=1;
+        if k==4 {
+            out.add(acc/65536);
+            out.add((acc/256)%256);
+            out.add(acc%256);
+            acc=0;
+            k=0;
+        }
+        i+=1;
+    }
+    if k==1 {return Err(Base64Error("BadLength",data));}
+    if k==2 {out.add(acc/16);}
+    if k==3 {
+        out.add(acc/1024);
+        out.add((acc/4)%256);
+    }
+    match stdBytesFromList(&out) {
+        Ok(bytes)=>{return Ok(bytes);},
+        Err(_)=>{return Err(Base64Error("TooLarge",0));}
+    }
+}
+
+// @api encode cost O(bytes) work; standard alphabet with = padding.
+// @api encode failure none; always returns a String.
+pub fn encode(data:Bytes)->String effects {} {return encodeCore(data,false);}
+
+// @api encodeUrl cost O(bytes) work; URL-safe alphabet (-_) without padding.
+// @api encodeUrl failure none; always returns a String.
+pub fn encodeUrl(data:Bytes)->String effects {} {return encodeCore(data,true);}
+
+// @api decode cost O(text) work; input over 1 MiB is rejected before decoding.
+// @api decode failure Base64Error BadChar (symbol outside the alphabet, offset is the byte index), BadLength (length not a multiple of 4), TooLarge (input over 1 MiB).
+pub fn decode(text:String)->Result<Bytes,Base64Error> effects {} {return decodeCore(text,false);}
+
+// @api decodeUrl cost O(text) work; accepts the URL-safe alphabet with optional = padding.
+// @api decodeUrl failure Base64Error BadChar (symbol outside the alphabet, offset is the byte index), BadLength (length 1 mod 4, or padding without a multiple of 4), TooLarge (input over 1 MiB).
+pub fn decodeUrl(text:String)->Result<Bytes,Base64Error> effects {} {return decodeCore(text,true);}

@@ -1,0 +1,4 @@
+// external fresh live は拒否
+fn f() {
+    external fresh live { }
+}

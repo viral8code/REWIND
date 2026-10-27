@@ -1,8 +1,23 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.6.0",
+  "language": "4.0.0",
   "symbols": {
+    "fn:codePoints": {
+      "async": false,
+      "cost": "O(bytes); one Int per Unicode scalar value. A String over 1 MiB stops the run (the result is a plain List, not a Result).",
+      "defaults": [],
+      "effects": [],
+      "failure": "none for Strings up to 1 MiB; a longer String is a runtime error.",
+      "generics": [],
+      "names": [
+        "value"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "List<Int>"
+    },
     "fn:find": {
       "async": false,
       "defaults": [],
@@ -18,6 +33,21 @@
       ],
       "return": "Option<Int>"
     },
+    "fn:fromCodePoints": {
+      "async": false,
+      "cost": "O(values); builds a String from Unicode scalar values.",
+      "defaults": [],
+      "effects": [],
+      "failure": "StdError Range (outside 0 to 0x10FFFF), Surrogate (0xD800 to 0xDFFF), Limit (more than 1,048,576 elements, or a result over 1 MiB); offset = index of the element.",
+      "generics": [],
+      "names": [
+        "values"
+      ],
+      "parameters": [
+        "&List<Int>"
+      ],
+      "return": "Result<String,StdError>"
+    },
     "fn:length": {
       "async": false,
       "defaults": [],
@@ -30,6 +60,19 @@
         "String"
       ],
       "return": "Int"
+    },
+    "fn:lineSeparator": {
+      "async": false,
+      "cost": "O(1) external observation; recorded once per external ledger position, so replay returns the recorded value.",
+      "defaults": [],
+      "effects": [
+        "external"
+      ],
+      "failure": "requires an external region and the external effect; a corrupt recorded value stops the run.",
+      "generics": [],
+      "names": [],
+      "parameters": [],
+      "return": "String"
     },
     "fn:slice": {
       "async": false,

@@ -1,691 +1,2895 @@
-# REWIND 2.0.0 言語リファレンス
+# REWIND 言語リファレンス
 
-対象はcompiler/language 2.0.0です。詳しい入門・仕様・全標準APIは[HTMLの本](book/index.html)と[PDF](book/REWIND-2.0.0-book.pdf)を参照してください。これは現在実装されている構文と動作の説明です。過去の草案は採用されなかった案も含むため、この文書と[1.0の保証範囲](REWIND_v1.0.md)、[1.1の変更点](REWIND_v1.1.md)、[1.2の変更点](REWIND_v1.2.md)、[1.3の変更点](REWIND_v1.3.md)、[1.4の変更点](REWIND_v1.4.md)を基準にしてください。
+対象は REWIND 4.0.0（言語バージョン `4.0.0`）です。REWIND 4 が実行できる言語は 3.0.0 以降です。3.0.0 未満の言語（トップレベルに文を並べる書き方など）は受け付けないので、古い言語のプログラムは REWIND 3 のコンパイラで実行してください。3.x の言語と 4.0.0 の違いは[付録 B](#付録-b-言語バージョンの違い)にあります。
 
-- [実行とツール](#実行とツール)
-- [字句と基本型](#字句と基本型)
-- [変数と演算](#変数と演算)
-- [制御構文](#制御構文)
-- [関数とエントリーポイント](#関数とエントリーポイント)
-- [データ型](#データ型)
-- [所有権と借用](#所有権と借用)
-- [OptionとResult](#optionとresult)
-- [クロージャーとIterator](#クロージャーとiterator)
-- [traitとgeneric](#traitとgeneric)
-- [moduleと公開範囲](#moduleと公開範囲)
-- [効果と外部へのアクセス](#効果と外部へのアクセス)
-- [Checkpointとpublish](#checkpointとpublish)
-- [cleanupとタスク](#cleanupとタスク)
-- [文字列と標準ライブラリ](#文字列と標準ライブラリ)
-- [エラーの調べ方](#エラーの調べ方)
-- [実行予算と制限](#実行予算と制限)
+この文書は **言語そのもの** の仕様書です。次のものは別の文書にあります。
 
-以下の`rewind`コードブロックは、それぞれ独立したプログラムです。`main.rw`に保存して実行できます。文書の例も回帰テストで実行します。
-
-## 実行とツール
-
-```sh
-rewind run main.rw
-rewind compile main.rw
-rewind run main.rwc
-```
-
-compileは既定で同じ場所に`main.rwc`を生成します。成果物はソースファイルなしでも実行できます。`rewindc main.rw`、`rewind main.rwc`も利用できます。単一ファイルの実行にmanifestや事前compileは不要です。SDKのbinをPATHに追加します。Windowsでは同じコマンド名で`.exe`が実行されます。
-
-| 用途 | コマンド |
+| 知りたいこと | 参照先 |
 |---|---|
-| バージョン、ヘルプ | `rewind --version`、`rewind --help` |
-| 単一ファイルの整形 | `rewind fmt main.rw` |
-| 整形の検査のみ | `rewind fmt main.rw --check` |
-| エディタ接続 | `rewind lsp --root DIR`（stdio LSP） |
-| projectの型・効果検査 | `rewind check --root DIR` |
-| projectのテスト | `rewind test --root DIR` |
-| 観測と実行の記録 | `rewind run main.rw --record trace.json` |
-| 記録の再生 | `rewind replay trace.json --root DIR` |
-| JSON診断 | コマンドに`--diagnostic-format json`を付ける |
+| インストールと最初の実行 | [getting-started.md](getting-started.md) |
+| 標準ライブラリの各 module（関数、型、費用、失敗条件） | [libraries/README.md](../libraries/README.md)、SDK の `share/rewind/doc/std/` |
+| ネイティブ GUI | [gui.md](gui.md) |
+| デバッガ（DAP） | [debugger.md](debugger.md) |
+| 版ごとの変更点と契約 | [REWIND_v3.0.md](REWIND_v3.0.md) など `REWIND_v*.md` |
+| 章立てで読む入門書 | [book/index.html](book/index.html)（[PDF 版](book/REWIND-4.0.0-book.pdf)） |
 
-`rewind run --help`など主要コマンドの`--help` / `-h`でも使用方法を確認できます。`--`以降の`--help`はapplication引数です。
+## この文書の読み方
 
-formatterは既存の改行を保ちながらインデントを整えます。任意のコードを一行ずつ分割するformatterではありません。LSPは診断、補完、hover、定義・参照、rename、signature help、既存のquick fix、整形に対応します。エディタ側にはstdio LSPクライアントの設定が必要です。
+コード例は、特に断りがなければ **そのまま実行できる完全なプログラム** です。`main.rw` に保存して `rewind run main.rw` で動きます。例の下に `text` ブロックがあれば、それが標準出力です。エラーになる例は、起きるエラーのコードを添えています。
 
-## 字句と基本型
+この文書のコード例は、リポジトリのテスト（`language_reference_examples_execute_as_documented`）が実際に実行し、出力と失敗の種類を確かめています。説明と実装がずれたら、テストが失敗します。
 
-文末は`;`、ブロックは`{ ... }`です。行コメントは`//`、入れ子にできるブロックコメントは`/* ... */`を使います。文字列は二重引用符で囲み、`\n`、`\r`、`\t`、`\"`、`\\`を使えます。`\0`と`\u{HEX}`も使えます。Unicode escapeは1〜6桁のhexで有効なUnicode scalarを指定します（例：`"\u{754c}"`は`"界"`）。識別子や型名は大文字・小文字を区別します。
+用語は次のように使います。
 
-| 型 | 意味 |
+| 用語 | 意味 |
 |---|---|
-| `Int` | 符号付き64bit整数。算術の範囲外は実行時エラー |
-| `Float` | IEEE 754 binary64。NaN、無限大も表現できる |
-| `Bool` | `true`、`false` |
-| `String` | UTF-8文字列 |
-| `Bytes` | byte列。`Bytes("text")`でUTF-8 byte列を作れる |
-| `Unit` | 値`()`。戻り値が不要な関数に使う |
-| `Never` | `panic`など通常は戻らない式の型 |
-| `List<T>`、`Map<K,V>` | 型付きコレクション |
-| `Option<T>`、`Result<T,E>` | 値の有無、成功・失敗 |
-| `(A,B)` | tuple。`._0`、`._1`で読む |
-| `Frozen<T>` | 共有可能な不変snapshot |
-| `Secret<T>` | 診断・記録で値を伏せるための型 |
+| 束縛 | 名前と値の結び付き。`let` と `var` で作る |
+| 所有者（owner） | 変更できる値（`List`、`Map`、`struct` など）を保持する束縛 |
+| 共有値（Share） | 自由にコピーして共有できる値（`Int`、`String`、`record` など） |
+| チェックポイント | 計算の状態に付ける名前付きの保存点 |
+| 保留中（pending） | まだ外部へ確定していない出力や書き込み |
+| 公開（publish） | 保留中の入出力を外部へ確定すること |
+| 効果（effect） | 関数が外部に対して行う操作の種類（出力、ファイル読み取りなど） |
 
-数値は`1_000`のように数字の間を`_`で区切れます。整数には`0xff`、`0b1010`、`0o755`も使えます。Floatの例は`1_2.5_0e+0_1`です。Intの範囲は表記にかかわらずsigned 64-bitです。
+## 1. REWIND の考え方
 
-暗黙に任意の型へ変換する仕組みはありません。整数と浮動小数点の境界では`toFloatChecked`、`toIntChecked`等の明示変換を使います。
+REWIND は、計算の途中状態を **保存して巻き戻せる** プログラミング言語です。次の三つの層を区別すると、言語全体が理解しやすくなります。
 
-```rewind
-let count:Int = 3;
-let ratio:Float = 1.5;
-let ready:Bool = true;
-let pair:(Int,String) = (count,"three");
-assert_eq(pair._0,3);
-assert_eq("界".byteLen(),3);
-assert_eq("界".charLen(),1);
-Out.println("Hello, REWIND!");
-publish;
-```
+1. **計算状態**: 変数、`List` や `Map` の中身、実行中のタスクなど、プログラムの中にある状態。チェックポイントで保存でき、`revert` で戻せます。
+2. **保留中の入出力**: `Out.println` や `File.writeText` の結果。実行してもすぐには外へ出ず、保留されます。これも `revert` で取り消せます。
+3. **公開済みの結果**: `publish` で外部へ確定した出力や書き込み。取り消せません。
 
 ```rewind
-/* 表記の例。 /* コメントは入れ子にできる */ */
-let limit = 1_000;
-let mask = 0xff;
-assert_eq(limit,1000);
-assert_eq(mask,255);
-assert_eq(0b1010,10);
-assert_eq(0o755,493);
-assert_eq("\u{754c}\u{1f600}","界😀");
-```
-
-## 変数と演算
-
-`let`はbindingの再代入を禁止し、`var`は許可します。`let`で保持するList等も、所有権・借用検査を満たす場合は内容を更新できます。型が推論できる場合は型注釈を省略します。
-
-```rewind
-let base = 10;
-var score = base;
-score += 5;
-let values = List<Int>();
-values.add(score);
-assert_eq(values.get(0),15);
-```
-
-演算子の優先順位は、弱い順に次の通りです。括弧で明示できます。
-
-| 順位 | 演算子 |
-|---|---|
-| 1 | `||` |
-| 2 | `&&` |
-| 3 | `==`、`!=` |
-| 4 | `<`、`<=`、`>`、`>=` |
-| 5 | `+`、`-` |
-| 6 | `*`、`/`、`%` |
-
-`&&`、`||`は短絡評価します。整数の除算はゼロ方向へ切り捨て、余りは被除数の符号に従います。整数のゼロ除算は`DivisionByZero`、範囲外は`IntegerOverflow`です。Floatの算術はIEEE 754に従うため、整数と同じエラー規則にはなりません。bit操作は`std.bits`を使います。
-
-## 制御構文
-
-`if` / `else if` / `else`、`while`、半開区間の`for`、`break`、`continue`、`return`があります。条件はBoolです。
-
-```rewind
-var sum = 0;
-for i in 0..4 {
-    if i == 2 { continue; }
-    sum += i;
-}
-while sum < 10 { sum += 1; }
-assert_eq(sum,10);
-```
-
-`match`は値のvariantや構造に応じて分岐します。enumには原則として網羅的な分岐が必要です。`_`は値を捨てるpatternです。guardも使えますが、guardからpublishやCheckpoint操作を行うことはできません。
-
-v1.9 以降は入れ子の Option / Result、generic enum、tuple、record の組合せも網羅性検査します。guard は網羅性の根拠になりません。先行 arm に含まれる arm、空・逆順の Int 区間を拒否します。解析上限と版の互換性は [v1.9](REWIND_v1.9.md) を参照してください。
-
-## 関数とエントリーポイント
-
-関数は`fn name(params)->ReturnType effects { ... } { ... }`です。再帰も利用できます。
-
-```rewind
-fn factorial(n:Int)->Int effects {} {
-    if n <= 1 { return 1; }
-    return n * factorial(n-1);
-}
-assert_eq(factorial(5),120);
-```
-
-トップレベルに処理を並べる形式に加え、`fn main()->Int`をアプリケーションの入口にできます。mainの0は正常終了、非0は終了値として扱います。mainを使う場合もpending出力にはpublishが必要です。
-
-```rewind
-fn main()->Int effects {output} {
-    Out.println("started");
-    publish;
+fn main()->Int {
+    var score = 10;
+    commit before;       // 計算状態を before として保存する
+    score = 99;
+    Out.println(score);  // 保留中になる
+    publish;             // 99 を外へ確定する
+    revert before;       // score は 10 に戻る。公開済みの 99 は取り消せない
+    Out.println(score);
     return 0;
 }
 ```
 
-## データ型
+```text
+99
+10
+```
 
-`struct`は可変のデータ、`record`は共有可能な不変データに使います。recordのfieldはShareを満たす型に限定されます。`enum`は複数のvariantを定義します。tuple、型alias、generic型も使えます。
+`publish` を省くと、`99` は保留中のまま `revert` で捨てられ、`10` だけが出力されます。
+
+REWIND には、このほかに次の設計上の特徴があります。
+
+- **効果を宣言する**: 外部へ働きかける関数は、何をするかを `effects {...}` で宣言します。宣言していない操作はコンパイル時に拒否されます（[第 12 章](#12-効果)）。
+- **所有権を検査する**: 変更できる値の複製は暗黙には起きません。`move`、借用（`&`、`&mut`）、`freeze` で扱いを明示します（[第 9 章](#9-所有権と借用)）。
+- **実行は決定的**: タスクの切り替えを含め、同じ入力からは同じ結果になります。外部から得た値は記録され、再生できます（[第 17 章](#17-診断と記録)）。
+- **予算がある**: 実行ステップ、ネイティブ処理量、履歴メモリには上限があり、超えると実行が止まります（[第 16 章](#16-実行予算と制限)）。
+
+## 2. プログラムを実行する
+
+### 2.1 プログラムの形
+
+ソースファイルには **宣言だけ** を書きます。宣言とは `fn`、`async fn`、`struct`、`record`、`enum`、`type`、`trait`、`impl`、`const`、`import` です。実行される文は関数の中にだけ書けます。実行は `fn main` から始まります。
 
 ```rewind
-struct Counter { value:Int }
-record Point { x:Int,y:Int }
-enum Status { Ready,Failed(String) }
-type Score = Int;
-let counter = Counter(1);
-counter.value = 2;
-let point = Point(3,4);
-assert_eq(point.x+point.y,7);
-let status = Status::Failed("missing");
-match status {
-    Status::Ready => {},
-    Status::Failed(message) => { assert_eq(message,"missing"); }
+fn main()->Int {
+    Out.println("Hello, REWIND!");
+    return 0;
 }
 ```
 
-struct/record/enumは位置引数のconstructorを持ちます。named constructor・field patternも利用できます。fieldを`private`にした型は、そのmodule外から直接construct・read・write・分解できません。公開factoryやaccessorを用意します。
+```text
+Hello, REWIND!
+```
 
-## 所有権と借用
+`main` は `Int` を返します。`0` は正常終了です。それ以外の値はプロセスの終了コードになり、標準エラーに `ApplicationExit<値>` が出ます。
 
-可変ownerは自由に複製できません。所有権を渡す場所では`move`、読むだけなら`&`、更新するなら`&mut`を使います。IntやString、適切なrecord等のShare値は共有できます。bindingの可変性と値の所有権は別です。
+`main` が戻ると、保留中の出力が自動的に公開されます。戻り値が 0 でなくても公開されます。`main` の中で `panic` やエラーが起きたときは公開されません。途中で外へ出したいときは、`publish;` を書きます。
+
+トップレベルに文を書くと、実行前に拒否されます。
+
+```rewind-error top-level
+let x = 1;
+fn main()->Int { return 0; }
+```
+
+`fn main` が無いプログラムは実行できません（`rewind check` での検査は可能です）。
+
+### 2.2 コマンド
+
+```sh
+rewind run main.rw          # ソースを検査して実行する
+rewind compile main.rw      # main.rwc を作る（実行はしない）
+rewind run main.rwc         # 成果物を実行する。ソースは不要
+```
+
+`rewindc main.rw` は `rewind compile main.rw` と同じ、`rewind main.rwc` は `rewind run main.rwc` と同じです。単体のファイルを実行するのに、事前の `compile` やプロジェクトの設定は要りません。実行時には作業用の `.rewind` ディレクトリが作られます。
+
+| 用途 | コマンド |
+|---|---|
+| バージョン、ヘルプ | `rewind --version`、`rewind --help`、`rewind <コマンド> --help` |
+| 型・所有権・効果の検査だけ行う | `rewind check main.rw` |
+| 整形 | `rewind fmt main.rw`（`--check` で差分の検査のみ） |
+| テストの実行 | `rewind test --root DIR [--filter 名前]` |
+| 実行を記録する | `rewind run main.rw --record trace.json [--record-mode debug\|compact]` |
+| 記録を再生する | `rewind replay trace.json --root DIR` |
+| 仕事量の内訳を見る | `rewind profile main.rw` |
+| エディタ連携 | `rewind lsp --root DIR`、`rewind dap` |
+| JSON 形式の診断 | 任意のコマンドに `--diagnostic-format json` |
+
+プログラムへ渡す引数は `--` の後ろに置きます（`rewind run main.rw -- a b`）。`--` より後ろの `--help` はプログラムの引数です。
+
+`rewind fmt` は既存の改行を保ったままインデントを整えます。コードを一文ずつ改行し直す整形ではありません。
+
+### 2.3 プロジェクトとマニフェスト
+
+ファイルが複数あるプログラムや、権限・依存関係を固定したいプログラムは、ディレクトリに `rewind.toml` を置いてプロジェクトにします。
+
+```toml
+language = "4.0.0"
+source_root = "src"
+entry = "main.rw"
+effects = "output,fileRead"
+```
+
+| キー | 意味 |
+|---|---|
+| `language` | 言語バージョン（必須） |
+| `source_root` | ソースのあるディレクトリ |
+| `entry` | 実行を始めるファイル |
+| `effects` | プログラムに許可する効果（カンマ区切り） |
+| `[assets]` | 実行に同梱するファイル |
+| `[dependencies]` ほか | 依存パッケージ。`rewind update` が `rewind.lock` を書く |
+
+マニフェストが近くにあるときは、その `language` と `effects` が使われ、ロックファイルの検証も行われます。`rewind update` は依存関係を解決して `rewind.lock` を更新します。依存パッケージの署名と信頼の仕組みは [REWIND_v1.0.md](REWIND_v1.0.md) 以降の各版の文書にあります。
+
+## 3. 字句
+
+### 3.1 空白とコメント
+
+空白と改行は区切りでしかなく、意味を持ちません。文は `;` で終わり、ブロックは `{ ... }` で囲みます。
 
 ```rewind
-fn total(values:&List<Int>)->Int effects {} {
-    var result=0;
-    for i in 0..values.len() { result+=values.get(i); }
-    return result;
+fn main()->Int {
+    // 行コメント
+    /* ブロックコメント /* 入れ子にもできる */ */
+    Out.println(1);
+    return 0;
 }
-fn append(values:&mut List<Int>,n:Int)->Unit effects {} {
+```
+
+```text
+1
+```
+
+### 3.2 識別子
+
+識別子は英字、数字、`_` で構成し、数字では始められません。Unicode の文字も使えます（`let 変数 = 1;`）。大文字と小文字は区別されます。慣習として、型・trait・enum の variant は大文字で始め、関数・変数は小文字で始めます。
+
+言語 4.0.0 では、次の語を名前に使えません。使うと `ReservedWord` で拒否されます。
+
+| 分類 | 予約語 |
+|---|---|
+| 宣言 | `fn` `let` `var` `const` `struct` `record` `enum` `trait` `impl` `type` `import` `as` `pub` `private` `async` `mut` |
+| 制御 | `if` `else` `match` `while` `for` `in` `break` `continue` `return` `defer` `using` |
+| チェックポイント | `commit` `revert` `resume` `drop` `publish` `branch` `runtime` `external` `begin` |
+| 式 | `move` `spawn` `await` `true` `false` `null` |
+
+`value`、`capture`、`borrow`、`force`、`live`、`fresh`、`test`、`where`、`effects`、`captures` は、決まった位置でだけ意味を持つ語なので、名前に使えます。`None` も名前に使えます（`enum Level { None, Low }` のように variant の名前にできます）。`import std.external as host;` の `external` のような import の経路と、`effects { }` に書く効果の名前は、名前ではないので予約語の対象外です。名前が予約語と重なったときは、`commit` を `committed` にするように、別の名前に変えてください。
+
+3.x の言語で名前として拒否されるのは `begin`（最初のチェックポイントの予約名）だけです。`let if = 3;` のようにほかのキーワードも通りますが、紛らわしいので使わないでください。
+
+### 3.3 整数と浮動小数点数のリテラル
+
+```rewind
+fn main()->Int {
+    Out.println(1_000);   // 数字の間に _ を入れられる
+    Out.println(0xff);    // 16 進
+    Out.println(0b1010);  // 2 進
+    Out.println(0o755);   // 8 進
+    Out.println(2.5);
+    Out.println(1.5e3);   // 指数表記
+    Out.println(2.5e-2);
+    return 0;
+}
+```
+
+```text
+1000
+255
+10
+493
+2.5
+1500
+0.025
+```
+
+- 整数リテラルの範囲は符号付き 64 ビットです。範囲を超えると `IntegerOverflow` で拒否されます。`-9223372036854775808` は書けます。
+- 小数点の前後には数字が必要です。`.5` や `5.` は書けません。
+- 浮動小数点数は、整数部と小数部が整数値のときも `Out.println` では小数点なしで表示されます（`1.0` は `1`）。
+
+### 3.4 文字列リテラル
+
+文字列は二重引用符で囲み、UTF-8 として扱います。改行をそのまま含められます。
+
+| エスケープ | 意味 |
+|---|---|
+| `\n` `\r` `\t` | 改行、復帰、タブ |
+| `\"` `\\` | 引用符、バックスラッシュ |
+| `\0` | NUL 文字 |
+| `\u{754c}` | Unicode のコードポイント（1〜6 桁の 16 進数） |
+
+上記以外のエスケープ（`\q` など）はエラーです。文字を表す単独のリテラル（`'a'`）はありません。文字は長さ 1 の `String` で表します。エスケープを無効にしたいときは、次の raw 文字列を使います。
+
+#### raw 文字列
+
+3 個以上の `"` で開き、同じ個数の `"` で閉じると raw 文字列になります。本文ではエスケープも補間（`${}`）も働きません。
+
+複数行の形では、開きの `"` の直後で改行します。閉じの `"` だけが並ぶ行の字下げを、本文の各行から取り除きます。最後の改行は本文に含まれません。1 行の形では、開きと閉じを同じ行に書きます。
+
+```rewind
+fn main()->Int {
+    let a = """
+        line1 "q" ${x} 
+
+          indented
+        """;
+    Out.println(a);
+    let b = """one "" line""";
+    Out.println(b);
+    let c = """"has """ inside"""";
+    Out.println(c);
+    return 0;
+}
+```
+
+```text
+line1 "q" ${x} 
+
+  indented
+one "" line
+has """ inside
+```
+
+区切りより短い `"` の連続は、本文にそのまま書けます。本文に区切りと同じ個数以上の `"` を書きたいときは、区切りをそれより多くします（`""""` で開けば、本文に `"""` を書けます）。本文の改行が CRLF でも、LF として扱います。
+
+| エラー | 起きる場合 |
+|---|---|
+| `RawStringIndent` | 本文の行が、閉じの区切りの行の字下げで始まっていない |
+| `RawStringQuote` | 本文に、区切りと同じ個数以上の `"` が並んでいる |
+| `RawStringUnterminated` | 閉じの区切りがない |
+| `RawStringOpening` | 開きの区切りの直後に文字があるのに、閉じが同じ行にない |
+
+`$` を付けた補間つきの形（`$"""`）は将来のために空けてあり、今は使えません。
+
+### 3.5 文字列補間
+
+`${式}` で、式の値を文字列に埋め込めます。式には `Int`、`Float`、`Bool`、`String` の値が使えます。`${` そのものを書きたいときは `$${` とします。`${}` の中に文字列リテラルは書けません。
+
+```rewind
+fn main()->Int {
+    let name = "REWIND";
+    let n = 3;
+    Out.println("${name}: ${n + 1} 件 ($${n})");
+    return 0;
+}
+```
+
+```text
+REWIND: 4 件 (${n})
+```
+
+### 3.6 末尾のカンマ
+
+カンマで区切って並べる箇所では、最後の要素のあとにカンマを書けます。関数の仮引数、呼び出しの引数、型引数、関数型、クロージャの仮引数、`enum` の variant、trait のメソッド、`where` の境界、リスト、マップ、タプル、レコードなどが対象です。どの `language` の版でも受理されます。
+
+```rewind
+fn add(a: Int, b: Int,) -> Int effects {} { return a + b; }
+
+fn main()->Int {
+    let xs = [1, 2,];
+    Out.println(add(1, 2,));
+    Out.println(xs.len());
+    return 0;
+}
+```
+
+```text
+3
+2
+```
+
+要素のないカンマ（`f(,)`、`f(a,,b)`）は `expected an expression` で拒否されます。
+
+## 4. 型
+
+### 4.1 基本の型
+
+| 型 | 意味 |
+|---|---|
+| `Int` | 符号付き 64 ビット整数 |
+| `Float` | IEEE 754 の 64 ビット浮動小数点数。NaN と無限大を表せる |
+| `Bool` | `true`、`false` |
+| `String` | UTF-8 の文字列 |
+| `Bytes` | バイト列。`Bytes("text")` で UTF-8 のバイト列を作る |
+| `Unit` | 値は `()` だけ。戻り値が無いことを表す |
+| `Never` | 決して戻らない式（`panic` など）の型 |
+
+`Int` と `Float` を混ぜた演算は型エラーです。暗黙の型変換は一切ありません。変換は明示します。
+
+```rewind
+fn main()->Int {
+    let n: Int = 3;
+    let x: Float = 1.5;
+    // n + x はエラー。変換して合わせる
+    match n.toFloatChecked() {
+        Ok(f) => { Out.println(f + x); },
+        Err(_) => { Out.println("変換できない"); }
+    }
+    Out.println(x.toIntChecked());   // 小数部があるので失敗する
+    return 0;
+}
+```
+
+```text
+4.5
+Err(InexactOrOverflow)
+```
+
+### 4.2 複合型
+
+| 型 | 意味 | 例 |
+|---|---|---|
+| `List<T>` | 要素の型が `T` の可変の列 | `List<Int>()` |
+| `Map<K,V>` | キーと値の対応 | `Map<String,Int>()` |
+| `Option<T>` | 値がある（`Some(x)`）か無い（`None`）か | |
+| `Result<T,E>` | 成功（`Ok(x)`）か失敗（`Err(e)`）か | |
+| `(A,B)` | タプル。要素は `.0`、`.1` で読む | `(1, "a")` |
+| `Frozen<T>` | 変更できない共有用の複製 | `freeze(xs)` |
+| `Secret<T>` | 診断や記録で値を伏せるための型 | `secret("pw")` |
+| `Task<T>` | 非同期関数の実行結果の予約 | [第 14 章](#14-並行処理) |
+| `Channel<T>` | タスク間でやり取りする通路 | [第 14 章](#14-並行処理) |
+| `fn(A)->B effects {...}` | 関数の型 | [第 7 章](#7-関数) |
+
+型引数は `<` `>` で囲みます。型を明示するときは `let x: Int = 1;` のように書きます。推論できる場合は省略できます。
+
+### 4.3 型エイリアス
+
+```rewind
+type Score = Int;
+
+fn main()->Int {
+    let s: Score = 3;
+    Out.println(s + 1);
+    return 0;
+}
+```
+
+```text
+4
+```
+
+エイリアスは別名であり、新しい型は作りません。`Score` と `Int` は互いに代入できます。
+
+## 5. 式と演算子
+
+### 5.1 演算子の優先順位
+
+弱い順に並べます。同じ行の演算子は左から結合します。括弧 `( )` で順序を明示できます。
+
+| 順位 | 演算子 | 備考 |
+|---|---|---|
+| 1 | `\|\|` | 論理和。左が `true` なら右を評価しない |
+| 2 | `&&` | 論理積。左が `false` なら右を評価しない |
+| 3 | `==` `!=` | 等価 |
+| 4 | `<` `<=` `>` `>=` | 大小比較 |
+| 5 | `+` `-` | 加減算、文字列の連結 |
+| 6 | `*` `/` `%` | 乗除算、剰余 |
+| 7 | `!` `-`（前置） | 論理否定、符号反転 |
+| 8 | `.` `[ ]` `( )` `?`（後置） | メンバー呼び出し、添字、関数呼び出し、エラーの伝播 |
+
+ビット演算子（`&`、`|`、`^`、`<<`、`>>`）はありません。ビット操作は標準ライブラリの `std.bits` を使います。範囲 `a..b` は演算子ではなく、`for` 文と `match` のパターンの中でだけ書けます。
+
+```rewind
+fn main()->Int {
+    Out.println(1 + 2 * 3);
+    Out.println((1 + 2) * 3);
+    Out.println(true || false && false);
+    Out.println(-(-3));
+    Out.println(!true);
+    return 0;
+}
+```
+
+```text
+7
+9
+true
+3
+false
+```
+
+### 5.2 整数の算術
+
+`Int` の `+ - * / %` は **検査付き** です。結果が 64 ビットの範囲を超えると `IntegerOverflow`、0 で割ると `DivisionByZero` で実行が止まります。丸めや折り返しは起きません。
+
+- 除算は 0 に向かって切り捨てます（`-7 / 2` は `-3`）。
+- 剰余の符号は割られる数に従います（`-7 % 3` は `-1`、`7 % -3` は `1`）。
+
+```rewind
+fn main()->Int {
+    Out.println(7 / 2);
+    Out.println(-7 / 2);
+    Out.println(-7 % 3);
+    Out.println(7 % -3);
+    return 0;
+}
+```
+
+```text
+3
+-3
+-1
+1
+```
+
+```rewind-error IntegerOverflow
+fn main()->Int {
+    let max = 9223372036854775807;
+    Out.println(max + 1);
+    return 0;
+}
+```
+
+範囲を超える計算を `Result` で受けたいときは `std.integer` の検査付き関数を使います。それ以上の桁が必要なら `std.bigint` があります。
+
+### 5.3 浮動小数点数の算術
+
+`Float` の算術は IEEE 754 に従います。0 で割ると無限大や NaN になり、エラーにはなりません。NaN はそれ自身とも等しくありません。
+
+```rewind
+fn main()->Int {
+    Out.println(1.0 / 0.0);
+    Out.println(-1.0 / 0.0);
+    let nan = 0.0 / 0.0;
+    Out.println(nan == nan);
+    Out.println(0.1 + 0.2);
+    return 0;
+}
+```
+
+```text
+inf
+-inf
+false
+0.30000000000000004
+```
+
+`Float` と `Int` を混ぜた演算は型エラーです（[第 4.1 節](#41-基本の型)）。
+
+### 5.4 比較と等価
+
+比較演算子 `< <= > >=` は `Int`、`Float`、`String` に使えます。文字列は UTF-8 のバイト列として辞書順に比べます。
+
+`==` と `!=` の意味は、値の種類によって違います。
+
+| 値 | `==` の意味 |
+|---|---|
+| `Int` `Float` `Bool` `String` `Bytes` | 値が等しい |
+| タプル、`record`、`enum`、`Option`、`Result`、`Frozen<T>` | 中身が等しい |
+| `List` `Map` `struct`（変更できる値） | **同一の値であるとき**だけ真。中身が同じでも別々に作った値は等しくない |
+
+変更できる値の中身を比べたいときは、`freeze` してから比べます（[第 9.5 節](#95-freeze-と-thaw)）。
+
+```rewind
+fn main()->Int {
+    let a = [1, 2];
+    let b = [1, 2];
+    Out.println(a == b);                    // 別の List なので false
+    Out.println(freeze(a) == freeze(b));    // 中身を比べる
+    Out.println((1, "x") == (1, "x"));
+    Out.println(Some(3) == Some(3));
+    return 0;
+}
+```
+
+```text
+false
+true
+true
+true
+```
+
+`assert_eq(a, b)` も同じ規則で比べます。`List` どうしを `assert_eq` に渡すと、中身が同じでも失敗します。
+
+### 5.5 文字列の連結
+
+`+` は文字列を連結します。`+=` も使えます。数値などを文字列に混ぜるときは、[文字列補間](#35-文字列補間)か `.format()` を使います。
+
+```rewind
+fn main()->Int {
+    var s = "REWIND";
+    s += " " + 3.format() + "!";
+    Out.println(s);
+    return 0;
+}
+```
+
+```text
+REWIND 3!
+```
+
+### 5.6 ブロック式、`if` 式、`match` 式
+
+ブロックは最後の式（末尾に `;` が無いもの）を値として返します。`if` と `match` も値を持てます。分岐の値の型はそろっていなければなりません。
+
+```rewind
+fn main()->Int {
+    let n = 5;
+    let size = if n > 3 { "big" } else { "small" };
+    let doubled = { let t = n * 2; t + 1 };
+    let word = match n { 1 => "one", 2 => "two", _ => "many" };
+    Out.println(size);
+    Out.println(doubled);
+    Out.println(word);
+    return 0;
+}
+```
+
+```text
+big
+11
+many
+```
+
+`else` の無い `if` の値は `Unit` です。型が合わない分岐はエラーになります。
+
+```rewind-error match arm expects
+fn main()->Int {
+    let x = if true { 1 } else { "a" };
+    return 0;
+}
+```
+
+### 5.7 コレクションの式
+
+`[ ]` は `List`、`{ キー: 値 }` は `Map` を作ります。要素の型は最初の要素で決まり、型の違う要素は拒否されます。空のコレクションは型を明示して `List<Int>()`、`Map<String,Int>()` と書きます。
+
+```rewind
+fn main()->Int {
+    let xs = [10, 20, 30];
+    let ages = {"ann": 31, "bob": 28};
+    let grid = [[1, 2], [3]];
+    xs[1] = 21;                       // 添字への代入
+    Out.println(xs[1]);
+    Out.println(grid[0][1]);
+    Out.println(ages["ann"]);         // Map の添字は Option を返す
+    Out.println(ages.len());
+    return 0;
+}
+```
+
+```text
+21
+2
+Some(31)
+2
+```
+
+- `xs[i]` は `xs.get(i)` と同じで、範囲外は `IndexOutOfBounds` で止まります。
+- `m[k]` は `m.get(k)` と同じで、`Option` を返します。キーが無ければ `None` です。
+- 文字列に添字は使えません。バイト位置や文字数は `String` のメソッドで扱います（[第 15.4 節](#154-文字列のメソッド)）。
+
+### 5.8 タプル
+
+`(a, b, c)` でタプルを作り、`.0`、`.1` で要素を読みます。入れ子は `t.1.0` のように続けます。分解して束縛することもできます。
+
+```rewind
+fn minmax(a: Int, b: Int) -> (Int, Int) effects {} {
+    if a < b { return (a, b); }
+    return (b, a);
+}
+
+fn main()->Int {
+    let (low, high) = minmax(9, 4);
+    let pair = minmax(1, 2);
+    Out.println(low);
+    Out.println(high);
+    Out.println(pair.1);
+    return 0;
+}
+```
+
+```text
+4
+9
+2
+```
+
+### 5.9 メンバー呼び出し
+
+`値.名前(引数)` の形で、組み込み型のメソッドや、`trait` で定義したメソッドを呼びます。`struct` や `record` に直接メソッドを足す構文（`impl 型 { ... }`）はありません。メソッドは `trait` を通して定義します（[第 8.5 節](#85-trait)）。
+
+関連関数（`型.new()` のような書き方）も無く、値を作る関数は普通の関数として書きます。
+
+### 5.10 数値のメソッド
+
+| 型 | メソッド |
+|---|---|
+| `Int` | `abs()`、`min(x)`、`max(x)`、`pow(n)`（`n` は 0 以上） |
+| `Float` | `abs()`、`sqrt()`、`floor()`、`ceil()`、`round()`（いずれも `Float` を返す）、`min(x)`、`max(x)` |
+
+`Int` の `abs()` と `pow(n)` は、結果が 64 ビットの範囲を超えると `IntegerOverflow` で止まります。
+
+```rewind
+fn main()->Int {
+    Out.println((-5).abs());
+    Out.println(3.max(8));
+    Out.println(2.pow(10));
+    Out.println(2.5.floor());
+    Out.println(16.0.sqrt());
+    return 0;
+}
+```
+
+```text
+5
+8
+1024
+2
+4
+```
+
+## 6. 文と制御構造
+
+### 6.1 束縛: `let` と `var`
+
+`let` で束縛した名前には再代入できません。`var` は再代入できます。型は推論されますが、`名前: 型` で明示もできます。
+
+```rewind
+fn main()->Int {
+    let base = 10;
+    var score: Int = base;
+    score += 5;
+    score -= 2;
+    score *= 3;
+    score /= 2;
+    score %= 7;
+    Out.println(score);
+    return 0;
+}
+```
+
+```text
+5
+```
+
+```rewind-error cannot assign to let binding
+fn main()->Int {
+    let x = 1;
+    x = 2;
+    return 0;
+}
+```
+
+`let` の束縛が指す `List` などの **中身** は、所有権の規則を満たす限り更新できます。再代入できないのは「名前が指す値そのもの」です。
+
+- 同じスコープで同じ名前を二度束縛することはできません（`duplicate binding`）。
+- 内側のスコープでは同じ名前を束縛し直せます（外側の名前が隠れ、警告が出ます）。
+
+束縛にはタプルの分解も使えます: `let (a, b) = pair;`。
+
+### 6.2 定数: `const`
+
+`const 名前: 型 = 式;` は、ファイルの先頭に書く名前付きの定数です。型の指定は省略できません。関数の中からも使え、`pub const` にすると他の module から読めます。
+
+```rewind
+const LIMIT: Int = 6 * 7;
+const GREETING: String = "hello";
+
+fn describe() -> String effects {} {
+    return "${GREETING}, ${LIMIT}";
+}
+
+fn main()->Int {
+    Out.println(describe());
+    return 0;
+}
+```
+
+```text
+hello, 42
+```
+
+### 6.3 `if` と `else`
+
+条件は `Bool` でなければなりません。`else if` で続けられます。
+
+```rewind
+fn grade(score: Int) -> String effects {} {
+    if score >= 80 { return "A"; }
+    else if score >= 60 { return "B"; }
+    else { return "C"; }
+}
+
+fn main()->Int {
+    Out.println(grade(90));
+    Out.println(grade(65));
+    Out.println(grade(10));
+    return 0;
+}
+```
+
+```text
+A
+B
+C
+```
+
+### 6.4 `while`
+
+```rewind
+fn main()->Int {
+    var i = 0;
+    var total = 0;
+    while i < 5 {
+        i += 1;
+        if i == 2 { continue; }   // 次の反復へ
+        if i == 5 { break; }      // ループを抜ける
+        total += i;
+    }
+    Out.println(total);
+    return 0;
+}
+```
+
+```text
+8
+```
+
+`break` と `continue` は、いちばん内側のループに作用します。ラベル付きの `break` はありません。`break` が無い `while true { ... }` は、その後ろに `return` が無くても関数を終えられます。
+
+### 6.5 `for`
+
+`for 名前 in 式 { ... }` は二通りの形があります。
+
+- **範囲** `a..b`: `a` 以上 `b` **未満** の整数を順に取ります。`a >= b` なら一度も実行しません。`..=` はありません。
+- **コレクション**: `List`、`Frozen<List<T>>`、`xs.iter()` の結果などの要素を順に取ります。`Map` のキーは `m.keys()` で取り出します。
+
+```rewind
+fn main()->Int {
+    for i in 0..3 { Out.println(i); }
+    for name in ["a", "b"] { Out.println(name); }
+
+    let ages = Map<String, Int>();
+    ages.set("ann", 31);
+    ages.set("bob", 28);
+    for key in ages.keys() { Out.println(key); }   // キーの昇順
+    return 0;
+}
+```
+
+```text
+0
+1
+2
+a
+b
+ann
+bob
+```
+
+`Map` のキーは常に昇順（`String` なら辞書順）で取り出されます。
+
+`for` の変数には、タプルのパターンも書けます。`enumerate()` や `zip()` が返す組を、その場で分解できます。
+
+```rewind
+fn main()->Int {
+    let names = ["a", "b"];
+    for (i, name) in names.iter().enumerate() {
+        Out.println("${i}: ${name}");
+    }
+    return 0;
+}
+```
+
+```text
+0: a
+1: b
+```
+
+
+### 6.6 `return`
+
+`return 式;` で関数から戻ります。`Unit` を返す関数では `return;` と書けます。値を返す関数は、すべての経路で `return` に到達しなければならず、足りないとコンパイル時に `function returning Int needs a return on every path` と拒否されます。
+
+### 6.7 `match` とパターン
+
+`match` は値の形に応じて分岐します。各アームは `パターン => 式` か `パターン => { ... }` です。アームの間は `,` で区切ります。`{ ... }` のアームのあとの `,` は省けます。
+
+```rewind
+enum Shape {
+    Circle(Int),
+    Rect(Int, Int),
+    Empty
+}
+
+fn area(s: Shape) -> Int effects {} {
+    match s {
+        Shape::Circle(r) => { return 3 * r * r; },
+        Shape::Rect(w, h) if w == h => { return w * w; },   // ガード付き
+        Shape::Rect(w, h) => { return w * h; },
+        Shape::Empty => { return 0; }
+    }
+}
+
+fn main()->Int {
+    Out.println(area(Shape::Circle(2)));
+    Out.println(area(Shape::Rect(3, 3)));
+    Out.println(area(Shape::Rect(2, 5)));
+    return 0;
+}
+```
+
+```text
+12
+9
+10
+```
+
+使えるパターンは次の通りです。
+
+| パターン | 例 | 一致するもの |
+|---|---|---|
+| リテラル | `1`、`"a"`、`true` | 等しい値 |
+| 範囲 | `0..5` | 5 未満の 0 以上の整数 |
+| 名前 | `v` | どんな値にも一致し、`v` に束縛する |
+| `_` | `_` | どんな値にも一致し、捨てる |
+| variant | `Some(x)`、`Shape::Rect(w, h)`、`Ok(_)` | その variant。中身は入れ子のパターン |
+| 名前付きフィールド | `Msg::Move{x: a, y: b}` | フィールドを持つ variant |
+| `record` / `struct` | `Point{x: a, y: b}` | 各フィールド |
+| タプル | `(1, s)` | 要素ごとのパターン |
+
+アームには `if 条件` のガードを付けられます。
+
+- **網羅性**: `enum`、`Option`、`Result` の `match` は、すべての場合を網羅しなければなりません。入れ子や組み合わせも検査され、ガード付きのアームは網羅の根拠になりません。漏れは `non-exhaustive match` として拒否されます。
+- 先行するアームに含まれるだけのアームや、空の範囲は拒否されます。
+- `|` による複数パターンの併記や、`x @ パターン` の束縛はありません。
+- ガードの中から `publish` やチェックポイント操作は呼べません。
+
+整数や文字列の `match` では、残りを受ける `_` が必要です。
+
+```rewind
+fn main()->Int {
+    let n = 7;
+    match n {
+        0..5 => { Out.println("低"); },
+        5..10 => { Out.println("中"); },
+        _ => { Out.println("高"); }
+    }
+    return 0;
+}
+```
+
+```text
+中
+```
+
+### 6.8 `if let` と `let ... else`
+
+値が特定の variant のときだけ処理したいときは `if let` を使います。
+
+```rewind
+fn main()->Int {
+    let found: Option<Int> = Some(3);
+    if let Some(v) = found {
+        Out.println(v);
+    } else {
+        Out.println("なし");
+    }
+    return 0;
+}
+```
+
+```text
+3
+```
+
+`let パターン = 式 else { ... };` は、一致しなかったときに抜ける書き方です。`else` の中は `return`、`break`、`continue`、`panic` のどれかで終わらなければなりません。一致したときは、パターンの束縛が **後続の文の終わりまで** 使えます。
+
+```rewind
+fn firstOrZero(m: &Map<String, Int>) -> Int effects {} {
+    let Some(v) = m.get("first") else { return 0; };
+    return v;
+}
+
+fn main()->Int {
+    let m = Map<String, Int>();
+    Out.println(firstOrZero(&m));
+    m.set("first", 9);
+    Out.println(firstOrZero(&m));
+    return 0;
+}
+```
+
+```text
+0
+9
+```
+
+### 6.9 `while let`
+
+`while let パターン = 式 { ... }` は、式の値がパターンに一致する間、繰り返します。一致しなくなったら、ループを終えます。`pop()` や `next()` のように、`Option` を返す操作を、空になるまで繰り返すときに使います。
+
+```rewind
+fn main()->Int {
+    let stack = [1, 2, 3];
+    while let Some(top) = stack.pop() {
+        Out.println(top);
+    }
+    return 0;
+}
+```
+
+```text
+3
+2
+1
+```
+
+## 7. 関数
+
+### 7.1 宣言
+
+```
+fn 名前<型引数>(引数: 型, ...) -> 戻り値の型 effects { 効果, ... } { 本体 }
+```
+
+- 引数と戻り値には型を書きます。戻り値を書かない関数は `Unit` を返します。ただし `pub` な関数は戻り値の型を省略できません（`-> Unit` と書きます）。
+- `effects { ... }` はその関数が行う外部操作の宣言です。何もしない関数は `effects {}` と書きます（[第 12 章](#12-効果)）。`main` に限り省略できます。
+- 本体の値は `return` で返します。本体の末尾に式だけを書くことはできません（`fn main() -> Int { 3 }` は `expected ';'` で拒否されます）。本体全体が一つの式なら、後述の `= 式` の形を使います。
+- 関数は宣言の順に関係なく、ファイルのどこからでも呼べます。互いを呼び合う再帰も書けます。関数の中に関数を宣言することはできません。
+
+```rewind
+fn factorial(n: Int) -> Int effects {} {
+    if n <= 1 { return 1; }
+    return n * factorial(n - 1);
+}
+
+fn main()->Int {
+    Out.println(factorial(5));
+    return 0;
+}
+```
+
+```text
+120
+```
+
+本体が一つの式だけなら、`=` で短く書けます。戻り値の型は必須です。
+
+```rewind
+fn double(x: Int) -> Int = x * 2;
+fn greet(name: String) -> String = "hi ${name}";
+
+fn main()->Int {
+    Out.println(double(21));
+    Out.println(greet("REWIND"));
+    return 0;
+}
+```
+
+```text
+42
+hi REWIND
+```
+
+呼び出しの深さには上限があり、約 1,000 段を超えると `ExecutionBudgetExceeded: call depth` で止まります（[第 16 章](#16-実行予算と制限)）。
+
+### 7.2 引数
+
+引数は位置で渡せます。宣言された関数（標準ライブラリを含む）には **名前付きの引数** も使えます。名前を使うと、順序は自由です。
+
+引数には **既定値** を付けられます。既定値はリテラルか `None` で、既定値のある引数の後ろに既定値のない引数は置けません。
+
+```rewind
+fn box(width: Int, height: Int, label: String = "box") -> String effects {} {
+    return "${label}: ${width * height}";
+}
+
+fn main()->Int {
+    Out.println(box(3, 4));
+    Out.println(box(height: 2, width: 5, label: "wide"));
+    return 0;
+}
+```
+
+```text
+box: 12
+wide: 10
+```
+
+所有権に関わる引数（変更できる値の `move`、借用の `&`、`&mut`）は [第 9 章](#9-所有権と借用)にあります。
+
+### 7.3 クロージャ
+
+`|引数: 型, ...| -> 戻り値の型 { 本体 }` で名前の無い関数を作ります。型の指定は省略できず、本体は常に `{ }` で囲み、`return` で値を返します。外側の変数を読み書きできます。
+
+```rewind
+fn main()->Int {
+    let add = |a: Int, b: Int| -> Int { return a + b; };
+    Out.println(add(1, 2));
+
+    var count = 0;
+    let bump = || -> Unit { count += 1; };
+    bump();
+    bump();
+    Out.println(count);
+    return 0;
+}
+```
+
+```text
+3
+2
+```
+
+クロージャが外側の変数をどう使えるかは、渡す先の関数型が決めます。タスクへ渡すクロージャには追加の制約があります（[第 14 章](#14-並行処理)）。
+
+#### 短い形
+
+関数型が分かっている場所へ **直接渡す** ときは、型と `return` を省いた短い形 `|引数, ...| 式` を書けます。引数の型は、渡す先の関数型（イテレータの要素、`Result` の中身、関数の引数の型）から決まります。
+
+```rewind
+fn apply(f: fn(Int) -> Int effects {}, x: Int) -> Int effects {} { return f(x); }
+
+fn main()->Int {
+    let xs = [1, 2, 3, 4];
+    let evens = xs.iter().filter(|n| n % 2 == 0).map(|n| n * 10).collect();
+    Out.println(evens.len());
+    Out.println(xs.iter().fold(0, |a, b| a + b));
+    Out.println(apply(|n| n + 1, 4));
+    return 0;
+}
+```
+
+```text
+2
+10
+5
+```
+
+短い形を使える場所は、型が決まる場所です。
+
+- 関数の引数（`apply(|n| n + 1, 4)`）
+- `Iterator` の `map`、`filter`、`fold` などと、`Result` の `map`、`andThen`、`mapErr`
+- 関数型のローカル変数の呼び出しの引数
+- `return` する値と、関数型の変数への代入
+- 型注釈つきの `let`
+
+型注釈つきの `let` では、注釈の関数型から引数の型が決まります。
+
+```rewind
+fn adder() -> fn(Int, Int) -> Int effects {} {
+    return |a, b| a + b;
+}
+
+fn main()->Int {
+    let f: fn(Int, Int) -> Int effects {} = |a, b| a * b;
+    Out.println(f(3, 4));
+    var g: fn(Int) -> Int effects {} = |n| n;
+    g = |n| n + 100;
+    Out.println(g(1));
+    Out.println(adder()(2, 5));
+    return 0;
+}
+```
+
+```text
+12
+101
+7
+```
+
+仮引数の個数が注釈の関数型と合わないときは、`closure takes 1 parameters but the annotation fn(Int,Int)->Int!{} takes 2` のように拒否されます。
+
+短い形は `language` 3.0.0 以上でだけ使えます。それより前の版では `short closures (|a, b| expr) require language 3.0.0` と拒否されます。
+
+型が決まらない場所では使えません。注釈のない `let` もその一つです。
+
+```rewind-error cannot infer the type of closure parameter
+fn main()->Int {
+    let add = |a, b| a + b;
+    Out.println(add(1, 2));
+    return 0;
+}
+```
+
+`||` は、式の先頭では引数のないクロージャ（`|| -> Unit { ... }`、`|| 3`）、二つの式のあいだでは論理和（[5.1](#51-演算子の優先順位)）です。
+
+短い形の戻り値の型は、式の型です。本体が複数の文のときは、従来の形（`|a: Int| -> Int { ... }`）を使います。
+
+### 7.4 関数型と高階関数
+
+関数を引数に取るには、関数型 `fn(引数の型) -> 戻り値の型 effects { ... }` を使います。名前付きの関数もクロージャも渡せます。渡す関数の効果は、受け取る型で許された範囲に収まっている必要があります。
+
+```rewind
+fn apply(f: fn(Int) -> Int effects {}, x: Int) -> Int effects {} {
+    return f(x);
+}
+
+fn inc(n: Int) -> Int effects {} { return n + 1; }
+
+fn main()->Int {
+    Out.println(apply(inc, 4));
+    Out.println(apply(|n: Int| -> Int { return n * 2; }, 4));
+    return 0;
+}
+```
+
+```text
+5
+8
+```
+
+### 7.5 イテレータ
+
+`xs.iter()` で、`List` の **その時点の内容** を順に取り出すイテレータを作れます。元の `List` を後から変更しても、すでに作ったイテレータには影響しません。
+
+| メソッド | 働き |
+|---|---|
+| `map(f)` | 各要素を `f` で変換する |
+| `filter(f)` | `f` が `true` を返す要素だけ残す |
+| `fold(初期値, f)` | 畳み込む |
+| `take(n)` | 先頭の `n` 個 |
+| `enumerate()` | `(添字, 要素)` のタプルにする |
+| `zip(他)` | 二つの列を組にする |
+| `collect()` | `List` に集める |
+| `next()` | 次の要素を `Option` で返す |
+
+コールバックは同期的でなければならず、タスクの作成や `publish` を伴う関数は渡せません。
+
+```rewind
+fn main()->Int {
+    let xs = [1, 2, 3, 4];
+    let evens = xs.iter()
+        .filter(|n: Int| -> Bool { return n % 2 == 0; })
+        .map(|n: Int| -> Int { return n * 10; })
+        .collect();
+    Out.println(evens.len());
+    Out.println(evens.get(1));
+    Out.println(xs.iter().fold(0, |a: Int, b: Int| -> Int { return a + b; }));
+    return 0;
+}
+```
+
+```text
+2
+40
+10
+```
+
+## 8. 型を定義する
+
+### 8.1 `struct`: 変更できるデータ
+
+`struct` は、フィールドを後から書き換えられるデータ型です。値を作るときは、フィールドの宣言順に引数を渡します。
+
+```rewind
+struct Counter { value: Int }
+
+fn main()->Int {
+    let c = Counter(1);
+    c.value = 2;
+    c.value += 5;
+    Out.println(c.value);
+    return 0;
+}
+```
+
+```text
+7
+```
+
+`struct` は「変更できる値」なので、所有権の規則に従います（[第 9 章](#9-所有権と借用)）。コピーはできず、`==` は同一の値かどうかを調べます。
+
+### 8.2 `record`: 変更できない共有用のデータ
+
+`record` は、作った後に変更できないデータ型です。フィールドの型はすべて **共有値**（[第 9.1 節](#91-二種類の値)）でなければなりません。代わりに、自由にコピーして共有でき、`==` は中身を比べます。
+
+```rewind
+record Point { x: Int, y: Int }
+
+fn main()->Int {
+    let p = Point(3, 4);
+    let q = p;                       // コピーしてよい
+    Out.println(p.x + q.y);
+    Out.println(p == Point(3, 4));
+    return 0;
+}
+```
+
+```text
+7
+true
+```
+
+```rewind-error record fields are immutable
+record Point { x: Int, y: Int }
+fn main()->Int {
+    let p = Point(3, 4);
+    p.x = 1;
+    return 0;
+}
+```
+
+`List` のような変更できる値を `record` に持たせたいときは、`Frozen<List<T>>` にします（[第 9.5 節](#95-freeze-と-thaw)）。
+
+```rewind
+record Config { names: Frozen<List<String>>, limit: Int }
+
+fn main()->Int {
+    let c = Config(freeze(["a", "b"]), 3);
+    Out.println(c.names.len());
+    return 0;
+}
+```
+
+```text
+2
+```
+
+`record` や `struct` を作るときの引数は位置で渡します。`Point(x: 1, y: 2)` のような名前付きの引数や、`Point { x: 1 }` のような波括弧の構築式は、`record` と `struct` にはありません。フィールドの取り出しには、パターンも使えます。
+
+```rewind
+record Point { x: Int, y: Int }
+
+fn main()->Int {
+    let p = Point(3, 4);
+    match p {
+        Point{x: a, y: b} => { Out.println(a * b); }
+    }
+    return 0;
+}
+```
+
+```text
+12
+```
+
+### 8.3 `enum`: 選択肢を持つ型
+
+`enum` の各 variant は、値を持たないもの、位置で値を持つもの、名前付きのフィールドを持つものを混ぜて宣言できます。値は `enum名::variant` で作ります。
+
+```rewind
+enum Message {
+    Quit,
+    Write(String),
+    Move{x: Int, y: Int}
+}
+
+fn describe(m: Message) -> String effects {} {
+    match m {
+        Message::Quit => { return "quit"; },
+        Message::Write(text) => { return "write " + text; },
+        Message::Move{x: a, y: b} => { return "move ${a},${b}"; }
+    }
+}
+
+fn main()->Int {
+    Out.println(describe(Message::Quit));
+    Out.println(describe(Message::Write("hi")));
+    Out.println(describe(Message::Move{x: 1, y: 2}));
+    return 0;
+}
+```
+
+```text
+quit
+write hi
+move 1,2
+```
+
+`match` では、すべての variant を扱わなければなりません（[第 6.7 節](#67-match-とパターン)）。`enum` どうしの `==` は、variant と中身が等しいかを調べます。
+
+### 8.4 ジェネリクス
+
+型や関数は、型引数を取れます。`<T>` で宣言し、必要なら `T: 制約` で能力を要求します。複数の制約は `+` でつなぎ、`where` 節でも書けます。
+
+| 制約 | 意味 |
+|---|---|
+| `Share` | 共有値であること（コピーして共有できる） |
+| `Send` | タスクへ渡せること |
+| `Ord` | 大小比較（`cmp`）ができ、`Map` のキーや並べ替えに使えること |
+| `Eq` | 等しさを比べられること |
+| `Hash` | ハッシュ値を計算できること |
+| `Display` | 文字列に表示できること |
+
+```rewind
+struct Stack<T> { items: List<T> }
+enum Tree<T> { Leaf, Node(T) }
+
+fn largest<T>(a: T, b: T) -> T effects {} where T: Ord + Share {
+    if a.cmp(b) >= 0 { return a; }
+    return b;
+}
+
+fn main()->Int {
+    let s = Stack<Int>(List<Int>());
+    s.items.add(1);
+    let t: Tree<Int> = Tree::Node(5);
+    match t {
+        Tree::Leaf => {},
+        Tree::Node(v) => { Out.println(v); }
+    }
+    Out.println(s.items.len());
+    Out.println(largest(3, 9));
+    Out.println(largest("a", "b"));
+    return 0;
+}
+```
+
+```text
+5
+1
+9
+b
+```
+
+型引数は、引数や期待する型から決まるときは省略できます。決まらないときは `List<Int>()`、`Stack<Int>(...)` のように明示します。ジェネリックな `record` では、型引数に `Share` 制約が必要です（`record Box<T: Share> { value: T }`）。
+
+### 8.5 `trait`
+
+`trait` は、型が提供するメソッドの約束です。`impl トレイト for 型` で実装します。メソッドの第一引数 `self` の型は `&Self`（読むだけ）、`&mut Self`（変更する）、`Self`（所有権を受け取る）から選びます。実装は `trait` が宣言したメソッドをすべて定義しなければならず、同じ型に同じ `trait` を二度実装することはできません。
+
+```rewind
+trait Shape {
+    fn area(self: &Self) -> Int effects {};
+    fn describe(self: &Self) -> String effects {} {          // 既定の実装
+        return "面積 " + self.area().format();
+    }
+}
+
+record Square { side: Int }
+
+impl Shape for Square {
+    fn area(self: &Square) -> Int effects {} { return self.side * self.side; }
+}
+
+fn total<T: Shape>(item: &T) -> Int effects {} { return item.area(); }
+
+fn main()->Int {
+    let sq = Square(3);
+    Out.println(sq.area());
+    Out.println(sq.describe());
+    Out.println(total(&sq));
+    return 0;
+}
+```
+
+```text
+9
+面積 9
+9
+```
+
+`trait` のメソッドは `値.メソッド()` の形で呼びます。`Int` のような組み込みの型にも実装できます。独自の型を `Map` のキーにしたり `Ord` で比べたりするには、`Ord` を実装します（引数は `Self` で受けます）。
+
+```rewind
+record Version { major: Int }
+
+impl Ord for Version {
+    fn cmp(self: Self, other: Self) -> Int effects {} {
+        if self.major < other.major { return -1; }
+        if self.major > other.major { return 1; }
+        return 0;
+    }
+}
+
+fn main()->Int {
+    let m = Map<Version, String>();
+    m.set(Version(2), "two");
+    m.set(Version(1), "one");
+    Out.println(m.len());
+    Out.println(Version(2).cmp(Version(1)));
+    return 0;
+}
+```
+
+```text
+2
+1
+```
+
+`struct` や `record` に直接メソッドを定義する構文はありません。メソッドを持たせたいときは `trait` を定義して実装します。
+
+### 8.6 公開と非公開
+
+型・関数・定数・`trait` に `pub` を付けると、他の module から使えます。`struct` と `record` のフィールドに `private` を付けると、その module の外から読み書き・構築・分解ができなくなります。値を作る関数と、読み書きする関数を公開して使わせます（[第 11 章](#11-module)）。
+
+## 9. 所有権と借用
+
+REWIND は、変更できる値を **暗黙にコピーしません**。誰がその値を持っているかを型検査が追跡し、同じ値を二か所から同時に変更してしまう誤りを、実行前に拒否します。
+
+### 9.1 二種類の値
+
+| 種類 | 例 | 扱い |
+|---|---|---|
+| **共有値**（Share） | `Int`、`Float`、`Bool`、`String`、`Bytes`、`Unit`、`record`（フィールドがすべて共有値のもの）、`Frozen<T>`、タプル・`Option` の共有値 | 自由にコピー・共有できる |
+| **変更できる値**（所有者） | `List`、`Map`、`struct`、イテレータ、ファイルハンドルなどの資源 | 一か所が所有する。コピーできない |
+
+束縛が `let` か `var` かは、値の所有権とは別の話です。`let xs = [1];` でも、`xs` に `add` で要素を足せます。`let` が禁じるのは、`xs` に別の値を代入し直すことだけです。
+
+### 9.2 変更できる値は代入でコピーされない
+
+```rewind-error mutable owner alias
+fn main()->Int {
+    let a = [1];
+    let b = a;      // コピーも共有もできない
+    return 0;
+}
+```
+
+別の名前で持ちたいときは、次のどれかを選びます。
+
+1. 所有権を渡す: `move`
+2. 一時的に貸す: `&`（読むだけ）、`&mut`（変更する）
+3. 変更できない複製を作って共有する: `freeze`
+
+### 9.3 `move`: 所有権を移す
+
+`move 式` は、所有権を新しい持ち主へ渡します。渡した後の元の名前は、使うとエラーです。
+
+```rewind
+fn count(xs: List<Int>) -> Int effects {} {
+    return xs.len();
+}
+
+fn main()->Int {
+    let xs = [1, 2, 3];
+    Out.println(count(move xs));
+    return 0;
+}
+```
+
+```text
+3
+```
+
+```rewind-error UseAfterMove
+fn count(xs: List<Int>) -> Int effects {} { return xs.len(); }
+
+fn main()->Int {
+    let xs = [1, 2, 3];
+    let n = count(move xs);
+    Out.println(xs.len());   // 渡した後は使えない
+    return 0;
+}
+```
+
+`move` を付けずに変更できる値を関数へ渡すと、`passing a mutable owner requires move or freeze` と拒否されます。
+
+### 9.4 借用: `&` と `&mut`
+
+関数に所有権を渡さず、一時的に貸すのが借用です。引数の型を `&T`（読むだけ）、`&mut T`（変更する）と宣言し、呼び出しでも同じ記号を付けます。
+
+```rewind
+fn total(values: &List<Int>) -> Int effects {} {
+    var sum = 0;
+    for i in 0..values.len() { sum += values.get(i); }
+    return sum;
+}
+
+fn append(values: &mut List<Int>, n: Int) -> Unit effects {} {
     values.add(n);
 }
-let values=List<Int>();
-append(&mut values,7);
-assert_eq(total(&values),7);
-let snapshot=freeze(values);
-let copy=thaw(snapshot);
-copy.add(8);
-assert_eq(copy.len(),2);
+
+fn main()->Int {
+    let xs = List<Int>();
+    append(&mut xs, 7);
+    append(&mut xs, 8);
+    Out.println(total(&xs));
+    return 0;
+}
 ```
 
-借用中に元のownerを競合する形で変更・moveできません。借用引数を返り値等へ逃がすことにも制限があります。`freeze`は不変snapshot、`thaw`はそこから独立した可変値を作ります。リソース・関数値等は任意にfreezeできません。
+```text
+15
+```
 
-v1.9.65以降の`freeze`と`iter()`は、Mapキー用の1万ノード制限ではなく、
-native work・history memoryの予算を使います。検証とコピーの処理量を課金し、
-結果の確保前に一時領域も照合します。深さ64、循環、関数・資源の捕捉は制限されます。
-不変のList / Mapページは共有でき、元データの変更はCOWで分離します。
-Listのiteratorはスナップショットを保持し、元の変更に追従しません。
-Mapキー・文字列・Bytesの列挙は列挙値を作るため追加の処理量と領域を要します。
-以前のlanguageで作られたartifactと複合Mapキーの上限は変えません。
+借用には次の規則があります。
 
-## OptionとResult
+- `&` の借用は同時にいくつでも持てますが、借用中に持ち主は変更できません。
+- `&mut` の借用は同時に一つだけです。同じ値を二つの `&mut` で貸すことはできません。
+- `&` の借用からは、値を変更できません。
+- 借用を関数の戻り値にしたり、タスクへ渡したりすることはできません（`borrowed return types are not supported`）。
 
-`Option<T>`は`Some(value)`または`None`、`Result<T,E>`は`Ok(value)`または`Err(error)`です。通常の失敗はResultとして返し、matchで処理します。`?`はResultを返す関数内で同じ失敗型のErrを早期returnします。
+```rewind-error cannot mutate through a shared borrow
+fn bad(xs: &List<Int>) -> Unit effects {} {
+    xs.add(1);
+}
+fn main()->Int { return 0; }
+```
+
+```rewind-error conflicting borrows
+fn f(a: &mut List<Int>, b: &mut List<Int>) -> Unit effects {} {}
+
+fn main()->Int {
+    let xs = [1];
+    f(&mut xs, &mut xs);
+    return 0;
+}
+```
+
+メソッドの呼び出し（`xs.add(1)`、`xs.len()`）では、借用の記号は自動で付きます。
+
+### 9.5 `freeze` と `thaw`
+
+`freeze(値)` は、その時点の内容を **変更できない共有用の複製** `Frozen<T>` にします。`Frozen` は共有値なので、コピーも `record` のフィールドへの格納もできます。読み取り（`len`、`get`、`for`）はできますが、変更するとエラーです。`thaw(frozen)` は、元の `Frozen` と独立した、変更できる値を作ります。
+
+```rewind
+fn sum(xs: Frozen<List<Int>>) -> Int effects {} {
+    var total = 0;
+    for x in xs { total += x; }
+    return total;
+}
+
+fn main()->Int {
+    let snapshot = freeze([1, 2, 3]);
+    Out.println(sum(snapshot));
+    Out.println(sum(snapshot));      // 何度でも使える
+
+    let copy = thaw(snapshot);
+    copy.add(4);
+    Out.println(copy.len());
+    Out.println(snapshot.len());     // 元は変わらない
+    return 0;
+}
+```
+
+```text
+6
+6
+4
+3
+```
+
+```rewind-error cannot mutate Frozen
+fn main()->Int {
+    let s = freeze([1]);
+    s.add(2);
+    return 0;
+}
+```
+
+`freeze` できない値もあります。関数値、ファイルや接続のような資源、深さが 64 を超えるものや循環するものです。`freeze` と `iter` が使う処理量と領域は、実行予算に計上されます（[第 16 章](#16-実行予算と制限)）。
+
+## 10. エラー処理
+
+### 10.1 二種類の失敗
+
+REWIND の失敗は、扱い方で二種類に分かれます。
+
+- **回復できる失敗**: 入力の誤りや見つからない値など、呼び出し側が選択して処理すべきもの。`Option` または `Result` で返します。
+- **致命的な失敗**: プログラムの誤りや資源の限度超過など。`panic`、`assert` の失敗、リストの範囲外アクセス、ゼロ除算、整数のオーバーフロー、実行予算の超過がこれにあたります。実行は止まり、診断が出力されます。関数の `Result` に自動では変換されません。
+
+タスクの中で起きた致命的な失敗は、そのタスクを `await` した側に `TaskError` として届きます（[第 14 章](#14-並行処理)）。
+
+### 10.2 `Option` と `Result`
+
+`Option<T>` は `Some(値)` か `None`、`Result<T,E>` は `Ok(値)` か `Err(エラー)` です。`match`、`if let`、`let ... else` で取り出します。`unwrap` のような、失敗を無視して取り出すメソッドはありません。
+
+`Result` には次のメソッドがあります。
+
+| メソッド | 働き |
+|---|---|
+| `map(f)` | `Ok` の中身を変換する |
+| `mapErr(f)` | `Err` の中身を変換する |
+| `andThen(f)` | `Ok` の中身から次の `Result` を作る |
+| `flatten()` | 入れ子の `Result` を一つにする（`Err` の型が同じとき） |
+| `isOk()`、`isErr()` | 成功か失敗かを `Bool` で返す |
+| `valueOr(既定値)` | `Ok` の中身。`Err` なら既定値 |
+
+`Option` には `isSome()`、`isNone()`、`valueOr(既定値)` があります。
+
+```rewind
+fn main()->Int {
+    let missing: Option<Int> = None;
+    let failed: Result<Int, String> = Err("bad");
+    Out.println(missing.isNone());
+    Out.println(missing.valueOr(7));
+    Out.println(failed.isErr());
+    Out.println(failed.valueOr(8));
+    return 0;
+}
+```
+
+```text
+true
+7
+true
+8
+```
+
+`式?` は、`Result` を返す関数の中で使えます。`Ok(v)` なら `v` を取り出し、`Err(e)` ならその関数から `Err(e)` を返します。
+
+```rewind
+fn parse(text: String) -> Result<Int, String> effects {} {
+    return text.parseInt();
+}
+
+fn sum(a: String, b: String) -> Result<Int, String> effects {} {
+    let x = parse(a)?;
+    let y = parse(b)?;
+    return Ok(x + y);
+}
+
+fn main()->Int {
+    Out.println(sum("1", "2"));
+    Out.println(sum("1", "x"));
+    match sum("4", "5") {
+        Ok(v) => { Out.println(v); },
+        Err(e) => { Out.println(e); }
+    }
+    return 0;
+}
+```
+
+```text
+Ok(3)
+Err(InvalidIntOrOverflow)
+9
+```
+
+`Option` にも `?` を使えます。`Option` を返す関数の中で、`Some(v)` なら `v` を取り出し、`None` ならその関数から `None` を返します。`Result` を返す関数の中で `Option` に `?` を付けることはできません（`'?' on an Option needs a function that returns Option`）。変換が必要なときは、`match` や `let ... else` で処理します。
+
+```rewind
+fn firstEven(xs: &List<Int>) -> Option<Int> effects {} {
+    for i in 0..xs.len() {
+        if xs.get(i) % 2 == 0 { return Some(xs.get(i)); }
+    }
+    return None;
+}
+
+fn doubled(xs: &List<Int>) -> Option<Int> effects {} {
+    let n = firstEven(xs)?;
+    return Some(n * 2);
+}
+
+fn main()->Int {
+    let a = [1, 3, 4];
+    let b = [1, 3];
+    Out.println(doubled(&a));
+    Out.println(doubled(&b));
+    return 0;
+}
+```
+
+```text
+Some(8)
+None
+```
+
+関数が返す `Err` の型は、`?` を使う関数の戻り値の `Err` の型と一致しなければなりません。型が違うときは `mapErr` で変換してから `?` を使います。
+
+```rewind
+fn lookup(key: String) -> Result<Int, String> effects {} {
+    if key == "a" { return Ok(1); }
+    return Err("missing");
+}
+
+fn code(key: String) -> Result<Int, Int> effects {} {
+    let v = lookup(key).mapErr(|e: String| -> Int { return e.byteLen(); })?;
+    return Ok(v);
+}
+
+fn main()->Int {
+    Out.println(code("a"));
+    Out.println(code("b"));
+    return 0;
+}
+```
+
+```text
+Ok(1)
+Err(7)
+```
+
+エラーの型が組み込みの型（`Int`、`String`、`List` など）どうしで食い違っていると、実行前に `'?' error type … does not match the function's error type …; convert it with mapErr` と拒否されます。`Result` を返さない関数の中の `?` も、`'?' needs a function that returns Result` と拒否されます。
+
+```rewind-error does not match
+fn code(key: String) -> Result<Int, Int> effects {} {
+    let v = key.parseInt()?;      // エラーの型は String、この関数は Int
+    return Ok(v);
+}
+
+fn main()->Int {
+    Out.println(code("1"));
+    return 0;
+}
+```
+
+`record` や標準ライブラリの型をエラーに使っているときの不一致は、現在のところ `Err` の経路を実際に通ったときの実行時エラーとして検出されます。`mapErr` で型をそろえる書き方を習慣にしてください。
+
+### 10.3 `panic` と `assert`
+
+| 呼び出し | 働き |
+|---|---|
+| `panic("メッセージ")` | 実行を止める。型は `Never` |
+| `assert(条件)` | 偽なら `AssertionFailed` で止まる |
+| `assert_eq(a, b)` | 等しくなければ `AssertionFailed`（左右の値を表示する）。等しさは [第 5.4 節](#54-比較と等価)の規則 |
+
+これらは入力検査のための仕組みではありません。利用者の入力など、起こりうる誤りには `Result` を返す関数を使います。`main` の中で止まったとき、保留中の出力は公開されません。
+
+### 10.4 テスト
+
+`test fn` で書いた関数は、通常の実行では呼ばれず、`rewind test` で実行されます。`assert` と `assert_eq` で検証します。
+
+```rewind
+fn double(x: Int) -> Int = x * 2;
+
+test fn doubles() {
+    assert_eq(double(4), 8);
+}
+
+fn main()->Int {
+    Out.println(double(21));
+    return 0;
+}
+```
+
+```text
+42
+```
+
+`rewind test --root DIR` はプロジェクトのテストを順に実行し、成功した名前を `ok 名前` で表示します。失敗するとそこで止まります。テストの中では `publish` は使えません。`--filter 名前` で絞り込めます。
+
+## 11. module
+
+### 11.1 `import`
+
+`import` はファイルの先頭に書きます。別名（`as`）を付けて使うのが基本です。
 
 ```rewind
 import std.number as number;
-import std.integer as integer;
-fn increment(input:String)->Result<Int,String> effects {} {
-    let n=number.decimal(input);
-    match n {
-        Ok(value) => { return integer.add(value,1); },
-        Err(_) => { return Err("InvalidNumber"); }
-    }
+import std.text as text;
+
+fn main()->Int {
+    Out.println(number.integer("ff", 16));
+    Out.println(text.length("日本語"));
+    return 0;
 }
-fn twice(input:Int)->Result<Int,String> effects {} {
-    let value=integer.add(input,input)?;
-    return Ok(value);
-}
-assert_eq(increment("41"),Ok(42));
-assert_eq(twice(21),Ok(42));
-let item:Option<Int>=Some(7);
-match item { Some(n)=>{assert_eq(n,7);},None=>{} }
 ```
 
-panic・予算超過・通常のList範囲外アクセス等は、任意の関数のResultへ自動変換されません。失敗を回復したい境界では、検査するかResultを返すAPIを選びます。`tryStable`等のfallible callback APIも用意しています。
-
-## クロージャーとIterator
-
-クロージャーは`|n:Int|->Int{ ... }`、引数なしなら`||->Int{ ... }`です。関数型は`fn(Int)->Int effects {}`のように表し、必要に応じて`captures {Send,Share}`の契約を持ちます。明示captureには`capture value`、`capture move`、`capture borrow`があります。借用captureは借用元より長く生存したりtaskへ逃げたりできません。
-
-```rewind
-let values=List<Int>();
-values.add(1);values.add(2);values.add(3);
-let doubled=values.iter()
-    .map(|n:Int|->Int{return n*2;})
-    .filter(|n:Int|->Bool{return n>2;})
-    .collect();
-assert_eq(doubled.len(),2);
-assert_eq(doubled.get(0),4);
+```text
+Ok(255)
+3
 ```
 
-Iteratorにはnext/map/filter/fold/take/collect/enumerate/zip等があります。cursorはCheckpointの対象です。callbackの型・効果・借用契約も検査されます。
-
-## traitとgeneric
-
-traitは型が提供する操作の契約です。implで実装します。`T:Ord+Share`のような複数boundや`where`、関連型・default methodを利用できます。genericは必要な型に特殊化され、無制限の型展開には予算があります。
-
-```rewind
-trait Read { fn read(self:&Self)->Int effects {}; }
-struct Box { value:Int }
-impl Read for Box {
-    fn read(self:&Box)->Int effects {} { return self.value; }
-}
-fn read<T:Read>(value:&T)->Int effects {} { return value.read(); }
-fn compare<T>(a:T,b:T)->Int effects {} where T:Ord+Share {
-    return a.cmp(b);
-}
-let box=Box(7);
-assert_eq(read(&box),7);
-assert_eq(compare(1,2),-1);
-```
-
-generic factoryの戻り値から全type parameterを確定できる場合、型注釈やreturnの期待型から推論できます。確定できない場合は`List<Int>()`等の明示type argumentを使います。
-
-## moduleと公開範囲
-
-`import std.number as number;`のようにaliasを指定し、`number.decimal(...)`で呼びます。相対moduleもimportできます。選択importとaliasも利用できます。宣言は原則module内で、`pub fn`、`pub struct`等を付けたものを外部へ公開します。
-
-単一ファイルでは標準ライブラリはcompilerに内蔵されています。相対importはsource directoryを基準に解決します。projectではmanifestのsource root、import設定、lockと署名の検証を使います。module aliasはmoduleごとの名前です。
-
-SDKの標準API文書は`share/rewind/doc/std/`にあります。各moduleのMarkdownと`.api.json`には公開signature、generic bound、効果・所有権契約が含まれます。
-
-## 効果と外部へのアクセス
-
-関数の`effects {output}`等は外部操作の契約です。呼び出し経路を含めて検査されます。関数の宣言と、実行者が与える許可の両方が必要です。
-
-| 主な効果 | 操作 |
+| 書き方 | 意味 |
 |---|---|
-| `input`、`output` | 標準入力、stdout/stderr |
-| `fileRead`、`fileWrite` | 仮想file/directory操作 |
-| `args`、`env` | 引数、許可された環境変数 |
-| `clock`、`random` | 時刻観測、乱数 |
-| `tasks` | task/channel/scheduling |
-| `locale` | locale関連操作 |
+| `import std.number as number;` | 標準ライブラリの module を別名で使う |
+| `import util as u;` | 同じプロジェクトのファイル `util.rw` を別名で使う |
+| `import util.{double, total};` | 名前を選んで直接取り込む |
+| `import util.{double as dbl};` | 取り込む名前に別名を付ける |
 
-単一ファイルの既定許可はinput/output/args/locale/random/tasksです。file・env・clock・gui・external・network を使う場合はCLIで明示許可します。例えば次のプログラムには`rewind run main.rw --allow-effects fileRead,fileWrite`を使います。
+別名を付けない `import util;` では、`util` という名前は使えるようになりません。必ず `as` か `{ }` を使います。`import` の別名は、ファイルごとの名前です。
 
-```rewind
-File.writeText("state.txt","saved");
-publish;
-assert_eq(File.readText("state.txt"),Ok("saved"));
+単体のファイルの実行では、標準ライブラリはコンパイラに内蔵されており、相対 import はそのファイルのあるディレクトリから探されます。プロジェクトでは `rewind.toml` の `source_root` から探します。
+
+### 11.2 公開範囲
+
+ファイルの中の宣言は、既定では他のファイルから見えません。`pub` を付けた宣言だけが公開されます。
+
+公開できるものは、`fn`、`struct`、`record`、`enum`、`type`、`trait`、`const` です。公開する関数には戻り値の型が必要です。公開した `struct` のフィールドを `private` にすると、内部の表現を隠したまま、公開した関数を通して扱わせることができます。
+
+```
+// util.rw
+pub struct Account { private total: Int }
+pub fn open() -> Account effects {} { return Account(0); }
+pub fn deposit(a: &mut Account, n: Int) -> Unit effects {} { a.total += n; }
+pub fn balance(a: &Account) -> Int effects {} { return a.total; }
+pub const LIMIT: Int = 99;
+
+// main.rw
+import util as u;
+fn main()->Int {
+    let a = u.open();
+    u.deposit(&mut a, 5);
+    Out.println(u.balance(&a));   // 5
+    Out.println(u.LIMIT);         // 99
+    // a.total は module の外から読めない
+    return 0;
+}
 ```
 
-Fileのパスは実行rootからの相対パスです。OSに依存しない`/`区切りを使います。絶対パス、`..`、drive指定やroot外へのsymlinkは許可しません。WindowsでCLIへ渡すsource/SDK/rootのパスには通常のWindowsパスを使えます。source内のFileパスと混同しないでください。
+公開されていない関数を呼ぶと `unknown name` と報告されます。非公開フィールドを読むと、`field total is private to its module` です。
 
-`Args.all()`等で渡した引数を読み、アプリ引数はCLIの`--`以降に置きます。Envは効果に加えて名前の許可が必要です。Secretを使っても暗号化や外部への送信防止を自動保証するわけではありません。
+### 11.3 module の中の状態
 
-## Checkpointとpublish
+module の最上位に書けるのは宣言だけで、`const` を除いて「状態」は持てません。import した関数は、呼び出し元の変数を名前では参照できません。
 
-1.3.0 では、ユーザーコードの実行前に `commit begin;` 相当の初期 Checkpoint が自動保存されます。`begin` は予約名であり、変数・関数・branch の名前や `commit` / `drop` の対象にできません。
+## 12. 効果
 
-`revert begin;` は変数・heap・未公開 I/O・タスク状態・通常の Checkpoint を初期化し、続く文へ進みます。消えた変数は参照できず、同じ名前を宣言し直せます。main task 内で利用し、active branch の外で実行します。関数や block の継続枠だけは保持するので、その後の return / block 終了は可能です。`resume begin;` は実行位置も先頭へ戻します。処理済み予算、Host 観測の記録、publish 済みの外部結果は保持されます。初期 Checkpoint を保持するメモリも履歴予算の対象です。
+### 12.1 効果とは
 
-```rewind
-var score=99;
-commit test;
-Out.println(score);publish;
-Out.println("discarded");
-revert begin;
-var score=10;
-commit test;
-Out.println(score);publish;
+**効果**（effect）は、関数が外の世界に対して行う操作の種類です。画面への出力、ファイルの読み書き、現在時刻の取得などがあります。REWIND では、関数が行う効果を `effects { ... }` で宣言します。宣言に無い効果を使うプログラムは、実行する前に拒否されます。
+
+```rewind-error MissingEffect
+fn greet() -> Unit effects {} {
+    Out.println("hi");        // output を宣言していない
+}
+
+fn main()->Int {
+    greet();
+    return 0;
+}
 ```
 
-この例の出力は `99`、`10` です。未公開の `discarded` は消えます。GUI の View もリセット対象ですが、公開済み画面は再描画または close を publish するまで残ります。
+何もしない関数は `effects {}` と書きます。これは「この関数は外部と無関係で、同じ引数なら同じ結果を返す」という約束になり、巻き戻しや再生を安全にする土台です。
+
+### 12.2 効果の一覧
+
+| 効果 | できること |
+|---|---|
+| `output` | `Out`、`Err` への出力 |
+| `input` | `In` からの入力 |
+| `args` | `Args` による起動引数の読み取り |
+| `env` | `Env` による環境変数の読み取り |
+| `locale` | `Locale` による地域設定の読み取り |
+| `clock` | `Time` による時刻の観測 |
+| `random` | `Random` による乱数 |
+| `tasks` | タスク、チャネルの作成と待機 |
+| `fileRead` | `File` の読み取り、`Directory` の一覧 |
+| `fileWrite` | `File`、`Directory` の書き込み・作成・削除 |
+| `external` | `external { }` 領域での外部操作 |
+| `live` | `external live { }` 領域での、再利用しない物理操作 |
+| `network` | HTTP、TCP などの通信 |
+| `db` | SQLite、PostgreSQL |
+| `gui` | ネイティブ画面 |
+
+ここにない名前を宣言すると `unknown effect` です。
+
+### 12.3 効果は呼び出し元へ伝わる
+
+関数が呼ぶ関数の効果は、呼ぶ側も宣言しなければなりません。呼び出しの連鎖のどこかで宣言が足りないと、不足している箇所と原因の経路が `caused by` として表示されます。
+
+```rewind
+fn greet() -> Unit effects {output} {
+    Out.println("hi");
+}
+
+fn twice() -> Unit effects {output} {
+    greet();
+    greet();
+}
+
+fn main()->Int effects {output} {
+    twice();
+    return 0;
+}
+```
+
+```text
+hi
+hi
+```
+
+`main` だけは `effects` を省略でき、そのときは本体が必要とする効果が自動で求められます。
+
+### 12.4 宣言と許可は別
+
+関数の宣言は「何をするか」の表明です。それを実際に許すかどうかは、プログラムを **実行する側** が決めます。宣言だけでは何も許可されません。
+
+| 実行のしかた | 許可される効果 |
+|---|---|
+| 単体のファイルの `rewind run` | 既定で `input`、`output`、`args`、`locale`、`random`、`tasks` |
+| 追加で許可する | `--allow-effects fileRead,fileWrite` のようにカンマ区切りで指定する |
+| プロジェクト | `rewind.toml` の `effects` |
+
+`rewind compile` と `rewind run main.rwc` にも同じ指定が必要です。成果物に効果を記録しても、実行側の許可は別に要ります。許可が無いときは `effect gui is not allowed` のように拒否されます。
+
+環境変数は、効果 `env` に加えて **名前ごとの許可** が必要です。`--allow-env 名前` で許可し、値を診断や記録に残したくないときは `--secret-env 名前` を使います。
+
+### 12.5 ファイルの扱い
+
+`File` と `Directory` のパスは、実行の root（単体のファイルではそのファイルのあるディレクトリ、プロジェクトでは `--root`）からの相対パスで、区切りには OS に関係なく `/` を使います。絶対パス、`..`、root の外を指すシンボリックリンクは `InvalidPath` で拒否されます。
+
+読み取りの失敗（存在しない、パスが不正など）は `Result<T,FileError>` で返ります。
+
+```rewind
+fn main()->Int effects {fileRead, fileWrite, output} {
+    File.writeText("state.txt", "saved");
+    Out.println(File.readText("state.txt"));    // 保留中の書き込みも読める
+    Out.println(File.readText("missing.txt"));
+    Out.println(File.readText("../escape.txt"));
+    return 0;
+}
+```
+
+```text
+Ok(saved)
+Err(NotFound: missing.txt (file not found: missing.txt))
+Err(InvalidPath: ../escape.txt (invalid path: ../escape.txt))
+```
+
+書き込みは保留中になり、`publish` か `main` の終了で実際のファイルに反映されます（[第 13 章](#13-チェックポイントと公開)）。
+
+## 13. チェックポイントと公開
+
+### 13.1 三つの層
+
+[第 1 章](#1-rewind-の考え方)で述べたとおり、実行中のものは次の三つの層に分かれます。
+
+| 層 | 内容 | `revert` で |
+|---|---|---|
+| 計算状態 | 変数、`List`/`Map` の中身、タスク、イテレータの位置、仮想的なファイル、入力の読み取り位置、乱数の状態 | 戻る |
+| 保留中の入出力 | `Out.println` や `File.writeText` の結果で、まだ外へ出ていないもの | 取り消される |
+| 確定済みの結果 | `publish` で外へ出た出力・書き込み | 戻らない。再送もされない |
+
+そのため `commit` は「外へ確定する操作」ではありません。後で戻るための保存点を作るだけです。
+
+### 13.2 構文
 
 | 構文 | 意味 |
 |---|---|
-| `commit name;` | 計算状態・未公開I/OのCheckpointを保存 |
-| `revert name;` | Checkpointへ作業状態を戻す |
-| `resume name;` | Checkpointの制御位置も復元する |
-| `drop name;` | 不要なCheckpointを解放 |
-| `branch name { ... }` | 隔離した試行を実行し、終了時に親状態へ戻す |
-| `publish;` | pending I/Oを外部へ確定 |
+| `commit 名前;` | 計算状態と保留中の入出力を、その名前で保存する |
+| `revert 名前;` | 保存した状態へ戻す。実行位置は動かない |
+| `resume 名前;` | 状態に加え、実行位置も保存した位置へ戻す |
+| `drop 名前;` | 保存点を捨てて、保持している記憶を解放する |
+| `branch 名前 { ... }` | 試しに実行し、終わると親の状態へ戻る |
+| `publish;` | 保留中の入出力を外へ確定する |
+
+チェックポイントの名前は、変数や関数の名前とは別の名前空間にあります。同じ名前で二度 `commit` することはできません。存在しない名前への `revert` や `drop` はエラーです。`begin` は予約名です（[第 13.5 節](#135-begin)）。
+
+### 13.3 `revert`
+
+`revert` は変数や `List` の中身を保存時の状態に戻し、保存後に溜まった保留中の出力を捨てます。公開済みの出力は戻りません。
 
 ```rewind
-var score=10;
-commit test1;
-score=99;
-Out.println(score);
-commit test2;
-publish;
-revert test1;
-Out.println(score);
-publish;
-drop test2;
-drop test1;
-```
+fn main()->Int {
+    let items = [1, 2];
+    var n = 10;
+    commit saved;
 
-出力は`99`、`10`です。既にpublishした出力はrevertで消えず、再送もしません。最初のpublishがない場合、99のpending出力はrevertで破棄されます。commitは外部への確定操作ではありません。
+    items.add(3);
+    n = 99;
+    Out.println(n);          // 保留中のまま revert で消える
 
-`revert`は実行位置を維持します。同じ関数呼び出しの中では、`if`や入れ子のブロックから外側で作成したCheckpointへ戻せます。変数と未公開I/Oを復元し、Checkpoint後に追加した変数やcleanup登録は破棄しますが、実行中のブロックの枠は残すため、その後の処理やブロック終了を続けられます。既に終了した内側のスコープや別の関数呼び出しのCheckpointへの`revert`は`InvalidContinuation`になります。実行位置も戻す場合は`resume`を使います。
-
-Checkpointはheap、変数、仮想file、Iterator cursor、task状態等を含みます。保持するCheckpointが多いほど履歴が残ります。乱数状態は戻せますが、消費済み予算・記録済みのHost観測・確定済み外部作用は戻しません。branchやasync/libraryの内部からpublishすることには制限があります。
-
-publish前に外部fileの変更等を検査します。適用途中の失敗は`PublishPartiallyApplied`です。複数file・directory・streamの一括atomic性は保証しません。成功確認済みの操作と失敗phaseを調べ、外部状態を確認して判断します。同じruntimeでの盲目的な再publishは拒否します。
-
-## cleanupとタスク
-
-`defer`はscope終了・return・失敗時のcleanupに使います。クロージャー形式なら`defer ||->Unit{ ... };`です。FileHandleには`using`もあります。cleanupも失敗した場合、元のエラーを主診断に残し、cleanupエラーをcausesへ追加します。
-
-```rewind
-fn work()->Unit effects {output} {
-    defer ||->Unit{Out.println("cleanup");};
-    Out.println("work");
-}
-work();
-publish;
-```
-
-`async fn`の呼び出しはTaskを作り、`await`は`Result<T,TaskError>`を返します。`spawn`、Channel、TaskGroup、キャンセル、logical timeoutを利用できます。これは決定的な協調schedulerであり、OS threadの並列実行を意味しません。
-
-```rewind
-async fn compute(n:Int)->Int effects {} { return n*2; }
-let task=spawn compute(21);
-match await task {
-    Ok(value)=>{assert_eq(value,42);},
-    Err(_)=>{panic("task failed");}
+    revert saved;
+    Out.println(items.len());
+    Out.println(n);
+    drop saved;
+    return 0;
 }
 ```
 
-失敗taskのDiagnosticにはsource・line・column・taskId・causes・waitGraphがあります。v1.1のCLI/record JSONには追加でframes/hintsが入ります。TaskErrorの型付き分類、cancelAndJoin、TaskGroup.join等を使って失敗やcleanup完了を確認します。logical timeoutはwall clockの秒数ではありません。
-
-## 文字列と標準ライブラリ
-
-Stringのbuiltin memberと`std.text`はindexの単位が異なる部分があります。
-
-| 操作 | 単位・戻り値 |
-|---|---|
-| `s.byteLen()`、`s.find(...)` | byte長、byte offset |
-| `s.charLen()`、`std.text.length(s)` | Unicode scalar数 |
-| `s.utf16Len()` | UTF-16 code unit数 |
-| `s.slice(a,b)` | byteの半開区間。UTF-8境界を検査しResultを返す |
-| `std.text.slice(s,a,b)` | Unicode scalarの半開区間。StdError付きResult |
-| `std.text.find(s,needle)` | Unicode scalar offsetのOption |
-| `Bytes`のget/slice | byte index |
-
-Unicode scalarは利用者が見た一文字（grapheme）と一致するとは限りません。codec・parse・collection等には各APIの入力容量があります。
-
-```rewind
-import std.text as text;
-assert_eq(text.slice("a😀界",1,3),Ok("😀界"));
-assert_eq("a😀界".slice(1,5),Ok("😀"));
-let counts=Map<String,Int>();
-counts.set("apple",3);
-assert_eq(counts.get("apple"),Some(3));
+```text
+2
+10
 ```
 
-標準ライブラリは86公開moduleです。[ライブラリ一覧](../libraries/README.md)とSDKのmodule別API文書を参照してください。主な分類は次の通りです。
+`revert` は実行位置を変えません。次に実行されるのは `revert` の次の文です。そのため、保存点を作った関数の中で、`if` やループの内側から外側の保存点へ戻せます。保存点を作った後で終わった内側のスコープや、別の関数の呼び出しの中で作られた保存点へは戻せません（`InvalidContinuation`）。
 
-| 分類 | module |
+```rewind-error InvalidContinuation
+fn undo() -> Unit effects {} {
+    revert outer;           // 呼び出し元で作った保存点には戻れない
+}
+
+fn main()->Int {
+    commit outer;
+    undo();
+    return 0;
+}
+```
+
+保存点の後に作った変数は、`revert` で消えます。
+
+### 13.4 `publish`
+
+`publish` は保留中の入出力を外へ出します。公開した後の `revert` で戻る範囲は、公開より後の変化だけです。
+
+```rewind
+fn main()->Int effects {output} {
+    var score = 10;
+    commit first;
+    score = 99;
+    Out.println(score);
+    publish;                 // 99 が外へ出る
+    revert first;
+    Out.println(score);      // 10。これは保留中
+    return 0;                // main の終了で公開される
+}
+```
+
+```text
+99
+10
+```
+
+公開は複数のファイルやストリームをまとめて一度に適用する保証はありません。適用の途中で失敗すると `PublishPartiallyApplied` になり、どこまで適用されたかが診断に出ます。外部の状態を確かめてから判断してください。同じプロセスでの盲目的な再公開は拒否されます。
+
+`main` が戻ると、保留中の出力は自動で公開されます。`panic` や失敗で止まったときは公開されません。入力を待つ前に出力を見せたい対話型のプログラムは、`In.readLine()` の前に `publish;` を書きます。
+
+### 13.5 `begin`
+
+ユーザーのコードを実行する前に、`commit begin;` に相当する保存点が自動で作られます。`revert begin;` は、ここまでに作った変数やチェックポイントを含めて、すべてを初期状態に戻します（確定済みの結果は残ります）。`begin` は予約名なので、自分で `commit` や `drop` はできず、変数や関数の名前にも使えません。
+
+`revert begin` で消えた変数は参照できなくなり、同じ名前で宣言し直せます。実行中の関数やブロックの枠は残るので、その後の `return` やブロックの終わりは使えます。メインタスクの中で、`branch` の外から使います。
+
+### 13.6 `resume`
+
+`resume 名前;` は、状態だけでなく実行位置も `commit 名前;` の直後へ戻します。状態も一緒に戻るので、状態だけを脱出条件にしたループは決して終わりません。そのときは実行予算を使い切って止まります。
+
+```rewind-error ExecutionBudgetExceeded
+fn main()->Int {
+    var n = 0;
+    commit start;
+    n += 1;                 // resume で n は 0 に戻る
+    if n < 3 { resume start; }
+    return 0;
+}
+```
+
+脱出条件には、巻き戻らないものを使います。公開済みの結果、消費した予算、記録された外部の観測（[第 13.8 節](#138-外部領域)）がそれにあたります。
+
+### 13.7 `branch`
+
+`branch 名前 { ... }` は、ブロックの中を試しに実行し、終わると計算状態と保留中の入出力を実行前に戻します。条件ごとに別の方針を試し、結果だけを使うような場面で使います。ブロックの中で `return` すると、そこで関数から戻れます。
+
+```rewind
+fn main()->Int {
+    var best = 0;
+    branch trial {
+        best = 100;               // 試した結果は残らない
+        Out.println("試行中");     // 保留中の出力も捨てられる
+    }
+    Out.println(best);
+    return 0;
+}
+```
+
+```text
+0
+```
+
+`branch` の中で `publish` した結果は、`branch` の終了でも戻りません。
+
+### 13.8 外部領域
+
+外部のサービスから得た値（現在の時刻、ネットワークの応答など）は、巻き戻した後に取り直すと別の値になりえます。REWIND は、そうした操作を `external { ... }` という **外部領域** に閉じ込めます。領域内の操作の結果は **記録** され、同じ保存点へ戻って実行し直したときは、記録された結果が再利用されます。
+
+```rewind
+import std.external as host;
+
+fn main()->Int effects {external, clock, fileRead, fileWrite, output} {
+    var stamp = 0;
+    commit before;
+    external {
+        match host.millis() {
+            Ok(n) => { stamp = n; },
+            Err(_) => {}
+        }
+    }
+    File.writeText("first.txt", stamp.format());
+    publish;                       // 一度目の値をファイルに確定する
+    revert before;                 // stamp は 0 に戻る
+    external {
+        match host.millis() {
+            Ok(n) => { stamp = n; },
+            Err(_) => {}
+        }
+    }
+    match File.readText("first.txt") {
+        Ok(text) => { Out.println(text == stamp.format()); },
+        Err(_) => { Out.println("読めない"); }
+    }
+    return 0;
+}
+```
+
+```text
+true
+```
+
+二度目の `host.millis()` は時計を読み直さず、一度目に記録した値を返します。そのため、巻き戻す前後で同じ値になります。巻き戻す前の値を後から比べるには、確定済みのファイルのような、巻き戻らない場所に残す必要があります。
+
+| 形 | 意味 |
 |---|---|
-| 値・変換 | option、result、error、text、bytes、number、bits、math、integer、modular |
-| collection | collections、map、sort、sequence、heap、deque、bitset |
-| range・graph | disjointSet、rollbackSet、fenwick、segment、range、graph |
-| 解析・入出力補助 | json、args、config、path、scanner、stream、csv |
-| 数値・文字列処理 | matrix、dp、stringSearch |
+| `external { ... }` | 結果を記録し、巻き戻した後は記録を再利用する |
+| `external fresh { ... }` | 常に新しい操作を実行し、その結果を記録する |
+| `external live { ... }` | 物理操作を実行する。巻き戻しや再生では再利用しない。`live` 効果の許可が必要 |
 
-mutable collection/parserの内部fieldはprivateです。factory・accessorを使ってください。sort.tryStableやsegment.tryUpdatedは、新しい結果を構築することでcallback失敗時にも入力を保持します。任意のin-place API全体を自動transaction化する保証はありません。
+領域の中では、外部操作だけを行います。`await`、`publish`、`commit`、`revert`、`return`、`break`、`continue` は拒否されます（`ExternalBoundary`）。通信を領域内で始め、領域を出てから `await` で結果を受け取ります。データベースの書き込みなど、すでに外へ及んだ作用は `revert` で取り消せません。
 
-## エラーの調べ方
+## 14. 並行処理
 
-v1.1のtext診断はエラーコード・発生位置・内側から外側へのcaller・対処ヒントを表示します。例えばゼロ除算は次の形式です。
+### 14.1 `async fn` と `Task`
+
+`async fn` は、呼ぶとすぐには実行されず、`Task<T>` を返します。タスクは `await` するか、`spawn` で開始すると実行されます。`await` は `Result<T, TaskError>` を返すので、関数自身の失敗とタスクの失敗を区別して扱えます。
+
+```rewind
+async fn compute(n: Int) -> Int effects {} {
+    return n * 2;
+}
+
+fn main()->Int {
+    let direct = compute(4);
+    match await direct {
+        Ok(v) => { Out.println(v); },
+        Err(_) => { Out.println("失敗"); }
+    }
+
+    let started = spawn compute(21);
+    match await started {
+        Ok(v) => { Out.println(v); },
+        Err(_) => { Out.println("失敗"); }
+    }
+    return 0;
+}
+```
+
+```text
+8
+42
+```
+
+REWIND のタスクは **協調的なスケジューラ** の上で動きます。OS のスレッドで並列に走るのではなく、`await` や `std.task.yieldNow()` などの切り替え点で順番に実行され、結果は毎回同じになります。
+
+タスクに渡す引数は `Send` でなければなりません。変更できる値は `move` で渡すか、`freeze` した値を渡します。借用はタスクへ渡せません。
+
+```rewind
+async fn total(xs: List<Int>) -> Int effects {} {
+    return xs.len();
+}
+
+fn main()->Int {
+    let xs = [1, 2, 3];
+    match await spawn total(move xs) {
+        Ok(n) => { Out.println(n); },
+        Err(_) => {}
+    }
+    return 0;
+}
+```
+
+```text
+3
+```
+
+### 14.2 失敗、取り消し、時間切れ
+
+`TaskError` には、タスクの内側で起きた失敗 `Failed(診断)`、`cancel()` による `Cancelled`、`timeout(n)` による `TimedOut` があります。時間切れは実時間ではなく、タスクが実行した論理的なステップ数で数えます。
+
+```rewind
+async fn spin() -> Int effects {} {
+    while true {}
+    return 0;
+}
+
+async fn divide(a: Int, b: Int) -> Int effects {} {
+    return a / b;
+}
+
+fn main()->Int {
+    let t = spawn spin();
+    t.cancel();
+    match await t {
+        Err(TaskError::Cancelled) => { Out.println("取り消し"); },
+        _ => {}
+    }
+
+    match await spin().timeout(20) {
+        Err(TaskError::TimedOut) => { Out.println("時間切れ"); },
+        _ => {}
+    }
+
+    match await spawn divide(1, 0) {
+        Err(TaskError::Failed(d)) => { Out.println(d.code); },
+        _ => {}
+    }
+    return 0;
+}
+```
+
+```text
+取り消し
+時間切れ
+DivisionByZero
+```
+
+`t.isDone()` は待たずに完了を調べます。タスクの失敗の詳細は `std.taskError.describe` で調べられます。
+
+### 14.3 チャネル
+
+`Channel<T>(容量)` は、タスク間で値を受け渡す通路です。容量 0 は、送り手と受け手が出会うまで待ち合わせます。`send` と `receive` は `await` で待ち、`close()` で閉じます。閉じて空になると `receive` は `Err` を返します。
+
+```rewind
+async fn producer(c: Channel<Int>) -> Unit effects {tasks} {
+    for i in 0..3 {
+        match await c.send(i) { Ok(_) => {}, Err(_) => {} }
+    }
+    c.close();
+}
+
+async fn consumer(c: Channel<Int>) -> Int effects {tasks} {
+    var total = 0;
+    while true {
+        match await c.receive() {
+            Ok(v) => { total += v; },
+            Err(_) => { break; }
+        }
+    }
+    return total;
+}
+
+fn main()->Int effects {tasks, output} {
+    let c = Channel<Int>(1);
+    let p = spawn producer(c);
+    let r = spawn consumer(c);
+    match await r {
+        Ok(v) => { Out.println(v); },
+        Err(_) => {}
+    }
+    return 0;
+}
+```
+
+```text
+3
+```
+
+### 14.4 `TaskGroup`
+
+`using group = TaskGroup();` で作ったグループに `group.add(タスク)` で加えたタスクは、グループのスコープを出るときに必ず片付けられます。タスクが残ったまま関数が終わることはありません。
+
+- 正常にスコープを出るときは、加えたタスクが終わるまで **待ちます**。
+- `Result` を返す関数が `Err` を返して抜けるときは、まだ終わっていないタスクを **取り消します**。
+
+```rewind
+async fn work(n: Int) -> Unit effects {output} {
+    Out.println("work ${n}");
+}
+
+fn run() -> Unit effects {tasks, output} {
+    using group = TaskGroup();
+    group.add(work(1));
+    group.add(work(2));
+    Out.println("スコープの終わり");
+}
+
+fn main()->Int effects {tasks, output} {
+    run();
+    Out.println("戻った");
+    return 0;
+}
+```
+
+```text
+スコープの終わり
+work 1
+work 2
+戻った
+```
+
+終わらないタスクを待つと、そのタスクが実行予算を使い切って `TaskGroupFailed` になります。
+
+なお、`spawn` したタスクを一度も `await` せずに `main` が戻ると、そのタスクは実行されないことがあります。結果を使うタスクは必ず `await` するか、`TaskGroup` に入れてください。
+
+## 15. 後始末と組み込みの入出力
+
+### 15.1 `defer`
+
+`defer` は、現在のスコープを出るときに実行する処理を予約します。`return` で出るときも、失敗で出るときも実行され、予約したのと **逆の順** に実行されます。ループの本体のスコープでは、反復ごとに実行されます。
+
+```rewind
+fn work() -> Unit effects {output} {
+    defer || -> Unit { Out.println("後始末 1"); };
+    defer || -> Unit { Out.println("後始末 2"); };
+    Out.println("作業");
+}
+
+fn main()->Int {
+    work();
+    return 0;
+}
+```
+
+```text
+作業
+後始末 2
+後始末 1
+```
+
+`defer 式;` の形で、式をそのまま予約することもできます。後始末も失敗したときは、元の失敗を主な診断として残し、後始末の失敗は原因（causes）に追加されます。
+
+### 15.2 `using`
+
+`using 名前 = 式;` は、資源（ファイルハンドル、データベース接続、`TaskGroup` など）を、スコープを出るときに確実に閉じます。`return` で出るときも、失敗で止まるときも閉じられ、`defer` で閉じる処理を書くのと同じ順序規則（予約の逆順）に従います。
+
+```rewind
+fn readTail() -> String effects {fileRead} {
+    using f = File.openSnapshot("a.txt");
+    f.seek(6);
+    return f.read(5);
+}
+
+fn main()->Int effects {fileRead, fileWrite, output} {
+    File.writeText("a.txt", "hello world");
+    publish;
+    Out.println(readTail());
+    return 0;
+}
+```
+
+```text
+world
+```
+
+`File.openSnapshot(path)` は、開いた時点のファイルの内容を読むハンドルを返します。`seek(位置)` で位置を決め、`read(n)` で `n` 文字分を読みます。
+
+### 15.3 組み込みの入出力
+
+次の名前は、`import` なしで使えます。必要な効果は [第 12 章](#12-効果)の表のとおりです。
+
+| 呼び出し | 戻り値と備考 |
+|---|---|
+| `Out.println(値)`、`Err.println(値)` | `Unit`。標準出力・標準エラーへの保留中の出力（改行付き） |
+| `Out.print(値)`、`Err.print(値)` | `Unit`。改行なしの保留中の出力 |
+| `Out.writeBytes(Bytes)` | `Unit`。生のバイト列を出力する |
+| `Out.flush()`、`Err.flush()` | `Unit`。公開とは別の操作 |
+| `In.readLine()` | `Option<String>`。入力の終わりは `None` |
+| `In.readSecretLine()` | `Option<Secret<String>>`。値は診断や記録に残らない |
+| `In.readChunk(n)` | `Option<Bytes>` |
+| `Args.all()` | `List<String>`。起動引数 |
+| `Env.get(名前)`、`Env.getSecret(名前)` | `Option<String>`、`Option<Secret<String>>` |
+| `Locale.current()` | `String`。地域設定 |
+| `Time.now()` | `Int`。観測された時刻。型付きの日時は `std.datetime`、`std.clock` |
+| `Random.below(n)` | `Int`。0 以上 `n` 未満の乱数（`n` は正の `Int`）。`Random.next()` と同じ生成器を使う |
+| `Random.next()` | `Int`。符号付き 64 ビット全域の値で、負にもなる。生成器は決まった初期値から始まるため、**実行するたびに同じ列** が出る。状態はチェックポイントで戻る。範囲に収めるには、剰余を取って符号を考慮する |
+| `File.readText(path)`、`File.readBytes(path)` | `Result<String,FileError>`、`Result<Bytes,FileError>` |
+| `File.writeText(path, 文字列)`、`File.writeBytes(path, Bytes)` | `Unit`。保留中の書き込み |
+| `File.open(path)` | ファイルハンドル（`using` で閉じる） |
+| `Directory.entries(path)` | `List<String>` |
+
+`Out.println` と `Out.print` に渡す値は、`Int`、`Float`、`String`、`Bool`、`Option`、`Result`、`List`、`Map`、`record`、`struct`、`enum`、タプルなどを自由に出力できます。表示の形は次のとおりです。
+
+| 値 | 表示 |
+|---|---|
+| `record` / `struct` | `Point{x: 3, y: 4}`（フィールド名の昇順。入れ子も展開する） |
+| `enum` | `Shape::Circle(2)`、`Shape::Move{x: 1, y: 2}`、`Shape::Empty` |
+| タプル | `(1, a)`（文字列は引用符なし） |
+| `List`、`Map` | `[1, 2]`、`{a: 1, b: 2}`（`Map` はキーの昇順） |
+| `Option`、`Result` | `Some(3)`、`None`、`Ok(3)`、`Err(e)` |
+| `Frozen<T>` | 中身と同じ |
+
+入れ子の文字列も引用符なしで表示されるので、`"a, b"` という 1 つの文字列と、`"a"` と `"b"` の 2 つの文字列は、表示では区別できません。機械が読む形式が必要なときは、`std.json` などを使うか、自分で文字列を組み立ててください（[文字列補間](#35-文字列補間)）。
+
+`Out.println` は改行付き、`Out.print` は改行なしで出力します。`Err.print`、`Err.println` も同じです。
+
+`secret(値)` は値を `Secret<T>` で包み、`reveal(秘密)` で取り出します。`Secret` を出力すると `<redacted: Secret>` になります。診断や記録にも値は残りません。ただし暗号化や外部への送信の防止まで保証するものではありません。
+
+### 15.4 文字列のメソッド
+
+`String` の長さや位置の単位は、メソッドによって違います。
+
+| メソッド | 単位・戻り値 |
+|---|---|
+| `s.byteLen()` | `Int`。UTF-8 のバイト数 |
+| `s.charLen()` | `Int`。Unicode のスカラー値の数 |
+| `s.utf16Len()` | `Int`。UTF-16 のコード単位の数 |
+| `s.contains(t)` `s.startsWith(t)` `s.endsWith(t)` | `Bool` |
+| `s.find(t)` | `Option<Int>`。**バイト位置** |
+| `s.split(t)` | `List<String>` |
+| `s.slice(a, b)` | `Result<String,String>`。**バイト位置** の半開区間。UTF-8 の境界でなければ `Err` |
+| `s.parseInt()`、`s.parseFloat()` | `Result<Int,String>`、`Result<Float,String>` |
+| `s.encodeUtf8()` | `Bytes` |
+| `s.format()` | `String`（`Int`、`Float`、`Bool` にもある） |
+| `s.isEmpty()` | `Bool` |
+| `s.trim()` | `String`。前後の空白を取り除く |
+| `s.replace(a, b)` | `String`。`a` をすべて `b` に置き換える（`a` は空でない） |
+| `s.repeat(n)` | `String`。`n` 回繰り返す（結果は 16 MiB まで） |
+| `s.lines()` | `List<String>`。改行で分ける |
+| `s.toUpper()`、`s.toLower()` | `String`。Unicode の大文字・小文字に変える（`"ß"` は `"SS"` になる） |
+| `b.decodeUtf8()` | `Result<String,String>`（`Bytes` のメソッド） |
+| `b.slice(a, b)`、`b.byteLen()` | `Bytes` のバイト位置 |
+
+```rewind
+fn main()->Int {
+    let s = "Hello, 世界";
+    Out.println(s.byteLen());
+    Out.println(s.charLen());
+    Out.println(s.find("世"));
+    Out.println(s.slice(0, 5));
+    Out.println("12".parseInt());
+    Out.println("x".parseInt());
+    return 0;
+}
+```
+
+```text
+13
+9
+Some(7)
+Ok(Hello)
+Ok(12)
+Err(InvalidIntOrOverflow)
+```
+
+Unicode のスカラー値は、人が見る「一文字」と一致するとは限りません（結合文字など）。文字単位の操作は `std.text`、一文字（書記素クラスタ）単位の操作は `std.unicode` を使います。
+
+`std.text` の `codePoints` は、文字列を Unicode スカラー値（0 から 0x10FFFF）の `List<Int>` にします。絵文字は 1 つの値になり、サロゲートペアには分かれません。入力は 1 MiB までで、超えると実行が止まります。`fromCodePoints` はその逆で、範囲外の値は `Range`、サロゲート（0xD800 から 0xDFFF）は `Surrogate`、要素数が 1,048,576 を超えるときと、結果が 1 MiB を超えるときは `Limit` の `Err` になります。
+
+`std.text` の `lineSeparator` は、実行環境の改行を返します。Windows では `"\r\n"`、それ以外では `"\n"` です。値は時刻や乱数と同じ外部の観測として記録されるので、`external` の効果を許可し、`external` 領域の中で呼びます。記録した実行を replay すると、記録したときの値が返ります。文字列リテラルの `"\n"` は、どの環境でも LF のままです。
+
+### 15.5 `List` と `Map` の組み込みメソッド
+
+| 型 | メソッド |
+|---|---|
+| `List<T>` | `add(x)`、`push(x)`、`set(i, x)`、`get(i)`、`len()`、`pop()`（`Option<T>`）、`iter()` |
+| `List<T>`（検索・参照） | `isEmpty()`、`contains(x)`、`indexOf(x)`（`Option<Int>`）、`first()`、`last()`（`Option<T>`）、`join(区切り)`（`List<String>` のとき） |
+| `List<T>`（部分・結合） | `slice(a, b)`（`a` 以上 `b` 未満の複製）、`extend(他の List)`（末尾へ追加。`freeze` した `List` か、`move` した `List` を渡す） |
+| `List<T>`（更新） | `insert(i, x)`、`removeAt(i)`（取り除いた要素を返す）、`clear()`、`reverse()`、`sort()`（`Int`、`Float`、`String` の `List`。昇順） |
+| `Map<K,V>` | `set(k, v)`、`get(k)`（`Option<V>`）、`remove(k)`、`len()`、`keys()` |
+| `Map<K,V>`（追加） | `isEmpty()`、`contains(k)`、`getOr(k, 既定値)`、`values()`（キーの昇順の `List<V>`） |
+
+`get(i)` と `removeAt(i)`、`insert(i, x)` は、添字が範囲外のとき致命的な失敗になります（`insert` は `0` から `len()` まで）。`contains` と `indexOf` は `==` と同じ規則で比べるので、`List` の `List` を探すときは、同一性で比べることになります（[第 5.4 節](#54-比較と等価)）。更新のメソッドは、`&` で借りた値や `Frozen` には使えません。`sort` と、より多くの要素を扱う操作（`unique`、`rotate`、二分探索など）は、標準ライブラリの `std.sort`、`std.sequence`、`std.search`、`std.collections`、`std.map` にもあります。
+
+```rewind
+fn main()->Int {
+    let xs = [3, 1, 2];
+    xs.sort();
+    xs.insert(1, 9);
+    Out.println(xs);
+    Out.println(xs.contains(9));
+    Out.println(xs.indexOf(2));
+    Out.println(xs.removeAt(0));
+    Out.println(xs.first());
+
+    let ages = {"ann": 31, "bob": 28};
+    Out.println(ages.getOr("zed", 0));
+    Out.println(ages.contains("bob"));
+    Out.println(ages.values());
+
+    Out.println("  hello  ".trim().replace("l", "L"));
+    Out.println(["a", "b", "c"].join("-"));
+    return 0;
+}
+```
+
+```text
+[1, 9, 2, 3]
+true
+Some(2)
+1
+Some(9)
+0
+true
+[31, 28]
+heLLo
+a-b-c
+```
+
+## 16. 実行予算と制限
+
+REWIND のプログラムは、実行の量に上限を持ちます。無限ループや暴走した処理が、環境を使い切ることを防ぐためです。上限を超えると、実行は止まり、どの予算が尽きたかが診断に出ます。
+
+### 16.1 予算の種類
+
+| 予算 | 指定 | 既定値 | 尽きたときの診断 |
+|---|---|---|---|
+| 実行ステップ（全体の累計） | `--steps N` | 1,000,000 | `ExecutionBudgetExceeded` |
+| ネイティブ処理量（全体の累計） | `--native-work N` | 1,000,000 | `NativeWorkBudgetExceeded` |
+| 1 タスクあたりのステップ | `--task-steps N` | 100,000 | `TaskBudgetExceeded` |
+| 履歴メモリ | `--history-memory 512MiB` | 512 MiB | `HistoryMemory` |
+| 履歴ストレージ | `--history-storage 8GiB` | 8 GiB | `HistoryStorage` |
+| 履歴の退避しきい値 | `--spill-threshold 8MiB` | 8 MiB | （超えた分をストレージへ退避する） |
+
+**ステップ**は、プログラムが実行した命令の数です。**ネイティブ処理量**は、標準ライブラリがネイティブコードで行う処理（配列の演算、文字列の処理、`freeze` のコピーなど）の見積もりで、API ごとに費用が文書に書かれています。**履歴**は、チェックポイントが保持するデータです。
+
+これらは「論理的な仕事量」の上限で、実際の CPU 時間やメモリ使用量そのものではありません。実行が重いと感じたら `rewind profile` で内訳を調べられます（[第 17.5 節](#175-仕事量の内訳)）。
+
+予算は **累計** です。`revert` や `resume` で状態を戻しても、使った分は戻りません。このため、巻き戻しを繰り返すプログラムも、いつかは止まります。
+
+```rewind-error ExecutionBudgetExceeded
+fn main()->Int {
+    var i = 0;
+    while true { i += 1; }
+    return 0;
+}
+```
+
+関数の呼び出しの深さにも上限があり、再帰が約 1,000 段を超えると `ExecutionBudgetExceeded: call depth` で止まります。
+
+### 16.2 ソースの中で指定する: `runtime`
+
+`runtime { 設定 = 値; ... }` を宣言の位置に書くと、プログラムの中から予算を指定できます。設定名は `executionSteps`、`historyMemory`、`historyStorage`、`spillThreshold` で、サイズには `KB`、`MB`、`GB`（`KiB`、`MiB`、`GiB`）を付けられます。
+
+```rewind-error ExecutionBudgetExceeded
+runtime { executionSteps = 1000; }
+
+fn main()->Int {
+    var i = 0;
+    while i < 100000 { i += 1; }
+    return 0;
+}
+```
+
+すでに使った累計の予算を、ソースの設定や `revert` で回復することはできません。
+
+### 16.3 そのほかの制限
+
+| 項目 | 上限 |
+|---|---|
+| ソースファイル | 1 MiB / module、module は 256 個まで |
+| 構文の入れ子 | 64 段 |
+| `freeze` の深さ | 64 段（循環や資源を含む値は不可） |
+| `Map` に入れる文字列のキーなど | 各 API の文書を参照 |
+
+Linux では、コンパイラと実行時にアドレス空間の上限（既定 2 GiB）が掛かり、`--memory-mib` で変えられます。Windows では OS の上限を提供しないため、`--memory-mib` を指定するとエラーになります。論理的な予算は両方の OS で有効です。OS がプロセスを強制終了した場合は、`Result` として回復できません。
+
+## 17. 診断と記録
+
+### 17.1 エラーの表示
+
+エラーは、コード、位置、呼び出しの経路、対処のヒントの順に表示されます。
 
 ```text
 error[DivisionByZero]: division by zero
   --> main.rw:2:12
   at divide (main.rw:2:12)
-  at <entry> (main.rw:4:1)
+  at main (main.rw:6:12)
+  at <entry> (main.rw:5:1)
   help: Check the divisor before division or remainder.
 ```
 
-位置は1始まりで、columnはUnicode scalar単位です。LSPへはUTF-16位置に変換します。callerは最大32件で、それ以上は省略を明示します。local値・引数・closureのcapture値をbacktraceへ追加しません。source-free成果物でも埋め込まれたsource名と位置が残ります。任意のnative内部処理や補助Engineの各関数呼び出しまで完全なstackを示すものではありません。
+- 位置は `ファイル:行:列` で、どちらも 1 から数え、列は Unicode のスカラー値の数です（LSP へは UTF-16 の位置に変換して渡します）。
+- `at` の行は、内側の呼び出しから外側へ向かって最大 32 件です。それ以上は省略されます。ローカル変数や引数の値は含まれません。
+- ソースを含まない成果物（`.rwc`）でも、埋め込まれたファイル名と位置が出ます。
+- 型検査のエラーは `error[type]`、`error[expected]` のようにカテゴリ名で表示され、実行時のエラーは下の表のようなコードが付きます。
 
-`--diagnostic-format json`はstderrへJSONを出し、stdoutのアプリ出力と分離します。トップレベルにexit_status/message/diagnostic/publish_failure/retryable/retry_hintがあります。Diagnosticの追加fieldはframes/hints/frames_truncatedです。古い記録では省略される場合があります。
-
-| コード | 見直す点 |
+| コード | 主な原因 |
 |---|---|
-| DivisionByZero | 除数 |
-| IntegerOverflow | signed64の範囲。std.integerのchecked API |
-| IndexOutOfBounds | 負のindex、len以上のindex |
-| AssertionFailed、Panic | 明示したassert/panicと入力 |
-| InvalidArguments | 引数の数・型。期待signatureと実際の型 |
-| UnknownName | 名前、scope、import。近いbinding名には候補を表示 |
-| MissingEffect、EffectMissing | effect宣言と実行時の許可 |
-| ExecutionBudgetExceeded、NativeWorkBudgetExceeded | loop、入力サイズ、指定予算 |
-| HistoryMemory、HistoryStorage | 保持Checkpoint、データ量 |
-| TaskDeadlock | waitGraphとtask/channelの進行条件 |
-| ExternalStateConflict | 外部fileの変更 |
-| PublishPartiallyApplied | publish_failureのphase/appliedと実際の外部状態 |
-
-記録を使うと入力・scheduler選択・失敗の位置を再現できます。replayはcompilerの同じ版で行います。replayは通常、記録された仮想公開を再現し、Host fileを勝手に上書きしません。secret入力は再注入が必要な場合があります。
-
-## 実行予算と制限
-
-`--steps N`、`--native-work N`、`--task-steps N`で計算量を制限します。step/nativeの既定は各1,000,000、task-stepの既定は100,000です。明示した累積予算をrevertやsource内のruntime設定で回復することはできません。
-
-source内の`runtime`設定でexecutionSteps/historyMemory/historyStorage/spillThreshold等を指定できます。履歴は永続データ構造を共有し、VMはsafe pointでheapを回収します。logical work/allocation予算は物理CPU時間・RSSの厳密な計測ではありません。
-
-Linuxではcompilerとruntimeへ既定2GiBのaddress-space上限を適用し、`--memory-mib`で指定できます。WindowsではこのOS上限を提供せず、`--memory-mib`を明示するとunsupportedエラーです。両OSともVMのlogical予算は利用できます。allocator/OSの強制終了をResultとして回復する保証はありません。
-
-sourceは1MiB/module、module数256などのcompiler上限があります。公開artifact/record形式のcompiler版をまたぐ互換性は保証しないため、アップグレード時は再生成してください。プロセス実行、JVM互換、任意の外部作用の巻き戻しは提供していません。HTTP/HTTPS は明示的な外部領域と権限で利用できます。
-
-## GUI
-
-`std.gui` はネイティブの単一 canvas を提供します。`gui` effect を明示許可し、scene を present した後 publish して表示します。イベントループ、Undo、入力 replay、各 OS の要件は [GUI guide](gui.md) を参照してください。
-
-## 即時外部操作（1.5）
-
-`external { ... }` は外部操作の結果を記録し、同じ checkpoint に戻った際は再利用します。`external fresh { ... }` は新しい操作です。結果は巻き戻さず、通常の変数と読取り位置だけを戻します。region の終了は publish ではありません。
-
-v1.6 では async task も active branch 外で外部領域を使用できます。領域内の checkpoint / publish、領域を抜ける制御フロー、await / task switching は拒否します。通信を領域内で送信し、領域を出てから await します。`std.external.millis` は `external,clock`、`std.http` の送信は `external,network,tasks` の明示許可が必要です。SQLite / PostgreSQL は `std.db` で利用できます。DB 書込みは VM の revert で取り消しません。例・容量・失敗は [1.5仕様](REWIND_v1.5.md) と [1.6仕様](REWIND_v1.6.md) を参照してください。
-
-v1.6 の main task は子 Task が動作中でも publish できます。その時点の仮想出力・file・GUI の差分を確定し、未完了の通信を完了扱いにしません。`task.isDone()` は待機せず完了を確認します。`Task.timeout` は従来どおり論理 step の上限です。HTTP の実時間上限は request の deadlineMillis / timeoutMillis で指定します。
-
-### 逐次 HTTP と接続の所有権（1.6.1）
-
-`std.http.download(Request)` は `Task<Result<HttpDownload,HttpError>>`、`read(&mut connection,maxBytes)` は `Task<Result<Option<Bytes>,HttpError>>`。EOF は `None`。`upload(Request,maxUploadBytes)` で `HttpUpload` を開き、`write(&mut connection,Bytes)` と `finish(&mut connection)` で送信・応答取得を行います。呼出しは external 内、await は外です。接続を取り出す際は `match move result` 等で所有権を移します。通常の `match result` は接続の共有借用なので、書込みや mutable borrow はできません。
-
-接続はスコープ終了で閉じます。`close` / `closeUpload` は明示的な非同期 close。`using connection=move owner;` も使えます。`HttpDownload` / `HttpUpload` は Send、Share ではなく freeze できません。接続を含む Task の完了値は一度だけ取り出せます。ignore した接続結果は解放されます。checkpoint は token と所有情報を復元し、閉じた実接続は復活させません。詳しい制限は [1.6.1仕様](REWIND_v1.6.1.md) を参照してください。
-
-## PostgreSQL adapter（1.7.1）
-
-`std.db.credentials` は `Secret<String>` の接続文字列を immutable な opaque alias に登録し、`std.db.postgres` は verified TLS 接続の hot Task を返す。これらは `external` 内で呼び、Task の await は領域外で行う。SQLite と同じ affine な DbConnection / DbStatement / DbCursor と独立した DB transaction API を使う。column の型と DB error の SQLSTATE、期限・切断・cleanup の契約は [PostgreSQL 仕様](REWIND_v1.7.1.md) を参照。
-
-## 型付き数値配列（1.8.0）
-
-`import std.numeric as numeric;` で FloatArray / IntArray を操作する。rank / shape / stride を持つ native storage で、`zerosFloat` / `fromFloat`、`getFloat` / `withFloat`、reshape / transpose / slice / 明示 broadcast、vector 演算、matmul、LU solve、sum / mean / variance を提供する。Int 版もある。各関数は `Result<…,StdError>`。with は新しい所有値を返すので変数へ代入する。view は生成時の値を保持し、broadcast は read-only。VM の commit / revert、freeze / thaw、Task、artifact / replay に対応する。詳細なサイズ・誤差・費用は [数値仕様](REWIND_v1.8.md)、実行例は SDK の `examples/numeric` を参照。
-
-### 線形代数・追加統計と分布（1.8.1）
-
-`std.numeric` は列 pivot QR、QR による最小二乗、対称行列の固有値・固有ベクトル、共分散・相関・分位点・histogram、サンプルを保持しない OnlineMoments を提供する。結果の shape、rank、convergence と maximum work は [仕様](REWIND_v1.8.1.md) を参照。`std.distributions` は独立した random 効果の module で、uniform、normal、exponential、Bernoulli を VM の checkpointed generator から生成する。
-
-### v1.8.2 BigInt
-
-`std.bigint` の不変な native 値は64 bitを超える整数の正確な計算、bit operation、Map key、checkpoint に対応する。[容量・算術・JSON 契約](REWIND_v1.8.2.md)を参照。
-
-### v1.8.3 Decimal
-
-`std.decimal` は precision / scale / rounding を明示する exact base-ten 数値型。scalar 数値比較と VM の scale 保存を分け、`std.dbDecimal` で DB へ接続する。[契約](REWIND_v1.8.3.md)。
-
-## 日時（v1.8.4）
-
-`Instant` / `Duration` は不変の native 値です。`std.datetime` の変換・算術は pure で `Result` を返し、比較・Map key・freeze・task・checkpoint を利用できます。zone は明示し、DST overlap は Earlier / Later / Reject、gap はエラーです。`std.clock.now()` は `external,clock` effects と external region を要求します。詳細と DB の精度契約は [v1.8.4](REWIND_v1.8.4.md) を参照してください。
-
-## Unicode（v1.8.5）
-
-`std.unicode` の grapheme API は extended grapheme cluster、offsets は UTF-8 byte offset、従来の `std.text` は scalar 単位です。NFC / NFD / NFKC / NFKD と full default casing は明示的に呼び出す pure な Result API。String / Map の自動正規化は行いません。上限・費用・データ版は [v1.8.5](REWIND_v1.8.5.md) を参照してください。
-
-## 初期履歴予算（v1.9.4）
-
-`rewind run` の `--history-memory SIZE` / `--history-storage SIZE` / `--spill-threshold SIZE` は初期 Runtime 予算を設定します。byte 数・KiB・MiB・GiB に対応し、spill threshold の 0 は強制 spill に使えます。言語内の `runtime` 設定は実行時に適用されます。trace は初期予算を記録し、replay で復元します。OS の RSS 上限と累積 work quota は独立です。[費用と移行契約](REWIND_v1.9.4.md)。
-
-## 最大流・二部マッチング（v1.9.5）
-
-`std.flow` の residual network は VM 内の状態で、checkpoint / revert に対応します。`std.matching.maximum` は最大 matching と最小 vertex cover を返す pure な Result API です。[容量・計算量・失敗契約](REWIND_v1.9.5.md)。
-
-## compact 記録（v1.9.6）
-
-`--record-mode compact` は詳細ステップ履歴を保持せず、命令数・実行順序 digest・観測・最終状態を照合する replay を提供します。既定の debug 記録はステップ移動に対応します。[保証範囲](REWIND_v1.9.6.md)。
-
-GUI の `gui.graphemeEditing(&mut view, true)` は結合文字・絵文字を cluster 単位で編集する。既定値は false。選択位置は scalar offset のままで、有効化時に境界へ切り上げ、有効化後は cluster 内部の `setSelection` を拒否する。モードも checkpoint の対象になる。[v1.9.7](REWIND_v1.9.7.md) と SDK の gui-grapheme 例を参照。
-
-v1.9.8 では Share 制約付き generic 関数の再帰呼出しに対する effect 解析を修正した。標準ライブラリの lazySegment / trie / suffix / geometry は [各版の契約](REWIND_v1.9.8.md) を参照。
-
-v1.9.9 の std.guiWindows は名前付きの複数 native 画面、入力振り分けと source-free replay を提供する。[GUI 契約](REWIND_v1.9.9.md)を参照。
-
-v1.9.10 の `std.task.yieldNow()` は追加 Task を作らず明示的に VM task を切り替える。`std.numericAsync.dot` / `matmul` は native chunk の間で切り替える async 関数で、Task<Result<T,StdError>> を作る。数値失敗は内側、キャンセル等は await の外側 Result に返る。[契約](REWIND_v1.9.10.md)を参照。
-
-`std.fft` の複素 transform / linear convolution、`std.sparse` の COO → CSR / matvec、`std.sparseAsync` の共役勾配 task は native 配列を使う。`std.numeric.scale` / `norm2` も提供する。サイズ、精度、SPD の前提、同期 kernel とタスク handoff の範囲は [v1.9.15](REWIND_v1.9.15.md) を参照。
-
-## v1.9.16: native-array differentiation / optimizer / model
-
-`std.autodiff` は VM-owned Tape と private Node で pure な数値演算を記録する。one-element loss から `backward(&tape,loss)` し、`gradient(&gradients,node)` の Option<FloatArray> を読む。constant / 未到達値は None。matmul、同形 binary、明示 broadcast、reshape / transpose、sum / mean、activation を native pages で計算する。
-
-`std.optimize.sgd` と `adam/adamStep` は named native weights の更新と moment の checkpoint 復元に対応する。`std.models` は canonical checksum 付き binary codec と fileRead/fileWrite を明示要求する save/load を提供する。save は deferred write で、物理 file は publish 後に確定する。32 MiB container /128 parameter 上限と fatal VM budgets、同期 kernel、中間 gradient の保持は[仕様](REWIND_v1.9.16.md)を参照。[実行例](../examples/model-training/main.rw)。
-
-`std.numeric.affine` は scale と offset の一括演算、`activation` は relu / sigmoid、`sumToShape` は explicit broadcast の元 shape への縮約を行う。fatal work/memory budgets と有限値・shape 契約を維持する。
-
-## v1.9.17: module globals と optimizer
-
-imported function は entry の無関係な global variable を裸の名前で参照できない。module 内の constant と明示した import は維持し、local に出ていた誤った shadow warning を解消する。旧 language mode の判定は維持する。SGD / Adam の signature は同じで、native pass により formula ごとの一時配列を省く。[仕様](REWIND_v1.9.17.md)。
-
-1.9.18 は `std.task.selectReady<A,B>` / `Task.selectReady` による result を消費しない型の異なる Task の待ち合わせと、cursor / replay を維持した GUI 空 poll の記録圧縮を追加する。[契約と残る作業](REWIND_v1.9.18.md)を参照する。
-
-1.9.19 は `std.guiWindows.nextEventAnyAsync` と native GUI / HTTP / SQLite の最小統合を追加する。主 Task の制約・待機中の協調動作・入力の cancellation・terminal error の journal・source-free / disconnected replay を検証する。[契約と残る作業](REWIND_v1.9.19.md)を参照する。
-
-1.9.20 は Task の実行予算カウンタを checkpoint と共有し、最後の保持先がなくなれば回収する。累積予算と新規 Task の独立性を維持し、profile の current Task 表と全体合計を区別する。[契約と残る作業](REWIND_v1.9.20.md)を参照する。
-
-1.9.21 は明示的な `external live` と `live` effect を追加する。新しい呼出しは物理操作を実行し、保持された既存 Task は復元しても同じ結果を返す。結果は Task / checkpoint の寿命に合わせて解放し、通常の記録付き操作は維持する。完全な record / replay / inspect は実行前に拒否する。[契約と検証](REWIND_v1.9.21.md)を参照する。
-
-1.9.22 は `std.guiWindows.nextEventAnyLiveAsync` を追加する。既存の記録付き GUI 入力と区別し、保持された Task の復元、新規入力、main thread、キャンセル、結果の寿命を検証する。[契約と残る作業](REWIND_v1.9.22.md)を参照する。
-
-## TCP（v1.9.23）
-
-`std.tcp.connect` で `TcpSocket` を取得し、`read`, `write`, `shutdownWrite`, `close` を external region で Task として作成する。await は region 外で行う。必要な permission は `external,network,tasks`、live 方式は追加で `live`。平文 TCP であり、TLS は含まない。read の短い chunk / EOF、送信の確認済み量、非復元の接続寿命と例は [TCP 仕様](REWIND_v1.9.23.md)を参照する。
-
-## TCP TLS（v1.9.24）
-
-`std.tcp.connectTls` は system trust、`configuredTls` は明示的な PEM roots を使う。返り値は `Task<Result<TcpSocket,TcpError>>`、既存の read / write / shutdownWrite / close と組み合わせる。verify を無効にするオプションはない。詳細は [TLS 仕様](REWIND_v1.9.24.md)を参照する。
-
-
-## HTTP server / router（v1.9.25）
-
-`std.httpServer.listen` / `configured` で listener を取得し、`next` で affine な要求を待ち、`respond` で一回だけ応答を queue する。factory は external region、await はその外で行う。`external live` も利用できる。`std.httpRouter.find` は method / URI path の完全一致により最初の Route を返す。物理応答・接続寿命・size / concurrency の上限は [server 仕様](REWIND_v1.9.25.md) と [例](../examples/http-server/README.md) を参照する。
-
-
-## 協調的 FFT（v1.9.26）
-
-`std.fftAsync.transform` は入力配列を共有する pure な cold Task を返す。初期化以後は最大 4096 個の処理ごとに実行権を渡す。既存の同期 FFT と数学的な条件・逆変換の scale を共有し、cancel と checkpoint は VM 内の計算状態に適用する。[仕様](REWIND_v1.9.26.md) と [例](../examples/fft-async/README.md) を参照する。
-
-## 協調的 CSR（v1.9.27）
-
-`std.sparseAsync.matvec(matrix,right)` は pure な cold Task を返す。CSR の検証と計算を最大4096項目ごとに区切り、空行と長い1行も分割する。共役勾配法内の CSR 積も同じ処理を使う。1.9.31 から vector 演算・norm・dot も同じ Task 内で分割する。[仕様](REWIND_v1.9.27.md) と [例](../examples/sparse-async/README.md) を参照する。
-
-## 名前解決の資源上限（v1.9.28）
-
-HTTP / TCP / PostgreSQL の名前解決は process 全体で最大8件を共有する。cancel や deadline でも OS の処理が終了するまで枠を返さず、枠不足は typed failure を返す。数値 IP アドレスはこの枠を使わない。外部の名前解決は `revert` で取り消さず、記録 replay は名前解決を実行しない。[仕様](REWIND_v1.9.28.md)を参照する。
-
-`std.httpServer.tlsCredential` と `configuredTls` は、秘密鍵を記録しない TLS HTTP server を提供する。[鍵登録・予算・期限・非復元の通信](REWIND_v1.9.29.md)を参照する。
-
-`std.httpServer.bearerCredential` / `configuredTlsAuthenticated` は Authorization を native transport 内で検証して除去する。[契約](REWIND_v1.9.30.md)を参照する。
-
-`std.numericAsync.scale` / `zipFloat` / `norm2` は最大4096値ごとの pure Task である。任意 rank と view、入力を変更しない失敗、途中 checkpoint と cancel の [契約](REWIND_v1.9.31.md)を参照する。
-
-`rewind profile` の `runtime.native_resources` は現在の native 資源数を常に含む。操作履歴や credential 設定の量とは異なる。[GUI / HTTP / 両 DB の統合例](../examples/gui-data/README.md)と [1.9.32仕様](REWIND_v1.9.32.md)を参照する。
-
-`std.numericAsync.solve(matrix,right,tolerance)` は入力コピー・LU 分解・後退代入を最大4096 work unit ごとに分割する pure Task である。正方 Float64 行列、rank-one rhs と有限非負 tolerance が必要で、同期版と同じ演算順序を維持する。[契約と予算の限界](REWIND_v1.9.33.md)を参照する。
-
-HTTP の origin / CA client cache は最大16件であり、通信・stream が保持する lease も native の予約メモリに含める。`rewind profile` の `runtime.http_cached_clients` / `http_retained_clients` / `http_client_reservation_bytes` と、[1.9.37 の契約](REWIND_v1.9.37.md)を参照する。
-
-## 協調的 QR 分解（1.9.37）
-
-`std.numericAsync.qr(matrix,tolerance)` は Householder QR のコピー・pivot・反射・Q/R 生成を最大4096 work unit ごとに分割する。`await` の内側は `Result<QrArrayResult,StdError>`、外側は Task の失敗・キャンセルである。`q` / `r` は FloatArray、`permutation` は IntArray、`rank` は Int。置換の要素は `std.numeric.getInt` で読む。同期版 `std.numeric.qr` は既存の QrResult と Frozen<List<Int>> の置換を維持する。[契約](REWIND_v1.9.37.md)を参照する。
-
-## 協調的固有値計算（1.9.38）
-
-`std.numericAsync.eigenSymmetric(matrix,tolerance,maxSweeps)` は対称 FloatArray を Jacobi 法で分解し、走査・回転・安定な並べ替え・結果生成を分割する。`await` の内側は `Result<EigenResult,StdError>`。`values` / `vectors` は FloatArray、`sweeps` は Int で、同期版と同じ型を使う。固有ベクトルは列、固有値は昇順。maxSweeps は0..10000、tolerance は有限非負。[契約と予算](REWIND_v1.9.38.md)を参照する。
-
-1.9.39 の数値 storage は内容ハッシュを必要な時に計算し、共有 page / checkpoint と再利用する。内容・wire・計算順序は維持する。autodiff の node identity の費用は view の論理要素数ではなく backing storage の要素数で保守的に見積もり、record mode と cache の温まり方によらず同じ予算を検査する。古い language の固定費用は維持する。[詳細](REWIND_v1.9.39.md)を参照する。
-
-1.9.40 は協調的固有値計算の内部配置とページアクセスを改善する。公開される固有ベクトルの配列形式と演算順序は維持する。private scratch の費用と検証条件は[詳細](REWIND_v1.9.40.md)を参照する。
-
-1.9.41 は GUI と HTTP サーバー、DB transaction を組み合わせる[サンプル](../examples/service-data/README.md)を提供する。非同期 cursor の close 完了を待ってから接続を再利用し、VM の checkpoint と外部 transaction の境界を確認する。[検証条件](REWIND_v1.9.41.md)を参照する。
-
-## 協調的最小二乗法（1.9.42）
-
-`std.numericAsync.leastSquares(matrix,right,tolerance)` は m >= n の FloatArray 行列と長さ m の rank-one rhs に対する全列 rank の最小二乗法である。rhs の検証・QR 分解・補償和による射影・後退代入・置換を最大4096 work unit ごとに分割する。`await` の内側は `Result<FloatArray,StdError>`、外側は Task の失敗・キャンセル。有限非負 tolerance を必要とし、rank 不足は NumericSingular。同期版と同じ演算順序を維持する。[契約](REWIND_v1.9.42.md)を参照する。
-
-## 共有文字列のメモリ計上（1.9.43）
-
-長い Text の共有バッファは、Runtime ごとに容量と管理情報の予約分を一度計上する。独立した文字列と編集で作るコピーは別に計上し、checkpoint や Task の最後の参照がなくなるまで保持する。profile の `shared_payloads` は `numeric_pages` と別の指標で、RSS の測定値ではない。過去の言語版を選んだ場合は文字列の論理 payload の計上を維持する。[契約と対象範囲](REWIND_v1.9.43.md)を参照する。
-
-## 共有 Bytes のメモリ計上（1.9.44）
-
-同じ Bytes バッファを複数の VM 値が参照する場合、Runtime ごとに容量と管理情報の予約分を一度計上する。独立した同内容のバッファは別に計上し、空の Bytes も管理情報を計上する。弱参照の索引自身はバッファを保持せず、GC・profile・メモリ上限の判定時に解放済みの項目を整理する。checkpoint や Task、ホストが強参照を保持するバッファは計上を続ける。過去の言語版の Bytes は従来の論理 payload 計上を維持する。[契約と対象範囲](REWIND_v1.9.44.md)を参照する。
-
-## 共有コンテナのメモリ計上（1.9.45）
-
-永続 List・Map・heap の内部ノード、entry、値・キーの所有元を Runtime ごとに一度計上する。checkpoint 間で共有する部分は重複計上せず、変更部分と独立した所有元は別に計上する。`shared_payloads` は共有 payload とこれらの native 管理情報の予約量を含む。値・キーの弱参照索引は GC・profile・メモリ上限の判定時に整理し、ノードは最後の参照が消えると計上を取り消す。[契約と対象範囲](REWIND_v1.9.45.md)を参照する。
-
-## 永続コンテナの GC（1.9.46）
-
-永続 List／Map のノードは heap 参照の有無を保持し、GC は参照を含まない部分を省略する。同じ GC で共有ノードを重複して探索しない。捕捉された CellRef と入れ子の値を追跡し、参照先は毎回現在の heap から調べる。checkpoint の heap は独立して保持する。探索と sweep は native work の上限に従い、失敗時は heap の削除を行わない。過去の言語版は従来の探索費用を維持する。[契約](REWIND_v1.9.46.md)を参照する。
-
-## heap entry の GC（1.9.47）
-
-参照された heap ID は保持したうえで、entry が HeapRef／CellRef を含まない場合は内容の走査を省く。値を変更した場合と checkpoint を復元した場合は、それぞれの entry の参照情報を使う。検索時の一時バッファ確保も省く。ID の順序、wire format、過去の言語版の GC work 契約は維持する。[契約](REWIND_v1.9.47.md)を参照する。
-
-`std.numericIndex`（language 1.9.48）では `lengthFloat/Int`、`getFloat/Int`、`withFloat/Int` を使えます。index はビューの論理的な行優先順序の 0 始まり整数です。転置・逆順スライスにも対応し、broadcast は読み取り専用です。更新は変更したページを COW で複製します。
-
-`std.graphLarge`（language 1.9.49）は数値配列を使うグラフです。`fromEdges(vertices,&froms,tos,weights)` で rank-one IntArray からまとめて構築でき、`bfs` は IntArray を返します。`std.numericRange.integers(start,step,length)` は checked Int64 の等差配列を作ります。グラフの頂点・辺は最大 1,048,576、各処理には work/memory 予算が適用されます。
-
-`std.training` composes native autodiff and optimizers with sample-weighted batch means and global-norm clipping. These APIs are synchronous; their contracts are in [v1.9.50](REWIND_v1.9.50.md).
-
-Selected language 1.9.51 admits execution-wide sensitive text patterns and shared binary owners in the memory budget. Redaction roots survive revert/begin/GC; see [the contract](REWIND_v1.9.51.md).
-
-GUI のコピー・貼り付け・切り取りは選択言語 1.9.52 から Ctrl+C / Ctrl+V / Ctrl+X で利用できます。コピー元は公開した scene の選択範囲です。貼り付けは記録される text 入力であり、編集 model は revert の対象ですが、OS のクリップボードは対象外です。Windows / Linux の形式・容量・寿命は [v1.9.52](REWIND_v1.9.52.md) を参照してください。
-
-選択言語 1.9.53 の `std.numericTransformAsync.mapFloat` / `activation` は、単項数値変換を 4096 論理要素以下の native step に分けます。step 間でタスクを切り替え、部分結果の checkpoint と取消を扱います。入力は shared native array であり、host thread は起動しません。[v1.9.53](REWIND_v1.9.53.md)。
-
-選択言語 1.9.55 の `std.numericReduceAsync.sum` / `mean` / `variance` は、合計・平均・分散を4096論理要素以下の native step に分け、step 間でタスクを切り替えます。既存の計算順序と失敗契約を保ち、巻き戻しと取消を扱います。`autodiff.backward` 自体は同期のままです。[v1.9.55](REWIND_v1.9.55.md)。
-
-選択言語 1.9.56 の `std.graphLargeAsync.bfs(vertices,froms,tos,source)` は、IntArray の辺の両端を受け取り、グラフ構築と幅優先探索を4096単位以下に分割してタスクを切り替えます。戻り値は最短距離の IntArray（未到達は -1）です。処理途中の状態も commit/revert と取消の対象です。[v1.9.56](REWIND_v1.9.56.md)。
-
-選択言語 1.9.57 の `std.numericShapeAsync.reshapeLogical` / `sumToShape` は、論理順の形状変更と broadcast の軸の合計を4096セル以下の処理に分割します。寸法の List はタスクが所有するため、構築関数の戻り値か `move shape` を渡します。既存のビット列・計算順序・失敗契約を保ちます。[v1.9.57](REWIND_v1.9.57.md)。
-
-`std.autodiffAsync.backward(move tape, loss)` は演算履歴を所有する協調型の逆伝播です。Node を保持して戻り値の Gradients を照会できます。準備・走査・重い微分カーネルの途中で他のタスクへ処理を渡します。同期型の `std.autodiff.backward(&tape, loss)` も利用できます。
-
-`std.guiMenu` のメニューは VM の状態として巻き戻せます。表示には `guiMenu.draw` と `guiWindows.present`、`publish` を使います。v1.9.59 からネイティブの Ctrl/Alt の英字ショートカットと F1〜F24 を受け取れます。`gui.overlay` は同じ寸法・文字編集モードの画面を合成し、下の画面のフォーカスとスクロールを保持します。
-
-`std.guiDialog` のファイル選択は `gui,external,tasks` 効果を持ちます。アプリケーションタスクの external 領域で Task を作成し、その領域の外で await します。選択結果は外部観測として記録され、revert と replay は OS のダイアログを開き直しません。選択したパスにアクセスする権限は別途必要です。
-
-選択言語1.9.61では、ネイティブIMEの未確定文字列を公開した入力欄のカーソル位置へ表示します。確定した文字だけがVMのtext入力となります。変換途中のOS状態は巻き戻しません。変換中に異なる入力状態をpublishすると旧コンテキストをキャンセルします。LinuxのXIMサービスとWindowsのIMMコンテキスト、容量・寿命・検証範囲は[v1.9.61](REWIND_v1.9.61.md)を参照してください。
-
-### 所有する List からの数値入力（1.9.64 以降、2.0.0で提供）
-
-`std.numericInputAsync.fromFloat(shape, values)` と `fromInt(shape, values)` は
-List を所有する task として数値配列を作る。`await spawn` に渡す入力は
-`move` で所有権を渡す。結果は `Result<FloatArray,StdError>` /
-`Result<IntArray,StdError>` で、task の待機には別に `TaskError` がある。
-
-最大 4096 セルをコピーした後、未完了なら他の task に制御を返す。
-途中の配列は公開せず、取消では部分結果を返さない。
-既存の同期 `std.numeric.fromFloat` / `fromInt` も引き続き利用できる。
-作業を保持する checkpoint のメモリと、task の命令予算・native work・
-history memory の上限はそれぞれ適用される。
-
-### 子taskの診断情報（1.9.65）
-
-`std.taskError.describe(TaskError)` は、診断と原因・型付きbudget・wait graphを
-所有する可変の `Failure` envelopeへ変換する。診断を持つ `Failed` は元のcodeを
-保ち、取消は `TaskCancelled`、timeoutは `TaskTimedOut`、native work超過は
-`NativeWorkBudgetExceeded` で区別する。`Failure.diagnostic` / `budget` /
-`waitGraph` は必要な種類だけ `Some` になる。新しい権限や自動retryは発生しない。
-
-`asStd` はcodeと失敗診断の行番号を `StdError` へ投影する。元の全文と原因ツリーは
-この投影に含まれないため、必要なら先に `describe` を使う。自動微分・数値identityの
-協調ラッパーは子taskのbudgetを汎用名で隠さず、このcodeを返す。関数の返却型は
-同じだが、旧 `AutodiffTask` / `NumericTask` だけを期待する処理は更新する。
-
-Windowsのnative IMEはシステム所有のIMM contextと自前contextの寿命を区別し、
-公開入力欄のcharacter-position要求へ応答する。実変換・確定の8回反復とfocus / closeは
-[v1.9.65](REWIND_v1.9.65.md)の受入を参照する。句変換モードをゼロへ固定することを
-正常な日本語入力の前提にしない。未確定のOS状態はVMのsnapshotには入らない。
+| `DivisionByZero` | 整数を 0 で割った |
+| `IntegerOverflow` | `Int` の範囲（符号付き 64 ビット）を超えた |
+| `IndexOutOfBounds` | 負の添字、または `len()` 以上の添字 |
+| `AssertionFailed`、`Panic` | `assert`、`assert_eq`、`panic` |
+| `UseAfterMove` | `move` した後の値を使った |
+| `MissingEffect` | 効果の宣言または許可が足りない |
+| `InvalidContinuation` | `revert` が戻れない保存点を指した |
+| `ExternalBoundary` | `external` 領域で禁止されている操作をした |
+| `ExecutionBudgetExceeded`、`NativeWorkBudgetExceeded`、`TaskBudgetExceeded` | 実行予算の超過 |
+| `HistoryMemory`、`HistoryStorage` | 履歴の予算の超過 |
+| `TaskGroupFailed`、`TaskCancelled` | タスクの失敗、取り消し |
+| `ExternalStateConflict` | 公開時に外部のファイルが変わっていた |
+| `PublishPartiallyApplied` | 公開が途中まで適用された |
+
+### 17.2 終了コード
+
+| 終了コード | 意味 |
+|---|---|
+| 0 | 正常終了 |
+| 1〜63 | `main` が返した値（診断に `ApplicationExit<値>` が出る） |
+| 64 | コマンドの使い方の誤りなど、位置のない一般的な失敗 |
+| 65 | 型・所有権の検査エラー、アサーションの失敗、実行時の失敗 |
+| 70 | `panic`、効果の不足など、原因（causes）を伴う失敗 |
+| 71 | 予算の超過 |
+| 72 | 外部の状態の衝突（`ExternalStateConflict`） |
+| 73 | 公開が途中まで適用された |
+| 74 | タスクの取り消し |
+
+### 17.3 機械可読な診断
+
+任意のコマンドに `--diagnostic-format json` を付けると、標準エラーに JSON が出ます。標準出力はアプリケーションの出力だけです。トップレベルのキーは `exit_status`、`message`、`diagnostic`、`publish_failure`、`code`、`retryable`、`retry_hint` で、`diagnostic` には `code`、`message`、`source`、`line`、`column`、`frames`、`hints`、`causes`、`task_id`、`wait_edges` があります。
+
+### 17.4 記録と再生
+
+`--record trace.json` を付けて実行すると、外から得た値（入力、時刻、乱数、ファイルの読み取り、外部領域の結果）、タスクの切り替えの選択、失敗の位置が記録されます。`rewind replay trace.json --root DIR` は、同じ版のコンパイラで同じ実行を再現し、結果が記録と一致するか確かめます。再生では実際の時計や入力は使われません。
+
+| 記録の方式 | 内容 |
+|---|---|
+| `--record-mode debug`（既定） | 1 命令ごとの状態の索引を持つ。`rewind dap` で巻き戻しながらステップ実行できる。大きく、長い実行には向かない |
+| `--record-mode compact` | 命令数、実行順序のダイジェスト、観測、最終状態だけ。長い実行向き |
+
+秘密の値（`Secret`、`--secret-env`、`In.readSecretLine()`）は記録に残らないので、再生時に再度与える必要があることがあります。記録の形式はコンパイラの版をまたいで互換ではありません。版を上げたら記録し直してください。
+
+### 17.5 仕事量の内訳
+
+`rewind profile main.rw` は、関数ごと・行ごとの命令数とネイティブ処理量、チェックポイントが保持しているデータ、未実行の行（coverage）を報告します。時間ではなく、予算で数える論理的な仕事量です。既定の出力は JSON で、`--profile-format text` を付けると人が読む形式になります。
+
+### 17.6 デバッガとエディタ
+
+| 道具 | 使い方 |
+|---|---|
+| デバッガ（DAP） | 記録（debug 方式）から、逆実行を含むステップ実行ができる。[debugger.md](debugger.md) |
+| LSP | `rewind lsp --root DIR`。診断、補完、ホバー、定義・参照、リネーム、整形に対応 |
+| 互換性の確認 | `rewind compat` は、コンパイラ、言語、成果物、記録、ロックファイルなどの版の関係を表示する |
+
+## 18. 標準ライブラリの概観
+
+標準ライブラリの module は `import std.名前 as 名前;` で使います。公開される関数、型、費用、失敗条件は、module ごとの文書（SDK の `share/rewind/doc/std/`）と [libraries/README.md](../libraries/README.md) にあります。ここでは分類だけを示します。
+
+| 分類 | module |
+|---|---|
+| 値と変換 | option、result、error、failures、issues、number、integer、modular、bigint、decimal、math、bits、bytes、units、layout |
+| 文字列とテキスト | text、unicode、textIndex、textEdit、regex、stringSearch、url、path |
+| 日時 | datetime、clock |
+| コレクションとアルゴリズム | collections、map、orderedMap、sequence、sort、search、heap、deque、bitset、disjointSet、rollbackSet、fenwick、segment、lazySegment、range、trie、suffix、dp、table |
+| グラフと幾何 | graph、graphLarge、graphLargeAsync、flow、matching、geometry |
+| データ形式と解析 | json、jsonStream、csv、csvStream、config、args、scanner、stream、parser、schema、logfmt、compress、image、base64、dna、fastx |
+| 暗号 | crypto、auth |
+| 履歴と状態 | snapshot、history、historyGraph、timeline、changes、persistentSet、memo、lazy、lens、binding |
+| 数値計算 | numeric とその Async 系、matrix、sparse、sparseAsync、fft、fftAsync、distributions |
+| 機械学習 | autodiff 系、optimize、training、models、evaluation、plot |
+| タスクと通信 | task、taskError、retry、external、http、httpHeaders、httpRouter、httpServer、tcp、web |
+| データベース | db、dbDatetime、dbDecimal、dbMigration、dbTransaction |
+| GUI | gui、guiCombo、guiDate、guiDialog、guiField、guiForm、guiMenu、guiTabs、guiTable、guiWindows |
+| テスト支援 | proptest |
+
+`std.binding` は、1 つの record の値（current）と、id を付けた欄ごとの文字列の読み書きを束ねます。画面（`std.guiForm` など）とは欄ごとの文字列でやり取りします。`edit` は、書き込みが受理されたときだけ current を差し替えます。record は不変なので、変更は新しい値への置き換えとして反映されます。
+
+画面は、毎回すべての欄を読み直さずに、`changedSince` で版番号が進んだかを確かめ、進んだときだけ描き直してください。`pushToForm` と `pullFromForm` で、`std.guiForm` の欄と同期できます。`undo` と `redo` は、受理された編集を最大 256 件まで戻します。欄は最大 128 件です。
+
+`reset` は、編集を捨てて元の値に戻します。`accept` と対になる名前です。以前の `revert` は 4.0.0 で削除しました。
+
+`std.crypto` は `sha256`、`sha512`、`hmacSha256`、`pbkdf2Sha256`、`constantTimeEq`、`randomBytes` を提供し、`std.bytes` の `toHex` と `fromHex` で 16 進表記と相互変換できます。入力は 1 MiB までで、超えると `Limit` になります。パスワードの保存には、ランダムな salt を与えた `pbkdf2Sha256` を使ってください。`sha256` のような速いハッシュをそのままパスワードの保存に使ってはいけません。`randomBytes(length)` は OS の乱数源から 1〜65536 バイトを返します。範囲外の長さは `Range`、乱数源が使えないときは `ExternalFailure` で返します。`external` 領域の中で呼び、`external` と `random` の権限が必要です。実行時に記録され、replay では同じ値が再生されます。鍵、salt、セッション ID のような秘密に使う値は `randomBytes` で作ってください。`Random.next()` は再現可能な擬似乱数なので、秘密には使えません。
+
+`std.bits` は `leadingZeros`、`trailingZeros`、`rotateLeft`、`rotateRight`、`reverseBits`、`byteSwap`、`extract`、`deposit` を提供します。`std.bytes` は `concat`、`fromInts`、`toInts`、`indexOf`、`equal`、`readInt` を提供し、`readInt` は 1、2、4、8 バイトの整数を指定した位置から読みます。範囲外の値や位置は `Range`、大きすぎる入力は `Limit` で返します。
+
+`std.guiCombo` は、上限 256 件の選択式リストです。文字を入力すると、先頭の 1 文字が一致する次の候補へ移ります。このとき大文字と小文字は区別しません（`std.unicode.lower` でそろえて比べます）。
+
+`std.auth` は、パスワードの保存と検証、署名付き token、CSRF token を提供します。乱数を持たないため、salt と key は呼出側が渡します。salt は `std.crypto` の `randomBytes` で作れます。`hashPassword` は `pbkdf2-sha256$反復回数$salt$hash` の形式を返し、salt は 16〜64 バイト、反復回数は 10,000〜1,000,000 の範囲にします。`verifyPassword` は定数時間で比較し、形式の壊れた値や未知のアルゴリズムは `false` を返します。`needsRehash` は保存値の反復回数が要求値より少ないときに `true` を返します。`signToken` と `verifyToken` は `payload.expiresAt.署名` の形式で、署名を先に検査してから期限を見ます。失敗は `AuthError` の `code`（`Range`、`BadSignature`、`Expired`、`Malformed`）で返し、入力値は含みません。PBKDF2 の計算量が大きいため、1 回の run で呼べる回数は既定の作業上限に収まる範囲に限られます。
+
+```rewind
+import std.auth as auth;
+
+fn main()->Int {
+    let stored = "pbkdf2-sha256$10000$AAECAwQFBgcICQoLDA0ODw$5RUHDgNTp9sBOWGYS4e6u57cz_Sq3_TQgaDP_8MW6L8";
+    if auth.verifyPassword("correct horse", stored) {
+        Out.println("ok");
+    } else {
+        Out.println("ng");
+    }
+    return 0;
+}
+```
+
+```text
+ok
+```
+
+`std.base64` は `encode` と `decode`（標準のアルファベット、パディングあり）、`encodeUrl` と `decodeUrl`（URL-safe のアルファベット、パディングなし。`decodeUrl` はパディングを任意に受け付けます）を提供します。入力は 1 MiB までで、超えると `TooLarge` になります。失敗は `Base64Error` の `code`（`BadChar`、`BadLength`、`TooLarge`）と位置 `offset` で返し、入力値は含みません。
+
+```rewind
+import std.base64 as base64;
+
+fn main()->Int {
+    Out.println(base64.encode(Bytes("Hi!")));
+    match base64.decode("SG!h") {
+        Ok(_)=>{ Out.println("ok"); },
+        Err(e)=>{ Out.println(e.code); }
+    }
+    return 0;
+}
+```
+
+```text
+SGkh
+BadChar
+```
+
+`std.dna` は、2 bit で塩基（A=0、C=1、G=2、T=3）を詰めた Int の k-mer を扱い、`encode`、`decode`、`reverseComplement`、`canonical`、`roll`、`kmers`、`gcCount`、`hammingDistance` を提供します。k は 1〜32 です。入力は 1 MiB までで、超えると `BadLength` になります。失敗は `DnaError` の `code`（`BadBase`、`BadK`、`BadLength`）と位置 `offset` で返します。
+
+```rewind
+import std.dna as dna;
+
+fn main()->Int {
+    match dna.encode("ACGT") {
+        Ok(kmer)=>{
+            match dna.decode(kmer,4) {
+                Ok(text)=>{ Out.println(text); },
+                Err(e)=>{ Out.println(e.code); }
+            }
+        },
+        Err(e)=>{ Out.println(e.code); }
+    }
+    return 0;
+}
+```
+
+```text
+ACGT
+```
+
+`std.fastx` は FASTA と FASTQ の読込と書出し、Phred 品質の変換を提供します。`parseFasta` と `parseFastq` は `Read` の List を返し、`formatFasta` は行幅 `width` で折り返します。`formatFastq` は品質を持つ read を 4 行で書きます。`phred` は offset 33 または 64 の品質文字を整数に変換します。入力は 1 MiB まで、read 数は 1,000,000 までで、超えると `TooLarge` になります。失敗は `FastxError` の `code`（`Format`、`LengthMismatch`、`TooLarge`）と行番号 `line` で返します。
+
+```rewind
+import std.fastx as fastx;
+
+fn main()->Int {
+    match fastx.parseFasta(">seq1 first
+ACGT
+AC
+") {
+        Ok(reads)=>{
+            Out.println(reads.get(0).name);
+            Out.println(reads.get(0).sequence);
+        },
+        Err(e)=>{ Out.println(e.code); }
+    }
+    return 0;
+}
+```
+
+```text
+seq1
+ACGTAC
+```
+
+`std.html` は `text`、`raw`、`concat`、`element`、`escapeText`、`escapeAttribute`、`safeUrl`、`toString` を提供し、HTML の文字列を組み立てます。`text` は `&<>"'` をエスケープしてから `Html` にします。信頼してそのまま入れてよいのは `raw` の入力だけです。`element` は tag 名と属性名を検査し、属性を名前順に書き、void 要素に子を持たせません。リンクの `href` には `safeUrl` を通してください。`javascript:` などの URL は `#` になります。
+
+```rewind
+import std.html as html;
+
+fn main()->Int {
+    let attrs = Map<String,String>();
+    attrs.set("title", "a\"b");
+    attrs.set("href", html.safeUrl("javascript:alert(1)"));
+    let children = List<html.Html>();
+    children.add(html.text("<tag> & 'x'"));
+    match html.element("a", &attrs, &children) {
+        Ok(h)=>{ Out.println(html.toString(&h)); },
+        Err(e)=>{ Out.println(e.code); }
+    }
+    return 0;
+}
+```
+
+```text
+<a href="#" title="a&quot;b">&lt;tag&gt; &amp; &#39;x&#39;</a>
+```
+
+`std.template` の `render` は、JSON データを `Json` として受け取り、テンプレートを描画します。`{{name}}` は `std.html` の `escapeText` を通し、`{{{name}}}` は無変換で入れます。`{{#name}}...{{/name}}` は配列を繰り返し、`{{^name}}...{{/name}}` は値がないか偽のときに描画します。失敗は `TemplateError` の `code` と文字位置 `offset` で返します。
+
+```rewind
+import std.json as json;
+import std.template as template;
+
+fn main()->Int {
+    let data = json.parse("{\"name\":\"<b>Ann</b>\",\"items\":[{\"n\":\"x\"},{\"n\":\"y\"}]}");
+    match data {
+        Ok(value)=>{
+            match template.render("Hi {{name}} {{{name}}}:{{#items}}[{{n}}]{{/items}}", value) {
+                Ok(text)=>{ Out.println(text); },
+                Err(e)=>{ Out.println(e.code); }
+            }
+        },
+        Err(_)=>{ Out.println("parse"); }
+    }
+    return 0;
+}
+```
+
+```text
+Hi &lt;b&gt;Ann&lt;/b&gt; <b>Ann</b>:[x][y]
+```
+
+Option と Result の補助には `std.option`、`std.result` があり、`valueOr` で失敗時の既定値を指定して取り出せます。
+
+```rewind
+import std.option as option;
+import std.result as result;
+
+fn main()->Int {
+    let missing: Option<Int> = None;
+    let failed: Result<Int, String> = Err("bad");
+    Out.println(option.valueOr(missing, 7));
+    Out.println(result.valueOr(failed, 8));
+    return 0;
+}
+```
+
+```text
+7
+8
+```
+
+## 付録 A. 構文の一覧
+
+次は書き方の形です。大文字の語は説明用の記号で、そのまま実行できるプログラムではありません。
+
+| 用途 | 形 |
+|---|---|
+| 束縛 | `let 名前: 型 = 式;`、`var 名前 = 式;`、`let (a, b) = 式;` |
+| 定数 | `const 名前: 型 = 式;` |
+| 代入 | `名前 = 式;`、`名前 += 式;`（`-= *= /= %=` も）、`xs[i] = 式;` |
+| 分岐 | `if 式 { } else if 式 { } else { }`、`if let パターン = 式 { }` |
+| 反復 | `while 式 { }`、`for 名前 in 開始..終了 { }`、`for 名前 in 式 { }` |
+| パターン分岐 | `match 式 { パターン => 式, パターン if 条件 => { }, _ => { } }` |
+| 取り出しと脱出 | `let パターン = 式 else { return ...; };` |
+| 関数 | `fn 名前<T>(引数: 型, 引数: 型 = 既定値) -> 型 effects { } { }`、`fn 名前(...) -> 型 = 式;` |
+| 非同期関数 | `async fn ... { }` |
+| テスト | `test fn 名前() { }` |
+| 型の定義 | `struct`、`record`、`enum`、`type 名前 = 型;`、`trait`、`impl トレイト for 型 { }` |
+| module | `import 経路 as 別名;`、`import 経路.{名前, 名前 as 別名};`、`pub` |
+| 借用・移動 | `&式`、`&mut 式`、`move 式`、`freeze(式)`、`thaw(式)` |
+| クロージャ | `\|引数: 型\| -> 型 { 本体 }`、短い形 `\|引数\| 式` |
+| エラー | `式?`、`panic(文字列)`、`assert(条件)`、`assert_eq(a, b)` |
+| チェックポイント | `commit 名;`、`revert 名;`、`resume 名;`、`drop 名;`、`branch 名 { }`、`publish;` |
+| 外部領域 | `external { }`、`external fresh { }`、`external live { }` |
+| 後始末 | `defer \|\| -> Unit { };`、`defer 式;`、`using 名前 = 式;` |
+| 並行 | `spawn 式`、`await 式` |
+| 予算 | `runtime { 設定 = 値; }` |
+
+### 文法の抜粋
+
+形式文法の正本は [`grammar/rewind.ebnf`](grammar/rewind.ebnf)（W3C 形式の EBNF）です。実装の字句解析器と構文解析器との突き合わせテストが、文法の正しさを確かめています。読み方、実装の癖、エディタ向けのキーワードの一覧は [`grammar/README.md`](grammar/README.md) にあります。
+
+次は、正本から字句と主な構文規則を抜き出したものです。`UPPER_CASE` が字句規則、`CamelCase` が構文規則です。`[ nf: X ]` は「直後の 1 文字が X でない」、`[ ns: X ]` は「次のトークンが X でない」を表します。
+
+```ebnf
+IDENT      ::= IDENT_START IDENT_CHAR*
+IDENT_START ::= UNICODE_ALPHABETIC | '_'
+SYMBOL2    ::= '==' | '!=' | '<=' | '>=' | '&&' | '||'
+             | '+=' | '-=' | '*=' | '/=' | '%='
+             | '->' | '=>' | '::' | '..'
+DEC_INT    ::= DEC_RUN [ nf: [_eE] ]
+LINE_COMMENT ::= '//' [^
+]*
+
+Program    ::= Item*
+FnDecl     ::= FnPrefix Name TypeParams FnParams
+               ( '->' Type EffectSet? WhereClause? FnBody1
+               | EffectSet? WhereClause? FnBlock )
+FnPrefix   ::= 'test' 'fn' | 'async' 'fn' | 'fn'
+FnBlock    ::= '{' FnBody
+LetStmt    ::= ( 'let' | 'var' ) ( Name | TuplePattern ) ( ':' Type )? '=' Expr ';'
+IfStmt     ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) Expr FnBlock
+               ( 'else' ( IfStmt | FnBlock ) | [ ns: 'else' ] )
+ForStmt    ::= 'for' TuplePattern 'in' Expr FnBlock
+             | 'for' Name 'in' Expr ( '..' Expr )? FnBlock
+MatchExpr  ::= 'match' Expr '{' MatchArms '}'
+MatchArm   ::= Pattern ( 'if' Expr )? '=>' Expr
+Expr       ::= OrExpr
+OrExpr     ::= OrExpr '||' AndExpr | AndExpr
+AddExpr    ::= AddExpr ( '+' | '-' ) MulExpr | MulExpr
+MulExpr    ::= MulExpr ( '*' | '/' | '%' ) UnaryExpr | UnaryExpr
+```
+
+予約語は字句では区別せず、すべて名前（`IDENT`）として切り出します。構文解析器が文の先頭などの決まった位置でだけ語の意味を決めます。2 文字の記号は上の 15 個だけです。この文法には、実装の癖をそのまま写した部分もあります。たとえば、名前の直後の `<` はまず型引数として読みます。詳しくは [`grammar/README.md`](grammar/README.md) を参照してください。
+
+## 付録 B. 言語バージョンの違い
+
+REWIND は、`rewind.toml` の `language` に書いた版の言語規則でプログラムを検査します。単体のファイルの実行では、コンパイラと同じ版（4.0.0）が使われます。
+
+| 版 | 言語の変更 |
+|---|---|
+| 3.0.0 | 実行コードは関数の中だけに書く。`fn main` から始まる。ブロック式、`if` 式、`let ... else`、`if let`、コレクションのリテラル `[ ]` `{ : }`、添字、`.0` によるタプルの要素、文字列補間 `${}`、式本体の関数 `= 式`。`main` が戻ると自動で公開する。文字列の大小比較、`Float.floorChecked` / `roundChecked`、`.format()` |
+| 3.1.0〜3.5.0 | 構文の変更なし。ツール（診断、デバッガ、profile、CLI）と標準ライブラリの追加 |
+| 3.6.0 | 名前付きの引数と既定値の引数 |
+| 4.0.0 | 約 45 語が予約語になり、名前に使えない。ソースの `null` リテラルを廃止。3.0.0 未満の言語を受け付けない |
+
+3.x では、`const` の宣言とマップのキーの `for` による反復が使えない不具合があり、この版で修正されました。2.0.0 以前の言語の仕様は、それぞれの版の文書（[REWIND_v2.0.md](REWIND_v2.0.md) など）にありますが、REWIND 4 では実行できません。版ごとの詳しい変更点は `docs/REWIND_v*.md` を参照してください。
+
+### 4.0.0 の変更
+
+REWIND 4.0.0 では、次の点が変わりました。3.x の言語を指定したプログラムの挙動は、このうち「どの言語でも同じ」と書いた項目を除いて変わりません。
+
+- 言語 4.0.0 では、約 45 語（[3.2 節](#32-識別子)の表）が予約語になり、名前に使えません。修飾語（`value capture borrow force live fresh test where effects captures`）は、これまでどおり文脈で意味が決まる語です。
+- 言語 4.0.0 では、ソースの `null` リテラルを書けません。`null` と書くと `ReservedWord` で拒否されます。値がないことは `Option` の `None` で表します。DB の NULL や JSON の null は、専用の型と関数で、これまでどおり扱えます。
+- REWIND 4 は、`language` が 3.0.0 未満の指定を `unsupported language version` で拒否します。`rewind.toml` の指定も、単体のファイルの実行も同じです。
+- どの言語でも、通常の文字列リテラルの中の改行は、ソースファイルの改行コード（CRLF、CR、LF）によらず LF になります。OS に合わせた改行が必要なときは、`external { }` の中で `std.text.lineSeparator()` を呼びます。
+- `pub effects { ... }` を拒否します（これまでは `pub` を無視していました）。`match` の文でも、`{ }` のアームのあとの `,` を省けます。let-else は、式としてのブロックにも書けます。
+- 標準ライブラリでは、`binding.revert` を削除しました（`binding.reset` を使います）。`historyGraph` の `setHead`、`head`、`dropHead` の引数名 `branch` は `branchName` に変わりました。名前付きの引数で呼んでいたプログラムは、名前を直してください。
+
+次の記法は、言語の版によらず使えます。型注釈つきの `let` で書く短いクロージャ（3.0.0 以上）、カンマ区切りの全箇所の末尾のカンマ、raw 文字列です。
+
+## 付録 C. 既知の制約
+
+実装の現状として、次の点は期待と異なることがあります。
+
+- `?` のエラー型の不一致は、組み込みの型どうしなら実行前に拒否されますが、`record` や標準ライブラリの型が絡むときは、`Err` の経路を通ったときの実行時エラーになります（[第 10.2 節](#102-option-と-result)）。
+- 公開されていない関数や型を別の module から使うと、`unknown name` と報告されます（「非公開」という説明は出ません）。
+- `List` と `Map` を `==` や `assert_eq` で比べると、中身ではなく同一性を調べます。
+- `branch` の中で `return` すると、関数からは戻れますが、`branch` が戻すはずの状態は戻りません。

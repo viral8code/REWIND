@@ -1,0 +1,182 @@
+// HTML escaping and element construction (WEB). Pure: no network, no file access.
+// Text is escaped by default. An Html value is markup that is already safe to put in a page; only raw()
+// trusts its input. Errors carry a code, never the input text.
+pub record Html {text:String}
+pub record HtmlError {code:String}
+
+fn asciiBytes(s:String)->List<Int> effects {} {
+    let out=List<Int>();
+    match stdEncode(s) {
+        Ok(bytes)=>{
+            let n=stdBytesLength(bytes);var i=0;
+            while i<n {
+                match stdBytesGet(bytes,i) {Ok(b)=>{out.add(b);},Err(_)=>{}}
+                i+=1;
+            }
+        },
+        Err(_)=>{}
+    }
+    return out;
+}
+fn addAscii(out:&mut List<Int>,s:String) effects {} {
+    let codes=asciiBytes(s);var i=0;
+    while i<codes.len() {let b=codes.get(i);out.add(b);i+=1;}
+}
+fn decodeBytes(out:&List<Int>)->String effects {} {
+    match stdBytesFromList(out) {
+        Ok(bytes)=>{match stdDecode(bytes) {Ok(text)=>{return text;},Err(_)=>{return "";}}},
+        Err(_)=>{return "";}
+    }
+}
+// 0 keeps the byte, 1 drops it, 2 replaces it with entityOf(byte).
+fn byteAction(b:Int,attribute:Bool)->Int effects {} {
+    if b==38 || b==60 || b==62 || b==34 || b==39 {return 2;}
+    if attribute && (b==96 || b==61) {return 2;}
+    if attribute && (b==0 || b==127 || (b<32 && b!=9 && b!=10)) {return 1;}
+    return 0;
+}
+fn entityOf(b:Int)->String effects {} {
+    if b==38 {return "&amp;";}
+    if b==60 {return "&lt;";}
+    if b==62 {return "&gt;";}
+    if b==34 {return "&quot;";}
+    if b==39 {return "&#39;";}
+    if b==96 {return "&#96;";}
+    return "&#61;";
+}
+fn escapeWith(s:String,attribute:Bool)->String effects {} {
+    match stdEncode(s) {
+        Err(_)=>{return "";},
+        Ok(bytes)=>{
+            let n=stdBytesLength(bytes);let out=List<Int>();var i=0;
+            while i<n {
+                match stdBytesGet(bytes,i) {
+                    Err(_)=>{},
+                    Ok(b)=>{
+                        let action=byteAction(b,attribute);
+                        if action==0 {out.add(b);}
+                        if action==2 {addAscii(&mut out,entityOf(b));}
+                    }
+                }
+                i+=1;
+            }
+            return decodeBytes(&out);
+        }
+    }
+}
+fn isRelative(key:String)->Bool effects {} {
+    return stdTextFind(key,"/")==Some(0) || stdTextFind(key,"#")==Some(0) || stdTextFind(key,"?")==Some(0);
+}
+fn schemeAllowed(key:String)->Bool effects {} {
+    match stdTextFind(key,":") {
+        None=>{return false;},
+        Some(k)=>{
+            match stdTextSlice(key,0,k) {
+                Ok(scheme)=>{return scheme=="http" || scheme=="https" || scheme=="mailto";},
+                Err(_)=>{return false;}
+            }
+        }
+    }
+}
+fn validTag(tag:String)->Bool effects {} {
+    let codes=asciiBytes(tag);let n=codes.len();
+    if n<1 || n>32 {return false;}
+    var i=0;
+    while i<n {
+        let b=codes.get(i);
+        if !((b>=97 && b<=122) || (b>=48 && b<=57)) {return false;}
+        i+=1;
+    }
+    return true;
+}
+fn validAttrName(name:String)->Bool effects {} {
+    let codes=asciiBytes(name);let n=codes.len();
+    if n<1 {return false;}
+    var i=0;
+    while i<n {
+        let b=codes.get(i);
+        if !((b>=97 && b<=122) || (b>=65 && b<=90) || (b>=48 && b<=57) || b==45) {return false;}
+        i+=1;
+    }
+    return true;
+}
+fn voidTag(tag:String)->Bool effects {} {
+    return tag=="br" || tag=="hr" || tag=="img" || tag=="input" || tag=="meta" || tag=="link";
+}
+fn sortedStrings(items:List<String>)->List<String> effects {} {
+    var out=List<String>();var i=0;
+    while i<items.len() {
+        var at=out.len();
+        while at>0 && out.get(at-1)>items.get(i) {at-=1;}
+        let next=List<String>();var j=0;
+        while j<out.len() {if j==at {next.add(items.get(i));}next.add(out.get(j));j+=1;}
+        if at>=out.len() {next.add(items.get(i));}
+        out=move next;
+        i+=1;
+    }
+    return out;
+}
+
+// @api escapeText cost O(bytes); replaces & < > " ' with entities.
+pub fn escapeText(s:String)->String effects {} {return escapeWith(s,false);}
+// @api escapeAttribute cost O(bytes); escapes like escapeText, also ` and =, and drops NUL and control characters except tab and newline.
+pub fn escapeAttribute(s:String)->String effects {} {return escapeWith(s,true);}
+// @api safeUrl cost O(bytes); keeps http:, https:, mailto: and scheme-less URLs starting with / # ?, after dropping spaces and control characters and lowercasing ASCII. Anything else becomes "#".
+pub fn safeUrl(url:String)->String effects {} {
+    match stdEncode(url) {
+        Err(_)=>{return "#";},
+        Ok(bytes)=>{
+            let n=stdBytesLength(bytes);let norm=List<Int>();var i=0;
+            while i<n {
+                match stdBytesGet(bytes,i) {
+                    Err(_)=>{},
+                    Ok(b)=>{
+                        var c=b;
+                        if c>=65 && c<=90 {c=c+32;}
+                        if c>32 && c!=127 {norm.add(c);}
+                    }
+                }
+                i+=1;
+            }
+            let key=decodeBytes(&norm);
+            if isRelative(key) || schemeAllowed(key) {return escapeAttribute(url);}
+            return "#";
+        }
+    }
+}
+// @api raw cost O(1); trusts s as markup and does not escape it.
+pub fn raw(s:String)->Html effects {} {return Html(s);}
+// @api text cost O(bytes); escapes s with escapeText and wraps it as Html.
+pub fn text(s:String)->Html effects {} {return Html(escapeText(s));}
+// @api concat cost O(total bytes); joins the Html parts in order without escaping.
+pub fn concat(parts:&List<Html>)->Html effects {} {
+    var out="";var i=0;
+    while i<parts.len() {let part=parts.get(i);out=out+part.text;i+=1;}
+    return Html(out);
+}
+// @api element cost O(attributes log attributes + children bytes); tag is a-z 0-9 (1..32), attribute names A-Z a-z 0-9 - (non-empty); attributes are written in name order.
+// @api element failure BadTag, BadAttribute, VoidChildren.
+pub fn element(tag:String,attrs:&Map<String,String>,children:&List<Html>)->Result<Html,HtmlError> effects {} {
+    if !validTag(tag) {return Err(HtmlError("BadTag"));}
+    let names=sortedStrings(attrs.keys());
+    var open="<"+tag;var i=0;
+    while i<names.len() {
+        let name=names.get(i);
+        if !validAttrName(name) {return Err(HtmlError("BadAttribute"));}
+        match attrs.get(name) {
+            Some(value)=>{open=open+" "+name+"=\""+escapeAttribute(value)+"\"";},
+            None=>{}
+        }
+        i+=1;
+    }
+    open=open+">";
+    if voidTag(tag) {
+        if children.len()>0 {return Err(HtmlError("VoidChildren"));}
+        return Ok(Html(open));
+    }
+    var body="";var j=0;
+    while j<children.len() {let child=children.get(j);body=body+child.text;j+=1;}
+    return Ok(Html(open+body+"</"+tag+">"));
+}
+// @api toString cost O(1); returns the markup text of h.
+pub fn toString(h:&Html)->String effects {} {return h.text;}

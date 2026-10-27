@@ -1,0 +1,7 @@
+// import の各形
+import a;
+import a.b.c;
+import a.b.{x, y as z};
+import a.b::{x, y as z};
+import a as b;
+import a.{} as c;

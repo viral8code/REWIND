@@ -1,0 +1,4 @@
+// runtime の未知の単位
+fn f() {
+    runtime { historyMemory = 1 TB; }
+}

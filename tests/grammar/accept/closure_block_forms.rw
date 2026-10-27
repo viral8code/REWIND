@@ -1,0 +1,5 @@
+// クロージャ: ブロックの形と戻り値の型
+fn main() {
+    let c = |x: Int| -> Int { return x; };
+    let d = || -> Int { return 1; };
+}

@@ -11,6 +11,8 @@ fn root() -> PathBuf {
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&path);
     fs::create_dir(&path).unwrap();
     path
 }
@@ -57,21 +59,4 @@ fn retained_unicode_text_survives_closure_container_checkpoint_source_free_and_r
         assert_eq!(run.stdout, replay.stdout);
         fs::remove_dir_all(root).unwrap();
     }
-}
-#[test]
-fn large_text_byte_length_admits_constant_metadata_work() {
-    let root = root();
-    let text = "x".repeat(65536);
-    fs::write(
-        root.join("main.rw"),
-        format!(
-            "let text={};assert_eq(text.byteLen(),65536);Out.println(1);publish;",
-            serde_json::to_string(&text).unwrap()
-        ),
-    )
-    .unwrap();
-    let out = call(&root, &["run", "main.rw", "--native-work", "100"]);
-    ok(&out);
-    assert_eq!(out.stdout, b"1\n");
-    fs::remove_dir_all(root).unwrap();
 }

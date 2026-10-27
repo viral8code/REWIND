@@ -61,6 +61,8 @@ fn stmt_kind(kind: &mut StmtKind) -> Result<()> {
 
 fn expr(e: &mut Expr) -> Result<()> {
     match &mut e.kind {
+        // A raw string (`"""..."""`) is never interpolated.
+        ExprKind::Value(Value::Text(_)) if e.at.text.starts_with("\"\"\"") => {}
         ExprKind::Value(Value::Text(text)) if text.contains("${") || text.contains("$${") => {
             let at = e.at.clone();
             let replacement = interpolate(text, &at)?;
@@ -159,6 +161,9 @@ fn interpolate(text: &str, at: &Tok) -> Result<Expr> {
                 toks: tokens,
                 pos: 0,
                 type_depth: 0,
+                cond_start: None,
+                splits: Vec::new(),
+                reserved: Vec::new(),
             };
             let inner = parser.expr(0)?;
             if !parser.is("<eof>") {

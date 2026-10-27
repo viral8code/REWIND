@@ -1,0 +1,228 @@
+// Pure web helpers: content types, safe relative paths, ETag and Range, security headers, session cookies,
+// form bodies and redirect targets. No network, no I/O, no clock. Every function is deterministic, has no effects,
+// and returns an error instead of panicking. Errors carry a code only, never the input text.
+import crypto as crypto;
+import bytes as bytesLib;
+import httpHeaders as hh;
+import url as url;
+
+pub record WebError {code:String}
+pub record ByteRange {start:Int,end:Int}
+
+fn match_slice(text:String,start:Int,end:Int)->String effects {} {
+    match stdTextSlice(text,start,end) {Ok(t)=>{return t;},Err(_)=>{return "";}}
+}
+fn trimSpaces(text:String)->String effects {} {
+    var start=0;var end=text.charLen();
+    while start<end && (match_slice(text,start,start+1)==" " || match_slice(text,start,start+1)=="\t") {start+=1;}
+    while end>start && (match_slice(text,end-1,end)==" " || match_slice(text,end-1,end)=="\t") {end-=1;}
+    return match_slice(text,start,end);
+}
+// 制御文字 (0 から 31 と 127) を含まないかを見る。
+fn plainText(text:String)->Bool effects {} {
+    match stdEncode(text) {
+        Err(_)=>{return false;},
+        Ok(bytes)=>{
+            var i=0;
+            while i<stdBytesLength(bytes) {
+                match stdBytesGet(bytes,i) {
+                    Ok(byte)=>{if byte<32 || byte==127 {return false;}},
+                    Err(_)=>{return false;}
+                }
+                i+=1;
+            }
+            return true;
+        }
+    }
+}
+// W/ の接頭辞を外した、比較用の形。
+fn opaqueTag(text:String)->String effects {} {
+    if match_slice(text,0,2)=="W/" {return match_slice(text,2,text.charLen());}
+    return text;
+}
+
+// @api contentType cost O(path length); looks at the last extension only, compared without case.
+// @api contentType failure none; a missing or unknown extension gives application/octet-stream.
+pub fn contentType(path:String)->String effects {} {
+    let segments=path.split("/");
+    let dotted=segments.get(segments.len()-1).split(".");
+    if dotted.len()<2 {return "application/octet-stream";}
+    let ext=hh.lowerName(dotted.get(dotted.len()-1));
+    if ext=="html" || ext=="htm" {return "text/html; charset=utf-8";}
+    if ext=="css" {return "text/css; charset=utf-8";}
+    if ext=="js" || ext=="mjs" {return "text/javascript; charset=utf-8";}
+    if ext=="json" {return "application/json";}
+    if ext=="txt" {return "text/plain; charset=utf-8";}
+    if ext=="svg" {return "image/svg+xml";}
+    if ext=="png" {return "image/png";}
+    if ext=="jpg" || ext=="jpeg" {return "image/jpeg";}
+    if ext=="gif" {return "image/gif";}
+    if ext=="webp" {return "image/webp";}
+    if ext=="ico" {return "image/x-icon";}
+    if ext=="woff2" {return "font/woff2";}
+    if ext=="pdf" {return "application/pdf";}
+    if ext=="wasm" {return "application/wasm";}
+    return "application/octet-stream";
+}
+
+// @api safeJoin cost O(path length); rejects "..", ".", empty segments, a leading slash, backslashes, colons and control characters.
+// @api safeJoin failure WebError Path (the relative path is empty, too long, absolute or has a segment that could escape the root).
+pub fn safeJoin(root:String,relative:String)->Result<String,WebError> effects {} {
+    if relative=="" || relative.byteLen()>1024 || !plainText(relative) {return Err(WebError("Path"));}
+    if relative.split("\\").len()>1 || relative.split(":").len()>1 {return Err(WebError("Path"));}
+    let parts=relative.split("/");
+    var i=0;
+    while i<parts.len() {
+        let part=parts.get(i);
+        if part=="" || part=="." || part==".." {return Err(WebError("Path"));}
+        i+=1;
+    }
+    return Ok(root+"/"+relative);
+}
+
+// @api etag cost one SHA-256 over the body (native work, 4 units per input byte); the first 32 hex characters of the digest, quoted.
+// @api etag failure WebError Limit (the body is over the sha256 input limit of 1 MiB).
+pub fn etag(body:Bytes)->Result<String,WebError> effects {} {
+    let digest=match crypto.sha256(body) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(WebError("Limit"));}
+    };
+    return Ok("\""+match_slice(bytesLib.toHex(digest),0,32)+"\"");
+}
+
+// @api notModified cost O(header length); true when If-None-Match is "*" or lists the current tag. Weak and strong forms compare equal.
+// @api notModified failure none; an empty current tag or a malformed list gives false.
+pub fn notModified(ifNoneMatch:String,current:String)->Bool effects {} {
+    let want=opaqueTag(trimSpaces(current));
+    if want=="" {return false;}
+    let items=ifNoneMatch.split(",");
+    var i=0;
+    while i<items.len() {
+        let item=opaqueTag(trimSpaces(items.get(i)));
+        if item=="*" || item==want {return true;}
+        i+=1;
+    }
+    return false;
+}
+
+// @api parseRange cost O(header length); accepts one "bytes=a-b", "bytes=a-" or "bytes=-n" range and clips it to size.
+// @api parseRange failure WebError Syntax (not a single bytes range, or a bad number) and Unsatisfiable (size below 1, or the start is past the end).
+pub fn parseRange(header:String,size:Int)->Result<ByteRange,WebError> effects {} {
+    if size<1 {return Err(WebError("Unsatisfiable"));}
+    let spec=trimSpaces(header);
+    if spec.byteLen()>64 || match_slice(spec,0,6)!="bytes=" {return Err(WebError("Syntax"));}
+    let body=match_slice(spec,6,spec.charLen());
+    if body.split(",").len()!=1 {return Err(WebError("Syntax"));}
+    let pieces=body.split("-");
+    if pieces.len()!=2 {return Err(WebError("Syntax"));}
+    let first=pieces.get(0);
+    let last=pieces.get(1);
+    if first=="" {
+        let suffix=match last.parseInt() {
+            Ok(v)=>{v},
+            Err(_)=>{return Err(WebError("Syntax"));}
+        };
+        if suffix<1 {return Err(WebError("Syntax"));}
+        if suffix>=size {return Ok(ByteRange(0,size-1));}
+        return Ok(ByteRange(size-suffix,size-1));
+    }
+    let start=match first.parseInt() {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(WebError("Syntax"));}
+    };
+    if start<0 {return Err(WebError("Syntax"));}
+    var end=size-1;
+    if last!="" {
+        end=match last.parseInt() {
+            Ok(v)=>{v},
+            Err(_)=>{return Err(WebError("Syntax"));}
+        };
+        if end<start {return Err(WebError("Syntax"));}
+    }
+    if start>=size {return Err(WebError("Unsatisfiable"));}
+    if end>size-1 {end=size-1;}
+    return Ok(ByteRange(start,end));
+}
+
+// @api securityHeaders cost O(1); six fixed headers: nosniff, no framing, no referrer, a restrictive CSP, HSTS and no caching of responses by default.
+// @api securityHeaders failure none.
+pub fn securityHeaders()->List<hh.Header> effects {} {
+    let out=List<hh.Header>();
+    out.add(hh.Header("x-content-type-options","nosniff"));
+    out.add(hh.Header("x-frame-options","DENY"));
+    out.add(hh.Header("referrer-policy","no-referrer"));
+    out.add(hh.Header("content-security-policy","default-src 'none'; frame-ancestors 'none'; base-uri 'none'"));
+    out.add(hh.Header("strict-transport-security","max-age=31536000; includeSubDomains"));
+    out.add(hh.Header("cache-control","no-store"));
+    return out;
+}
+
+// @api sessionCookie cost O(value length); Set-Cookie with Path=/, HttpOnly, SameSite=Lax, the given Max-Age and the Secure flag.
+// @api sessionCookie failure WebError Cookie (the name or token is not a valid cookie, or maxAge is below 1).
+pub fn sessionCookie(name:String,token:String,maxAge:Int,secure:Bool)->Result<String,WebError> effects {} {
+    if maxAge<1 {return Err(WebError("Cookie"));}
+    let settings=hh.CookieSettings(Some("/"),None,Some(maxAge),secure,true,Some("Lax"));
+    match hh.setCookie(name,token,settings) {
+        Ok(v)=>{return Ok(v);},
+        Err(_)=>{return Err(WebError("Cookie"));}
+    }
+}
+
+// @api clearSessionCookie cost O(name length); Set-Cookie with an empty value and Max-Age=0, with the same Path, HttpOnly and SameSite as sessionCookie.
+// @api clearSessionCookie failure WebError Cookie (the name is not a valid cookie name).
+pub fn clearSessionCookie(name:String,secure:Bool)->Result<String,WebError> effects {} {
+    let settings=hh.CookieSettings(Some("/"),None,Some(0),secure,true,Some("Lax"));
+    match hh.setCookie(name,"",settings) {
+        Ok(v)=>{return Ok(v);},
+        Err(_)=>{return Err(WebError("Cookie"));}
+    }
+}
+
+// @api readSession cost O(header length); reads the first Cookie header and returns the value of the named cookie.
+// @api readSession failure none; a missing or malformed Cookie header, or no such cookie, gives None.
+pub fn readSession(headers:&List<hh.Header>,name:String)->Option<String> effects {} {
+    let raw=match hh.find(headers,"Cookie") {
+        Some(v)=>{v},
+        None=>{return None;}
+    };
+    let cookies=match hh.parseCookieHeader(raw) {
+        Ok(v)=>{v},
+        Err(_)=>{return None;}
+    };
+    var i=0;
+    while i<cookies.len() {
+        let cookie=cookies.get(i);
+        if cookie.name==name {return Some(cookie.value);}
+        i+=1;
+    }
+    return None;
+}
+
+// @api parseForm cost O(body length); parses an application/x-www-form-urlencoded body with url.parseQuery (plus is a space).
+// @api parseForm failure WebError Form (malformed percent-encoding, or a body over the url.parseQuery limit).
+pub fn parseForm(body:String)->Result<List<url.Param>,WebError> effects {} {
+    match url.parseQuery(body) {
+        Ok(v)=>{return Ok(v);},
+        Err(_)=>{return Err(WebError("Form"));}
+    }
+}
+
+// @api formValue cost O(fields); the value of the first field with that name. A field without = gives None.
+// @api formValue failure none; a missing name gives None.
+pub fn formValue(fields:&List<url.Param>,name:String)->Option<String> effects {} {
+    var i=0;
+    while i<fields.len() {
+        let field=fields.get(i);
+        if field.name==name {return field.value;}
+        i+=1;
+    }
+    return None;
+}
+
+// @api redirectLocation cost O(target length); accepts only a path on the same origin: one leading slash, no backslash, no control characters.
+// @api redirectLocation failure WebError Redirect (a scheme, a host, a leading // or /\, a backslash, a control character, or a target over 2048 bytes).
+pub fn redirectLocation(target:String)->Result<String,WebError> effects {} {
+    if target.byteLen()>2048 || match_slice(target,0,1)!="/" || match_slice(target,0,2)=="//" {return Err(WebError("Redirect"));}
+    if target.split("\\").len()>1 || !plainText(target) {return Err(WebError("Redirect"));}
+    return Ok(target);
+}

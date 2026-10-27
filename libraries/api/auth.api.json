@@ -1,0 +1,1013 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "4.0.0",
+  "symbols": {
+    "dependency:base64.rw": {
+      "fn:$import$base64$decode": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "text"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Bytes,$import$base64$Base64Error>"
+      },
+      "fn:$import$base64$decodeUrl": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "text"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Bytes,$import$base64$Base64Error>"
+      },
+      "fn:$import$base64$encode": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "data"
+        ],
+        "parameters": [
+          "Bytes"
+        ],
+        "return": "String"
+      },
+      "fn:$import$base64$encodeUrl": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "data"
+        ],
+        "parameters": [
+          "Bytes"
+        ],
+        "return": "String"
+      },
+      "type:$import$base64$Base64Error": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ],
+          [
+            "offset",
+            "Int"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      }
+    },
+    "dependency:crypto.rw": {
+      "fn:$import$crypto$constantTimeEq": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "a",
+          "b"
+        ],
+        "parameters": [
+          "Bytes",
+          "Bytes"
+        ],
+        "return": "Bool"
+      },
+      "fn:$import$crypto$hmacSha256": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "key",
+          "message"
+        ],
+        "parameters": [
+          "Bytes",
+          "Bytes"
+        ],
+        "return": "Result<Bytes,StdError>"
+      },
+      "fn:$import$crypto$pbkdf2Sha256": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "password",
+          "salt",
+          "iterations",
+          "length"
+        ],
+        "parameters": [
+          "Bytes",
+          "Bytes",
+          "Int",
+          "Int"
+        ],
+        "return": "Result<Bytes,StdError>"
+      },
+      "fn:$import$crypto$randomBytes": {
+        "async": false,
+        "defaults": [],
+        "effects": [
+          "external",
+          "random"
+        ],
+        "generics": [],
+        "names": [
+          "length"
+        ],
+        "parameters": [
+          "Int"
+        ],
+        "return": "Result<Bytes,StdError>"
+      },
+      "fn:$import$crypto$sha256": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "data"
+        ],
+        "parameters": [
+          "Bytes"
+        ],
+        "return": "Result<Bytes,StdError>"
+      },
+      "fn:$import$crypto$sha512": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "data"
+        ],
+        "parameters": [
+          "Bytes"
+        ],
+        "return": "Result<Bytes,StdError>"
+      }
+    },
+    "fn:csrfToken": {
+      "async": false,
+      "cost": "one HMAC-SHA256.",
+      "defaults": [],
+      "effects": [],
+      "failure": "AuthError Range (HMAC rejected the input).",
+      "generics": [],
+      "names": [
+        "key",
+        "sessionId"
+      ],
+      "parameters": [
+        "Bytes",
+        "String"
+      ],
+      "return": "Result<String,AuthError>"
+    },
+    "fn:hashPassword": {
+      "async": false,
+      "cost": "one PBKDF2-SHA256 run with the given iterations (10,000 to 1,000,000); salt 16 to 64 bytes.",
+      "defaults": [],
+      "effects": [],
+      "failure": "AuthError Range (salt length or iterations out of range).",
+      "generics": [],
+      "names": [
+        "password",
+        "salt",
+        "iterations"
+      ],
+      "parameters": [
+        "String",
+        "Bytes",
+        "Int"
+      ],
+      "return": "Result<String,AuthError>"
+    },
+    "fn:needsRehash": {
+      "async": false,
+      "cost": "O(stored) work; no hashing.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; malformed input or an unknown algorithm returns true.",
+      "generics": [],
+      "names": [
+        "stored",
+        "minIterations"
+      ],
+      "parameters": [
+        "String",
+        "Int"
+      ],
+      "return": "Bool"
+    },
+    "fn:signToken": {
+      "async": false,
+      "cost": "one HMAC-SHA256 over the token head; key at least 16 bytes, payload at most 4096 bytes.",
+      "defaults": [],
+      "effects": [],
+      "failure": "AuthError Range (key shorter than 16 bytes or payload longer than 4096 bytes).",
+      "generics": [],
+      "names": [
+        "key",
+        "payload",
+        "expiresAt"
+      ],
+      "parameters": [
+        "Bytes",
+        "String",
+        "Int"
+      ],
+      "return": "Result<String,AuthError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "fn:verifyCsrf": {
+      "async": false,
+      "cost": "one HMAC-SHA256 and a constant-time comparison.",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; a wrong token, wrong session or unusable key returns false.",
+      "generics": [],
+      "names": [
+        "key",
+        "sessionId",
+        "token"
+      ],
+      "parameters": [
+        "Bytes",
+        "String",
+        "String"
+      ],
+      "return": "Bool"
+    },
+    "fn:verifyPassword": {
+      "async": false,
+      "cost": "one PBKDF2-SHA256 run with the iterations stored in the hash (1 to 1,000,000).",
+      "defaults": [],
+      "effects": [],
+      "failure": "none; malformed input, an unknown algorithm or a wrong password all return false.",
+      "generics": [],
+      "names": [
+        "password",
+        "stored"
+      ],
+      "parameters": [
+        "String",
+        "String"
+      ],
+      "return": "Bool"
+    },
+    "fn:verifyToken": {
+      "async": false,
+      "cost": "one HMAC-SHA256 over the token head; the signature is checked before the payload is returned.",
+      "defaults": [],
+      "effects": [],
+      "failure": "AuthError BadSignature (signature mismatch, or key shorter than 16 bytes), Expired (now is at or after expiresAt), Malformed (wrong shape or undecodable parts).",
+      "generics": [],
+      "names": [
+        "key",
+        "token",
+        "now"
+      ],
+      "parameters": [
+        "Bytes",
+        "String",
+        "Int"
+      ],
+      "return": "Result<String,AuthError>"
+    },
+    "type:AuthError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

@@ -9,22 +9,24 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
     }
 }
 
-let versions=take(createHistory<List<Int>>(8));
-let values=List<Int>();values.add(10);
-assert_eq(history.save(&mut versions,"first",&values),Ok(()));
-values.set(0,99);
-assert_eq(history.save(&mut versions,"second",&values),Ok(()));
+fn main()->Int {
+    let versions=take(createHistory<List<Int>>(8));
+    let values=List<Int>();values.add(10);
+    assert_eq(history.save(&mut versions,"first",&values),Ok(()));
+    values.set(0,99);
+    assert_eq(history.save(&mut versions,"second",&values),Ok(()));
 
-match history.get(&versions,"first") {
-    Some(saved)=>{
-        Out.println(snapshots.read(saved).get(0));
-        Out.println(values.get(0));
-        let branch=snapshots.fork(saved);
-        branch.set(0,7);
-        Out.println(branch.get(0));
-        history.clear(&mut versions);
-        Out.println(snapshots.read(saved).get(0));
-    },
-    None=>{panic("missing first version");}
+    match history.get(&versions,"first") {
+        Some(saved)=>{
+            Out.println(snapshots.read(saved).get(0));
+            Out.println(values.get(0));
+            let forked=snapshots.fork(saved);
+            forked.set(0,7);
+            Out.println(forked.get(0));
+            history.clear(&mut versions);
+            Out.println(snapshots.read(saved).get(0));
+        },
+        None=>{panic("missing first version");}
+    }
+    return 0;
 }
-publish;

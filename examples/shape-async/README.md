@@ -1,6 +1,6 @@
 # Cooperative reshape and broadcast contraction
 
-Run `rewind run main.rw`. The program contracts a reversed broadcast view,
+Run `rewind run main.rw --native-work 100000000 --steps 20000000 --task-steps 2000000`. The program contracts a reversed broadcast view,
 restores an unfinished task, copies a logical view and cancels a second copy.
 Expected output is `true`, `true`, `shape done` on separate lines.
 

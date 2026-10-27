@@ -2,7 +2,32 @@
 
 更新日：2026-10-12。構想から実装へ移行。snapshot/historyに加え12の標準moduleと入れ子Frozenの修正を保存しました。**source実装済み・実行検証はユーザー方針で省略**。版更新・Release公開は行っていません。
 
-## この作業で守る指示
+## 現状（2026-10-19）
+
+この文書の以下の表は、v2.1〜v2.2を計画していた当時の記録で、**現在の状態とは一致しません**。現在の実装は REWIND 3.6.0（`codex/develop`）です。
+
+- v2.1の作業（CLI-01/02、DIAG-01〜03、DBG-01〜03、PROF-01/02）は、v3.1で出荷済みです（[v3.1](REWIND_v3.1.md)）。
+- DB transaction・migration・PostgreSQLの実backend確認は、v3.1〜v3.3で行いました。LANG・NET・DATA・QUAL・MEMの一部の構想は、v3.4〜v3.6で採用・実装されました。
+- 言語の現在の仕様は[言語リファレンス](language-reference.md)、入門は[入門書](book/index.html)にあります。
+- 2026-10-20: 標準moduleに`std.dna`（2bit packing、k 1..32、k-mer・逆相補・canonical・roll・GC数・Hamming距離）と`std.fastx`（FASTA/FASTQの解析と整形、phred）を追加しました。版は上げていません。
+- 2026-10-20: 標準moduleに`std.web`（contentType、safeJoin、etag、notModified、parseRange、securityHeaders、session cookie、parseForm、formValue、redirectLocation の純粋helper）を追加しました。版は上げていません。
+- 2026-10-20: `numeric.matmul`を内部で行単位に並列化しました（`std::thread::scope`、スレッド数は最大8）。結果はビット単位で直列版と同一で、言語の意味は変えていません。m*n*k が 2^21 以上で m が 2 以上のときだけ並列になり、公開APIは変えていません。版は上げていません。
+- 2026-10-20: ローカル変数の文字列 `+=` を、ヒープ上の値を移動して追記するようにしました。追記の費用は追加分に比例し、以前のように文字列全体を複製しなくなりました。言語の意味、`commit`/`revert` の結果、実行予算とメモリの計上は変えていません。フィールドへの `+=`（`self.buf += ...`）は対象外です。版は上げていません。
+- 性能段階（PERF-02〜05）の測定結果は[v2-next-perf-results.md](v2-next-perf-results.md)にあります。
+- 3.6.0の後に `codex/develop` へ入った言語の改善（版は上げていません）: 借用した`List`/`Map`を`for`で回せるようにした、`?`のエラー型の不一致（組み込みの型どうし）と`Result`を返さない関数での`?`を実行前に拒否、関数の型制約に存在しない名前を拒否、型を省ける短いクロージャ（`|n| n * 2`。型が決まる場所、つまり関数の引数、`Iterator`・`Result` のメソッド、`return`、代入、型注釈つきの `let` でだけ。`language` 3.0.0 以上）、カンマ区切りのすべての箇所での末尾のカンマ、C# 方式の raw 文字列（`"""` で開閉し、エスケープも補間も効かない）、`const`と`Map.keys()`の`for`の修正。
+- Windowsのネイティブ GUI は、ローカルの実機で実際のウィンドウを開き、マウス・キーボード入力、Undo、保存、リサイズ後の再配置を確かめました（[docs/gui.md](gui.md)、`scripts/gui-smoke-windows.ps1`）。Linux/X11（WSLg の XWayland）でも、同じ確認を行い、`resize` イベントが止まらなくなる不具合を直しました（`scripts/gui-smoke-linux.sh`）。IME の変換中表示と、Wayland のネイティブ実装の確認は残っています。
+- 残っているもの: GUIの自然寸法測定・IME再描画、PERF-01の共通測定形式、Linux・GUI・HTTP・PostgreSQLの測定、言語の使い勝手の改善のうち、`unwrap`/`expect`と入力前の自動`publish`は、「失敗を無視しない」「`publish`するまで外へ出ない」という言語の方針と衝突するため採用していません（[v3.0の未実装一覧](REWIND_v3.0.md)）。
+
+## 4.0.0 の変更（2026-10-26）
+
+コンパイラと言語の版を 4.0.0 に上げました。詳しくは[言語リファレンスの付録 B](language-reference.md#400-の変更)と[4.0.0 の変更点](REWIND_v4.0.md)にあります。
+
+- 言語 4.0.0 では、宣言・制御・チェックポイント・式の約 45 語が予約語になり、名前に使えません。修飾語（`value capture borrow force live fresh test where effects captures`）は文脈依存のままです。
+- 言語 4.0.0 では、ソースの `null` リテラルを書けません。内部の値は DB と JSON のために残ります。
+- REWIND 4 は `language` 3.0.0 未満を受け付けません。旧版の言語だけに必要だったテスト（約 380 件）、examples、fixtures と、旧版の分岐コード（版の列挙 196 箇所、`language_at_least` 137 箇所、旧版専用の検査器 2 つ）を削除しました。ソースは約 2 万行減っています。
+- どの言語でも、通常の文字列リテラルの中の改行は LF になります。
+- `binding.revert` を削除し、`historyGraph` の名前付き引数 `branch:` を `branchName` に改名しました。
+- 型注釈つき `let` の短いクロージャ、末尾のカンマ、raw 文字列を追加し、`match E::A {` と `a < b >= c` を読めるようにしました。
 
 - 作業とcommit/pushは`codex/develop`だけ。今回mainへ統合しない。
 - 公開CI/CDを動かさない。commit messageに`[skip ci]`を付ける。
@@ -134,7 +159,7 @@ CLI/artifact/replayの回帰追加を含む最新commitはgit log -- tests/data_
 2. [v2.1詳細](REWIND_v2.1-plan.md)：最初の実装対象と受入条件。
 3. [v2.2詳細](REWIND_v2.2-plan.md)：GUI/DBの差分と保留条件。
 4. [性能計画](v2-next-performance.md)：baselineと最適化の判断。
-5. [現行入門書](book/index.html)、[v2.0仕様](REWIND_v2.0.md)、[受入履歴](v2-acceptance.md)：現在の契約を確認する資料。
+5. [言語リファレンス](language-reference.md)、[現行入門書](book/index.html)、[v2.0仕様](REWIND_v2.0.md)、[受入履歴](v2-acceptance.md)：現在の契約を確認する資料。
 
 以前の[2.0ロードマップ](ROADMAP_v2.md)は履歴です。その残件を検査せずに現行残件へ転記しません。
 
@@ -190,10 +215,10 @@ DB transaction、form検証、table viewport、協調GUI入力を新規不足と
 | ID | 状態 | 次の成果物 |
 |---|---|---|
 | PERF-01 | 未着手 | 共通測定formatとbaseline binary/input記録 |
-| PERF-02 | 未着手 | 既存scriptの確認と不足case追加 |
-| PERF-03 | 未着手 | 固定rootのGC/保持調査、必要なら最小修正 |
-| PERF-04 | 未着手 | 実測したhot pathごとの独立改善 |
-| PERF-05 | 未着手 | 長時間の資源・cleanup確認 |
+| PERF-02 | 一部測定済 | Windowsで主要9 caseを前後比較（[記録](v2-next-perf-results.md)）。Linux・GUI・HTTP・PostgreSQL・IO-01・SCHED-01は未測定 |
+| PERF-03 | 測定済・1件修正 | 固定rootの繰返しで説明のつかない増加は、スケジュール記録の無制限増加1件のみ（修正済み）。ledgerは回数に比例しない |
+| PERF-04 | 3件改善済 | VM命令あたりの確保削減、非連続viewの走査、スケジュール記録。残り：予算確認の全状態走査、external台帳の走査（[記録](v2-next-perf-results.md)） |
+| PERF-05 | 一部実施（ローカルの主要経路は完了） | VM/数値/task/checkpoint/recordは10,000 cycle以上で一定。SQLite loopも10,000 cycle完走（14秒、回数に比例。external台帳分の約1.2 KiB/cycleは設計どおり）。GUI・HTTP・PostgreSQLの長時間は未実施 |
 
 最適化目標の数値はbaseline取得後に決めます。「GCがある」という事実だけで漏れなしを宣言しません。checkpoint由来の意図した保持を欠陥扱いしません。
 
@@ -453,3 +478,16 @@ Compiler, runtime, tests, and API generation remain unverified because the execu
 Added [an example](../examples/gui-form-schema-validation.rw) and an acceptance source test for schema rejection, unchanged form text, and successful mapping. Updated the GUI reference, GUI-03 plan, API manifest, library list, and implementation index. Implementation commit: [79c5540](https://github.com/viral8code/REWIND/commit/79c55409948bd5d02591b351768de54686a0f104).
 
 Compiler, runtime, tests, and API generation remain unverified because the execution environment failed to start. Static checks covered source/API function names, API JSON parse, and delimiter balance. The feature and this record are on `codex/develop` with `[skip ci]`; no public CI/CD, main merge, Release, or version update was run.
+
+2026-10-19: std.html / std.template 追加（版は上げない）。`std.html` は HTML の escape・安全な URL・属性を検査した element 構築を、`std.template` は JSON data の `{{name}}` 描画を、pure な `.rw` として `libraries/std` に追加した。API baseline（`libraries/api/html.api.json`、`template.api.json`）、`libraries/README.md`、`docs/language-reference.md` に反映した。コミット・push・版の更新はしていない。
+
+2026-10-19: std.base64 / std.auth 追加（版は上げない）。`std.base64` は標準と URL-safe の encode/decode を、`std.auth` は PBKDF2 によるパスワード保存と検証、署名付き token、CSRF token を、pure な `.rw` として `libraries/std` に追加した。salt と key は呼出側が渡す（CSPRNG は未提供）。API baseline（`libraries/api/base64.api.json`、`auth.api.json`）、`libraries/README.md`、`docs/language-reference.md` に反映した。コミット・push・版の更新はしていない。
+2026-10-20: std.bits / std.bytes 追加（版は上げない）。`std.bits` に leadingZeros・trailingZeros・rotateLeft/Right・reverseBits・byteSwap・extract・deposit を、`std.bytes` に concat・fromInts・toInts・indexOf・equal・readInt を追加した（native は `src/v2/v092.rs`）。API baseline（`libraries/api/bits.api.json`、`bytes.api.json`）、`libraries/README.md`、`docs/language-reference.md` に反映した。コミット・push・版の更新はしていない。
+2026-10-20: std.crypto.randomBytes 追加（版は上げない）。OS の乱数源から 1〜65536 バイトを返す。`external` と `random` の権限が必要で、実行時に記録され replay で再生される（native は `src/v2/v092.rs`、API baseline は `libraries/api/crypto.api.json`）。
+2026-10-20: std.fastx の大きな入力 (1 レコード 1M 塩基) で formatFasta を文字単位の切り出しからバイト単位の切り出しに変えた結果、width 60 の書き出しは 15.94 秒から 1.05 秒になった (250K: 1.19 → 0.36 秒)。parseFasta は行末の検出を native の stdBytesIndexOf に変えた結果、1M 塩基で 19.30 秒から 3.91 秒になった (250K: 4.93 → 1.21 秒、500K: 9.73 → 1.89 秒)。parseFastq は 250K 塩基で 10.69 秒から 0.36 秒、500K 塩基で 21.17 秒から 0.44 秒になった (400K 塩基 0.38 秒。1M 塩基は 1 MiB を超えるため測定対象外)。いずれも線形。
+2026-10-20: std.guiTabs / std.guiCombo / std.guiDate 追加（版は上げない）。タブ、上限付きの選択式リスト、1900〜2200 年の日付選択を純粋な .rw で実装し、gui の画面へ重ねて描画する。
+2026-10-20: std.binding 追加（版は上げない）。1 つの record の値と、欄の id つきの文字列の読み書きを束ね、版番号と差分で画面の再描画を判断する。guiForm との受け渡し、取り消し・やり直しを純粋な .rw で実装する。
+2026-10-21: std.guiCombo の文字入力による検索を、大文字小文字を区別しない形に変更（版は上げない）。候補の順序と返す値は変えず、`std.unicode.lower` で小文字にそろえて比べる。`examples/gui-controls2.rw` に guiTabs / guiCombo / guiDate / binding を使う例を追加した。
+2026-10-21: std.text に codePoints / fromCodePoints / lineSeparator を追加し、std.binding に reset を追加した（版は上げない）。lineSeparator は実行環境の改行を外部の観測として記録し、replay は記録した値を返す。binding.revert は reset と同じ動作のまま非推奨にし、4.0.0 で削除する予定。
+
+2026-10-27: セキュリティの点検と、小さな残課題の整理をした（4.0.0 の準備）。クロージャを連鎖して作ると、作るたびに連鎖の全体を調べていたため二乗時間（6000 段で約 10 秒、予算で止まるまで約 28 秒）かかっていた。作成時に求めた Send/Share の印を使うようにして、線形にした（6000 段で 0.2 秒）。bigint・json・regex・url などの std は、native 作業の予算で止まることを確かめ、`tests/hostile_runtime.rs` に回帰テストを置いた。構文は、match の文の `{ }` アームのカンマ省略、式ブロックの let-else、`pub effects` の拒否をそろえた。エディタ向けに `rewind editor-info`、`rewind tokens`、LSP の documentSymbol と semanticTokens を追加した（[エディタ作成ガイド](editor-guide.md)）。警告は、使われていないコード（accessibility の cursor と anchor、`IsWindowEnabled` の本体向け宣言、`frame_id`、`trace` と `selected_task`、テスト専用の `submit`）を削り、テストだけが使うものは `cfg(test)` にして、テストを含むビルドで 0 件にした。`std.text.codePoints` の 1 MiB 超での実行時エラーと、`length` と `find` の文字数の数え直し（O(n)）は、仕様どおりの挙動で予算が上限を守るため、変えていない。

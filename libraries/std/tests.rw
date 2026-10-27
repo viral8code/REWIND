@@ -1,4 +1,6 @@
 import numeric as numeric;
+import html as html;
+import template as template;
 import flow as flow;
 import matching as matching;
 import error as error;
@@ -15,6 +17,14 @@ import math as math;
 import option as option;
 import table as table;
 import layout as layout;
+import evaluation as evaluation;
+import compress as compress;
+import crypto as crypto;
+import base64 as base64;
+import dna as dna;
+import fastx as fastx;
+import auth as auth;
+import image as imageLib;
 import json as json;
 import jsonStream as jsonStream;
 import config as config;
@@ -330,6 +340,9 @@ test fn cooperative_numeric_domain_is_inner_result()->Unit effects {tasks} {
 import guiForm as guiForm;
 import guiTable as guiTable;
 import guiField as guiField;
+import guiTabs as guiTabs;
+import guiCombo as guiCombo;
+import guiDate as guiDate;
 test fn form_and_empty_table_contracts() {
  let defs=List<guiForm.Field>();defs.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"-"));
  match guiForm.create(&defs,1){Err(_)=>{panic("form creation");},Ok(model)=>{
@@ -1818,10 +1831,10 @@ test fn schemas_apply_explicit_unknown_policies_and_validate_declarations()->Uni
     let fields=List<schema.Field>();
     let known=transformTake(schema.field("known",schema.boolean(),false,None));fields.add(known);
     let keep=transformTake(schema.object(&fields,SchemaUnknown::Keep));
-    let drop=transformTake(schema.object(&fields,SchemaUnknown::Drop));
+    let dropped=transformTake(schema.object(&fields,SchemaUnknown::Drop));
     let input=transformTake(json.parse("{\"known\":true,\"extra\":7}"));
     assert_eq(json.get(transformTake(schema.validate(keep,input)),"extra"),Some(Json::Int(7)));
-    assert_eq(json.get(transformTake(schema.validate(drop,input)),"extra"),None);
+    assert_eq(json.get(transformTake(schema.validate(dropped,input)),"extra"),None);
     fields.add(known);
     match schema.object(&fields,SchemaUnknown::Keep) {Err(e)=>{assert_eq(e.code,"DuplicateField");},Ok(_)=>{panic("duplicate declaration");}}
     let integer=transformTake(schema.integer(0,9));
@@ -2706,6 +2719,57 @@ test fn table_limits_columns() {
     assert_eq(table.columnCount(&t),256);
 }
 
+fn tblIds(t:&table.Table)->List<Int> effects {} {return tblTake(table.ints(t,"id"));}
+fn tblOrderIds(r:Result<table.Table,table.TableError>)->List<Int> effects {} {match r {Ok(t)=>{return tblIds(&t);},Err(e)=>{panic(e.code);}}}
+test fn table_order_by_ascending_puts_null_last() {
+    let p=tblPeople();
+    let s=tblTable(table.orderBy(&p,"age",table.Order::Ascending));
+    let ids=tblIds(&s);
+    assert_eq(ids.get(0),2);assert_eq(ids.get(1),1);assert_eq(ids.get(2),4);assert_eq(ids.get(3),3);
+    assert_eq(table.cell(&s,3,"age"),Ok(table.Cell::Null));
+}
+test fn table_order_by_descending_puts_null_last() {
+    let p=tblPeople();
+    let s=tblTable(table.orderBy(&p,"age",table.Order::Descending));
+    let ids=tblIds(&s);
+    assert_eq(ids.get(0),4);assert_eq(ids.get(1),1);assert_eq(ids.get(2),2);assert_eq(ids.get(3),3);
+    assert_eq(table.cell(&s,3,"age"),Ok(table.Cell::Null));
+}
+test fn table_order_by_text_column_and_original_is_unchanged() {
+    let t=tblPeople();
+    let asc=tblOrderIds(table.orderBy(&t,"name",table.Order::Ascending));
+    assert_eq(asc.get(0),1);assert_eq(asc.get(1),3);assert_eq(asc.get(2),4);assert_eq(asc.get(3),2);
+    let desc=tblOrderIds(table.orderBy(&t,"name",table.Order::Descending));
+    assert_eq(desc.get(0),4);assert_eq(desc.get(1),3);assert_eq(desc.get(2),1);assert_eq(desc.get(3),2);
+    assert_eq(table.cell(&t,0,"id"),Ok(table.Cell::Int(1)));
+    assert_eq(table.rowCount(&t),4);
+}
+test fn table_order_by_keeps_equal_keys_in_original_order() {
+    var b=table.builder();
+    let k=List<Int>();k.add(2);k.add(1);k.add(2);k.add(1);
+    let id=List<Int>();id.add(1);id.add(2);id.add(3);id.add(4);
+    let _a=table.addInts(&mut b,"k",&k);
+    let _b=table.addInts(&mut b,"id",&id);
+    let t=table.build(move b);
+    let asc=tblOrderIds(table.orderBy(&t,"k",table.Order::Ascending));
+    assert_eq(asc.get(0),2);assert_eq(asc.get(1),4);assert_eq(asc.get(2),1);assert_eq(asc.get(3),3);
+    let desc=tblOrderIds(table.orderBy(&t,"k",table.Order::Descending));
+    assert_eq(desc.get(0),1);assert_eq(desc.get(1),3);assert_eq(desc.get(2),2);assert_eq(desc.get(3),4);
+}
+test fn table_order_by_bool_column_false_first() {
+    var b=table.builder();
+    let f=List<Bool>();f.add(true);f.add(false);f.add(true);f.add(false);
+    let id=List<Int>();id.add(1);id.add(2);id.add(3);id.add(4);
+    let _a=table.addBools(&mut b,"f",&f);
+    let _b=table.addInts(&mut b,"id",&id);
+    let t=table.build(move b);
+    let asc=tblOrderIds(table.orderBy(&t,"f",table.Order::Ascending));
+    assert_eq(asc.get(0),2);assert_eq(asc.get(1),4);assert_eq(asc.get(2),1);assert_eq(asc.get(3),3);
+}
+test fn table_order_by_missing_column_fails() {
+    let p=tblPeople();
+    assert_eq(tblCode(table.orderBy(&p,"zzz",table.Order::Ascending)),"UnknownColumn");
+}
 fn tblOrders()->table.Table effects {} {
     var b=table.builder();
     let who=List<Option<String>>();who.add(Some("a"));who.add(Some("b"));who.add(Some("a"));who.add(None);who.add(Some("b"));who.add(Some("a"));who.add(Some("c"));
@@ -2872,4 +2936,1274 @@ test fn layout_builder_limits_names_counts_and_size() {
     assert_eq(lyCode(layout.add(&mut b,"huge",layout.Kind::I64,4096)),"ok");
     for i in 0..31 {let _=layout.add(&mut b,"x"+result.valueOr(number.formatInt(i,10),"?"),layout.Kind::I64,4096);}
     assert_eq(lyCode(layout.add(&mut b,"over",layout.Kind::I64,4096)),"TooLarge");
+}
+
+fn evInts(values:Frozen<List<Int>>)->List<Int> effects {} {var out=List<Int>();for i in 0..values.len() {out.push(values.get(i));}return out;}
+fn evOrder(n:Int,seed:Int)->List<Int> effects {} {match evaluation.shuffled(n,seed) {Ok(v)=>{return v;},Err(_)=>{panic("shuffled");}}}
+fn cmpRepeat(unit:String,doublings:Int)->Bytes effects {} {
+    var s=unit;for i in 0..doublings {s=s+s;}
+    match bytes.encode(s){Ok(b)=>{return b;},Err(_)=>{panic("encode");}}
+}
+fn cmpTake(r:Result<Bytes,StdError>)->Bytes effects {} {
+    match r {Ok(b)=>{return b;},Err(_)=>{panic("compress step failed");}}
+}
+fn cmpCode(r:Result<Bytes,StdError>)->String effects {} {
+    match r {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn intCode<T>(r:Result<T,StdError>)->String effects {} {
+    match r {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn cmpWith(data:Bytes,at:Int,value:Int)->Bytes effects {} {
+    let list=List<Int>();
+    for i in 0..bytes.length(data) {
+        match bytes.get(data,i) {Ok(v)=>{if i==at {list.add(value);}else{list.add(v);}},Err(_)=>{panic("get");}}
+    }
+    match stdBytesFromList(&list){Ok(b)=>{return b;},Err(_)=>{panic("from list");}}
+}
+test fn compress_checksums_match_published_vectors() {
+    assert_eq(compress.crc32(Bytes("")),0);
+    assert_eq(compress.crc32(Bytes("123456789")),3421780262);
+    assert_eq(compress.adler32(Bytes("")),1);
+    assert_eq(compress.adler32(Bytes("Wikipedia")),300286872);
+}
+test fn compress_round_trips_and_shrinks_repetitive_data() {
+    let data=cmpRepeat("abcabcabc",8);
+    for level in [0,1,6,9] {
+        let packed=cmpTake(compress.deflate(data,level));
+        assert_eq(cmpTake(compress.inflate(packed,8192)),data);
+        let z=cmpTake(compress.zlibCompress(data,level));
+        assert_eq(cmpTake(compress.zlibDecompress(z,8192)),data);
+    }
+    let packed=cmpTake(compress.deflate(data,6));
+    assert(bytes.length(packed)<bytes.length(data)/10);
+    assert_eq(compress.deflate(data,6),compress.deflate(data,6));
+    let empty=cmpTake(compress.deflate(Bytes(""),6));
+    assert_eq(cmpTake(compress.inflate(empty,0)),Bytes(""));
+}
+test fn compress_inflate_refuses_output_over_the_limit_instead_of_truncating() {
+    let bomb=cmpRepeat("0",16);
+    assert_eq(bytes.length(bomb),65536);
+    let packed=cmpTake(compress.deflate(bomb,9));
+    assert(bytes.length(packed)<512);
+    assert_eq(cmpCode(compress.inflate(packed,1000)),"Limit");
+    assert_eq(cmpCode(compress.inflate(packed,65535)),"Limit");
+    assert_eq(cmpTake(compress.inflate(packed,65536)),bomb);
+}
+test fn compress_distinguishes_truncated_corrupt_and_out_of_range_input() {
+    let data=cmpRepeat("hello ",6);
+    let z=cmpTake(compress.zlibCompress(data,6));
+    let n=bytes.length(z);
+    assert_eq(cmpCode(compress.zlibDecompress(cmpTake(bytes.slice(z,0,n-6)),8192)),"Truncated");
+    assert_eq(cmpCode(compress.zlibDecompress(cmpWith(z,n-1,(match bytes.get(z,n-1){Ok(v)=>v,Err(_)=>0}+1)%256),8192)),"Corrupt");
+    assert_eq(cmpCode(compress.inflate(Bytes("not deflate data at all"),8192)),"Corrupt");
+    assert_eq(cmpCode(compress.deflate(data,11)),"Range");
+    assert_eq(cmpCode(compress.deflate(data,-1)),"Range");
+    assert_eq(cmpCode(compress.inflate(z,-1)),"Range");
+    assert_eq(cmpCode(compress.inflate(z,1048577)),"Range");
+}
+test fn compress_survives_pseudo_random_garbage_without_panicking_or_exceeding_the_limit() {
+    var state=12345;
+    for round in 0..50 {
+        let list=List<Int>();
+        let length=1+round%40;
+        for i in 0..length {state=(state*1103515245+12345)%2147483648;list.add((state/65536)%256);}
+        let data=match stdBytesFromList(&list){Ok(b)=>b,Err(_)=>Bytes("")};
+        for mode in 0..2 {
+            let result=if mode==0 {compress.inflate(data,2048)} else {compress.zlibDecompress(data,2048)};
+            match result {
+                Ok(out)=>{assert(bytes.length(out)<=2048);},
+                Err(e)=>{assert(e.code=="Limit"||e.code=="Truncated"||e.code=="Corrupt");},
+            }
+        }
+    }
+}
+test fn crypto_known_answers_match_published_vectors() {
+    assert_eq(bytes.toHex(cmpTake(crypto.sha256(Bytes("abc")))),"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    assert_eq(bytes.toHex(cmpTake(crypto.sha256(Bytes("")))),"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    assert_eq(bytes.toHex(cmpTake(crypto.sha512(Bytes("abc")))),"ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f");
+    assert_eq(bytes.toHex(cmpTake(crypto.hmacSha256(Bytes("Jefe"),Bytes("what do ya want for nothing?")))),"5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+    assert_eq(bytes.toHex(cmpTake(crypto.hmacSha256(cmpTake(bytes.fromHex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b")),Bytes("Hi There")))),"b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
+}
+test fn crypto_pbkdf2_matches_published_vectors() {
+    assert_eq(bytes.toHex(cmpTake(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1,32))),"120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b");
+    assert_eq(bytes.toHex(cmpTake(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),4096,32))),"c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a");
+    assert_eq(bytes.length(cmpTake(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1,40))),40);
+}
+test fn crypto_pbkdf2_rejects_out_of_range_arguments() {
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),0,32)),"Range");
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1000001,32)),"Range");
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1,0)),"Range");
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes("salt"),1,1025)),"Range");
+    assert_eq(cmpCode(crypto.pbkdf2Sha256(Bytes("password"),Bytes(""),1,32)),"Range");
+}
+test fn crypto_hex_round_trip_and_corrupt_input() {
+    assert_eq(bytes.toHex(Bytes("")),"");
+    assert_eq(bytes.toHex(cmpTake(bytes.fromHex("00ABff"))),"00abff");
+    assert_eq(cmpCode(bytes.fromHex("abc")),"Corrupt");
+    assert_eq(cmpCode(bytes.fromHex("zz")),"Corrupt");
+}
+test fn crypto_constant_time_eq_compares_bytes() {
+    assert(crypto.constantTimeEq(Bytes("abc"),Bytes("abc")));
+    assert(!crypto.constantTimeEq(Bytes("abc"),Bytes("abd")));
+    assert(!crypto.constantTimeEq(Bytes("abc"),Bytes("ab")));
+    assert(crypto.constantTimeEq(Bytes(""),Bytes("")));
+}
+test fn bits_zeros_rotate_reverse_and_byte_swap() {
+    assert_eq(bits.leadingZeros(1),63);
+    assert_eq(bits.leadingZeros(0),64);
+    assert_eq(bits.leadingZeros(-1),0);
+    assert_eq(bits.trailingZeros(8),3);
+    assert_eq(bits.trailingZeros(0),64);
+    assert_eq(bits.rotateLeft(1,1),Ok(2));
+    assert_eq(bits.rotateRight(1,1),Ok(-9223372036854775807-1));
+    assert_eq(intCode(bits.rotateLeft(1,64)),"Range");
+    assert_eq(bits.reverseBits(1),-9223372036854775807-1);
+    assert_eq(bits.reverseBits(-9223372036854775807-1),1);
+    assert_eq(bits.byteSwap(258),144396663052566528);
+}
+test fn bits_extract_and_deposit_check_ranges() {
+    assert_eq(bits.extract(171,4,4),Ok(10));
+    assert_eq(intCode(bits.extract(1,64,1)),"Range");
+    assert_eq(intCode(bits.extract(1,0,0)),"Range");
+    assert_eq(bits.deposit(0,4,4,10),Ok(160));
+    assert_eq(intCode(bits.deposit(0,0,4,16)),"Range");
+    assert_eq(intCode(bits.deposit(0,0,4,-1)),"Range");
+}
+test fn bytes_concat_from_ints_and_to_ints() {
+    assert_eq(bytes.toHex(cmpTake(bytes.concat(Bytes("ab"),Bytes("c")))),"616263");
+    let values=List<Int>();values.add(0);values.add(255);values.add(16);
+    assert_eq(bytes.toHex(cmpTake(bytes.fromInts(&values))),"00ff10");
+    let bad=List<Int>();bad.add(256);
+    assert_eq(cmpCode(bytes.fromInts(&bad)),"Range");
+    let ints=match bytes.toInts(Bytes("AB")){Ok(v)=>v,Err(_)=>{panic("toInts");}};
+    assert_eq(ints.len(),2);
+    assert_eq(ints.get(0),65);
+    assert_eq(ints.get(1),66);
+}
+test fn bytes_index_of_equal_and_read_int() {
+    assert_eq(bytes.indexOf(Bytes("abcabc"),Bytes("bc"),0),Ok(1));
+    assert_eq(bytes.indexOf(Bytes("abcabc"),Bytes("bc"),2),Ok(4));
+    assert_eq(bytes.indexOf(Bytes("abc"),Bytes("z"),0),Ok(-1));
+    assert_eq(intCode(bytes.indexOf(Bytes("abc"),Bytes(""),0)),"Range");
+    assert_eq(intCode(bytes.indexOf(Bytes("abc"),Bytes("a"),4)),"Range");
+    assert(bytes.equal(Bytes("ab"),Bytes("ab")));
+    assert(!bytes.equal(Bytes("ab"),Bytes("ac")));
+    let raw=cmpTake(bytes.fromHex("01020304"));
+    assert_eq(bytes.readInt(raw,0,4,true),Ok(16909060));
+    assert_eq(bytes.readInt(raw,0,4,false),Ok(67305985));
+    assert_eq(intCode(bytes.readInt(raw,0,3,true)),"Range");
+    assert_eq(intCode(bytes.readInt(raw,2,4,true)),"Range");
+}
+fn auditFailed<T,E>(r:Result<T,E>)->Bool effects {} {match move r {Ok(_)=>{return false;},Err(_)=>{return true;}}}
+test fn lib_audit_overflow_and_range_are_reported_not_wrapped() {
+    let big=4611686018427387904;
+    var g=match graph.create(4,8){Ok(v)=>v,Err(_)=>{panic("create");}};
+    assert_eq(graph.add(&mut g,0,1,big),Ok(()));assert_eq(graph.add(&mut g,1,2,big),Ok(()));assert_eq(graph.add(&mut g,2,3,big),Ok(()));
+    assert(auditFailed(graph.dijkstra(&g,0)));assert(auditFailed(graph.bellmanFord(&g,0)));
+    assert(auditFailed(graph.add(&mut g,0,4,1)));assert(auditFailed(graph.add(&mut g,-1,0,1)));
+    var cyc=match graph.create(3,8){Ok(v)=>v,Err(_)=>{panic("create");}};
+    assert_eq(graph.add(&mut cyc,0,1,1),Ok(()));assert_eq(graph.add(&mut cyc,1,2,-5),Ok(()));assert_eq(graph.add(&mut cyc,2,0,1),Ok(()));
+    assert(auditFailed(graph.bellmanFord(&cyc,0)));assert(auditFailed(graph.topological(&cyc)));assert(auditFailed(graph.dijkstra(&cyc,0)));
+    var n=match flow.create(3,8){Ok(v)=>v,Err(_)=>{panic("create");}};
+    assert(!auditFailed(flow.add(&mut n,0,1,big)));assert(!auditFailed(flow.add(&mut n,0,1,big)));assert(!auditFailed(flow.add(&mut n,1,2,big)));
+    assert(auditFailed(flow.add(&mut n,0,2,-1)));assert(auditFailed(flow.augment(&mut n,0,2,-1)));assert(auditFailed(flow.augment(&mut n,1,1,5)));
+    let p=geometry.Point(big,big);let q=geometry.Point(-big,-big);let r=geometry.Point(big,-big);
+    assert_eq(geometry.orientation(p,q,r),Ok(1));
+    assert_eq(geometry.orientation(geometry.Point(0,0),geometry.Point(3037000500,3037000500),geometry.Point(3037000501,3037000499)),Ok(-1));
+    assert_eq(geometry.intersects(p,q,r,geometry.Point(-big,big)),Ok(true));
+    let w=List<Int>();w.add(big);w.add(big);w.add(big);
+    assert(auditFailed(sequence.prefix(&w)));
+    let v=List<Int>();v.add(1);v.add(2);v.add(3);
+    assert_eq(sequence.rotate(&v,-9223372036854775807-1).len(),3);
+    let pairs=List<Tuple<Int,Int>>();pairs.add((0,0));pairs.add((5,0));
+    assert(auditFailed(matching.maximum(2,2,&pairs)));assert(auditFailed(matching.maximum(-1,2,&pairs)));
+}
+fn imgFixturePng()->Bytes effects {} {
+    let l=List<Int>();
+    l.add(137);l.add(80);l.add(78);l.add(71);l.add(13);l.add(10);l.add(26);l.add(10);l.add(0);l.add(0);l.add(0);l.add(13);l.add(73);l.add(72);l.add(68);l.add(82);l.add(0);l.add(0);l.add(0);l.add(4);
+    l.add(0);l.add(0);l.add(0);l.add(5);l.add(8);l.add(2);l.add(0);l.add(0);l.add(0);l.add(237);l.add(207);l.add(218);l.add(140);l.add(0);l.add(0);l.add(0);l.add(10);l.add(116);l.add(69);l.add(88);
+    l.add(116);l.add(67);l.add(111);l.add(109);l.add(109);l.add(101);l.add(110);l.add(116);l.add(0);l.add(104);l.add(105);l.add(162);l.add(162);l.add(88);l.add(102);l.add(0);l.add(0);l.add(0);l.add(46);l.add(73);
+    l.add(68);l.add(65);l.add(84);l.add(120);l.add(156);l.add(99);l.add(96);l.add(224);l.add(149);l.add(82);l.add(53);l.add(178);l.add(247);l.add(10);l.add(79);l.add(201);l.add(175);l.add(233);l.add(100);l.add(140);
+    l.add(206);l.add(40);l.add(85);l.add(133);l.add(1);l.add(166);l.add(104);l.add(36);l.add(192);l.add(188);l.add(109);l.add(239);l.add(225);l.add(3);l.add(7);l.add(14);l.add(56);l.add(128);l.add(1);l.add(11);
+    l.add(80);l.add(0);l.add(174);l.add(12);l.add(0);l.add(70);l.add(68);l.add(18);l.add(94);l.add(74);l.add(42);l.add(109);l.add(221);l.add(0);l.add(0);l.add(0);l.add(0);l.add(73);l.add(69);l.add(78);
+    l.add(68);l.add(174);l.add(66);l.add(96);l.add(130);
+    match stdBytesFromList(&l){Ok(b)=>{return b;},Err(_)=>{panic("fixture");}}
+}
+fn imgFixturePixels()->Bytes effects {} {
+    let l=List<Int>();
+    l.add(0);l.add(13);l.add(26);l.add(37);l.add(50);l.add(63);l.add(74);l.add(87);l.add(100);l.add(111);l.add(124);l.add(137);l.add(91);l.add(104);l.add(117);l.add(128);l.add(141);l.add(154);l.add(165);l.add(178);
+    l.add(191);l.add(202);l.add(215);l.add(228);l.add(182);l.add(195);l.add(208);l.add(219);l.add(232);l.add(245);l.add(0);l.add(13);l.add(26);l.add(37);l.add(50);l.add(63);l.add(17);l.add(30);l.add(43);l.add(54);
+    l.add(67);l.add(80);l.add(91);l.add(104);l.add(117);l.add(128);l.add(141);l.add(154);l.add(108);l.add(121);l.add(134);l.add(145);l.add(158);l.add(171);l.add(182);l.add(195);l.add(208);l.add(219);l.add(232);l.add(245);
+    
+    match stdBytesFromList(&l){Ok(b)=>{return b;},Err(_)=>{panic("fixture");}}
+}
+fn imgTake<T>(r:Result<T,StdError>)->T effects {} {
+    match move r {Ok(v)=>{return move v;},Err(_)=>{panic("image step failed");}}
+}
+fn imgCode<T>(r:Result<T,StdError>)->String effects {} {
+    match move r {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn imgFlip(data:Bytes,at:Int)->Bytes effects {} {
+    let l=List<Int>();
+    for i in 0..bytes.length(data) {
+        let v=imgTake(bytes.get(data,i));
+        if i==at {l.add((v+85)%256);} else {l.add(v);}
+    }
+    match stdBytesFromList(&l){Ok(b)=>{return b;},Err(_)=>{panic("flip");}}
+}
+fn imgPixel(image:&imageLib.Image,x:Int,y:Int)->List<Int> effects {} {
+    match imageLib.pixel(image,x,y) {Ok(v)=>{return v;},Err(_)=>{panic("pixel");}}
+}
+test fn image_decodes_an_independently_written_png_with_every_row_filter() {
+    let decoded=imgTake(imageLib.decodePng(imgFixturePng(),1000));
+    assert_eq(decoded.width,4);assert_eq(decoded.height,5);assert_eq(decoded.channels,3);
+    assert_eq(decoded.pixels,imgFixturePixels());
+    let first=imgPixel(&decoded,0,0);
+    assert_eq(first.len(),3);assert_eq(first.get(0),0);assert_eq(first.get(1),13);assert_eq(first.get(2),26);
+    let last=imgPixel(&decoded,3,4);
+    assert_eq(last.get(0),imgTake(bytes.get(imgFixturePixels(),(4*4+3)*3)));
+}
+test fn image_encode_then_decode_returns_the_same_pixels_for_every_channel_count() {
+    for channels in 1..5 {
+        let list=List<Int>();
+        for i in 0..(6*5*channels) {list.add((i*11+i/7)%256);}
+        let pixels=match stdBytesFromList(&list){Ok(b)=>b,Err(_)=>{panic("pixels");}};
+        let source=imgTake(imageLib.fromPixels(6,5,channels,pixels));
+        let png=imgTake(imageLib.encodePng(&source));
+        assert_eq(imageLib.encodePng(&source),Ok(png));
+        let back=imgTake(imageLib.decodePng(png,30));
+        assert_eq(back.width,6);assert_eq(back.height,5);assert_eq(back.channels,channels);
+        assert_eq(back.pixels,pixels);
+    }
+}
+test fn image_refuses_oversized_truncated_and_damaged_input() {
+    let png=imgFixturePng();
+    assert_eq(imgCode(imageLib.decodePng(png,19)),"Limit");
+    assert_eq(imgCode(imageLib.decodePng(png,20)),"Ok");
+    assert_eq(imgCode(imageLib.decodePng(png,-1)),"Range");
+    assert_eq(imgCode(imageLib.decodePng(png,1048577)),"Range");
+    let n=bytes.length(png);
+    assert_eq(imgCode(imageLib.decodePng(imgTake(bytes.slice(png,0,n-5)),1000)),"Truncated");
+    assert_eq(imgCode(imageLib.decodePng(imgTake(bytes.slice(png,0,4)),1000)),"Truncated");
+    assert_eq(imgCode(imageLib.decodePng(imgFlip(png,60),1000)),"Corrupt");
+    assert_eq(imgCode(imageLib.decodePng(imgFlip(png,n-2),1000)),"Corrupt");
+    assert_eq(imgCode(imageLib.decodePng(Bytes("not a png"),1000)),"Corrupt");
+}
+test fn image_constructors_and_accessors_check_their_bounds() {
+    let three=imgFixturePixels();
+    assert_eq(imgCode(imageLib.fromPixels(4,5,3,three)),"Ok");
+    assert_eq(imgCode(imageLib.fromPixels(4,5,2,three)),"Range");
+    assert_eq(imgCode(imageLib.fromPixels(0,5,3,three)),"Range");
+    assert_eq(imgCode(imageLib.fromPixels(4,5,5,three)),"Range");
+    assert_eq(imgCode(imageLib.fromPixels(16385,1,1,three)),"Limit");
+    let ok=imgTake(imageLib.fromPixels(4,5,3,three));
+    assert_eq(imgCode(imageLib.pixel(&ok,4,0)),"Range");
+    assert_eq(imgCode(imageLib.pixel(&ok,0,-1)),"Range");
+}
+fn gzFixture()->Bytes effects {} {
+    let l=List<Int>();
+    l.add(31);l.add(139);l.add(8);l.add(0);l.add(0);l.add(0);l.add(0);l.add(0);l.add(2);l.add(10);l.add(203);l.add(72);l.add(205);l.add(201);l.add(201);l.add(87);l.add(200);l.add(64);l.add(39);l.add(117);l.add(20);l.add(210);l.add(171);l.add(50);l.add(11);l.add(20);l.add(50);l.add(243);l.add(74);l.add(82);l.add(139);l.add(242);l.add(11);l.add(20);l.add(146);l.add(51);l.add(82);l.add(147);l.add(179);l.add(21);l.add(12);l.add(12);l.add(141);l.add(140);l.add(77);l.add(76);l.add(205);l.add(204);l.add(45);l.add(44);l.add(1);l.add(44);l.add(96);l.add(197);l.add(57);l.add(54);l.add(0);l.add(0);l.add(0);
+    match stdBytesFromList(&l){Ok(b)=>{return b;},Err(_)=>{panic("fixture");}}
+}
+test fn compress_gzip_reads_python_output_and_round_trips() {
+    let expected=Bytes("hello hello hello hello, gzip interop check 0123456789");
+    assert_eq(cmpTake(compress.gunzip(gzFixture(),256)),expected);
+    for level in [0,6,9] {
+        let z=cmpTake(compress.gzip(expected,level));
+        assert_eq(cmpTake(compress.gunzip(z,256)),expected);
+        assert_eq(compress.gzip(expected,level),compress.gzip(expected,level));
+    }
+    let empty=cmpTake(compress.gzip(Bytes(""),6));
+    assert_eq(cmpTake(compress.gunzip(empty,0)),Bytes(""));
+}
+test fn compress_gunzip_refuses_limit_truncation_damage_and_foreign_formats() {
+    let z=gzFixture();
+    let n=bytes.length(z);
+    assert_eq(cmpCode(compress.gunzip(z,53)),"Limit");
+    assert_eq(cmpCode(compress.gunzip(z,-1)),"Range");
+    assert_eq(cmpCode(compress.gunzip(cmpTake(bytes.slice(z,0,n-3)),256)),"Truncated");
+    assert_eq(cmpCode(compress.gunzip(cmpTake(bytes.slice(z,0,5)),256)),"Truncated");
+    assert_eq(cmpCode(compress.gunzip(cmpWith(z,n-6,(match bytes.get(z,n-6){Ok(v)=>v,Err(_)=>0}+1)%256),256)),"Corrupt");
+    assert_eq(cmpCode(compress.gunzip(cmpWith(z,0,0),256)),"Corrupt");
+    assert_eq(cmpCode(compress.gunzip(cmpWith(z,2,7),256)),"Unsupported");
+    assert_eq(cmpCode(compress.gunzip(Bytes("plain text, not gzip"),256)),"Corrupt");
+}
+fn auditSum(out:&List<Int>)->Int effects {} {var sum=0;for i in 0..out.len() {sum+=out.get(i);}return sum;}
+test fn lib_audit_sort_and_search_terminate_and_keep_every_element_with_inconsistent_comparators() {
+    let v=List<Int>();var total=0;
+    for i in 0..120 {let x=(i*37)%101;v.add(x);total+=x;}
+    let always=sort.stable(&v,|x:Int,y:Int|->Int{return -1;});
+    let never=sort.stable(&v,|x:Int,y:Int|->Int{return 1;});
+    let huge=sort.stable(&v,|x:Int,y:Int|->Int{if x<y{return -4611686018427387904;}return 4611686018427387904;});
+    assert_eq(auditSum(&always),total);assert_eq(auditSum(&never),total);assert_eq(auditSum(&huge),total);
+    let pairs=List<Int>();for i in 0..60 {pairs.add(i%5*1000+i);}
+    let stable=sort.stable(&pairs,|x:Int,y:Int|->Int{let kx=x/1000;let ky=y/1000;if kx<ky{return -1;}if kx>ky{return 1;}return 0;});
+    for i in 1..60 {let p=stable.get(i-1);let q=stable.get(i);assert(p/1000<q/1000 || p<q);}
+    let empty=List<Int>();
+    assert_eq(search.lowerBound(&empty,1,|x:Int,y:Int|->Int{return 0;}),0);
+    assert_eq(search.upperBound(&empty,1,|x:Int,y:Int|->Int{return 0;}),0);
+}
+test fn evaluation_shuffle_is_a_reproducible_permutation() {
+    let a=evOrder(50,7);let b=evOrder(50,7);let c=evOrder(50,8);
+    assert_eq(a.len(),50);
+    var same=true;var differs=false;var seen=Map<Int,Bool>();
+    for i in 0..50 {if a.get(i)!=b.get(i){same=false;}if a.get(i)!=c.get(i){differs=true;}seen.set(a.get(i),true);}
+    assert_eq(same,true);assert_eq(differs,true);assert_eq(seen.len(),50);
+    assert_eq(evOrder(0,1).len(),0);assert_eq(evOrder(1,1).get(0),0);
+    assert_eq(evOrder(5,-3).len(),5);
+    assert_eq(evaluation.shuffled(-1,0),Err(evaluation.EvalError("Size")));
+    assert_eq(evaluation.shuffled(1000001,0),Err(evaluation.EvalError("Size")));
+}
+test fn evaluation_split_is_disjoint_and_covers_every_sample() {
+    match evaluation.split(10,30,5) {
+        Ok(s)=>{
+            let train=evInts(s.train);let validation=evInts(s.validation);
+            assert_eq(validation.len(),3);assert_eq(train.len(),7);
+            var seen=Map<Int,Bool>();
+            for i in 0..train.len() {seen.set(train.get(i),true);}
+            for i in 0..validation.len() {match seen.get(validation.get(i)) {Some(_)=>{panic("overlap");},None=>{}}seen.set(validation.get(i),true);}
+            assert_eq(seen.len(),10);
+        },
+        Err(_)=>{panic("split");}
+    }
+    match evaluation.split(10,0,5) {Ok(s)=>{assert_eq(s.validation.len(),0);assert_eq(s.train.len(),10);},Err(_)=>{panic("zero");}}
+    match evaluation.split(10,100,5) {Ok(s)=>{assert_eq(s.validation.len(),10);assert_eq(s.train.len(),0);},Err(_)=>{panic("all");}}
+    match evaluation.split(3,34,1) {Ok(s)=>{assert_eq(s.validation.len(),1);},Err(_)=>{panic("floor");}}
+    match evaluation.split(10,101,5) {Ok(_)=>{panic("percent");},Err(e)=>{assert_eq(e.code,"Percent");}}
+}
+test fn evaluation_batches_cover_the_order_without_overlap() {
+    let order=evOrder(10,3);
+    assert_eq(evaluation.batchCount(10,4),Ok(3));assert_eq(evaluation.batchCount(0,4),Ok(0));assert_eq(evaluation.batchCount(8,4),Ok(2));
+    assert_eq(evaluation.batchCount(1,0),Err(evaluation.EvalError("Size")));
+    var total=0;
+    for k in 0..3 {match evaluation.batch(&order,k,4) {Ok(b)=>{total+=b.len();if k==0{assert_eq(b.get(0),order.get(0));}if k==2{assert_eq(b.len(),2);assert_eq(b.get(1),order.get(9));}},Err(_)=>{panic("batch");}}}
+    assert_eq(total,10);
+    match evaluation.batch(&order,3,4) {Ok(_)=>{panic("beyond");},Err(e)=>{assert_eq(e.code,"Index");}}
+    match evaluation.batch(&order,-1,4) {Ok(_)=>{panic("negative");},Err(e)=>{assert_eq(e.code,"Index");}}
+    let empty=List<Int>();
+    match evaluation.batch(&empty,0,4) {Ok(_)=>{panic("empty");},Err(e)=>{assert_eq(e.code,"Index");}}
+}
+test fn evaluation_metrics_report_undefined_values_instead_of_inventing_them() {
+    var p=List<Int>();var a=List<Int>();
+    p.push(1);p.push(0);p.push(1);p.push(1);a.push(1);a.push(1);a.push(1);a.push(0);
+    assert_eq(evaluation.accuracy(&p,&a),Ok(0.5));
+    match evaluation.confusion(&p,&a) {
+        Ok(c)=>{
+            assert_eq(c.truePositive,2);assert_eq(c.falsePositive,1);assert_eq(c.falseNegative,1);assert_eq(c.trueNegative,0);
+            match evaluation.precision(c) {Ok(x)=>{assert_eq(x>0.66 && x<0.67,true);},Err(_)=>{panic("precision");}}
+            match evaluation.recall(c) {Ok(x)=>{assert_eq(x>0.66 && x<0.67,true);},Err(_)=>{panic("recall");}}
+        },
+        Err(_)=>{panic("confusion");}
+    }
+    var none=List<Int>();none.push(0);none.push(0);
+    match evaluation.confusion(&none,&none) {Ok(c)=>{assert_eq(evaluation.precision(c),Err(evaluation.EvalError("Undefined")));assert_eq(evaluation.recall(c),Err(evaluation.EvalError("Undefined")));},Err(_)=>{panic("none");}}
+    var bad=List<Int>();bad.push(2);bad.push(0);
+    assert_eq(evaluation.confusion(&bad,&none),Err(evaluation.EvalError("Label")));
+    assert_eq(evaluation.accuracy(&p,&none),Err(evaluation.EvalError("Length")));
+    let empty=List<Int>();
+    assert_eq(evaluation.accuracy(&empty,&empty),Err(evaluation.EvalError("Empty")));
+    var x=List<Float>();var y=List<Float>();
+    x.push(1.0);x.push(3.0);y.push(2.0);y.push(1.0);
+    assert_eq(evaluation.meanSquaredError(&x,&y),Ok(2.5));assert_eq(evaluation.meanAbsoluteError(&x,&y),Ok(1.5));
+    var nan=List<Float>();nan.push(0.0/0.0);nan.push(0.0);
+    assert_eq(evaluation.meanSquaredError(&nan,&y),Err(evaluation.EvalError("NotFinite")));
+}
+test fn evaluation_early_stopping_waits_for_patience() {
+    match evaluation.stopper(2) {
+        Ok(s0)=>{
+            assert_eq(evaluation.bestEpoch(s0),None);assert_eq(evaluation.shouldStop(s0),false);
+            match evaluation.observe(s0,1.0) {Ok(s1)=>{
+            match evaluation.observe(s1,0.5) {Ok(s2)=>{
+            match evaluation.observe(s2,0.6) {Ok(s3)=>{
+                assert_eq(evaluation.bestEpoch(s3),Some(1));assert_eq(evaluation.shouldStop(s3),false);
+                match evaluation.observe(s3,0.5) {Ok(s4)=>{
+                    assert_eq(evaluation.bestEpoch(s4),Some(1));assert_eq(evaluation.shouldStop(s4),true);
+                },Err(_)=>{panic("s4");}}
+            },Err(_)=>{panic("s3");}}
+            },Err(_)=>{panic("s2");}}
+            assert_eq(evaluation.observe(s1,0.0/0.0),Err(evaluation.EvalError("NotFinite")));
+            },Err(_)=>{panic("s1");}}
+        },
+        Err(_)=>{panic("stopper");}
+    }
+    assert_eq(evaluation.stopper(0),Err(evaluation.EvalError("Patience")));
+}
+
+test fn html_escapes_text_and_attributes()->Unit effects {} {
+    assert_eq(html.escapeText("<script>&'\"</script>"), "&lt;script&gt;&amp;&#39;&quot;&lt;/script&gt;");
+    assert_eq(html.escapeAttribute("a=`b"), "a&#61;&#96;b");
+}
+
+test fn html_safe_url_rejects_script_schemes()->Unit effects {} {
+    assert_eq(html.safeUrl("javascript:alert(1)"), "#");
+    assert_eq(html.safeUrl("JaVa	ScRiPt:alert(1)"), "#");
+    assert_eq(html.safeUrl("/relative"), "/relative");
+}
+
+test fn html_element_builds_sorted_attributes()->Unit effects {} {
+    let attrs=Map<String,String>();
+    attrs.set("title","a\"b");
+    attrs.set("class","x");
+    let kids=List<html.Html>();
+    kids.add(html.text("<x>"));
+    match html.element("p",&attrs,&kids) {
+        Ok(h)=>{assert_eq(html.toString(&h), "<p class=\"x\" title=\"a&quot;b\">&lt;x&gt;</p>");},
+        Err(e)=>{panic(e.code);}
+    }
+}
+
+test fn html_element_rejects_bad_names_and_void_children()->Unit effects {} {
+    let attrs=Map<String,String>();
+    let kids=List<html.Html>();
+    match html.element("P",&attrs,&kids) {Ok(_)=>{panic("accepted");},Err(e)=>{assert_eq(e.code, "BadTag");}}
+    attrs.set("bad name","x");
+    match html.element("p",&attrs,&kids) {Ok(_)=>{panic("accepted");},Err(e)=>{assert_eq(e.code, "BadAttribute");}}
+    let none=Map<String,String>();
+    kids.add(html.text("x"));
+    match html.element("br",&none,&kids) {Ok(_)=>{panic("accepted");},Err(e)=>{assert_eq(e.code, "VoidChildren");}}
+}
+
+fn templateParsed(text:String)->Json effects {} {
+    match json.parse(text) {Ok(v)=>{return v;},Err(_)=>{panic("bad json");}}
+}
+fn templateRendered(source:String,data:Json)->String effects {} {
+    match template.render(source,data) {Ok(s)=>{return s;},Err(_)=>{panic("render failed");}}
+}
+fn templateFailure(source:String,data:Json)->String effects {} {
+    match template.render(source,data) {Ok(_)=>{panic("expected render error");},Err(e)=>{return e.code;}}
+}
+
+test fn template_escapes_values_unless_raw()->Unit effects {} {
+    let data=templateParsed("{\"name\":\"<b>\",\"raw\":\"<i>\"}");
+    assert_eq(templateRendered("Hi {{name}} {{{raw}}}", data), "Hi &lt;b&gt; <i>");
+}
+
+test fn template_sections_repeat_over_arrays()->Unit effects {} {
+    let data=templateParsed("{\"items\":[{\"name\":\"a\"},{\"name\":\"b\"}],\"empty\":[]}");
+    assert_eq(templateRendered("{{#items}}[{{name}}]{{/items}}", data), "[a][b]");
+    assert_eq(templateRendered("{{^empty}}none{{/empty}}", data), "none");
+    assert_eq(templateRendered("{{^items}}none{{/items}}", data), "");
+}
+
+test fn template_sections_test_truthiness()->Unit effects {} {
+    let on=templateParsed("{\"flag\":true}");
+    let off=templateParsed("{\"flag\":false}");
+    assert_eq(templateRendered("{{#flag}}yes{{/flag}}{{^flag}}no{{/flag}}", on), "yes");
+    assert_eq(templateRendered("{{#flag}}yes{{/flag}}{{^flag}}no{{/flag}}", off), "no");
+    assert_eq(templateRendered("{{#missing}}yes{{/missing}}{{^missing}}no{{/missing}}", off), "no");
+}
+
+test fn template_dotted_names_and_current_value()->Unit effects {} {
+    let data=templateParsed("{\"user\":{\"name\":\"x\"},\"list\":[\"p\",\"q\"]}");
+    assert_eq(templateRendered("{{user.name}}", data), "x");
+    assert_eq(templateRendered("{{#list}}{{.}},{{/list}}", data), "p,q,");
+}
+
+test fn template_reports_error_codes()->Unit effects {} {
+    let data=templateParsed("{\"x\":1}");
+    assert_eq(templateFailure("{{name", data), "Unclosed");
+    assert_eq(templateFailure("{{/x}}", data), "Mismatch");
+    assert_eq(templateFailure("{{#x}}body", data), "Unclosed");
+    assert_eq(templateFailure("{{a b}}", data), "BadTag");
+}
+
+fn b64StdHex(text:String)->String effects {} {
+    match base64.decode(text) {Ok(b)=>{return bytes.toHex(b);},Err(_)=>{panic("decode failed");}}
+}
+fn b64UrlHex(text:String)->String effects {} {
+    match base64.decodeUrl(text) {Ok(b)=>{return bytes.toHex(b);},Err(_)=>{panic("decode failed");}}
+}
+fn b64StdCode(text:String)->String effects {} {
+    match base64.decode(text) {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn b64UrlCode(text:String)->String effects {} {
+    match base64.decodeUrl(text) {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+fn b64StdOffset(text:String)->Int effects {} {
+    match base64.decode(text) {Ok(_)=>{panic("expected decode error");},Err(e)=>{return e.offset;}}
+}
+fn tokenPayload(key:Bytes,token:String,now:Int)->String effects {} {
+    match auth.verifyToken(key,token,now) {Ok(p)=>{return p;},Err(_)=>{panic("verify failed");}}
+}
+fn tokenCode(key:Bytes,token:String,now:Int)->String effects {} {
+    match auth.verifyToken(key,token,now) {Ok(_)=>{return "Ok";},Err(e)=>{return e.code;}}
+}
+
+test fn base64_matches_rfc_vectors()->Unit effects {} {
+    assert_eq(base64.encode(Bytes("")),"");
+    assert_eq(base64.encode(Bytes("f")),"Zg==");
+    assert_eq(base64.encode(Bytes("fo")),"Zm8=");
+    assert_eq(base64.encode(Bytes("foo")),"Zm9v");
+    assert_eq(base64.encode(Bytes("foob")),"Zm9vYg==");
+    assert_eq(base64.encode(Bytes("fooba")),"Zm9vYmE=");
+    assert_eq(base64.encode(Bytes("foobar")),"Zm9vYmFy");
+    assert_eq(base64.encodeUrl(Bytes("f")),"Zg");
+    assert_eq(base64.encodeUrl(Bytes("foobar")),"Zm9vYmFy");
+}
+
+test fn base64_decodes_both_alphabets()->Unit effects {} {
+    assert_eq(b64StdHex(""),"");
+    assert_eq(b64StdHex("Zm9vYmFy"),"666f6f626172");
+    assert_eq(b64StdHex("Zg=="),"66");
+    assert_eq(b64StdHex("+/8="),"fbff");
+    assert_eq(b64UrlHex("-_8"),"fbff");
+    assert_eq(b64UrlHex("-_8="),"fbff");
+    assert_eq(b64UrlHex("Zg"),"66");
+    assert_eq(b64UrlHex("Zg=="),"66");
+    assert_eq(base64.encode(cmpTake(bytes.fromHex("fbff"))),"+/8=");
+    assert_eq(base64.encodeUrl(cmpTake(bytes.fromHex("fbff"))),"-_8");
+}
+
+test fn base64_round_trips_arbitrary_bytes()->Unit effects {} {
+    let data=cmpTake(bytes.fromHex("000102fdfeff7f80"));
+    assert_eq(b64StdHex(base64.encode(data)),"000102fdfeff7f80");
+    assert_eq(b64UrlHex(base64.encodeUrl(data)),"000102fdfeff7f80");
+}
+
+test fn base64_reports_bad_chars_and_lengths()->Unit effects {} {
+    assert_eq(b64StdCode("Zm9v!mFy"),"BadChar");
+    assert_eq(b64StdOffset("Zm9v!mFy"),4);
+    assert_eq(b64StdCode("Zm9"),"BadLength");
+    assert_eq(b64StdCode("+/8"),"BadLength");
+    assert_eq(b64UrlCode("Z"),"BadLength");
+    assert_eq(b64UrlCode("Zg="),"BadLength");
+    assert_eq(b64UrlCode("+/8="),"BadChar");
+    assert_eq(b64StdCode("-_8="),"BadChar");
+}
+
+test fn auth_hashes_passwords_with_salt_and_iterations()->Unit effects {} {
+    let salt=cmpTake(bytes.fromHex("000102030405060708090a0b0c0d0e0f"));
+    match auth.hashPassword("correct horse",salt,10000) {
+        Ok(stored)=>{
+            assert_eq(stored,"pbkdf2-sha256$10000$AAECAwQFBgcICQoLDA0ODw$5RUHDgNTp9sBOWGYS4e6u57cz_Sq3_TQgaDP_8MW6L8");
+            assert(!auth.needsRehash(stored,10000));
+            assert(auth.needsRehash(stored,10001));
+        },
+        Err(_)=>{panic("hash failed");}
+    }
+    match auth.hashPassword("x",cmpTake(bytes.fromHex("0001")),10000) {
+        Ok(_)=>{panic("expected salt error");},
+        Err(e)=>{assert_eq(e.code,"Range");}
+    }
+}
+
+test fn auth_verifies_stored_password_hash()->Unit effects {} {
+    let stored="pbkdf2-sha256$10000$AAECAwQFBgcICQoLDA0ODw$5RUHDgNTp9sBOWGYS4e6u57cz_Sq3_TQgaDP_8MW6L8";
+    assert(auth.verifyPassword("correct horse",stored));
+}
+
+test fn auth_rejects_wrong_password_for_stored_hash()->Unit effects {} {
+    let stored="pbkdf2-sha256$10000$AAECAwQFBgcICQoLDA0ODw$5RUHDgNTp9sBOWGYS4e6u57cz_Sq3_TQgaDP_8MW6L8";
+    assert(!auth.verifyPassword("wrong",stored));
+}
+
+test fn auth_rejects_malformed_password_hashes()->Unit effects {} {
+    assert(!auth.verifyPassword("x","bogus"));
+    assert(!auth.verifyPassword("x","md5$10000$AAAA$AAAA"));
+    assert(!auth.verifyPassword("x","pbkdf2-sha256$abc$AAAA$AAAA"));
+    assert(auth.needsRehash("bogus",10000));
+    assert(auth.needsRehash("md5$10000$AAAA$AAAA",10000));
+}
+
+test fn auth_signs_and_verifies_tokens()->Unit effects {} {
+    let key=cmpTake(bytes.fromHex("0123456789abcdef0123456789abcdef"));
+    match auth.signToken(key,"user:42",1000) {
+        Ok(token)=>{
+            assert_eq(tokenPayload(key,token,999),"user:42");
+            assert_eq(tokenCode(key,token,1000),"Expired");
+            let parts=token.split(".");
+            let tampered=base64.encodeUrl(Bytes("user:43"))+"."+parts.get(1)+"."+parts.get(2);
+            assert_eq(tokenCode(key,tampered,999),"BadSignature");
+        },
+        Err(_)=>{panic("sign failed");}
+    }
+    assert_eq(tokenCode(key,"abc",0),"Malformed");
+    assert_eq(tokenCode(key,"a.b.c.d",0),"Malformed");
+    match auth.signToken(cmpTake(bytes.fromHex("0102")),"x",1) {
+        Ok(_)=>{panic("expected key error");},
+        Err(e)=>{assert_eq(e.code,"Range");}
+    }
+}
+
+test fn auth_csrf_tokens_bind_to_session()->Unit effects {} {
+    let key=cmpTake(bytes.fromHex("0123456789abcdef0123456789abcdef"));
+    match auth.csrfToken(key,"session-a") {
+        Ok(csrf)=>{
+            assert(auth.verifyCsrf(key,"session-a",csrf));
+            assert(!auth.verifyCsrf(key,"session-b",csrf));
+            assert(!auth.verifyCsrf(key,"session-a",csrf+"x"));
+        },
+        Err(_)=>{panic("csrf failed");}
+    }
+}
+
+test fn dna_packs_and_unpacks_kmers()->Unit effects {} {
+    match dna.encode("ACGT") {Ok(v)=>{assert_eq(v,27);},Err(_)=>{panic("encode failed");}}
+    match dna.decode(27,4) {Ok(t)=>{assert_eq(t,"ACGT");},Err(_)=>{panic("decode failed");}}
+    match dna.encode("ACGTACGTACGTACGTACGTACGTACGTACGT") {Ok(v)=>{match dna.decode(v,32) {Ok(t)=>{assert_eq(t,"ACGTACGTACGTACGTACGTACGTACGTACGT");},Err(_)=>{panic("k=32 decode failed");}}},Err(_)=>{panic("k=32 encode failed");}}
+    match dna.encode("ACGN") {Ok(_)=>{panic("N must be rejected");},Err(e)=>{assert_eq(e.code,"BadBase");assert_eq(e.offset,3);}}
+    match dna.encode("") {Ok(_)=>{panic("empty must be rejected");},Err(e)=>{assert_eq(e.code,"BadLength");}}
+    match dna.decode(0,0) {Ok(_)=>{panic("k=0 must be rejected");},Err(e)=>{assert_eq(e.code,"BadK");}}
+}
+
+test fn dna_reverse_complement_canonical_and_roll()->Unit effects {} {
+    match dna.encode("AAAC") {Ok(v)=>{match dna.reverseComplement(v,4) {Ok(rc)=>{assert_eq(dna.decode(rc,4),Ok("GTTT"));},Err(_)=>{panic("rc failed");}}},Err(_)=>{panic("encode failed");}}
+    match dna.encode("AAAC") {Ok(expected)=>{match dna.encode("GTTT") {Ok(v)=>{match dna.canonical(v,4) {Ok(c)=>{assert_eq(c,expected);},Err(_)=>{panic("canonical failed");}}},Err(_)=>{panic("encode failed");}}},Err(_)=>{panic("encode failed");}}
+    match dna.encode("ACG") {Ok(v)=>{match dna.roll(v,3,3) {Ok(r)=>{assert_eq(dna.decode(r,3),Ok("CGT"));},Err(_)=>{panic("roll failed");}}},Err(_)=>{panic("encode failed");}}
+    match dna.roll(0,4,3) {Ok(_)=>{panic("bad base must be rejected");},Err(e)=>{assert_eq(e.code,"BadBase");}}
+}
+
+test fn dna_kmers_gc_and_hamming()->Unit effects {} {
+    match dna.kmers("ACGTA",3,false) {Ok(list)=>{assert_eq(list.len(),3);},Err(_)=>{panic("kmers failed");}}
+    match dna.kmers("AAAC",2,true) {Ok(list)=>{assert_eq(list.len(),3);assert_eq(list.get(0),0);},Err(_)=>{panic("canonical kmers failed");}}
+    match dna.gcCount("GGCCAT") {Ok(n)=>{assert_eq(n,4);},Err(_)=>{panic("gcCount failed");}}
+    match dna.hammingDistance("ACGT","ACCT") {Ok(d)=>{assert_eq(d,1);},Err(_)=>{panic("hamming failed");}}
+    match dna.hammingDistance("ACGT","ACG") {Ok(_)=>{panic("length mismatch must be rejected");},Err(e)=>{assert_eq(e.code,"BadLength");}}
+}
+
+test fn fastx_parses_and_formats_fasta()->Unit effects {} {
+    match fastx.parseFasta(">seq1 first
+ACGT
+AC
+
+>seq2
+GG
+") {
+        Ok(reads)=>{
+            assert_eq(reads.len(),2);
+            assert_eq(reads.get(0).name,"seq1");
+            assert_eq(reads.get(0).description,"first");
+            assert_eq(reads.get(0).sequence,"ACGTAC");
+            assert_eq(reads.get(1).sequence,"GG");
+        },
+        Err(_)=>{panic("parseFasta failed");}
+    }
+    match fastx.parseFasta("ACGT
+>x
+") {Ok(_)=>{panic("sequence before header must be rejected");},Err(e)=>{assert_eq(e.code,"Format");assert_eq(e.line,1);}}
+    match fastx.parseFasta(">a b
+ACGTA
+") {
+        Ok(reads)=>{
+            match fastx.formatFasta(&reads,2) {Ok(t)=>{assert_eq(t,">a b
+AC
+GT
+A
+");},Err(_)=>{panic("formatFasta failed");}}
+        },
+        Err(_)=>{panic("parseFasta failed");}
+    }
+    let noReads=List<fastx.Read>();
+    match fastx.formatFasta(&noReads,0) {Ok(_)=>{panic("width 0 must be rejected");},Err(e)=>{assert_eq(e.code,"Format");}}
+}
+
+test fn fastx_parses_and_formats_fastq_and_phred()->Unit effects {} {
+    match fastx.parseFastq("@r1 desc
+ACGT
++
+IIII
+") {
+        Ok(reads)=>{
+            assert_eq(reads.len(),1);
+            assert_eq(reads.get(0).name,"r1");
+            assert_eq(reads.get(0).description,"desc");
+            assert_eq(reads.get(0).sequence,"ACGT");
+            assert_eq(reads.get(0).quality,Some("IIII"));
+        },
+        Err(_)=>{panic("parseFastq failed");}
+    }
+    match fastx.parseFastq("@r1
+ACGT
++
+III
+") {Ok(_)=>{panic("length mismatch must be rejected");},Err(e)=>{assert_eq(e.code,"LengthMismatch");assert_eq(e.line,1);}}
+    match fastx.phred("!I",33) {Ok(q)=>{assert_eq(q.get(0),0);assert_eq(q.get(1),40);},Err(_)=>{panic("phred failed");}}
+    match fastx.phred("!",99) {Ok(_)=>{panic("bad offset must be rejected");},Err(e)=>{assert_eq(e.code,"Format");}}
+}
+
+import web as web;
+
+fn webCode<T>(r:Result<T,web.WebError>)->String effects {} {match r {Ok(_)=>{return "ok";},Err(e)=>{return e.code;}}}
+
+test fn web_content_type_by_extension()->Unit effects {} {
+    assert_eq(web.contentType("index.html"),"text/html; charset=utf-8");
+    assert_eq(web.contentType("css/site.CSS"),"text/css; charset=utf-8");
+    assert_eq(web.contentType("a.b/readme"),"application/octet-stream");
+    assert_eq(web.contentType("img/logo.png"),"image/png");
+    assert_eq(web.contentType("data.unknownext"),"application/octet-stream");
+}
+
+test fn web_safe_join_rejects_escapes()->Unit effects {} {
+    assert_eq(webCode(web.safeJoin("/srv","a/b.txt")),"ok");
+    assert_eq(webCode(web.safeJoin("/srv","../etc/passwd")),"Path");
+    assert_eq(webCode(web.safeJoin("/srv","a/./b")),"Path");
+    assert_eq(webCode(web.safeJoin("/srv","/abs")),"Path");
+    assert_eq(webCode(web.safeJoin("/srv","a\\b")),"Path");
+    assert_eq(webCode(web.safeJoin("/srv","")),"Path");
+}
+
+test fn web_etag_is_quoted_and_stable()->Unit effects {} {
+    let a=web.etag("abc".encodeUtf8());
+    let b=web.etag("abc".encodeUtf8());
+    assert_eq(webCode(a),"ok");
+    assert_eq(webCode(b),"ok");
+}
+
+test fn web_not_modified_matches_tags()->Unit effects {} {
+    assert_eq(web.notModified("\"abc\", \"def\"","\"def\""),true);
+    assert_eq(web.notModified("W/\"abc\"","\"abc\""),true);
+    assert_eq(web.notModified("*","\"abc\""),true);
+    assert_eq(web.notModified("\"xyz\"","\"abc\""),false);
+    assert_eq(web.notModified("\"abc\"",""),false);
+}
+
+test fn web_parse_range_clips_and_rejects()->Unit effects {} {
+    match web.parseRange("bytes=0-99",1000) {Ok(r)=>{assert_eq(r.start,0);assert_eq(r.end,99);},Err(_)=>{panic("range");}}
+    match web.parseRange("bytes=500-",1000) {Ok(r)=>{assert_eq(r.start,500);assert_eq(r.end,999);},Err(_)=>{panic("open range");}}
+    match web.parseRange("bytes=-100",1000) {Ok(r)=>{assert_eq(r.start,900);assert_eq(r.end,999);},Err(_)=>{panic("suffix range");}}
+    assert_eq(webCode(web.parseRange("bytes=1000-",1000)),"Unsatisfiable");
+    assert_eq(webCode(web.parseRange("bytes=0-1,3-4",1000)),"Syntax");
+    assert_eq(webCode(web.parseRange("items=0-1",1000)),"Syntax");
+}
+
+test fn web_security_headers_present()->Unit effects {} {
+    let h=web.securityHeaders();
+    assert_eq(h.len(),6);
+    assert_eq(hh.find(&h,"X-Frame-Options"),Some("DENY"));
+}
+
+test fn web_session_cookie_round_trip()->Unit effects {} {
+    assert_eq(webCode(web.sessionCookie("sid","tok123",3600,true)),"ok");
+    assert_eq(webCode(web.sessionCookie("sid","tok123",0,true)),"Cookie");
+    assert_eq(webCode(web.clearSessionCookie("sid",false)),"ok");
+    let headers=List<hh.Header>();
+    headers.add(hh.Header("cookie","a=1; sid=tok123"));
+    assert_eq(web.readSession(&headers,"sid"),Some("tok123"));
+    assert_eq(web.readSession(&headers,"missing"),None);
+}
+
+test fn web_form_values()->Unit effects {} {
+    match web.parseForm("name=a+b&tag=x&tag=y&flag") {
+        Ok(fields)=>{
+            assert_eq(web.formValue(&fields,"name"),Some("a b"));
+            assert_eq(web.formValue(&fields,"tag"),Some("x"));
+            assert_eq(web.formValue(&fields,"flag"),None);
+            assert_eq(web.formValue(&fields,"none"),None);
+        },
+        Err(_)=>{panic("form");}
+    }
+}
+
+test fn web_redirect_location_same_origin_only()->Unit effects {} {
+    assert_eq(webCode(web.redirectLocation("/home?x=1")),"ok");
+    assert_eq(webCode(web.redirectLocation("https://evil.example/")),"Redirect");
+    assert_eq(webCode(web.redirectLocation("//evil.example/")),"Redirect");
+    assert_eq(webCode(web.redirectLocation("/\\evil")),"Redirect");
+    assert_eq(webCode(web.redirectLocation("home")),"Redirect");
+}
+
+test fn gui_tabs_add_and_select_contracts() effects {} {
+    var tabs=guiTabs.create();
+    takeGuiResult(guiTabs.add(&mut tabs,"a","Alpha"));
+    takeGuiResult(guiTabs.add(&mut tabs,"b","Beta"));
+    takeGuiResult(guiTabs.add(&mut tabs,"c","Gamma"));
+    assert_eq(guiTabs.selected(&tabs),None);
+    match guiTabs.add(&mut tabs,"a","Dup"){Ok(_)=>{panic("duplicate tab id accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsId");}}
+    match guiTabs.add(&mut tabs,"","Empty"){Ok(_)=>{panic("empty tab id accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsId");}}
+    match guiTabs.add(&mut tabs,"d",""){Ok(_)=>{panic("empty tab label accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsText");}}
+    var longId="";
+    for i in 0..65{longId=longId+"x";}
+    match guiTabs.add(&mut tabs,longId,"Long"){Ok(_)=>{panic("65-byte tab id accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsId");}}
+    takeGuiResult(guiTabs.select(&mut tabs,"a"));
+    assert_eq(guiTabs.selected(&tabs),Some("a"));
+}
+
+test fn gui_tabs_limit_contracts() effects {} {
+    var tabs=guiTabs.create();
+    for i in 0..32{takeGuiResult(guiTabs.add(&mut tabs,"t"+i.format(),"Tab"));}
+    match guiTabs.add(&mut tabs,"extra","Extra"){Ok(_)=>{panic("33rd tab accepted");},Err(e)=>{assert_eq(e.code,"GuiTabsLimit");}}
+}
+
+test fn gui_tabs_keyboard_stops_at_edges() effects {} {
+    var tabs=guiTabs.create();
+    takeGuiResult(guiTabs.add(&mut tabs,"a","Alpha"));
+    takeGuiResult(guiTabs.add(&mut tabs,"b","Beta"));
+    takeGuiResult(guiTabs.add(&mut tabs,"c","Gamma"));
+    takeGuiResult(guiTabs.select(&mut tabs,"a"));
+    let left=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Left",0,0));
+    assert_eq(left.changed,false);
+    assert_eq(left.selected,Some("a"));
+    let right=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Right",0,0));
+    assert_eq(right.changed,true);
+    assert_eq(right.selected,Some("b"));
+    takeGuiResult(guiTabs.select(&mut tabs,"c"));
+    let past=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Right",0,0));
+    assert_eq(past.changed,false);
+    assert_eq(past.selected,Some("c"));
+    let home=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Home",0,0));
+    assert_eq(home.changed,true);
+    assert_eq(home.selected,Some("a"));
+    let end=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"End",0,0));
+    assert_eq(end.changed,true);
+    assert_eq(end.selected,Some("c"));
+}
+
+test fn gui_tabs_disabled_tabs_are_skipped() effects {} {
+    var tabs=guiTabs.create();
+    takeGuiResult(guiTabs.add(&mut tabs,"a","Alpha"));
+    takeGuiResult(guiTabs.add(&mut tabs,"b","Beta"));
+    takeGuiResult(guiTabs.add(&mut tabs,"c","Gamma"));
+    takeGuiResult(guiTabs.setEnabled(&mut tabs,"b",false));
+    match guiTabs.select(&mut tabs,"b"){Ok(_)=>{panic("disabled tab selected");},Err(e)=>{assert_eq(e.code,"GuiTabsDisabled");}}
+    takeGuiResult(guiTabs.select(&mut tabs,"a"));
+    let right=guiTabs.dispatch(&mut tabs,gui.Event("key",0,0,"Right",0,0));
+    assert_eq(right.changed,true);
+    assert_eq(right.selected,Some("c"));
+}
+
+test fn gui_tabs_click_selects_enabled_tab() effects {} {
+    var tabs=guiTabs.create();
+    takeGuiResult(guiTabs.add(&mut tabs,"a","Alpha"));
+    takeGuiResult(guiTabs.add(&mut tabs,"b","Beta"));
+    takeGuiResult(guiTabs.add(&mut tabs,"c","Gamma"));
+    takeGuiResult(guiTabs.setEnabled(&mut tabs,"b",false));
+    let outside=guiTabs.dispatch(&mut tabs,gui.Event("pointer",250,30,"",0,0));
+    assert_eq(outside.changed,false);
+    assert_eq(outside.selected,None);
+    let disabled=guiTabs.dispatch(&mut tabs,gui.Event("pointer",130,5,"",0,0));
+    assert_eq(disabled.changed,false);
+    assert_eq(disabled.selected,None);
+    let clicked=guiTabs.dispatch(&mut tabs,gui.Event("pointer",250,5,"",0,0));
+    assert_eq(clicked.changed,true);
+    assert_eq(clicked.selected,Some("c"));
+    let again=guiTabs.dispatch(&mut tabs,gui.Event("pointer",250,5,"",0,0));
+    assert_eq(again.changed,false);
+    assert_eq(again.selected,Some("c"));
+}
+
+test fn gui_combo_rejects_duplicates_and_empty_text() effects {} {
+    var options=List<String>();options.add("Red");options.add("Red");
+    match guiCombo.create(&options) {Ok(_)=>{panic("duplicate accepted");},Err(e)=>{assert_eq(e.code,"GuiComboDuplicate");}}
+    var blank=List<String>();blank.add("");
+    match guiCombo.create(&blank) {Ok(_)=>{panic("empty text accepted");},Err(e)=>{assert_eq(e.code,"GuiComboText");}}
+}
+
+test fn gui_combo_limits_and_range() effects {} {
+    var many=List<String>();
+    for i in 0..257{many.add("o"+i.format());}
+    match guiCombo.create(&many) {Ok(_)=>{panic("257 options accepted");},Err(e)=>{assert_eq(e.code,"GuiComboLimit");}}
+    var full=List<String>();
+    for i in 0..256{full.add("o"+i.format());}
+    var combo=takeGuiResult(guiCombo.create(&full));
+    takeGuiResult(guiCombo.setSelected(&mut combo,255));
+    assert_eq(guiCombo.selected(&combo),Some(255));
+    match guiCombo.setSelected(&mut combo,256) {Ok(_)=>{panic("index 256 accepted");},Err(e)=>{assert_eq(e.code,"GuiComboRange");}}
+    var long=List<String>();
+    var text="";
+    for i in 0..129{text=text+"x";}
+    long.add(text);
+    match guiCombo.create(&long) {Ok(_)=>{panic("129-byte text accepted");},Err(e)=>{assert_eq(e.code,"GuiComboText");}}
+}
+
+test fn gui_combo_keyboard_stops_at_edges() effects {} {
+    var options=List<String>();options.add("One");options.add("Two");options.add("Three");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    guiCombo.open(&mut combo);
+    let up=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Up",0,0));
+    assert_eq(up.changed,false);
+    let down=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));
+    assert_eq(down.changed,false);
+    let end=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"End",0,0));
+    assert_eq(end.changed,false);
+    let past=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));
+    assert_eq(past.changed,false);
+    let committed=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(committed.changed,true);
+    assert_eq(committed.index,Some(2));
+    assert_eq(guiCombo.isOpen(&combo),false);
+}
+
+test fn gui_combo_escape_discards_highlight() effects {} {
+    var options=List<String>();options.add("One");options.add("Two");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    guiCombo.open(&mut combo);
+    guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));
+    let out=guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Escape",0,0));
+    assert_eq(out.changed,false);
+    assert_eq(out.index,None);
+    assert_eq(guiCombo.isOpen(&combo),false);
+}
+
+test fn gui_combo_header_and_row_clicks() effects {} {
+    var options=List<String>();options.add("One");options.add("Two");options.add("Three");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    let opened=guiCombo.dispatch(&mut combo,gui.Event("pointer",10,5,"",0,0));
+    assert_eq(guiCombo.isOpen(&combo),true);
+    assert_eq(opened.changed,false);
+    let picked=guiCombo.dispatch(&mut combo,gui.Event("pointer",10,24+24+5,"",0,0));
+    assert_eq(picked.changed,true);
+    assert_eq(picked.index,Some(1));
+    assert_eq(guiCombo.isOpen(&combo),false);
+    guiCombo.dispatch(&mut combo,gui.Event("pointer",10,5,"",0,0));
+    let away=guiCombo.dispatch(&mut combo,gui.Event("pointer",300,200,"",0,0));
+    assert_eq(away.changed,false);
+    assert_eq(guiCombo.isOpen(&combo),false);
+}
+
+test fn gui_combo_scrolls_past_eight_rows() effects {} {
+    var options=List<String>();
+    for i in 0..10{options.add("Item"+i.format());}
+    var combo=takeGuiResult(guiCombo.create(&options));
+    guiCombo.open(&mut combo);
+    for i in 0..9{guiCombo.dispatch(&mut combo,gui.Event("key",0,0,"Down",0,0));}
+    let first=guiCombo.dispatch(&mut combo,gui.Event("pointer",10,24+5,"",0,0));
+    assert_eq(first.changed,true);
+    assert_eq(first.index,Some(2));
+}
+
+test fn gui_combo_typed_prefix_moves_to_next_match() effects {} {
+    var options=List<String>();options.add("Apple");options.add("Banana");options.add("Blueberry");options.add("Cherry");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    let first=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"B",0,0));
+    assert_eq(first.index,Some(1));
+    let second=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"B",0,0));
+    assert_eq(second.index,Some(2));
+    let none=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"z",0,0));
+    assert_eq(none.changed,false);
+    assert_eq(guiCombo.selectedText(&combo),Some("Blueberry"));
+}
+
+test fn gui_combo_typed_search_ignores_case() effects {} {
+    var options=List<String>();options.add("Apple");options.add("Banana");options.add("Blueberry");options.add("Cherry");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    let first=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"b",0,0));
+    assert_eq(first.index,Some(1));
+    let second=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"B",0,0));
+    assert_eq(second.index,Some(2));
+    let upper=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"c",0,0));
+    assert_eq(upper.index,Some(3));
+    let lowerOption=guiCombo.dispatch(&mut combo,gui.Event("text",0,0,"A",0,0));
+    assert_eq(lowerOption.index,Some(0));
+    assert_eq(guiCombo.selectedText(&combo),Some("Apple"));
+}
+
+test fn gui_combo_draw_checks_prefix() effects {} {
+    var options=List<String>();options.add("Red");options.add("Green");
+    var combo=takeGuiResult(guiCombo.create(&options));
+    guiCombo.open(&mut combo);
+    match gui.window("test",320,200) {Err(_)=>{panic("window");},Ok(view)=>{
+        match guiCombo.draw(&combo,&view,"") {Ok(_)=>{panic("empty prefix accepted");},Err(e)=>{assert_eq(e.code,"GuiComboId");}}
+        takeGuiResult(guiCombo.draw(&combo,&view,"combo"));
+    }}
+}
+
+test fn gui_date_leap_years_and_month_lengths() effects {} {
+    assert_eq(guiDate.isLeap(2024),true);
+    assert_eq(guiDate.isLeap(2000),true);
+    assert_eq(guiDate.isLeap(1900),false);
+    assert_eq(guiDate.isLeap(2025),false);
+    assert_eq(takeGuiResult(guiDate.daysInMonth(2024,2)),29);
+    assert_eq(takeGuiResult(guiDate.daysInMonth(2025,2)),28);
+    assert_eq(takeGuiResult(guiDate.daysInMonth(2026,10)),31);
+    match guiDate.daysInMonth(2026,13) {Ok(_)=>{panic("month 13 accepted");},Err(e)=>{assert_eq(e.code,"GuiDateRange");}}
+    match guiDate.create(2025,2,29) {Ok(_)=>{panic("2025-02-29 accepted");},Err(e)=>{assert_eq(e.code,"GuiDateRange");}}
+    takeGuiResult(guiDate.create(2024,2,29));
+}
+
+test fn gui_date_weekday_contracts() effects {} {
+    assert_eq(takeGuiResult(guiDate.weekday(2026,10,20)),2);
+    assert_eq(takeGuiResult(guiDate.weekday(2000,1,1)),6);
+}
+
+test fn gui_date_parse_and_iso_text() effects {} {
+    assert_eq(guiDate.isoText(takeGuiResult(guiDate.parse("2026-10-20"))),"2026-10-20");
+    match guiDate.parse("2026/10/20") {Ok(_)=>{panic("slash accepted");},Err(e)=>{assert_eq(e.code,"GuiDateParse");}}
+    match guiDate.parse("2026-1-20") {Ok(_)=>{panic("short month accepted");},Err(e)=>{assert_eq(e.code,"GuiDateParse");}}
+    match guiDate.parse("2026-1x-20") {Ok(_)=>{panic("letter accepted");},Err(e)=>{assert_eq(e.code,"GuiDateParse");}}
+    match guiDate.parse("2025-02-29") {Ok(_)=>{panic("missing day accepted");},Err(e)=>{assert_eq(e.code,"GuiDateRange");}}
+}
+
+test fn gui_date_page_down_clamps_to_month_end() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(2025,1,31)));
+    guiDate.open(&mut p);
+    let moved=guiDate.dispatch(&mut p,gui.Event("key",0,0,"PageDown",0,0));
+    assert_eq(moved.changed,false);
+    let out=guiDate.dispatch(&mut p,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(out.changed,true);
+    assert_eq(out.value,"2025-02-28");
+    assert_eq(guiDate.isOpen(&p),false);
+}
+
+test fn gui_date_keys_and_escape_contracts() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(2026,10,20)));
+    guiDate.open(&mut p);
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"Right",0,0));
+    let out=guiDate.dispatch(&mut p,gui.Event("key",0,0,"Escape",0,0));
+    assert_eq(out.changed,false);
+    assert_eq(out.value,"2026-10-20");
+    assert_eq(guiDate.isOpen(&p),false);
+    let opened=guiDate.dispatch(&mut p,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(opened.changed,false);
+    assert_eq(guiDate.isOpen(&p),true);
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"Down",0,0));
+    let picked=guiDate.dispatch(&mut p,gui.Event("key",0,0,"Enter",0,0));
+    assert_eq(picked.changed,true);
+    assert_eq(picked.value,"2026-10-27");
+}
+
+test fn gui_date_steps_clamp_at_limits() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(1900,1,1)));
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"Left",0,0));
+    assert_eq(guiDate.isoText(guiDate.value(&p)),"1900-01-01");
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"Down",0,0));
+    assert_eq(guiDate.isoText(guiDate.value(&p)),"1900-01-08");
+    guiDate.dispatch(&mut p,gui.Event("key",0,0,"PageUp",0,0));
+    assert_eq(guiDate.isoText(guiDate.value(&p)),"1900-01-08");
+}
+
+test fn gui_date_header_and_cell_clicks() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(2026,10,1)));
+    let opened=guiDate.dispatch(&mut p,gui.Event("pointer",10,5,"",0,0));
+    assert_eq(guiDate.isOpen(&p),true);
+    assert_eq(opened.changed,false);
+    let clicked=guiDate.dispatch(&mut p,gui.Event("pointer",73,149,"",0,0));
+    assert_eq(clicked.changed,true);
+    assert_eq(clicked.value,"2026-10-20");
+    assert_eq(guiDate.isOpen(&p),false);
+    guiDate.dispatch(&mut p,gui.Event("pointer",10,5,"",0,0));
+    let away=guiDate.dispatch(&mut p,gui.Event("pointer",300,200,"",0,0));
+    assert_eq(away.changed,false);
+    assert_eq(guiDate.isOpen(&p),false);
+}
+
+test fn gui_date_draw_checks_prefix() effects {} {
+    var p=guiDate.picker(takeGuiResult(guiDate.create(2026,10,20)));
+    guiDate.open(&mut p);
+    match gui.window("test",320,240) {Err(_)=>{panic("window");},Ok(view)=>{
+        match guiDate.draw(&p,&view,"") {Ok(_)=>{panic("empty prefix accepted");},Err(e)=>{assert_eq(e.code,"GuiDateId");}}
+        takeGuiResult(guiDate.draw(&p,&view,"date"));
+    }}
+}
+
+import binding as binding;
+record BindPerson {name:String,age:Int}
+fn bindPersonName()->lens.Lens<BindPerson,String,String> effects {} {
+    return lens.create(
+        |root:BindPerson|->String{return root.name;},
+        |root:BindPerson,value:String|->Result<BindPerson,String>{return Ok(BindPerson(value,root.age));}
+    );
+}
+fn bindPersonAge()->lens.Lens<BindPerson,Int,String> effects {} {
+    return lens.create(
+        |root:BindPerson|->Int{return root.age;},
+        |root:BindPerson,value:Int|->Result<BindPerson,String>{return Ok(BindPerson(root.name,value));}
+    );
+}
+fn bindFormatAge(age:Int)->String effects {} {return "${age}";}
+fn bindParseAge(input:String)->Result<Int,String> effects {} {
+    match stdParseInt(input,10) {
+        Err(_)=>{return Err("not a number");},
+        Ok(n)=>{if n<0 || n>150 {return Err("out of range");} return Ok(n);}
+    }
+}
+fn bindParseName(input:String)->Result<String,String> effects {} {
+    if input=="" {return Err("empty");}
+    return Ok(input);
+}
+fn bindFormatName(name:String)->String effects {} {return name;}
+
+test fn binding_core_edits_validates_and_tracks_dirty_state()->Unit effects {} {
+    var b=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut b,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"age",bindPersonAge(),bindFormatAge,bindParseAge),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"age",bindPersonAge(),bindFormatAge,bindParseAge),Err(StdError("BindingId",0)));
+    assert_eq(binding.bindLens(&mut b,"",bindPersonAge(),bindFormatAge,bindParseAge),Err(StdError("BindingId",0)));
+    assert_eq(binding.text(&b,"age"),Ok("30"));
+    assert_eq(binding.text(&b,"zzz"),Err(StdError("BindingUnknown",0)));
+    assert_eq(binding.version(&b),0);
+    assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+    let after=binding.value(&b);
+    assert_eq(after.age,41);
+    assert_eq(binding.version(&b),1);
+    assert_eq(binding.edit(&mut b,"age","old"),Ok(false));
+    let kept=binding.value(&b);
+    assert_eq(kept.age,41);
+    assert_eq(binding.text(&b,"age"),Ok("old"));
+    assert_eq(binding.error(&b,"age"),Ok(Some("not a number")));
+    assert(binding.hasErrors(&b));
+    assert_eq(binding.version(&b),2);
+    assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+    assert(!binding.hasErrors(&b));
+    assert_eq(binding.text(&b,"age"),Ok("41"));
+    assert_eq(binding.version(&b),3);
+    assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+    assert_eq(binding.version(&b),3);
+    binding.accept(&mut b);
+    assert(!binding.isDirty(&b));
+    assert_eq(binding.edit(&mut b,"name","Bob"),Ok(true));
+    assert(binding.isDirty(&b));
+    let dirty=binding.dirtyFields(&b);assert_eq(dirty.len(),1);assert_eq(dirty.get(0),"name");
+    binding.accept(&mut b);
+    assert(!binding.isDirty(&b));
+    assert_eq(binding.edit(&mut b,"name",""),Ok(false));
+    assert_eq(binding.text(&b,"name"),Ok(""));
+    binding.reset(&mut b);
+    let reverted=binding.value(&b);
+    assert_eq(reverted.name,"Bob");
+    assert_eq(binding.text(&b,"name"),Ok("Bob"));
+    assert(!binding.hasErrors(&b));
+}
+
+test fn binding_form_sync_pushes_and_pulls_text()->Unit effects {} {
+    var b=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut b,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"age",bindPersonAge(),bindFormatAge,bindParseAge),Ok(()));
+    let defs=List<guiForm.Field>();
+    defs.add(guiForm.Field("name","Name",guiForm.Kind::Text,true,32,"Ann"));
+    defs.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"30"));
+    defs.add(guiForm.Field("note","Note",guiForm.Kind::Text,false,32,"x"));
+    match guiForm.create(&defs,3) {
+        Err(_)=>{panic("form creation");},
+        Ok(model)=>{
+            let seen=binding.version(&b);
+            assert_eq(binding.pushToForm(&b,&mut model),Ok(()));
+            assert_eq(guiForm.value(&model,"age"),Ok("30"));
+            assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+            assert(binding.changedSince(&b,seen));
+            assert_eq(binding.pushToForm(&b,&mut model),Ok(()));
+            assert_eq(guiForm.value(&model,"age"),Ok("41"));
+            assert_eq(guiForm.setValue(&mut model,"age","x"),Ok(()));
+            assert_eq(binding.pullFromForm(&mut b,&model),Ok(0));
+            assert_eq(binding.error(&b,"age"),Ok(Some("not a number")));
+            let kept=binding.value(&b);
+            assert_eq(kept.age,41);
+            assert_eq(guiForm.setValue(&mut model,"age","50"),Ok(()));
+            assert_eq(binding.pullFromForm(&mut b,&model),Ok(1));
+            let pulled=binding.value(&b);
+            assert_eq(pulled.age,50);
+            assert_eq(binding.error(&b,"age"),Ok(None));
+            assert_eq(guiForm.setValue(&mut model,"note","changed"),Ok(()));
+            assert_eq(binding.pullFromForm(&mut b,&model),Ok(0));
+        }
+    }
+    var missing=List<guiForm.Field>();
+    missing.add(guiForm.Field("age","Age",guiForm.Kind::Integer(0,150),true,16,"30"));
+    match guiForm.create(&missing,1) {
+        Err(_)=>{panic("form creation");},
+        Ok(small)=>{assert_eq(binding.pushToForm(&b,&mut small),Ok(()));assert_eq(guiForm.value(&small,"age"),Ok("50"));}
+    }
+}
+
+test fn binding_undo_redo_limits_and_id_errors()->Unit effects {} {
+    var b=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut b,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.bindLens(&mut b,"age",bindPersonAge(),bindFormatAge,bindParseAge),Ok(()));
+    assert(!binding.canUndo(&b));
+    assert(!binding.undo(&mut b));
+    assert_eq(binding.edit(&mut b,"name","Bob"),Ok(true));
+    assert_eq(binding.edit(&mut b,"age","41"),Ok(true));
+    assert_eq(binding.edit(&mut b,"age","zz"),Ok(false));
+    assert(binding.undo(&mut b));
+    let undone=binding.value(&b);
+    assert_eq(undone.age,30);
+    assert_eq(undone.name,"Bob");
+    assert(binding.canRedo(&b));
+    assert(!binding.hasErrors(&b));
+    assert(binding.redo(&mut b));
+    let redone=binding.value(&b);
+    assert_eq(redone.age,41);
+    assert(!binding.canRedo(&b));
+    assert(binding.undo(&mut b));
+    assert_eq(binding.edit(&mut b,"name","Cy"),Ok(true));
+    assert(!binding.canRedo(&b));
+    assert(binding.undo(&mut b));
+    assert_eq(binding.undo(&mut b),true);
+    assert_eq(binding.undo(&mut b),false);
+    let first=binding.value(&b);
+    assert_eq(first.name,"Ann");
+    var c=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut c,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    var i=0;
+    while i<300 {
+        let input="n${i}";
+        assert_eq(binding.edit(&mut c,"name",input),Ok(true));
+        i=i+1;
+    }
+    var steps=0;
+    while binding.undo(&mut c) {steps=steps+1;}
+    assert_eq(steps,256);
+    assert_eq(binding.version(&c)>0,true);
+    match binding.bind(&mut c,"name",|r:BindPerson|->String{return r.name;},|r:BindPerson,s:String|->Result<BindPerson,String>{return Ok(r);}) {
+        Err(e)=>{assert_eq(e.code,"BindingId");},
+        Ok(_)=>{panic("duplicate id accepted");}
+    }
+    match binding.edit(&mut c,"missing","x") {
+        Err(e)=>{assert_eq(e.code,"BindingUnknown");},
+        Ok(_)=>{panic("unknown id accepted");}
+    }
+    var full=binding.create(BindPerson("Ann",30));
+    var k=0;
+    while k<128 {
+        let id="f${k}";
+        assert_eq(binding.bind(&mut full,id,|r:BindPerson|->String{return r.name;},|r:BindPerson,s:String|->Result<BindPerson,String>{return Ok(r);}),Ok(()));
+        k=k+1;
+    }
+    match binding.bind(&mut full,"extra",|r:BindPerson|->String{return r.name;},|r:BindPerson,s:String|->Result<BindPerson,String>{return Ok(r);}) {
+        Err(e)=>{assert_eq(e.code,"BindingLimit");},
+        Ok(_)=>{panic("129th field accepted");}
+    }
+    match binding.bind(&mut full,"",|r:BindPerson|->String{return r.name;},|r:BindPerson,s:String|->Result<BindPerson,String>{return Ok(r);}) {
+        Err(e)=>{assert_eq(e.code,"BindingLimit");},
+        Ok(_)=>{panic("empty id accepted");}
+    }
+}
+
+test fn text_code_points_cover_japanese_emoji_and_empty()->Unit effects {} {
+    let empty=text.codePoints("");
+    assert_eq(empty.len(),0);
+    match text.fromCodePoints(&empty) {Ok(s)=>{assert_eq(s,"");},Err(_)=>{panic("empty list rejected");}}
+    let jp=text.codePoints("日本語");
+    assert_eq(jp.len(),3);assert_eq(jp.get(0),26085);assert_eq(jp.get(1),26412);assert_eq(jp.get(2),35486);
+    // an emoji is one scalar value (U+1F600), not a surrogate pair.
+    let emoji=text.codePoints("a😀é");
+    assert_eq(emoji.len(),3);assert_eq(emoji.get(0),97);assert_eq(emoji.get(1),128512);assert_eq(emoji.get(2),233);
+    match text.fromCodePoints(&emoji) {Ok(s)=>{assert_eq(s,"a😀é");},Err(_)=>{panic("round trip failed");}}
+    match text.fromCodePoints(&jp) {Ok(s)=>{assert_eq(s,"日本語");},Err(_)=>{panic("round trip failed");}}
+    let ascii=text.codePoints("Hi\n");
+    assert_eq(ascii.len(),3);assert_eq(ascii.get(2),10);
+    var edge=List<Int>();edge.add(0);edge.add(1114111);
+    match text.fromCodePoints(&edge) {Ok(s)=>{assert_eq(text.length(s),2);},Err(_)=>{panic("limits rejected");}}
+}
+
+test fn text_from_code_points_rejects_invalid_values()->Unit effects {} {
+    var negative=List<Int>();negative.add(65);negative.add(-1);
+    assert_eq(text.fromCodePoints(&negative),Err(StdError("Range",1)));
+    var big=List<Int>();big.add(1114112);
+    assert_eq(text.fromCodePoints(&big),Err(StdError("Range",0)));
+    var low=List<Int>();low.add(55296);
+    assert_eq(text.fromCodePoints(&low),Err(StdError("Surrogate",0)));
+    var high=List<Int>();high.add(65);high.add(57343);
+    assert_eq(text.fromCodePoints(&high),Err(StdError("Surrogate",1)));
+    // a UTF-16 surrogate pair written as two values is not a code point sequence.
+    var pair=List<Int>();pair.add(55357);pair.add(56832);
+    assert_eq(text.fromCodePoints(&pair),Err(StdError("Surrogate",0)));
+}
+
+test fn binding_reset_discards_edits_and_pairs_with_accept()->Unit effects {} {
+    var a=binding.create(BindPerson("Ann",30));
+    assert_eq(binding.bindLens(&mut a,"name",bindPersonName(),bindFormatName,bindParseName),Ok(()));
+    assert_eq(binding.edit(&mut a,"name","Bob"),Ok(true));
+    assert(binding.isDirty(&a));
+    binding.reset(&mut a);
+    assert(!binding.isDirty(&a));
+    assert_eq(binding.text(&a,"name"),Ok("Ann"));
+    let va=binding.value(&a);
+    assert_eq(va.name,"Ann");
+    assert_eq(binding.edit(&mut a,"name","Cy"),Ok(true));
+    binding.accept(&mut a);
+    assert_eq(binding.edit(&mut a,"name","Di"),Ok(true));
+    binding.reset(&mut a);
+    let kept=binding.value(&a);
+    assert_eq(kept.name,"Cy");
+    assert(!binding.hasErrors(&a));
 }

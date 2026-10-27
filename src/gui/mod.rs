@@ -330,6 +330,7 @@ mod command_key_tests {
                     None => {
                         #[cfg(windows)]
                         break;
+                        #[cfg(not(windows))]
                         std::thread::sleep(std::time::Duration::from_millis(1));
                     }
                 }

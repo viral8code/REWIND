@@ -1,0 +1,162 @@
+// Template rendering over JSON data (WEB). Pure: no network, no file access.
+// {{name}} inserts escaped text, {{{name}}} inserts raw text, {{#name}}...{{/name}} repeats over an array
+// or renders once for other truthy values, {{^name}}...{{/name}} renders when the value is missing or falsy.
+// Errors carry a code and a character offset, never the template text or the data.
+import json as json;
+import html as html;
+
+pub record TemplateError {code:String,offset:Int}
+
+fn maxDepth()->Int effects {} {return 16;}
+fn maxOutput()->Int effects {} {return 1048576;}
+fn sliceText(s:String,from:Int,to:Int)->String effects {} {
+    match stdTextSlice(s,from,to) {Ok(t)=>{return t;},Err(_)=>{return "";}}
+}
+fn findFrom(s:String,from:Int,needle:String)->Int effects {} {
+    let n=stdTextLength(s);
+    if from>n {return -1;}
+    match stdTextFind(sliceText(s,from,n),needle) {
+        Some(k)=>{return from+k;},
+        None=>{return -1;}
+    }
+}
+fn validName(name:String)->Bool effects {} {
+    let n=stdTextLength(name);
+    if n<1 {return false;}
+    var i=0;
+    while i<n {
+        let ch=sliceText(name,i,i+1);
+        match stdTextFind("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-",ch) {
+            None=>{return false;},
+            Some(_)=>{}
+        }
+        i+=1;
+    }
+    return true;
+}
+// "." names the current value itself; a dotted name walks into objects one key at a time.
+fn lookupIn(value:Json,name:String)->Option<Json> effects {} {
+    if name=="." {return Some(value);}
+    match stdTextFind(name,".") {
+        None=>{return json.get(value,name);},
+        Some(k)=>{
+            match json.get(value,sliceText(name,0,k)) {
+                Some(inner)=>{return lookupIn(inner,sliceText(name,k+1,stdTextLength(name)));},
+                None=>{return None;}
+            }
+        }
+    }
+}
+// The current item is searched first, then the top-level data.
+fn resolve(item:Json,data:Json,name:String)->Option<Json> effects {} {
+    match lookupIn(item,name) {
+        Some(v)=>{return Some(v);},
+        None=>{return lookupIn(data,name);}
+    }
+}
+fn scalarText(v:Json)->String effects {} {
+    match json.text(v) {Some(s)=>{return s;},None=>{}}
+    match json.integer(v) {Some(n)=>{return n.format();},None=>{}}
+    match json.boolean(v) {Some(b)=>{if b {return "true";}return "false";},None=>{}}
+    return "";
+}
+// Missing, null, false, 0, "" and empty arrays and objects are falsy.
+fn truthy(v:Json)->Bool effects {} {
+    match json.boolean(v) {Some(b)=>{return b;},None=>{}}
+    match json.integer(v) {Some(n)=>{return n!=0;},None=>{}}
+    match json.text(v) {Some(s)=>{return s!="";},None=>{}}
+    match json.array(v) {Some(values)=>{return values.len()>0;},None=>{}}
+    return json.keys(v).len()>0;
+}
+fn renderSection(src:String,from:Int,end:Int,item:Json,data:Json,name:String,inverse:Bool,depth:Int)->Result<String,TemplateError> effects {} {
+    match resolve(item,data,name) {
+        None=>{
+            if inverse {return renderRange(src,from,end,item,data,depth);}
+            return Ok("");
+        },
+        Some(v)=>{
+            match json.array(v) {
+                Some(values)=>{
+                    if inverse {
+                        if values.len()==0 {return renderRange(src,from,end,item,data,depth);}
+                        return Ok("");
+                    }
+                    var out="";var k=0;
+                    while k<values.len() {
+                        match renderRange(src,from,end,thaw(values.get(k)),data,depth) {
+                            Ok(s)=>{out=out+s;},
+                            Err(e)=>{return Err(e);}
+                        }
+                        k+=1;
+                    }
+                    return Ok(out);
+                },
+                None=>{
+                    if inverse {
+                        if truthy(v) {return Ok("");}
+                        return renderRange(src,from,end,item,data,depth);
+                    }
+                    if truthy(v) {return renderRange(src,from,end,v,data,depth);}
+                    return Ok("");
+                }
+            }
+        }
+    }
+}
+fn renderRange(src:String,from:Int,end:Int,item:Json,data:Json,depth:Int)->Result<String,TemplateError> effects {} {
+    var out="";var pos=from;
+    while pos<end {
+        let open=findFrom(src,pos,"{{");
+        if open<0 || open>=end {
+            out=out+sliceText(src,pos,end);
+            return Ok(out);
+        }
+        out=out+sliceText(src,pos,open);
+        if sliceText(src,open,open+3)=="{{{" {
+            let close=findFrom(src,open+3,"}}}");
+            if close<0 {return Err(TemplateError("Unclosed",open));}
+            let name=sliceText(src,open+3,close);
+            if !validName(name) {return Err(TemplateError("BadTag",open));}
+            match resolve(item,data,name) {
+                Some(v)=>{out=out+scalarText(v);},
+                None=>{}
+            }
+            pos=close+3;
+        } else {
+            let marker=sliceText(src,open+2,open+3);
+            var mode="value";var nameFrom=open+2;
+            if marker=="#" {mode="section";nameFrom=open+3;}
+            if marker=="^" {mode="inverse";nameFrom=open+3;}
+            if marker=="/" {return Err(TemplateError("Mismatch",open));}
+            let close=findFrom(src,nameFrom,"}}");
+            if close<0 {return Err(TemplateError("Unclosed",open));}
+            let name=sliceText(src,nameFrom,close);
+            if !validName(name) {return Err(TemplateError("BadTag",open));}
+            let next=close+2;
+            if mode=="value" {
+                match resolve(item,data,name) {
+                    Some(v)=>{out=out+html.escapeText(scalarText(v));},
+                    None=>{}
+                }
+                pos=next;
+            } else {
+                if depth>=maxDepth() {return Err(TemplateError("TooDeep",open));}
+                let stop=findFrom(src,next,"{{/"+name+"}}");
+                if stop<0 {return Err(TemplateError("Unclosed",open));}
+                match renderSection(src,next,stop,item,data,name,mode=="inverse",depth+1) {
+                    Ok(s)=>{out=out+s;},
+                    Err(e)=>{return Err(e);}
+                }
+                pos=stop+5+stdTextLength(name);
+            }
+        }
+        if stdTextLength(out)>maxOutput() {return Err(TemplateError("TooLarge",pos));}
+    }
+    return Ok(out);
+}
+
+// @api render cost O(template characters + output characters); output is at most 1048576 characters and sections nest at most 16 deep.
+// @api render failure codes Unclosed, Mismatch, BadTag, TooDeep, TooLarge; offset is the character index of the tag.
+pub fn render(source:String,data:Json)->Result<String,TemplateError> effects {} {
+    return renderRange(source,0,stdTextLength(source),data,data,0);
+}

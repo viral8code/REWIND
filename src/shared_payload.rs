@@ -1,11 +1,31 @@
 //! Runtime-scoped admission for immutable shared payload owners.
 //! Registrations retain only weak ledger references, never payload owners.
 use std::collections::HashMap;
-type OwnerMap<T> = HashMap<usize, OwnerRecord<T>>;
+/// Owner keys are `Arc` addresses, so a multiplicative mix of the address is enough; SipHash costs
+/// more than the rest of a registration. Iteration order is never observed.
+#[derive(Default, Clone, Copy)]
+struct PtrHasher(u64);
+impl std::hash::Hasher for PtrHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = (self.0.rotate_left(5) ^ b as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        }
+    }
+    fn write_usize(&mut self, i: usize) {
+        let x = ((i as u64) >> 4).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        self.0 = x ^ (x >> 32);
+    }
+}
+type OwnerMap<T> = HashMap<usize, OwnerRecord<T>, std::hash::BuildHasherDefault<PtrHasher>>;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex, Weak,
 };
+/// Index tables at or below this capacity are kept after a prune; shrinking them costs more than it saves.
+const SHRINK_FLOOR: usize = 8192;
 static NEXT: AtomicUsize = AtomicUsize::new(1);
 struct OwnerRecord<T> {
     owner: Weak<T>,
@@ -112,7 +132,7 @@ impl Accounting {
                 true
             }
         });
-        if entries.is_empty() || entries.len() < entries.capacity() / 4 {
+        if entries.capacity() > SHRINK_FLOOR && entries.len() < entries.capacity() / 4 {
             entries.shrink_to_fit();
         }
         if removed != 0 {
@@ -176,7 +196,7 @@ impl Accounting {
                 true
             }
         });
-        if entries.is_empty() || entries.len() < entries.capacity() / 4 {
+        if entries.capacity() > SHRINK_FLOOR && entries.len() < entries.capacity() / 4 {
             entries.shrink_to_fit();
         }
         if removed != 0 {
@@ -201,11 +221,58 @@ impl Accounting {
         self.0.visits.load(Ordering::Relaxed)
     }
 }
+type LedgerRef = (Weak<Ledger>, usize);
+/// The first registration is stored inline; most payloads are registered with one ledger only.
+/// Order is preserved: `first` is the oldest live registration.
+#[derive(Default)]
+struct Owners {
+    first: Option<LedgerRef>,
+    rest: Option<Box<Vec<LedgerRef>>>,
+}
+impl Owners {
+    fn retain(&mut self, f: impl Fn(&LedgerRef) -> bool) {
+        if self.first.as_ref().is_some_and(|x| !f(x)) {
+            self.first = None;
+        }
+        if let Some(rest) = self.rest.as_mut() {
+            rest.retain(|x| f(x));
+            if self.first.is_none() && !rest.is_empty() {
+                self.first = Some(rest.remove(0));
+            }
+            if rest.is_empty() {
+                self.rest = None;
+            }
+        }
+    }
+    fn iter(&self) -> impl Iterator<Item = &LedgerRef> {
+        self.first
+            .iter()
+            .chain(self.rest.iter().flat_map(|r| r.iter()))
+    }
+    fn push(&mut self, x: LedgerRef) {
+        if self.first.is_none() {
+            self.first = Some(x);
+        } else {
+            self.rest.get_or_insert_with(Default::default).push(x);
+        }
+    }
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        usize::from(self.first.is_some()) + self.rest.as_ref().map_or(0, |r| r.len())
+    }
+    fn take_all(&mut self) -> impl Iterator<Item = LedgerRef> {
+        self.first
+            .take()
+            .into_iter()
+            .chain(self.rest.take().into_iter().flat_map(|r| (*r).into_iter()))
+    }
+}
 #[derive(Default)]
 pub(crate) struct Registration {
     first: AtomicUsize,
-    ledgers: Mutex<Vec<(Weak<Ledger>, usize)>>,
+    ledgers: Mutex<Owners>,
 }
+const _: () = assert!(std::mem::size_of::<Registration>() == 40);
 impl Registration {
     /// Zero-byte registrations memoize a persistent container subtree visit.
     pub fn register(&self, accounting: &Accounting, bytes: usize) -> bool {
@@ -238,7 +305,7 @@ impl Registration {
         true
     }
     pub fn clear(&mut self) {
-        for (ledger, bytes) in self.ledgers.get_mut().unwrap().drain(..) {
+        for (ledger, bytes) in self.ledgers.get_mut().unwrap().take_all() {
             if let Some(ledger) = ledger.upgrade() {
                 let old = ledger.bytes.fetch_sub(bytes, Ordering::Relaxed);
                 debug_assert!(old >= bytes);
@@ -298,7 +365,68 @@ mod tests {
         assert_eq!(a.prune_bytes(), 8192 + 256);
         assert_eq!(a.bytes(), 0);
         assert_eq!(b.prune_bytes(), 8192 + 256);
-        assert_eq!(a.0.byte_owners.lock().unwrap().capacity(), 0);
+        assert!(a.0.byte_owners.lock().unwrap().is_empty());
+    }
+    #[test]
+    fn prune_shrinks_only_large_sparse_indices() {
+        let a = Accounting::with_bytes();
+        let owners: Vec<_> = (0..20_000).map(|i| Arc::new(vec![i as u8; 1])).collect();
+        for o in &owners {
+            a.register_bytes(o);
+        }
+        let big = a.0.byte_owners.lock().unwrap().capacity();
+        assert!(big > SHRINK_FLOOR);
+        let keep = owners[0].clone();
+        drop(owners);
+        a.prune_bytes();
+        let map = a.0.byte_owners.lock().unwrap();
+        assert_eq!(map.len(), 1);
+        assert!(map.capacity() < big);
+        drop(map);
+        // A small table is left alone, so the next registrations do not reallocate it.
+        let small = Accounting::with_bytes();
+        let tmp: Vec<_> = (0..64).map(|i| Arc::new(vec![i as u8; 1])).collect();
+        for o in &tmp {
+            small.register_bytes(o);
+        }
+        let cap = small.0.byte_owners.lock().unwrap().capacity();
+        drop(tmp);
+        small.prune_bytes();
+        assert_eq!(small.0.byte_owners.lock().unwrap().capacity(), cap);
+        drop(keep);
+    }
+    #[test]
+    fn registration_keeps_order_across_the_inline_first_slot() {
+        let r = Registration::default();
+        let (a, b, c) = (
+            Accounting::with_bytes(),
+            Accounting::with_bytes(),
+            Accounting::with_bytes(),
+        );
+        assert!(r.register(&a, 10));
+        assert!(r.register(&b, 20));
+        assert!(r.register(&c, 30));
+        assert_eq!(r.ledgers.lock().unwrap().len(), 3);
+        assert_eq!(r.first.load(Ordering::Acquire), a.0.id);
+        assert!(!r.register(&a, 10));
+        let b_id = b.0.id;
+        drop(a);
+        assert!(!r.register(&b, 20));
+        assert_eq!(r.ledgers.lock().unwrap().len(), 2);
+        // `a` died, so `b` moved from `rest` into the inline slot and is now the oldest.
+        assert!(r
+            .ledgers
+            .lock()
+            .unwrap()
+            .first
+            .as_ref()
+            .unwrap()
+            .0
+            .upgrade()
+            .is_some_and(|l| l.id == b_id));
+        drop(r);
+        assert_eq!(b.bytes(), 0);
+        assert_eq!(c.bytes(), 0);
     }
     #[test]
     fn byte_cow_and_independent_equal_buffers_have_distinct_admission() {
@@ -351,8 +479,8 @@ mod tests {
         assert_eq!(a.prune_bytes(), 579);
         assert_eq!(b.prune_bytes(), 123);
         assert_eq!(a.bytes(), 0);
-        assert_eq!(a.0.value_owners.lock().unwrap().capacity(), 0);
-        assert_eq!(a.0.key_owners.lock().unwrap().capacity(), 0);
+        assert!(a.0.value_owners.lock().unwrap().is_empty());
+        assert!(a.0.key_owners.lock().unwrap().is_empty());
     }
     #[test]
     fn inline_names_short_text_and_unused_vector_capacity_are_admitted() {

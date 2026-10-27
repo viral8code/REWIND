@@ -1,0 +1,1024 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "4.0.0",
+  "symbols": {
+    "dependency:html.rw": {
+      "fn:$import$html$concat": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "parts"
+        ],
+        "parameters": [
+          "&List<$import$html$Html>"
+        ],
+        "return": "$import$html$Html"
+      },
+      "fn:$import$html$element": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "tag",
+          "attrs",
+          "children"
+        ],
+        "parameters": [
+          "String",
+          "&Map<String,String>",
+          "&List<$import$html$Html>"
+        ],
+        "return": "Result<$import$html$Html,$import$html$HtmlError>"
+      },
+      "fn:$import$html$escapeAttribute": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "s"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "String"
+      },
+      "fn:$import$html$escapeText": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "s"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "String"
+      },
+      "fn:$import$html$raw": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "s"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "$import$html$Html"
+      },
+      "fn:$import$html$safeUrl": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "url"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "String"
+      },
+      "fn:$import$html$text": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "s"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "$import$html$Html"
+      },
+      "fn:$import$html$toString": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "h"
+        ],
+        "parameters": [
+          "&$import$html$Html"
+        ],
+        "return": "String"
+      },
+      "type:$import$html$Html": {
+        "bounds": {},
+        "fields": [
+          [
+            "text",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      },
+      "type:$import$html$HtmlError": {
+        "bounds": {},
+        "fields": [
+          [
+            "code",
+            "String"
+          ]
+        ],
+        "generics": [],
+        "immutable": true
+      }
+    },
+    "dependency:json.rw": {
+      "fn:$import$json$array": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Option<Frozen<List<Json>>>"
+      },
+      "fn:$import$json$boolean": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Option<Bool>"
+      },
+      "fn:$import$json$floating": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Option<Float>"
+      },
+      "fn:$import$json$get": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value",
+          "key"
+        ],
+        "parameters": [
+          "Json",
+          "String"
+        ],
+        "return": "Option<Json>"
+      },
+      "fn:$import$json$integer": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Option<Int>"
+      },
+      "fn:$import$json$keys": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "List<String>"
+      },
+      "fn:$import$json$kind": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "String"
+      },
+      "fn:$import$json$parse": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "text"
+        ],
+        "parameters": [
+          "String"
+        ],
+        "return": "Result<Json,JsonError>"
+      },
+      "fn:$import$json$parseBytes": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "bytes"
+        ],
+        "parameters": [
+          "Bytes"
+        ],
+        "return": "Result<Json,JsonError>"
+      },
+      "fn:$import$json$stringify": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Result<String,JsonError>"
+      },
+      "fn:$import$json$text": {
+        "async": false,
+        "defaults": [],
+        "effects": [],
+        "generics": [],
+        "names": [
+          "value"
+        ],
+        "parameters": [
+          "Json"
+        ],
+        "return": "Option<String>"
+      }
+    },
+    "fn:render": {
+      "async": false,
+      "cost": "O(template characters + output characters); output is at most 1048576 characters and sections nest at most 16 deep.",
+      "defaults": [],
+      "effects": [],
+      "failure": "codes Unclosed, Mismatch, BadTag, TooDeep, TooLarge; offset is the character index of the tag.",
+      "generics": [],
+      "names": [
+        "source",
+        "data"
+      ],
+      "parameters": [
+        "String",
+        "Json"
+      ],
+      "return": "Result<String,TemplateError>"
+    },
+    "fn:stdListOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "T",
+          null
+        ]
+      ],
+      "names": [
+        "first"
+      ],
+      "parameters": [
+        "T"
+      ],
+      "return": "List<T>"
+    },
+    "fn:stdMapOf": {
+      "async": false,
+      "defaults": [],
+      "effects": [],
+      "generics": [
+        [
+          "K",
+          "Ord"
+        ],
+        [
+          "V",
+          null
+        ]
+      ],
+      "names": [
+        "key",
+        "value"
+      ],
+      "parameters": [
+        "K",
+        "V"
+      ],
+      "return": "Map<K,V>"
+    },
+    "type:BigInt": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:CsvStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbBatch": {
+      "constructor": true,
+      "fields": [
+        [
+          "rows",
+          "Frozen<List<DbRow>>"
+        ],
+        [
+          "done",
+          "Bool"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbConnection": {
+      "constructor": true,
+      "fields": [
+        [
+          "backend",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbCursor": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "sqlCode",
+          "Option<Int>"
+        ],
+        [
+          "sqlState",
+          "Option<String>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbRow": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "Frozen<List<DbValue>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbStatement": {
+      "constructor": true,
+      "fields": [
+        [
+          "columns",
+          "Frozen<List<String>>"
+        ],
+        [
+          "parameters",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DbValue": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Bytes": [
+          [
+            "0",
+            "Bytes"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Private": [
+          [
+            "0",
+            "String"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:Decimal": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:DecimalRounding": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "AwayFromZero": [],
+        "Ceiling": [],
+        "Exact": [],
+        "Floor": [],
+        "HalfDown": [],
+        "HalfEven": [],
+        "HalfUp": [],
+        "TowardZero": []
+      }
+    },
+    "type:Duration": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "values",
+          "FloatArray"
+        ],
+        [
+          "vectors",
+          "FloatArray"
+        ],
+        [
+          "sweeps",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:EigenWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FftWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:FloatArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:GraphBfsWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HistogramResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "counts",
+          "IntArray"
+        ],
+        [
+          "underflow",
+          "Int"
+        ],
+        [
+          "overflow",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpDownload": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpHeader": {
+      "constructor": true,
+      "fields": [
+        [
+          "name",
+          "String"
+        ],
+        [
+          "value",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpResponse": {
+      "constructor": true,
+      "fields": [
+        [
+          "status",
+          "Int"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServer": {
+      "constructor": false,
+      "fields": [
+        [
+          "address",
+          "String"
+        ],
+        [
+          "port",
+          "Int"
+        ],
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "status",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpServerRequest": {
+      "constructor": false,
+      "fields": [
+        [
+          "method",
+          "String"
+        ],
+        [
+          "target",
+          "String"
+        ],
+        [
+          "path",
+          "String"
+        ],
+        [
+          "query",
+          "String"
+        ],
+        [
+          "headers",
+          "Frozen<List<HttpHeader>>"
+        ],
+        [
+          "body",
+          "Bytes"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:HttpUpload": {
+      "constructor": true,
+      "fields": [
+        [
+          "maxBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Instant": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:IntArray": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Json": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Array": [
+          [
+            "0",
+            "Frozen<List<Json>>"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ]
+        ],
+        "Float": [
+          [
+            "0",
+            "Float"
+          ]
+        ],
+        "Int": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Null": [],
+        "Object": [
+          [
+            "0",
+            "Frozen<Map<String,Json>>"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ]
+        ]
+      }
+    },
+    "type:JsonError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "line",
+          "Int"
+        ],
+        [
+          "column",
+          "Int"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:JsonStreamEvent": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "ArrayEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ArrayStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Bool": [
+          [
+            "0",
+            "Bool"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Key": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "Null": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Number": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ],
+        "ObjectEnd": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "ObjectStart": [
+          [
+            "0",
+            "Int"
+          ]
+        ],
+        "Text": [
+          [
+            "0",
+            "String"
+          ],
+          [
+            "1",
+            "Int"
+          ]
+        ]
+      }
+    },
+    "type:JsonStreamState": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:LeastSquaresWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrArrayResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "IntArray"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrResult": {
+      "constructor": true,
+      "fields": [
+        [
+          "q",
+          "FloatArray"
+        ],
+        [
+          "r",
+          "FloatArray"
+        ],
+        [
+          "permutation",
+          "Frozen<List<Int>>"
+        ],
+        [
+          "rank",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:QrWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:Regex": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SolveWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:SparseWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:StdError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "phase",
+          "String"
+        ],
+        [
+          "acceptedBytes",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TcpSocket": {
+      "constructor": true,
+      "fields": [
+        [
+          "peer",
+          "String"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TemplateError": {
+      "constructor": true,
+      "fields": [
+        [
+          "code",
+          "String"
+        ],
+        [
+          "offset",
+          "Int"
+        ]
+      ],
+      "generics": [],
+      "kind": "record"
+    },
+    "type:TensorIdentityWork": {
+      "constructor": false,
+      "fields": [],
+      "generics": [],
+      "kind": "record"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+// commit、revert、resume、drop の各文
+fn f() {
+    commit a;
+    revert a;
+    revert begin;
+    resume begin;
+    resume a;
+    drop a;
+}

@@ -11,6 +11,8 @@ fn take<T,E>(value:Result<T,E>)->T effects {} {
 fn drawField(view:&mut gui.View,state:&field.FieldState,scope:&gui.ComponentScope)->Result<Unit,gui.GuiError> effects {gui} {
     let items=take(field.render(state,scope));
     for item in items {
+        // Draw again from the field state: drop the previous widget of this id first.
+        match gui.remove(view,item.id) {Ok(_)=>{},Err(_)=>{}}
         if item.kind=="label" {
             gui.label(view,item.id,item.caption,20,20,300,24)?;
         } else if item.kind=="textbox" {

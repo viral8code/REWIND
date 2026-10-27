@@ -1,0 +1,2 @@
+// effects はモジュールの宣言で、pub は付けられない。
+pub effects { Clock }

@@ -1,0 +1,787 @@
+/*
+ REWIND の形式文法（EBNF）。
+ 字句の節（段階 B）、型・パターン・式の節（段階 C）、文・ブロック・宣言・全体の節（段階 D）を持つ。
+ 全体の入口は Program で、Parser の program()（構文解析だけ。型検査は含まない）と受理が一致する。
+
+ 書き方
+   - 名前が UPPER_CASE（小文字を含まない）の規則が字句規則で、1 文字ずつの列に対して働く。
+   - [ nf: X ] は「直後の 1 文字が X でない」ことを表す（X は 1 文字の終端）。
+     入力の終わりでは成り立つ。[ ns: X ] も同じ意味で使える。
+   - 字句の規則は、最長一致で入力を切る。位置ごとに、TOKEN または SKIP のどちらかで
+     受理できる最も長い接頭辞を取る。TOKEN は記号や名前などのトークン、SKIP は空白と
+     コメントで、SKIP は捨てる。TOKEN と SKIP が同じ位置で受理できることはない。
+   - 実装の lex()（src/v2.rs）が正で、この文法は lex() に合わせる。lex() が拒否する入力は、
+     どの TOKEN にも当たらないか、[ nf: ... ] に当たって、この文法も拒否する。
+
+ 字句の癖（lex() の振る舞い。実装が正なので、そのまま写している）
+   1. 数の直後に e か E が来ると、必ず指数部と読む。`1e`、`1else` は字句の誤りになる。
+   2. `1abc` は INT `1` と IDENT `abc` に切れる（誤りではない）。一方 `0x1g`、`0b12`、`0bar` は、
+      接頭辞つきの数の直後に英数字と _ が続くので誤りになる。
+   3. `a.0.1` は `a`、`.`、FLOAT `0.1` に切れる（`.0` は整数ではなく、小数の一部になる）。
+   4. `1..2` は `1`、`..`、`2`。`1.` は INT `1` と `.`。`1.0.2` は FLOAT `1.0`、`.`、INT `2`。
+   5. 名前の 2 文字目以降は is_alphanumeric で、Unicode の数字（例: ²）も入る。
+      先頭は is_alphabetic か _ だけで、ASCII 以外の数字は先頭にならない。
+   6. 空白は Unicode の White_Space。ASCII の記号以外の文字（`$`、`@`、`'`、`#` など）と、
+      空白でも英字でもない ASCII 以外の文字（絵文字、②、BOM、ゼロ幅の空白など）は
+      「想定外の文字」で拒否される（名前の 2 文字目以降は is_alphanumeric なので、癖 5 のとおり `x²` は 1 つの名前）。
+   7. `//` と `/*` で始まる位置は、必ずコメントになる（`/` 単独の記号にはならない）。
+      行コメントは改行まで（\r も含めて）を捨てる。
+   8. 文字列のエスケープは字句では検査しない。`\` の次の 1 文字は何でも読み飛ばす。
+      実際に使えるのは \n \r \t \" \ \0 と \u{1〜6 桁の 16 進数} で、これ以外は構文解析時に
+      InvalidEscape などの誤りになる（この文法の範囲外）。
+   9. 引用符 6 個の `""""""` は空の raw 文字列ではなく、6 個で開く閉じていない raw 文字列で、誤りになる。
+  10. raw 文字列の開きと閉じの引用符の個数が同じであることは、文脈自由では書けない。
+      この文法は 3〜6 個の場合を規則に展開して書く。7 個以上は lex() が受理しても、この文法は
+      受理しない（既知の差）。
+  11. 次の 2 つは文脈依存の検査で、この文法では表せない（lex() だけが拒否する。既知の差）。
+      - raw 文字列の複数行の形で、本文の各行が、閉じの引用符の行と同じ字下げで始まること。
+      - 0x / 0b / 0o の整数が、値として u64 に収まること（integer literal overflow）。
+*/
+
+/* ================================================================ 入口 */
+
+TOKEN ::= IDENT | INT | FLOAT | STRING | RAW_STRING | SYMBOL
+
+SKIP ::= WHITESPACE | LINE_COMMENT | BLOCK_COMMENT
+
+/* ================================================================ 空白とコメント */
+
+/* is_whitespace() が真の文字（付録 A の表）。 */
+WHITESPACE ::= WS_CHAR+
+
+LINE_COMMENT ::= '//' [^\n]*
+
+/* 入れ子にできる。`/` の直後が `*` なら入れ子の開始、`*` の直後が `/` なら閉じ。 */
+BLOCK_COMMENT ::= '/*' BLOCK_ITEM* '*/'
+
+BLOCK_ITEM ::= BLOCK_COMMENT
+             | [^/*]
+             | '/' [ nf: '*' ]
+             | '*' [ nf: '/' ]
+
+/* ================================================================ 名前 */
+
+/* 先頭は is_alphabetic か _、2 文字目以降は is_alphanumeric か _。 */
+IDENT ::= IDENT_START IDENT_CHAR*
+
+IDENT_START ::= UNICODE_ALPHABETIC | '_'
+
+IDENT_CHAR ::= UNICODE_ALPHANUMERIC | '_'
+
+/* ================================================================ 数 */
+
+INT ::= DEC_INT | HEX_INT | BIN_INT | OCT_INT
+
+FLOAT ::= DEC_RUN '.' FRAC_RUN ( EXPONENT | [ nf: [_eE] ] )
+        | DEC_RUN EXPONENT
+
+/* 10 進の整数。直後に _ か e か E が来ない（来ると字句の誤り）。 */
+DEC_INT ::= DEC_RUN [ nf: [_eE] ]
+
+/* 最初の桁が 0 のとき、直後が x X b B o O なら接頭辞つきの数になるので 10 進ではない。
+   _ は桁と桁のあいだにだけ置ける（連続した _ は置けない）。 */
+DEC_RUN ::= ( '0' [ nf: [xXbBoO] ] | [1-9] ) ( '_'? DIGIT )*
+
+FRAC_RUN ::= DIGIT ( '_'? DIGIT )*
+
+EXPONENT ::= [eE] [+\-]? FRAC_RUN [ nf: '_' ]
+
+DIGIT ::= [0-9]
+
+/* 接頭辞つきの整数。直後に ASCII の英数字か _ が続くと字句の誤り（0x1g、0b12、0x1_ など）。 */
+HEX_INT ::= '0' [xX] HEX_DIGIT ( '_'? HEX_DIGIT )* [ nf: [A-Za-z0-9_] ]
+
+BIN_INT ::= '0' [bB] [01] ( '_'? [01] )* [ nf: [A-Za-z0-9_] ]
+
+OCT_INT ::= '0' [oO] [0-7] ( '_'? [0-7] )* [ nf: [A-Za-z0-9_] ]
+
+HEX_DIGIT ::= [0-9a-fA-F]
+
+/* ================================================================ 文字列 */
+
+/* 空の文字列 `""` の直後に引用符が来ると、3 個の引用符で始まる raw 文字列になる。
+   本文は改行を含められる。`\` の次の 1 文字は何でも読み飛ばす（癖 8）。 */
+STRING ::= '"' '"' [ nf: '"' ]
+         | '"' STRING_ITEM+ '"'
+
+STRING_ITEM ::= [^"\\] | '\' ANY_CHAR
+
+ANY_CHAR ::= [#x0-#x10FFFF]
+
+/* ---------------------------------------------------------------- raw 文字列
+   N 個（3 以上）の引用符で開き、ちょうど N 個の引用符で閉じる。本文には N 個より短い引用符の
+   連なりを置ける。この一致は文脈自由では書けないので、N = 3〜6 を規則に展開して書く（癖 10）。
+   形は 2 つある。
+   - 1 行の形: 開きの引用符の直後に空白と改行だけが続くのでなければ、閉じまで改行を含めない。
+   - 複数行の形: 開きの引用符のあと、空白かタブだけで行が終わる。閉じの引用符は、行の先頭
+     （空白かタブだけが前にある位置）に、ちょうど N 個で置く。
+   引用符の連なりが N 個以上になる位置は、閉じとして使う場合を除き字句の誤りで、
+   [ nf: '"' ] と「連なりの直後は引用符でない文字」の形で表している。 */
+RAW_STRING ::= RAW3 | RAW4 | RAW5 | RAW6
+
+RAW_BLANK ::= [ \t]
+
+RAW_NEWLINE ::= [\r\n]
+
+RAW_PLAIN ::= [^"\r\n]
+
+RAW3 ::= RAW3_FENCE RAW3_ITEM* RAW3_FENCE
+       | RAW3_FENCE RAW_BLANK* RAW_NEWLINE RAW3_LINE* RAW_BLANK* RAW3_FENCE
+RAW3_FENCE ::= '"""' [ nf: '"' ]
+RAW3_RUN ::= '"' | '""'
+RAW3_ITEM ::= RAW_PLAIN | RAW3_RUN RAW_PLAIN
+RAW3_LINE ::= RAW3_ITEM* RAW3_RUN? RAW_NEWLINE
+
+RAW4 ::= RAW4_FENCE RAW4_ITEM* RAW4_FENCE
+       | RAW4_FENCE RAW_BLANK* RAW_NEWLINE RAW4_LINE* RAW_BLANK* RAW4_FENCE
+RAW4_FENCE ::= '""""' [ nf: '"' ]
+RAW4_RUN ::= RAW3_RUN | '"""'
+RAW4_ITEM ::= RAW_PLAIN | RAW4_RUN RAW_PLAIN
+RAW4_LINE ::= RAW4_ITEM* RAW4_RUN? RAW_NEWLINE
+
+RAW5 ::= RAW5_FENCE RAW5_ITEM* RAW5_FENCE
+       | RAW5_FENCE RAW_BLANK* RAW_NEWLINE RAW5_LINE* RAW_BLANK* RAW5_FENCE
+RAW5_FENCE ::= '"""""' [ nf: '"' ]
+RAW5_RUN ::= RAW4_RUN | '""""'
+RAW5_ITEM ::= RAW_PLAIN | RAW5_RUN RAW_PLAIN
+RAW5_LINE ::= RAW5_ITEM* RAW5_RUN? RAW_NEWLINE
+
+RAW6 ::= RAW6_FENCE RAW6_ITEM* RAW6_FENCE
+       | RAW6_FENCE RAW_BLANK* RAW_NEWLINE RAW6_LINE* RAW_BLANK* RAW6_FENCE
+RAW6_FENCE ::= '""""""' [ nf: '"' ]
+RAW6_RUN ::= RAW5_RUN | '"""""'
+RAW6_ITEM ::= RAW_PLAIN | RAW6_RUN RAW_PLAIN
+RAW6_LINE ::= RAW6_ITEM* RAW6_RUN? RAW_NEWLINE
+
+/* ================================================================ 記号 */
+
+/* 2 文字の記号は次の 15 個だけ。`>>` や `<<` はなく、`>` を 2 つ並べると `>` が 2 つのトークンになる。 */
+SYMBOL ::= SYMBOL2 | SYMBOL1
+
+SYMBOL2 ::= '==' | '!=' | '<=' | '>=' | '&&' | '||'
+          | '+=' | '-=' | '*=' | '/=' | '%='
+          | '->' | '=>' | '::' | '..'
+
+/* 1 文字の記号。`/` は直後が `/` か `*` のときコメントになるので、記号にはならない。 */
+SYMBOL1 ::= [=+\-*%(),;{}.!<>?:\[\]|&]
+          | '/' [ nf: [/*] ]
+
+/* ================================================================ 構文（段階 C: 型・パターン・式。段階 D: 文・宣言・全体）
+   構文規則は CamelCase で書き、終端には字句規則の名前（種別）と、記号・語のリテラルを使う。
+   種別は IDENT、INT、FLOAT、STRING、RAW_STRING、SYMBOL。lex() のトークン列に対して働く。
+   予約語は字句では区別されず、名前として扱われる（Parser の name() は `begin` だけを拒否する）。
+   そのため、語を名前から除く箇所は [ ns: 'if' ] のように先読みで書く。
+
+   先読みの注釈（CFG では書けない選択）
+     [ ns: X ]   次のトークンが X でない。長さ 0。
+   Parser の判断は、次の 1 つを除いて 1 トークンの先読みで書ける。
+     - `{` がマップかブロックか: `{` の次のトークンが `}` でなく、その次が `:` ならマップ。
+       これは MapLit の最初の鍵を 1 トークンの形（MapKey1）に限ることで書く。ブロックは `X :` で
+       始まれないので、2 つは重ならない。
+
+   トークンの前処理（テスト側）
+     `>=` は、型引数を閉じる `>` と、その後ろの `=` に分かれることがある（Parser の eat(">") が `>=` の
+     テキストを `=` に書き換える）。このため、文法の検査では `>=` のトークンを常に 2 つに分け、
+     種別を GE_FIRST（text は `>`）と GE_SECOND（text は `=`）にして渡す。比較演算子の `>=` は
+     GE_FIRST GE_SECOND と書き、型引数を閉じる `>` は text が `>` のトークン（GE_FIRST を含む）に当たる。
+     `> =`（間に空白がある）は種別が SYMBOL なので、比較演算子にならない。
+
+   曖昧さの解消（Parser が選ぶ規則。CFG では曖昧になるものを、文章で書く）
+     - 名前の直後の `<` は、まず型引数として読む。`>` で閉じ、直後が `(` か `::` のときだけ型引数になる。
+       そうでなければ位置を戻し、`<` は比較演算子になる。`a.f<T>(x)` も同じ（`.名前 <` を試し、`(` が続くときだけ）。
+     - `X::Y` のように `::` を含む名前の直後の `{` が名前つき構築になるのは、`{` の次が `名前 :`（欄）のとき、
+       または `}`（空の構築）のときだけ。それ以外は構築でない（`{` は本体のブロック）。ただし if・while・match の
+       条件部と for の繰り返しの対象（以下、条件部）では、括弧・角括弧・波括弧に囲まれていない位置の空の `{ }` は
+       構築でなく本体のブロックと読む。`if x == E::A { ... }`、`match E::A { ... }`、`if x == E::A {}` は
+       本体を持つ。条件部の外と、条件部の中の括弧などの内側では、`E::A {}` は空の構築。
+       この文法では、条件部を CExpr（Expr と同じ形で、括弧などに囲まれない位置の空の構築だけを除いたもの）で書く。
+       `名前 :` の先読みは、曖昧な文法で書く（`E::A { x: 1 }` は構築、`{ x: 1 }` はブロックにならない）。
+     - 前置の `|` と `||` は、式の先頭ではクロージャの始まりで、`||` は中置では論理和になる。
+     - クロージャの短い形 `|a| 式` の本体は、できるだけ長い式をとる（右に伸びる）。
+     - `&` の直後の `mut` は、必ず `&mut` の一部になる。
+     - 二項演算子は左結合。優先順位は低い順に `||`、`&&`、`== !=`、`< <= > >=`、`+ -`、`* / %`。
+       前置演算子（`- ! & &mut await spawn move capture`）の被演算子は、後置を含む項だけ。
+     - 後置（`::`、`[ ]`、`.数`、`.名前`、`.名前<T>(`、`( )`、`?`）は、優先順位に関係なく必ず結合する。
+
+   Parser の癖（実装が正なので、そのまま写している。不具合に見えるものを含む）
+     1. （修正済み。番号は変えない）
+     2. （修正済み。番号は変えない）
+     3. （修正済み。番号は変えない）
+     4. match の腕は、結果の式がブロック `{ }` のとき、`,` を省ける。リスト `[ ]` とマップ `{ k: v }` も
+        ブロックとして数えられるので、`,` を省ける。`if` と `match` の式は省けない。
+     5. `x.0.1` は `x`、`.`、FLOAT `0.1` で、タプルの添字 2 つとして読む。添字のトークンは、数字だけ（と `.`）
+        でなければ誤りになる（`x.1e5`、`x.0x1`、`x.1_0`）。この検査は値の検査なので、文法では INT か FLOAT として受理する。
+     6. `[]`（空のリスト）は拒否する（診断で型の書き方を案内する）。
+     7. クロージャのゼロ個の引数は、`||` のほかに `| |`（2 トークン）でも書ける。
+     8. 入れ子の深さは、型・パターン・式・ブロック・文で共通の 64 まで。超えると拒否する（深さの検査は文法の外）。
+     9. `capture value|move|borrow` の被演算子は、クロージャそのものでなければならない。
+        ブロックの形のクロージャのあとに後置が続くと、クロージャでなくなるので拒否する。
+    10. 型では、`A<B>.C` のように型引数のあとに続けられない。`&&T` は `&&` が 1 トークンなので拒否する。
+    11. `fn` は型の先頭では必ず関数型の始まりで、名前にはならない。
+    12. （修正済み。番号は変えない）
+    13. ブロックの中で、文の先頭の語（let var using while for break continue return defer commit revert resume drop
+        publish branch runtime external）は、式の名前としては読まれない。`if` の直後の `let` も、`if let` の始まり。
+    14. `( 式 )` は中の式をそのまま返すので、中が名前だけなら、括弧のあとにも `::` を続けられる（`(a)::B`、`(a.b)::C`）。
+    15. else のない `if` の直後の `else` は、必ず else 節として読まれる。`else` が名前として次の文の先頭になることはない。
+    16. （段階 D）`test` は直後が `fn` のときだけ接頭辞になる。`test async fn` は誤りで、`async test fn` も誤り。
+        `async` は、トップレベルでは必ず関数宣言の始まりとして読まれる。
+    17. `pub` のあとは宣言だけ。`pub import`、`pub impl`、`pub let` などは誤り。`pub fn` は `->` が必要。
+        宣言の先頭の語（effects import type enum trait impl struct record fn async const pub）は、トップレベルでは
+        式の名前にならない。
+    18. 構造体の欄は、修飾（`private`、`pub`）がないと、名前を `private` と `pub` にできない（修飾として読まれる）。
+        実装の不具合に見える。
+    19. （修正済み。番号は変えない）
+    20. let-else は、名前が大文字（char::is_uppercase）で始まり、直後が `(` か `::` のときだけ。
+        `Option<Int>::Some(x)` のような形は、通常の `let` として読まれて拒否される。UPPER_IDENT の本体は
+        ASCII の [A-Z] で書いたが、実際の種別はテストが char::is_uppercase でつけるので、ASCII 以外の大文字でも成り立つ。
+        else のブロックが抜け出す文で終わること（return、break、continue、panic）は値の検査。
+    21. 式のブロックの中で、`if`・`match`・`{` で始まる文は、まず式として読む。式として読めたあとの失敗では、
+        文として読み直さない。文法は「式が続く記号の先読み」（NoContinue）で近似する。式として読めない場合に
+        限って文の読み直しが効く部分（読み直した文のあとに `(` や `-` が続く形）は、実装より狭く拒否する。
+        既定のテストと変異（約 360 万件）では、この近似による食い違いは見つかっていない。
+    22. match の文は、腕のあいだの `,` を必ず要る（`{ }` の腕のあとにも）。式の match は、結果が `{ }`・リスト・マップなら省ける。
+    23. `external` が文の先頭で、直後が `{`・`fresh`・`live` でないときは、名前の式の文として読まれる（`external;`）。
+*/
+
+/* ---------------------------------------------------------------- 名前 */
+
+/* name() が受理する名前。`begin` だけを拒否する。 */
+Name ::= [ ns: 'begin' ] IDENT
+
+/* 式の先頭の名前。特別に扱われる語は、別の規則で読む。 */
+ExprHead ::= [ ns: 'if' ] [ ns: 'match' ] [ ns: 'await' ] [ ns: 'spawn' ] [ ns: 'move' ]
+             [ ns: 'true' ] [ ns: 'false' ] [ ns: 'None' ] [ ns: 'null' ] IDENT
+
+/* ---------------------------------------------------------------- 型 */
+
+Type ::= '(' ')'
+       | '(' Type ')'
+       | '(' Type ',' ( Type ( ',' Type )* ','? )? ')'
+       | '&' 'mut' Type
+       | '&' [ ns: 'mut' ] Type
+       | 'fn' '(' ( Type ( ',' Type )* ','? )? ')' '->' Type EffectSet? CapturesSet?
+       | TypeHead ( ( '.' | '::' ) Name )* TypeArgs?
+
+TypeHead ::= [ ns: 'fn' ] Name
+
+TypeArgs ::= '<' Type ( ',' Type )* ','? '>'
+
+EffectSet ::= 'effects' ( '{' ( Name ( ',' Name )* ','? )? '}' | Name )
+
+CapturesSet ::= 'captures' '{' ( CaptureFlag ( ',' CaptureFlag )* ','? )? '}'
+
+CaptureFlag ::= 'Send' | 'Share'
+
+/* 型パラメータ（宣言の `<T, U: Bound>`）。`<` がなければ空。 */
+TypeParams ::= ( '<' TypeParam ( ',' TypeParam )* ','? '>' )?
+
+TypeParam ::= Name ( ':' BoundsList )?
+
+BoundsList ::= Name ( '+' Name )*
+
+/* where 節。直後は `{`、`=`、`;` のどれか。 */
+WhereClause ::= 'where' WhereItem ( ',' WhereItem )* ','?
+
+WhereItem ::= Name ':' BoundsList
+
+/* ---------------------------------------------------------------- パターン */
+
+Pattern ::= '_'
+          | TuplePattern
+          | '[' ( Pattern ( ',' Pattern )* ','? )? ']'
+          | 'true'
+          | 'false'
+          | STRING
+          | RAW_STRING
+          | '-' INT ( '..' '-'? INT )?
+          | INT ( '..' '-'? INT )?
+          | PatternPath ( '(' ( Pattern ( ',' Pattern )* ','? )? ')'
+                        | '{' ( FieldPattern ( ',' FieldPattern )* ','? )? '}' )?
+
+TuplePattern ::= '(' ( Pattern ( ',' Pattern )* ','? )? ')'
+
+FieldPattern ::= Name ':' Pattern
+
+PatternPath ::= PatternHead ( '.' Name )* TypeArgs? ( '::' Name )*
+
+PatternHead ::= [ ns: '_' ] [ ns: 'true' ] [ ns: 'false' ] Name
+
+/* ---------------------------------------------------------------- 式 */
+
+Expr ::= OrExpr
+
+OrExpr ::= OrExpr '||' AndExpr | AndExpr
+
+AndExpr ::= AndExpr '&&' EqExpr | EqExpr
+
+EqExpr ::= EqExpr ( '==' | '!=' ) CmpExpr | CmpExpr
+
+CmpExpr ::= CmpExpr CmpOp AddExpr | AddExpr
+
+CmpOp ::= '<' | '<=' | '>' | GE_FIRST GE_SECOND
+
+AddExpr ::= AddExpr ( '+' | '-' ) MulExpr | MulExpr
+
+MulExpr ::= MulExpr ( '*' | '/' | '%' ) UnaryExpr | UnaryExpr
+
+/* 前置。被演算子は、前置か、後置を含む項。 */
+UnaryExpr ::= '-' UnaryExpr
+            | '!' UnaryExpr
+            | 'await' UnaryExpr
+            | 'spawn' UnaryExpr
+            | 'move' UnaryExpr
+            | '&' 'mut' UnaryExpr
+            | '&' [ ns: 'mut' ] UnaryExpr
+            | CaptureExpr
+            | PostN
+            | PostM
+            | PostO
+
+/* `capture value|move|borrow` の被演算子は、後置のつかないクロージャ。ブロックの形のクロージャのあとに後置が
+   続くと、Parser は（外側がどう読めるかに関わらず）その場で誤りにする。そのため、後置の始まりを [ ns: ] で除く。
+   短い形の本体は後置を含めて読み切るので、除く必要がない。 */
+CaptureExpr ::= 'capture' ( 'value' | 'move' | 'borrow' ) CaptureClosure
+
+CaptureClosure ::= ClosureHead Expr
+                 | ClosureHead '->' Type FnBlock [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '::' ] [ ns: '?' ]
+
+/* 後置の連鎖は、項の形で 3 つの状態に分ける（Parser が項の種類を見て `::` と `.名前<` を許すため）。
+     PostN: 名前だけの項（`a`、`E::A`）。`.名前<T>(` を試せる。
+     PostM: 名前のメンバー（`a.b`、`a.0`）。`::` を続けられる（`a.b::C`）。
+     PostO: それ以外。`::` も `.名前<` も続けられない。
+   括弧は、中が名前だけの項（PostN、PostM）なら、その状態のまま（Parser の `( 式 )` は中の式をそのまま返す。
+   `(a)::B`、`(a.b)::C`）。それ以外の括弧は PostO。 */
+PostN ::= NameAtom
+        | '(' PostN ')'
+        | PostM '::' Name
+        | PostN '::' Name
+
+PostM ::= PostN '.' Name
+        | PostN '.' INT
+        | '(' PostM ')'
+
+PostO ::= OtherAtom
+        | CtorAtom
+        | GenericCall
+        | PostN '.' FLOAT
+        | PostN '.' Name TypeArgs CallArgs
+        | PostN CallArgs
+        | PostN '[' Expr ']'
+        | PostN '?'
+        | PostM '.' Name
+        | PostM '.' INT
+        | PostM '.' FLOAT
+        | PostM CallArgs
+        | PostM '[' Expr ']'
+        | PostM '?'
+        | PostM '::' Name CtorFields
+        | PostN '::' Name CtorFields
+        | PostO '.' Name
+        | PostO '.' INT
+        | PostO '.' FLOAT
+        | PostO CallArgs
+        | PostO '[' Expr ']'
+        | PostO '?'
+
+/* 名前。`{` が続いても名前のまま読める（`{` が構築になる場合は、CtorAtom でも読める。曖昧な文法）。 */
+NameAtom ::= ExprHead
+           | ExprHead ( '::' Name )+
+           | ExprHead TypeArgs ( '::' Name )+
+
+/* `::` を含む名前のあとの `{ 名前 :` と `{ }` は構築（曖昧さの解消の説明を参照）。 */
+CtorAtom ::= ExprHead ( '::' Name )+ CtorFields
+           | ExprHead TypeArgs ( '::' Name )+ CtorFields
+
+CtorFields ::= '{' ( CtorField ( ',' CtorField )* ','? )? '}'
+
+CtorField ::= Name ':' Expr
+
+/* 名前 `<型引数>` のあとが `(` のとき、型引数つきの呼び出しになる。 */
+GenericCall ::= ExprHead TypeArgs CallArgs
+
+CallArgs ::= '(' ( CallArg ( ',' CallArg )* ','? )? ')'
+
+CallArg ::= IDENT ':' Expr
+          | Expr
+
+OtherAtom ::= OtherAtomBase
+            | ClosureExpr
+
+OtherAtomBase ::= INT
+            | FLOAT
+            | STRING
+            | RAW_STRING
+            | 'true'
+            | 'false'
+            | 'None'
+            | 'null'
+            | '(' ')'
+            | '(' Expr ')'
+            | '(' Expr ',' ( Expr ( ',' Expr )* ','? )? ')'
+            | ListLit
+            | MapLit
+            | BlockExpr
+            | IfExpr
+            | MatchExpr
+
+/* 条件部（if・while・match の条件、if let と while let の値、for の繰り返しの対象と範囲の端）の式。
+   Expr と同じ形で、括弧・角括弧・波括弧に囲まれない位置の空の構築 `E::A {}` だけを除く（そこでは `{ }` は本体）。
+   括弧などの内側は、Expr に戻る。 */
+CExpr ::= COrExpr
+
+COrExpr ::= COrExpr '||' CAndExpr | CAndExpr
+
+CAndExpr ::= CAndExpr '&&' CEqExpr | CEqExpr
+
+CEqExpr ::= CEqExpr ( '==' | '!=' ) CCmpExpr | CCmpExpr
+
+CCmpExpr ::= CCmpExpr CmpOp CAddExpr | CAddExpr
+
+CAddExpr ::= CAddExpr ( '+' | '-' ) CMulExpr | CMulExpr
+
+CMulExpr ::= CMulExpr ( '*' | '/' | '%' ) CUnaryExpr | CUnaryExpr
+
+CUnaryExpr ::= '-' CUnaryExpr
+             | '!' CUnaryExpr
+             | 'await' CUnaryExpr
+             | 'spawn' CUnaryExpr
+             | 'move' CUnaryExpr
+             | '&' 'mut' CUnaryExpr
+             | '&' [ ns: 'mut' ] CUnaryExpr
+             | CCaptureExpr
+             | CPostN
+             | CPostM
+             | CPostO
+
+CCaptureExpr ::= 'capture' ( 'value' | 'move' | 'borrow' ) CCaptureClosure
+
+CCaptureClosure ::= ClosureHead CExpr
+                  | ClosureHead '->' Type FnBlock [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '::' ] [ ns: '?' ]
+
+CPostN ::= NameAtom
+         | '(' PostN ')'
+         | CPostM '::' Name
+         | CPostN '::' Name
+
+CPostM ::= CPostN '.' Name
+         | CPostN '.' INT
+         | '(' PostM ')'
+
+CPostO ::= OtherAtomBase
+         | CClosureExpr
+         | CCtorAtom
+         | GenericCall
+         | CPostN '.' FLOAT
+         | CPostN '.' Name TypeArgs CallArgs
+         | CPostN CallArgs
+         | CPostN '[' Expr ']'
+         | CPostN '?'
+         | CPostM '.' Name
+         | CPostM '.' INT
+         | CPostM '.' FLOAT
+         | CPostM CallArgs
+         | CPostM '[' Expr ']'
+         | CPostM '?'
+         | CPostM '::' Name CtorFieldsNE
+         | CPostN '::' Name CtorFieldsNE
+         | CPostO '.' Name
+         | CPostO '.' INT
+         | CPostO '.' FLOAT
+         | CPostO CallArgs
+         | CPostO '[' Expr ']'
+         | CPostO '?'
+
+CCtorAtom ::= ExprHead ( '::' Name )+ CtorFieldsNE
+            | ExprHead TypeArgs ( '::' Name )+ CtorFieldsNE
+
+CtorFieldsNE ::= '{' CtorField ( ',' CtorField )* ','? '}'
+
+CClosureExpr ::= ClosureHead CExpr
+               | ClosureHead '->' Type FnBlock
+
+ListLit ::= '[' Expr ( ',' Expr )* ','? ']'
+
+/* `{` の次が `}` でなく、その次が `:` のとき、マップ。最初の鍵は 1 トークンの式に限る。 */
+MapLit ::= '{' MapKey1 ':' Expr ( ',' MapEntry )* ','? '}'
+
+MapEntry ::= Expr ':' Expr
+
+MapKey1 ::= [ ns: 'if' ] [ ns: 'match' ] [ ns: 'await' ] [ ns: 'spawn' ] [ ns: 'move' ] IDENT
+          | INT
+          | FLOAT
+          | STRING
+          | RAW_STRING
+
+ClosureExpr ::= ClosureHead Expr
+              | ClosureHead '->' Type FnBlock
+
+ClosureHead ::= '||'
+              | '|' '|'
+              | '|' ClosureParam ( ',' ClosureParam )* ','? '|'
+
+ClosureParam ::= Name ( ':' Type )?
+
+/* `else` が続けば、必ず else 節になる（else のない `if` の直後は `else` でない）。 */
+IfExpr ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) CExpr BlockExpr
+           ( 'else' ( IfExpr | BlockExpr ) | [ ns: 'else' ] )
+
+MatchExpr ::= 'match' CExpr '{' MatchArms '}'
+
+/* 腕のあいだは `,`。結果がブロックかリストかマップのとき（ただし直後に二項演算子や後置が続かないとき）は、
+   `,` を省ける。省いた場合、次の腕のパターンが `(`、`[`、`-` で始まると、前の結果の後置・演算子として
+   読まれるので、その形は結果が続く式になる（[ ns: ] で書く）。最後の腕は `,` なしでよい。 */
+MatchArms ::= ( MatchArm ',' | BlockArm )* MatchArmLast?
+
+MatchArm ::= Pattern ( 'if' Expr )? '=>' Expr
+
+BlockArm ::= Pattern ( 'if' Expr )? '=>' ArmBlockLike ( ',' | [ ns: '(' ] [ ns: '[' ] [ ns: '-' ] )
+
+MatchArmLast ::= Pattern ( 'if' Expr )? '=>' Expr
+
+ArmBlockLike ::= BlockExpr | ListLit | MapLit
+
+/* ---------------------------------------------------------------- 文とブロック（段階 D）
+   ブロックは 2 種類ある。
+   - FnBlock（Parser の block()）: 関数本体、`if`・`while`・`for` などの文の本体、`branch`、`external`、
+     match の文の腕の `{ }`、`->` つきクロージャの本体。文だけを並べる（末尾の式は置けない）。
+     let-else（`let 大文字の名前( … ) = 式 else { … }`）は、この形のブロックにも、BlockExpr にも書ける。
+     let-else は、そのブロックの残りの全部（閉じの `}` まで）を、続きの文として取る。
+   - BlockExpr（Parser の block_expression()）: 式としての `{ }` と、式の `if` の本体。末尾の `;` のない式が
+     ブロックの値になる。let-else のあとの残りは、末尾の式まで含めて、続きのブロックになる。
+   文の先頭の語（let var using while for break continue return defer commit revert resume drop publish branch
+   runtime external）で始まる文は、BlockExpr の中でも FnBlock の中でも、必ず文として読まれる。
+   BlockExpr の中の `if`・`match`・`{` で始まる文は、まず式として読み、式として読めなければ文として読み直す。
+   この順序つきの選択は、曖昧な文法（どちらでも受理する）と、式が続く記号の先読み（NoContinue）で書く。 */
+
+FnBlock ::= '{' FnBody
+
+/* 閉じの `}` まで。let-else があれば、その続きが残りの本体になる。 */
+FnBody ::= Stmt* ( '}' | LetElse FnBody )
+
+/* 名前が大文字で始まり、直後が `(` か `::` のときだけ let-else になる（`let_else_ahead`）。
+   大文字は char::is_uppercase の結果で、テスト側が種別 UPPER_IDENT をつける。 */
+LetElse ::= 'let' LetElsePattern '=' Expr 'else' FnBlock ';'?
+
+LetElsePattern ::= UPPER_IDENT PatArgs
+                 | UPPER_IDENT ( '::' Name )+ ( PatArgs | PatFields )?
+
+PatArgs ::= '(' ( Pattern ( ',' Pattern )* ','? )? ')'
+
+PatFields ::= '{' ( FieldPattern ( ',' FieldPattern )* ','? )? '}'
+
+Stmt ::= KeywordStmt
+       | IfStmt
+       | MatchStmt
+       | FnBlock
+       | ExprStmt
+
+/* 先頭の語で決まる文。 */
+KeywordStmt ::= LetStmt
+              | 'using' Name '=' Expr ';'
+              | WhileStmt
+              | ForStmt
+              | 'break' ';'
+              | 'continue' ';'
+              | 'return' Expr? ';'
+              | 'defer' Expr ';'
+              | 'external' ( 'live' | 'fresh' )? FnBlock
+              | 'commit' Name ';'
+              | 'revert' LabelName ';'
+              | 'resume' LabelName ';'
+              | 'drop' Name ';'
+              | 'publish' 'force'? ';'
+              | 'branch' Name FnBlock
+              | RuntimeStmt
+
+/* `let (a, b) = e;` の括弧の中は Pattern と同じ形で受理する（束縛・タプル・`_` だけという検査は値の検査）。 */
+LetStmt ::= ( 'let' | 'var' ) ( Name | TuplePattern ) ( ':' Type )? '=' Expr ';'
+
+/* revert と resume は、`begin` だけ名前として書ける。 */
+LabelName ::= 'begin' | Name
+
+IfStmt ::= 'if' ( 'let' Pattern '=' | [ ns: 'let' ] ) CExpr FnBlock
+           ( 'else' ( IfStmt | FnBlock ) | [ ns: 'else' ] )
+
+WhileStmt ::= 'while' ( 'let' Pattern '=' | [ ns: 'let' ] ) CExpr FnBlock
+
+/* `..` の範囲は、名前の形のときだけ。括弧のパターンのときは、式の 1 つだけ。 */
+ForStmt ::= 'for' TuplePattern 'in' CExpr FnBlock
+          | 'for' Name 'in' CExpr ( '..' CExpr )? FnBlock
+
+/* 設定名は 4 つ。値は 10 進の数字だけのトークンで、単位（KB KiB MB MiB GB GiB）を続けられる。 */
+RuntimeStmt ::= 'runtime' '{' RuntimeSetting* '}'
+
+RuntimeSetting ::= RuntimeName '=' INT RuntimeUnit? ';'
+
+RuntimeName ::= 'historyMemory' | 'historyStorage' | 'spillThreshold' | 'executionSteps'
+
+RuntimeUnit ::= 'KB' | 'KiB' | 'MB' | 'MiB' | 'GB' | 'GiB'
+
+/* match の文。腕のあいだは `,`。腕が `{ }` のときは、式の match と同じに `,` を省ける。 */
+MatchStmt ::= 'match' CExpr '{' StmtArms '}'
+
+StmtArms ::= ( StmtArm ',' | BlockStmtArm )* StmtArm?
+
+BlockStmtArm ::= Pattern ( 'if' Expr )? '=>' FnBlock
+
+StmtArm ::= Pattern ( 'if' Expr )? '=>' ArmBody
+
+ArmBody ::= 'return' ( Expr ';'? )?
+          | FnBlock
+          | [ ns: 'return' ] [ ns: '{' ] Expr
+
+/* 文の先頭の語（external を除く）は、式の名前として読まれない。 */
+KwNot ::= [ ns: 'let' ] [ ns: 'var' ] [ ns: 'using' ] [ ns: 'while' ] [ ns: 'for' ] [ ns: 'break' ]
+          [ ns: 'continue' ] [ ns: 'return' ] [ ns: 'defer' ] [ ns: 'commit' ] [ ns: 'revert' ]
+          [ ns: 'resume' ] [ ns: 'drop' ] [ ns: 'publish' ] [ ns: 'branch' ] [ ns: 'runtime' ]
+
+/* FnBlock の中では、`if`・`match`・`{` で始まる文は、必ず文の形で読まれる。 */
+ExprStmt ::= KwNot [ ns: 'if' ] [ ns: 'match' ] [ ns: '{' ] Expr ( AssignOp Expr )? ';'
+
+AssignOp ::= '=' | '+=' | '-=' | '*=' | '/=' | '%='
+
+/* ---------------------------------------------------------------- 式としてのブロックの中身 */
+
+BlockExpr ::= '{' BlockExprBody
+
+/* 閉じの `}` まで。let-else があれば、その続き（末尾の式を含む）が残りの本体になる。 */
+BlockExprBody ::= BlockItem* BlockTail? '}'
+                | BlockItem* LetElse BlockExprBody
+
+BlockStart ::= KwNot [ ns: 'external' ]
+
+/* 文の先頭の語は、ブロックの値になる式の先頭でも名前にならない。ただし `external` が式の名前の文は、
+   文の読み方（stmt()）で読まれるので、ExprStmt として書ける。 */
+BlockItem ::= KeywordStmt
+            | ExprStmt
+            | BlockStart Expr AssignOp Expr ';'
+            | BlockStart Expr ';'
+            | BlockStart BlockLike NoContinue
+            | BlockFallback NoContinue
+
+BlockTail ::= BlockStart Expr
+
+/* `;` を省けるのは、式の全体が `if`・`match`・`{ }`・マップ（Parser の式の種類が Block か Match）のとき。 */
+BlockLike ::= IfExpr | MatchExpr | BlockExpr | MapLit
+
+/* 式として読めなかったときの、文としての読み直し。 */
+BlockFallback ::= IfStmt | MatchStmt | FnBlock
+
+/* 式が続く記号。直後にこれが来ると、前の `if`・`match`・`{ }` は式の一部になる。 */
+NoContinue ::= [ ns: '(' ] [ ns: '[' ] [ ns: '.' ] [ ns: '?' ] [ ns: '||' ] [ ns: '&&' ] [ ns: '==' ]
+               [ ns: '!=' ] [ ns: '<' ] [ ns: '<=' ] [ ns: '>' ] [ ns: '+' ] [ ns: '-' ] [ ns: '*' ]
+               [ ns: '/' ] [ ns: '%' ]
+
+/* ================================================================ 宣言と全体（段階 D）
+   Parser の program()。`pub` のあとは、宣言だけが続く（そうでなければ誤り）。`pub import` と `pub impl` は誤り。
+   `pub fn` は `->` が必要。どの宣言の先頭の語でもないものは、文として読む。
+   2.0.0 以前のトップレベルの文と、3.x の `fn main` の規則は、構文では区別しない（どちらも Item の列）。
+   入力の終わり（EOF）は、トークン列の終わりで表す。 */
+
+Program ::= Item*
+
+Item ::= Decl
+       | 'pub' PubDecl
+       | FnDecl
+       | 'pub' PubFnDecl
+       | ImportDecl
+       | ImplDecl
+       | TopStmt
+
+Decl ::= EffectsDecl | PubDecl
+
+/* `effects` はモジュールの宣言で、`pub` は付けられない。 */
+PubDecl ::= TypeDecl | EnumDecl | TraitDecl | StructDecl | ConstDecl
+
+/* 宣言の先頭の語は、トップレベルでは必ず宣言として読まれ、式の名前にならない。 */
+TopStmt ::= [ ns: 'pub' ] [ ns: 'effects' ] [ ns: 'import' ] [ ns: 'type' ] [ ns: 'enum' ] [ ns: 'trait' ]
+            [ ns: 'impl' ] [ ns: 'struct' ] [ ns: 'record' ] [ ns: 'fn' ] [ ns: 'async' ] [ ns: 'const' ] Stmt
+
+EffectsDecl ::= 'effects' '{' ( Name ( ',' Name )* ','? )? '}' ';'?
+
+/* `import a.b`、`import a.b.{x, y as z}`、`import a.b::{x}`、`import a.b as c`。
+   別名は、選ぶ名前の一覧が空か、ないときだけ書ける。 */
+ImportDecl ::= 'import' ImportPath ( ( '.' ImportList )? ( '::' ImportList )?
+                                   | ( '.' ImportEmpty )? ( '::' ImportEmpty )? 'as' Name ) ';'
+
+ImportPath ::= Name ( '.' Name )*
+
+ImportList ::= '{' ( ImportItem ( ',' ImportItem )* ','? )? '}'
+
+ImportEmpty ::= '{' '}'
+
+ImportItem ::= Name ( 'as' Name )?
+
+TypeDecl ::= 'type' Name TypeParams '=' Type ';'
+
+EnumDecl ::= 'enum' Name TypeParams '{' ( Variant ( ',' Variant )* ','? )? '}'
+
+Variant ::= Name ( '(' ( Type ( ',' Type )* ','? )? ')'
+                 | '{' ( FieldDecl1 ( ',' FieldDecl1 )* ','? )? '}' )?
+
+FieldDecl1 ::= Name ':' Type
+
+TraitDecl ::= 'trait' Name '{' TraitItem* '}'
+
+TraitItem ::= 'type' Name ';'
+            | 'fn' Name '(' ( FieldDecl1 ( ',' FieldDecl1 )* ','? )? ')' '->' Type EffectSet? ( FnBlock | ';' )
+
+ImplDecl ::= 'impl' TypeParams Name 'for' Type '{' ImplItem* '}'
+
+ImplItem ::= 'type' Name '=' Type ';'
+           | 'fn' Name '(' ( FieldDecl1 ( ',' FieldDecl1 )* ','? )? ')' '->' Type EffectSet? FnBlock
+
+/* 欄の前の `private` か `pub`。修飾なしの欄の名前は `private` と `pub` にできない。 */
+StructDecl ::= ( 'struct' | 'record' ) Name TypeParams WhereClause? '{' ( StructField ( ',' StructField )* ','? )? '}'
+
+StructField ::= ( 'private' | 'pub' ) Name ':' Type
+              | [ ns: 'private' ] [ ns: 'pub' ] Name ':' Type
+
+ConstDecl ::= 'const' Name ':' Type '=' Expr ';'
+
+/* `test` は直後が `fn` のときだけ接頭辞になる（`test async fn` は誤り）。 */
+FnPrefix ::= 'test' 'fn' | 'async' 'fn' | 'fn'
+
+FnDecl ::= FnPrefix Name TypeParams FnParams
+           ( '->' Type EffectSet? WhereClause? FnBody1
+           | EffectSet? WhereClause? FnBlock )
+
+PubFnDecl ::= FnPrefix Name TypeParams FnParams '->' Type EffectSet? WhereClause? FnBody1
+
+FnBody1 ::= FnBlock | '=' Expr ';'
+
+/* 既定値のある引数は、既定値のない引数のあとに、まとめて置く。 */
+FnParams ::= '(' ')' | '(' ParamSeq ','? ')'
+
+ParamSeq ::= Param ( ',' Param )* ( ',' DefParam )*
+           | DefParam ( ',' DefParam )*
+
+Param ::= Name ':' Type
+
+DefParam ::= Name ':' Type '=' DefaultValue
+
+/* 既定値は、リテラル（`None` と `null` と `()` を含む）か、`-` のあとにリテラル。Parser の式の種類が値のもの
+   だけを受理する。括弧は式をそのまま返すので、囲んでもよい（`(-1)` は受理、`-(-1)` は拒否）。 */
+DefaultValue ::= DefLit | '-' DefLit | '(' DefaultValue ')'
+
+DefLit ::= INT | FLOAT | STRING | RAW_STRING | 'true' | 'false' | 'null' | 'None' | '(' ')' | '(' DefLit ')'
+
+/* 先頭が大文字（char::is_uppercase）の名前。テスト側が種別 UPPER_IDENT をつける。 */
+UPPER_IDENT ::= [A-Z] IDENT_CHAR*
+
+/* 前処理で `>=` を分けたトークンの種別。lex() が出す種別ではない（上の説明を参照）。 */
+GE_FIRST ::= '>'
+
+GE_SECOND ::= '='
+
+/* ================================================================ 付録 A: Unicode の表
+   次の 3 つの表は、Rust の標準ライブラリ（char::is_alphabetic、char::is_alphanumeric、
+   char::is_whitespace）の結果を、そのまま範囲にしたもの。
+   lexcheck の単体テストが、全コードポイントでこの表と標準ライブラリが一致することを確かめる。
+   Rust の版を上げて Unicode の版が変わったときは、そのテストの失敗が知らせる。 */
+
+UNICODE_ALPHABETIC ::= [#x41-#x5A#x61-#x7A#xAA#xB5#xBA#xC0-#xD6#xD8-#xF6#xF8-#x2C1#x2C6-#x2D1#x2E0-#x2E4#x2EC#x2EE#x345#x363-#x374#x376-#x377#x37A-#x37D#x37F#x386#x388-#x38A#x38C#x38E-#x3A1#x3A3-#x3F5#x3F7-#x481#x48A-#x52F#x531-#x556#x559#x560-#x588#x5B0-#x5BD#x5BF#x5C1-#x5C2#x5C4-#x5C5#x5C7#x5D0-#x5EA#x5EF-#x5F2#x610-#x61A#x620-#x657#x659-#x65F#x66E-#x6D3#x6D5-#x6DC#x6E1-#x6E8#x6ED-#x6EF#x6FA-#x6FC#x6FF#x710-#x73F#x74D-#x7B1#x7CA-#x7EA#x7F4-#x7F5#x7FA#x800-#x817#x81A-#x82C#x840-#x858#x860-#x86A#x870-#x887#x889-#x88F#x897#x8A0-#x8C9#x8D4-#x8DF#x8E3-#x8E9#x8F0-#x93B#x93D-#x94C#x94E-#x950#x955-#x963#x971-#x983#x985-#x98C#x98F-#x990#x993-#x9A8#x9AA-#x9B0#x9B2#x9B6-#x9B9#x9BD-#x9C4#x9C7-#x9C8#x9CB-#x9CC#x9CE#x9D7#x9DC-#x9DD#x9DF-#x9E3#x9F0-#x9F1#x9FC#xA01-#xA03#xA05-#xA0A#xA0F-#xA10#xA13-#xA28#xA2A-#xA30#xA32-#xA33#xA35-#xA36#xA38-#xA39#xA3E-#xA42#xA47-#xA48#xA4B-#xA4C#xA51#xA59-#xA5C#xA5E#xA70-#xA75#xA81-#xA83#xA85-#xA8D#xA8F-#xA91#xA93-#xAA8#xAAA-#xAB0#xAB2-#xAB3#xAB5-#xAB9#xABD-#xAC5#xAC7-#xAC9#xACB-#xACC#xAD0#xAE0-#xAE3#xAF9-#xAFC#xB01-#xB03#xB05-#xB0C#xB0F-#xB10#xB13-#xB28#xB2A-#xB30#xB32-#xB33#xB35-#xB39#xB3D-#xB44#xB47-#xB48#xB4B-#xB4C#xB56-#xB57#xB5C-#xB5D#xB5F-#xB63#xB71#xB82-#xB83#xB85-#xB8A#xB8E-#xB90#xB92-#xB95#xB99-#xB9A#xB9C#xB9E-#xB9F#xBA3-#xBA4#xBA8-#xBAA#xBAE-#xBB9#xBBE-#xBC2#xBC6-#xBC8#xBCA-#xBCC#xBD0#xBD7#xC00-#xC0C#xC0E-#xC10#xC12-#xC28#xC2A-#xC39#xC3D-#xC44#xC46-#xC48#xC4A-#xC4C#xC55-#xC56#xC58-#xC5A#xC5C-#xC5D#xC60-#xC63#xC80-#xC83#xC85-#xC8C#xC8E-#xC90#xC92-#xCA8#xCAA-#xCB3#xCB5-#xCB9#xCBD-#xCC4#xCC6-#xCC8#xCCA-#xCCC#xCD5-#xCD6#xCDC-#xCDE#xCE0-#xCE3#xCF1-#xCF3#xD00-#xD0C#xD0E-#xD10#xD12-#xD3A#xD3D-#xD44#xD46-#xD48#xD4A-#xD4C#xD4E#xD54-#xD57#xD5F-#xD63#xD7A-#xD7F#xD81-#xD83#xD85-#xD96#xD9A-#xDB1#xDB3-#xDBB#xDBD#xDC0-#xDC6#xDCF-#xDD4#xDD6#xDD8-#xDDF#xDF2-#xDF3#xE01-#xE3A#xE40-#xE46#xE4D#xE81-#xE82#xE84#xE86-#xE8A#xE8C-#xEA3#xEA5#xEA7-#xEB9#xEBB-#xEBD#xEC0-#xEC4#xEC6#xECD#xEDC-#xEDF#xF00#xF40-#xF47#xF49-#xF6C#xF71-#xF83#xF88-#xF97#xF99-#xFBC#x1000-#x1036#x1038#x103B-#x103F#x1050-#x108F#x109A-#x109D#x10A0-#x10C5#x10C7#x10CD#x10D0-#x10FA#x10FC-#x1248#x124A-#x124D#x1250-#x1256#x1258#x125A-#x125D#x1260-#x1288#x128A-#x128D#x1290-#x12B0#x12B2-#x12B5#x12B8-#x12BE#x12C0#x12C2-#x12C5#x12C8-#x12D6#x12D8-#x1310#x1312-#x1315#x1318-#x135A#x1380-#x138F#x13A0-#x13F5#x13F8-#x13FD#x1401-#x166C#x166F-#x167F#x1681-#x169A#x16A0-#x16EA#x16EE-#x16F8#x1700-#x1713#x171F-#x1733#x1740-#x1753#x1760-#x176C#x176E-#x1770#x1772-#x1773#x1780-#x17B3#x17B6-#x17C8#x17D7#x17DC#x1820-#x1878#x1880-#x18AA#x18B0-#x18F5#x1900-#x191E#x1920-#x192B#x1930-#x1938#x1950-#x196D#x1970-#x1974#x1980-#x19AB#x19B0-#x19C9#x1A00-#x1A1B#x1A20-#x1A5E#x1A61-#x1A74#x1AA7#x1ABF-#x1AC0#x1ACC-#x1ACE#x1B00-#x1B33#x1B35-#x1B43#x1B45-#x1B4C#x1B80-#x1BA9#x1BAC-#x1BAF#x1BBA-#x1BE5#x1BE7-#x1BF1#x1C00-#x1C36#x1C4D-#x1C4F#x1C5A-#x1C7D#x1C80-#x1C8A#x1C90-#x1CBA#x1CBD-#x1CBF#x1CE9-#x1CEC#x1CEE-#x1CF3#x1CF5-#x1CF6#x1CFA#x1D00-#x1DBF#x1DD3-#x1DF4#x1E00-#x1F15#x1F18-#x1F1D#x1F20-#x1F45#x1F48-#x1F4D#x1F50-#x1F57#x1F59#x1F5B#x1F5D#x1F5F-#x1F7D#x1F80-#x1FB4#x1FB6-#x1FBC#x1FBE#x1FC2-#x1FC4#x1FC6-#x1FCC#x1FD0-#x1FD3#x1FD6-#x1FDB#x1FE0-#x1FEC#x1FF2-#x1FF4#x1FF6-#x1FFC#x2071#x207F#x2090-#x209C#x2102#x2107#x210A-#x2113#x2115#x2119-#x211D#x2124#x2126#x2128#x212A-#x212D#x212F-#x2139#x213C-#x213F#x2145-#x2149#x214E#x2160-#x2188#x24B6-#x24E9#x2C00-#x2CE4#x2CEB-#x2CEE#x2CF2-#x2CF3#x2D00-#x2D25#x2D27#x2D2D#x2D30-#x2D67#x2D6F#x2D80-#x2D96#x2DA0-#x2DA6#x2DA8-#x2DAE#x2DB0-#x2DB6#x2DB8-#x2DBE#x2DC0-#x2DC6#x2DC8-#x2DCE#x2DD0-#x2DD6#x2DD8-#x2DDE#x2DE0-#x2DFF#x2E2F#x3005-#x3007#x3021-#x3029#x3031-#x3035#x3038-#x303C#x3041-#x3096#x309D-#x309F#x30A1-#x30FA#x30FC-#x30FF#x3105-#x312F#x3131-#x318E#x31A0-#x31BF#x31F0-#x31FF#x3400-#x4DBF#x4E00-#xA48C#xA4D0-#xA4FD#xA500-#xA60C#xA610-#xA61F#xA62A-#xA62B#xA640-#xA66E#xA674-#xA67B#xA67F-#xA6EF#xA717-#xA71F#xA722-#xA788#xA78B-#xA7DC#xA7F1-#xA805#xA807-#xA827#xA840-#xA873#xA880-#xA8C3#xA8C5#xA8F2-#xA8F7#xA8FB#xA8FD-#xA8FF#xA90A-#xA92A#xA930-#xA952#xA960-#xA97C#xA980-#xA9B2#xA9B4-#xA9BF#xA9CF#xA9E0-#xA9EF#xA9FA-#xA9FE#xAA00-#xAA36#xAA40-#xAA4D#xAA60-#xAA76#xAA7A-#xAABE#xAAC0#xAAC2#xAADB-#xAADD#xAAE0-#xAAEF#xAAF2-#xAAF5#xAB01-#xAB06#xAB09-#xAB0E#xAB11-#xAB16#xAB20-#xAB26#xAB28-#xAB2E#xAB30-#xAB5A#xAB5C-#xAB69#xAB70-#xABEA#xAC00-#xD7A3#xD7B0-#xD7C6#xD7CB-#xD7FB#xF900-#xFA6D#xFA70-#xFAD9#xFB00-#xFB06#xFB13-#xFB17#xFB1D-#xFB28#xFB2A-#xFB36#xFB38-#xFB3C#xFB3E#xFB40-#xFB41#xFB43-#xFB44#xFB46-#xFBB1#xFBD3-#xFD3D#xFD50-#xFD8F#xFD92-#xFDC7#xFDF0-#xFDFB#xFE70-#xFE74#xFE76-#xFEFC#xFF21-#xFF3A#xFF41-#xFF5A#xFF66-#xFFBE#xFFC2-#xFFC7#xFFCA-#xFFCF#xFFD2-#xFFD7#xFFDA-#xFFDC#x10000-#x1000B#x1000D-#x10026#x10028-#x1003A#x1003C-#x1003D#x1003F-#x1004D#x10050-#x1005D#x10080-#x100FA#x10140-#x10174#x10280-#x1029C#x102A0-#x102D0#x10300-#x1031F#x1032D-#x1034A#x10350-#x1037A#x10380-#x1039D#x103A0-#x103C3#x103C8-#x103CF#x103D1-#x103D5#x10400-#x1049D#x104B0-#x104D3#x104D8-#x104FB#x10500-#x10527#x10530-#x10563#x10570-#x1057A#x1057C-#x1058A#x1058C-#x10592#x10594-#x10595#x10597-#x105A1#x105A3-#x105B1#x105B3-#x105B9#x105BB-#x105BC#x105C0-#x105F3#x10600-#x10736#x10740-#x10755#x10760-#x10767#x10780-#x10785#x10787-#x107B0#x107B2-#x107BA#x10800-#x10805#x10808#x1080A-#x10835#x10837-#x10838#x1083C#x1083F-#x10855#x10860-#x10876#x10880-#x1089E#x108E0-#x108F2#x108F4-#x108F5#x10900-#x10915#x10920-#x10939#x10940-#x10959#x10980-#x109B7#x109BE-#x109BF#x10A00-#x10A03#x10A05-#x10A06#x10A0C-#x10A13#x10A15-#x10A17#x10A19-#x10A35#x10A60-#x10A7C#x10A80-#x10A9C#x10AC0-#x10AC7#x10AC9-#x10AE4#x10B00-#x10B35#x10B40-#x10B55#x10B60-#x10B72#x10B80-#x10B91#x10C00-#x10C48#x10C80-#x10CB2#x10CC0-#x10CF2#x10D00-#x10D27#x10D4A-#x10D65#x10D69#x10D6F-#x10D85#x10E80-#x10EA9#x10EAB-#x10EAC#x10EB0-#x10EB1#x10EC2-#x10EC7#x10EFA-#x10EFC#x10F00-#x10F1C#x10F27#x10F30-#x10F45#x10F70-#x10F81#x10FB0-#x10FC4#x10FE0-#x10FF6#x11000-#x11045#x11071-#x11075#x11080-#x110B8#x110C2#x110D0-#x110E8#x11100-#x11132#x11144-#x11147#x11150-#x11172#x11176#x11180-#x111BF#x111C1-#x111C4#x111CE-#x111CF#x111DA#x111DC#x11200-#x11211#x11213-#x11234#x11237#x1123E-#x11241#x11280-#x11286#x11288#x1128A-#x1128D#x1128F-#x1129D#x1129F-#x112A8#x112B0-#x112E8#x11300-#x11303#x11305-#x1130C#x1130F-#x11310#x11313-#x11328#x1132A-#x11330#x11332-#x11333#x11335-#x11339#x1133D-#x11344#x11347-#x11348#x1134B-#x1134C#x11350#x11357#x1135D-#x11363#x11380-#x11389#x1138B#x1138E#x11390-#x113B5#x113B7-#x113C0#x113C2#x113C5#x113C7-#x113CA#x113CC-#x113CD#x113D1#x113D3#x11400-#x11441#x11443-#x11445#x11447-#x1144A#x1145F-#x11461#x11480-#x114C1#x114C4-#x114C5#x114C7#x11580-#x115B5#x115B8-#x115BE#x115D8-#x115DD#x11600-#x1163E#x11640#x11644#x11680-#x116B5#x116B8#x11700-#x1171A#x1171D-#x1172A#x11740-#x11746#x11800-#x11838#x118A0-#x118DF#x118FF-#x11906#x11909#x1190C-#x11913#x11915-#x11916#x11918-#x11935#x11937-#x11938#x1193B-#x1193C#x1193F-#x11942#x119A0-#x119A7#x119AA-#x119D7#x119DA-#x119DF#x119E1#x119E3-#x119E4#x11A00-#x11A32#x11A35-#x11A3E#x11A50-#x11A97#x11A9D#x11AB0-#x11AF8#x11B60-#x11B67#x11BC0-#x11BE0#x11C00-#x11C08#x11C0A-#x11C36#x11C38-#x11C3E#x11C40#x11C72-#x11C8F#x11C92-#x11CA7#x11CA9-#x11CB6#x11D00-#x11D06#x11D08-#x11D09#x11D0B-#x11D36#x11D3A#x11D3C-#x11D3D#x11D3F-#x11D41#x11D43#x11D46-#x11D47#x11D60-#x11D65#x11D67-#x11D68#x11D6A-#x11D8E#x11D90-#x11D91#x11D93-#x11D96#x11D98#x11DB0-#x11DDB#x11EE0-#x11EF6#x11F00-#x11F10#x11F12-#x11F3A#x11F3E-#x11F40#x11FB0#x12000-#x12399#x12400-#x1246E#x12480-#x12543#x12F90-#x12FF0#x13000-#x1342F#x13441-#x13446#x13460-#x143FA#x14400-#x14646#x16100-#x1612E#x16800-#x16A38#x16A40-#x16A5E#x16A70-#x16ABE#x16AD0-#x16AED#x16B00-#x16B2F#x16B40-#x16B43#x16B63-#x16B77#x16B7D-#x16B8F#x16D40-#x16D6C#x16E40-#x16E7F#x16EA0-#x16EB8#x16EBB-#x16ED3#x16F00-#x16F4A#x16F4F-#x16F87#x16F8F-#x16F9F#x16FE0-#x16FE1#x16FE3#x16FF0-#x16FF6#x17000-#x18CD5#x18CFF-#x18D1E#x18D80-#x18DF2#x1AFF0-#x1AFF3#x1AFF5-#x1AFFB#x1AFFD-#x1AFFE#x1B000-#x1B122#x1B132#x1B150-#x1B152#x1B155#x1B164-#x1B167#x1B170-#x1B2FB#x1BC00-#x1BC6A#x1BC70-#x1BC7C#x1BC80-#x1BC88#x1BC90-#x1BC99#x1BC9E#x1D400-#x1D454#x1D456-#x1D49C#x1D49E-#x1D49F#x1D4A2#x1D4A5-#x1D4A6#x1D4A9-#x1D4AC#x1D4AE-#x1D4B9#x1D4BB#x1D4BD-#x1D4C3#x1D4C5-#x1D505#x1D507-#x1D50A#x1D50D-#x1D514#x1D516-#x1D51C#x1D51E-#x1D539#x1D53B-#x1D53E#x1D540-#x1D544#x1D546#x1D54A-#x1D550#x1D552-#x1D6A5#x1D6A8-#x1D6C0#x1D6C2-#x1D6DA#x1D6DC-#x1D6FA#x1D6FC-#x1D714#x1D716-#x1D734#x1D736-#x1D74E#x1D750-#x1D76E#x1D770-#x1D788#x1D78A-#x1D7A8#x1D7AA-#x1D7C2#x1D7C4-#x1D7CB#x1DF00-#x1DF1E#x1DF25-#x1DF2A#x1E000-#x1E006#x1E008-#x1E018#x1E01B-#x1E021#x1E023-#x1E024#x1E026-#x1E02A#x1E030-#x1E06D#x1E08F#x1E100-#x1E12C#x1E137-#x1E13D#x1E14E#x1E290-#x1E2AD#x1E2C0-#x1E2EB#x1E4D0-#x1E4EB#x1E5D0-#x1E5ED#x1E5F0#x1E6C0-#x1E6DE#x1E6E0-#x1E6F5#x1E6FE-#x1E6FF#x1E7E0-#x1E7E6#x1E7E8-#x1E7EB#x1E7ED-#x1E7EE#x1E7F0-#x1E7FE#x1E800-#x1E8C4#x1E900-#x1E943#x1E947#x1E94B#x1EE00-#x1EE03#x1EE05-#x1EE1F#x1EE21-#x1EE22#x1EE24#x1EE27#x1EE29-#x1EE32#x1EE34-#x1EE37#x1EE39#x1EE3B#x1EE42#x1EE47#x1EE49#x1EE4B#x1EE4D-#x1EE4F#x1EE51-#x1EE52#x1EE54#x1EE57#x1EE59#x1EE5B#x1EE5D#x1EE5F#x1EE61-#x1EE62#x1EE64#x1EE67-#x1EE6A#x1EE6C-#x1EE72#x1EE74-#x1EE77#x1EE79-#x1EE7C#x1EE7E#x1EE80-#x1EE89#x1EE8B-#x1EE9B#x1EEA1-#x1EEA3#x1EEA5-#x1EEA9#x1EEAB-#x1EEBB#x1F130-#x1F149#x1F150-#x1F169#x1F170-#x1F189#x20000-#x2A6DF#x2A700-#x2B81D#x2B820-#x2CEAD#x2CEB0-#x2EBE0#x2EBF0-#x2EE5D#x2F800-#x2FA1D#x30000-#x3134A#x31350-#x33479]
+
+UNICODE_ALPHANUMERIC ::= [#x30-#x39#x41-#x5A#x61-#x7A#xAA#xB2-#xB3#xB5#xB9-#xBA#xBC-#xBE#xC0-#xD6#xD8-#xF6#xF8-#x2C1#x2C6-#x2D1#x2E0-#x2E4#x2EC#x2EE#x345#x363-#x374#x376-#x377#x37A-#x37D#x37F#x386#x388-#x38A#x38C#x38E-#x3A1#x3A3-#x3F5#x3F7-#x481#x48A-#x52F#x531-#x556#x559#x560-#x588#x5B0-#x5BD#x5BF#x5C1-#x5C2#x5C4-#x5C5#x5C7#x5D0-#x5EA#x5EF-#x5F2#x610-#x61A#x620-#x657#x659-#x669#x66E-#x6D3#x6D5-#x6DC#x6E1-#x6E8#x6ED-#x6FC#x6FF#x710-#x73F#x74D-#x7B1#x7C0-#x7EA#x7F4-#x7F5#x7FA#x800-#x817#x81A-#x82C#x840-#x858#x860-#x86A#x870-#x887#x889-#x88F#x897#x8A0-#x8C9#x8D4-#x8DF#x8E3-#x8E9#x8F0-#x93B#x93D-#x94C#x94E-#x950#x955-#x963#x966-#x96F#x971-#x983#x985-#x98C#x98F-#x990#x993-#x9A8#x9AA-#x9B0#x9B2#x9B6-#x9B9#x9BD-#x9C4#x9C7-#x9C8#x9CB-#x9CC#x9CE#x9D7#x9DC-#x9DD#x9DF-#x9E3#x9E6-#x9F1#x9F4-#x9F9#x9FC#xA01-#xA03#xA05-#xA0A#xA0F-#xA10#xA13-#xA28#xA2A-#xA30#xA32-#xA33#xA35-#xA36#xA38-#xA39#xA3E-#xA42#xA47-#xA48#xA4B-#xA4C#xA51#xA59-#xA5C#xA5E#xA66-#xA75#xA81-#xA83#xA85-#xA8D#xA8F-#xA91#xA93-#xAA8#xAAA-#xAB0#xAB2-#xAB3#xAB5-#xAB9#xABD-#xAC5#xAC7-#xAC9#xACB-#xACC#xAD0#xAE0-#xAE3#xAE6-#xAEF#xAF9-#xAFC#xB01-#xB03#xB05-#xB0C#xB0F-#xB10#xB13-#xB28#xB2A-#xB30#xB32-#xB33#xB35-#xB39#xB3D-#xB44#xB47-#xB48#xB4B-#xB4C#xB56-#xB57#xB5C-#xB5D#xB5F-#xB63#xB66-#xB6F#xB71-#xB77#xB82-#xB83#xB85-#xB8A#xB8E-#xB90#xB92-#xB95#xB99-#xB9A#xB9C#xB9E-#xB9F#xBA3-#xBA4#xBA8-#xBAA#xBAE-#xBB9#xBBE-#xBC2#xBC6-#xBC8#xBCA-#xBCC#xBD0#xBD7#xBE6-#xBF2#xC00-#xC0C#xC0E-#xC10#xC12-#xC28#xC2A-#xC39#xC3D-#xC44#xC46-#xC48#xC4A-#xC4C#xC55-#xC56#xC58-#xC5A#xC5C-#xC5D#xC60-#xC63#xC66-#xC6F#xC78-#xC7E#xC80-#xC83#xC85-#xC8C#xC8E-#xC90#xC92-#xCA8#xCAA-#xCB3#xCB5-#xCB9#xCBD-#xCC4#xCC6-#xCC8#xCCA-#xCCC#xCD5-#xCD6#xCDC-#xCDE#xCE0-#xCE3#xCE6-#xCEF#xCF1-#xCF3#xD00-#xD0C#xD0E-#xD10#xD12-#xD3A#xD3D-#xD44#xD46-#xD48#xD4A-#xD4C#xD4E#xD54-#xD63#xD66-#xD78#xD7A-#xD7F#xD81-#xD83#xD85-#xD96#xD9A-#xDB1#xDB3-#xDBB#xDBD#xDC0-#xDC6#xDCF-#xDD4#xDD6#xDD8-#xDDF#xDE6-#xDEF#xDF2-#xDF3#xE01-#xE3A#xE40-#xE46#xE4D#xE50-#xE59#xE81-#xE82#xE84#xE86-#xE8A#xE8C-#xEA3#xEA5#xEA7-#xEB9#xEBB-#xEBD#xEC0-#xEC4#xEC6#xECD#xED0-#xED9#xEDC-#xEDF#xF00#xF20-#xF33#xF40-#xF47#xF49-#xF6C#xF71-#xF83#xF88-#xF97#xF99-#xFBC#x1000-#x1036#x1038#x103B-#x1049#x1050-#x109D#x10A0-#x10C5#x10C7#x10CD#x10D0-#x10FA#x10FC-#x1248#x124A-#x124D#x1250-#x1256#x1258#x125A-#x125D#x1260-#x1288#x128A-#x128D#x1290-#x12B0#x12B2-#x12B5#x12B8-#x12BE#x12C0#x12C2-#x12C5#x12C8-#x12D6#x12D8-#x1310#x1312-#x1315#x1318-#x135A#x1369-#x137C#x1380-#x138F#x13A0-#x13F5#x13F8-#x13FD#x1401-#x166C#x166F-#x167F#x1681-#x169A#x16A0-#x16EA#x16EE-#x16F8#x1700-#x1713#x171F-#x1733#x1740-#x1753#x1760-#x176C#x176E-#x1770#x1772-#x1773#x1780-#x17B3#x17B6-#x17C8#x17D7#x17DC#x17E0-#x17E9#x17F0-#x17F9#x1810-#x1819#x1820-#x1878#x1880-#x18AA#x18B0-#x18F5#x1900-#x191E#x1920-#x192B#x1930-#x1938#x1946-#x196D#x1970-#x1974#x1980-#x19AB#x19B0-#x19C9#x19D0-#x19DA#x1A00-#x1A1B#x1A20-#x1A5E#x1A61-#x1A74#x1A80-#x1A89#x1A90-#x1A99#x1AA7#x1ABF-#x1AC0#x1ACC-#x1ACE#x1B00-#x1B33#x1B35-#x1B43#x1B45-#x1B4C#x1B50-#x1B59#x1B80-#x1BA9#x1BAC-#x1BE5#x1BE7-#x1BF1#x1C00-#x1C36#x1C40-#x1C49#x1C4D-#x1C7D#x1C80-#x1C8A#x1C90-#x1CBA#x1CBD-#x1CBF#x1CE9-#x1CEC#x1CEE-#x1CF3#x1CF5-#x1CF6#x1CFA#x1D00-#x1DBF#x1DD3-#x1DF4#x1E00-#x1F15#x1F18-#x1F1D#x1F20-#x1F45#x1F48-#x1F4D#x1F50-#x1F57#x1F59#x1F5B#x1F5D#x1F5F-#x1F7D#x1F80-#x1FB4#x1FB6-#x1FBC#x1FBE#x1FC2-#x1FC4#x1FC6-#x1FCC#x1FD0-#x1FD3#x1FD6-#x1FDB#x1FE0-#x1FEC#x1FF2-#x1FF4#x1FF6-#x1FFC#x2070-#x2071#x2074-#x2079#x207F-#x2089#x2090-#x209C#x2102#x2107#x210A-#x2113#x2115#x2119-#x211D#x2124#x2126#x2128#x212A-#x212D#x212F-#x2139#x213C-#x213F#x2145-#x2149#x214E#x2150-#x2189#x2460-#x249B#x24B6-#x24FF#x2776-#x2793#x2C00-#x2CE4#x2CEB-#x2CEE#x2CF2-#x2CF3#x2CFD#x2D00-#x2D25#x2D27#x2D2D#x2D30-#x2D67#x2D6F#x2D80-#x2D96#x2DA0-#x2DA6#x2DA8-#x2DAE#x2DB0-#x2DB6#x2DB8-#x2DBE#x2DC0-#x2DC6#x2DC8-#x2DCE#x2DD0-#x2DD6#x2DD8-#x2DDE#x2DE0-#x2DFF#x2E2F#x3005-#x3007#x3021-#x3029#x3031-#x3035#x3038-#x303C#x3041-#x3096#x309D-#x309F#x30A1-#x30FA#x30FC-#x30FF#x3105-#x312F#x3131-#x318E#x3192-#x3195#x31A0-#x31BF#x31F0-#x31FF#x3220-#x3229#x3248-#x324F#x3251-#x325F#x3280-#x3289#x32B1-#x32BF#x3400-#x4DBF#x4E00-#xA48C#xA4D0-#xA4FD#xA500-#xA60C#xA610-#xA62B#xA640-#xA66E#xA674-#xA67B#xA67F-#xA6EF#xA717-#xA71F#xA722-#xA788#xA78B-#xA7DC#xA7F1-#xA805#xA807-#xA827#xA830-#xA835#xA840-#xA873#xA880-#xA8C3#xA8C5#xA8D0-#xA8D9#xA8F2-#xA8F7#xA8FB#xA8FD-#xA92A#xA930-#xA952#xA960-#xA97C#xA980-#xA9B2#xA9B4-#xA9BF#xA9CF-#xA9D9#xA9E0-#xA9FE#xAA00-#xAA36#xAA40-#xAA4D#xAA50-#xAA59#xAA60-#xAA76#xAA7A-#xAABE#xAAC0#xAAC2#xAADB-#xAADD#xAAE0-#xAAEF#xAAF2-#xAAF5#xAB01-#xAB06#xAB09-#xAB0E#xAB11-#xAB16#xAB20-#xAB26#xAB28-#xAB2E#xAB30-#xAB5A#xAB5C-#xAB69#xAB70-#xABEA#xABF0-#xABF9#xAC00-#xD7A3#xD7B0-#xD7C6#xD7CB-#xD7FB#xF900-#xFA6D#xFA70-#xFAD9#xFB00-#xFB06#xFB13-#xFB17#xFB1D-#xFB28#xFB2A-#xFB36#xFB38-#xFB3C#xFB3E#xFB40-#xFB41#xFB43-#xFB44#xFB46-#xFBB1#xFBD3-#xFD3D#xFD50-#xFD8F#xFD92-#xFDC7#xFDF0-#xFDFB#xFE70-#xFE74#xFE76-#xFEFC#xFF10-#xFF19#xFF21-#xFF3A#xFF41-#xFF5A#xFF66-#xFFBE#xFFC2-#xFFC7#xFFCA-#xFFCF#xFFD2-#xFFD7#xFFDA-#xFFDC#x10000-#x1000B#x1000D-#x10026#x10028-#x1003A#x1003C-#x1003D#x1003F-#x1004D#x10050-#x1005D#x10080-#x100FA#x10107-#x10133#x10140-#x10178#x1018A-#x1018B#x10280-#x1029C#x102A0-#x102D0#x102E1-#x102FB#x10300-#x10323#x1032D-#x1034A#x10350-#x1037A#x10380-#x1039D#x103A0-#x103C3#x103C8-#x103CF#x103D1-#x103D5#x10400-#x1049D#x104A0-#x104A9#x104B0-#x104D3#x104D8-#x104FB#x10500-#x10527#x10530-#x10563#x10570-#x1057A#x1057C-#x1058A#x1058C-#x10592#x10594-#x10595#x10597-#x105A1#x105A3-#x105B1#x105B3-#x105B9#x105BB-#x105BC#x105C0-#x105F3#x10600-#x10736#x10740-#x10755#x10760-#x10767#x10780-#x10785#x10787-#x107B0#x107B2-#x107BA#x10800-#x10805#x10808#x1080A-#x10835#x10837-#x10838#x1083C#x1083F-#x10855#x10858-#x10876#x10879-#x1089E#x108A7-#x108AF#x108E0-#x108F2#x108F4-#x108F5#x108FB-#x1091B#x10920-#x10939#x10940-#x10959#x10980-#x109B7#x109BC-#x109CF#x109D2-#x10A03#x10A05-#x10A06#x10A0C-#x10A13#x10A15-#x10A17#x10A19-#x10A35#x10A40-#x10A48#x10A60-#x10A7E#x10A80-#x10A9F#x10AC0-#x10AC7#x10AC9-#x10AE4#x10AEB-#x10AEF#x10B00-#x10B35#x10B40-#x10B55#x10B58-#x10B72#x10B78-#x10B91#x10BA9-#x10BAF#x10C00-#x10C48#x10C80-#x10CB2#x10CC0-#x10CF2#x10CFA-#x10D27#x10D30-#x10D39#x10D40-#x10D65#x10D69#x10D6F-#x10D85#x10E60-#x10E7E#x10E80-#x10EA9#x10EAB-#x10EAC#x10EB0-#x10EB1#x10EC2-#x10EC7#x10EFA-#x10EFC#x10F00-#x10F27#x10F30-#x10F45#x10F51-#x10F54#x10F70-#x10F81#x10FB0-#x10FCB#x10FE0-#x10FF6#x11000-#x11045#x11052-#x1106F#x11071-#x11075#x11080-#x110B8#x110C2#x110D0-#x110E8#x110F0-#x110F9#x11100-#x11132#x11136-#x1113F#x11144-#x11147#x11150-#x11172#x11176#x11180-#x111BF#x111C1-#x111C4#x111CE-#x111DA#x111DC#x111E1-#x111F4#x11200-#x11211#x11213-#x11234#x11237#x1123E-#x11241#x11280-#x11286#x11288#x1128A-#x1128D#x1128F-#x1129D#x1129F-#x112A8#x112B0-#x112E8#x112F0-#x112F9#x11300-#x11303#x11305-#x1130C#x1130F-#x11310#x11313-#x11328#x1132A-#x11330#x11332-#x11333#x11335-#x11339#x1133D-#x11344#x11347-#x11348#x1134B-#x1134C#x11350#x11357#x1135D-#x11363#x11380-#x11389#x1138B#x1138E#x11390-#x113B5#x113B7-#x113C0#x113C2#x113C5#x113C7-#x113CA#x113CC-#x113CD#x113D1#x113D3#x11400-#x11441#x11443-#x11445#x11447-#x1144A#x11450-#x11459#x1145F-#x11461#x11480-#x114C1#x114C4-#x114C5#x114C7#x114D0-#x114D9#x11580-#x115B5#x115B8-#x115BE#x115D8-#x115DD#x11600-#x1163E#x11640#x11644#x11650-#x11659#x11680-#x116B5#x116B8#x116C0-#x116C9#x116D0-#x116E3#x11700-#x1171A#x1171D-#x1172A#x11730-#x1173B#x11740-#x11746#x11800-#x11838#x118A0-#x118F2#x118FF-#x11906#x11909#x1190C-#x11913#x11915-#x11916#x11918-#x11935#x11937-#x11938#x1193B-#x1193C#x1193F-#x11942#x11950-#x11959#x119A0-#x119A7#x119AA-#x119D7#x119DA-#x119DF#x119E1#x119E3-#x119E4#x11A00-#x11A32#x11A35-#x11A3E#x11A50-#x11A97#x11A9D#x11AB0-#x11AF8#x11B60-#x11B67#x11BC0-#x11BE0#x11BF0-#x11BF9#x11C00-#x11C08#x11C0A-#x11C36#x11C38-#x11C3E#x11C40#x11C50-#x11C6C#x11C72-#x11C8F#x11C92-#x11CA7#x11CA9-#x11CB6#x11D00-#x11D06#x11D08-#x11D09#x11D0B-#x11D36#x11D3A#x11D3C-#x11D3D#x11D3F-#x11D41#x11D43#x11D46-#x11D47#x11D50-#x11D59#x11D60-#x11D65#x11D67-#x11D68#x11D6A-#x11D8E#x11D90-#x11D91#x11D93-#x11D96#x11D98#x11DA0-#x11DA9#x11DB0-#x11DDB#x11DE0-#x11DE9#x11EE0-#x11EF6#x11F00-#x11F10#x11F12-#x11F3A#x11F3E-#x11F40#x11F50-#x11F59#x11FB0#x11FC0-#x11FD4#x12000-#x12399#x12400-#x1246E#x12480-#x12543#x12F90-#x12FF0#x13000-#x1342F#x13441-#x13446#x13460-#x143FA#x14400-#x14646#x16100-#x1612E#x16130-#x16139#x16800-#x16A38#x16A40-#x16A5E#x16A60-#x16A69#x16A70-#x16ABE#x16AC0-#x16AC9#x16AD0-#x16AED#x16B00-#x16B2F#x16B40-#x16B43#x16B50-#x16B59#x16B5B-#x16B61#x16B63-#x16B77#x16B7D-#x16B8F#x16D40-#x16D6C#x16D70-#x16D79#x16E40-#x16E96#x16EA0-#x16EB8#x16EBB-#x16ED3#x16F00-#x16F4A#x16F4F-#x16F87#x16F8F-#x16F9F#x16FE0-#x16FE1#x16FE3#x16FF0-#x16FF6#x17000-#x18CD5#x18CFF-#x18D1E#x18D80-#x18DF2#x1AFF0-#x1AFF3#x1AFF5-#x1AFFB#x1AFFD-#x1AFFE#x1B000-#x1B122#x1B132#x1B150-#x1B152#x1B155#x1B164-#x1B167#x1B170-#x1B2FB#x1BC00-#x1BC6A#x1BC70-#x1BC7C#x1BC80-#x1BC88#x1BC90-#x1BC99#x1BC9E#x1CCF0-#x1CCF9#x1D2C0-#x1D2D3#x1D2E0-#x1D2F3#x1D360-#x1D378#x1D400-#x1D454#x1D456-#x1D49C#x1D49E-#x1D49F#x1D4A2#x1D4A5-#x1D4A6#x1D4A9-#x1D4AC#x1D4AE-#x1D4B9#x1D4BB#x1D4BD-#x1D4C3#x1D4C5-#x1D505#x1D507-#x1D50A#x1D50D-#x1D514#x1D516-#x1D51C#x1D51E-#x1D539#x1D53B-#x1D53E#x1D540-#x1D544#x1D546#x1D54A-#x1D550#x1D552-#x1D6A5#x1D6A8-#x1D6C0#x1D6C2-#x1D6DA#x1D6DC-#x1D6FA#x1D6FC-#x1D714#x1D716-#x1D734#x1D736-#x1D74E#x1D750-#x1D76E#x1D770-#x1D788#x1D78A-#x1D7A8#x1D7AA-#x1D7C2#x1D7C4-#x1D7CB#x1D7CE-#x1D7FF#x1DF00-#x1DF1E#x1DF25-#x1DF2A#x1E000-#x1E006#x1E008-#x1E018#x1E01B-#x1E021#x1E023-#x1E024#x1E026-#x1E02A#x1E030-#x1E06D#x1E08F#x1E100-#x1E12C#x1E137-#x1E13D#x1E140-#x1E149#x1E14E#x1E290-#x1E2AD#x1E2C0-#x1E2EB#x1E2F0-#x1E2F9#x1E4D0-#x1E4EB#x1E4F0-#x1E4F9#x1E5D0-#x1E5ED#x1E5F0-#x1E5FA#x1E6C0-#x1E6DE#x1E6E0-#x1E6F5#x1E6FE-#x1E6FF#x1E7E0-#x1E7E6#x1E7E8-#x1E7EB#x1E7ED-#x1E7EE#x1E7F0-#x1E7FE#x1E800-#x1E8C4#x1E8C7-#x1E8CF#x1E900-#x1E943#x1E947#x1E94B#x1E950-#x1E959#x1EC71-#x1ECAB#x1ECAD-#x1ECAF#x1ECB1-#x1ECB4#x1ED01-#x1ED2D#x1ED2F-#x1ED3D#x1EE00-#x1EE03#x1EE05-#x1EE1F#x1EE21-#x1EE22#x1EE24#x1EE27#x1EE29-#x1EE32#x1EE34-#x1EE37#x1EE39#x1EE3B#x1EE42#x1EE47#x1EE49#x1EE4B#x1EE4D-#x1EE4F#x1EE51-#x1EE52#x1EE54#x1EE57#x1EE59#x1EE5B#x1EE5D#x1EE5F#x1EE61-#x1EE62#x1EE64#x1EE67-#x1EE6A#x1EE6C-#x1EE72#x1EE74-#x1EE77#x1EE79-#x1EE7C#x1EE7E#x1EE80-#x1EE89#x1EE8B-#x1EE9B#x1EEA1-#x1EEA3#x1EEA5-#x1EEA9#x1EEAB-#x1EEBB#x1F100-#x1F10C#x1F130-#x1F149#x1F150-#x1F169#x1F170-#x1F189#x1FBF0-#x1FBF9#x20000-#x2A6DF#x2A700-#x2B81D#x2B820-#x2CEAD#x2CEB0-#x2EBE0#x2EBF0-#x2EE5D#x2F800-#x2FA1D#x30000-#x3134A#x31350-#x33479]
+
+WS_CHAR ::= [#x9-#xD#x20#x85#xA0#x1680#x2000-#x200A#x2028-#x2029#x202F#x205F#x3000]

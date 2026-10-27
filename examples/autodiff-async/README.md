@@ -1,6 +1,6 @@
 # Cooperative reverse-mode differentiation
 
-Run `rewind run main.rw`. The example compares the synchronous gradient with a
+Run `rewind run main.rw --native-work 100000000 --steps 20000000 --task-steps 2000000`. The example compares the synchronous gradient with a
 cooperative backward task, restores the unfinished task and cancels a second
 calculation. Expected output: `true`, `true`, `backward done` on separate lines.
 

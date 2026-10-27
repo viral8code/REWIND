@@ -1,0 +1,277 @@
+// FASTA / FASTQ の読み書き。入力は stdEncode で扱えるテキストに限り、1 MiB を超えると TooLarge になる。読み込みは CRLF を受け付け、FASTA の空行は無視する。1 回で扱う読みは 1,000,000 件までとする。
+// エラーは種類と行番号だけを返し、入力の文字列は含めない。formatFasta と formatFastq は行番号を持たないので、line は 0 になる。
+pub record Read {name:String,description:String,sequence:String,quality:Option<String>}
+pub record FastxError {code:String,line:Int}
+
+fn maxReads()->Int effects {} {return 1000000;}
+
+fn byteAt(input:Bytes,index:Int)->Int effects {} {
+    match stdBytesGet(input,index) {
+        Ok(v)=>{return v;},
+        Err(_)=>{return 0;}
+    }
+}
+
+// start から始まる行の終わり (LF の位置、または n)。
+fn lineEnd(input:Bytes,start:Int,n:Int)->Int effects {} {
+    if start>=n {return n;}
+    let lf=match stdEncode("\n") {
+        Ok(v)=>{v},
+        Err(_)=>{return n;}
+    };
+    match stdBytesIndexOf(input,lf,start) {
+        Ok(at)=>{
+            if at<0 {return n;}
+            return at;
+        },
+        Err(_)=>{return n;}
+    }
+}
+
+// 行末の CR を除いた位置。
+fn contentEnd(input:Bytes,start:Int,end:Int)->Int effects {} {
+    if end>start && byteAt(input,end-1)==13 {return end-1;}
+    return end;
+}
+
+// バイト範囲を文字列にする。範囲は呼び出し側で検査済みなので、失敗は Format にする。
+fn sliceText(input:Bytes,start:Int,stop:Int,line:Int)->Result<String,FastxError> effects {} {
+    match stdBytesSlice(input,start,stop) {
+        Ok(part)=>{
+            match stdDecode(part) {
+                Ok(text)=>{return Ok(text);},
+                Err(_)=>{return Err(FastxError("Format",line));}
+            }
+        },
+        Err(_)=>{return Err(FastxError("Format",line));}
+    }
+}
+
+// 文字列の範囲 (文字単位)。範囲は呼び出し側で検査済み。
+fn textPart(value:String,start:Int,stop:Int)->String effects {} {
+    match stdTextSlice(value,start,stop) {
+        Ok(part)=>{return part;},
+        Err(_)=>{return "";}
+    }
+}
+
+// ヘッダー行の本文 ("名前 説明") を名前と説明に分ける。名前が空なら Format。
+fn splitHeader(header:String,line:Int)->Result<Read,FastxError> effects {} {
+    let len=stdTextLength(header);
+    var name=header;
+    var description="";
+    match stdTextFind(header," ") {
+        Some(sp)=>{
+            name=textPart(header,0,sp);
+            var d=sp+1;
+            while d<len && textPart(header,d,d+1)==" " {d+=1;}
+            description=textPart(header,d,len);
+        },
+        None=>{}
+    }
+    if name=="" {return Err(FastxError("Format",line));}
+    return Ok(Read(name,description,"",None));
+}
+
+// @api parseFasta cost O(bytes) work; blank lines are ignored, CRLF is accepted.
+// @api parseFasta failure FastxError Format (sequence before the first header, empty header name, offset is the line number), TooLarge (input over 1 MiB, or over 1,000,000 reads).
+pub fn parseFasta(text:String)->Result<List<Read>,FastxError> effects {} {
+    let bytes=match stdEncode(text) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(FastxError("TooLarge",0));}
+    };
+    let n=stdBytesLength(bytes);
+    let out=List<Read>();
+    var pos=0;
+    var line=0;
+    var have=false;
+    var current=Read("","","",None);
+    // 配列行は行ごとに連結すると毎回コピーになるので、読みの途中は seq に溜めて読みを作るときにまとめる。
+    var seq="";
+    while pos<n {
+        line+=1;
+        let end=lineEnd(bytes,pos,n);
+        let stop=contentEnd(bytes,pos,end);
+        if stop>pos {
+            if byteAt(bytes,pos)==62 {
+                if have {
+                    if out.len()>=maxReads() {return Err(FastxError("TooLarge",line));}
+                    out.add(Read(current.name,current.description,seq,None));
+                }
+                let header=match sliceText(bytes,pos+1,stop,line) {
+                    Ok(v)=>{v},
+                    Err(error)=>{return Err(error);}
+                };
+                current=match splitHeader(header,line) {
+                    Ok(v)=>{v},
+                    Err(error)=>{return Err(error);}
+                };
+                seq="";
+                have=true;
+            } else {
+                if !have {return Err(FastxError("Format",line));}
+                let part=match sliceText(bytes,pos,stop,line) {
+                    Ok(v)=>{v},
+                    Err(error)=>{return Err(error);}
+                };
+                seq+=part;
+            }
+        }
+        pos=end+1;
+    }
+    if have {
+        if out.len()>=maxReads() {return Err(FastxError("TooLarge",line));}
+        out.add(Read(current.name,current.description,seq,None));
+    }
+    return Ok(out);
+}
+
+// @api parseFastq cost O(bytes) work; each record is four lines, CRLF is accepted.
+// @api parseFastq failure FastxError Format (a line missing or not starting with @ or +, offset is the line number), LengthMismatch (sequence and quality lengths differ, offset is the header line number), TooLarge (input over 1 MiB, or over 1,000,000 reads).
+pub fn parseFastq(text:String)->Result<List<Read>,FastxError> effects {} {
+    let bytes=match stdEncode(text) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(FastxError("TooLarge",0));}
+    };
+    let n=stdBytesLength(bytes);
+    let out=List<Read>();
+    var pos=0;
+    var line=0;
+    while pos<n {
+        // 見出し行 (@ で始まる)
+        let hEnd=lineEnd(bytes,pos,n);
+        line+=1;
+        let hStop=contentEnd(bytes,pos,hEnd);
+        if hStop==pos || byteAt(bytes,pos)!=64 {return Err(FastxError("Format",line));}
+        let header=match sliceText(bytes,pos+1,hStop,line) {
+            Ok(v)=>{v},
+            Err(error)=>{return Err(error);}
+        };
+        let hdr=match splitHeader(header,line) {
+            Ok(v)=>{v},
+            Err(error)=>{return Err(error);}
+        };
+        let headerLine=line;
+        // 配列行
+        pos=hEnd+1;
+        if pos>=n {return Err(FastxError("Format",line));}
+        let sEnd=lineEnd(bytes,pos,n);
+        line+=1;
+        let sStop=contentEnd(bytes,pos,sEnd);
+        let seq=match sliceText(bytes,pos,sStop,line) {
+            Ok(v)=>{v},
+            Err(error)=>{return Err(error);}
+        };
+        // 区切り行 (+ で始まる)
+        pos=sEnd+1;
+        if pos>=n {return Err(FastxError("Format",line));}
+        let pEnd=lineEnd(bytes,pos,n);
+        line+=1;
+        let pStop=contentEnd(bytes,pos,pEnd);
+        if pStop==pos || byteAt(bytes,pos)!=43 {return Err(FastxError("Format",line));}
+        // 品質行
+        pos=pEnd+1;
+        if pos>=n {return Err(FastxError("Format",line));}
+        let qEnd=lineEnd(bytes,pos,n);
+        line+=1;
+        let qStop=contentEnd(bytes,pos,qEnd);
+        let quality=match sliceText(bytes,pos,qStop,line) {
+            Ok(v)=>{v},
+            Err(error)=>{return Err(error);}
+        };
+        if stdTextLength(quality)!=stdTextLength(seq) {return Err(FastxError("LengthMismatch",headerLine));}
+        if out.len()>=maxReads() {return Err(FastxError("TooLarge",line));}
+        out.add(Read(hdr.name,hdr.description,seq,Some(quality)));
+        pos=qEnd+1;
+    }
+    return Ok(out);
+}
+
+// @api formatFasta cost O(bases) work; width is the number of bases per sequence line.
+// @api formatFasta failure FastxError Format (width outside 1..1000, or a read with an empty name), TooLarge (more than 1,000,000 reads, or output over 1 MiB).
+pub fn formatFasta(reads:&List<Read>,width:Int)->Result<String,FastxError> effects {} {
+    if width<1 || width>1000 {return Err(FastxError("Format",0));}
+    if reads.len()>maxReads() {return Err(FastxError("TooLarge",0));}
+    var out="";
+    var i=0;
+    while i<reads.len() {
+        let r=reads.get(i);
+        if r.name=="" {return Err(FastxError("Format",0));}
+        out+=">"+r.name;
+        if r.description!="" {out+=" "+r.description;}
+        out+="\n";
+        let n=stdTextLength(r.sequence);
+        // ASCII だけの配列は文字位置とバイト位置が一致するので、バイト単位で切り出す。文字単位の切り出しは毎回先頭から数えるため、行数だけ遅くなる。
+        let bytes=match stdEncode(r.sequence) {
+            Ok(v)=>{v},
+            Err(_)=>{return Err(FastxError("TooLarge",0));}
+        };
+        let ascii=stdBytesLength(bytes)==n;
+        var p=0;
+        while p<n {
+            var e=p+width;
+            if e>n {e=n;}
+            var piece="";
+            if ascii {
+                piece=match sliceText(bytes,p,e,0) {
+                    Ok(v)=>{v},
+                    Err(error)=>{return Err(error);}
+                };
+            } else {
+                piece=textPart(r.sequence,p,e);
+            }
+            out+=piece+"\n";
+            p=e;
+        }
+        i+=1;
+    }
+    match stdEncode(out) {
+        Ok(_)=>{return Ok(out);},
+        Err(_)=>{return Err(FastxError("TooLarge",0));}
+    }
+}
+
+// @api formatFastq cost O(bases) work; each read with a quality string is written as four lines.
+// @api formatFastq failure FastxError Format (a read with no quality, or with an empty name), LengthMismatch (sequence and quality lengths differ), TooLarge (more than 1,000,000 reads, or output over 1 MiB).
+pub fn formatFastq(reads:&List<Read>)->Result<String,FastxError> effects {} {
+    if reads.len()>maxReads() {return Err(FastxError("TooLarge",0));}
+    var out="";
+    var i=0;
+    while i<reads.len() {
+        let r=reads.get(i);
+        if r.name=="" {return Err(FastxError("Format",0));}
+        let quality=match r.quality {
+            Some(q)=>{q},
+            None=>{return Err(FastxError("Format",0));}
+        };
+        if stdTextLength(quality)!=stdTextLength(r.sequence) {return Err(FastxError("LengthMismatch",0));}
+        out+="@"+r.name;
+        if r.description!="" {out+=" "+r.description;}
+        out+="\n"+r.sequence+"\n+\n"+quality+"\n";
+        i+=1;
+    }
+    match stdEncode(out) {
+        Ok(_)=>{return Ok(out);},
+        Err(_)=>{return Err(FastxError("TooLarge",0));}
+    }
+}
+
+// @api phred cost O(quality) work; offset is 33 (Phred+33) or 64 (Phred+64), and each byte is converted to its score.
+// @api phred failure FastxError Format (offset other than 33 or 64, or a byte below the offset, offset is 0), TooLarge (quality over 1 MiB).
+pub fn phred(quality:String,offset:Int)->Result<List<Int>,FastxError> effects {} {
+    if offset!=33 && offset!=64 {return Err(FastxError("Format",0));}
+    let bytes=match stdEncode(quality) {
+        Ok(v)=>{v},
+        Err(_)=>{return Err(FastxError("TooLarge",0));}
+    };
+    let n=stdBytesLength(bytes);
+    let out=List<Int>();
+    var i=0;
+    while i<n {
+        let q=byteAt(bytes,i)-offset;
+        if q<0 {return Err(FastxError("Format",0));}
+        out.add(q);
+        i+=1;
+    }
+    return Ok(out);
+}

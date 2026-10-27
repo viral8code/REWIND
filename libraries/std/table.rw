@@ -3,7 +3,7 @@
 // separate validity mask, so a NULL is never confused with 0, 0.0, "" or false), and are stored as
 // frozen lists, so selecting, renaming or dropping columns shares the column data instead of copying it.
 // Limits: 1,000,000 rows, 256 columns, column names of 1..128 bytes (unique, case sensitive).
-// Row operations (head, slice, where, takeRows) copy the kept cells once per column: O(rows kept * columns).
+// Row operations (head, slice, where, takeRows, orderBy) copy the kept cells once per column: O(rows kept * columns).
 import number as number;
 import numeric as numeric;
 import integer as integer;
@@ -269,6 +269,50 @@ pub fn takeRows(t:&Table,rows:&List<Int>)->Result<Table,TableError> effects {} {
         out.add(Column(c.name,taken.data,taken.valid));
     }
     return Ok(fromColumns(move out,rows.len()));
+}
+pub enum Order {Ascending,Descending}
+// Compares two rows of one column: a NULL sorts after every value in both orders; descending flips only the value order.
+fn compareCells(c:Column,a:Int,b:Int,descending:Bool)->Int effects {} {
+    let validA=isValid(c,a);let validB=isValid(c,b);
+    if !validA && !validB {return 0;}
+    if !validA {return 1;}
+    if !validB {return -1;}
+    var r=0;
+    match c.data {
+        Data::Ints(v)=>{let x=v.get(a);let y=v.get(b);if x<y {r=-1;} else if x>y {r=1;}},
+        Data::Floats(v)=>{let x=v.get(a);let y=v.get(b);if x<y {r=-1;} else if x>y {r=1;}},
+        Data::Texts(v)=>{let x=v.get(a);let y=v.get(b);if x<y {r=-1;} else if x>y {r=1;}},
+        Data::Bools(v)=>{let x=v.get(a);let y=v.get(b);if !x && y {r=-1;} else if x && !y {r=1;}}
+    }
+    if descending {return -r;}
+    return r;
+}
+// @api orderBy cost O(rows * log rows) comparisons plus O(rows * columns) copies. The sort is stable and NULLs come last for both orders; a Float column holding NaN fails with NotComparable.
+pub fn orderBy(t:&Table,name:String,order:Order)->Result<Table,TableError> effects {} {
+    let c=lookup(t,name)?;
+    var descending=false;
+    match order {Order::Ascending=>{},Order::Descending=>{descending=true;}}
+    match c.data {
+        Data::Floats(v)=>{for i in 0..t.rows {if isValid(c,i) && v.get(i)!=v.get(i) {return Err(TableError("NotComparable",name));}}},
+        _=>{}
+    }
+    var a=List<Int>();for i in 0..t.rows {a.add(i);}
+    var width=1;while width<t.rows {
+        let b=List<Int>();var start=0;
+        while start<t.rows {
+            var middle=start+width;if middle>t.rows {middle=t.rows;}var end=middle+width;if end>t.rows {end=t.rows;}
+            var l=start;var r=middle;
+            while l<middle || r<end {
+                if r==end {b.add(a.get(l));l+=1;}
+                else if l==middle {b.add(a.get(r));r+=1;}
+                else if compareCells(c,a.get(l),a.get(r),descending)<=0 {b.add(a.get(l));l+=1;}
+                else {b.add(a.get(r));r+=1;}
+            }
+            start=end;
+        }
+        a=move b;width*=2;
+    }
+    return takeRows(t,&a);
 }
 // @api slice cost O(length * columns). start+length is clamped to the table; negative start or length fails with OutOfRange.
 pub fn slice(t:&Table,start:Int,length:Int)->Result<Table,TableError> effects {} {

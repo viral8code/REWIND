@@ -147,116 +147,8 @@ fn run_with_policy(
             ));
         }
     }
-    if !matches!(
-        program.language.as_str(),
-        "0.5"
-            | "0.6"
-            | "0.7"
-            | "0.8"
-            | "0.9"
-            | "0.9.1"
-            | "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) || !program.strict_visibility
+    if !project::is_supported_language(&program.language)
+        || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
         || program.included_modules.len() > 1024
@@ -284,318 +176,100 @@ fn run_with_policy(
         ..Program::default()
     };
     prepare(&mut standard)?;
-    if matches!(
-        program.language.as_str(),
-        "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) && (serde_json::to_value(program.structs.get("StdError")).ok()
+    if serde_json::to_value(program.structs.get("StdError")).ok()
         != serde_json::to_value(standard.structs.get("StdError")).ok()
         || program.enums.contains_key("StdError")
         || v092::names()
             .iter()
-            .any(|n| program.functions.contains_key(*n)))
+            .any(|n| program.functions.contains_key(*n))
     {
         return Err(invalid("invalid standard primitive layout"));
     }
 
-    if language_at_least(&program.language, "1.8.8")
-        && (serde_json::to_value(program.structs.get("JsonStreamState")).ok()
-            != serde_json::to_value(standard.structs.get("JsonStreamState")).ok()
-            || program.enums.contains_key("JsonStreamState")
-            || program.aliases.contains_key("JsonStreamState")
-            || serde_json::to_value(program.enums.get("JsonStreamEvent")).ok()
-                != serde_json::to_value(standard.enums.get("JsonStreamEvent")).ok()
-            || program.structs.contains_key("JsonStreamEvent")
-            || program.aliases.contains_key("JsonStreamEvent"))
+    if serde_json::to_value(program.structs.get("JsonStreamState")).ok()
+        != serde_json::to_value(standard.structs.get("JsonStreamState")).ok()
+        || program.enums.contains_key("JsonStreamState")
+        || program.aliases.contains_key("JsonStreamState")
+        || serde_json::to_value(program.enums.get("JsonStreamEvent")).ok()
+            != serde_json::to_value(standard.enums.get("JsonStreamEvent")).ok()
+        || program.structs.contains_key("JsonStreamEvent")
+        || program.aliases.contains_key("JsonStreamEvent")
     {
         return Err(invalid("invalid JSON stream layout"));
     }
-    if language_at_least(&program.language, "1.8.7")
-        && (serde_json::to_value(program.structs.get("CsvStreamState")).ok()
-            != serde_json::to_value(standard.structs.get("CsvStreamState")).ok()
-            || program.enums.contains_key("CsvStreamState")
-            || program.aliases.contains_key("CsvStreamState"))
+    if serde_json::to_value(program.structs.get("CsvStreamState")).ok()
+        != serde_json::to_value(standard.structs.get("CsvStreamState")).ok()
+        || program.enums.contains_key("CsvStreamState")
+        || program.aliases.contains_key("CsvStreamState")
     {
         return Err(invalid("invalid CSV stream layout"));
     }
-    if language_at_least(&program.language, "1.8.6")
-        && (serde_json::to_value(program.structs.get("Regex")).ok()
-            != serde_json::to_value(standard.structs.get("Regex")).ok()
-            || program.enums.contains_key("Regex")
-            || program.aliases.contains_key("Regex"))
+    if serde_json::to_value(program.structs.get("Regex")).ok()
+        != serde_json::to_value(standard.structs.get("Regex")).ok()
+        || program.enums.contains_key("Regex")
+        || program.aliases.contains_key("Regex")
     {
         return Err(invalid("invalid regex layout"));
     }
 
-    if language_at_least(&program.language, "1.8.4")
-        && ["Instant", "Duration"].iter().any(|name| {
-            serde_json::to_value(program.structs.get(*name)).ok()
-                != serde_json::to_value(standard.structs.get(*name)).ok()
-                || program.enums.contains_key(*name)
-                || program.aliases.contains_key(*name)
-        })
-    {
+    if ["Instant", "Duration"].iter().any(|name| {
+        serde_json::to_value(program.structs.get(*name)).ok()
+            != serde_json::to_value(standard.structs.get(*name)).ok()
+            || program.enums.contains_key(*name)
+            || program.aliases.contains_key(*name)
+    }) {
         return Err(invalid("invalid datetime layout"));
     }
 
-    if language_at_least(&program.language, "1.8.3")
-        && (serde_json::to_value(program.structs.get("Decimal")).ok()
-            != serde_json::to_value(standard.structs.get("Decimal")).ok()
-            || program.enums.contains_key("Decimal")
-            || program.aliases.contains_key("Decimal")
-            || serde_json::to_value(program.enums.get("DecimalRounding")).ok()
-                != serde_json::to_value(standard.enums.get("DecimalRounding")).ok()
-            || program.structs.contains_key("DecimalRounding")
-            || program.aliases.contains_key("DecimalRounding"))
+    if serde_json::to_value(program.structs.get("Decimal")).ok()
+        != serde_json::to_value(standard.structs.get("Decimal")).ok()
+        || program.enums.contains_key("Decimal")
+        || program.aliases.contains_key("Decimal")
+        || serde_json::to_value(program.enums.get("DecimalRounding")).ok()
+            != serde_json::to_value(standard.enums.get("DecimalRounding")).ok()
+        || program.structs.contains_key("DecimalRounding")
+        || program.aliases.contains_key("DecimalRounding")
     {
         return Err(invalid("invalid decimal standard layout"));
     }
 
-    if language_at_least(&program.language, "1.8.2")
-        && (serde_json::to_value(program.structs.get("BigInt")).ok()
-            != serde_json::to_value(standard.structs.get("BigInt")).ok()
-            || program.enums.contains_key("BigInt")
-            || program.aliases.contains_key("BigInt"))
+    if serde_json::to_value(program.structs.get("BigInt")).ok()
+        != serde_json::to_value(standard.structs.get("BigInt")).ok()
+        || program.enums.contains_key("BigInt")
+        || program.aliases.contains_key("BigInt")
     {
         return Err(invalid("invalid exact integer layout"));
     }
 
-    if language_at_least(&program.language, "1.8.0")
-        && ["FloatArray", "IntArray"].iter().any(|name| {
+    if ["FloatArray", "IntArray"].iter().any(|name| {
+        serde_json::to_value(program.structs.get(*name)).ok()
+            != serde_json::to_value(standard.structs.get(*name)).ok()
+            || program.enums.contains_key(*name)
+            || program.aliases.contains_key(*name)
+    }) {
+        return Err(invalid("invalid numeric primitive layout"));
+    }
+
+    if serde_json::to_value(program.structs.get("TensorIdentityWork")).ok()
+        != serde_json::to_value(standard.structs.get("TensorIdentityWork")).ok()
+        || program.enums.contains_key("TensorIdentityWork")
+        || program.aliases.contains_key("TensorIdentityWork")
+    {
+        return Err(invalid("invalid tensor identity work layout"));
+    }
+
+    if ["QrResult", "EigenResult", "HistogramResult"]
+        .iter()
+        .any(|name| {
             serde_json::to_value(program.structs.get(*name)).ok()
                 != serde_json::to_value(standard.structs.get(*name)).ok()
                 || program.enums.contains_key(*name)
                 || program.aliases.contains_key(*name)
         })
     {
-        return Err(invalid("invalid numeric primitive layout"));
-    }
-
-    if language_at_least(&program.language, "1.9.62")
-        && (serde_json::to_value(program.structs.get("TensorIdentityWork")).ok()
-            != serde_json::to_value(standard.structs.get("TensorIdentityWork")).ok()
-            || program.enums.contains_key("TensorIdentityWork")
-            || program.aliases.contains_key("TensorIdentityWork"))
-    {
-        return Err(invalid("invalid tensor identity work layout"));
-    }
-
-    if language_at_least(&program.language, "1.8.1")
-        && ["QrResult", "EigenResult", "HistogramResult"]
-            .iter()
-            .any(|name| {
-                serde_json::to_value(program.structs.get(*name)).ok()
-                    != serde_json::to_value(standard.structs.get(*name)).ok()
-                    || program.enums.contains_key(*name)
-                    || program.aliases.contains_key(*name)
-            })
-    {
         return Err(invalid("invalid numeric result layout"));
     }
-    if matches!(
-        program.language.as_str(),
-        "0.9.1"
-            | "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) {
+    {
         for n in ["Json", "JsonError"] {
             if serde_json::to_value(program.structs.get(n)).ok()
                 != serde_json::to_value(standard.structs.get(n)).ok()
@@ -612,118 +286,10 @@ fn run_with_policy(
             return Err(invalid("reserved application function"));
         }
     }
-    if matches!(
-        program.language.as_str(),
-        "0.6"
-            | "0.7"
-            | "0.8"
-            | "0.9"
-            | "0.9.1"
-            | "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) && (serde_json::to_value(program.structs.get("WaitEdge")).ok()
+    if serde_json::to_value(program.structs.get("WaitEdge")).ok()
         != serde_json::to_value(standard.structs.get("WaitEdge")).ok()
         || serde_json::to_value(program.enums.get("WaitTarget")).ok()
-            != serde_json::to_value(standard.enums.get("WaitTarget")).ok())
+            != serde_json::to_value(standard.enums.get("WaitTarget")).ok()
     {
         return Err(invalid("invalid wait graph layout"));
     }
@@ -753,229 +319,12 @@ fn run_with_policy(
             return Err(invalid("reserved standard type"));
         }
     }
-    if matches!(
-        program.language.as_str(),
-        "0.6"
-            | "0.7"
-            | "0.8"
-            | "0.9"
-            | "0.9.1"
-            | "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) && serde_json::to_value(program.structs.get("PropertyFailure")).ok()
+    if serde_json::to_value(program.structs.get("PropertyFailure")).ok()
         != serde_json::to_value(standard.structs.get("PropertyFailure")).ok()
     {
         return Err(invalid("invalid property failure layout"));
     }
-    if matches!(
-        program.language.as_str(),
-        "0.6"
-            | "0.7"
-            | "0.8"
-            | "0.9"
-            | "0.9.1"
-            | "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) && (program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple"))
-    {
+    if program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple") {
         return Err(invalid("Tuple is a reserved standard type"));
     }
     for n in ["freeze", "thaw", "secret", "reveal"] {
@@ -1045,115 +394,7 @@ fn run_with_policy(
     if unsafe_literal || nodes > 100_000 {
         return Err(invalid("invalid literal/IR budget"));
     }
-    if matches!(
-        program.language.as_str(),
-        "0.6"
-            | "0.7"
-            | "0.8"
-            | "0.9"
-            | "0.9.1"
-            | "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) {
+    {
         v06::infer(&mut program)?;
     }
     check_program(&program)?;

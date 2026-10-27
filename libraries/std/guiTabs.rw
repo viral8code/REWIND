@@ -1,0 +1,75 @@
+import gui as gui;
+// A header of tabs: at most 32 tabs, each with a unique id and a label. State is plain VM data.
+// Tabs are 120 pixels wide and the header is 24 pixels high; tabs past the view width are not drawn.
+// Keyboard moves skip disabled tabs and stop at the first and last enabled tab (no wrap).
+pub record Tab {id:String,label:String,enabled:Bool}
+// selected is the id of the selected tab after the event; changed tells whether the selection moved.
+pub record Outcome {changed:Bool,selected:Option<String>}
+pub struct Tabs {private items:List<Tab>,private ids:Map<String,Int>,private selected:Int}
+// @api create cost O(1)
+pub fn create()->Tabs effects {} {return Tabs(List<Tab>(),Map<String,Int>(),-1);}
+// @api add failure GuiTabsLimit/Id/Text; at most 32 tabs, ids and labels 1..64 bytes, no NUL.
+// @api add cost O(1) map lookup per tab
+pub fn add(tabs:&mut Tabs,id:String,label:String)->Result<Unit,StdError> effects {} {
+ if tabs.items.len()>=32{return Err(StdError("GuiTabsLimit",0));}
+ if id=="" || id.byteLen()>64 || stdTextFind(id,"\0")!=None || tabs.ids.get(id)!=None{return Err(StdError("GuiTabsId",0));}
+ if label=="" || label.byteLen()>64 || stdTextFind(label,"\0")!=None{return Err(StdError("GuiTabsText",0));}
+ tabs.ids.set(id,tabs.items.len());tabs.items.add(Tab(id,label,true));return Ok(());
+}
+// @api setEnabled failure GuiTabsId; disabling the selected tab keeps it selected.
+// @api setEnabled cost O(1) map lookup
+pub fn setEnabled(tabs:&mut Tabs,id:String,enabled:Bool)->Result<Unit,StdError> effects {} {
+ match tabs.ids.get(id){None=>{return Err(StdError("GuiTabsId",0));},Some(i)=>{let old=tabs.items.get(i);tabs.items.set(i,Tab(old.id,old.label,enabled));}}
+ return Ok(());
+}
+// @api select failure GuiTabsId/Disabled; a disabled tab cannot be selected.
+// @api select cost O(1) map lookup
+pub fn select(tabs:&mut Tabs,id:String)->Result<Unit,StdError> effects {} {
+ match tabs.ids.get(id){None=>{return Err(StdError("GuiTabsId",0));},Some(i)=>{if !tabs.items.get(i).enabled{return Err(StdError("GuiTabsDisabled",0));}tabs.selected=i;}}
+ return Ok(());
+}
+// @api selected cost O(1)
+pub fn selected(tabs:&Tabs)->Option<String> effects {} {if tabs.selected<0{return None;}return Some(tabs.items.get(tabs.selected).id);}
+// pick selects the first enabled tab from start in direction, without wrapping.
+fn pick(tabs:&mut Tabs,start:Int,direction:Int)->Bool effects {} {
+ var i=start;
+ while i>=0 && i<tabs.items.len(){
+  if tabs.items.get(i).enabled{tabs.selected=i;return true;}
+  i=i+direction;
+ }
+ return false;
+}
+// @api dispatch cost O(tabs) for keyboard moves; a click on the header selects the enabled tab under the pointer.
+pub fn dispatch(tabs:&mut Tabs,event:gui.Event)->Outcome effects {} {
+ let before=tabs.selected;
+ if event.kind=="pointer"{
+  if event.y>=0 && event.y<24 && event.x>=0{let i=event.x/120;if i<tabs.items.len() && tabs.items.get(i).enabled{tabs.selected=i;}}
+ }
+ if event.kind=="key"{
+  if event.key=="Left"{pick(tabs,tabs.selected-1,-1);}
+  if event.key=="Right"{pick(tabs,tabs.selected+1,1);}
+  if event.key=="Home"{pick(tabs,0,1);}
+  if event.key=="End"{pick(tabs,tabs.items.len()-1,-1);}
+ }
+ let changed=tabs.selected!=before;
+ return Outcome(changed,selected(tabs));
+}
+// @api draw cost O(tabs); failure GuiTabsId. The base view and tabs remain unchanged.
+pub fn draw(tabs:&Tabs,base:&gui.View,prefix:String)->Result<gui.View,StdError> effects {} {
+ if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiTabsId",0));}
+ let bounds=gui.bounds(base);let layer=gui.window("",bounds.width,bounds.height)?;gui.graphemeEditing(&mut layer,gui.graphemeMode(base))?;
+ gui.rectangle(&mut layer,prefix+":header",0,0,bounds.width,24,0xf3f4f6)?;
+ for i in 0..tabs.items.len(){
+  let x=i*120;
+  if x+120>bounds.width{break;}
+  let tab=tabs.items.get(i);
+  var background=0xf3f4f6;var foreground=0x111827;
+  if i==tabs.selected{background=0xffffff;}
+  if !tab.enabled{foreground=0x9ca3af;}
+  gui.rectangle(&mut layer,prefix+":tab:"+i.format(),x,0,120,24,background)?;
+  gui.label(&mut layer,prefix+":label:"+i.format(),tab.label,x+8,4,104,16)?;
+  gui.style(&mut layer,prefix+":label:"+i.format(),foreground,background)?;
+  if i==tabs.selected{gui.rectangle(&mut layer,prefix+":mark:"+i.format(),x,21,120,3,0x2563eb)?;}
+ }
+ return gui.overlay(base,&layer);
+}

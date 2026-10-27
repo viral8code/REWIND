@@ -28,7 +28,7 @@ pub(super) fn validate_records(program: &Program) -> Result<()> {
                     Some("Share") => false,
                     // 2.0.0 accepts Send when every field is still Share, as
                     // with Frozen<T>; the field check below enforces that.
-                    Some("Send") => !language_at_least(&program.language, "2.0.0"),
+                    Some("Send") => false,
                     _ => true,
                 })
         {
@@ -72,7 +72,7 @@ pub(in crate::v2) fn constant_values(program: &Program) -> Result<BTreeMap<Strin
     })?;
     let mut checker = Checker {
         program,
-        scopes: vec![BTreeMap::new()],
+        scopes: vec![crate::v2::Scope::default()],
         return_ty: None,
         loop_depth: 0,
         bounds: BTreeMap::new(),

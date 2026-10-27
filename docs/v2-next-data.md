@@ -32,7 +32,7 @@ DATA-02の後続候補です。group keyの型、NULL同士の対応、行順序
 
 **受入：** 小入力の単純な参照実装と照合する。重複key、NULL、偏ったkey、空入力、出力上限を確認する。algorithmとscratch費用をAPIへ記載する。
 
-**実装済み（2026-10-17、`std.table`内）：** `aggregate(t,key,specs)`は`CountRows/Count/Sum/Min/Max/Mean`を最大64個、keyはInt/Text/Boolの列（Floatは`KeyKind`で拒否）。NULL keyは1つのgroupになり、groupは初出順で安定。集計はNULL cellを無視し、非NULLが無いgroupのSum/Min/Max/MeanはNULL。Int合計は`Overflow`、Mean用のInt→Floatが不正確なら`Inexact`で失敗します。`join(left,right,leftKey,rightKey,Inner|Left,maxRows)`はhash（Map）方式で、出力はmaxRows（1..100万）を超えると構築前に`JoinTooLarge`、NULL keyは一致せず、右の重複keyは展開されます。列名が重なると`DuplicateName`（先にrename）。参照実装との照合は手で数えた小さな表で行い、乱数との照合や偏ったkeyの大規模測定は未実施です。Decimal合計、複数列key、outer/right join、sort/orderByは未実装です。
+**実装済み（2026-10-17、`std.table`内）：** `aggregate(t,key,specs)`は`CountRows/Count/Sum/Min/Max/Mean`を最大64個、keyはInt/Text/Boolの列（Floatは`KeyKind`で拒否）。NULL keyは1つのgroupになり、groupは初出順で安定。集計はNULL cellを無視し、非NULLが無いgroupのSum/Min/Max/MeanはNULL。Int合計は`Overflow`、Mean用のInt→Floatが不正確なら`Inexact`で失敗します。`join(left,right,leftKey,rightKey,Inner|Left,maxRows)`はhash（Map）方式で、出力はmaxRows（1..100万）を超えると構築前に`JoinTooLarge`、NULL keyは一致せず、右の重複keyは展開されます。列名が重なると`DuplicateName`（先にrename）。参照実装との照合は手で数えた小さな表で行い、乱数との照合や偏ったkeyの大規模測定は未実施です。`orderBy(t,name,order)`は2026-10-19に実装（`Ascending|Descending`の安定ソート。NULLは両方向で末尾、同値は元の順、Float列のNaNは`NotComparable`で失敗）。Decimal合計、複数列key、outer/right joinは未実装です。
 
 ## DATA-04：streamから表へのpipeline
 
@@ -70,11 +70,15 @@ seed、データ順、model format、optimizer state、checkpoint保持数を記
 
 **受入：** 同じ設定で再現できる範囲を説明する。training/validationの混入を防ぐ。取消・保存失敗からの再開条件を示す。iteration後にgraphが不要に残らない。
 
+**実装状況：** `std.evaluation`（seed付きshuffle・重複しないtrain/validation分割・batch・accuracy/MSE/MAE/混同行列・early stopping）を追加済み（未公開、次のminorで公開予定）。optimizer state・model保存との統合とcheckpoint保持数の方針は、実際の学習例が出るまで追加しません。NUM-02は既存solverで足りない具体例が出ていないため、新solverは追加していません。
+
 ## LIB-01：一般libraryの使い勝手の監査
 
 追加algorithmの前に、既存`sort/search/graph/flow/matching/geometry/sequence`等の容量、重み型、negative値、overflow、generic制約を実例で確認します。
 
 候補はchecked adapter、typed result、よくある組合せの例です。木のquery、offline query、数論等の追加も、現行APIにない操作だけを別作業へ分けます。単に一覧のmodule数を増やしません。
+
+**監査結果（2026-10-18、graph・flow・geometry・sequence・matching）：** 2^62級の重みでの距離・容量・累積和・外積のoverflow、負の重み・容量・limit、負閉路・循環、範囲外の頂点・pair、`Int`最小値のrotateを実行して調べ、いずれも巻き戻りや誤答ではなく`Err`（または正しい符号の`Ok`）を返すことを確認した。`orientation`/`intersects`/`onSegment`は座標2^62でも外積を正しく判定する。修正が必要な欠陥は見つからなかったため、期待値を`std.tests`の`lib_audit_overflow_and_range_are_reported_not_wrapped`に固定した。sort・searchの比較関数不整合、tree query・offline query等の追加は未監査。
 
 **受入：** 境界条件と費用を説明できる。小入力の独立参照解と比較できる。VMの予算を回避する無制限native処理を導入しない。
 
@@ -83,6 +87,8 @@ seed、データ順、model format、optimizer state、checkpoint保持数を記
 候補は明示endianの整数codec、bounded圧縮/展開、画像の読込み・保存です。用途例がある形式を一つずつ選びます。native依存が必要なら[配布構想](v2-next-ecosystem.md)の拡張契約を先に確認します。
 
 入力sizeだけでなく展開後size、画像dimension、総pixel、metadata、chunk数に上限を持たせます。pureなdecode/encode結果とFileへの公開を分けます。codec状態をcheckpointへ保持できるか、physicalなencoder handleなのかを型で区別します。
+
+**実装状況（2026-10-18）：** 明示endianの整数codecは既存の`std.layout`（pack/unpack/read）が提供済みのため再実装しない。`std.compress`を追加：DEFLATE/zlibの圧縮・展開（`deflate` `inflate` `zlibCompress` `zlibDecompress`）とCRC-32・Adler-32。入出力とも1 MiB上限、展開は呼出側のmaxOutputを超えると切り詰めずに`Limit`、途中で切れた入力は`Truncated`、壊れた入力は`Corrupt`（zlibのAdler-32不一致を含む）。native workは圧縮が入力1 byteあたり8、展開が入力4 + min(maxOutput, 入力×1032)（DEFLATEの最大展開率で頭打ち）を先に計上。実装はpure Rustのminiz_oxide 0.9.1（MIT/Zlib/Apache-2.0、依存adler2）で、C依存・追加threadなし、出力は同じbuild・levelで決定的。ライセンスは`licenses/`へ追記。`std.image`でPNG（8-bit gray/gray+alpha/RGB/RGBA、非interlace）のdecode/encodeを追加：寸法・総pixel・chunk数（4096）・復号後byte数に上限を持たせ、headerの寸法を検証してからpixelを展開する。metadata chunkはCRCを検証して読み捨てる（保持しない）。圧縮はminiz_oxideの上に自前の実装で、新しい依存はない。palette（1/2/4/8 bit、tRNSがあればRGBA）はRGB/RGBAへ展開する。16-bit・interlace・JPEG等は`Unsupported`/未着手で、16-bitは黙って8-bitへ丸めない（JPEGは攻撃面とdecoderの大きさのため作らない方針）。`std.compress`にはgzip（RFC 1952、単一member、再現可能な最小header）を追加：Pythonの`gzip`で作ったstreamを読み、こちらの出力をPythonが展開できることを確認した。
 
 **受入：** 不正・途中・巨大宣言入力を拒否する。出力を外部に公開する前に生成失敗を検出できる。memory/workを計上し、形式とlibrary licenseを記録する。
 

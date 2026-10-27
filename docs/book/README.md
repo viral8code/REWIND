@@ -1,56 +1,38 @@
-# REWIND 2.0.0 入門とリファレンス
+# REWIND 入門
 
-読む場合は **[HTML](index.html)** または **[PDF](REWIND-2.0.0-book.pdf)** を開いてください。
-HTMLは単独ファイルで、ネット接続・サーバー・外部JavaScript・CDNを必要としません。
-全文検索、目次、実装の折り畳み、実行例のコピーと.rw保存、印刷に対応します。
-PDFにはクリックできる目次と見出しのしおりがあります。
+REWIND 4.0.0 の入門書です。変数や関数といった基本から、所有権、チェックポイントと巻き戻し、効果、並行処理、入出力、データ形式、数値計算、テスト、実行予算、データベース・通信・GUI まで、25 章と付録で説明します。
 
-対象は公開済みcompiler/language 2.0.0です。32章、60実行例、全86公開標準モジュール・625関数を収録します。
-本文の仕様は実装と照合し、APIは公開SDKから抽出しています。対象実装commitとSDKのSHA-256は本の「出典と検証」に記載しています。
+読むには、次のどちらかを開いてください。
 
-## 編集
+- [index.html](index.html): 1 つのファイルで完結する HTML。ブラウザーで開けます。
+- [REWIND-4.0.0-book.pdf](REWIND-4.0.0-book.pdf): 目次としおりの付いた PDF。
 
-- `chapters/*.md`: 入門・仕様・実用分野の原稿。編集用のMarkdownで、読者向け成果物はHTML/PDFです。
-- `worked-examples.json` と `examples/*.rw`: 完全な実習例と解説。
-- `examples.json`: 標準出力、必要な効果、引数、fixture、予算、保存fileの期待値。
-- `api-snapshot.json`: 公開SDK由来のAPI、引数名付き宣言、source hash。
-- `modules.json`: 各標準モジュールの日本語解説。
-- `style.css` / `reader.js`: HTML内へ埋め込む表示・検索・印刷処理。
-- `validation.json` / `browser-validation.json`: ローカル検証結果。
+言語の正確な定義が必要なときは、[言語リファレンス](../language-reference.md)（[PDF 版](../language-reference.pdf)）を使ってください。標準ライブラリの各関数は [libraries/README.md](../../libraries/README.md) にあります。この本は、以前の 2.0.0 版にあった全 API の一覧を含みません。
 
-## 再生成と検証
+## 構成
 
-REWIND本体は2.0.0のバイナリを使います。単一source検証にmanifestなしの`--root`を付けません。
-検証scriptは一時directory内で実行し、File操作やHTTP fixtureをrepositoryから隔離します。
+- `chapters/*.md`: 本文の原稿（Markdown）。章ごとに 1 ファイルで、`26-appendix.md` が付録です。
+- `fixtures/*.json`: GUI の例を、画面なしで実行するための入力イベント。
+- `index.html`、`REWIND-4.0.0-book.pdf`: 原稿から生成した成果物です。直接編集しないでください。
 
-~~~sh
-python -m pip install -r docs/book/requirements.txt
-python scripts/check-book-examples.py --rewind /path/to/rewind
+## 例の検証と再生成
+
+本文のコード例は、すべて実際に実行して、出力を確かめます。コードブロックの種類は次のとおりです。
+
+| 書き方 | 意味 |
+|---|---|
+| ` ```rewind ` | 完全なプログラム。終了コード 0 で終わること。直後の ` ```text ` が期待する標準出力 |
+| ` ```rewind-error 名前 ` | 失敗すること。標準エラーに `名前` を含むこと |
+| ` ```rewind-exit N ` | 終了コード `N` で終わること |
+| ` ```rewind stdin="…" args=a,b allow=効果 gui=ファイル http=1 steps=N ` | 標準入力、引数、許可する効果、GUI の入力、HTTP の試験サーバー、実行ステップの上限を指定する |
+
+```sh
+cargo build --release
+python scripts/check-docs-examples.py docs/book/chapters/*.md
+python -m pip install mistune==3.2.0
 python scripts/build-book.py
-~~~
+```
 
-全60例のsource実行とsourceを削除したartifact実行を比較します。
-巻き戻し、begin、GUI、HTTP、SQLite、数値返却Listの8例ではartifactのcompact recordをreplayします。
-GUI試験はfixtureを使います。今回の例の実行確認はLinux x86_64であり、Windowsで全60例を再実行したという記録ではありません。
+`check-docs-examples.py` は、`target/release/rewind` を使います。`--rewind PATH` で別の実行ファイルを指定できます。HTML は Python だけで作れます。PDF の生成には Microsoft Edge または Chrome を使います（`--browser PATH` で指定、`--no-pdf` で省略）。
 
-ブラウザー検証とPDF生成にはPythonのPlaywright、Chromium、日本語fontを用意します。Playwrightのバージョンは`browser-validation.json`に記録します。
-
-~~~sh
-python scripts/check-book-browser.py --chromium /path/to/chromium --pdf
-~~~
-
-環境のブラウザーポリシーがfile URLを拒否するため、検証ではローカルHTMLをブラウザーへ直接読み込ませます。
-内容は同じ生成HTMLです。ネットワーク要求が発生しないことも検査します。
-ローカル検証scriptはGitHub ActionsやReleaseを起動しません。
-
-## SDKからAPIを更新する
-
-署名・checksumを検証済みの2.0.0 SDK archiveを指定します。
-
-~~~sh
-python scripts/import-book-api.py /path/to/rewind-2.0.0-linux-x86_64.tar.gz
-~~~
-
-compiler/languageが2.0.0であること、公開宣言とAPI関数の一致、全標準sourceとrepositoryの一致を検査します。
-HTML生成時にもsource hashを再確認します。
-次版向けへ更新する場合、単にversionを置き換えるのではなく、本文・API・期待値・検証の対象を一緒に見直してください。
+`language-reference.md` の例も、同じ書き方です。リポジトリのテスト `language_reference_examples_execute_as_documented` が実行します。

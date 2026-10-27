@@ -1,0 +1,6 @@
+// const、type、effects の宣言
+const A: Int = 1;
+pub const B: Int = 2;
+type Id = Int;
+pub type L<T> = List<T>;
+effects { Clock, Random }

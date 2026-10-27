@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.6.0",
+  "language": "4.0.0",
   "symbols": {
     "dependency:integer.rw": {
       "fn:$import$integer$add": {
@@ -1576,6 +1576,24 @@
       ],
       "return": "Result<Int,TableError>"
     },
+    "fn:orderBy": {
+      "async": false,
+      "cost": "O(rows * log rows) comparisons plus O(rows * columns) copies. The sort is stable and NULLs come last for both orders; a Float column holding NaN fails with NotComparable.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "t",
+        "name",
+        "order"
+      ],
+      "parameters": [
+        "&Table",
+        "String",
+        "Order"
+      ],
+      "return": "Result<Table,TableError>"
+    },
     "fn:rename": {
       "async": false,
       "cost": "O(columns). Shares all column data; the new name must be unused.",
@@ -2449,6 +2467,14 @@
         "Mean": [],
         "Min": [],
         "Sum": []
+      }
+    },
+    "type:Order": {
+      "generics": [],
+      "kind": "enum",
+      "variants": {
+        "Ascending": [],
+        "Descending": []
       }
     },
     "type:QrArrayResult": {

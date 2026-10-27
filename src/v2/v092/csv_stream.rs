@@ -1,9 +1,6 @@
 use super::*;
 use rewind::csv_stream::{self as csv, Reader};
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !language_at_least(&p.language, "1.8.7") {
-        return Ok(());
-    }
     if p.structs.contains_key("CsvStreamState")
         || p.enums.contains_key("CsvStreamState")
         || p.aliases.contains_key("CsvStreamState")
@@ -45,13 +42,16 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
 pub(super) fn parameter(n: &str, i: usize) -> Option<&'static str> {
     signature(n)?.0.get(i).copied()
 }
-pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
+pub(super) fn call_type(
+    _p: &Program,
+    n: &str,
+    args: &[String],
+    at: &Tok,
+) -> Result<Option<String>> {
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
-    if !language_at_least(&p.language, "1.8.7") {
-        return Err(diagnostic(at, "CSV stream requires language 1.8.7"));
-    }
+
     if args.len() != params.len() || params.iter().zip(args).any(|(p, a)| !compatible(p, a)) {
         return Err(diagnostic(
             at,

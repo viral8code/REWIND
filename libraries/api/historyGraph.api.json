@@ -1,7 +1,7 @@
 {
   "format": 2,
   "kind": "rewind-api",
-  "language": "3.6.0",
+  "language": "4.0.0",
   "symbols": {
     "dependency:snapshot.rw": {
       "fn:$import$snapshot$capture": {
@@ -231,7 +231,7 @@
       ],
       "names": [
         "graph",
-        "branch"
+        "branchName"
       ],
       "parameters": [
         "&mut HistoryGraph<T>",
@@ -289,7 +289,7 @@
       ],
       "names": [
         "graph",
-        "branch"
+        "branchName"
       ],
       "parameters": [
         "&HistoryGraph<T>",
@@ -553,7 +553,7 @@
       ],
       "names": [
         "graph",
-        "branch",
+        "branchName",
         "version"
       ],
       "parameters": [

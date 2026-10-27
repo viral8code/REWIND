@@ -11,6 +11,8 @@ use std::{
 fn compiled_tls_keeps_certificate_validation_and_replays_without_the_peer() {
     use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
     let root = std::env::temp_dir().join(format!("rewind-v1924-tls-{}", std::process::id()));
+    // A directory left by an earlier process with the same id must not break this run.
+    let _ = fs::remove_dir_all(&root);
     fs::create_dir(&root).unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     listener.set_nonblocking(true).unwrap();

@@ -1,4 +1,0 @@
-language = "0.5"
-source_root = "."
-entry = "main.rw"
-effects = "tasks,output"

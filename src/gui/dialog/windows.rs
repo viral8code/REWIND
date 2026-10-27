@@ -40,6 +40,7 @@ unsafe extern "system" {
 #[link(name = "user32")]
 unsafe extern "system" {
     fn GetParent(h: Handle) -> Handle;
+    #[cfg(test)]
     fn IsWindowEnabled(h: Handle) -> i32;
     #[cfg(test)]
     fn AttachThreadInput(a: u32, b: u32, attach: i32) -> i32;

@@ -278,11 +278,7 @@ impl Array {
                 pending: &[],
             })
         } else {
-            ArrayBits::Strided {
-                array: self,
-                next: start,
-                end,
-            }
+            ArrayBits::Strided(StridedRange::new(self, start, end))
         })
     }
     /// At most COOPERATIVE_MACS values, preserving synchronous Neumaier order.

@@ -185,6 +185,34 @@ fn insert(root: &Link, key: Arc<MapKey>, value: Arc<Value>) -> Arc<Node> {
         ),
     }
 }
+fn heap_key_bytes(n: &Node) -> &[u8] {
+    let MapKey::Bytes(key) = n.entry.key.as_ref() else {
+        unreachable!("invalid heap key")
+    };
+    key.as_slice()
+}
+/// Same shape as `insert` for a key that is already present; reuses the existing key Arc.
+/// Returns `None` when the key is absent.
+fn replace_existing(root: &Link, key: &[u8; 8], value: Arc<Value>) -> Option<Arc<Node>> {
+    let n = root.as_ref()?;
+    match key.as_slice().cmp(heap_key_bytes(n)) {
+        Ordering::Less => Some(balanced(node(
+            n.entry.clone(),
+            Some(replace_existing(&n.left, key, value)?),
+            n.right.clone(),
+        ))),
+        Ordering::Greater => Some(balanced(node(
+            n.entry.clone(),
+            n.left.clone(),
+            Some(replace_existing(&n.right, key, value)?),
+        ))),
+        Ordering::Equal => Some(node(
+            Entry::new(n.key.clone(), value),
+            n.left.clone(),
+            n.right.clone(),
+        )),
+    }
+}
 fn remove(root: &Link, key: &MapKey) -> Link {
     let n = root.as_ref()?;
     match key.cmp(&n.key) {
@@ -369,6 +397,16 @@ impl PersistentMap {
         self.set(key, value);
         previous
     }
+    /// Replaces the value of an existing heap key (8-byte big-endian id) without rebuilding the key.
+    pub(crate) fn heap_replace_existing(&mut self, id: u64, value: Value) -> bool {
+        match replace_existing(&self.root, &id.to_be_bytes(), Arc::new(value)) {
+            Some(root) => {
+                self.root = Some(root);
+                true
+            }
+            None => false,
+        }
+    }
     pub fn set(&mut self, key: MapKey, value: Value) {
         self.root = Some(insert(&self.root, Arc::new(key), Arc::new(value)));
     }
@@ -469,6 +507,59 @@ mod tests {
         assert!(a.abs_diff(b) <= 1);
         assert_eq!(n.height, 1 + a.max(b));
         n.height
+    }
+    fn shape(n: &Link, out: &mut Vec<(usize, usize, usize, usize)>) {
+        let Some(n) = n else {
+            return;
+        };
+        shape(&n.left, out);
+        out.push((n.height, n.size, n.entry.bytes, n.entry.allocation_bytes));
+        shape(&n.right, out);
+    }
+    #[test]
+    fn replace_existing_matches_insert_and_reuses_the_key() {
+        let mut map = PersistentMap::new();
+        for id in 1u64..=200 {
+            map.set(
+                MapKey::Bytes(id.to_be_bytes().to_vec()),
+                Value::Int(id as i64),
+            );
+        }
+        for id in [1u64, 77, 128, 200] {
+            let key = Arc::new(MapKey::Bytes(id.to_be_bytes().to_vec()));
+            let value = Arc::new(Value::Text("replacement".into()));
+            let old = insert(&map.root, key, value.clone());
+            let new = replace_existing(&map.root, &id.to_be_bytes(), value).unwrap();
+            let (mut a, mut b) = (Vec::new(), Vec::new());
+            shape(&Some(old.clone()), &mut a);
+            shape(&Some(new.clone()), &mut b);
+            assert_eq!(a, b);
+            assert_eq!((old.height, old.size), (new.height, new.size));
+            // The existing key Arc is shared with the previous tree, not rebuilt.
+            let mut at = map.root.as_ref().unwrap();
+            let want = id.to_be_bytes();
+            let found = loop {
+                match want.as_slice().cmp(heap_key_bytes(at)) {
+                    Ordering::Equal => break at.entry.key.clone(),
+                    Ordering::Less => at = at.left.as_ref().unwrap(),
+                    Ordering::Greater => at = at.right.as_ref().unwrap(),
+                }
+            };
+            let mut at = &new;
+            let reused = loop {
+                match want.as_slice().cmp(heap_key_bytes(at)) {
+                    Ordering::Equal => break at.entry.key.clone(),
+                    Ordering::Less => at = at.left.as_ref().unwrap(),
+                    Ordering::Greater => at = at.right.as_ref().unwrap(),
+                }
+            };
+            assert!(Arc::ptr_eq(&found, &reused));
+        }
+        assert!(
+            replace_existing(&map.root, &1000u64.to_be_bytes(), Arc::new(Value::Int(0))).is_none()
+        );
+        assert!(replace_existing(&None, &1u64.to_be_bytes(), Arc::new(Value::Int(0))).is_none());
+        assert!(!map.heap_replace_existing(1000, Value::Int(0)));
     }
     #[test]
     fn updates_copy_a_logarithmic_path_at_three_sizes() {

@@ -37,6 +37,8 @@ pub(super) fn native_parameter(name: &str, index: usize) -> Option<&'static str>
         .or_else(|| regex::parameter(name, index))
         .or_else(|| csv_stream::parameter(name, index))
         .or_else(|| json_stream::parameter(name, index))
+        .or_else(|| (name == "stdBytesFromInts" && index == 0).then_some("&List<Int>"))
+        .or_else(|| (name == "stdTextFromCodePoints" && index == 0).then_some("&List<Int>"))
 }
 pub(super) fn native_borrow(name: &str) -> Option<&'static str> {
     match name {
@@ -267,12 +269,38 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdTextSlice",
         "stdTextFind",
         "stdTextLength",
+        "stdTextCodePoints",
+        "stdTextFromCodePoints",
+        "stdExternalLineSeparator",
         "stdDecode",
         "stdEncode",
         "stdBytesGet",
         "stdBytesSlice",
         "stdBytesLength",
         "stdBytesFromList",
+        "stdDeflate",
+        "stdInflate",
+        "stdZlibCompress",
+        "stdZlibDecompress",
+        "stdCrc32",
+        "stdAdler32",
+        "stdSha256",
+        "stdSha512",
+        "stdHmacSha256",
+        "stdPbkdf2Sha256",
+        "stdConstantTimeEq",
+        "stdBytesToHex",
+        "stdBytesFromHex",
+        "stdBytesConcat",
+        "stdBytesFromInts",
+        "stdBytesToInts",
+        "stdBytesIndexOf",
+        "stdBytesEqual",
+        "stdBytesReadInt",
+        "stdPngDecode",
+        "stdPngEncode",
+        "stdGzipCompress",
+        "stdGzipDecompress",
         "stdParseInt",
         "stdParseFloat",
         "stdFormatInt",
@@ -285,9 +313,18 @@ pub(super) fn names() -> &'static [&'static str] {
         "stdShiftRight",
         "stdShiftUnsigned",
         "stdCountBits",
+        "stdBitLeadingZeros",
+        "stdBitTrailingZeros",
+        "stdBitRotateLeft",
+        "stdBitRotateRight",
+        "stdBitReverse",
+        "stdBitByteSwap",
+        "stdBitExtract",
+        "stdBitDeposit",
         "stdMulMod",
         "stdHttpComponent",
         "stdExternalClock",
+        "stdExternalRandomBytes",
         "stdExternalDbSqlite",
         "stdExternalDbPostgres",
         "stdExternalDbCredentials",
@@ -352,112 +389,6 @@ pub(super) fn names() -> &'static [&'static str] {
     ]
 }
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if !matches!(
-        p.language.as_str(),
-        "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) {
-        return Ok(());
-    }
     if p.structs.contains_key("StdError")
         || p.enums.contains_key("StdError")
         || names().iter().any(|n| {
@@ -533,7 +464,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             },
         );
     }
-    if language_at_least(&p.language, "1.9.25") {
+    {
         for (name, fields) in [
             (
                 "HttpServer",
@@ -579,7 +510,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             );
         }
     }
-    if language_at_least(&p.language, "1.9.23") {
+    {
         for (name, fields) in [
             ("TcpSocket", vec![("peer", "String")]),
             (
@@ -611,7 +542,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             );
         }
     }
-    if language_at_least(&p.language, "1.7.0") {
+    {
         for (name, fields) in [
             ("DbConnection", vec![("backend", "String")]),
             (
@@ -725,8 +656,33 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
         _ => 0,
     };
     let work = match name {
-        "stdBytesLength" | "stdBytesGet" | "stdBitAnd" | "stdBitOr" | "stdBitXor" | "stdBitNot"
-        | "stdCountBits" | "stdShiftLeft" | "stdShiftRight" | "stdShiftUnsigned" => 1,
+        "stdBytesLength"
+        | "stdBytesGet"
+        | "stdBitAnd"
+        | "stdBitOr"
+        | "stdBitXor"
+        | "stdBitNot"
+        | "stdCountBits"
+        | "stdShiftLeft"
+        | "stdShiftRight"
+        | "stdShiftUnsigned"
+        | "stdBitLeadingZeros"
+        | "stdBitTrailingZeros"
+        | "stdBitRotateLeft"
+        | "stdBitRotateRight"
+        | "stdBitReverse"
+        | "stdBitByteSwap"
+        | "stdBitExtract"
+        | "stdBitDeposit" => 1,
+        // 先頭から一致を探すので、最悪ケースは入力長 × 針の長さになる。
+        "stdBytesIndexOf" => match args {
+            [Value::Bytes(data), Value::Bytes(needle), ..] => data
+                .len()
+                .saturating_mul(needle.len().max(1))
+                .saturating_add(16),
+            _ => 16,
+        },
+        "stdBytesReadInt" => 16,
         "stdBytesSlice" => match args {
             [Value::Bytes(bytes), Value::Int(a), Value::Int(b)]
                 if *a >= 0 && *b >= *a && (*b as u64) <= bytes.len() as u64 =>
@@ -736,117 +692,97 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
             _ => 1,
         },
         "stdMulMod" => 64,
+        // Compression is a few tens of MB/s: charge 8 units per input byte. Decompression is
+        // bounded by the caller's output limit and by the maximum expansion, charged up front.
+        "stdDeflate" | "stdZlibCompress" | "stdGzipCompress" => match args {
+            [Value::Bytes(bytes), _] => bytes.len().saturating_mul(8).saturating_add(256),
+            _ => 256,
+        },
+        "stdInflate" | "stdZlibDecompress" | "stdGzipDecompress" => match args {
+            // DEFLATE cannot expand more than 1032:1, so the output (and the work to produce it)
+            // is bounded by both the caller's limit and the input size.
+            [Value::Bytes(bytes), Value::Int(max)] => bytes
+                .len()
+                .saturating_mul(4)
+                .saturating_add(
+                    ((*max).clamp(0, LIMIT as i64) as usize).min(bytes.len().saturating_mul(1032)),
+                )
+                .saturating_add(256),
+            _ => 256,
+        },
+        "stdCrc32" | "stdAdler32" => match args {
+            [Value::Bytes(bytes)] => bytes.len().saturating_mul(2).saturating_add(16),
+            _ => 16,
+        },
+        "stdSha256" | "stdSha512" | "stdBytesToHex" => match args {
+            [Value::Bytes(bytes)] => bytes.len().saturating_mul(4).saturating_add(256),
+            _ => 256,
+        },
+        "stdHmacSha256" => match args {
+            [Value::Bytes(key), Value::Bytes(message)] => key
+                .len()
+                .saturating_add(message.len())
+                .saturating_mul(4)
+                .saturating_add(256),
+            _ => 256,
+        },
+        // PBKDF2 は反復ごとに HMAC を回すので、コストは反復回数に比例させる。
+        // 範囲外の引数は実行前に Range で返すので、仕事量を見積もらず 256 とする。
+        "stdPbkdf2Sha256" => match args {
+            [Value::Bytes(_), Value::Bytes(salt), Value::Int(iterations), Value::Int(length)]
+                if (1..=1_000_000).contains(iterations)
+                    && (1..=1024).contains(length)
+                    && (1..=1024).contains(&salt.len()) =>
+            {
+                (*iterations as usize)
+                    .saturating_mul(64)
+                    .saturating_add((*length as usize).saturating_mul(4))
+                    .saturating_add(256)
+            }
+            _ => 256,
+        },
+        "stdConstantTimeEq" => match args {
+            [Value::Bytes(a), Value::Bytes(b)] => {
+                a.len().min(b.len()).saturating_mul(2).saturating_add(16)
+            }
+            _ => 16,
+        },
+        // 乱数は要求された長さに比例して作る。範囲外の引数は実行前に Range で返すので、仕事量を見積もらず 256 とする。
+        "stdExternalRandomBytes" => match args {
+            [Value::Int(length)] if (1..=65_536).contains(length) => {
+                (*length as usize).saturating_mul(4).saturating_add(256)
+            }
+            _ => 256,
+        },
+        "stdBytesFromHex" => match args {
+            [Value::Text(text)] => text.len().saturating_mul(2).saturating_add(16),
+            _ => 16,
+        },
+        // Decoding is bounded by the pixel limit the caller passes and by the input size (a PNG
+        // cannot inflate to more than ~1032 times its data); encoding filters five ways per row.
+        "stdPngDecode" => match args {
+            [Value::Bytes(bytes), Value::Int(max)] => bytes
+                .len()
+                .saturating_mul(4)
+                .saturating_add(
+                    ((*max).clamp(0, LIMIT as i64) as usize)
+                        .min(bytes.len().saturating_mul(344))
+                        .saturating_mul(8),
+                )
+                .saturating_add(256),
+            _ => 256,
+        },
+        "stdPngEncode" => match args {
+            [Value::Bytes(bytes), ..] => bytes.len().saturating_mul(24).saturating_add(256),
+            _ => 256,
+        },
         "stdFormatInt" | "stdFormatFloat" => 128,
         _ => args.iter().map(length).fold(1usize, usize::saturating_add),
     };
     Some(work.max(1))
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !matches!(
-        p.language.as_str(),
-        "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) || !names().contains(&n)
-    {
+    if false || !names().contains(&n) {
         return Ok(None);
     }
     if let Some(result) = json_stream::call_type(p, n, args, at)? {
@@ -873,162 +809,57 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if let Some(result) = numeric::call_type(p, n, args, at)? {
         return Ok(Some(result));
     }
-    if n == "stdBytesFromList"
-        && !matches!(
-            p.language.as_str(),
-            "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        )
-    {
+    if n == "stdBytesFromList" && false {
         return Ok(None);
     }
-    if n.starts_with("stdExternal") && !language_at_least(&p.language, "1.5.0") {
+    if n.starts_with("stdExternal") && false {
         return Err(diagnostic(at, "external operations require language 1.5.0"));
     }
-    if n.starts_with("stdExternalHttpServer") && !language_at_least(&p.language, "1.9.25") {
+    if n.starts_with("stdExternalHttpServer") && false {
         return Err(diagnostic(at, "HTTP server requires language 1.9.25"));
     }
     if matches!(
         n,
         "stdExternalHttpServerListenTls" | "stdExternalHttpServerTlsCredential"
-    ) && !language_at_least(&p.language, "1.9.29")
+    ) && false
     {
         return Err(diagnostic(at, "HTTP server TLS requires language 1.9.29"));
     }
     if matches!(
         n,
         "stdExternalHttpServerBearerCredential" | "stdExternalHttpServerListenTlsAuthenticated"
-    ) && !language_at_least(&p.language, "1.9.30")
+    ) && false
     {
         return Err(diagnostic(
             at,
             "HTTP server authentication requires language 1.9.30",
         ));
     }
-    if n == "stdExternalTcpTls" && !language_at_least(&p.language, "1.9.24") {
+    if n == "stdExternalTcpTls" && false {
         return Err(diagnostic(at, "TCP TLS requires language 1.9.24"));
     }
-    if n.starts_with("stdExternalTcp") && !language_at_least(&p.language, "1.9.23") {
+    if n.starts_with("stdExternalTcp") && false {
         return Err(diagnostic(at, "TCP requires language 1.9.23"));
     }
-    if n.starts_with("stdExternalHttp") && !language_at_least(&p.language, "1.6.0") {
+    if n.starts_with("stdExternalHttp") && false {
         return Err(diagnostic(at, "HTTP requires language 1.6.0"));
     }
-    if matches!(n, "stdExternalDbPostgres" | "stdExternalDbCredentials")
-        && !language_at_least(&p.language, "1.7.1")
-    {
+    if matches!(n, "stdExternalDbPostgres" | "stdExternalDbCredentials") && false {
         return Err(diagnostic(
             at,
             "PostgreSQL primitives require language 1.7.1",
         ));
     }
-    if n == "stdExternalGuiDialog" && !language_at_least(&p.language, "1.9.60") {
+    if n == "stdExternalGuiDialog" && false {
         return Err(diagnostic(
             at,
             "native file dialogs require language 1.9.60",
         ));
     }
-    if n.starts_with("stdExternalDb") && !language_at_least(&p.language, "1.7.0") {
+    if n.starts_with("stdExternalDb") && false {
         return Err(diagnostic(at, "database primitives require language 1.7.0"));
     }
-    if n == "stdGuiScene" && !language_at_least(&p.language, "1.9.13") {
+    if n == "stdGuiScene" && false {
         return Err(diagnostic(
             at,
             "GUI scene serialization requires language 1.9.13",
@@ -1038,15 +869,10 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         n,
         "stdGuiWindowNextAnyAsync" | "stdGuiWindowNextAnyLiveAsync"
     ) {
-        if n == "stdGuiWindowNextAnyLiveAsync" && !language_at_least(&p.language, "1.9.22") {
+        if n == "stdGuiWindowNextAnyLiveAsync" && false {
             return Err(diagnostic(at, "live GUI input requires language 1.9.22"));
         }
-        if !language_at_least(&p.language, "1.9.19") {
-            return Err(diagnostic(
-                at,
-                "asynchronous GUI input requires language 1.9.19",
-            ));
-        }
+
         let Some((params, ret)) = args.first().and_then(|ty| function_signature(ty)) else {
             return Err(diagnostic(at, "GUI wait requires a pure event decoder"));
         };
@@ -1063,22 +889,22 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         }
         return Ok(Some(format!("Task<{ret}>")));
     }
-    if n == "stdTaskYieldNow" && !language_at_least(&p.language, "1.9.10") {
+    if n == "stdTaskYieldNow" && false {
         return Err(diagnostic(at, "task yield requires language 1.9.10"));
     }
-    if n.starts_with("stdGuiWindow") && !language_at_least(&p.language, "1.9.9") {
+    if n.starts_with("stdGuiWindow") && false {
         return Err(diagnostic(
             at,
             "named GUI primitives require language 1.9.9",
         ));
     }
-    if n == "stdGuiEditGrapheme" && !language_at_least(&p.language, "1.9.7") {
+    if n == "stdGuiEditGrapheme" && false {
         return Err(diagnostic(at, "grapheme editing requires language 1.9.7"));
     }
-    if n.starts_with("stdGui") && !language_at_least(&p.language, "1.3.0") {
+    if n.starts_with("stdGui") && false {
         return Err(diagnostic(at, "GUI primitives require language 1.3.0"));
     }
-    if matches!(n, "stdGuiEdit" | "stdGuiPollEvent") && !language_at_least(&p.language, "1.4.0") {
+    if matches!(n, "stdGuiEdit" | "stdGuiPollEvent") && false {
         return Err(diagnostic(
             at,
             "GUI editing and polling require language 1.4.0",
@@ -1093,7 +919,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
             | "stdExternalHttpWrite"
             | "stdExternalHttpFinish"
             | "stdExternalHttpCloseUpload"
-    ) && !language_at_least(&p.language, "1.6.1")
+    ) && false
     {
         return Err(diagnostic(at, "HTTP streaming requires language 1.6.1"));
     }
@@ -1231,6 +1057,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         | "stdExternalDbClose" => (&["&mut DbConnection", "Int"], "Task<Result<Unit,DbError>>"),
         "stdHttpComponent" => (&["String"], "Result<String,StdError>"),
         "stdExternalClock" => (&[], "Result<Int,StdError>"),
+        "stdExternalRandomBytes" => (&["Int"], "Result<Bytes,StdError>"),
         "stdExternalHttpUpload" => (
             &[
                 "String",
@@ -1335,12 +1162,28 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdTextSlice" => (&["String", "Int", "Int"], "Result<String,StdError>"),
         "stdTextFind" => (&["String", "String"], "Option<Int>"),
         "stdTextLength" => (&["String"], "Int"),
+        "stdTextCodePoints" => (&["String"], "List<Int>"),
+        "stdTextFromCodePoints" => (&["&List<Int>"], "Result<String,StdError>"),
+        "stdExternalLineSeparator" => (&[], "String"),
         "stdDecode" => (&["Bytes"], "Result<String,StdError>"),
         "stdEncode" => (&["String"], "Result<Bytes,StdError>"),
         "stdBytesGet" => (&["Bytes", "Int"], "Result<Int,StdError>"),
         "stdBytesSlice" => (&["Bytes", "Int", "Int"], "Result<Bytes,StdError>"),
         "stdBytesLength" => (&["Bytes"], "Int"),
         "stdBytesFromList" => (&["&List<Int>"], "Result<Bytes,StdError>"),
+        "stdDeflate" | "stdZlibCompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdInflate" | "stdZlibDecompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdCrc32" | "stdAdler32" => (&["Bytes"], "Int"),
+        "stdSha256" | "stdSha512" => (&["Bytes"], "Result<Bytes,StdError>"),
+        "stdHmacSha256" => (&["Bytes", "Bytes"], "Result<Bytes,StdError>"),
+        "stdPbkdf2Sha256" => (&["Bytes", "Bytes", "Int", "Int"], "Result<Bytes,StdError>"),
+        "stdConstantTimeEq" => (&["Bytes", "Bytes"], "Bool"),
+        "stdBytesToHex" => (&["Bytes"], "String"),
+        "stdBytesFromHex" => (&["String"], "Result<Bytes,StdError>"),
+        "stdPngDecode" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdGzipCompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdGzipDecompress" => (&["Bytes", "Int"], "Result<Bytes,StdError>"),
+        "stdPngEncode" => (&["Bytes", "Int", "Int", "Int"], "Result<Bytes,StdError>"),
         "stdParseInt" => (&["String", "Int"], "Result<Int,StdError>"),
         "stdParseFloat" => (&["String"], "Result<Float,StdError>"),
         "stdFormatInt" => (&["Int", "Int"], "Result<String,StdError>"),
@@ -1350,6 +1193,18 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdShiftLeft" | "stdShiftRight" | "stdShiftUnsigned" => {
             (&["Int", "Int"], "Result<Int,StdError>")
         }
+        "stdBitLeadingZeros" | "stdBitTrailingZeros" | "stdBitReverse" | "stdBitByteSwap" => {
+            (&["Int"], "Int")
+        }
+        "stdBitRotateLeft" | "stdBitRotateRight" => (&["Int", "Int"], "Result<Int,StdError>"),
+        "stdBitExtract" => (&["Int", "Int", "Int"], "Result<Int,StdError>"),
+        "stdBitDeposit" => (&["Int", "Int", "Int", "Int"], "Result<Int,StdError>"),
+        "stdBytesConcat" => (&["Bytes", "Bytes"], "Result<Bytes,StdError>"),
+        "stdBytesFromInts" => (&["&List<Int>"], "Result<Bytes,StdError>"),
+        "stdBytesToInts" => (&["Bytes"], "Result<List<Int>,StdError>"),
+        "stdBytesIndexOf" => (&["Bytes", "Bytes", "Int"], "Result<Int,StdError>"),
+        "stdBytesEqual" => (&["Bytes", "Bytes"], "Bool"),
+        "stdBytesReadInt" => (&["Bytes", "Int", "Int", "Bool"], "Result<Int,StdError>"),
         "stdMulMod" => (&["Int", "Int", "Int"], "Result<Int,StdError>"),
         _ => unreachable!(),
     };
@@ -1360,6 +1215,16 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         ));
     }
     Ok(Some(ret.into()))
+}
+fn png_error(error: rewind::png::PngError) -> (&'static str, usize) {
+    use rewind::png::PngError;
+    match error {
+        PngError::Range => ("Range", 0),
+        PngError::Limit => ("Limit", 0),
+        PngError::Unsupported => ("Unsupported", 0),
+        PngError::Truncated(offset) => ("Truncated", offset),
+        PngError::Corrupt(offset) => ("Corrupt", offset),
+    }
 }
 fn err(code: &str, offset: usize) -> Value {
     Value::Struct(
@@ -1585,6 +1450,49 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
             Err(_) => outcome(Err(("ExternalFailure", 0))),
         }));
     }
+    // 実行環境の改行。クロックや乱数と同じ外部の観測として記録し、replay は記録した値を返す。
+    if n == "stdExternalLineSeparator" && args.is_empty() {
+        let result = runtime.external_operation("env.lineSeparator", b"", 64, || {
+            Ok(serde_json::json!(if cfg!(windows) { "\r\n" } else { "\n" }))
+        })?;
+        return match result {
+            Ok(v) => match v.as_str() {
+                Some(sep @ ("\n" | "\r\n")) => Ok(Some(Value::Text(sep.into()))),
+                _ => Err(Error::InvalidOperation(
+                    "ExternalFailure: line separator".into(),
+                )),
+            },
+            Err(_) => Err(Error::InvalidOperation(
+                "ExternalFailure: line separator".into(),
+            )),
+        };
+    }
+    // 範囲外の長さは外部操作を記録せずに Range で返す。記録する値は 16 進文字列で、上限は長さの 2 倍と JSON の包みの分。
+    if n == "stdExternalRandomBytes" && args.len() == 1 {
+        if let Value::Int(length) = &args[0] {
+            let length = *length;
+            if !(1..=65_536).contains(&length) {
+                return Ok(Some(outcome(Err(("Range", 0)))));
+            }
+            let request = length.to_string();
+            let result =
+                runtime.external_operation("entropy.bytes", request.as_bytes(), 131_136, || {
+                    let mut buffer = vec![0u8; length as usize];
+                    getrandom::getrandom(&mut buffer)
+                        .map(|()| serde_json::json!(rewind::crypto::to_hex(&buffer)))
+                        .map_err(|_| "EntropyFailure".into())
+                })?;
+            return Ok(Some(match result {
+                Ok(v) => outcome(
+                    v.as_str()
+                        .and_then(|hex| rewind::crypto::from_hex(hex).ok())
+                        .map(|out| Value::Bytes(out.into()))
+                        .ok_or(("ExternalFailure", 0)),
+                ),
+                Err(_) => outcome(Err(("ExternalFailure", 0))),
+            }));
+        }
+    }
     if n == "stdGuiContinueInput" && args.is_empty() {
         runtime.gui_continue_input();
         return Ok(Some(Value::Null));
@@ -1701,7 +1609,45 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
     // Scalar-only results stay scalar. Bounded codecs consistently return Result.
     let value = match n {
         "stdTextLength" => Value::Int(text(0)?.chars().count() as i64),
+        // 戻り値が List なので、上限を超える入力は Err にできない。実行時エラーで止める（stdTextFind と同じ）。
+        "stdTextCodePoints" => {
+            let s = text(0)?;
+            if s.len() > LIMIT {
+                return Err(Error::InvalidOperation(
+                    "text code point limit exceeded".into(),
+                ));
+            }
+            let values: Vec<Value> = s
+                .chars()
+                .map(|c| Value::Int(i64::from(u32::from(c))))
+                .collect();
+            Value::TypedList("Int".into(), values.into())
+        }
         "stdBytesLength" => Value::Int(bytes(0)?.len() as i64),
+        "stdCrc32" => {
+            let mut crc = 0xffff_ffffu32;
+            for byte in bytes(0)? {
+                crc ^= u32::from(*byte);
+                for _ in 0..8 {
+                    crc = (crc >> 1) ^ (0xedb8_8320 & 0u32.wrapping_sub(crc & 1));
+                }
+            }
+            Value::Int(i64::from(!crc))
+        }
+        "stdAdler32" => {
+            let (mut a, mut c) = (1u32, 0u32);
+            for chunk in bytes(0)?.chunks(5552) {
+                for byte in chunk {
+                    a += u32::from(*byte);
+                    c += a;
+                }
+                a %= 65521;
+                c %= 65521;
+            }
+            Value::Int(i64::from((c << 16) | a))
+        }
+        "stdConstantTimeEq" => Value::Bool(rewind::crypto::constant_time_eq(bytes(0)?, bytes(1)?)),
+        "stdBytesToHex" => Value::Text(rewind::crypto::to_hex(bytes(0)?).into()),
         "stdTextFind" => {
             let s = text(0)?;
             let needle = text(1)?;
@@ -1718,6 +1664,11 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
         "stdBitXor" => Value::Int(int(0)? ^ int(1)?),
         "stdBitNot" => Value::Int(!int(0)?),
         "stdCountBits" => Value::Int(int(0)?.count_ones() as i64),
+        "stdBitLeadingZeros" => Value::Int(int(0)?.leading_zeros() as i64),
+        "stdBitTrailingZeros" => Value::Int(int(0)?.trailing_zeros() as i64),
+        "stdBitReverse" => Value::Int(int(0)?.reverse_bits()),
+        "stdBitByteSwap" => Value::Int(int(0)?.swap_bytes()),
+        "stdBytesEqual" => Value::Bool(bytes(0)? == bytes(1)?),
         _ => {
             let result = match n {
                 "stdTextTrim" => {
@@ -1755,6 +1706,13 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                         Err(("Limit", 0))
                     } else if start < 0 || end < start {
                         Err(("Range", 0))
+                    } else if s.is_ascii() {
+                        // ASCII では文字位置とバイト位置が一致するので、走査せずに切り出す。
+                        if (end as u128) <= s.len() as u128 {
+                            Ok(Value::Text(s[start as usize..end as usize].into()))
+                        } else {
+                            Err(("Range", 0))
+                        }
                     } else {
                         // Locate only the two scalar boundaries; avoid a full O(n)
                         // offset table and stop as soon as the requested end is found.
@@ -1854,6 +1812,189 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                         ))
                     }
                 }
+                "stdSha256" | "stdSha512" => {
+                    let b = bytes(0)?;
+                    if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else if n == "stdSha256" {
+                        Ok(Value::Bytes(rewind::crypto::sha256(b).to_vec().into()))
+                    } else {
+                        Ok(Value::Bytes(rewind::crypto::sha512(b).to_vec().into()))
+                    }
+                }
+                "stdHmacSha256" => {
+                    let key = bytes(0)?;
+                    let message = bytes(1)?;
+                    if key.len() > LIMIT || message.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        Ok(Value::Bytes(
+                            rewind::crypto::hmac_sha256(key, message).to_vec().into(),
+                        ))
+                    }
+                }
+                "stdPbkdf2Sha256" => {
+                    let password = bytes(0)?;
+                    let salt = bytes(1)?;
+                    let iterations = int(2)?;
+                    let length = int(3)?;
+                    if !(1..=1_000_000).contains(&iterations)
+                        || !(1..=1024).contains(&length)
+                        || !(1..=1024).contains(&salt.len())
+                    {
+                        Err(("Range", 0))
+                    } else if password.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        Ok(Value::Bytes(
+                            rewind::crypto::pbkdf2_sha256(
+                                password,
+                                salt,
+                                iterations as u32,
+                                length as usize,
+                            )
+                            .into(),
+                        ))
+                    }
+                }
+                "stdBytesFromHex" => {
+                    let s = text(0)?;
+                    if s.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        match rewind::crypto::from_hex(s) {
+                            Ok(out) => Ok(Value::Bytes(out.into())),
+                            Err(offset) => Err(("Corrupt", offset)),
+                        }
+                    }
+                }
+                "stdDeflate" | "stdZlibCompress" => {
+                    let b = bytes(0)?;
+                    let level = int(1)?;
+                    if !(0..=10).contains(&level) {
+                        Err(("Range", 0))
+                    } else if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        let out = if n == "stdDeflate" {
+                            miniz_oxide::deflate::compress_to_vec(b, level as u8)
+                        } else {
+                            miniz_oxide::deflate::compress_to_vec_zlib(b, level as u8)
+                        };
+                        if out.len() > LIMIT {
+                            Err(("Limit", 0))
+                        } else {
+                            Ok(Value::Bytes(out.into()))
+                        }
+                    }
+                }
+                "stdInflate" | "stdZlibDecompress" => {
+                    let b = bytes(0)?;
+                    let max = int(1)?;
+                    if max < 0 || max as usize > LIMIT {
+                        Err(("Range", 0))
+                    } else if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        let result = if n == "stdInflate" {
+                            miniz_oxide::inflate::decompress_to_vec_with_limit(b, max as usize)
+                        } else {
+                            miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(b, max as usize)
+                        };
+                        use miniz_oxide::inflate::TINFLStatus;
+                        match result {
+                            Ok(out) => Ok(Value::Bytes(out.into())),
+                            // More output than the caller allowed: refuse, never truncate.
+                            Err(e) if e.status == TINFLStatus::HasMoreOutput => Err(("Limit", 0)),
+                            // The stream ended before its final block / checksum.
+                            Err(e)
+                                if matches!(
+                                    e.status,
+                                    TINFLStatus::FailedCannotMakeProgress
+                                        | TINFLStatus::NeedsMoreInput
+                                ) =>
+                            {
+                                Err(("Truncated", e.output.len()))
+                            }
+                            Err(e) => Err(("Corrupt", e.output.len())),
+                        }
+                    }
+                }
+                "stdGzipCompress" => {
+                    let b = bytes(0)?;
+                    let level = int(1)?;
+                    if !(0..=10).contains(&level) {
+                        Err(("Range", 0))
+                    } else if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        let out = rewind::gzip::compress(b, level as u8);
+                        if out.len() > LIMIT {
+                            Err(("Limit", 0))
+                        } else {
+                            Ok(Value::Bytes(out.into()))
+                        }
+                    }
+                }
+                "stdGzipDecompress" => {
+                    let b = bytes(0)?;
+                    let max = int(1)?;
+                    if max < 0 || max as usize > LIMIT {
+                        Err(("Range", 0))
+                    } else if b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        use rewind::gzip::GzipError;
+                        match rewind::gzip::decompress(b, max as usize) {
+                            Ok(out) => Ok(Value::Bytes(out.into())),
+                            Err(GzipError::Range) => Err(("Range", 0)),
+                            Err(GzipError::Limit) => Err(("Limit", 0)),
+                            Err(GzipError::Unsupported) => Err(("Unsupported", 0)),
+                            Err(GzipError::Truncated(at)) => Err(("Truncated", at)),
+                            Err(GzipError::Corrupt(at)) => Err(("Corrupt", at)),
+                        }
+                    }
+                }
+                "stdPngDecode" => {
+                    let data = bytes(0)?;
+                    let max_pixels = int(1)?;
+                    if max_pixels < 0 || max_pixels as usize > LIMIT {
+                        Err(("Range", 0))
+                    } else if data.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        match rewind::png::decode(data, max_pixels as usize, LIMIT) {
+                            Ok(image) => {
+                                // 9-byte header (width u32 LE, height u32 LE, channels u8), then pixels.
+                                let mut out = Vec::with_capacity(9 + image.pixels.len());
+                                out.extend_from_slice(&(image.width as u32).to_le_bytes());
+                                out.extend_from_slice(&(image.height as u32).to_le_bytes());
+                                out.push(image.channels as u8);
+                                out.extend_from_slice(&image.pixels);
+                                Ok(Value::Bytes(out.into()))
+                            }
+                            Err(e) => Err(png_error(e)),
+                        }
+                    }
+                }
+                "stdPngEncode" => {
+                    let (width, height, channels) = (int(1)?, int(2)?, int(3)?);
+                    if width < 1 || height < 1 || !(1..=4).contains(&channels) {
+                        Err(("Range", 0))
+                    } else {
+                        match rewind::png::encode(
+                            bytes(0)?,
+                            width as usize,
+                            height as usize,
+                            channels as usize,
+                            LIMIT,
+                        ) {
+                            Ok(out) if out.len() > LIMIT => Err(("Limit", 0)),
+                            Ok(out) => Ok(Value::Bytes(out.into())),
+                            Err(e) => Err(png_error(e)),
+                        }
+                    }
+                }
                 "stdParseInt" => {
                     let s = text(0)?;
                     let radix = int(1)?;
@@ -1943,6 +2084,186 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                             "stdShiftRight" => a >> shift,
                             _ => ((a as u64) >> shift) as i64,
                         }))
+                    }
+                }
+                "stdBitRotateLeft" | "stdBitRotateRight" => {
+                    let a = int(0)?;
+                    let count = int(1)?;
+                    if !(0..64).contains(&count) {
+                        Err(("Range", 0))
+                    } else {
+                        let u = a as u64;
+                        let r = if n == "stdBitRotateLeft" {
+                            u.rotate_left(count as u32)
+                        } else {
+                            u.rotate_right(count as u32)
+                        };
+                        Ok(Value::Int(r as i64))
+                    }
+                }
+                "stdBitExtract" | "stdBitDeposit" => {
+                    let a = int(0)?;
+                    let start = int(1)?;
+                    let width = int(2)?;
+                    if !(0..64).contains(&start) || !(1..=64).contains(&width) || start + width > 64
+                    {
+                        Err(("Range", 0))
+                    } else {
+                        let mask = if width == 64 {
+                            u64::MAX
+                        } else {
+                            (1u64 << width) - 1
+                        };
+                        if n == "stdBitExtract" {
+                            Ok(Value::Int((((a as u64) >> start) & mask) as i64))
+                        } else {
+                            let v = int(3)?;
+                            if v < 0 || (v as u64) & !mask != 0 {
+                                Err(("Range", 0))
+                            } else {
+                                let cleared = (a as u64) & !(mask << start);
+                                Ok(Value::Int((cleared | ((v as u64) << start)) as i64))
+                            }
+                        }
+                    }
+                }
+                "stdBytesConcat" => {
+                    let a = bytes(0)?;
+                    let b = bytes(1)?;
+                    if a.len() + b.len() > LIMIT {
+                        Err(("Limit", 0))
+                    } else {
+                        let mut output = a.to_vec();
+                        output.extend_from_slice(b);
+                        Ok(Value::Bytes(output.into()))
+                    }
+                }
+                "stdBytesFromInts" => {
+                    let target = match args.first() {
+                        Some(Value::HeapRef(id)) => runtime.heap_get(*id),
+                        other => other,
+                    };
+                    match target {
+                        Some(Value::TypedList(_, values)) if values.len() <= ITEMS => {
+                            let mut output = Vec::with_capacity(values.len());
+                            let mut failure = None;
+                            for value in values.iter() {
+                                match value {
+                                    Value::Int(v) if (0..=255).contains(v) => output.push(*v as u8),
+                                    _ => {
+                                        failure = Some(("Range", 0));
+                                        break;
+                                    }
+                                }
+                            }
+                            match failure {
+                                Some(e) => Err(e),
+                                None => Ok(Value::Bytes(output.into())),
+                            }
+                        }
+                        Some(Value::TypedList(_, _)) => Err(("Limit", 0)),
+                        _ => {
+                            return Err(Error::InvalidOperation(
+                                "expected borrowed List<Int>".into(),
+                            ))
+                        }
+                    }
+                }
+                "stdTextFromCodePoints" => {
+                    let target = match args.first() {
+                        Some(Value::HeapRef(id)) => runtime.heap_get(*id),
+                        other => other,
+                    };
+                    match target {
+                        Some(Value::TypedList(_, values)) if values.len() <= LIMIT => {
+                            let mut output = String::with_capacity(values.len());
+                            let mut failure = None;
+                            for (index, value) in values.iter().enumerate() {
+                                match value {
+                                    Value::Int(v) if (0xD800..=0xDFFF).contains(v) => {
+                                        failure = Some(("Surrogate", index));
+                                        break;
+                                    }
+                                    Value::Int(v) => {
+                                        match u32::try_from(*v).ok().and_then(char::from_u32) {
+                                            Some(c) => output.push(c),
+                                            None => {
+                                                failure = Some(("Range", index));
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        failure = Some(("Range", index));
+                                        break;
+                                    }
+                                }
+                                if output.len() > LIMIT {
+                                    failure = Some(("Limit", index));
+                                    break;
+                                }
+                            }
+                            match failure {
+                                Some(e) => Err(e),
+                                None => Ok(Value::Text(output.into())),
+                            }
+                        }
+                        Some(Value::TypedList(_, _)) => Err(("Limit", 0)),
+                        _ => {
+                            return Err(Error::InvalidOperation(
+                                "expected borrowed List<Int>".into(),
+                            ))
+                        }
+                    }
+                }
+                "stdBytesToInts" => {
+                    let b = bytes(0)?;
+                    if b.len() > ITEMS {
+                        Err(("Limit", 0))
+                    } else {
+                        let values: Vec<Value> =
+                            b.iter().map(|v| Value::Int(i64::from(*v))).collect();
+                        Ok(Value::TypedList("Int".into(), values.into()))
+                    }
+                }
+                "stdBytesIndexOf" => {
+                    let data = bytes(0)?;
+                    let needle = bytes(1)?;
+                    let start = int(2)?;
+                    if needle.is_empty() || start < 0 || start as u64 > data.len() as u64 {
+                        Err(("Range", 0))
+                    } else {
+                        let from = start as usize;
+                        let found = data[from..]
+                            .windows(needle.len())
+                            .position(|window| window == needle)
+                            .map_or(-1, |i| (i + from) as i64);
+                        Ok(Value::Int(found))
+                    }
+                }
+                "stdBytesReadInt" => {
+                    let data = bytes(0)?;
+                    let offset = int(1)?;
+                    let width = int(2)?;
+                    let big = matches!(args.get(3), Some(Value::Bool(true)));
+                    if !matches!(width, 1 | 2 | 4 | 8)
+                        || offset < 0
+                        || offset as u64 + width as u64 > data.len() as u64
+                    {
+                        Err(("Range", 0))
+                    } else {
+                        let field = &data[offset as usize..(offset + width) as usize];
+                        let mut value: u64 = 0;
+                        if big {
+                            for byte in field {
+                                value = (value << 8) | u64::from(*byte);
+                            }
+                        } else {
+                            for byte in field.iter().rev() {
+                                value = (value << 8) | u64::from(*byte);
+                            }
+                        }
+                        Ok(Value::Int(value as i64))
                     }
                 }
                 "stdMulMod" => {

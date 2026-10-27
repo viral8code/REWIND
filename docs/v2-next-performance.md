@@ -1,6 +1,6 @@
 # 次版の性能・メモリ・長時間運転の測定計画
 
-状態：未実装・未測定。対象版はv2.3候補です。[全体計画](ROADMAP_v2-next.md)と[v2.1のprofile計画](REWIND_v2.1-plan.md)に従います。性能値を測る前に、最適化対象や改善率を確定しません。
+状態：PERF-02/03/05とNUM-01の一部をWindows実機で測定済み（[実測記録](v2-next-perf-results.md)）。対象版はv2.3候補です。[全体計画](ROADMAP_v2-next.md)と[v2.1のprofile計画](REWIND_v2.1-plan.md)に従います。性能値を測る前に、最適化対象や改善率を確定しません。
 
 ## 判断基準
 

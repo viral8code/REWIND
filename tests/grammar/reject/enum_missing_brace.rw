@@ -1,0 +1,2 @@
+// enum の { がない
+enum E A, B

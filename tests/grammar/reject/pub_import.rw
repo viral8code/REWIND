@@ -1,0 +1,2 @@
+// pub import は拒否. 実装の癖。文法の癖の一覧を参照。
+pub import a;

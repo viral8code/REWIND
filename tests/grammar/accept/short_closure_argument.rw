@@ -1,0 +1,5 @@
+// 短いクロージャ: 引数の位置
+fn main() {
+    let ys = map(xs, |x| x * 2);
+    let zs = filter(xs, |x| x > 1);
+}

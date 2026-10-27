@@ -1,0 +1,22 @@
+// SHA-2 digests, HMAC-SHA256, PBKDF2-HMAC-SHA256 and a constant-time comparison over Bytes.
+// Every input is limited to 1 MiB. PBKDF2 is bounded to 1..1000000 iterations, 1..1024 output bytes
+// and a 1..1024 byte salt; out-of-range arguments are reported as Range. Passwords must be stored with
+// pbkdf2Sha256; a plain sha256 digest of a password is not acceptable.
+effects {external,random};
+// @api sha256 cost O(bytes) native work, 4 units per input byte; 32-byte digest.
+// @api sha256 failure StdError Limit (input over 1 MiB).
+pub fn sha256(data:Bytes)->Result<Bytes,StdError> effects {} {return stdSha256(data);}
+// @api sha512 cost O(bytes) native work, 4 units per input byte; 64-byte digest.
+// @api sha512 failure StdError Limit (input over 1 MiB).
+pub fn sha512(data:Bytes)->Result<Bytes,StdError> effects {} {return stdSha512(data);}
+// @api hmacSha256 cost O(key + message) native work; keys longer than 64 bytes are hashed first; 32-byte tag (RFC 2104).
+// @api hmacSha256 failure StdError Limit (key or message over 1 MiB).
+pub fn hmacSha256(key:Bytes,message:Bytes)->Result<Bytes,StdError> effects {} {return stdHmacSha256(key,message);}
+// @api pbkdf2Sha256 cost O(iterations * 64 + length) native work, charged up front; the largest call is 1000000 iterations.
+// @api pbkdf2Sha256 failure StdError Range (iterations outside 1..1000000, length outside 1..1024, salt outside 1..1024 bytes) / Limit (password over 1 MiB).
+pub fn pbkdf2Sha256(password:Bytes,salt:Bytes,iterations:Int,length:Int)->Result<Bytes,StdError> effects {} {return stdPbkdf2Sha256(password,salt,iterations,length);}
+// @api constantTimeEq cost O(min length); unequal lengths give false without comparing contents.
+pub fn constantTimeEq(a:Bytes,b:Bytes)->Bool effects {} {return stdConstantTimeEq(a,b);}
+// @api randomBytes cost O(length) native work, 4 units per byte plus a fixed 256; length 1..65536.
+// @api randomBytes failure StdError Range (length outside 1..65536) / ExternalFailure (OS entropy unavailable).
+pub fn randomBytes(length:Int)->Result<Bytes,StdError> effects {external,random} {return stdExternalRandomBytes(length);}

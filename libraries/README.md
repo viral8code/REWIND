@@ -1,6 +1,195 @@
 # REWIND libraries
 
-## codex/developで追加中のmodule
+`libraries/std` は REWIND の標準ライブラリです。`import std.名前 as 名前;` で使います。現在の module は 125 個です。公開 API の基準は `libraries/api/*.api.json` にあり、各関数の `@api` コメントに計算量と失敗の契約を書いています。
+
+## module 一覧（カテゴリ別）
+
+各 module の契約の詳細は、このページの「詳細」を参照してください。
+
+### 値と変換
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `option` | Option 値の既定値付き取り出しと変換 | `valueOr`, `map`, `mapOwned`, `thenOwned` |
+| `result` | Result 値の既定値付き取り出しと変換 | `valueOr`, `map`, `mapError`, `mapOwned`, `thenOwned`, `mapErrorOwned` |
+| `number` | 文字列と数値の相互変換（基数 2〜36、有限の浮動小数点） | `integer`, `decimal`, `floating`, `formatInt`, `formatFloat` |
+| `integer` | 整数の演算（GCD・LCM、素数、約数、組合せ） | `add`, `multiply`, `gcd`, `lcm`, `extendedGcd`, `primes` |
+| `bigint` | 不変の任意精度整数（変換、比較、べき乗、剰余べき乗） | `parse`, `fromInt`, `toInt`, `format`, `compare`, `bits` |
+| `decimal` | 不変の 10 進数（正確な 10 進演算、比較、加減乗除） | `parse`, `format`, `fromCoefficient`, `coefficient`, `scale`, `compare` |
+| `bytes` | バイト列の操作（UTF-8、16 進変換、結合、部分切り出し） | `length`, `encode`, `decode`, `get`, `slice`, `toHex` |
+| `bits` | 64 ビット整数のビット演算（論理演算、シフト、ビット数の計数） | `and`, `or`, `xor`, `not`, `count`, `shiftLeft` |
+| `units` | 型付きの量（単位）と不透明なID | `of`, `amount`, `add`, `sub`, `less`, `equal` |
+| `datetime` | POSIX 時刻、グレゴリオ暦、IANA タイムゾーンの日時計算と書式化 | `instant`, `duration`, `parse`, `format`, `formatOffset`, `seconds` |
+| `clock` | 現在時刻の取得 | `now` |
+| `modular` | 剰余演算（正規化、加算、乗算、べき乗、逆元） | `normalize`, `add`, `multiply`, `power`, `inverse` |
+| `math` | 整数の min、max、clamp、乗算剰余 | `min`, `max`, `clamp`, `mulMod` |
+
+### 文字列とテキスト
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `text` | Unicodeスカラー単位の文字列操作、コードポイントとの相互変換、実行環境の改行 | `length`, `trim`, `split`, `tokens`, `slice`, `find`, `codePoints`, `fromCodePoints`, `lineSeparator` |
+| `regex` | 正規表現（コンパイル、検索、一致判定、UTF-8 バイト位置） | `compile`, `compileBytes`, `compileOptions`, `compileBytesOptions`, `findFrom`, `find` |
+| `unicode` | 拡張書記素クラスタ・正規化・単語境界 | `normalize`, `isNormalized`, `graphemeCount`, `graphemeSlice`, `graphemes`, `graphemeOffsets` |
+| `stringSearch` | バイト列でのprefix検索・KMP・Z関数 | `prefix`, `kmp`, `z` |
+| `textIndex` | 原文と境界表を持つテキスト位置の管理 | `create`, `text`, `bytes`, `byteLength`, `scalarLength`, `graphemeLength` |
+| `textEdit` | 原文を保持する文字列編集と逆編集 | `replace`, `replaceBytes`, `replaceGraphemes`, `source`, `result`, `start` |
+| `suffix` | バイト列の接尾辞配列とLCPによる検索 | `build`, `length`, `order`, `lcp`, `find` |
+| `trie` | バイト列とUTF-8テキストのトライ木 | `create`, `createText`, `size`, `nodes`, `get`, `prefixCount` |
+| `url` | URL・クエリ・パーセントエンコードの純粋な補助 | `encodeComponent`, `decodeComponent`, `parseQuery`, `formatQuery`, `parse`, `format` |
+| `path` | 字句的な相対パスの結合と検査（ルート境界は実行環境が担当） | `relative`, `join` |
+
+### データ形式
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `json` | JSON の解析、生成、値の取り出し（不変 AST） | `parse`, `parseBytes`, `stringify`, `get`, `keys`, `kind` |
+| `jsonStream` | JSON の逐次読み取り（大きな入力向け） | `reader`, `feed`, `peek`, `nextBigInt`, `nextDecimal`, `next` |
+| `csv` | CSV の解析、行と列の取り出し、書き出し | `parse`, `rows`, `width`, `get`, `format` |
+| `csvStream` | CSV の逐次読み取りと型付き行の取り出し（ストリーミング） | `reader`, `feed`, `next`, `nextTyped`, `finish`, `cancel` |
+| `config` | 設定値の解決（引数、環境変数、JSON ファイル、既定値の優先順） | `resolve` |
+| `schema` | 構造検証用のスキーマ定義と値の検証・復号 | `any`, `boolean`, `number`, `decimal`, `timestamp`, `integer` |
+| `table` | 型付き列と NULL を持つ不変の列指向表（選択、結合、集計、並べ替え） | `builder`, `addInts`, `addFloats`, `addTexts`, `addBools`, `addNullableInts` |
+| `logfmt` | 構造化ログ行の生成と上限付きキュー | `field`, `entry`, `render`, `queue`, `push`, `dropped` |
+| `base64` | Base64（RFC 4648）の符号化・復号、URL-safe 形式を含む | `encode`, `encodeUrl`, `decode`, `decodeUrl` |
+| `compress` | DEFLATE / zlib / gzip の圧縮・展開、CRC-32 / Adler-32 | `deflate`, `inflate`, `zlibCompress`, `zlibDecompress`, `crc32`, `adler32` |
+| `layout` | 整数フィールドのバイナリレイアウトの読み書き | `width`, `builder`, `add`, `finish`, `size`, `alignment` |
+| `image` | PNG の復号と符号化（上限付き、8 bit） | `fromPixels`, `decodePng`, `encodePng`, `pixel` |
+| `dna` | DNA の 2 bit 詰め符号化、逆相補、k-mer 列挙 | `encode`, `decode`, `reverseComplement`, `canonical`, `roll`, `kmers` |
+| `fastx` | FASTA / FASTQ の純粋な解析と書き出し | `parseFasta`, `parseFastq`, `formatFasta`, `formatFastq`, `phred` |
+
+### コレクションとアルゴリズム
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `collections` | filter、map、fold などのコレクション操作アルゴリズム | `filter`, `map`, `any`, `all`, `fold`, `find` |
+| `map` | Map の値の取得、存在確認、更新 | `getOr`, `contains`, `entries`, `update` |
+| `orderedMap` | 挿入順を保つ Map（取得、削除、先頭・末尾の取り出し） | `create`, `length`, `get`, `contains`, `put`, `remove` |
+| `deque` | 両端から出し入れできる固定容量のリングバッファ | `create`, `pushBack`, `pushFront`, `popFront`, `popBack`, `length` |
+| `heap` | 比較関数を使う二分ヒープ（追加、先頭の参照、取り出し） | `push`, `peek`, `pop` |
+| `sort` | 安定な併合ソートと比較関数による並べ替え | `stable`, `inPlace`, `integers`, `tryStable` |
+| `search` | ソート済み配列の二分探索（下限・上限・検索） | `lowerBound`, `upperBound`, `binary` |
+| `range` | 区間の最小値を問い合わせる疎テーブル（RMQ） | `sparseMin`, `minimum`, `length` |
+| `segment` | 値の更新と半開区間の集約クエリを持つ区間木 | `build`, `set`, `query`, `length`, `tryUpdated` |
+| `lazySegment` | 遅延更新付きセグメント木（区間の集計と更新） | `build`, `length`, `update`, `query` |
+| `fenwick` | 加算と区間和を扱う Fenwick 木（BIT） | `create`, `add`, `prefix`, `range`, `length` |
+| `bitset` | 固定長ビット集合（設定・取得、和集合・積集合、シフト） | `create`, `get`, `set`, `count`, `union`, `intersection` |
+| `disjointSet` | 素集合データ構造（併合、代表元の検索、経路圧縮） | `create`, `root`, `unite`, `same`, `size` |
+| `rollbackSet` | ロールバック可能な素集合（マーク、巻き戻し） | `create`, `root`, `same`, `mark`, `unite`, `rollback` |
+| `graph` | 有向グラフの探索、最短路、トポロジカル順序など | `create`, `add`, `bfs`, `dfs`, `dijkstra`, `topological` |
+| `graphLarge` | 大規模グラフ向けの隣接配列版（std.graph の補完） | `create`, `fromEdges`, `add`, `bfs`, `dfs`, `dijkstra` |
+| `graphLargeAsync` | 大規模グラフの BFS を協調的に実行する非同期版 | `bfs` |
+| `flow` | 有向グラフの最大流（残余ネットワーク、増加パス） | `create`, `vertices`, `edges`, `add`, `edge`, `augment` |
+| `matching` | 二部マッチングと最小頂点被覆（ケーニッヒの定理） | `maximum` |
+| `dp` | 動的計画法（最長増加部分列、ナップサック） | `lisLength`, `knapsack` |
+| `geometry` | 整数・浮動小数点の幾何判定（向き、交差、凸包） | `orientation`, `onSegment`, `intersects`, `convexHull`, `dot`, `cross` |
+| `sequence` | 列の反転・回転・重複除去・次の順列 | `reverse`, `rotate`, `unique`, `compressed`, `prefix`, `nextPermutation` |
+| `sparse` | 疎行列（CSR）の作成と行列ベクトル積 | `create`, `matvec` |
+| `sparseAsync` | 疎行列の非同期な行列ベクトル積と共役勾配法 | `conjugateGradient`, `matvec` |
+
+### 数値計算と機械学習
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `numeric` | 型付き・可逆な数値配列（形状、変形、転置、ブロードキャスト） | `zerosFloat`, `fromFloat`, `shapeFloat`, `stridesFloat`, `getFloat`, `withFloat` |
+| `numericAsync` | 数値計算カーネルの非同期版（内積、行列積、固有値など） | `dot`, `matmul`, `scale`, `zipFloat`, `norm2`, `solve` |
+| `numericIdentityAsync` | 数値配列の有限性検査（非同期、分割実行） | `checkFinite`, `prepare`, `key` |
+| `numericIndex` | 数値配列の行優先インデックス計算と要素の読み書き | `lengthFloat`, `getFloat`, `withFloat`, `lengthInt`, `getInt`, `withInt` |
+| `numericInputAsync` | 数値配列の非同期な生成（浮動小数点・整数の入力） | `fromFloat`, `fromInt` |
+| `numericRange` | 型付きの等差数列（整数の範囲） | `integers` |
+| `numericReduceAsync` | 数値配列の非同期な集計（合計、平均、分散） | `sum`, `mean`, `variance` |
+| `numericShapeAsync` | 数値配列の形状変更を非同期に行う | `reshapeLogical`, `sumToShape` |
+| `numericTransformAsync` | 数値配列の要素ごとの変換（非同期、活性化関数など） | `mapFloat`, `activation` |
+| `matrix` | 行列の作成、積、べき乗、行数・列数 | `create`, `get`, `multiply`, `power`, `rows`, `columns` |
+| `fft` | 高速フーリエ変換と線形畳み込み（複素数、基数 2） | `transform`, `convolve` |
+| `fftAsync` | FFT の非同期版（協調的に分割実行） | `transform` |
+| `autodiff` | 自動微分（計算グラフ、逆伝播、行列演算と形状変換） | `create`, `parameter`, `constant`, `value`, `binary`, `unary` |
+| `autodiffAsync` | 自動微分の逆伝播を協調的に実行する非同期版 | `backward` |
+| `autodiffForwardAsync` | 自動微分の順方向計算を協調的に実行する非同期版 | `parameter`, `constant`, `binary`, `unary`, `matmul`, `reshape` |
+| `optimize` | 最適化手法（SGD、Adam）の更新ステップ | `sgd`, `adam`, `steps`, `adamStep` |
+| `training` | 平均二乗誤差・勾配計算・勾配ノルム制限 | `meanSquaredError`, `gradients`, `mergeMean`, `clipGlobalNorm` |
+| `evaluation` | 再現可能なデータ分割と評価指標（精度、適合率、再現率） | `shuffled`, `split`, `batchCount`, `batch`, `accuracy`, `meanSquaredError` |
+| `models` | 名前付きの重み（FloatArray の Map）の検査、符号化、ファイルへの保存と読み込み | `create`, `get`, `weights`, `encode`, `decode`, `save` |
+| `distributions` | 一様・正規・指数・ベルヌーイ分布からの乱数生成 | `uniform`, `normal`, `exponential`, `bernoulli` |
+
+### 暗号・認証・Web
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `crypto` | SHA-2、HMAC-SHA256、PBKDF2、定数時間比較、乱数バイト列 | `sha256`, `sha512`, `hmacSha256`, `pbkdf2Sha256`, `constantTimeEq`, `randomBytes` |
+| `auth` | パスワードのハッシュ化（PBKDF2）、署名付きトークン（HMAC-SHA256）、CSRF トークン | `hashPassword`, `verifyPassword`, `needsRehash`, `signToken`, `verifyToken`, `csrfToken` |
+| `html` | HTML のエスケープと要素の組み立て（純粋関数） | `escapeText`, `escapeAttribute`, `safeUrl`, `raw`, `text`, `concat` |
+| `template` | JSONデータに対する純粋なテンプレート描画 | `render` |
+| `web` | Web補助（Content-Type・安全なパス・ETag・Range・Cookie） | `contentType`, `safeJoin`, `etag`, `notModified`, `parseRange`, `securityHeaders` |
+| `http` | HTTP クライアント（送信、ダウンロード、アップロード） | `component`, `credential`, `send`, `request`, `get`, `configured` |
+| `httpHeaders` | HTTP ヘッダーと Cookie の純粋な解析・整形 | `lowerName`, `header`, `find`, `findAll`, `parseBlock`, `formatBlock` |
+| `httpRouter` | HTTP メソッドと URI パスによる経路の解決 | `find`, `allows`, `compile`, `resolve` |
+| `httpServer` | HTTP/1.1 サーバー（待ち受け、応答、TLS 設定） | `bearerCredential`, `configuredTlsAuthenticated`, `tlsCredential`, `configuredTls`, `listen`, `configured` |
+| `tcp` | TCP・TLS接続の有界な読み書き | `connect`, `read`, `write`, `shutdownWrite`, `close`, `connectTls` |
+
+### データベース
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `db` | データベース接続（PostgreSQL、SQLite）、文の準備と実行 | `credentials`, `postgres`, `waitForCleanup`, `privateParameter`, `prepare`, `executeStatement` |
+| `dbDatetime` | std.db の日時パラメータ（SQLite 向け、9 桁の小数秒を保持） | `parameter`, `sqliteParameter`, `cell` |
+| `dbDecimal` | std.db の NUMERIC パラメータ（PostgreSQL 向け、10 進テキスト） | `parameter`, `sqliteParameter`, `cell` |
+| `dbMigration` | std.db の明示的なマイグレーション（適用計画、チェックサム） | `migration`, `checksum`, `plan`, `createTableSql`, `selectAppliedSql`, `recordSql` |
+| `dbTransaction` | std.db のトランザクション状態管理（BEGIN / COMMIT / ROLLBACK） | `begun`, `state`, `isActive`, `connectionReusable`, `requestCommit`, `requestRollback` |
+
+### GUI と作図
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `gui` | GUI の純粋な領域分割と部品の描画コマンド | `componentScope`, `componentPrefix`, `componentId`, `componentLocalId`, `window`, `label` |
+| `guiDialog` | ネイティブのファイル選択・保存ダイアログ | `openFile`, `saveFile` |
+| `guiField` | 単一行入力欄の状態、描画、検証メッセージ | `new`, `render`, `dispatch`, `setError`, `clearError`, `text` |
+| `guiForm` | 複数項目のフォームの値、検証、JSON 変換 | `create`, `createWithRules`, `value`, `error`, `setValue`, `validate` |
+| `guiMenu` | メニューの開閉、項目の選択と有効・無効、チェック状態 | `create`, `add`, `open`, `close`, `isOpen`, `selected` |
+| `guiTabs` | タブの追加、選択、無効化、キーボードとクリックでの切り替え | `create`, `add`, `setEnabled`, `select`, `selected`, `dispatch`, `draw` |
+| `guiCombo` | 上限 256 件の選択式リスト（開閉、キーボード移動、大文字小文字を区別しない文字による検索） | `create`, `setSelected`, `selected`, `selectedText`, `open`, `dispatch`, `draw` |
+| `guiDate` | 1900〜2200 年の日付選択（月カレンダー、閏年、曜日、ISO 形式の読み書き） | `create`, `parse`, `isoText`, `weekday`, `daysInMonth`, `picker`, `dispatch`, `draw` |
+| `guiTable` | 行 ID を持つ表（並べ替え、列幅、選択） | `create`, `createWithIds`, `rows`, `visibleRows`, `columns`, `setColumnWeights` |
+| `guiWindows` | ウィンドウの表示、閉じる、イベント取得 | `present`, `close`, `poll`, `nextEvent`, `pollAny`, `nextEventAny` |
+| `plot` | 数値配列の折れ線・散布図を SVG に描画する純粋な補助 | `series`, `axisOf`, `chart`, `project`, `polyline`, `scatter` |
+
+### 履歴・編集・状態
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `snapshot` | 選んだデータの凍結スナップショットと独立したfork | `capture`, `read`, `fork` |
+| `history` | 名前付きスナップショットの保管と取得 | `create`, `length`, `contains`, `save`, `get`, `names` |
+| `historyGraph` | 版の有向非巡回グラフ（分岐、併合、整理） | `create`, `length`, `versions`, `branches`, `get`, `name` |
+| `timeline` | 有界なデータ履歴と取り消し・やり直し | `create`, `length`, `position`, `canUndo`, `canRedo`, `current` |
+| `changes` | 文字列キーの Map に対する変更集合（差分、逆変換、適用、合成、マージ） | `length`, `edits`, `fromChanges`, `diff`, `inverse`, `apply` |
+| `lens` | 型付きのアクセス経路（取得、設定、変更） | `create`, `get`, `set`, `modify`, `compose`, `optional` |
+| `binding` | record の値と名前つきの文字列欄の同期（版番号、差分、取り消し・やり直し、guiForm への受け渡し） | `create`, `bind`, `bindLens`, `text`, `edit`, `version`, `changedSince`, `dirtyFields`, `accept`, `reset`, `revert`（非推奨）, `pushToForm`, `pullFromForm`, `undo`, `redo` |
+| `lazy` | 明示的な遅延計算（一度だけ評価し結果を保持） | `create`, `isForced`, `peek`, `force`, `fork`, `clear` |
+| `memo` | 版付きキーを持つ LRU 型のメモ化キャッシュ | `key`, `domain`, `revision`, `input`, `create`, `length` |
+| `persistentSet` | 不変版を持つ素集合（併合、代表元の検索） | `create`, `length`, `components`, `root`, `same`, `size` |
+| `parser` | 上限付きバイト列パーサー（連結、選択、繰り返し） | `position`, `remaining`, `parse`, `complete`, `pure`, `fail` |
+
+### タスク・エラー・実行環境
+
+| module | 説明 | 主な関数 |
+|---|---|---|
+| `task` | タスクの協調的な譲渡と準備完了の選択 | `yieldNow`, `selectReady` |
+| `taskError` | タスク失敗情報の保持と数値エラーへの変換 | `describe`, `asStd` |
+| `error` | 安定したアプリケーションエラーの包み（原因の連鎖、変換） | `code`, `caused`, `fromFile`, `fromJson`, `fromStd`, `fromDiagnostic` |
+| `failures` | アプリケーションテスト用の失敗フィクスチャ（DB・HTTP） | `fixtureDbNotSent`, `fixtureDbDeadline`, `fixtureDbDisconnected`, `fixtureDbRejected`, `fixtureDbCleanup`, `fixtureHttpNotSent` |
+| `retry` | 再試行ポリシーの判定と待機時間（送信や待機は行わない） | `policy`, `delay`, `jitter`, `decide` |
+| `proptest` | シード付きの性質検査と値の縮小（決定的） | `draw`, `check` |
+| `args` | 明示的な名前付きオプション（--name VALUE）のコマンドライン引数解析 | `parse`, `parseOptions`, `help` |
+| `scanner` | 上限付きバイトカーソル（整数・トークンの読み取り） | `fromBytes`, `nextInt`, `nextToken`, `position` |
+| `stream` | チャンク単位の純粋なバイト列解析 | `tokens`, `feed`, `next`, `nextInt`, `utf8`, `decode` |
+| `external` | 外部時刻の取得（ミリ秒、external 効果が必要） | `millis` |
+| `issues` | 複数の検証問題をまとめて収集する | `collector`, `add`, `addDetail`, `count`, `omittedCount`, `isEmpty` |
+
+## 詳細
+
+以下は、module を追加した版ごとの記録と契約の詳細です。数値は当時のものを含みます。
+
+### codex/developで追加中のmodule
 
 [構想から実装した機能](../docs/v2-next-implementation-index.md)を追加しています。snapshot/historyに加え、timeline、changes、historyGraph、parser、orderedMap、textIndex、lens、persistentSet、textEdit、schema、memo、lazyのsourceとtestに加え、既存csvStreamとschemaのrow連携、jsonStreamの非消費peek、BigInt/Decimal typed numeric API、nested Json materializerとschema-validation consumerを保存しました。compile・実行検証はユーザー方針により省略しており、公開版の利用可能APIとしては扱いません。
 
@@ -13,8 +202,19 @@
 | historyGraph | add, setHead, pin, previewPrune, prune, ancestors, mergeBases, path, matching | 有限DAG、親関係を保つ明示整理、複数merge base、通常VM model |
 | parser | literal, satisfy, map, pair, orElse, cut, repeat, lookAhead, verify, andThen, spanned, chainLeft/Right | finite Bytes、原文範囲、pure callback、結合方向と上限 |
 | orderedMap | create, put, get, remove, first/last, popFirst/Last, touch, keys, clear | 挿入順、既存key更新は位置保持、再挿入は末尾 |
-| table | builder, addInts/Floats/Texts/Bools (+Nullable), build, select, dropColumns, rename, head, slice, batch, where, takeRows, mask*, isNull, with*, map*, cast, floatArray, intArray, withFloatArray, cell, ints/floats/texts/bools, nullCount, aggregate, join | 型付き列（Int/Float/Text/Bool）とNULL maskを持つ不変table。最大100万行・256列。列の選択/改名/削除はデータを共有し、行操作は残す行×列を一度copyする。numeric kernelへはfloatArray/intArrayで渡す。aggregateは初出順のgroup（NULL keyも1 group）、joinは出力上限つきhash join（NULL keyは不一致） |
+| table | builder, addInts/Floats/Texts/Bools (+Nullable), build, select, dropColumns, rename, head, slice, batch, where, takeRows, orderBy, mask*, isNull, with*, map*, cast, floatArray, intArray, withFloatArray, cell, ints/floats/texts/bools, nullCount, aggregate, join | 型付き列（Int/Float/Text/Bool）とNULL maskを持つ不変table。最大100万行・256列。列の選択/改名/削除はデータを共有し、行操作は残す行×列を一度copyする。numeric kernelへはfloatArray/intArrayで渡す。aggregateは初出順のgroup（NULL keyも1 group）、joinは出力上限つきhash join（NULL keyは不一致） |
 | layout | builder, add, finish, pack, unpack, read, offsetOf, size, alignment, width, fieldNames | 明示的なbinary layout。整数7種（U8 I8 U16 I16 U32 I32 I64）・配列・little/big endian・C規則のpadding/packed。最大1 MiB・256 field。Pythonのstructと一致することを`tests/layout_native.rs`で確認。浮動小数点・U64・union・bitfieldは未対応 |
+| compress | deflate, inflate, zlibCompress, zlibDecompress, gzip, gunzip, crc32, adler32 | BytesのDEFLATE/zlib圧縮と展開、CRC-32・Adler-32。入力・出力とも1 MiB上限。展開は呼出側のmaxOutputを超える出力を切り詰めずLimitで拒否し、途中で切れたTruncatedと壊れたCorruptを区別する。nativeはpure Rust crate（miniz_oxide、MIT/Zlib/Apache-2.0）で、C依存・追加threadなし。圧縮は入力1 byteあたり8、展開は入力4+min(maxOutput, 入力×1032)のnative workを先に計上 |
+| crypto | sha256, sha512, hmacSha256, pbkdf2Sha256, constantTimeEq, randomBytes | SHA-2（sha2 crate）、HMAC-SHA256（RFC 2104）、PBKDF2-HMAC-SHA256（RFC 8018）、比較は定数時間。入力は1 MiB上限で超えると`Limit`。pbkdf2は反復1〜1,000,000、長さ1〜1024 byte、salt 1〜1024 byteの範囲外を`Range`で拒否する。randomBytes は `external` と `random` の権限が必要で、実行時に記録される（1〜65536 byte、範囲外は`Range`、乱数源が使えないと`ExternalFailure`）。パスワード保存にはsha256を直接使わずpbkdf2Sha256を使う |
+| base64 | encode, encodeUrl, decode, decodeUrl, Base64Error | 標準（パディングあり）とURL-safe（パディングなし、decodeUrlは任意）のpure codec。入力は1 MiBまで超えると`TooLarge`。errorはcode（BadChar/BadLength/TooLarge）と位置offsetだけを返し、入力値を含まない |
+| dna | encode, decode, reverseComplement, canonical, roll, kmers, gcCount, hammingDistance, DnaError | 塩基A/C/G/Tを2 bitずつ詰めたInt（A=0, C=1, G=2, T=3）。k は1..32、大文字のみ受け付ける。入力は1 MiBまで（超えると`BadLength`）。errorはcode（BadBase/BadK/BadLength）と位置offsetだけを返す |
+| fastx | parseFasta, parseFastq, formatFasta, formatFastq, phred, Read, FastxError | FASTA/FASTQの純粋なparse・format、Phred+33/+64のquality変換。入力は1 MiBまで（超えると`TooLarge`）、read数は1,000,000まで。CRLFと空行を許容する。errorはcode（Format/LengthMismatch/TooLarge）と行番号lineだけを返し、配列やqualityの内容を含まない |
+| web | contentType, safeJoin, etag, notModified, parseRange, securityHeaders, sessionCookie, clearSessionCookie, readSession, parseForm, formValue, redirectLocation, WebError, ByteRange | 純粋なWeb helper。network・I/O・時刻を使わず、失敗は`Err`で返し入力値を含まない。safeJoinは`..`、`.`、空segment、絶対パス、`\`、`:`、制御文字を拒否。etagは1 MiBまでのbodyのSHA-256先頭32桁を引用符付きで返す。範囲外のrangeや不正なcookieは`Syntax`・`Unsatisfiable`・`Cookie`などのcodeだけを返す |
+| auth | hashPassword, verifyPassword, needsRehash, signToken, verifyToken, csrfToken, verifyCsrf, AuthError | pureな認証helper。CSPRNGを持たないためsalt・keyは呼出側が渡す。パスワードはPBKDF2-HMAC-SHA256（`pbkdf2-sha256$反復$salt$hash`）、比較は定数時間。tokenは`payload.expiresAt.HMAC`形式で署名を先に検査し、期限切れと改ざんを区別する。errorはcodeだけを返す |
+| html | Html, HtmlError, escapeText, escapeAttribute, safeUrl, raw, text, concat, element, toString | HTML escapingとelement構築のpure helper。textは既定で&<>"'をエスケープし、Htmlは安全なmarkupとして扱う（信頼するのはrawだけ）。attributeは`` ` ``と`=`も逃がし、NULと制御文字（tabとnewline除く）を削除する。safeUrlはhttp・https・mailtoと相対URLだけを許し、それ以外は`#`にする。elementはtag・属性名を検査し、属性を名前順に書き、void要素に子を持たせない。errorは入力値を含まない |
+| template | TemplateError, render | JSON dataへのpure template描画。`{{name}}`はhtml.escapeTextを通し、`{{{name}}}`は無変換で挿入する。`{{#name}}`は配列を繰返し、他の真値では一度だけ描画する。`{{^name}}`は欠落・偽値のときに描画する。ドット区切りは要素を辿り、`.`は現在の要素を指す。入れ子は16段・出力は1,048,576文字まで。errorはcode（Unclosed/Mismatch/BadTag/TooDeep/TooLarge）と文字位置offsetだけを返す |
+| image | Image, decodePng, encodePng, fromPixels, pixel | 8-bit gray/gray+alpha/RGB/RGBA PNG（非interlace）のdecode/encode。palette（1/2/4/8 bit、tRNSがあればRGBA）はRGB/RGBAへ展開。16-bit・interlaceは`Unsupported`。呼出側がmaxPixelsを渡し、headerの寸法を見てからpixelを展開する（1辺16384・復号後1 MiB上限）。chunkのCRCを検証し、zlibはheaderが示す大きさちょうどに展開されなければ`Corrupt`。decodeは入力4 + min(maxPixels, 入力×344)×8、encodeはpixel byteあたり24のnative workを先に計上。圧縮はstd.compressと同じminiz_oxide、encodeは決定的 |
+| evaluation | shuffled, split, batchCount, batch, accuracy, meanSquaredError, meanAbsoluteError, confusion, precision, recall, stopper, observe, shouldStop, bestEpoch | 再現可能な学習・評価helper（NUM-03）。(n, seed)で順序が決まる31bit LCGのshuffle、重複しないtrain/validation分割、batch、少数の評価指標、early stopping。最大1,000,000件。乱数品質は暗号・統計用途に不足。定義できない指標（正例0件のprecision等）は0やNaNでなくErr(Undefined)。|
 | textIndex | Source, ByteOffset, ScalarIndex, GraphemeIndex, create, byteAt/scalarAt/graphemeAt, sliceBytes/Scalars/Graphemes | 原文と境界表の保持、明示的な位置変換、別原文の範囲を拒否 |
 | lens | create, get, set, modify, compose, optional, plan, apply, inverse, checkLaws | Share値のtyped path、検査付き更新、欠損保持、有限例の法則確認 |
 | persistentSet | create, root, same, size, components, unite, uniteMany | 複数の不変版、union-by-size、既存native配列の共有page |
@@ -43,7 +243,7 @@
 
 [実行例](../examples/data-history.rw)と[型判定の変更](../docs/v2-next-frozen-bounds-implementation.md)を参照してください。
 
-## 既存ライブラリと配布の記録
+### 既存ライブラリと配布の記録
 
 compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection storage、ownership、型、Checkpoint は処理系が担い、上位の処理は REWIND source module として提供する。ライセンスは MIT。
 
@@ -73,11 +273,11 @@ compiler 1.9.62 / `language = "1.9.62"` の標準ライブラリ。collection st
 | result | valueOr, map, mapError, mapOwned, thenOwned, mapErrorOwned | valueOr/map/mapError は Share の値用。`*Owned` は Result を消費し、非Share の owner（List、接続など）を複製せず一度だけ次へ渡す |
 | map | getOr, contains | borrowed Map、Ord key、Share value、key equality は既存 Map と同じ |
 | text | length, trim, split, tokens, slice, find | Unicode scalar index、slice は半開区間、split は空要素保持、tokens は ASCII whitespace |
-| bytes | length, encode, decode, get, slice | UTF-8 codec、byte index、get は0..255、slice は半開区間 |
+| bytes | length, encode, decode, get, slice, toHex, fromHex, concat, fromInts, toInts, indexOf, equal, readInt | UTF-8 codec、byte index、get は0..255、slice は半開区間、toHex/fromHex は16進表記（fromHex は不正な桁を `Corrupt` で拒否）、fromInts/toInts は0..255 の List<Int>、readInt は1/2/4/8 byte の big/little endian 読み取り |
 | number | integer, decimal, floating, formatInt, formatFloat | signed64、radix2..36、小文字 digit、有限 binary64 |
-| bits | and, or, xor, not, count, shiftLeft, shiftRight, shiftUnsigned | 64-bit 二の補数、shift0..63、left は wrapping、right は符号拡張/zero fill を区別 |
+| bits | and, or, xor, not, count, shiftLeft, shiftRight, shiftUnsigned, leadingZeros, trailingZeros, rotateLeft, rotateRight, reverseBits, byteSwap, extract, deposit | 64-bit 二の補数、shift0..63、left は wrapping、right は符号拡張/zero fill を区別、rotate は count0..63、extract/deposit は start と width の範囲を `Range` で拒否 |
 
-## SDK から導入
+### SDK から導入
 
 配布者の公開鍵を別経路で確認し、development project に導入する。
 
@@ -89,12 +289,16 @@ rewind check --root /path/to/project
 
 ```rewind
 import std.number as number;
-assert_eq(number.integer("-ff",16),Ok(-255));
+
+fn main() -> Int {
+    assert_eq(number.integer("-ff",16),Ok(-255));
+    return 0;
+}
 ```
 
 署名付き std source を project の vendor に固定する。ネットワーク、自動 trust、global import、SDK 自動更新は使わない。旧 language を使う既存 project はその版の module source を保持する。`examples/v091/lib` は v0.9.1 の固定例である。
 
-## 位置・失敗・予算
+### 位置・失敗・予算
 
 codec/parse/format/slice/shift/mulMod は `Result<...,StdError>`。StdError は immutable record `{code:String,offset:Int}`。入力値をエラーへ含めない。code は Utf8 / Range / Radix / InvalidNumber / NumberRange / EmptyDelimiter / ShiftRange / Modulus / Limit。offset は UTF-8 decode の不正部分開始 byte、それ以外は0。整数は空白や prefix を受理せず、符号と radix の digit を解析する。Float は Rust の有限数解析/最短 round-trip 表示に従い、decimal 精度や JSON canonicalization を保証しない。
 
@@ -102,7 +306,7 @@ text trim/split/tokens/slice、UTF-8 encode/decode、数値 parse の入力は1 
 
 List/Map の更新、snapshot、Checkpoint、replay は既存 runtime の契約に従う。callback は別 task へ spawn しない。新しい List を返す処理は caller が所有する。mutable payload の Result/Option は move/borrow/freeze を必要とする。
 
-## 開発と検証
+### 開発と検証
 
 ```sh
 rewind update --root libraries/std
@@ -111,9 +315,9 @@ rewind doc libraries/std/text.rw --root libraries/std --output /tmp/text-api.md
 rewind api-snapshot --root libraries/std --output /tmp/std-api.json
 ```
 
-10契約テストで codec、Unicode index、bit/number 境界、Result の両分岐、collections、設定優先順位と引数失敗を検証する。SDK の組立てもこのテストを実行する。Host I/O は app で許可・観測・publish を明示する。SDK の例は sum と JSON 保存 app。配布手順は [v0.9.2仕様](../docs/REWIND_v0.9.2.md)、主要なアルゴリズムと性能改善は [v0.9.3草案](../docs/REWIND_v0.9.3.md) を参照。
+当時の 10 件の契約テストで codec、Unicode index、bit/number 境界、Result の両分岐、collections、設定優先順位と引数失敗を検証する。SDK の組立てもこのテストを実行する。Host I/O は app で許可・観測・publish を明示する。SDK の例は sum と JSON 保存 app。配布手順は [v0.9.2仕様](../docs/REWIND_v0.9.2.md)、主要なアルゴリズムと性能改善は [v0.9.3草案](../docs/REWIND_v0.9.3.md) を参照。
 
-## v0.9.3 アルゴリズムと周辺API
+### v0.9.3 アルゴリズムと周辺API
 
 | module | 主要API | 契約 |
 |---|---|---|
@@ -137,63 +341,63 @@ List/heapのstorage操作はO(log(max(1,n/64)))、writeは最大64slotを共有c
 
 Generic factoryはselected importを使う：`import std.deque.{create as createDeque}; createDeque<Int>(4)`。Host inputはappで読み、Bytesへ変換してscannerへ渡す。chunkをまたぐ一般のstreaming decoderは未実装。SDKのshortest例を参照。
 
-source libraryの契約テストは10件。詳細は[v0.9.3実装状況](../docs/v0.9.3-status.md)、次段階は[v0.9.4草案](../docs/REWIND_v0.9.4.md)。
+v0.9.3 の時点で、source library の契約テストは 10 件でした。詳細は[v0.9.3実装状況](../docs/v0.9.3-status.md)、次段階は[v0.9.4草案](../docs/REWIND_v0.9.4.md)。
 
-## v0.9.4 streamingとMap
+### v0.9.4 streamingとMap
 
 26番目のmodule `std.stream` はpureなchunk処理を提供する。`tokens(limit)` / `feed(&mut tokens,chunk,finish)` / `next` / `nextInt`、`utf8` / `decode`、`writer(capacity)` / `write` / `drain`を使う。失敗は`StreamError{code,position}`。tokenは最大65,536 byte、待機queueは1,024 token、writerは最大65,536 byte。UTF-8 decoderのchunkは65,532 byte以下、境界の未完文字は最大3 byte保持する。positionは当該chunk（UTF-8は前回のcarryを含む）または変換対象token内の位置であり、入力全体のoffsetではない。容量・UTF-8検査の失敗前に状態を変えないが、runtime budget失敗までatomicにする保証はない。
 
 Host観測はapp側で`In.readChunk(limit)->Option<Bytes>`、出力は`Out.writeBytes(bytes)`と`publish`で明示する。EOFはNone、短いchunkを許し、revert時は記録済みbyteを再利用する。primitive keyのnative Mapはpersistent AVL treeでroot clone O(1)、更新のnode path O(log n)。payloadの生成・返却費用は別。user Ord keyのOrderedMapは従来の線形storageを維持する。
 
-source libraryの契約テストは11件。詳細は[v0.9.4実装状況](../docs/v0.9.4-status.md)、継続計画は[v0.9.5草案](../docs/REWIND_v0.9.5.md)。
+v0.9.4 の時点で、source library の契約テストは 11 件でした。詳細は[v0.9.4実装状況](../docs/v0.9.4-status.md)、継続計画は[v0.9.5草案](../docs/REWIND_v0.9.5.md)。
 
-## v0.9.5〜v0.9.9
+### v0.9.5〜v0.9.9
 
-現在のSDKは33module。追加moduleはstringSearch（byte KMP/prefix/Z）、bitset（packed bits）、range（sparse minimum）、rollbackSet（rollback DSU）、csv（bounded UTF-8 CSV）、matrix（checked product/power）、dp（LIS/0-1 knapsack）。graphにtopological/Bellman-Ford/SCC/minimumForest/ancestors/lcaを追加した。modular.inverseは正のInt64全域のmodulusを扱う。各容量・失敗・計算量は[v0.9.6](../docs/v0.9.6-status.md)、[v0.9.7](../docs/v0.9.7-status.md)、[v0.9.8](../docs/v0.9.8-status.md)を参照。
+v0.9.9 の時点で、SDK は 33 module でした（現在は 125 module）。追加moduleはstringSearch（byte KMP/prefix/Z）、bitset（packed bits）、range（sparse minimum）、rollbackSet（rollback DSU）、csv（bounded UTF-8 CSV）、matrix（checked product/power）、dp（LIS/0-1 knapsack）。graphにtopological/Bellman-Ford/SCC/minimumForest/ancestors/lcaを追加した。modular.inverseは正のInt64全域のmodulusを扱う。各容量・失敗・計算量は[v0.9.6](../docs/v0.9.6-status.md)、[v0.9.7](../docs/v0.9.7-status.md)、[v0.9.8](../docs/v0.9.8-status.md)を参照。
 
-標準契約テストは15件。heap回収とwork budgetは[v0.9.9](../docs/v0.9.9-status.md)。公開fieldの不変条件やphysical/native予算など、残る課題は[1.0準備草案](../docs/REWIND_v1.0.md)。
+v0.9.9 の時点で、標準契約テストは 15 件でした。heap回収とwork budgetは[v0.9.9](../docs/v0.9.9-status.md)。公開fieldの不変条件やphysical/native予算など、残る課題は[1.0準備草案](../docs/REWIND_v1.0.md)。
 
-## 1.0の公開境界
+### 1.0の公開境界
 
 mutable collection/parserの内部fieldとconstructorはprivateです。公開factoryとget/set/length等を使います。matrix.rows/columns、graph.vertices/edges、scanner.position等は読み取り用関数です。Forest等の公開結果fieldは利用できます。
 
 error moduleは不変Error envelopeとFile/JSON/codec/Diagnosticからの変換を提供します。sort.tryStableとsegment.tryUpdatedはResultを返すpure callbackを受け取り、新しい結果を構築するので、callbackや予算の失敗時に元の入力を変更しません。既存in-place API全体のatomic性を追加するものではありません。費用・失敗契約をAPI snapshotにも含めます。
 
-提供する35 moduleと保証範囲は[1.0仕様](../docs/REWIND_v1.0.md)を参照してください。0.xの内部field直接操作はfactory/accessorへ移行し、lock/artifact/recordを再生成します。
+1.0 で提供した 35 module（現在は 125 module）と保証範囲は[1.0仕様](../docs/REWIND_v1.0.md)を参照してください。0.xの内部field直接操作はfactory/accessorへ移行し、lock/artifact/recordを再生成します。
 
 1.1では[言語リファレンス](../docs/language-reference.md)とWindows SDKを追加し、std.text.sliceのoffset表allocationを削除しています。公開APIの基準は1.0のsnapshotを維持します。
 
 1.2では条件分岐内のCheckpoint復元と数値・文字列・コメントの表記を改善しています。既存の34module APIを維持します。
 
-## std.gui（1.3）
+### std.gui（1.3）
 
 ネイティブウィンドウ、ラベル、ボタン、チェックボックス、矩形、クリックとキー入力、publish による描画確定、入力 replay を提供します。`gui` effect の明示許可が必要です。[GUI guide](../docs/gui.md) と [counter sample](../examples/gui/README.md) を参照してください。
 
-## std.external（1.5）
+### std.external（1.5）
 
 `millis` は external 領域での UTC milliseconds 観測。操作位置ごとに結果を記録し、revert 後に再利用します。`external,clock` を明示許可してください。[1.5仕様](../docs/REWIND_v1.5.md) を参照。
 
-## std.http（1.6）
+### std.http（1.6）
 
 `get` / `request` / `configured` / `send` は external 領域で送信して Task を返します。await は領域外で行います。verified TLS、bounded body、複数 header、CA、credential alias に対応し、revert / replay で再送しません。権限・上限・失敗区分は [1.6仕様](../docs/REWIND_v1.6.md) を参照。
 
 1.6.1 は `download / read / close` と `upload / write / finish / closeUpload` を追加する。接続は Send / 非 Share、所有スコープで解放する。Request.body は upload 時に空 Bytes。chunk は read 1〜65,536 / write 0〜65,536 bytes、累積 1 GiB、upload 応答は 4 MiB。16 MiB の外部記録上限は別に適用する。[契約](../docs/REWIND_v1.6.1.md)、[逐次受信例](../examples/http-stream/main.rw)を参照。
 
-## std.db（1.7）
+### std.db（1.7）
 
 SQLite の接続、パラメータ束縛、prepared statement、逐次 cursor、batch 実行、独立した DB transaction を提供する。呼出しは external 領域、await は領域外。`external,db,tasks` の明示許可が必要。DB 書込みは VM revert で取り消さない。[契約](../docs/REWIND_v1.7.md)、[例](../examples/database/README.md)を参照。PostgreSQL の実接続・SCRAM・verified TLS・server cursor は [1.7.1](../docs/REWIND_v1.7.1.md) と [例](../examples/postgres/README.md)を参照。
 
-## std.numeric
+### std.numeric
 
 FloatArray / IntArray の生成、所有値の COW 更新、view、明示 broadcast、scalar math、vector / matrix product、部分 pivot LU solve、補償和・mean / variance を提供する。全要素を VM List に変換せず native kernel を使える。数値配列は VM 内の巻き戻せる値であり、DB 等の外部作用とは区別する。[仕様](../docs/REWIND_v1.8.md)、[例](../examples/numeric/README.md)を参照。
 
 QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と online moments は [1.8.1](../docs/REWIND_v1.8.1.md) を参照。`std.distributions` は checkpointed generator の uniform / normal / exponential / Bernoulli sampling を提供し、random 効果を持つ。
 
-## v1.8.2 exact integers
+### v1.8.2 exact integers
 
 `std.bigint` の native BigInt は参照共有され、parse / format、整数・bit算術、Mapとexact JSON string を提供する。[契約](../docs/REWIND_v1.8.2.md)。Decimal・DB変換は次の数値型patchで追加する。
 
-## v1.8.3 Decimal と exact DB
+### v1.8.3 Decimal と exact DB
 
 `std.decimal` / `std.dbDecimal` は explicit rounding、JSON、PostgreSQL NUMERIC と SQLite BLOB の exact 変換を提供する。[契約](../docs/REWIND_v1.8.3.md)。
 
@@ -201,21 +405,21 @@ QR / 最小二乗 / 対称固有値、共分散・分位点・histogram と onli
 
 `std.unicode` は明示的な Unicode 正規化、grapheme / word / sentence boundary と大小変換です。既存 scalar API と GUI cursor の単位は保ちます。[v1.8.5](../docs/REWIND_v1.8.5.md) を参照してください。
 
-## 最大流・マッチング（v1.9.5）
+### 最大流・マッチング（v1.9.5）
 
 `std.flow` は VM 内の residual network に iterative Dinic の増加処理を行います。`std.matching` は二部最大 matching と最小 vertex cover を返します。checkpoint で residual state を保持できます。[API・費用・容量](../docs/REWIND_v1.9.5.md)、[実行例](../examples/flow/main.rw)。
 
-## std.guiWindows（1.9.9）
+### std.guiWindows（1.9.9）
 
 名前付きの複数ネイティブウィンドウ、入力の振り分け、公開済み画面の保持、source-free replay を提供する。[GUI guide](../docs/gui.md) と [例](../examples/gui-windows/README.md) を参照。旧 `std.gui` の単一ウィンドウと入力 cursor は独立している。
 
-## std.task / std.numericAsync（1.9.11）
+### std.task / std.numericAsync（1.9.11）
 
 明示的な VM task handoff と、最大4096積和ごとに処理を渡す async 内積・行列積を提供する。入力は native storage を共有し、TaskError と数値 StdError を分ける。[契約](../docs/REWIND_v1.9.11.md)と [例](../examples/numeric-async/README.md)を参照。
 
 1.9.11 は FloatArray / IntArray の共有 page の会計を改善し、task と checkpoint での重複計上を解消します。API と source module は継続します。[費用と保持の契約](../docs/REWIND_v1.9.11.md)を参照してください。
 
-## フォーム・表（1.9.12）
+### フォーム・表（1.9.12）
 
 `std.guiForm` は form内検証・共通schema検証・型付きrecord mapping、`std.guiTable` は frozen 行優先データの表示範囲描画を提供する。`std.gui` は focus / focused / setChecked / remove / style / textarea scroll の編集を追加した。`Layout` / `WeightedLayout` と `leaf` / `weighted` / `sized` / `row` / `column` で最大32階層のlayout treeを構成できる。`sized`はmain axisの最小・最大寸法を指定し、同じ値で固定できる。`applyLayout` は最大1024 nodeを走査し、全leaf IDとboundsを検証してから一括更新する。`splitRow` / `splitColumn` も維持し、`arrangeRow` / `arrangeColumn` はflatな配置に使える。いずれも logical View の変更は pure で、外部 surface への反映には present と publish を使う。[容量・失敗・費用契約](../docs/REWIND_v1.9.12.md)、[実行例](../examples/gui-controls/README.md)を参照する。
 

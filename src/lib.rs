@@ -12,16 +12,19 @@ pub mod transforms;
 use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 pub mod bigint;
+pub mod crypto;
 pub mod csv_stream;
 pub mod database;
 pub mod datetime;
 pub mod decimal;
 pub mod external;
+pub mod gzip;
 pub mod http_server;
 pub mod json_stream;
 pub mod native_resources;
 pub mod network;
 pub mod numeric;
+pub mod png;
 pub mod regular;
 mod replay;
 mod resolver;
@@ -621,6 +624,24 @@ impl PagedFile {
 }
 
 #[cfg(test)]
+mod ptr_set_tests {
+    use super::PtrSet;
+    #[test]
+    fn reports_first_insertion_inline_and_after_spilling() {
+        let mut set = PtrSet::default();
+        // 24 stay inline; the next ones move to the hash set. Aligned, pointer-like keys.
+        for round in 0..2 {
+            for i in 0..500usize {
+                let key = 0x7ff6_0000_0000 + i * 64;
+                assert_eq!(set.insert(key), round == 0, "key {i} round {round}");
+            }
+        }
+        assert!(set.insert(0));
+        assert!(!set.insert(0));
+    }
+}
+
+#[cfg(test)]
 mod page_tests {
     use super::*;
     #[test]
@@ -703,6 +724,191 @@ pub enum FileMode {
     Read,
     Write,
     ReadWrite,
+}
+
+/// Bumped whenever a `Tracked` value is borrowed mutably. The budget fast path trusts its cached
+/// headroom only while this has not moved since the last full check, so any change to budgeted
+/// data other than the few operations that update the cache themselves forces a full check.
+/// One process-wide counter: a spurious bump from another runtime only costs a full check.
+#[cfg(feature = "budget-verify")]
+thread_local! {
+    /// Set by the full check when it spills; read by `verify_budget_fast` on the same thread.
+    static VERIFY_SPILLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+static BUDGET_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+thread_local! {
+    /// (fast-path acceptances, full checks) run on this thread, for `budget_check_counts`.
+    static BUDGET_CHECKS: std::cell::Cell<(u64, u64)> = const { std::cell::Cell::new((0, 0)) };
+}
+
+/// Test hook: how many budget checks on the calling thread were accepted by the fast path and
+/// how many ran in full. Not part of the supported API.
+#[doc(hidden)]
+pub fn budget_check_counts() -> (u64, u64) {
+    BUDGET_CHECKS.with(|c| c.get())
+}
+
+fn budget_epoch() -> u64 {
+    BUDGET_EPOCH.load(Ordering::SeqCst)
+}
+
+fn bump_budget_epoch() {
+    BUDGET_EPOCH.fetch_add(1, Ordering::SeqCst);
+}
+
+/// A value whose mutable borrows invalidate the budget headroom cache. Reads go through `Deref`
+/// unchanged; `quiet` borrows without invalidating and is only for the budget-aware operations.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+struct Tracked<T>(T);
+
+impl<T: fmt::Debug> fmt::Debug for Tracked<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<'a, T> IntoIterator for &'a Tracked<T>
+where
+    &'a T: IntoIterator,
+{
+    type Item = <&'a T as IntoIterator>::Item;
+    type IntoIter = <&'a T as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        (&self.0).into_iter()
+    }
+}
+
+impl<T> Tracked<T> {
+    fn new(value: T) -> Self {
+        Tracked(value)
+    }
+    /// Mutable access that does not invalidate the cache. The caller must update or invalidate
+    /// the headroom itself for every budgeted change it makes.
+    fn quiet(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> std::ops::Deref for Tracked<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> std::ops::DerefMut for Tracked<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        bump_budget_epoch();
+        &mut self.0
+    }
+}
+
+/// Proof state left by the last full budget check, advanced in place by the fast path.
+/// `compute` is an upper bound of the history compute memory (before shared-payload pruning),
+/// `volatile` the O(1) terms it contained, `journal` and `storage` the journal totals after
+/// spilling. See `enforce_budget_fast`.
+#[derive(Clone, Copy)]
+struct Headroom {
+    compute: usize,
+    volatile: usize,
+    journal: usize,
+    storage: usize,
+    epoch: u64,
+    spill_generation: u64,
+    config: u32,
+}
+
+/// `set.insert(ptr)`, but a pointer equal to the previous one for the same category is known
+/// to be present already.
+fn fresh_ptr(set: &mut PtrSet, last: &mut usize, ptr: usize) -> bool {
+    if *last == ptr {
+        return false;
+    }
+    *last = ptr;
+    set.insert(ptr)
+}
+
+/// Pointer-identity set used by the full `enforce_budget` scan. The VM stack, frame and heap
+/// operations skip that scan when `enforce_budget_fast` can prove the result, but everything
+/// else still runs it. The first entries live inline so the usual single-state case never
+/// touches the allocator.
+#[derive(Default)]
+struct PtrSet {
+    inline: [usize; 24],
+    len: usize,
+    spill: Option<HashSet<usize, std::hash::BuildHasherDefault<PtrHasher>>>,
+}
+/// Cheap hasher for pointer addresses. SipHash dominated `enforce_budget` once a program had
+/// retained thousands of journal segments (for example long loops of `external` operations).
+#[derive(Default)]
+struct PtrHasher(u64);
+impl std::hash::Hasher for PtrHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.0 = (self.0.rotate_left(5) ^ u64::from(byte)).wrapping_mul(0x517c_c1b7_2722_0a95);
+        }
+    }
+    fn write_usize(&mut self, value: usize) {
+        // Addresses have zero low bits; fold the well-mixed high half back down.
+        let mixed = (value as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        self.0 = mixed ^ (mixed >> 32);
+    }
+}
+/// Running (memory, disk) totals over the completed prefix of the append-only external ledger.
+/// Entries before `len` all have an outcome and are never edited, so the totals only change when
+/// a segment spills (tracked by `generation`) or the ledger is replaced (replay import).
+#[derive(Default)]
+struct LedgerCache {
+    len: usize,
+    generation: u64,
+    mem: usize,
+    disk: usize,
+    ptrs: PtrSet,
+}
+/// Pointer sets `enforce_budget` reuses from call to call.
+#[derive(Default)]
+struct BudgetScratch {
+    seen_segments: PtrSet,
+    seen_compute: PtrSet,
+    gui_roots: PtrSet,
+}
+impl PtrSet {
+    fn clear(&mut self) {
+        self.len = 0;
+        if let Some(spill) = &mut self.spill {
+            spill.clear();
+        }
+    }
+    fn contains(&self, value: usize) -> bool {
+        match &self.spill {
+            Some(spill) => spill.contains(&value),
+            None => self.inline[..self.len].contains(&value),
+        }
+    }
+    /// Returns true when `value` was not present.
+    fn insert(&mut self, value: usize) -> bool {
+        if let Some(spill) = &mut self.spill {
+            return spill.insert(value);
+        }
+        if self.inline[..self.len].contains(&value) {
+            return false;
+        }
+        if self.len < self.inline.len() {
+            self.inline[self.len] = value;
+            self.len += 1;
+            return true;
+        }
+        let mut spill: HashSet<usize, std::hash::BuildHasherDefault<PtrHasher>> =
+            self.inline.iter().copied().collect();
+        spill.insert(value);
+        self.spill = Some(spill);
+        true
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -830,23 +1036,23 @@ pub struct GcMetrics {
 }
 pub struct Runtime {
     root: PathBuf,
-    state: State,
-    checkpoints: BTreeMap<String, Checkpoint>,
+    state: Tracked<State>,
+    checkpoints: Tracked<BTreeMap<String, Checkpoint>>,
     current_parent: Option<String>,
-    observations: BTreeMap<(u64, String), Observation>,
-    directory_observations: BTreeMap<(u64, String), Option<BTreeSet<String>>>,
-    input: Vec<String>,
+    observations: Tracked<BTreeMap<(u64, String), Observation>>,
+    directory_observations: Tracked<BTreeMap<(u64, String), Option<BTreeSet<String>>>>,
+    input: Tracked<Vec<String>>,
     gui_host: Option<gui::Host>,
     gui_dialogs: BTreeMap<usize, gui::dialog::Session>,
     gui_ime_enabled: bool,
     gui_accessibility_enabled: bool,
     gui_clipboard_enabled: bool,
     gui_command_keys_enabled: bool,
-    gui_displayed: Option<Arc<gui::Frame>>,
-    gui_observations: Vec<gui::Event>,
+    gui_displayed: Tracked<Option<Arc<gui::Frame>>>,
+    gui_observations: Tracked<Vec<gui::Event>>,
     gui_high_water: usize,
     gui_window_hosts: BTreeMap<String, gui::Host>,
-    gui_window_frames: BTreeMap<String, Arc<gui::Frame>>,
+    gui_window_frames: Tracked<BTreeMap<String, Arc<gui::Frame>>>,
     gui_window_observations: Vec<gui::WindowInput>,
     gui_window_observation_ends: Vec<usize>,
     gui_window_observation_bytes: usize,
@@ -854,7 +1060,10 @@ pub struct Runtime {
     gui_window_high_water: usize,
     gui_window_scripted: Option<std::collections::VecDeque<gui::WindowEvent>>,
     gui_window_last_polled: Option<String>,
-    external_entries: Vec<external::Entry>,
+    external_entries: Tracked<Vec<external::Entry>>,
+    external_ledger_cache: RefCell<LedgerCache>,
+    budget_scratch: std::cell::Cell<Option<Box<BudgetScratch>>>,
+    budget_headroom: std::cell::Cell<Option<Headroom>>,
     external_high_water: usize,
     external_memory_bytes: usize,
     external_pending: usize,
@@ -867,23 +1076,23 @@ pub struct Runtime {
     http_server_tls_credentials: BTreeMap<String, http_server::TlsCredential>,
     http_server_bearer_credentials: BTreeMap<String, Arc<http_server::BearerCredential>>,
     database_host: Option<database::Host>,
-    network_credentials: BTreeMap<String, Arc<str>>,
-    sensitive_bytes: BTreeSet<Arc<Vec<u8>>>,
+    network_credentials: Tracked<BTreeMap<String, Arc<str>>>,
+    sensitive_bytes: Tracked<BTreeSet<Arc<Vec<u8>>>>,
     external_depth: usize,
     external_owner: u64,
     external_live: bool,
     external_live_allowed: bool,
     external_live_used: bool,
-    external_live_entries: BTreeMap<usize, external::LiveEntry>,
+    external_live_entries: Tracked<BTreeMap<usize, external::LiveEntry>>,
     external_live_next: usize,
     external_live_unattached: BTreeMap<usize, Arc<external::LiveLease>>,
     external_live_releases: Arc<std::sync::Mutex<std::collections::VecDeque<usize>>>,
     next_native_lease: u64,
-    gui_scripted: Option<std::collections::VecDeque<gui::Event>>,
-    byte_input: Vec<(usize, Arc<Segment>)>,
+    gui_scripted: Tracked<Option<std::collections::VecDeque<gui::Event>>>,
+    byte_input: Tracked<Vec<(usize, Arc<Segment>)>>,
     branch_roots: RefCell<Vec<Weak<State>>>,
     byte_eof: bool,
-    times: Vec<u128>,
+    times: Tracked<Vec<u128>>,
     arguments: Vec<String>,
     env_allowed: BTreeSet<String>,
     env_secrets: BTreeSet<String>,
@@ -894,10 +1103,10 @@ pub struct Runtime {
     supplied_secret_input: Option<Vec<String>>,
     history_budget_kind: std::cell::Cell<&'static str>,
     env_observations: Vec<(String, Option<String>)>,
-    entry_observations: Vec<(String, Vec<String>)>,
+    entry_observations: Tracked<Vec<(String, Vec<String>)>>,
     locale: String,
-    published_stdout: Journal,
-    published_stderr: Journal,
+    published_stdout: Tracked<Journal>,
+    published_stderr: Tracked<Journal>,
     budget: ResourceBudget,
     publish_failure: Option<String>,
     publish_failure_detail: Option<PublishFailure>,
@@ -906,9 +1115,9 @@ pub struct Runtime {
     virtual_publish: bool,
     incremental_publish: bool,
     next_operation: u64,
-    published_operations: BTreeSet<u64>,
+    published_operations: Tracked<BTreeSet<u64>>,
     published_epoch: u64,
-    virtual_files: BTreeMap<String, Option<Arc<PagedFile>>>,
+    virtual_files: Tracked<BTreeMap<String, Option<Arc<PagedFile>>>>,
     virtual_directories: BTreeMap<String, bool>,
     storage_start: (usize, (usize, usize)),
     gc_metrics: Option<GcMetrics>,
@@ -1417,15 +1626,19 @@ impl Runtime {
         }
     }
     pub fn enable_allocation_accounting(&mut self) {
+        bump_budget_epoch();
         self.allocation_accounting = true;
     }
     pub fn enable_numeric_accounting(&mut self) {
+        bump_budget_epoch();
         self.numeric_accounting.get_or_insert_with(Default::default);
     }
     pub fn enable_shared_payload_accounting(&mut self) {
+        bump_budget_epoch();
         self.shared_accounting.get_or_insert_with(Default::default);
     }
     pub fn enable_container_accounting(&mut self) {
+        bump_budget_epoch();
         self.enable_allocation_accounting();
         self.enable_numeric_accounting();
         if !self
@@ -1439,6 +1652,7 @@ impl Runtime {
         }
     }
     pub fn enable_byte_payload_accounting(&mut self) {
+        bump_budget_epoch();
         if !self
             .shared_accounting
             .as_ref()
@@ -1485,7 +1699,26 @@ impl Runtime {
             self.allocation_accounting,
         )
     }
+    /// Values whose retained size is just their own size and whose measurement has no side
+    /// effect (no numeric or shared-payload registration).
+    fn is_budget_scalar(value: &Value) -> bool {
+        matches!(
+            value,
+            Value::Int(_)
+                | Value::Float(_)
+                | Value::Bool(_)
+                | Value::Null
+                | Value::HeapRef(_)
+                | Value::CellRef(_)
+                | Value::Handle(_)
+        )
+    }
     fn retained_bytes(&self, value: &Value, mut bytes: usize, allocations: bool) -> usize {
+        // Scalars own no numeric, shared, byte or container payload, so every adjustment below is
+        // zero, and measuring one registers nothing. The budget fast path relies on both.
+        if Self::is_budget_scalar(value) {
+            return bytes;
+        }
         if let Some(a) = &self.numeric_accounting {
             Self::register_numeric_value(value, a);
             bytes = bytes.saturating_sub(Self::numeric_payload_bytes(value));
@@ -1791,23 +2024,23 @@ impl Runtime {
         }
         Ok(Self {
             root,
-            state: State::default(),
-            checkpoints: BTreeMap::new(),
+            state: Tracked::new(State::default()),
+            checkpoints: Tracked::new(BTreeMap::new()),
             current_parent: None,
-            observations: BTreeMap::new(),
-            directory_observations: BTreeMap::new(),
-            input: Vec::new(),
+            observations: Tracked::new(BTreeMap::new()),
+            directory_observations: Tracked::new(BTreeMap::new()),
+            input: Tracked::new(Vec::new()),
             gui_host: None,
             gui_dialogs: BTreeMap::new(),
             gui_ime_enabled: false,
             gui_accessibility_enabled: false,
             gui_clipboard_enabled: false,
             gui_command_keys_enabled: false,
-            gui_displayed: None,
-            gui_observations: Vec::new(),
+            gui_displayed: Tracked::new(None),
+            gui_observations: Tracked::new(Vec::new()),
             gui_high_water: 0,
             gui_window_hosts: BTreeMap::new(),
-            gui_window_frames: BTreeMap::new(),
+            gui_window_frames: Tracked::new(BTreeMap::new()),
             gui_window_observations: Vec::new(),
             gui_window_observation_ends: Vec::new(),
             gui_window_observation_bytes: 0,
@@ -1815,7 +2048,10 @@ impl Runtime {
             gui_window_high_water: 0,
             gui_window_scripted: None,
             gui_window_last_polled: None,
-            external_entries: Vec::new(),
+            external_entries: Tracked::new(Vec::new()),
+            external_ledger_cache: RefCell::default(),
+            budget_scratch: std::cell::Cell::new(None),
+            budget_headroom: std::cell::Cell::new(None),
             external_high_water: 0,
             external_memory_bytes: 0,
             external_pending: 0,
@@ -1828,25 +2064,25 @@ impl Runtime {
             http_server_tls_credentials: BTreeMap::new(),
             http_server_bearer_credentials: BTreeMap::new(),
             database_host: None,
-            network_credentials: BTreeMap::new(),
-            sensitive_bytes: BTreeSet::new(),
+            network_credentials: Tracked::new(BTreeMap::new()),
+            sensitive_bytes: Tracked::new(BTreeSet::new()),
             external_depth: 0,
             external_owner: 0,
             external_live: false,
             external_live_allowed: false,
             external_live_used: false,
-            external_live_entries: BTreeMap::new(),
+            external_live_entries: Tracked::new(BTreeMap::new()),
             external_live_next: 1_000_000,
             external_live_unattached: BTreeMap::new(),
             external_live_releases: Arc::new(std::sync::Mutex::new(
                 std::collections::VecDeque::new(),
             )),
             next_native_lease: 1,
-            gui_scripted: None,
-            byte_input: Vec::new(),
+            gui_scripted: Tracked::new(None),
+            byte_input: Tracked::new(Vec::new()),
             branch_roots: RefCell::new(Vec::new()),
             byte_eof: false,
-            times: Vec::new(),
+            times: Tracked::new(Vec::new()),
             arguments: Vec::new(),
             env_allowed: BTreeSet::new(),
             env_secrets: BTreeSet::new(),
@@ -1857,10 +2093,10 @@ impl Runtime {
             supplied_secret_input: None,
             history_budget_kind: std::cell::Cell::new("HistoryMemory"),
             env_observations: Vec::new(),
-            entry_observations: Vec::new(),
+            entry_observations: Tracked::new(Vec::new()),
             locale: "en-US".into(),
-            published_stdout: Journal::default(),
-            published_stderr: Journal::default(),
+            published_stdout: Tracked::new(Journal::default()),
+            published_stderr: Tracked::new(Journal::default()),
             budget: ResourceBudget::default(),
             publish_failure: None,
             publish_failure_detail: None,
@@ -1869,9 +2105,9 @@ impl Runtime {
             virtual_publish: false,
             incremental_publish: false,
             next_operation: 1,
-            published_operations: BTreeSet::new(),
+            published_operations: Tracked::new(BTreeSet::new()),
             published_epoch: 0,
-            virtual_files: BTreeMap::new(),
+            virtual_files: Tracked::new(BTreeMap::new()),
             virtual_directories: BTreeMap::new(),
             storage_start: (map_storage::map_nodes_created(), storage::storage_work()),
             gc_metrics: None,
@@ -1930,7 +2166,7 @@ impl Runtime {
             Ok(value)
         });
         if result.is_err() {
-            self.state = previous;
+            *self.state = previous;
             self.next_operation = next_operation;
         }
         result
@@ -1965,14 +2201,15 @@ impl Runtime {
             .retain(|_, r| !self.published_operations.contains(&r.id));
         self.state.stdout = self.state.stdout.unpublished(&self.published_operations);
         self.state.stderr = self.state.stderr.unpublished(&self.published_operations);
-        let files = Arc::make_mut(&mut self.state.files);
-        for (path, id) in self.state.file_operations.iter() {
+        let state = &mut *self.state;
+        let files = Arc::make_mut(&mut state.files);
+        for (path, id) in state.file_operations.iter() {
             if self.published_operations.contains(id) {
                 files.remove(path);
             }
         }
-        let dirs = Arc::make_mut(&mut self.state.directories);
-        for (path, id) in self.state.directory_operations.iter() {
+        let dirs = Arc::make_mut(&mut state.directories);
+        for (path, id) in state.directory_operations.iter() {
             if self.published_operations.contains(id) {
                 dirs.remove(path);
             }
@@ -2011,8 +2248,8 @@ impl Runtime {
             self.state.directory_operations = Arc::new(BTreeMap::new());
             self.published_epoch = next_epoch;
         } else {
-            self.published_stdout = self.state.stdout.clone();
-            self.published_stderr = self.state.stderr.clone();
+            *self.published_stdout = self.state.stdout.clone();
+            *self.published_stderr = self.state.stderr.clone();
         }
         if !self.virtual_publish || self.incremental_publish {
             self.state.files = Arc::new(BTreeMap::new());
@@ -2033,7 +2270,7 @@ impl Runtime {
             .filter_map(Weak::upgrade)
             .collect::<Vec<_>>();
         let mut referenced = BTreeSet::new();
-        for state in std::iter::once(&self.state)
+        for state in std::iter::once(&*self.state)
             .chain(self.checkpoints.values().map(|c| &c.state))
             .chain(roots.iter().map(AsRef::as_ref))
         {
@@ -2057,9 +2294,321 @@ impl Runtime {
         Ok(())
     }
     fn enforce_budget(&self) -> Result<()> {
-        let mut segments = Vec::new();
-        let mut seen_segments = HashSet::new();
-        let mut seen_compute = HashSet::new();
+        // The pointer sets are reused between calls; a re-entrant call just builds fresh ones.
+        BUDGET_CHECKS.with(|c| {
+            let (fast, full) = c.get();
+            c.set((fast, full + 1));
+        });
+        let mut scratch = self.budget_scratch.take().unwrap_or_default();
+        // The proof is rebuilt only by a full check that finishes Ok; a failed or re-entrant one
+        // leaves none behind.
+        self.budget_headroom.set(None);
+        // Both counters are read before the scan, so a change made during it (by this check's own
+        // spills or by another thread spilling a shared segment) leaves the cached value behind
+        // the live one. The next fast call then fails the comparison and runs one full check
+        // instead of trusting totals that may predate the change.
+        let epoch = budget_epoch();
+        let spill_generation = journal::spill_generation();
+        scratch.seen_segments.clear();
+        scratch.seen_compute.clear();
+        scratch.gui_roots.clear();
+        let result = self.enforce_budget_with(&mut scratch);
+        self.budget_scratch.set(Some(scratch));
+        if let Ok((compute, journal, storage)) = result {
+            self.budget_headroom.set(Some(Headroom {
+                compute,
+                volatile: self.budget_volatile(),
+                journal,
+                storage,
+                epoch,
+                spill_generation,
+                config: self.budget_config(),
+            }));
+        }
+        result.map(|_| ())
+    }
+    /// History-memory terms that are cheap to read exactly and move on both allocation and
+    /// release without any `Tracked` borrow (counters, reservations, host counts). The full check
+    /// sums this same function, so the fast path can swap the cached value for the current one.
+    fn budget_volatile(&self) -> usize {
+        let mut bytes = self
+            .external_memory_bytes
+            .saturating_add(self.retained_numeric_bytes())
+            .saturating_add(
+                self.shared_accounting
+                    .as_ref()
+                    .map_or(0, shared_payload::Accounting::bytes),
+            )
+            .saturating_add(
+                self.http_server_tls_credentials
+                    .len()
+                    .saturating_mul(http_server::TLS_CONFIG_MEMORY),
+            )
+            .saturating_add(
+                self.http_server_bearer_credentials
+                    .len()
+                    .saturating_mul(http_server::AUTH_CONFIG_MEMORY),
+            )
+            .saturating_add(self.external_polls.len().saturating_mul(32))
+            .saturating_add(self.gui_window_observation_bytes)
+            .saturating_add(self.gui_window_scripted_bytes)
+            .saturating_add(
+                self.gui_dialogs
+                    .len()
+                    .saturating_mul(gui::dialog::RESERVATION),
+            );
+        if self.sensitive_accounting {
+            bytes = bytes.saturating_add(self.sensitive_text_bytes);
+        }
+        if self.gui_clipboard_enabled || self.gui_ime_enabled || self.gui_accessibility_enabled {
+            bytes = bytes.saturating_add(
+                (self.gui_window_hosts.len() + usize::from(self.gui_host.is_some()))
+                    .saturating_mul(self.gui_host_reservation()),
+            );
+        }
+        bytes
+    }
+    /// Settings that change which terms the full check counts. The cached headroom is valid only
+    /// for the configuration it was built under.
+    fn budget_config(&self) -> u32 {
+        let shared = self.shared_accounting.as_ref();
+        u32::from(self.allocation_accounting)
+            | u32::from(self.incremental_publish) << 1
+            | u32::from(self.sensitive_accounting) << 2
+            | u32::from(
+                self.gui_clipboard_enabled
+                    || self.gui_ime_enabled
+                    || self.gui_accessibility_enabled,
+            ) << 3
+            | u32::from(self.numeric_accounting.is_some()) << 4
+            | u32::from(shared.is_some_and(|a| a.includes_bytes())) << 5
+            | u32::from(shared.is_some_and(|a| a.includes_containers())) << 6
+            | u32::from(shared.is_some()) << 7
+    }
+    /// What the full check counts for one heap, read from the store's running totals. With
+    /// `register` it also registers the heap's numeric and shared payloads, as the full check
+    /// must; the fast path reads it without registering, which is only valid when it changes
+    /// scalars and no payload accounting is on.
+    fn budget_heap_bytes(&self, heap: &HeapStore, register: bool) -> usize {
+        let mut bytes = if self.allocation_accounting {
+            heap.allocation_bytes()
+        } else {
+            heap.logical_bytes()
+        };
+        if let Some(a) = &self.numeric_accounting {
+            if register {
+                heap.register_numerics(a);
+            }
+            bytes = bytes.saturating_sub(heap.numeric_bytes());
+        }
+        if let Some(a) = &self.shared_accounting {
+            if register {
+                heap.register_shared_payloads(a);
+            }
+            bytes = bytes.saturating_sub(heap.shared_bytes());
+            if a.includes_bytes() {
+                bytes = bytes.saturating_sub(heap.byte_payload_info().0);
+            }
+            if a.includes_containers() {
+                let discount = heap
+                    .allocation_bytes()
+                    .saturating_sub(heap.numeric_bytes())
+                    .saturating_sub(heap.shared_bytes())
+                    .saturating_sub(heap.byte_payload_info().0);
+                bytes = bytes.saturating_sub(discount);
+            }
+        }
+        bytes
+    }
+    /// Fast path of `enforce_budget` for a change that only adds `add` and removes `sub` bytes of
+    /// scalar stack or local data. Returns true only when a full check would be Ok and would not
+    /// spill, in which case the cached headroom is advanced to match. Returns false (after which
+    /// the caller must run the full check) whenever that cannot be shown.
+    ///
+    /// Sound because the cached `compute` bounds the full check's total, every other change to
+    /// budgeted data bumps `BUDGET_EPOCH` (or is one of the exactly re-read volatile terms), and
+    /// journal totals only change through `Tracked` borrows or spills (`spill_generation`).
+    fn enforce_budget_fast(&self, add: usize, sub: usize) -> bool {
+        let Some(head) = self.budget_headroom.get() else {
+            return false;
+        };
+        if head.epoch != budget_epoch()
+            || head.spill_generation != journal::spill_generation()
+            || head.config != self.budget_config()
+            || self.database_host.is_some()
+            || self.tcp_host.is_some()
+            || self.http_server_host.is_some()
+            || self.network_host.is_some()
+            || self
+                .numeric_accounting
+                .as_ref()
+                .is_some_and(|a| a.generation() != self.numeric_checked_generation.get())
+            || self
+                .shared_accounting
+                .as_ref()
+                .is_some_and(|a| a.generation() != self.shared_checked_generation.get())
+        {
+            return false;
+        }
+        let volatile = self.budget_volatile();
+        let Some(compute) = head
+            .compute
+            .checked_sub(head.volatile)
+            .and_then(|c| c.checked_add(volatile))
+            .and_then(|c| c.checked_add(add))
+            .map(|c| c.saturating_sub(sub))
+        else {
+            return false;
+        };
+        let budget = &self.budget;
+        if compute > budget.history_memory
+            || head.journal > budget.spill_threshold.min(budget.history_memory - compute)
+            || head.storage > budget.history_storage
+        {
+            return false;
+        }
+        #[cfg(feature = "budget-verify")]
+        self.verify_budget_fast(compute);
+        self.budget_headroom.set(Some(Headroom {
+            compute,
+            volatile,
+            ..head
+        }));
+        BUDGET_CHECKS.with(|c| {
+            let (fast, full) = c.get();
+            c.set((fast + 1, full));
+        });
+        true
+    }
+    /// Lowers the cached bound after scalar data left the stack or a frame. Never raises it.
+    fn release_budget_headroom(&self, bytes: usize) {
+        if let Some(head) = self.budget_headroom.get() {
+            if head.epoch == budget_epoch() {
+                let compute = head.compute.saturating_sub(bytes);
+                self.budget_headroom.set(Some(Headroom { compute, ..head }));
+                #[cfg(feature = "budget-verify")]
+                self.verify_budget_release(compute);
+            }
+        }
+    }
+    /// With the `budget-verify` feature a release must leave the lowered bound at or above the
+    /// exact total, as the fast path will trust it for later calls.
+    #[cfg(feature = "budget-verify")]
+    fn verify_budget_release(&self, bound: usize) {
+        let lowered = self.budget_headroom.get();
+        let mut scratch = self.budget_scratch.take().unwrap_or_default();
+        scratch.seen_segments.clear();
+        scratch.seen_compute.clear();
+        scratch.gui_roots.clear();
+        let result = self.enforce_budget_with(&mut scratch);
+        self.budget_scratch.set(Some(scratch));
+        if let Ok((exact, _, _)) = result {
+            assert!(
+                exact <= bound,
+                "budget-verify: compute {exact} exceeds the released bound {bound}"
+            );
+        }
+        self.budget_headroom.set(lowered);
+    }
+    /// With the `budget-verify` feature the fast path also runs the full check and requires that
+    /// it agrees: Ok, no spill, and a total within the bound the fast path used.
+    #[cfg(feature = "budget-verify")]
+    fn verify_budget_fast(&self, bound: usize) {
+        let advanced = self.budget_headroom.get();
+        VERIFY_SPILLED.with(|f| f.set(false));
+        self.enforce_budget()
+            .expect("budget-verify: fast path accepted a state the full check rejects");
+        assert!(
+            !VERIFY_SPILLED.with(|f| f.get()),
+            "budget-verify: full check spilled after the fast path accepted"
+        );
+        let exact = self
+            .budget_headroom
+            .get()
+            .expect("budget-verify: full check left no headroom")
+            .compute;
+        assert!(
+            exact <= bound,
+            "budget-verify: compute {exact} exceeds the fast path bound {bound}"
+        );
+        // Keep the advanced (looser) proof so later calls keep exercising the bound.
+        self.budget_headroom.set(advanced);
+    }
+    /// Calls `f` for every journal segment reachable from the byte input, the live state, the
+    /// checkpoints, the branch roots and the external ledger tail (and the completed prefix when
+    /// `include_prefix`). A segment may be visited more than once.
+    fn visit_budget_segments(
+        &self,
+        ledger_len: usize,
+        include_prefix: bool,
+        mut f: impl FnMut(&Arc<Segment>),
+    ) {
+        for (_, bytes) in &self.byte_input {
+            f(bytes);
+        }
+        let mut visit_state = |state: &State| {
+            for journal in [&state.stdout, &state.stderr] {
+                journal.for_each_segment(&mut f);
+            }
+            for content in state.files.values().flatten() {
+                for page in content.pages.values() {
+                    f(page);
+                }
+            }
+            for handle in state.handles.values() {
+                if let Some(snapshot) = &handle.snapshot {
+                    for page in snapshot.pages.values() {
+                        f(page);
+                    }
+                }
+            }
+        };
+        visit_state(&self.state);
+        for checkpoint in self.checkpoints.values() {
+            visit_state(&checkpoint.state);
+        }
+        for root in self.branch_roots.borrow().iter() {
+            if let Some(state) = Weak::upgrade(root) {
+                visit_state(&state);
+            }
+        }
+        for journal in [&self.published_stdout, &self.published_stderr] {
+            journal.for_each_segment(&mut f);
+        }
+        for content in self.virtual_files.values().flatten() {
+            for page in content.pages.values() {
+                f(page);
+            }
+        }
+        for observation in self.observations.values() {
+            for block in observation.blocks.values() {
+                f(block);
+            }
+        }
+        for outcome in self.external_entries[ledger_len..]
+            .iter()
+            .chain(self.external_live_entries.values().map(|live| &live.entry))
+            .filter_map(|e| e.outcome.as_ref())
+        {
+            f(&outcome.segment);
+        }
+        if include_prefix {
+            for outcome in self.external_entries[..ledger_len]
+                .iter()
+                .filter_map(|e| e.outcome.as_ref())
+            {
+                f(&outcome.segment);
+            }
+        }
+    }
+    /// Returns the history compute memory before shared-payload pruning and the journal memory and
+    /// storage after spilling, for the headroom proof.
+    fn enforce_budget_with(&self, scratch: &mut BudgetScratch) -> Result<(usize, usize, usize)> {
+        let BudgetScratch {
+            seen_segments,
+            seen_compute,
+            gui_roots,
+        } = scratch;
         let mut compute_memory = self.byte_input.len().saturating_mul(32);
         if self.allocation_accounting {
             compute_memory =
@@ -2103,17 +2652,6 @@ impl Runtime {
                     .sum::<usize>(),
             );
         }
-        for (_, bytes) in &self.byte_input {
-            if seen_segments.insert(Arc::as_ptr(bytes) as usize) {
-                segments.push(bytes.clone());
-            }
-        }
-        let branch_roots = self
-            .branch_roots
-            .borrow()
-            .iter()
-            .filter_map(Weak::upgrade)
-            .collect::<Vec<_>>();
         if self.incremental_publish {
             compute_memory =
                 compute_memory.saturating_add(self.published_operations.len().saturating_mul(32));
@@ -2125,39 +2663,29 @@ impl Runtime {
                 .saturating_mul(32),
             );
         }
-        for state in std::iter::once(&self.state)
-            .chain(self.checkpoints.values().map(|c| &c.state))
-            .chain(branch_roots.iter().map(AsRef::as_ref))
-        {
-            if seen_compute.insert(Arc::as_ptr(&state.native_owners) as usize) {
+        // Consecutive checkpoints usually share these Arcs; remember the previous address so the
+        // set lookup is skipped for them.
+        let (
+            mut last_native_owners,
+            mut last_globals,
+            mut last_heap,
+            mut last_stack,
+            mut last_call_frames,
+        ) = (0usize, 0usize, 0usize, 0usize, 0usize);
+        let mut scan_state = |state: &State| {
+            if fresh_ptr(
+                seen_compute,
+                &mut last_native_owners,
+                Arc::as_ptr(&state.native_owners) as usize,
+            ) {
                 compute_memory =
                     compute_memory.saturating_add(state.native_owners.len().saturating_mul(64));
             }
-            for journal in [&state.stdout, &state.stderr] {
-                for segment in journal.segments() {
-                    let ptr = Arc::as_ptr(&segment) as usize;
-                    if seen_segments.insert(ptr) {
-                        segments.push(segment);
-                    }
-                }
-            }
-            for content in state.files.values().flatten() {
-                for page in content.pages.values() {
-                    if seen_segments.insert(Arc::as_ptr(page) as usize) {
-                        segments.push(page.clone());
-                    }
-                }
-            }
-            for handle in state.handles.values() {
-                if let Some(snapshot) = &handle.snapshot {
-                    for page in snapshot.pages.values() {
-                        if seen_segments.insert(Arc::as_ptr(page) as usize) {
-                            segments.push(page.clone());
-                        }
-                    }
-                }
-            }
-            if seen_compute.insert(Arc::as_ptr(&state.globals) as usize) {
+            if fresh_ptr(
+                seen_compute,
+                &mut last_globals,
+                Arc::as_ptr(&state.globals) as usize,
+            ) {
                 compute_memory = compute_memory.saturating_add(
                     state
                         .globals
@@ -2170,35 +2698,19 @@ impl Runtime {
                         .sum(),
                 );
             }
-            if seen_compute.insert(Arc::as_ptr(&state.heap) as usize) {
-                let mut bytes = if self.allocation_accounting {
-                    state.heap.allocation_bytes()
-                } else {
-                    state.heap.logical_bytes()
-                };
-                if let Some(a) = &self.numeric_accounting {
-                    state.heap.register_numerics(a);
-                    bytes = bytes.saturating_sub(state.heap.numeric_bytes());
-                }
-                if let Some(a) = &self.shared_accounting {
-                    state.heap.register_shared_payloads(a);
-                    bytes = bytes.saturating_sub(state.heap.shared_bytes());
-                    if a.includes_bytes() {
-                        bytes = bytes.saturating_sub(state.heap.byte_payload_info().0);
-                    }
-                    if a.includes_containers() {
-                        let discount = state
-                            .heap
-                            .allocation_bytes()
-                            .saturating_sub(state.heap.numeric_bytes())
-                            .saturating_sub(state.heap.shared_bytes())
-                            .saturating_sub(state.heap.byte_payload_info().0);
-                        bytes = bytes.saturating_sub(discount);
-                    }
-                }
+            if fresh_ptr(
+                seen_compute,
+                &mut last_heap,
+                Arc::as_ptr(&state.heap) as usize,
+            ) {
+                let bytes = self.budget_heap_bytes(&state.heap, true);
                 compute_memory = compute_memory.saturating_add(bytes);
             }
-            if seen_compute.insert(Arc::as_ptr(&state.stack) as usize) {
+            if fresh_ptr(
+                seen_compute,
+                &mut last_stack,
+                Arc::as_ptr(&state.stack) as usize,
+            ) {
                 compute_memory = compute_memory.saturating_add(
                     state
                         .stack
@@ -2207,7 +2719,11 @@ impl Runtime {
                         .sum(),
                 );
             }
-            if seen_compute.insert(Arc::as_ptr(&state.call_frames) as usize) {
+            if fresh_ptr(
+                seen_compute,
+                &mut last_call_frames,
+                Arc::as_ptr(&state.call_frames) as usize,
+            ) {
                 compute_memory = compute_memory.saturating_add(
                     state
                         .call_frames
@@ -2221,38 +2737,38 @@ impl Runtime {
                         .sum(),
                 );
             }
+        };
+        scan_state(&self.state);
+        for checkpoint in self.checkpoints.values() {
+            scan_state(&checkpoint.state);
         }
-        for journal in [&self.published_stdout, &self.published_stderr] {
-            for segment in journal.segments() {
-                let ptr = Arc::as_ptr(&segment) as usize;
-                if seen_segments.insert(ptr) {
-                    segments.push(segment);
-                }
+        for root in self.branch_roots.borrow().iter() {
+            if let Some(state) = Weak::upgrade(root) {
+                scan_state(&state);
             }
         }
-        for content in self.virtual_files.values().flatten() {
-            for page in content.pages.values() {
-                if seen_segments.insert(Arc::as_ptr(page) as usize) {
-                    segments.push(page.clone());
-                }
-            }
+        // The completed prefix of the ledger is summed incrementally; only the tail and the live
+        // entries are walked. Segments already counted in the prefix are never counted twice.
+        let mut ledger = self.external_ledger_cache.borrow_mut();
+        let ledger = &mut *ledger;
+        let generation = journal::spill_generation();
+        if ledger.generation != generation || ledger.len > self.external_entries.len() {
+            *ledger = LedgerCache {
+                generation,
+                ..LedgerCache::default()
+            };
         }
-        for observation in self.observations.values() {
-            for block in observation.blocks.values() {
-                if seen_segments.insert(Arc::as_ptr(block) as usize) {
-                    segments.push(block.clone());
-                }
-            }
-        }
-        for outcome in self
+        while let Some(outcome) = self
             .external_entries
-            .iter()
-            .chain(self.external_live_entries.values().map(|live| &live.entry))
-            .filter_map(|e| e.outcome.as_ref())
+            .get(ledger.len)
+            .and_then(|e| e.outcome.as_ref())
         {
-            if seen_segments.insert(Arc::as_ptr(&outcome.segment) as usize) {
-                segments.push(outcome.segment.clone());
+            if ledger.ptrs.insert(Arc::as_ptr(&outcome.segment) as usize) {
+                let (mem, disk) = outcome.segment.usage();
+                ledger.mem = ledger.mem.saturating_add(mem);
+                ledger.disk = ledger.disk.saturating_add(disk);
             }
+            ledger.len += 1;
         }
         compute_memory = compute_memory.saturating_add(
             self.gui_observations
@@ -2273,21 +2789,13 @@ impl Runtime {
                     .sum::<usize>(),
             )
             .saturating_add(if self.sensitive_accounting {
-                self.sensitive_text_bytes
-                    .saturating_add(self.sensitive_bytes.len().saturating_mul(96))
+                self.sensitive_bytes.len().saturating_mul(96)
             } else {
                 self.sensitive_bytes
                     .iter()
                     .map(|v| v.len() + 64)
                     .sum::<usize>()
             })
-            .saturating_add(self.external_memory_bytes)
-            .saturating_add(self.retained_numeric_bytes())
-            .saturating_add(
-                self.shared_accounting
-                    .as_ref()
-                    .map_or(0, shared_payload::Accounting::bytes),
-            )
             .saturating_add(
                 self.database_host
                     .as_ref()
@@ -2300,29 +2808,12 @@ impl Runtime {
                     .map_or(0, http_server::Host::reserved_bytes),
             )
             .saturating_add(
-                self.http_server_tls_credentials
-                    .len()
-                    .saturating_mul(http_server::TLS_CONFIG_MEMORY),
-            )
-            .saturating_add(
-                self.http_server_bearer_credentials
-                    .len()
-                    .saturating_mul(http_server::AUTH_CONFIG_MEMORY),
-            )
-            .saturating_add(self.external_polls.len().saturating_mul(32))
-            .saturating_add(
                 self.network_host
                     .as_ref()
                     .map_or(0, network::Host::reserved_bytes),
-            );
-        compute_memory = compute_memory
-            .saturating_add(self.gui_window_observation_bytes)
-            .saturating_add(self.gui_window_scripted_bytes);
-        let mut gui_roots = HashSet::new();
-        for state in std::iter::once(&self.state)
-            .chain(self.checkpoints.values().map(|c| &c.state))
-            .chain(branch_roots.iter().map(AsRef::as_ref))
-        {
+            )
+            .saturating_add(self.budget_volatile());
+        let mut scan_gui = |state: &State| {
             compute_memory = compute_memory.saturating_add(
                 state
                     .gui_windows_pending
@@ -2344,20 +2835,18 @@ impl Runtime {
                     compute_memory = compute_memory.saturating_add(frame.bytes());
                 }
             }
+        };
+        scan_gui(&self.state);
+        for checkpoint in self.checkpoints.values() {
+            scan_gui(&checkpoint.state);
         }
-        if let Some(frame) = &self.gui_displayed {
+        for root in self.branch_roots.borrow().iter() {
+            if let Some(state) = Weak::upgrade(root) {
+                scan_gui(&state);
+            }
+        }
+        if let Some(frame) = &*self.gui_displayed {
             compute_memory = compute_memory.saturating_add(frame.bytes().saturating_mul(2));
-        }
-        compute_memory = compute_memory.saturating_add(
-            self.gui_dialogs
-                .len()
-                .saturating_mul(gui::dialog::RESERVATION),
-        );
-        if self.gui_clipboard_enabled || self.gui_ime_enabled || self.gui_accessibility_enabled {
-            compute_memory = compute_memory.saturating_add(
-                (self.gui_window_hosts.len() + usize::from(self.gui_host.is_some()))
-                    .saturating_mul(self.gui_host_reservation()),
-            );
         }
         for (id, frame) in &self.gui_window_frames {
             compute_memory = compute_memory
@@ -2368,6 +2857,7 @@ impl Runtime {
                         .saturating_mul(4),
                 );
         }
+        let compute_raw = compute_memory;
         if compute_memory > self.budget.history_memory {
             if let Some(a) = &self.shared_accounting {
                 compute_memory = compute_memory.saturating_sub(a.prune_bytes());
@@ -2377,14 +2867,16 @@ impl Runtime {
             self.history_budget_kind.set("HistoryMemory");
             return Err(Error::HistoryBudgetExceeded);
         }
-        segments.sort_by_key(|segment| segment.id);
-        let mut journal_memory = 0usize;
-        let mut storage = 0usize;
-        for segment in &segments {
-            let (mem, disk) = segment.usage();
-            journal_memory = journal_memory.saturating_add(mem);
-            storage = storage.saturating_add(disk);
-        }
+        let mut journal_memory = ledger.mem;
+        let mut storage = ledger.disk;
+        self.visit_budget_segments(ledger.len, false, |segment| {
+            let ptr = Arc::as_ptr(segment) as usize;
+            if seen_segments.insert(ptr) && !ledger.ptrs.contains(ptr) {
+                let (mem, disk) = segment.usage();
+                journal_memory = journal_memory.saturating_add(mem);
+                storage = storage.saturating_add(disk);
+            }
+        });
         if storage > self.budget.history_storage {
             self.history_budget_kind.set("HistoryStorage");
             return Err(Error::HistoryBudgetExceeded);
@@ -2393,6 +2885,17 @@ impl Runtime {
             .budget
             .spill_threshold
             .min(self.budget.history_memory - compute_memory);
+        let mut segments = Vec::new();
+        if journal_memory > target {
+            // Spilling may be needed: rebuild the candidate list, including the cached prefix.
+            seen_segments.clear();
+            self.visit_budget_segments(ledger.len, true, |segment| {
+                if seen_segments.insert(Arc::as_ptr(segment) as usize) {
+                    segments.push(segment.clone());
+                }
+            });
+            segments.sort_by_key(|segment| segment.id);
+        }
         for segment in segments {
             if journal_memory <= target {
                 break;
@@ -2406,6 +2909,8 @@ impl Runtime {
                 return Err(Error::HistoryBudgetExceeded);
             }
             segment.spill()?;
+            #[cfg(feature = "budget-verify")]
+            VERIFY_SPILLED.with(|f| f.set(true));
             journal_memory -= mem;
             storage += mem;
         }
@@ -2415,14 +2920,15 @@ impl Runtime {
         if let Some(a) = &self.shared_accounting {
             self.shared_checked_generation.set(a.generation());
         }
-        Ok(())
+        Ok((compute_raw, journal_memory, storage))
     }
 
     pub fn state(&self) -> &State {
         &self.state
     }
     pub fn set_program_counter(&mut self, pc: usize) {
-        self.state.program_counter = pc;
+        // Not budgeted data; borrowing it quietly keeps the budget headroom alive.
+        self.state.quiet().program_counter = pc;
     }
     /// Replace only the active task's compute roots; virtual I/O and heap stay shared.
     pub fn set_task_compute(
@@ -2445,45 +2951,134 @@ impl Runtime {
         }
         Ok(())
     }
+    /// The VM stack and call frames below are changed through `Tracked::quiet`, so they keep the
+    /// budget headroom alive instead of invalidating it. Each such change must either be proved
+    /// by `enforce_budget_fast` or fall back to the full check. A shared Arc is copied by
+    /// `make_mut`, and the copy counts again next to the checkpoint's, so those cases drop the
+    /// headroom first.
     pub fn push_stack(&mut self, value: Value) -> Result<()> {
-        let previous = self.state.stack.clone();
-        Arc::make_mut(&mut self.state.stack).push(value);
+        let scalar_bytes =
+            Self::is_budget_scalar(&value).then(|| self.retained_value_bytes(&value));
+        // Undo by popping instead of holding a second Arc: a retained clone would force
+        // `make_mut` to copy the whole stack on every push.
+        let stack = &mut self.state.quiet().stack;
+        let unique = if let Some(stack) = Arc::get_mut(stack) {
+            stack.push(value);
+            true
+        } else {
+            self.budget_headroom.set(None);
+            Arc::make_mut(stack).push(value);
+            false
+        };
+        if unique && scalar_bytes.is_some_and(|bytes| self.enforce_budget_fast(bytes, 0)) {
+            return Ok(());
+        }
         if let Err(error) = self.enforce_budget() {
-            self.state.stack = previous;
+            Arc::make_mut(&mut self.state.quiet().stack).pop();
             return Err(error);
         }
         Ok(())
     }
     pub fn pop_stack(&mut self) -> Result<Value> {
-        Arc::make_mut(&mut self.state.stack)
+        let stack = &mut self.state.quiet().stack;
+        let unique = Arc::get_mut(stack).is_some();
+        if !unique {
+            self.budget_headroom.set(None);
+        }
+        let value = Arc::make_mut(&mut self.state.quiet().stack)
             .pop()
-            .ok_or_else(|| Error::InvalidOperation("stack underflow".into()))
+            .ok_or_else(|| Error::InvalidOperation("stack underflow".into()))?;
+        // Anything left in the headroom stays an upper bound; a scalar is released exactly.
+        if unique && Self::is_budget_scalar(&value) {
+            self.release_budget_headroom(self.retained_value_bytes(&value));
+        }
+        Ok(value)
     }
     pub fn push_frame(&mut self, return_pc: usize) -> Result<()> {
-        let previous = self.state.call_frames.clone();
-        Arc::make_mut(&mut self.state.call_frames).push(CallFrame {
+        let frames = &mut self.state.quiet().call_frames;
+        let new_frame = CallFrame {
             return_pc,
             locals: BTreeMap::new(),
-        });
+        };
+        // An empty frame owns no counted bytes.
+        let unique = if let Some(frames) = Arc::get_mut(frames) {
+            frames.push(new_frame);
+            true
+        } else {
+            self.budget_headroom.set(None);
+            Arc::make_mut(frames).push(new_frame);
+            false
+        };
+        if unique && self.enforce_budget_fast(0, 0) {
+            return Ok(());
+        }
         if let Err(error) = self.enforce_budget() {
-            self.state.call_frames = previous;
+            Arc::make_mut(&mut self.state.quiet().call_frames).pop();
             return Err(error);
         }
         Ok(())
     }
     pub fn pop_frame(&mut self) -> Result<CallFrame> {
-        Arc::make_mut(&mut self.state.call_frames)
+        let frames = &mut self.state.quiet().call_frames;
+        let unique = Arc::get_mut(frames).is_some();
+        if !unique {
+            self.budget_headroom.set(None);
+        }
+        let frame = Arc::make_mut(&mut self.state.quiet().call_frames)
             .pop()
-            .ok_or_else(|| Error::InvalidOperation("call stack underflow".into()))
+            .ok_or_else(|| Error::InvalidOperation("call stack underflow".into()))?;
+        // Release the locals only when every one is a scalar; otherwise keep the old bound.
+        if unique && frame.locals.values().all(Self::is_budget_scalar) {
+            let per_local = if self.allocation_accounting { 96 } else { 0 };
+            let bytes = frame.locals.iter().fold(0usize, |sum, (k, v)| {
+                sum.saturating_add(k.len() + self.retained_value_bytes(v) + per_local)
+            });
+            self.release_budget_headroom(bytes);
+        }
+        Ok(frame)
     }
     pub fn set_local(&mut self, name: impl Into<String>, value: Value) -> Result<()> {
-        let previous = self.state.call_frames.clone();
-        let frame = Arc::make_mut(&mut self.state.call_frames)
-            .last_mut()
-            .ok_or_else(|| Error::InvalidOperation("no active call frame".into()))?;
-        frame.locals.insert(name.into(), value);
+        let name = name.into();
+        let new_bytes = Self::is_budget_scalar(&value).then(|| self.retained_value_bytes(&value));
+        let frames = &mut self.state.quiet().call_frames;
+        let (frame, unique) = if let Some(frames) = Arc::get_mut(frames) {
+            (frames.last_mut(), true)
+        } else {
+            self.budget_headroom.set(None);
+            (Arc::make_mut(frames).last_mut(), false)
+        };
+        let frame = frame.ok_or_else(|| Error::InvalidOperation("no active call frame".into()))?;
+        // Updating an existing local needs no key copy; only a new local clones its name for undo.
+        let replaced = match frame.locals.get_mut(&name) {
+            Some(slot) => Some(std::mem::replace(slot, value)),
+            None => {
+                frame.locals.insert(name.clone(), value);
+                None
+            }
+        };
+        if unique {
+            // A new local adds its key, value and map entry; an overwrite swaps the values. An
+            // overwritten scalar is released, anything else keeps the old bound.
+            let delta = new_bytes.map(|bytes| match &replaced {
+                None => (
+                    name.len() + bytes + if self.allocation_accounting { 96 } else { 0 },
+                    0,
+                ),
+                Some(old) if Self::is_budget_scalar(old) => (bytes, self.retained_value_bytes(old)),
+                Some(_) => (bytes, 0),
+            });
+            if delta.is_some_and(|(add, sub)| self.enforce_budget_fast(add, sub)) {
+                return Ok(());
+            }
+        }
         if let Err(error) = self.enforce_budget() {
-            self.state.call_frames = previous;
+            let frame = Arc::make_mut(&mut self.state.quiet().call_frames)
+                .last_mut()
+                .expect("frame checked above");
+            match replaced {
+                Some(old) => frame.locals.insert(name, old),
+                None => frame.locals.remove(&name),
+            };
             return Err(error);
         }
         Ok(())
@@ -2492,17 +3087,27 @@ impl Runtime {
         self.state.call_frames.last()?.locals.get(name)
     }
     pub fn remove_local(&mut self, name: &str) -> Result<()> {
-        let frame = Arc::make_mut(&mut self.state.call_frames)
+        // Removing only lowers what the full check counts, unless the frames are shared and
+        // `make_mut` copies them.
+        let frames = &mut self.state.quiet().call_frames;
+        if Arc::get_mut(frames).is_none() {
+            self.budget_headroom.set(None);
+        }
+        let frame = Arc::make_mut(frames)
             .last_mut()
             .ok_or_else(|| Error::InvalidOperation("no active call frame".into()))?;
         frame.locals.remove(name);
         Ok(())
     }
     pub fn set_global(&mut self, name: impl Into<String>, value: Value) -> Result<()> {
-        let previous = self.state.globals.clone();
-        Arc::make_mut(&mut self.state.globals).insert(name.into(), value);
+        let name = name.into();
+        let replaced = Arc::make_mut(&mut self.state.globals).insert(name.clone(), value);
         if let Err(error) = self.enforce_budget() {
-            self.state.globals = previous;
+            let globals = Arc::make_mut(&mut self.state.globals);
+            match replaced {
+                Some(old) => globals.insert(name, old),
+                None => globals.remove(&name),
+            };
             return Err(error);
         }
         Ok(())
@@ -2854,74 +3459,226 @@ impl Runtime {
         self.allocation_bytes_since_gc = self.allocation_bytes_since_gc.saturating_add(bytes);
         Ok(id)
     }
+    fn heap_value_bytes(&self, value: &Value) -> usize {
+        let mut total = Self::value_bytes(value);
+        if self.numeric_accounting.is_some() {
+            total = total.saturating_sub(Self::numeric_payload_bytes(value));
+        }
+        if let Some(a) = &self.shared_accounting {
+            total = total.saturating_sub(Self::shared_payload_bytes(value));
+            if a.includes_bytes() {
+                total = total.saturating_sub(Self::byte_payload_info(value).0);
+            }
+            if a.includes_containers() {
+                total = total.saturating_sub(Self::container_logical_discount(value));
+            }
+        }
+        total
+    }
     pub fn heap_set(&mut self, id: u64, value: Value) -> Result<()> {
-        let bytes = |value: &Value| {
-            let mut total = Self::value_bytes(value);
-            if self.numeric_accounting.is_some() {
-                total = total.saturating_sub(Self::numeric_payload_bytes(value));
-            }
-            if let Some(a) = &self.shared_accounting {
-                total = total.saturating_sub(Self::shared_payload_bytes(value));
-                if a.includes_bytes() {
-                    total = total.saturating_sub(Self::byte_payload_info(value).0);
-                }
-                if a.includes_containers() {
-                    total = total.saturating_sub(Self::container_logical_discount(value));
-                }
-            }
-            total
+        let growth = self.heap_value_bytes(&value).saturating_sub(
+            self.state
+                .heap
+                .get(&id)
+                .map_or(0, |old| self.heap_value_bytes(old)),
+        );
+        // The full check reads a heap only through its running totals plus the payload
+        // registration below, so a heap that nothing else shares is proved by the change in those
+        // totals. Registration is done here exactly as the full check would do it; that needs
+        // every earlier registration to have been checked already.
+        let tracked = Arc::strong_count(&self.state.heap) == 1
+            && Arc::weak_count(&self.state.heap) == 0
+            && self.numeric_accounting.as_ref().map_or(true, |a| {
+                a.generation() == self.numeric_checked_generation.get()
+            })
+            && self.shared_accounting.as_ref().map_or(true, |a| {
+                a.generation() == self.shared_checked_generation.get()
+            });
+        let before = tracked.then(|| self.budget_heap_bytes(&self.state.heap, false));
+        // A tracked heap is uniquely owned, so keep the old store (an O(1) clone of its root)
+        // after the copy-on-write step; an untracked heap keeps its Arc so a failure restores it.
+        let mut previous_arc = None;
+        let mut previous_store = None;
+        let heap = if tracked {
+            Arc::make_mut(&mut self.state.quiet().heap)
+        } else {
+            previous_arc = Some(self.state.heap.clone());
+            Arc::make_mut(&mut self.state.heap)
         };
-        let growth = bytes(&value).saturating_sub(self.state.heap.get(&id).map_or(0, bytes));
-        let previous = self.state.heap.clone();
-        let heap = Arc::make_mut(&mut self.state.heap);
         if !heap.contains_key(&id) {
             return Err(Error::InvalidOperation(format!(
                 "unknown heap object: {id}"
             )));
         }
+        if tracked {
+            previous_store = Some(heap.clone());
+        }
         heap.insert(id, value);
-        if let Err(error) = self.enforce_budget() {
-            self.state.heap = previous;
-            return Err(error);
+        let proved = before.is_some_and(|before| {
+            let after = self.budget_heap_bytes(&self.state.heap, true);
+            // Only this heap was registered since the last check, so it is the new baseline.
+            // If the fast path declines, the old marks come back and the full check decides, so
+            // a failure leaves them as it always did.
+            let marks = (
+                self.numeric_checked_generation.get(),
+                self.shared_checked_generation.get(),
+            );
+            if let Some(a) = &self.numeric_accounting {
+                self.numeric_checked_generation.set(a.generation());
+            }
+            if let Some(a) = &self.shared_accounting {
+                self.shared_checked_generation.set(a.generation());
+            }
+            let ok = self
+                .enforce_budget_fast(after.saturating_sub(before), before.saturating_sub(after));
+            if !ok {
+                self.numeric_checked_generation.set(marks.0);
+                self.shared_checked_generation.set(marks.1);
+            }
+            ok
+        });
+        if !proved {
+            if let Err(error) = self.enforce_budget() {
+                if let Some(store) = previous_store {
+                    *Arc::make_mut(&mut self.state.quiet().heap) = store;
+                } else if let Some(arc) = previous_arc {
+                    self.state.heap = arc;
+                }
+                return Err(error);
+            }
         }
         self.allocation_bytes_since_gc = self.allocation_bytes_since_gc.saturating_add(growth);
         Ok(())
     }
+    /// 文字列の `+=` を、ヒープ上の値を移動して追記し、書き戻す。
+    /// 追記先が文字列でない場合は何もせず `false` を返す。
+    pub fn heap_append_text(&mut self, id: u64, suffix: &text_storage::Text) -> Result<bool> {
+        let (old_len, old_bytes) = match self.state.heap.get(&id) {
+            Some(old @ Value::Text(text)) => (text.len(), self.heap_value_bytes(old)),
+            _ => return Ok(false),
+        };
+        {
+            // スロットから外して唯一の所有者にしてから追記し、書き戻す。
+            // 旧値の複製をスロットに残すと、追記のたびに全体が複製される。
+            let heap = Arc::make_mut(&mut self.state.heap);
+            let Some(Value::Text(text)) = heap.get(&id).cloned() else {
+                return Ok(false);
+            };
+            heap.remove(id);
+            heap.insert(id, Value::Text(text + suffix));
+        }
+        let new_bytes = self
+            .state
+            .heap
+            .get(&id)
+            .map_or(0, |value| self.heap_value_bytes(value));
+        if let Err(error) = self.enforce_budget() {
+            // 予算超過時は追記分を切り詰めて元の内容に戻す。
+            let heap = Arc::make_mut(&mut self.state.heap);
+            if let Some(Value::Text(text)) = heap.get(&id).cloned() {
+                let mut owned = text.into_owned();
+                owned.truncate(old_len);
+                heap.remove(id);
+                heap.insert(id, Value::Text(text_storage::Text::from(owned)));
+            }
+            return Err(error);
+        }
+        self.allocation_bytes_since_gc = self
+            .allocation_bytes_since_gc
+            .saturating_add(new_bytes.saturating_sub(old_bytes));
+        Ok(true)
+    }
+    /// 構造体のフィールドが文字列のとき、その `+=` を旧値の複製なしで追記する。
+    /// 対象が構造体でない、またはフィールドが文字列でない場合は何もせず `false` を返す。
+    pub fn heap_append_struct_text(
+        &mut self,
+        id: u64,
+        field: &str,
+        suffix: &text_storage::Text,
+    ) -> Result<bool> {
+        let (old_len, old_bytes) = match self.state.heap.get(&id) {
+            Some(old @ Value::Struct(_, fields)) => match fields.get(field) {
+                Some(Value::Text(text)) => (text.len(), self.heap_value_bytes(old)),
+                _ => return Ok(false),
+            },
+            _ => return Ok(false),
+        };
+        {
+            // スロットから外し、フィールドの文字列も取り出して唯一の所有者にしてから追記する。
+            let heap = Arc::make_mut(&mut self.state.heap);
+            let Some(Value::Struct(name, mut fields)) = heap.get(&id).cloned() else {
+                return Ok(false);
+            };
+            heap.remove(id);
+            if let Some(Value::Text(text)) = fields.get_mut(field) {
+                let taken = std::mem::take(text);
+                *text = taken + suffix;
+            }
+            heap.insert(id, Value::Struct(name, fields));
+        }
+        let new_bytes = self
+            .state
+            .heap
+            .get(&id)
+            .map_or(0, |value| self.heap_value_bytes(value));
+        if let Err(error) = self.enforce_budget() {
+            // 予算超過時は追記分を切り詰めて元の内容に戻す。
+            let heap = Arc::make_mut(&mut self.state.heap);
+            if let Some(Value::Struct(name, mut fields)) = heap.get(&id).cloned() {
+                heap.remove(id);
+                if let Some(Value::Text(text)) = fields.get_mut(field) {
+                    let mut owned = std::mem::take(text).into_owned();
+                    owned.truncate(old_len);
+                    *text = text_storage::Text::from(owned);
+                }
+                heap.insert(id, Value::Struct(name, fields));
+            }
+            return Err(error);
+        }
+        self.allocation_bytes_since_gc = self
+            .allocation_bytes_since_gc
+            .saturating_add(new_bytes.saturating_sub(old_bytes));
+        Ok(true)
+    }
     pub fn heap_get(&self, id: u64) -> Option<&Value> {
         self.state.heap.get(&id)
     }
-    pub fn display_value(&self, value: &Value) -> String {
-        fn secret(rt: &Runtime, v: &Value, seen: &mut BTreeSet<u64>, depth: usize) -> bool {
-            if depth > 64 {
-                return true;
-            }
-            match v {
-                Value::Struct(t, _) if t.starts_with("Secret<") => true,
-                Value::HeapRef(id) | Value::CellRef(id) => {
-                    seen.insert(*id)
-                        && rt
-                            .heap_get(*id)
-                            .is_some_and(|v| secret(rt, v, seen, depth + 1))
-                }
-                Value::List(v) => v.iter().any(|v| secret(rt, v, seen, depth + 1)),
-                Value::TypedList(_, v) => v.iter().any(|v| secret(rt, v, seen, depth + 1)),
-                Value::Struct(_, v) | Value::Closure(_, _, v) => {
-                    v.values().any(|v| secret(rt, v, seen, depth + 1))
-                }
-                Value::Enum(_, _, v) => v.iter().any(|(_, v)| secret(rt, v, seen, depth + 1)),
-                Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
-                    secret(rt, v, seen, depth + 1)
-                }
-                Value::Map(v) | Value::TypedMap(_, _, v) => {
-                    v.values().any(|v| secret(rt, v, seen, depth + 1))
-                }
-                Value::OrderedMap(_, _, v) => v
-                    .iter()
-                    .any(|(a, b)| secret(rt, a, seen, depth + 1) || secret(rt, b, seen, depth + 1)),
-                _ => false,
-            }
+    fn contains_secret(&self, value: &Value) -> bool {
+        Self::secret(self, value, &mut BTreeSet::new(), 0)
+    }
+    fn secret(rt: &Runtime, v: &Value, seen: &mut BTreeSet<u64>, depth: usize) -> bool {
+        if depth > 64 {
+            return true;
         }
-        if secret(self, value, &mut BTreeSet::new(), 0) {
+        match v {
+            Value::Struct(t, _) if t.starts_with("Secret<") => true,
+            Value::HeapRef(id) | Value::CellRef(id) => {
+                seen.insert(*id)
+                    && rt
+                        .heap_get(*id)
+                        .is_some_and(|v| Self::secret(rt, v, seen, depth + 1))
+            }
+            Value::List(v) => v.iter().any(|v| Self::secret(rt, v, seen, depth + 1)),
+            Value::TypedList(_, v) => v.iter().any(|v| Self::secret(rt, v, seen, depth + 1)),
+            Value::Struct(_, v) | Value::Closure(_, _, v) => {
+                v.values().any(|v| Self::secret(rt, v, seen, depth + 1))
+            }
+            Value::Enum(_, _, v) => v.iter().any(|(_, v)| Self::secret(rt, v, seen, depth + 1)),
+            Value::Option(Some(v)) | Value::Result(Ok(v)) | Value::Result(Err(v)) => {
+                Self::secret(rt, v, seen, depth + 1)
+            }
+            Value::Map(v) | Value::TypedMap(_, _, v) => {
+                v.values().any(|v| Self::secret(rt, v, seen, depth + 1))
+            }
+            Value::OrderedMap(_, _, v) => v.iter().any(|(a, b)| {
+                Self::secret(rt, a, seen, depth + 1) || Self::secret(rt, b, seen, depth + 1)
+            }),
+            _ => false,
+        }
+    }
+
+    pub fn display_value(&self, value: &Value) -> String {
+        if self.contains_secret(value) {
             return "<redacted: Secret>".into();
         }
         match value {
@@ -2929,6 +3686,145 @@ impl Runtime {
                 .heap_get(*id)
                 .map(ToString::to_string)
                 .unwrap_or_else(|| format!("<missing object:{id}>")),
+            other => other.to_string(),
+        }
+    }
+
+    /// Readable text for program output (`Out.println` and friends). Unlike
+    /// `display_value`, which also feeds traces and the debugger, this expands
+    /// nested records, enums, tuples and collections.
+    pub fn display_pretty(&self, value: &Value) -> String {
+        if self.contains_secret(value) {
+            return "<redacted: Secret>".into();
+        }
+        self.pretty(value, 0)
+    }
+
+    /// Human-readable form used by `Out.println`: records, structs, enums,
+    /// tuples, maps and nested heap values are written out in full.
+    fn pretty(&self, value: &Value, depth: usize) -> String {
+        const MAX_DEPTH: usize = 8;
+        // Inside another value a collection shows only its first items, so
+        // that a record holding a large List stays one readable line.
+        const NESTED_ITEMS: usize = 32;
+        if depth > MAX_DEPTH {
+            return "...".into();
+        }
+        let short = |name: &str| name.rsplit('$').next().unwrap_or(name).to_string();
+        let next = depth + 1;
+        let key_text = |key: &MapKey| match key {
+            MapKey::Text(text) => text.clone(),
+            MapKey::Int(n) => n.to_string(),
+            MapKey::Bool(b) => b.to_string(),
+            MapKey::Float(bits) => f64::from_bits(*bits).to_string(),
+            other => format!("{other:?}"),
+        };
+        match value {
+            Value::HeapRef(id) => self
+                .heap_get(*id)
+                .map(|inner| self.pretty(inner, next))
+                .unwrap_or_else(|| format!("<missing object:{id}>")),
+            Value::List(items) => {
+                let limit = if depth == 0 { usize::MAX } else { NESTED_ITEMS };
+                let mut parts: Vec<String> = items
+                    .iter()
+                    .take(limit)
+                    .map(|item| self.pretty(item, next))
+                    .collect();
+                if items.len() > limit {
+                    parts.push(format!("... {} more", items.len() - limit));
+                }
+                format!("[{}]", parts.join(", "))
+            }
+            Value::TypedList(_, items) => {
+                let limit = if depth == 0 { usize::MAX } else { NESTED_ITEMS };
+                let mut parts: Vec<String> = items
+                    .iter()
+                    .take(limit)
+                    .map(|item| self.pretty(item, next))
+                    .collect();
+                if items.len() > limit {
+                    parts.push(format!("... {} more", items.len() - limit));
+                }
+                format!("[{}]", parts.join(", "))
+            }
+            Value::Map(map) | Value::TypedMap(_, _, map) => {
+                let limit = if depth == 0 { usize::MAX } else { NESTED_ITEMS };
+                let mut parts: Vec<String> = map
+                    .iter()
+                    .take(limit)
+                    .map(|(k, v)| format!("{}: {}", key_text(k), self.pretty(v, next)))
+                    .collect();
+                if map.len() > limit {
+                    parts.push(format!("... {} more", map.len() - limit));
+                }
+                format!("{{{}}}", parts.join(", "))
+            }
+            Value::Struct(name, fields) if name.starts_with("Frozen<") && fields.len() == 1 => {
+                match fields.get("$value") {
+                    Some(inner) => self.pretty(inner, next),
+                    None => value.to_string(),
+                }
+            }
+            Value::Struct(name, fields) if name.starts_with("Tuple<") => {
+                let mut parts: Vec<(usize, String)> = fields
+                    .iter()
+                    .map(|(k, v)| {
+                        (
+                            k.trim_start_matches('_').parse().unwrap_or(0),
+                            self.pretty(v, next),
+                        )
+                    })
+                    .collect();
+                parts.sort_by_key(|(index, _)| *index);
+                format!(
+                    "({})",
+                    parts
+                        .into_iter()
+                        .map(|(_, text)| text)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+            Value::Struct(name, fields) => format!(
+                "{}{{{}}}",
+                short(name),
+                fields
+                    .iter()
+                    .map(|(k, v)| format!("{k}: {}", self.pretty(v, next)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Value::Enum(name, variant, fields) => {
+                let head = format!("{}::{variant}", short(name));
+                if fields.is_empty() {
+                    head
+                } else if fields
+                    .iter()
+                    .all(|(k, _)| k.chars().all(|c| c.is_ascii_digit()))
+                {
+                    format!(
+                        "{head}({})",
+                        fields
+                            .iter()
+                            .map(|(_, v)| self.pretty(v, next))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                } else {
+                    format!(
+                        "{head}{{{}}}",
+                        fields
+                            .iter()
+                            .map(|(k, v)| format!("{k}: {}", self.pretty(v, next)))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            }
+            Value::Option(Some(inner)) => format!("Some({})", self.pretty(inner, next)),
+            Value::Result(Ok(inner)) => format!("Ok({})", self.pretty(inner, next)),
+            Value::Result(Err(inner)) => format!("Err({})", self.pretty(inner, next)),
             other => other.to_string(),
         }
     }
@@ -2941,7 +3837,7 @@ impl Runtime {
     /// and published effects remain external facts, just as for ordinary revert.
     pub fn reset_begin(&mut self) -> Result<()> {
         self.require_internal()?;
-        self.state = self
+        *self.state = self
             .checkpoints
             .get("begin")
             .ok_or_else(|| Error::MissingCheckpoint("begin".into()))?
@@ -2985,7 +3881,7 @@ impl Runtime {
         if checkpoint.tainted {
             return Err(Error::TaintedCheckpoint(name.into()));
         }
-        self.state = checkpoint.state.clone();
+        *self.state = checkpoint.state.clone();
         self.restore_pending();
         self.current_parent = Some(name.into());
         Ok(())
@@ -3096,6 +3992,8 @@ impl Runtime {
         Ok(format!("{{\"checkpoint\":{},\"parent\":{},\"pc\":{},\"frames\":{},\"files\":[{}],\"directories\":[{}],\"stdout_bytes\":{},\"stderr_bytes\":{},\"cursors\":{{\"stdin\":{},\"time\":{},\"args\":{},\"env\":{},\"directory\":{}}},\"secret_env_count\":{}}}",quote(name),parent,state.program_counter,state.call_frames.len(),files,dirs,state.stdout.len(),state.stderr.len(),state.stdin_cursor,state.time_cursor,state.args_cursor,state.env_cursor,state.directory_cursor,self.env_secrets.len()))
     }
     pub fn begin_branch(&self) -> BranchAnchor {
+        // `branch_roots` is read by the full budget check and changed through `&self`.
+        bump_budget_epoch();
         let state = Arc::new(self.state.clone());
         let mut roots = self.branch_roots.borrow_mut();
         roots.retain(|root| root.strong_count() > 0);
@@ -3107,7 +4005,7 @@ impl Runtime {
     }
     pub fn end_branch(&mut self, name: impl Into<String>, anchor: BranchAnchor) -> Result<()> {
         self.commit(name)?;
-        self.state = (*anchor.state).clone();
+        *self.state = (*anchor.state).clone();
         self.restore_pending();
         self.current_parent = anchor.parent;
         Ok(())
@@ -3733,16 +4631,17 @@ impl Runtime {
         if self.state.files.get(path).is_some_and(Option::is_none) {
             return Err(Error::MissingFile(path.into()));
         }
-        let id = self.state.next_handle_id;
-        self.state.next_handle_id += 1;
-        Arc::make_mut(&mut self.state.handles).insert(
+        let state = &mut *self.state;
+        let id = state.next_handle_id;
+        state.next_handle_id += 1;
+        Arc::make_mut(&mut state.handles).insert(
             id,
             FileHandle {
                 path: path.into(),
                 mode: FileMode::ReadWrite,
                 position: 0,
                 buffer: Vec::new(),
-                virtual_file_version: self.state.file_epoch,
+                virtual_file_version: state.file_epoch,
                 snapshot: None,
             },
         );

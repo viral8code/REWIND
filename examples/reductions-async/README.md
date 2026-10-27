@@ -1,6 +1,6 @@
 # Cooperative scalar reductions
 
-Run `rewind run main.rw` with an installed SDK. Sum, mean and variance operate
+Run `rewind run main.rw --native-work 100000000 --steps 20000000 --task-steps 2000000` with an installed SDK. Sum, mean and variance operate
 on shared native views, process at most 4096 values per step, and yield between
 steps. This example checks explicit task handoff, checkpoint restore and
 cancellation. Existing synchronous numeric APIs remain available. The example

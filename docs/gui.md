@@ -2,7 +2,7 @@
 
 `std.gui` は一つのネイティブウィンドウにラベル、ボタン、チェックボックス、色付き矩形を描画します。REWIND のイベントループでクリックとキー入力に応答できます。Windows x64 は Win32/GDI、Linux x86_64 は X11 を使います。ブラウザ、JVM、外部 GUI toolkit は不要です。
 
-現在の機能を順に読むには[HTMLの本のGUI章](book/index.html#ch18) / [PDF](book/REWIND-2.0.0-book.pdf)を利用できます。以下には各版で追加した機能の説明も含みます。
+入門書の[GUIの節](book/index.html#ネイティブ-gui)（[PDF](book/REWIND-3.6.0-book.pdf)）に、Undo付きカウンターを含む例があります。以下には各版で追加した機能の説明も含みます。
 
 ## 実行
 
@@ -58,6 +58,36 @@ rewind replay trace.json --root . --allow-effects gui
 ```
 
 `--gui-events` を指定するとネイティブウィンドウを開かず、指定した JSON 配列を入力として利用します。Replay もウィンドウを開きません。GUI 許可は別途必要です。イベントが不足すると `GuiEventTapeEnd`、改変や不足のある replay は `ReplayMismatch` になります。
+
+## Windows の実機で試す
+
+Windows では、実際のウィンドウを開き、マウスとキーボードを送って確かめられます。`scripts/gui-drive-windows.ps1` が、プログラムを起動し、ウィンドウを見つけて、クリック、キー入力、リサイズ、画面の保存（PNG）を順に行います。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\gui-drive-windows.ps1 `
+  -Source examples\notes\main.rw -Title "REWIND notes" -Effects "gui,fileRead,fileWrite" `
+  -Steps "clickf:0.5,0.45;keys:hello{ENTER}world;shot:typed.png;clickf:0.25,0.92;wait:800"
+```
+
+`-Steps` の部品は `click:X,Y`（クライアント領域の物理ピクセル）、`clickf:FX,FY`（クライアント領域に対する 0〜1 の割合）、`keys:TEXT`（`SendKeys` の書式）、`wait:MS`、`resize:W,H`、`shot:FILE` です。ウィンドウの見つけ方は題名（`-Title`）で、ASCII の題名を使ってください。
+
+`scripts/gui-smoke-windows.ps1` は、`examples/notes` を実際のウィンドウで開き、キーボードで 2 行を入力し、Save ボタンを押して、保存されたファイルの内容を確かめます。対話できるデスクトップが必要で、実行中はマウスが動きます。
+
+この方法で、Windows 10 以降の Win32/GDI について、ボタンのクリック、Undo（`revert` と `continueInput`）、文字入力、複数行の編集、保存、ウィンドウのリサイズ（`Action::Resize` を受けて `resize` と `applyLayout` で再配置）が動くことを確認しました。IME の変換中の表示は、OS の入力法が必要なので、この方法では確かめられません。
+
+## Linux（X11）の実機で試す
+
+Linux では、`scripts/gui-drive-x11.py` が同じことを行います。Python 3 の標準ライブラリと、`libX11`、XTEST 拡張（`libXtst`）だけを使うので、追加のパッケージは要りません。WSL2 の WSLg でも動きます。
+
+```sh
+python3 scripts/gui-drive-x11.py --source examples/notes/main.rw --title "REWIND notes" \
+  --effects gui,fileRead,fileWrite \
+  --steps "clickf:0.5,0.45;keys:hello{ENTER}world;shot:typed.png;clickf:0.25,0.92;wait:800"
+```
+
+`scripts/gui-smoke-linux.sh` は、Windows の確認用スクリプトと同じ内容（入力、保存、ファイルの確認）を行います。WSLg の XWayland で、入力、保存、ウィンドウのリサイズと再配置が動くことを確認しました。
+
+この確認で、X11 の実装に不具合が見つかり、直しました。ウィンドウのサイズが変わっていない `ConfigureNotify`（移動や、自分が出した `XResizeWindow` の反映）も `resize` イベントとして扱っていたため、アプリケーションが `resize` に応じて再配置すると、`present` がまた `XResizeWindow` を呼び、`resize` イベントが止まらなくなっていました。いまは、サイズが変わったときだけ `resize` イベントを出します。
 
 ## 制限と失敗
 

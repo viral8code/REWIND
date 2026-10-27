@@ -175,6 +175,18 @@ pub(super) fn render(error: &Error) -> String {
     out.trim_end().into()
 }
 
+thread_local! {
+    static QUIET: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+/// Runs `f` with the "did you mean" search for unknown names turned off. For callers that ask
+/// the type checker a question and throw the error away: searching hundreds of names for a
+/// spelling hint that nobody reads is wasted work.
+pub(super) fn quietly<T>(f: impl FnOnce() -> T) -> T {
+    QUIET.with(|q| q.set(q.get() + 1));
+    let out = f();
+    QUIET.with(|q| q.set(q.get() - 1));
+    out
+}
 /// A bounded, deterministic spelling suggestion using visible lexical bindings.
 pub(super) fn unknown_name(at: &Tok, name: &str, names: impl Iterator<Item = String>) -> Error {
     let mut error = diagnostic(at, format!("unknown name {name}"));
@@ -182,13 +194,14 @@ pub(super) fn unknown_name(at: &Tok, name: &str, names: impl Iterator<Item = Str
         return error;
     };
     enrich(d);
-    if name.chars().count() > 64 {
+    if name.chars().count() > 64 || QUIET.with(|q| q.get()) > 0 {
         return error;
     }
-    fn distance(a: &str, b: &str) -> usize {
-        let a = a.chars().collect::<Vec<_>>();
-        let b = b.chars().collect::<Vec<_>>();
-        let mut row = (0..=b.len()).collect::<Vec<_>>();
+    // Edit distance between two char slices. `row` is reused so that comparing hundreds of
+    // candidates does not allocate for each of them.
+    fn distance(a: &[char], b: &[char], row: &mut Vec<usize>) -> usize {
+        row.clear();
+        row.extend(0..=b.len());
         for (i, x) in a.iter().enumerate() {
             let mut diagonal = row[0];
             row[0] = i + 1;
@@ -203,12 +216,26 @@ pub(super) fn unknown_name(at: &Tok, name: &str, names: impl Iterator<Item = Str
         row[b.len()]
     }
     let threshold = if name.chars().count() < 5 { 1 } else { 2 };
-    let best = names
-        .take(256)
-        .filter(|s| s.chars().count() <= 64)
-        .map(|s| (distance(name, &s), s))
-        .filter(|(n, _)| *n <= threshold)
-        .min();
+    let wanted = name.chars().collect::<Vec<_>>();
+    let mut candidate_chars = Vec::new();
+    let mut row = Vec::new();
+    let mut best: Option<(usize, String)> = None;
+    for candidate in names.take(256) {
+        candidate_chars.clear();
+        candidate_chars.extend(candidate.chars());
+        // A candidate whose length differs by more than the threshold cannot be close enough.
+        if candidate_chars.len() > 64 || candidate_chars.len().abs_diff(wanted.len()) > threshold {
+            continue;
+        }
+        let d = distance(&wanted, &candidate_chars, &mut row);
+        if d <= threshold
+            && best
+                .as_ref()
+                .is_none_or(|(bd, bs)| (d, &candidate) < (*bd, bs))
+        {
+            best = Some((d, candidate));
+        }
+    }
     if let Some((_, suggestion)) = best {
         d.hints.insert(0, format!("Did you mean `{suggestion}`?"));
     }

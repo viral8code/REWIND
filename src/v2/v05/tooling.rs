@@ -107,119 +107,8 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
     prepare(&mut program)?;
     check_program(&program)?;
     if let Some(c) = &config {
-        if matches!(
-            c.language.as_str(),
-            "0.5"
-                | "0.6"
-                | "0.7"
-                | "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
+        {
             validate(&program, c)?;
-        } else if c.language == "0.4" {
-            effects::validate(&program, c)?;
         }
     }
     Ok(program)
@@ -290,226 +179,9 @@ pub fn lsp(root: &Path) -> Result<()> {
     let mut output = stdout.lock();
     let mut documents: BTreeMap<PathBuf, String> = BTreeMap::new();
     let mut versions: BTreeMap<PathBuf, i64> = BTreeMap::new();
-    let modern = project::ProjectConfig::load(root)?.is_none_or(|c| {
-        matches!(
-            c.language.as_str(),
-            "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        )
-    });
+    let modern = project::ProjectConfig::load(root)?.is_none_or(|_c| true);
     let mut checked: BTreeMap<PathBuf, Program> = BTreeMap::new();
-    let incremental = project::ProjectConfig::load(root)?.is_none_or(|c| {
-        matches!(
-            c.language.as_str(),
-            "0.6"
-                | "0.7"
-                | "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        )
-    });
+    let incremental = project::ProjectConfig::load(root)?.is_none_or(|_c| true);
     let mut shutdown = false;
     loop {
         let mut length = None;
@@ -545,7 +217,7 @@ pub fn lsp(root: &Path) -> Result<()> {
         let response = (|| -> Result<Json> {
             match method {
                 "initialize" => Ok(
-                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"documentFormattingProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental,"experimental":{"rewindTimeline":modern,"provisionalDeclarations":modern}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
+                    json!({"capabilities":{"textDocumentSync":if incremental {2}else{1},"hoverProvider":true,"documentFormattingProvider":true,"definitionProvider":true,"completionProvider":{"triggerCharacters":["."]},"referencesProvider":incremental,"renameProvider":if incremental {json!({"prepareProvider":true})} else {json!(false)},"signatureHelpProvider":if incremental {json!({"triggerCharacters":["(",","]})} else {Json::Null},"codeActionProvider":incremental,"documentSymbolProvider":true,"semanticTokensProvider":{"legend":{"tokenTypes":crate::v2::editor::SEMANTIC_LEGEND,"tokenModifiers":[]},"full":true},"experimental":{"rewindTimeline":modern,"provisionalDeclarations":modern}},"serverInfo":{"name":"REWIND","version":env!("CARGO_PKG_VERSION")}}),
                 ),
                 "shutdown" => {
                     shutdown = true;
@@ -702,6 +374,47 @@ pub fn lsp(root: &Path) -> Result<()> {
                         json!([{"range":{"start":{"line":0,"character":0},"end":{"line":line,"character":column}},"newText":formatted}]),
                     )
                 }
+                "textDocument/documentSymbol" | "textDocument/semanticTokens/full" => {
+                    let uri = params["textDocument"]["uri"]
+                        .as_str()
+                        .ok_or_else(|| Error::InvalidOperation("missing document URI".into()))?;
+                    let path = document_path(uri)?;
+                    if !path.starts_with(fs::canonicalize(root)?) {
+                        return Err(Error::InvalidPath(uri.into()));
+                    }
+                    let text = documents
+                        .get(&path)
+                        .cloned()
+                        .map(Ok)
+                        .unwrap_or_else(|| fs::read_to_string(&path))?;
+                    if method == "textDocument/semanticTokens/full" {
+                        return Ok(json!({"data": crate::v2::editor::semantic_tokens(&text)}));
+                    }
+                    Ok(Json::Array(
+                        crate::v2::editor::symbols(&text)
+                            .iter()
+                            .map(|s| {
+                                let kind = match s["kind"].as_str().unwrap_or("") {
+                                    "function" => 12,
+                                    "method" => 6,
+                                    "struct" => 23,
+                                    "enum" => 10,
+                                    "trait" => 11,
+                                    "impl" => 5,
+                                    "const" => 14,
+                                    _ => 26,
+                                };
+                                let at = |line: &str, col: &str| {
+                                    let l = s[line].as_u64().unwrap_or(1) as usize - 1;
+                                    let c = s[col].as_u64().unwrap_or(1) as usize - 1;
+                                    json!({"line": l, "character": utf16_column(&text, l, c)})
+                                };
+                                let range = json!({"start": at("line", "column"), "end": at("endLine", "endColumn")});
+                                json!({"name": s["name"], "kind": kind, "range": range, "selectionRange": range})
+                            })
+                            .collect(),
+                    ))
+                }
                 "textDocument/codeAction" => {
                     if !incremental {
                         return Err(Error::InvalidOperation(
@@ -792,7 +505,7 @@ pub fn lsp(root: &Path) -> Result<()> {
                     let Some(f) = p.functions.get(&name) else {
                         let mut checker = Checker {
                             program: &p,
-                            scopes: vec![BTreeMap::new()],
+                            scopes: vec![crate::v2::Scope::default()],
                             return_ty: None,
                             loop_depth: 0,
                             bounds: BTreeMap::new(),
@@ -1038,12 +751,6 @@ impl DebugEngine {
     }
     pub fn current(&self) -> &Json {
         &self.current
-    }
-    pub fn trace(&self) -> &Json {
-        &self.trace
-    }
-    pub fn selected_task(&self) -> Option<u64> {
-        self.selected_task
     }
     pub fn state_available(&self) -> bool {
         self.indexed || self.parsed.is_some()

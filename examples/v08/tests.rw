@@ -1,2 +1,0 @@
-import checks.api;
-test fn helper_works(){assert_eq(answer(),42);}

@@ -20,11 +20,3 @@ pub fn run(source: &str) -> Output {
     fs::remove_dir_all(root).unwrap();
     result
 }
-pub fn ok(source: &str) {
-    let output = run(source);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}

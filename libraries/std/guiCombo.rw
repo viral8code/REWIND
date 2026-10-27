@@ -1,0 +1,128 @@
+import gui as gui;
+import unicode as unicode;
+// A drop-down choice of up to 256 unique options. The header is 240 pixels wide and 24 pixels high; the list shows up to 8 rows below it.
+// State is plain VM data. Keyboard moves stop at the first and last option (no wrap); a typed character moves to the next option starting with it.
+pub record Outcome {changed:Bool,index:Option<Int>}
+// selected is -1 when no option is selected; highlight is the row the keyboard works on while the list is open.
+pub struct Combo {private options:List<String>,private selected:Int,private highlight:Int,private first:Int,private visible:Bool}
+// @api create failure GuiComboLimit/Text/Duplicate; at most 256 options, each 1..128 bytes without NUL, all distinct.
+// @api create cost O(options) time, one Map entry per option
+pub fn create(options:&List<String>)->Result<Combo,StdError> effects {} {
+ if options.len()>256{return Err(StdError("GuiComboLimit",0));}
+ let items=List<String>();let seen=Map<String,Int>();
+ for i in 0..options.len(){
+  let text=options.get(i);
+  if text=="" || text.byteLen()>128 || stdTextFind(text,"\0")!=None{return Err(StdError("GuiComboText",0));}
+  if seen.get(text)!=None{return Err(StdError("GuiComboDuplicate",0));}
+  seen.set(text,i);items.add(text);
+ }
+ return Ok(Combo(items,-1,0,0,false));
+}
+// @api setSelected failure GuiComboRange; index must name an existing option.
+// @api setSelected cost O(1)
+pub fn setSelected(combo:&mut Combo,index:Int)->Result<Unit,StdError> effects {} {
+ if index<0 || index>=combo.options.len(){return Err(StdError("GuiComboRange",0));}
+ combo.selected=index;
+ return Ok(());
+}
+// @api selected cost O(1)
+pub fn selected(combo:&Combo)->Option<Int> effects {} {if combo.selected<0{return None;}return Some(combo.selected);}
+// @api selectedText cost O(text bytes)
+pub fn selectedText(combo:&Combo)->Option<String> effects {} {if combo.selected<0{return None;}return Some(combo.options.get(combo.selected));}
+// @api isOpen cost O(1)
+pub fn isOpen(combo:&Combo)->Bool effects {} {return combo.visible;}
+// open starts the highlight at the selected option, or at the first option when none is selected.
+// @api open cost O(1); scrolls the viewport only
+pub fn open(combo:&mut Combo)->Unit effects {} {
+ if combo.selected>=0{combo.highlight=combo.selected;}else{combo.highlight=0;}
+ combo.first=0;combo.visible=true;scroll(combo);
+}
+// @api close cost O(1)
+pub fn close(combo:&mut Combo)->Unit effects {} {combo.visible=false;}
+fn visibleRows(combo:&Combo)->Int effects {} {let n=combo.options.len();if n<8{return n;}return 8;}
+// scroll keeps the highlighted row inside the 8-row viewport.
+fn scroll(combo:&mut Combo)->Unit effects {} {
+ if combo.highlight<combo.first{combo.first=combo.highlight;}
+ if combo.highlight>=combo.first+8{combo.first=combo.highlight-7;}
+}
+// moveTo highlights index; a closed combo also selects it, so keyboard moves work without opening the list.
+fn moveTo(combo:&mut Combo,index:Int)->Unit effects {} {
+ combo.highlight=index;scroll(combo);
+ if !combo.visible{combo.selected=index;}
+}
+// step moves the highlight by direction, stopping at the first and last option.
+fn step(combo:&mut Combo,direction:Int)->Unit effects {} {
+ let n=combo.options.len();var i=combo.highlight+direction;if i<0{i=0;}if i>=n{i=n-1;}
+ moveTo(combo,i);
+}
+fn firstChar(text:String)->String effects {} {match stdTextSlice(text,0,1){Ok(c)=>{return c;},Err(_)=>{return "";}}}
+// foldChar lowercases a typed character with std.unicode (case-insensitive match, like a WinForms ComboBox); the input is kept if lowering fails.
+fn foldChar(text:String)->String effects {} {match unicode.lower(&text){Ok(c)=>{return c;},Err(_)=>{return text;}}}
+// findTyped returns the first option after the highlight, wrapping around, whose first character equals key ignoring case; -1 when none matches.
+fn findTyped(combo:&Combo,key:String)->Int effects {} {
+ let n=combo.options.len();let want=foldChar(key);
+ for k in 0..n{let i=(combo.highlight+1+k)%n;if foldChar(firstChar(combo.options.get(i)))==want{return i;}}
+ return -1;
+}
+// commitHighlight selects the highlighted option and closes the list.
+fn commitHighlight(combo:&mut Combo)->Unit effects {} {
+ if combo.options.len()>0{combo.selected=combo.highlight;}
+ combo.visible=false;
+}
+// @api dispatch cost O(options) for typed-character search (case-insensitive); a click on the header toggles the list, and a click on a row commits it.
+pub fn dispatch(combo:&mut Combo,event:gui.Event)->Outcome effects {} {
+ let before=combo.selected;var picked=false;let n=combo.options.len();
+ if !combo.visible{combo.highlight=combo.selected;}
+ if event.kind=="pointer"{
+  if event.x>=0 && event.x<240 && event.y>=0 && event.y<24{if combo.visible{combo.visible=false;}else{open(combo);}}
+  else{
+   if combo.visible{
+    let rows=visibleRows(combo);
+    if event.x>=0 && event.x<240 && event.y>=24 && event.y<24+rows*24{
+     let i=combo.first+(event.y-24)/24;
+     if i<n{combo.highlight=i;picked=true;commitHighlight(combo);}else{combo.visible=false;}
+    }else{combo.visible=false;}
+   }
+  }
+ }
+ if event.kind=="key"{
+  if event.key=="Escape"{combo.visible=false;}
+  if event.key=="Enter" || event.key=="Space"{
+   if combo.visible{if n>0{picked=true;commitHighlight(combo);}}else{open(combo);}
+  }
+  if n>0 && event.key=="Up"{step(combo,-1);}
+  if n>0 && event.key=="Down"{step(combo,1);}
+  if n>0 && event.key=="Home"{moveTo(combo,0);}
+  if n>0 && event.key=="End"{moveTo(combo,n-1);}
+ }
+ if event.kind=="text" && n>0 && event.key!=""{
+  let key=firstChar(event.key);
+  let i=findTyped(combo,key);
+  if i>=0{moveTo(combo,i);}
+ }
+ let changed=picked || combo.selected!=before;
+ return Outcome(changed,selected(combo));
+}
+// @api draw cost O(visible rows); failure GuiComboId. The base view and combo remain unchanged.
+pub fn draw(combo:&Combo,base:&gui.View,prefix:String)->Result<gui.View,StdError> effects {} {
+ if prefix=="" || prefix.byteLen()>32 || stdTextFind(prefix,"\0")!=None{return Err(StdError("GuiComboId",0));}
+ let bounds=gui.bounds(base);let layer=gui.window("",bounds.width,bounds.height)?;gui.graphemeEditing(&mut layer,gui.graphemeMode(base))?;
+ var text="";
+ if combo.selected>=0{text=combo.options.get(combo.selected);}
+ gui.rectangle(&mut layer,prefix+":header",0,0,240,24,0xffffff)?;
+ gui.label(&mut layer,prefix+":text",text,8,4,224,16)?;
+ gui.style(&mut layer,prefix+":text",0x111827,0xffffff)?;
+ if combo.visible{
+  let rows=visibleRows(combo);
+  for row in 0..rows{
+   let i=combo.first+row;
+   if i<combo.options.len(){
+    var background=0xffffff;if i==combo.highlight{background=0xdbeafe;}
+    gui.rectangle(&mut layer,prefix+":row:"+i.format(),0,24+row*24,240,24,background)?;
+    gui.label(&mut layer,prefix+":label:"+i.format(),combo.options.get(i),8,28+row*24,224,16)?;
+    gui.style(&mut layer,prefix+":label:"+i.format(),0x111827,background)?;
+   }
+  }
+ }
+ return gui.overlay(base,&layer);
+}

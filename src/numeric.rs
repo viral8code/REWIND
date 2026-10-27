@@ -489,33 +489,92 @@ impl Iterator for BufferRange<'_> {
     }
 }
 impl ExactSizeIterator for BufferRange<'_> {}
+// Row-major walk of a non-contiguous view. The coordinate counter advances by strides (no
+// per-element division) and the current leaf page is kept, so a unit-ish stride descends the
+// tree once per page instead of once per element. Offsets were validated at construction.
+struct StridedRange<'a> {
+    array: &'a Array,
+    remaining: usize,
+    index: Vec<usize>,
+    offset: isize,
+    page: usize,
+    bits: &'a [u64],
+}
+impl<'a> StridedRange<'a> {
+    /// Logical elements `start..end` of `array`, which must be a valid sub-range of its length.
+    fn new(array: &'a Array, start: usize, end: usize) -> Self {
+        let mut index = vec![0; array.shape.len()];
+        let offset = if start < array.len() {
+            let mut rest = start;
+            for axis in (0..index.len()).rev() {
+                index[axis] = rest % array.shape[axis];
+                rest /= array.shape[axis];
+            }
+            array.flat_index(start)
+        } else {
+            // Empty window: nothing is read; keep a harmless in-range offset.
+            array.offset as usize
+        } as isize;
+        Self {
+            array,
+            remaining: end - start,
+            index,
+            offset,
+            page: usize::MAX,
+            bits: &[],
+        }
+    }
+}
+impl Iterator for StridedRange<'_> {
+    type Item = u64;
+    fn next(&mut self) -> Option<u64> {
+        if self.remaining == 0 {
+            return None;
+        }
+        let at = self.offset as usize;
+        if at / PAGE != self.page {
+            let NodeKind::Leaf(bits) = &self.array.buffer.leaf(at).kind else {
+                unreachable!()
+            };
+            self.bits = bits;
+            self.page = at / PAGE;
+        }
+        let value = self.bits[at % PAGE];
+        self.remaining -= 1;
+        if self.remaining > 0 {
+            let (shape, strides) = (&self.array.shape, &self.array.strides);
+            for axis in (0..shape.len()).rev() {
+                self.index[axis] += 1;
+                self.offset += strides[axis];
+                if self.index[axis] < shape[axis] {
+                    break;
+                }
+                self.offset -= strides[axis] * shape[axis] as isize;
+                self.index[axis] = 0;
+            }
+        }
+        Some(value)
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
 enum ArrayBits<'a> {
     Contiguous(BufferRange<'a>),
-    Strided {
-        array: &'a Array,
-        next: usize,
-        end: usize,
-    },
+    Strided(StridedRange<'a>),
 }
 impl Iterator for ArrayBits<'_> {
     type Item = u64;
     fn next(&mut self) -> Option<u64> {
         match self {
             Self::Contiguous(range) => range.next(),
-            Self::Strided { array, next, end } => {
-                if *next == *end {
-                    return None;
-                }
-                let value = array.buffer.get(array.flat_index(*next));
-                *next += 1;
-                Some(value)
-            }
+            Self::Strided(range) => range.next(),
         }
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         let n = match self {
             Self::Contiguous(range) => range.len(),
-            Self::Strided { next, end, .. } => end - next,
+            Self::Strided(range) => range.remaining,
         };
         (n, Some(n))
     }
@@ -618,11 +677,7 @@ impl Array {
                 pending: &[],
             })
         } else {
-            ArrayBits::Strided {
-                array: self,
-                next: 0,
-                end: len,
-            }
+            ArrayBits::Strided(StridedRange::new(self, 0, len))
         }
     }
 }
@@ -1188,6 +1243,18 @@ impl Array {
         Ok(result)
     }
     pub fn matmul(&self, other: &Self) -> Result<Self> {
+        // Small products stay serial, since thread start-up would cost more than the work.
+        let threads = match (self.shape.as_slice(), other.shape.as_slice()) {
+            ([m, k], [_, n]) if *m >= 2 && m.saturating_mul(*n).saturating_mul(*k) >= 1 << 21 => {
+                std::thread::available_parallelism()
+                    .map_or(1, |p| p.get())
+                    .min(8)
+            }
+            _ => 1,
+        };
+        self.matmul_threads(other, threads)
+    }
+    fn matmul_threads(&self, other: &Self, threads: usize) -> Result<Self> {
         if self.dtype != DType::Float64 || other.dtype != self.dtype {
             return Err(Error::Type);
         }
@@ -1201,12 +1268,53 @@ impl Array {
         if *m == 0 || *n == 0 || *k == 0 {
             return Self::zeros(DType::Float64, vec![*m, *n]);
         }
+        let (m, n, k) = (*m, *n, *k);
         let mut output = vec![0.0; m * n];
-        for i in 0..*m {
-            for j in 0..*n {
+        let threads = threads.max(1).min(m);
+        if threads == 1 {
+            self.matmul_rows(other, 0, n, k, &mut output)?;
+        } else {
+            // Rows are split into contiguous blocks; each block keeps the serial per-element order.
+            let rows_per_thread = m.div_ceil(threads);
+            let results: Vec<Result<()>> = std::thread::scope(|scope| {
+                let handles: Vec<_> = output
+                    .chunks_mut(rows_per_thread * n)
+                    .enumerate()
+                    .map(|(index, rows)| {
+                        let first_row = index * rows_per_thread;
+                        scope.spawn(move || self.matmul_rows(other, first_row, n, k, rows))
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .map(|handle| match handle.join() {
+                        Ok(result) => result,
+                        Err(panic) => std::panic::resume_unwind(panic),
+                    })
+                    .collect()
+            });
+            // Blocks are joined in row order, so the first error is the one with the smallest row.
+            for result in results {
+                result?;
+            }
+        }
+        Self::floats(vec![m, n], &output)
+    }
+    /// Computes whole output rows starting at `first_row`. `rows` holds `n` values per row.
+    fn matmul_rows(
+        &self,
+        other: &Self,
+        first_row: usize,
+        n: usize,
+        k: usize,
+        rows: &mut [f64],
+    ) -> Result<()> {
+        for (local, row) in rows.chunks_mut(n).enumerate() {
+            let i = first_row + local;
+            for j in 0..n {
                 let mut sum = 0.0;
                 let mut correction = 0.0;
-                for p in 0..*k {
+                for p in 0..k {
                     // Rank, shape and all descriptor bounds were validated before the kernel.
                     // Avoid repeating fallible multidimensional indexing for each multiply.
                     let ai = (self.offset
@@ -1229,10 +1337,10 @@ impl Array {
                 if !value.is_finite() {
                     return Err(Error::NonFinite);
                 }
-                output[i * n + j] = value;
+                row[j] = value;
             }
         }
-        Self::floats(vec![*m, *n], &output)
+        Ok(())
     }
     /// Partial-pivot LU solve. No inverse is formed. The caller reserves O(n^3) work and O(n^2) temporary bytes.
     pub fn solve(&self, right: &Self, tolerance: f64) -> Result<Self> {
@@ -1398,6 +1506,84 @@ mod tests {
             vec![0.0; 6]
         );
     }
+    fn lcg_floats(len: usize, seed: u64) -> Vec<f64> {
+        let mut state = seed;
+        (0..len)
+            .map(|_| {
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                ((state >> 11) as f64 / (1u64 << 53) as f64) * 2.0 - 1.0
+            })
+            .collect()
+    }
+    fn bits(values: Vec<f64>) -> Vec<u64> {
+        values.into_iter().map(f64::to_bits).collect()
+    }
+    #[test]
+    fn matmul_threads_match_serial_bit_for_bit() {
+        let a = Array::floats(vec![70, 50], &lcg_floats(70 * 50, 1)).unwrap();
+        let b = Array::floats(vec![50, 90], &lcg_floats(50 * 90, 2)).unwrap();
+        let serial = bits(a.matmul_threads(&b, 1).unwrap().float_values().unwrap());
+        for threads in [2, 3, 8] {
+            let parallel = a.matmul_threads(&b, threads).unwrap();
+            assert_eq!(bits(parallel.float_values().unwrap()), serial);
+        }
+        // 70 * 90 * 50 is below the automatic threshold, so this checks the serial choice.
+        assert_eq!(bits(a.matmul(&b).unwrap().float_values().unwrap()), serial);
+    }
+    #[test]
+    fn matmul_threads_handles_small_and_reversed_inputs() {
+        let a = Array::floats(vec![1, 3], &[1.0, 2.0, 3.0]).unwrap();
+        let b = Array::floats(vec![3, 2], &[1.0, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();
+        for threads in [1, 2, 8] {
+            assert_eq!(
+                a.matmul_threads(&b, threads)
+                    .unwrap()
+                    .float_values()
+                    .unwrap(),
+                vec![4.0, 5.0]
+            );
+        }
+        let a = Array::floats(vec![2, 3], &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let reverse = a.slice(1, 2, 3, -1).unwrap();
+        let transposed = reverse.transpose(&[1, 0]).unwrap();
+        for threads in [1, 2, 3, 8] {
+            assert_eq!(
+                reverse
+                    .matmul_threads(&transposed, threads)
+                    .unwrap()
+                    .float_values()
+                    .unwrap(),
+                vec![14.0, 32.0, 32.0, 77.0]
+            );
+        }
+    }
+    #[test]
+    fn matmul_threads_report_non_finite_like_serial() {
+        let a = Array::floats(vec![4, 2], &[1e308; 8]).unwrap();
+        let b = Array::floats(vec![2, 3], &[10.0; 6]).unwrap();
+        assert_eq!(a.matmul_threads(&b, 1), Err(Error::NonFinite));
+        for threads in [2, 3, 8] {
+            assert_eq!(a.matmul_threads(&b, threads), Err(Error::NonFinite));
+        }
+    }
+    #[test]
+    #[ignore]
+    fn matmul_timing_300_cube() {
+        let a = Array::floats(vec![300, 300], &lcg_floats(300 * 300, 3)).unwrap();
+        let b = Array::floats(vec![300, 300], &lcg_floats(300 * 300, 4)).unwrap();
+        let start = std::time::Instant::now();
+        let serial = a.matmul_threads(&b, 1).unwrap();
+        eprintln!("matmul 300x300x300 serial: {:?}", start.elapsed());
+        let start = std::time::Instant::now();
+        let parallel = a.matmul(&b).unwrap();
+        eprintln!("matmul 300x300x300 auto: {:?}", start.elapsed());
+        assert_eq!(
+            bits(serial.float_values().unwrap()),
+            bits(parallel.float_values().unwrap())
+        );
+    }
     #[test]
     fn bounded_wire_roundtrip_preserves_views_and_rejects_forged_bounds() {
         let a = Array::integers(vec![2, 3], &[1, 2, 3, 4, 5, 6])
@@ -1532,6 +1718,30 @@ mod tests {
                     .map(|b| f64::from_bits(*b) + 1.0)
                     .collect::<Vec<_>>()
             );
+        }
+        // Rank-3 view with a negative stride, a skipped axis and a repeated (stride 0) axis.
+        let cube = original
+            .slice(0, 0, PAGE * 4, 1)
+            .unwrap()
+            .reshape(vec![8, 16, 8])
+            .unwrap();
+        let moved = cube.transpose(&[2, 0, 1]).unwrap();
+        let flipped = cube
+            .slice(1, 15, 16, -1)
+            .unwrap()
+            .slice(2, 0, 4, 2)
+            .unwrap();
+        let repeated = cube
+            .slice(0, 2, 1, 1)
+            .unwrap()
+            .broadcast(vec![5, 16, 8])
+            .unwrap();
+        for view in [&moved, &flipped, &repeated] {
+            let expected = (0..view.len())
+                .map(|i| view.buffer.get(view.flat_index(i)))
+                .collect::<Vec<_>>();
+            assert_eq!(view.bits().collect::<Vec<_>>(), expected);
+            assert_eq!(view.bits().len(), view.len());
         }
         let empty = original.slice(0, values.len(), 0, 1).unwrap();
         assert_eq!(empty.bits().len(), 0);

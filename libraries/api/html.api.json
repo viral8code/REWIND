@@ -1,0 +1,124 @@
+{
+  "format": 2,
+  "kind": "rewind-api",
+  "language": "4.0.0",
+  "symbols": {
+    "fn:concat": {
+      "async": false,
+      "cost": "O(total bytes); joins the Html parts in order without escaping.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "parts"
+      ],
+      "parameters": [
+        "&List<Html>"
+      ],
+      "return": "Html"
+    },
+    "fn:element": {
+      "async": false,
+      "cost": "O(attributes log attributes + children bytes); tag is a-z 0-9 (1..32), attribute names A-Z a-z 0-9 - (non-empty); attributes are written in name order.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "tag",
+        "attrs",
+        "children"
+      ],
+      "parameters": [
+        "String",
+        "&Map<String,String>",
+        "&List<Html>"
+      ],
+      "return": "Result<Html,HtmlError>",
+      "failure": "BadTag, BadAttribute, VoidChildren."
+    },
+    "fn:escapeAttribute": {
+      "async": false,
+      "cost": "O(bytes); escapes like escapeText, also ` and =, and drops NUL and control characters except tab and newline.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "s"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "String"
+    },
+    "fn:escapeText": {
+      "async": false,
+      "cost": "O(bytes); replaces & < > \" ' with entities.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "s"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "String"
+    },
+    "fn:raw": {
+      "async": false,
+      "cost": "O(1); trusts s as markup and does not escape it.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "s"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Html"
+    },
+    "fn:safeUrl": {
+      "async": false,
+      "cost": "O(bytes); keeps http:, https:, mailto: and scheme-less URLs starting with / # ?, after dropping spaces and control characters and lowercasing ASCII. Anything else becomes \"#\".",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "url"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "String"
+    },
+    "fn:text": {
+      "async": false,
+      "cost": "O(bytes); escapes s with escapeText and wraps it as Html.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "s"
+      ],
+      "parameters": [
+        "String"
+      ],
+      "return": "Html"
+    },
+    "fn:toString": {
+      "async": false,
+      "cost": "O(1); returns the markup text of h.",
+      "defaults": [],
+      "effects": [],
+      "generics": [],
+      "names": [
+        "h"
+      ],
+      "parameters": [
+        "&Html"
+      ],
+      "return": "String"
+    }
+  }
+}

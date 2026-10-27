@@ -1,6 +1,6 @@
 # Cooperative directed graph traversal
 
-Run `rewind run main.rw`. The program builds and traverses a directed chain,
+Run `rewind run main.rw --native-work 100000000 --steps 20000000 --task-steps 2000000`. The program builds and traverses a directed chain,
 checks an unreachable vertex, restores an unfinished task checkpoint and cancels
 a second task. Graph endpoints are immutable shared native integer arrays.
 Expected output is `true`, `true`, `graph done` on separate lines.

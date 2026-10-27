@@ -6,6 +6,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 static NEXT_SPILL: AtomicU64 = AtomicU64::new(0);
+/// Bumped whenever any segment moves from memory to disk, so cached usage totals can tell
+/// that a segment they summed has changed.
+static SPILL_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+pub(crate) fn spill_generation() -> u64 {
+    SPILL_GENERATION.load(Ordering::Acquire)
+}
 
 enum Storage {
     Memory(Vec<u8>),
@@ -53,6 +60,7 @@ impl Segment {
             return Err(e.into());
         }
         *storage = Storage::Spill(path, bytes.len());
+        SPILL_GENERATION.fetch_add(1, Ordering::Release);
         Ok(())
     }
     pub(crate) fn write_to(&self, writer: &mut impl Write) -> io::Result<()> {
@@ -148,6 +156,14 @@ impl Journal {
             cursor = node.prev.as_ref();
         }
         ids
+    }
+    /// Visits the segments from the newest to the oldest without allocating.
+    pub(crate) fn for_each_segment(&self, mut f: impl FnMut(&Arc<Segment>)) {
+        let mut node = self.tail.as_ref();
+        while let Some(current) = node {
+            f(&current.segment);
+            node = current.prev.as_ref();
+        }
     }
     pub(crate) fn segments(&self) -> Vec<Arc<Segment>> {
         let mut segments = Vec::new();

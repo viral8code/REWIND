@@ -1,0 +1,41 @@
+import bytes as bytes;
+// Bounded PNG decode/encode. Pixels are 8-bit, interleaved, row-major, top row first, with 1 (gray),
+// 2 (gray+alpha), 3 (RGB) or 4 (RGBA) channels. Palette images (1, 2, 4 or 8 bits) are expanded to RGB,
+// or to RGBA when the file has a tRNS chunk. Not supported: 16-bit and interlaced images (reported as
+// Unsupported); gray/RGB colour-key transparency is ignored. The caller states the largest image it will accept (maxPixels) and the
+// size is checked from the header before any pixel data is inflated; every chunk checksum is
+// verified and the compressed data must expand to exactly the size the header implies.
+pub record Image {width:Int,height:Int,channels:Int,pixels:Bytes}
+fn le32(raw:Bytes,at:Int)->Result<Int,StdError> effects {} {
+    return Ok(bytes.get(raw,at)?+256*bytes.get(raw,at+1)?+65536*bytes.get(raw,at+2)?+16777216*bytes.get(raw,at+3)?);
+}
+// @api fromPixels cost O(1) beyond checking the length; the pixels are shared, not copied.
+// @api fromPixels failure StdError Range (width/height < 1, channels outside 1..4, or pixel byte count != width*height*channels) / Limit (more than 1,048,576 pixel bytes or a side over 16384).
+pub fn fromPixels(width:Int,height:Int,channels:Int,pixels:Bytes)->Result<Image,StdError> effects {} {
+    if width<1 || height<1 || channels<1 || channels>4 {return Err(StdError("Range",0));}
+    if width>16384 || height>16384 {return Err(StdError("Limit",0));}
+    if width*height*channels!=bytes.length(pixels) {return Err(StdError("Range",0));}
+    if bytes.length(pixels)>1048576 {return Err(StdError("Limit",0));}
+    return Ok(Image(width,height,channels,pixels));
+}
+// @api decodePng cost O(compressed bytes + min(maxPixels, 344 * compressed bytes)) native work, charged up front; decoded image at most 1 MiB.
+// @api decodePng failure StdError Range (maxPixels outside 0..1,048,576) / Limit (image larger than maxPixels, 16384 on a side, or 1 MiB decoded) / Unsupported / Truncated / Corrupt (offset = byte offset of the bad chunk).
+pub fn decodePng(data:Bytes,maxPixels:Int)->Result<Image,StdError> effects {} {
+    let raw=stdPngDecode(data,maxPixels)?;
+    let width=le32(raw,0)?;
+    let height=le32(raw,4)?;
+    let channels=bytes.get(raw,8)?;
+    return Ok(Image(width,height,channels,bytes.slice(raw,9,bytes.length(raw))?));
+}
+// @api encodePng cost O(pixel bytes) native work, 24 units per pixel byte (five row filters and compression); output is deterministic.
+// @api encodePng failure StdError Range / Limit (output over 1 MiB).
+pub fn encodePng(image:&Image)->Result<Bytes,StdError> effects {} {return stdPngEncode(image.pixels,image.width,image.height,image.channels);}
+// @api pixel cost O(channels).
+// @api pixel failure StdError Range when x or y is outside the image.
+pub fn pixel(image:&Image,x:Int,y:Int)->Result<List<Int>,StdError> effects {} {
+    if x<0 || y<0 || x>=image.width || y>=image.height {return Err(StdError("Range",0));}
+    let out=List<Int>();
+    let base=(y*image.width+x)*image.channels;
+    for c in 0..image.channels {out.add(bytes.get(image.pixels,base+c)?);}
+    return Ok(out);
+}

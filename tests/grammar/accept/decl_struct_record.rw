@@ -1,0 +1,4 @@
+// struct と record の宣言
+struct S { a: Int, pub b: Int, private c: Int }
+record R { a: Int }
+pub struct G<T: Eq> where T: Hash { x: T }

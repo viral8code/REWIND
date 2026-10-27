@@ -157,10 +157,6 @@ impl<W: Write> Session<W> {
             .as_mut()
             .ok_or_else(|| "no recording is open: send launch first".to_string())
     }
-    /// Frame ids carry the browser generation so ids from an earlier event are stale.
-    fn frame_id(&self, index: usize) -> u64 {
-        self.browser.generation() * 1000 + index as u64
-    }
     fn frames_of(engine: &DebugEngine, thread: u64) -> Vec<Json> {
         let view = engine.current();
         let list = if view["scheduler"]["active"] == thread {

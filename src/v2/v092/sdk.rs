@@ -58,6 +58,25 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/orderedMap.rw"),
         ),
         ("table", include_str!("../../../libraries/std/table.rw")),
+        (
+            "evaluation",
+            include_str!("../../../libraries/std/evaluation.rw"),
+        ),
+        (
+            "compress",
+            include_str!("../../../libraries/std/compress.rw"),
+        ),
+        ("crypto", include_str!("../../../libraries/std/crypto.rw")),
+        ("html", include_str!("../../../libraries/std/html.rw")),
+        (
+            "template",
+            include_str!("../../../libraries/std/template.rw"),
+        ),
+        ("base64", include_str!("../../../libraries/std/base64.rw")),
+        ("auth", include_str!("../../../libraries/std/auth.rw")),
+        ("dna", include_str!("../../../libraries/std/dna.rw")),
+        ("fastx", include_str!("../../../libraries/std/fastx.rw")),
+        ("image", include_str!("../../../libraries/std/image.rw")),
         ("layout", include_str!("../../../libraries/std/layout.rw")),
         ("parser", include_str!("../../../libraries/std/parser.rw")),
         (
@@ -201,6 +220,13 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             include_str!("../../../libraries/std/guiDialog.rw"),
         ),
         ("guiMenu", include_str!("../../../libraries/std/guiMenu.rw")),
+        ("guiTabs", include_str!("../../../libraries/std/guiTabs.rw")),
+        (
+            "guiCombo",
+            include_str!("../../../libraries/std/guiCombo.rw"),
+        ),
+        ("guiDate", include_str!("../../../libraries/std/guiDate.rw")),
+        ("binding", include_str!("../../../libraries/std/binding.rw")),
         ("guiForm", include_str!("../../../libraries/std/guiForm.rw")),
         (
             "guiTable",
@@ -304,6 +330,7 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "httpHeaders",
             include_str!("../../../libraries/std/httpHeaders.rw"),
         ),
+        ("web", include_str!("../../../libraries/std/web.rw")),
         ("tests", include_str!("../../../libraries/std/tests.rw")),
     ])
 }

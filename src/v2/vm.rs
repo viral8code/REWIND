@@ -4,6 +4,7 @@ use sha2::{Digest, Sha256};
 mod extensions;
 mod scheduler;
 use scheduler::Scheduler;
+use std::sync::Arc;
 
 fn replay_control_error(error: &Error) -> bool {
     match error {
@@ -64,14 +65,15 @@ enum Op {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Inst {
     op: Op,
-    at: Tok,
+    // Shared so the per-step instruction clone does not copy the location strings.
+    at: std::sync::Arc<Tok>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 struct FunctionChunk {
     code: Vec<Inst>,
     closures: BTreeMap<String, Function>,
     hidden: usize,
-    closure_typing: BTreeMap<String, Vec<BTreeMap<String, (String, bool)>>>,
+    closure_typing: BTreeMap<String, Vec<crate::v2::Scope>>,
 }
 fn relocate(code: &mut [Inst], base: usize, relative: bool) {
     for inst in code {
@@ -111,13 +113,16 @@ struct Compiler {
     depth: usize,
     hidden: usize,
     closure_defs: BTreeMap<String, Function>,
+    /// Names of closures in the order they were defined, so a function can find the ones it
+    /// added without scanning every closure defined so far.
+    closure_log: Vec<String>,
     aliases: BTreeMap<String, String>,
     type_params: Vec<(String, Option<String>)>,
     typing_program: Program,
-    typing_scopes: Vec<BTreeMap<String, (String, bool)>>,
+    typing_scopes: Vec<crate::v2::Scope>,
     typing_origin: PathBuf,
     typing_key: String,
-    closure_typing: BTreeMap<String, Vec<BTreeMap<String, (String, bool)>>>,
+    closure_typing: BTreeMap<String, Vec<crate::v2::Scope>>,
 }
 impl Compiler {
     fn into_parts(self) -> CompiledParts {
@@ -128,112 +133,6 @@ impl Compiler {
         }
     }
     fn expression_type(&self, e: &Expr) -> Option<String> {
-        if !matches!(
-            self.typing_program.language.as_str(),
-            "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
-            return None;
-        }
         let checker = Checker {
             program: &self.typing_program,
             scopes: self.typing_scopes.clone(),
@@ -249,111 +148,7 @@ impl Compiler {
         checker.expr(e).ok()
     }
     fn call_name(&self, name: &str, args: &[Expr], at: &Tok) -> String {
-        if !matches!(
-            self.typing_program.language.as_str(),
-            "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) || name.contains('<')
-        {
+        if false || name.contains('<') {
             return name.into();
         }
         let Some(f) = self.typing_program.functions.get(name) else {
@@ -440,9 +235,10 @@ impl Compiler {
             depth: 0,
             hidden: 0,
             closure_defs: BTreeMap::new(),
+            closure_log: Vec::new(),
             aliases: BTreeMap::new(),
             typing_program: Program::default(),
-            typing_scopes: vec![BTreeMap::new()],
+            typing_scopes: vec![crate::v2::Scope::default()],
             typing_origin: PathBuf::new(),
             typing_key: String::new(),
             closure_typing: BTreeMap::new(),
@@ -451,7 +247,10 @@ impl Compiler {
     }
     fn emit(&mut self, op: Op, at: &Tok) -> usize {
         let pos = self.code.len();
-        self.code.push(Inst { op, at: at.clone() });
+        self.code.push(Inst {
+            op,
+            at: std::sync::Arc::new(at.clone()),
+        });
         pos
     }
     fn patch(&mut self, index: usize, target: usize) {
@@ -466,7 +265,7 @@ impl Compiler {
         }
     }
     fn enter(&mut self, at: &Tok) {
-        self.typing_scopes.push(BTreeMap::new());
+        self.typing_scopes.push(crate::v2::Scope::default());
         self.emit(Op::Enter, at);
         self.depth += 1;
     }
@@ -489,112 +288,7 @@ impl Compiler {
         c.typing_program = program.clone();
         c.typing_origin = program.root_origin.clone();
         for stmt in &program.stmts {
-            let guard = if matches!(
-                program.language.as_str(),
-                "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            ) && stmt.at.text == "@application-entry"
-            {
+            let guard = if stmt.at.text == "@application-entry" {
                 Some(c.emit(Op::ApplicationEntry(0), &stmt.at))
             } else {
                 None
@@ -611,109 +305,7 @@ impl Compiler {
             col: 1,
         });
         c.emit(Op::Halt, &end);
-        if matches!(
-            program.language.as_str(),
-            "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
+        {
             let signatures = program
                 .functions
                 .iter()
@@ -765,136 +357,36 @@ impl Compiler {
     }
     fn compile_function(&mut self, name: &str, f: &Function, program: &Program) -> Result<()> {
         let root = program.root_origin.parent().unwrap_or(Path::new("."));
-        let key = v06::cache::key(&(
-            f,
-            &self.aliases,
-            self.hidden,
-            &program.language,
-            (program.language == "0.9.2").then_some(program),
-            &self.typing_key,
-            self.closure_typing.get(name),
-        ))
-        .unwrap_or_default();
+        // A closure is compiled in the typing context of every variable around it. Hashing that
+        // context for each closure would make a function with many closures quadratic, and the
+        // closure is cheap to compile again, so only named functions go through the cache.
+        let cacheable = !name.starts_with("$closure");
+        let key = if cacheable {
+            v06::cache::key(&(
+                f,
+                &self.aliases,
+                self.hidden,
+                &program.language,
+                &self.typing_key,
+                self.closure_typing.get(name),
+            ))
+            .unwrap_or_default()
+        } else {
+            String::new()
+        };
         let base = self.code.len();
-        if matches!(
-            program.language.as_str(),
-            "0.6"
-                | "0.7"
-                | "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
+        if cacheable {
             if let Some(mut chunk) = v06::cache::get::<FunctionChunk>(root, "compiled", &key) {
                 relocate(&mut chunk.code, base, false);
                 self.code.extend(chunk.code);
+                self.closure_log.extend(chunk.closures.keys().cloned());
                 self.closure_defs.extend(chunk.closures);
                 self.closure_typing.extend(chunk.closure_typing);
                 self.hidden = chunk.hidden;
                 return Ok(());
             }
         }
-        let before = self.closure_defs.keys().cloned().collect::<BTreeSet<_>>();
+        let mark = self.closure_log.len();
         let typing_scopes = self.typing_scopes.clone();
         let typing_origin = self.typing_origin.clone();
         if let Some(context) = self.closure_typing.get(name) {
@@ -919,122 +411,17 @@ impl Compiler {
         self.depth = 0;
         self.typing_scopes = typing_scopes;
         self.typing_origin = typing_origin;
-        if matches!(
-            program.language.as_str(),
-            "0.6"
-                | "0.7"
-                | "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
+        if cacheable {
             let mut code = self.code[base..].to_vec();
             relocate(&mut code, base, true);
-            let closures = self
-                .closure_defs
+            let added = &self.closure_log[mark..];
+            let closures = added
                 .iter()
-                .filter(|(n, _)| !before.contains(*n))
-                .map(|(n, f)| (n.clone(), f.clone()))
+                .filter_map(|n| self.closure_defs.get(n).map(|f| (n.clone(), f.clone())))
+                .collect();
+            let closure_typing = added
+                .iter()
+                .filter_map(|n| self.closure_typing.get(n).map(|c| (n.clone(), c.clone())))
                 .collect();
             v06::cache::put(
                 root,
@@ -1044,11 +431,30 @@ impl Compiler {
                     code,
                     closures,
                     hidden: self.hidden,
-                    closure_typing: self.closure_typing.clone(),
+                    closure_typing,
                 },
             );
         }
         Ok(())
+    }
+    /// What a closure body needs to know about the variables around it: the global layer, plus
+    /// the type of each outer variable the body names. Keeping the whole table for every closure
+    /// would copy it again each time a variable is added after a closure, which makes a function
+    /// with many closures quadratic.
+    fn closure_context(&self, params: &[(String, String)], body: &[Stmt]) -> Vec<crate::v2::Scope> {
+        let mut local = BTreeMap::new();
+        for name in v05::free_names(body, params) {
+            if let Some(entry) = self
+                .typing_scopes
+                .iter()
+                .skip(1)
+                .rev()
+                .find_map(|scope| scope.get(&name))
+            {
+                local.insert(name, entry.clone());
+            }
+        }
+        vec![self.typing_scopes[0].clone(), crate::v2::Scope::from(local)]
     }
     fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
         let at = &stmt.at;
@@ -1251,9 +657,7 @@ impl Compiler {
                     self.pattern_types(pattern, value_type.as_deref(), at);
                     self.emit(Op::Load(hidden.clone()), at);
                     let miss = self.emit(
-                        if language_at_least(&self.typing_program.language, "1.6.1")
-                            && matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
-                        {
+                        if matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _)) {
                             Op::BorrowPatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
                         } else {
                             Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
@@ -1434,9 +838,7 @@ impl Compiler {
                     self.pattern_types(pattern, value_type.as_deref(), &e.at);
                     self.emit(Op::Load(hidden.clone()), &e.at);
                     let miss = self.emit(
-                        if language_at_least(&self.typing_program.language, "1.6.1")
-                            && matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
-                        {
+                        if matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _)) {
                             Op::BorrowPatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
                         } else {
                             Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
@@ -1469,8 +871,8 @@ impl Compiler {
             ExprKind::Closure(params, ret, body) => {
                 self.hidden += 1;
                 let name = format!("$closure{}", self.hidden);
-                self.closure_typing
-                    .insert(name.clone(), self.typing_scopes.clone());
+                let context = self.closure_context(params, body);
+                self.closure_typing.insert(name.clone(), context);
                 let ty = format!(
                     "fn({})->{ret}",
                     params
@@ -1479,6 +881,7 @@ impl Compiler {
                         .collect::<Vec<_>>()
                         .join(",")
                 );
+                self.closure_log.push(name.clone());
                 self.closure_defs.insert(
                     name.clone(),
                     Function {
@@ -1575,6 +978,27 @@ struct VmSnapshot {
     branches: Vec<BranchFrame>,
     global_cleanups: Vec<Cleanup>,
     scheduler: Scheduler,
+    // A snapshot is never modified after it is stored (revert clones it), so its accounted
+    // scheduler size is computed once instead of on every VM step.
+    scheduler_bytes: std::cell::Cell<Option<usize>>,
+}
+
+/// Static name for the scalar types whose declared and runtime type strings are identical.
+fn scalar_type_name(ty: &str) -> Option<&'static str> {
+    match ty {
+        "Int" => Some("Int"),
+        "Float" => Some("Float"),
+        "Bool" => Some("Bool"),
+        _ => None,
+    }
+}
+fn scalar_type_name_of(value: &Value) -> Option<&'static str> {
+    match value {
+        Value::Int(_) => Some("Int"),
+        Value::Float(_) => Some("Float"),
+        Value::Bool(_) => Some("Bool"),
+        _ => None,
+    }
 }
 
 fn gc_scope_roots(scopes: &[BTreeMap<String, Binding>], out: &mut Vec<Value>) {
@@ -1733,9 +1157,12 @@ impl<R: BufRead> Vm<R> {
     }
 }
 
+/// Language-version dependent switches, computed once when the `Vm` is built.
+/// The program's language never changes while a `Vm` runs, so the per-instruction
+/// checks read these fields instead of comparing the version text.
 struct Vm<R: BufRead> {
     engine: Engine<R>,
-    code: Vec<Inst>,
+    code: Vec<Arc<Inst>>,
     functions: BTreeMap<String, usize>,
     globals: Vec<BTreeMap<String, Binding>>,
     global_scope_ids: Vec<u64>,
@@ -1764,7 +1191,6 @@ struct Vm<R: BufRead> {
     debug_bytes: usize,
     audit: Vec<serde_json::Value>,
     inspections: Vec<serde_json::Value>,
-    task_instructions: BTreeMap<u64, usize>,
     task_instruction_total: u64,
     choice_widths: Vec<usize>,
     choices_used: Vec<usize>,
@@ -1798,7 +1224,6 @@ impl<R: BufRead> Vm<R> {
             || options.replay.is_some()
             || options.inspect
             || options.pause_after.is_some())
-            && language_at_least(&program.language, "1.9.21")
             && v06::entry_effects(&program, test_mode)?.contains("live")
         {
             return Err(Error::InvalidOperation("ExternalLiveRecordingUnsupported: live effects require execution without record, replay or inspection".into()));
@@ -1927,37 +1352,37 @@ impl<R: BufRead> Vm<R> {
             engine.runtime.enable_work_profile();
             engine.runtime.enable_gc_profiling();
         }
-        if language_at_least(&engine.program.language, "1.9.47") {
+        {
             engine.runtime.enable_cached_heap_entries();
         }
-        if language_at_least(&engine.program.language, "1.9.46") {
+        {
             engine.runtime.enable_cached_heap_traversal();
         }
-        if language_at_least(&engine.program.language, "1.9.45") {
+        {
             engine.runtime.enable_container_accounting();
         }
-        if language_at_least(&engine.program.language, "1.9.44") {
+        {
             engine.runtime.enable_byte_payload_accounting();
         }
-        if language_at_least(&engine.program.language, "1.9.43") {
+        {
             engine.runtime.enable_shared_payload_accounting();
         }
-        if language_at_least(&engine.program.language, "1.9.11") {
+        {
             engine.runtime.enable_numeric_accounting();
         }
-        if language_at_least(&engine.program.language, "1.9.51") {
+        {
             engine.runtime.enable_sensitive_accounting();
         }
-        if language_at_least(&engine.program.language, "1.9.52") {
+        {
             engine.runtime.enable_gui_clipboard();
         }
-        if language_at_least(&engine.program.language, "1.9.59") {
+        {
             engine.runtime.enable_gui_command_keys();
         }
-        if language_at_least(&engine.program.language, "1.9.61") {
+        {
             engine.runtime.enable_gui_ime();
         }
-        if language_at_least(&engine.program.language, "1.9.63") {
+        {
             engine.runtime.enable_gui_accessibility();
         }
         engine.runtime.set_budget(history_budget)?;
@@ -2023,204 +1448,13 @@ impl<R: BufRead> Vm<R> {
                 .runtime
                 .import_observations(&replay["observations"])?;
         }
-        if matches!(
-            engine.program.language.as_str(),
-            "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
+        {
             engine.runtime.enable_allocation_accounting();
             if let Some(limit) = options.execution_steps {
                 engine.runtime.configure_execution_work(limit);
             }
         }
-        if matches!(
-            engine.program.language.as_str(),
-            "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
+        {
             engine
                 .runtime
                 .configure_native_work(options.native_work.unwrap_or(1_000_000));
@@ -2233,7 +1467,7 @@ impl<R: BufRead> Vm<R> {
         engine.test_mode = test_mode;
         let mut vm = Self {
             engine,
-            code: compiled.code,
+            code: compiled.code.into_iter().map(Arc::new).collect(),
             functions: compiled.functions,
             globals: vec![BTreeMap::new()],
             global_scope_ids: vec![0],
@@ -2262,7 +1496,6 @@ impl<R: BufRead> Vm<R> {
             debug_bytes: 0,
             audit: Vec::new(),
             inspections: Vec::new(),
-            task_instructions: BTreeMap::new(),
             task_instruction_total: 0,
             choice_widths: Vec::new(),
             choices_used: Vec::new(),
@@ -2271,148 +1504,37 @@ impl<R: BufRead> Vm<R> {
             callback_stop: None,
             current_pc: None,
         };
-        if language_at_least(&vm.engine.program.language, "1.3.0") {
+        {
             vm.engine.runtime.install_begin()?;
             vm.snapshots.insert("begin".into(), vm.snapshot());
         }
         Ok(vm)
     }
     fn error(&self, at: &Tok, message: impl AsRef<str>) -> Error {
-        if matches!(
-            self.engine.program.language.as_str(),
-            "0.6"
-                | "0.7"
-                | "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
-            let message = self
-                .engine
-                .runtime
-                .masked_value(&Value::Text(message.as_ref().into()));
-            let code = v06::diagnostics::code(&message).to_string();
-            return Error::Diagnostic(Box::new(rewind::DiagnosticRecord {
-                code: code.clone(),
-                message,
+        let message = self
+            .engine
+            .runtime
+            .masked_value(&Value::Text(message.as_ref().into()));
+        let code = v06::diagnostics::code(&message).to_string();
+        Error::Diagnostic(Box::new(rewind::DiagnosticRecord {
+            code: code.clone(),
+            message,
 
-                source: at.source.clone(),
-                line: at.line,
-                column: at.col,
-                task_id: Some(self.scheduler.active),
-                frames: vec![],
-                hints: vec![],
-                frames_truncated: false,
-                causes: vec![],
-                wait_edges: if code == "TaskDeadlock" {
-                    self.scheduler.wait_edges()
-                } else {
-                    vec![]
-                },
-                related: Vec::new(),
-            }));
-        }
-        diagnostic(at, message)
+            source: at.source.clone(),
+            line: at.line,
+            column: at.col,
+            task_id: Some(self.scheduler.active),
+            frames: vec![],
+            hints: vec![],
+            frames_truncated: false,
+            causes: vec![],
+            wait_edges: if code == "TaskDeadlock" {
+                self.scheduler.wait_edges()
+            } else {
+                vec![]
+            },
+            related: Vec::new(),
+        }))
     }
     fn inspection(&self) -> serde_json::Value {
         serde_json::json!({"event":self.events.len(),"runtime":self.engine.runtime.debug_state(),"scheduler":self.scheduler.debug_json(),"task_frames":self.task_frame_views(),"frames":self.frames.iter().map(|f|serde_json::json!({"function":f.name,"return_pc":f.return_pc,"scopes":f.scopes.iter().map(|scope|scope.iter().map(|(n,b)|(n.clone(),self.engine.runtime.masked_value(&self.resolve(&b.value)))).collect::<BTreeMap<_,_>>()).collect::<Vec<_>>()})).collect::<Vec<_>>()})
@@ -2462,101 +1584,7 @@ impl<R: BufRead> Vm<R> {
         if matches!(error, Error::HistoryBudgetExceeded) {
             d.code = self.engine.runtime.history_budget_kind().into();
         }
-        if matches!(
-            self.engine.program.language.as_str(),
-            "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
+        {
             v11::enrich(&mut d);
         }
         d
@@ -2597,7 +1625,7 @@ impl<R: BufRead> Vm<R> {
         name: String,
         value: Value,
         mutable: bool,
-        ty: Option<String>,
+        ty: Option<&str>,
         at: &Tok,
     ) -> Result<()> {
         self.declare_mode(name, value, mutable, ty, at, true)
@@ -2607,15 +1635,26 @@ impl<R: BufRead> Vm<R> {
         name: String,
         mut value: Value,
         mutable: bool,
-        ty: Option<String>,
+        ty: Option<&str>,
         at: &Tok,
         own: bool,
     ) -> Result<()> {
-        let actual = value_type(&value, &self.engine.runtime);
-        let ty = ty.unwrap_or(actual.clone());
-        if !compatible(&ty, &actual) {
-            return Err(self.error(at, format!("type mismatch: expected {ty}, found {actual}")));
-        }
+        // 宣言された型が値の型と同じスカラーなら、型名の生成と互換性の検査を省く（`store` と同じ考え方）。
+        let value_scalar = scalar_type_name_of(&value);
+        let ty = match (ty, value_scalar) {
+            (Some(t), Some(s)) if scalar_type_name(t) == Some(s) => t.to_string(),
+            (None, Some(s)) => s.to_string(),
+            _ => {
+                let actual = value_type(&value, &self.engine.runtime);
+                let ty = ty.map_or_else(|| actual.clone(), str::to_string);
+                if !compatible(&ty, &actual) {
+                    return Err(
+                        self.error(at, format!("type mismatch: expected {ty}, found {actual}"))
+                    );
+                }
+                ty
+            }
+        };
         if let Some((id, lease)) = if own {
             self.engine.runtime.claim_native(&mut value)?
         } else {
@@ -2660,24 +1699,39 @@ impl<R: BufRead> Vm<R> {
         Ok(())
     }
     fn store(&mut self, name: &str, op: &str, rhs: Value, at: &Tok) -> Result<()> {
-        let old = self
-            .get(name)
-            .cloned()
-            .ok_or_else(|| self.error(at, format!("unknown variable {name}")))?;
-        if !old.mutable {
+        // Only the mutable flag, the value and (for the common scalar case) a static type name
+        // are needed; avoid cloning the binding's type string on every assignment.
+        let (mutable, old_value, declared_scalar) = match self.get(name) {
+            Some(b) => (b.mutable, b.value.clone(), scalar_type_name(&b.ty)),
+            None => return Err(self.error(at, format!("unknown variable {name}"))),
+        };
+        if !mutable {
             return Err(self.error(at, format!("cannot assign to let binding {name}")));
+        }
+        // 文字列の `+=` は、ヒープ上の値を移動して追記する。
+        // 右辺の複製や旧値の複製を経由しないので、追記の費用は追加分に比例する。
+        if op == "+=" {
+            if let (Value::CellRef(id), Value::Text(suffix)) = (&old_value, &rhs) {
+                if self.engine.runtime.heap_append_text(*id, suffix)? {
+                    return Ok(());
+                }
+            }
         }
         let mut value = if op == "=" {
             rhs
         } else {
-            unflow(binary(&op[..1], self.resolve(&old.value), rhs, at), at)?
+            unflow(binary(&op[..1], self.resolve(&old_value), rhs, at), at)?
         };
-        let actual = value_type(&value, &self.engine.runtime);
-        if !compatible(&old.ty, &actual) {
-            return Err(self.error(
-                at,
-                format!("type mismatch: expected {}, found {actual}", old.ty),
-            ));
+        // Same-type scalar stores are always compatible; skip building the type string.
+        if declared_scalar.is_none() || declared_scalar != scalar_type_name_of(&value) {
+            let actual = value_type(&value, &self.engine.runtime);
+            let declared = self.get(name).map(|b| b.ty.clone()).unwrap_or_default();
+            if !compatible(&declared, &actual) {
+                return Err(self.error(
+                    at,
+                    format!("type mismatch: expected {declared}, found {actual}"),
+                ));
+            }
         }
         if let Some((id, lease)) = self.engine.runtime.claim_native(&mut value)? {
             if let Some(frame) = self.frames.last_mut() {
@@ -2698,7 +1752,7 @@ impl<R: BufRead> Vm<R> {
                 self.global_cleanups.push(Cleanup::Native(id, lease, depth));
             }
         }
-        let previous = self.resolve(&old.value);
+        let previous = self.resolve(&old_value);
         if let Some((id, lease)) = rewind::native_resources::token(&previous) {
             if self.engine.runtime.native_owner_matches(id, lease)
                 && rewind::native_resources::token(&value) != Some((id, lease))
@@ -2707,7 +1761,7 @@ impl<R: BufRead> Vm<R> {
                 self.engine.runtime.forget_native_owner(id);
             }
         }
-        if let Value::CellRef(id) = old.value {
+        if let Value::CellRef(id) = old_value {
             self.engine.runtime.heap_set(id, value)?;
             return Ok(());
         }
@@ -2739,6 +1793,7 @@ impl<R: BufRead> Vm<R> {
             branches: self.branches.clone(),
             global_cleanups: self.global_cleanups.clone(),
             scheduler: self.scheduler.clone(),
+            scheduler_bytes: std::cell::Cell::new(None),
         }
     }
     fn collect_native_resources(&mut self) -> Result<()> {
@@ -2850,8 +1905,10 @@ impl<R: BufRead> Vm<R> {
         self.run_cleanups(pending, at)
     }
     fn run_cleanups(&mut self, pending: Vec<Cleanup>, at: &Tok) -> Result<()> {
+        if pending.is_empty() {
+            return Ok(());
+        }
         let mut first_error = None;
-        let mut suppressed = Vec::new();
         let mut typed_causes = Vec::new();
         for cleanup in pending.into_iter().rev() {
             if let Err(error) = self.run_cleanup(cleanup, at) {
@@ -2859,246 +1916,14 @@ impl<R: BufRead> Vm<R> {
                     first_error = Some(error);
                 } else {
                     typed_causes.push(self.record_error(&error, at, self.scheduler.active));
-                    suppressed.push(error.to_string());
                 }
             }
         }
-        if matches!(
-            self.engine.program.language.as_str(),
-            "0.6"
-                | "0.7"
-                | "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
-            return first_error.map_or(Ok(()), |e| {
-                let mut d = self.record_error(&e, at, self.scheduler.active);
-                d.causes.extend(typed_causes);
-                Err(Error::Diagnostic(Box::new(d)))
-            });
-        }
-        if matches!(
-            self.engine.program.language.as_str(),
-            "0.5"
-                | "0.6"
-                | "0.7"
-                | "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
-            first_error.map_or(Ok(()), |e| {
-                let mut message = e.to_string();
-                for cause in suppressed {
-                    message.push_str("; cleanup: ");
-                    message.push_str(&cause);
-                }
-                Err(Error::InvalidOperation(message))
-            })
-        } else {
-            first_error.map_or(Ok(()), Err)
-        }
+        first_error.map_or(Ok(()), |e| {
+            let mut d = self.record_error(&e, at, self.scheduler.active);
+            d.causes.extend(typed_causes);
+            Err(Error::Diagnostic(Box::new(d)))
+        })
     }
     fn call_user_captured(
         &mut self,
@@ -3158,7 +1983,7 @@ impl<R: BufRead> Vm<R> {
                 }
                 let target = self.code.len();
                 for index in start..end {
-                    let mut inst = self.code[index].clone();
+                    let mut inst = Inst::clone(&self.code[index]);
                     match &mut inst.op {
                         Op::Jump(to)
                         | Op::JumpFalse(to)
@@ -3178,7 +2003,7 @@ impl<R: BufRead> Vm<R> {
                         }
                         _ => {}
                     }
-                    self.code.push(inst);
+                    self.code.push(Arc::new(inst));
                 }
                 self.specialized_instructions += size;
                 self.specializations.insert(key, target);
@@ -3279,7 +2104,7 @@ impl<R: BufRead> Vm<R> {
                     let at = self
                         .code
                         .get(self.pc.saturating_sub(1))
-                        .map(|i| i.at.clone())
+                        .map(|i| (*i.at).clone())
                         .unwrap_or(Tok {
                             source: String::new(),
                             text: "<task>".into(),
@@ -3322,232 +2147,11 @@ impl<R: BufRead> Vm<R> {
                 result => break result,
             }
         };
-        if result.is_ok()
-            && matches!(
-                self.engine.program.language.as_str(),
-                "0.5"
-                    | "0.6"
-                    | "0.7"
-                    | "0.8"
-                    | "0.9"
-                    | "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            )
-        {
-            if matches!(
-                self.engine.program.language.as_str(),
-                "0.6"
-                    | "0.7"
-                    | "0.8"
-                    | "0.9"
-                    | "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            ) {
+        if result.is_ok() {
+            {
                 if let Some(error) = self.unhandled_task_diagnostic() {
                     result = Err(Error::Diagnostic(Box::new(error)));
                 }
-            } else if let Some(error) = self.unhandled_task_error() {
-                result = Err(Error::InvalidOperation(error));
             }
         }
         if result.is_err() {
@@ -3556,7 +2160,7 @@ impl<R: BufRead> Vm<R> {
             let at = self
                 .code
                 .get(self.pc.saturating_sub(1))
-                .map(|i| i.at.clone())
+                .map(|i| (*i.at).clone())
                 .unwrap_or(Tok {
                     source: String::new(),
                     text: "<task>".into(),
@@ -3572,7 +2176,7 @@ impl<R: BufRead> Vm<R> {
                     let at = self
                         .code
                         .get(self.pc.saturating_sub(1))
-                        .map(|i| i.at.clone())
+                        .map(|i| (*i.at).clone())
                         .unwrap_or(Tok {
                             source: String::new(),
                             text: "<cleanup>".into(),
@@ -3588,7 +2192,7 @@ impl<R: BufRead> Vm<R> {
             let at = self
                 .code
                 .get(self.pc.saturating_sub(1))
-                .map(|i| i.at.clone())
+                .map(|i| (*i.at).clone())
                 .unwrap_or(Tok {
                     source: String::new(),
                     text: "<cleanup>".into(),
@@ -3601,236 +2205,11 @@ impl<R: BufRead> Vm<R> {
                     causes.push(e.to_string());
                 }
             }
-            if matches!(
-                self.engine.program.language.as_str(),
-                "0.6"
-                    | "0.7"
-                    | "0.8"
-                    | "0.9"
-                    | "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            ) {
+            {
                 let mut failure =
                     self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
                 failure.causes.extend(typed_causes);
                 result = Err(Error::Diagnostic(Box::new(failure)));
-            } else if matches!(
-                self.engine.program.language.as_str(),
-                "0.5"
-                    | "0.6"
-                    | "0.7"
-                    | "0.8"
-                    | "0.9"
-                    | "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            ) && !causes.is_empty()
-            {
-                let mut message = result.unwrap_err().to_string();
-                for cause in causes {
-                    message.push_str("; cleanup: ");
-                    message.push_str(&cause);
-                }
-                result = Err(Error::InvalidOperation(message));
             }
         }
         result
@@ -3838,115 +2217,7 @@ impl<R: BufRead> Vm<R> {
     fn finish_tools(&self, execution_error: Option<&Error>) -> Result<()> {
         let digest = self.engine.runtime.state_digest()?;
         let mut outcome = serde_json::json!({"ok":execution_error.is_none(),"error":execution_error.map(|e|self.engine.runtime.masked_value(&Value::Text(e.to_string().into())))});
-        if matches!(
-            self.engine.program.language.as_str(),
-            "0.6"
-                | "0.7"
-                | "0.8"
-                | "0.9"
-                | "0.9.1"
-                | "0.9.2"
-                | "0.9.3"
-                | "0.9.4"
-                | "0.9.5"
-                | "0.9.6"
-                | "0.9.7"
-                | "0.9.8"
-                | "0.9.9"
-                | "1.0.0"
-                | "1.1.0"
-                | "1.2.0"
-                | "1.3.0"
-                | "1.4.0"
-                | "1.5.0"
-                | "1.6.0"
-                | "1.6.1"
-                | "1.7.0"
-                | "1.7.1"
-                | "1.8.0"
-                | "1.8.1"
-                | "1.8.2"
-                | "1.8.3"
-                | "1.8.4"
-                | "1.8.5"
-                | "1.8.6"
-                | "1.8.7"
-                | "1.8.8"
-                | "1.9.0"
-                | "1.9.1"
-                | "1.9.2"
-                | "1.9.3"
-                | "1.9.4"
-                | "1.9.5"
-                | "1.9.6"
-                | "1.9.7"
-                | "1.9.8"
-                | "1.9.9"
-                | "1.9.10"
-                | "1.9.11"
-                | "1.9.12"
-                | "1.9.13"
-                | "1.9.14"
-                | "1.9.15"
-                | "1.9.16"
-                | "1.9.17"
-                | "1.9.18"
-                | "1.9.19"
-                | "1.9.20"
-                | "1.9.21"
-                | "1.9.22"
-                | "1.9.23"
-                | "1.9.24"
-                | "1.9.25"
-                | "1.9.26"
-                | "1.9.27"
-                | "1.9.28"
-                | "1.9.29"
-                | "1.9.30"
-                | "1.9.31"
-                | "1.9.32"
-                | "1.9.33"
-                | "1.9.34"
-                | "1.9.35"
-                | "1.9.36"
-                | "1.9.37"
-                | "1.9.38"
-                | "1.9.39"
-                | "1.9.40"
-                | "1.9.41"
-                | "1.9.42"
-                | "1.9.43"
-                | "1.9.44"
-                | "1.9.45"
-                | "1.9.46"
-                | "1.9.47"
-                | "1.9.48"
-                | "1.9.49"
-                | "1.9.50"
-                | "1.9.51"
-                | "1.9.52"
-                | "1.9.53"
-                | "1.9.54"
-                | "1.9.55"
-                | "1.9.56"
-                | "1.9.57"
-                | "1.9.58"
-                | "1.9.59"
-                | "1.9.60"
-                | "1.9.61"
-                | "1.9.62"
-                | "1.9.63"
-                | "1.9.64"
-                | "1.9.65"
-                | "2.0.0"
-                | "3.0.0"
-                | "3.1.0"
-                | "3.2.0"
-                | "3.3.0"
-                | "3.4.0"
-                | "3.5.0"
-                | "3.6.0"
-        ) {
+        {
             outcome["diagnostic"] = execution_error
                 .and_then(|e| {
                     if let Error::Diagnostic(d) = e {
@@ -4005,117 +2276,7 @@ impl<R: BufRead> Vm<R> {
                     trace["artifact_entry"] = serde_json::json!(path);
                 }
             }
-            if !compact
-                && matches!(
-                    self.engine.program.language.as_str(),
-                    "0.6"
-                        | "0.7"
-                        | "0.8"
-                        | "0.9"
-                        | "0.9.1"
-                        | "0.9.2"
-                        | "0.9.3"
-                        | "0.9.4"
-                        | "0.9.5"
-                        | "0.9.6"
-                        | "0.9.7"
-                        | "0.9.8"
-                        | "0.9.9"
-                        | "1.0.0"
-                        | "1.1.0"
-                        | "1.2.0"
-                        | "1.3.0"
-                        | "1.4.0"
-                        | "1.5.0"
-                        | "1.6.0"
-                        | "1.6.1"
-                        | "1.7.0"
-                        | "1.7.1"
-                        | "1.8.0"
-                        | "1.8.1"
-                        | "1.8.2"
-                        | "1.8.3"
-                        | "1.8.4"
-                        | "1.8.5"
-                        | "1.8.6"
-                        | "1.8.7"
-                        | "1.8.8"
-                        | "1.9.0"
-                        | "1.9.1"
-                        | "1.9.2"
-                        | "1.9.3"
-                        | "1.9.4"
-                        | "1.9.5"
-                        | "1.9.6"
-                        | "1.9.7"
-                        | "1.9.8"
-                        | "1.9.9"
-                        | "1.9.10"
-                        | "1.9.11"
-                        | "1.9.12"
-                        | "1.9.13"
-                        | "1.9.14"
-                        | "1.9.15"
-                        | "1.9.16"
-                        | "1.9.17"
-                        | "1.9.18"
-                        | "1.9.19"
-                        | "1.9.20"
-                        | "1.9.21"
-                        | "1.9.22"
-                        | "1.9.23"
-                        | "1.9.24"
-                        | "1.9.25"
-                        | "1.9.26"
-                        | "1.9.27"
-                        | "1.9.28"
-                        | "1.9.29"
-                        | "1.9.30"
-                        | "1.9.31"
-                        | "1.9.32"
-                        | "1.9.33"
-                        | "1.9.34"
-                        | "1.9.35"
-                        | "1.9.36"
-                        | "1.9.37"
-                        | "1.9.38"
-                        | "1.9.39"
-                        | "1.9.40"
-                        | "1.9.41"
-                        | "1.9.42"
-                        | "1.9.43"
-                        | "1.9.44"
-                        | "1.9.45"
-                        | "1.9.46"
-                        | "1.9.47"
-                        | "1.9.48"
-                        | "1.9.49"
-                        | "1.9.50"
-                        | "1.9.51"
-                        | "1.9.52"
-                        | "1.9.53"
-                        | "1.9.54"
-                        | "1.9.55"
-                        | "1.9.56"
-                        | "1.9.57"
-                        | "1.9.58"
-                        | "1.9.59"
-                        | "1.9.60"
-                        | "1.9.61"
-                        | "1.9.62"
-                        | "1.9.63"
-                        | "1.9.64"
-                        | "1.9.65"
-                        | "2.0.0"
-                        | "3.0.0"
-                        | "3.1.0"
-                        | "3.2.0"
-                        | "3.3.0"
-                        | "3.4.0"
-                        | "3.5.0"
-                        | "3.6.0"
-                )
-            {
+            if !compact {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
                     deltas.push(serde_json::json!(v06::debug::delta(
@@ -4203,107 +2364,10 @@ impl<R: BufRead> Vm<R> {
             self.current_pc = caller_pc;
         }
         result.map_err(|error| {
-            if !matches!(
-                self.engine.program.language.as_str(),
-                "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            ) {
-                return error;
-            }
             let at = self
                 .current_pc
                 .and_then(|pc| self.code.get(pc))
-                .map(|i| i.at.clone())
+                .map(|i| (*i.at).clone())
                 .unwrap_or(Tok {
                     source: String::new(),
                     text: String::new(),
@@ -4362,230 +2426,23 @@ impl<R: BufRead> Vm<R> {
             {
                 return Ok(());
             }
-            if matches!(
-                self.engine.program.language.as_str(),
-                "0.6"
-                    | "0.7"
-                    | "0.8"
-                    | "0.9"
-                    | "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            ) {
-                self.expire_timeouts(&self.code[self.pc].at.clone())?;
+            {
+                if self.scheduler.has_timeouts() {
+                    self.expire_timeouts(&self.code[self.pc].at.clone())?;
+                }
             }
             if self.cancellation_requested() {
                 return Err(self.error(&self.code[self.pc].at, "TaskCancelled"));
             }
-            let scheduler_gc = (self.engine.runtime.collection_due() || self.scheduler.gc_due())
-                && language_at_least(&self.engine.program.language, "1.9.3");
-            if matches!(
-                self.engine.program.language.as_str(),
-                "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            ) && (self.engine.runtime.collection_due() || scheduler_gc)
-            {
-                if scheduler_gc {
-                    self.collect_scheduler()?;
-                }
+            if self.engine.runtime.collection_due() || self.scheduler.gc_due() {
+                self.collect_scheduler()?;
                 self.collect_native_resources()?;
                 let limit = self
                     .engine
                     .runtime
                     .execution_work_remaining()
                     .map_or(self.steps, |n| n.min(self.steps));
-                let (_, work) = if language_at_least(&self.engine.program.language, "1.9.3") {
+                let (_, work) = {
                     let roots = scheduler::gc::borrowed_roots(
                         &self.globals,
                         &self.engine.scopes,
@@ -4595,25 +2452,25 @@ impl<R: BufRead> Vm<R> {
                         &self.scheduler,
                     );
                     self.engine.runtime.collect_heap_refs(&roots, limit)?
-                } else {
-                    let mut roots = Vec::new();
-                    gc_scope_roots(&self.globals, &mut roots);
-                    gc_scope_roots(&self.engine.scopes, &mut roots);
-                    gc_frame_roots(&self.frames, &mut roots);
-                    gc_cleanup_roots(&self.global_cleanups, &mut roots);
-                    gc_branch_roots(&self.branches, &mut roots);
-                    self.scheduler.gc_roots(&mut roots);
-                    self.engine.runtime.collect_heap(&roots, limit)?
                 };
                 self.engine.runtime.charge_execution_work(work)?;
                 self.steps -= work;
             }
-            let scheduler_bytes = self.scheduler.accounted_storage_bytes(&self.engine.runtime)
-                + self
-                    .snapshots
-                    .values()
-                    .map(|s| s.scheduler.accounted_storage_bytes(&self.engine.runtime))
-                    .sum::<usize>()
+            let scheduler_bytes = (if self.scheduler.storage_is_empty() {
+                Scheduler::TRIVIAL_STORAGE_BYTES
+            } else {
+                self.scheduler.accounted_storage_bytes(&self.engine.runtime)
+            }) + self
+                .snapshots
+                .values()
+                .map(|s| {
+                    s.scheduler_bytes.get().unwrap_or_else(|| {
+                        let bytes = s.scheduler.accounted_storage_bytes(&self.engine.runtime);
+                        s.scheduler_bytes.set(Some(bytes));
+                        bytes
+                    })
+                })
+                .sum::<usize>()
                 + self
                     .branches
                     .iter()
@@ -4632,7 +2489,7 @@ impl<R: BufRead> Vm<R> {
             self.engine.runtime.charge_execution_work(1)?;
             self.steps -= 1;
             self.scheduler.ticks = self.scheduler.ticks.saturating_add(1);
-            let inst = self.code.get(self.pc).cloned().ok_or_else(|| {
+            let inst = self.code.get(self.pc).map(Arc::clone).ok_or_else(|| {
                 Error::InvalidOperation(format!("invalid program counter {}", self.pc))
             })?;
             if self.profile.is_some() {
@@ -4685,227 +2542,11 @@ impl<R: BufRead> Vm<R> {
                     .next()
                     .unwrap()
                     .to_string();
-                if matches!(
-                    self.engine.program.language.as_str(),
-                    "0.6"
-                        | "0.7"
-                        | "0.8"
-                        | "0.9"
-                        | "0.9.1"
-                        | "0.9.2"
-                        | "0.9.3"
-                        | "0.9.4"
-                        | "0.9.5"
-                        | "0.9.6"
-                        | "0.9.7"
-                        | "0.9.8"
-                        | "0.9.9"
-                        | "1.0.0"
-                        | "1.1.0"
-                        | "1.2.0"
-                        | "1.3.0"
-                        | "1.4.0"
-                        | "1.5.0"
-                        | "1.6.0"
-                        | "1.6.1"
-                        | "1.7.0"
-                        | "1.7.1"
-                        | "1.8.0"
-                        | "1.8.1"
-                        | "1.8.2"
-                        | "1.8.3"
-                        | "1.8.4"
-                        | "1.8.5"
-                        | "1.8.6"
-                        | "1.8.7"
-                        | "1.8.8"
-                        | "1.9.0"
-                        | "1.9.1"
-                        | "1.9.2"
-                        | "1.9.3"
-                        | "1.9.4"
-                        | "1.9.5"
-                        | "1.9.6"
-                        | "1.9.7"
-                        | "1.9.8"
-                        | "1.9.9"
-                        | "1.9.10"
-                        | "1.9.11"
-                        | "1.9.12"
-                        | "1.9.13"
-                        | "1.9.14"
-                        | "1.9.15"
-                        | "1.9.16"
-                        | "1.9.17"
-                        | "1.9.18"
-                        | "1.9.19"
-                        | "1.9.20"
-                        | "1.9.21"
-                        | "1.9.22"
-                        | "1.9.23"
-                        | "1.9.24"
-                        | "1.9.25"
-                        | "1.9.26"
-                        | "1.9.27"
-                        | "1.9.28"
-                        | "1.9.29"
-                        | "1.9.30"
-                        | "1.9.31"
-                        | "1.9.32"
-                        | "1.9.33"
-                        | "1.9.34"
-                        | "1.9.35"
-                        | "1.9.36"
-                        | "1.9.37"
-                        | "1.9.38"
-                        | "1.9.39"
-                        | "1.9.40"
-                        | "1.9.41"
-                        | "1.9.42"
-                        | "1.9.43"
-                        | "1.9.44"
-                        | "1.9.45"
-                        | "1.9.46"
-                        | "1.9.47"
-                        | "1.9.48"
-                        | "1.9.49"
-                        | "1.9.50"
-                        | "1.9.51"
-                        | "1.9.52"
-                        | "1.9.53"
-                        | "1.9.54"
-                        | "1.9.55"
-                        | "1.9.56"
-                        | "1.9.57"
-                        | "1.9.58"
-                        | "1.9.59"
-                        | "1.9.60"
-                        | "1.9.61"
-                        | "1.9.62"
-                        | "1.9.63"
-                        | "1.9.64"
-                        | "1.9.65"
-                        | "2.0.0"
-                        | "3.0.0"
-                        | "3.1.0"
-                        | "3.2.0"
-                        | "3.3.0"
-                        | "3.4.0"
-                        | "3.5.0"
-                        | "3.6.0"
-                ) {
+                {
                     self.index_state(&inst.at)?;
                 }
                 let mut event = serde_json::json!({"task":self.scheduler.active,"pc":self.pc,"operation":operation});
-                if matches!(
-                    self.engine.program.language.as_str(),
-                    "0.6"
-                        | "0.7"
-                        | "0.8"
-                        | "0.9"
-                        | "0.9.1"
-                        | "0.9.2"
-                        | "0.9.3"
-                        | "0.9.4"
-                        | "0.9.5"
-                        | "0.9.6"
-                        | "0.9.7"
-                        | "0.9.8"
-                        | "0.9.9"
-                        | "1.0.0"
-                        | "1.1.0"
-                        | "1.2.0"
-                        | "1.3.0"
-                        | "1.4.0"
-                        | "1.5.0"
-                        | "1.6.0"
-                        | "1.6.1"
-                        | "1.7.0"
-                        | "1.7.1"
-                        | "1.8.0"
-                        | "1.8.1"
-                        | "1.8.2"
-                        | "1.8.3"
-                        | "1.8.4"
-                        | "1.8.5"
-                        | "1.8.6"
-                        | "1.8.7"
-                        | "1.8.8"
-                        | "1.9.0"
-                        | "1.9.1"
-                        | "1.9.2"
-                        | "1.9.3"
-                        | "1.9.4"
-                        | "1.9.5"
-                        | "1.9.6"
-                        | "1.9.7"
-                        | "1.9.8"
-                        | "1.9.9"
-                        | "1.9.10"
-                        | "1.9.11"
-                        | "1.9.12"
-                        | "1.9.13"
-                        | "1.9.14"
-                        | "1.9.15"
-                        | "1.9.16"
-                        | "1.9.17"
-                        | "1.9.18"
-                        | "1.9.19"
-                        | "1.9.20"
-                        | "1.9.21"
-                        | "1.9.22"
-                        | "1.9.23"
-                        | "1.9.24"
-                        | "1.9.25"
-                        | "1.9.26"
-                        | "1.9.27"
-                        | "1.9.28"
-                        | "1.9.29"
-                        | "1.9.30"
-                        | "1.9.31"
-                        | "1.9.32"
-                        | "1.9.33"
-                        | "1.9.34"
-                        | "1.9.35"
-                        | "1.9.36"
-                        | "1.9.37"
-                        | "1.9.38"
-                        | "1.9.39"
-                        | "1.9.40"
-                        | "1.9.41"
-                        | "1.9.42"
-                        | "1.9.43"
-                        | "1.9.44"
-                        | "1.9.45"
-                        | "1.9.46"
-                        | "1.9.47"
-                        | "1.9.48"
-                        | "1.9.49"
-                        | "1.9.50"
-                        | "1.9.51"
-                        | "1.9.52"
-                        | "1.9.53"
-                        | "1.9.54"
-                        | "1.9.55"
-                        | "1.9.56"
-                        | "1.9.57"
-                        | "1.9.58"
-                        | "1.9.59"
-                        | "1.9.60"
-                        | "1.9.61"
-                        | "1.9.62"
-                        | "1.9.63"
-                        | "1.9.64"
-                        | "1.9.65"
-                        | "2.0.0"
-                        | "3.0.0"
-                        | "3.1.0"
-                        | "3.2.0"
-                        | "3.3.0"
-                        | "3.4.0"
-                        | "3.5.0"
-                        | "3.6.0"
-                ) {
+                {
                     event["source"] = serde_json::json!(inst.at.source);
                     event["line"] = serde_json::json!(inst.at.line);
                     event["column"] = serde_json::json!(inst.at.col);
@@ -4927,7 +2568,7 @@ impl<R: BufRead> Vm<R> {
             }
             self.engine.runtime.set_program_counter(self.pc);
             self.pc += 1;
-            match inst.op {
+            match &inst.op {
                 Op::Halt => {
                     if self.drain_scope_groups(None, &inst.at)? {
                         continue;
@@ -4955,163 +2596,38 @@ impl<R: BufRead> Vm<R> {
                     let task = self.pop()?;
                     self.wait_task(task, &inst.at)?;
                 }
-                Op::Push(value) => self.push(value)?,
+                Op::Push(value) => self.push(value.clone())?,
                 Op::Load(name) => {
-                    let value = if let Some(binding) = self.get(&name) {
+                    let value = if let Some(binding) = self.get(name) {
                         self.resolve(&binding.value)
-                    } else if let Some(f) = self.engine.program.functions.get(&name) {
-                        Value::Function(
-                            name.clone(),
-                            if matches!(
-                                self.engine.program.language.as_str(),
-                                "0.6"
-                                    | "0.7"
-                                    | "0.8"
-                                    | "0.9"
-                                    | "0.9.1"
-                                    | "0.9.2"
-                                    | "0.9.3"
-                                    | "0.9.4"
-                                    | "0.9.5"
-                                    | "0.9.6"
-                                    | "0.9.7"
-                                    | "0.9.8"
-                                    | "0.9.9"
-                                    | "1.0.0"
-                                    | "1.1.0"
-                                    | "1.2.0"
-                                    | "1.3.0"
-                                    | "1.4.0"
-                                    | "1.5.0"
-                                    | "1.6.0"
-                                    | "1.6.1"
-                                    | "1.7.0"
-                                    | "1.7.1"
-                                    | "1.8.0"
-                                    | "1.8.1"
-                                    | "1.8.2"
-                                    | "1.8.3"
-                                    | "1.8.4"
-                                    | "1.8.5"
-                                    | "1.8.6"
-                                    | "1.8.7"
-                                    | "1.8.8"
-                                    | "1.9.0"
-                                    | "1.9.1"
-                                    | "1.9.2"
-                                    | "1.9.3"
-                                    | "1.9.4"
-                                    | "1.9.5"
-                                    | "1.9.6"
-                                    | "1.9.7"
-                                    | "1.9.8"
-                                    | "1.9.9"
-                                    | "1.9.10"
-                                    | "1.9.11"
-                                    | "1.9.12"
-                                    | "1.9.13"
-                                    | "1.9.14"
-                                    | "1.9.15"
-                                    | "1.9.16"
-                                    | "1.9.17"
-                                    | "1.9.18"
-                                    | "1.9.19"
-                                    | "1.9.20"
-                                    | "1.9.21"
-                                    | "1.9.22"
-                                    | "1.9.23"
-                                    | "1.9.24"
-                                    | "1.9.25"
-                                    | "1.9.26"
-                                    | "1.9.27"
-                                    | "1.9.28"
-                                    | "1.9.29"
-                                    | "1.9.30"
-                                    | "1.9.31"
-                                    | "1.9.32"
-                                    | "1.9.33"
-                                    | "1.9.34"
-                                    | "1.9.35"
-                                    | "1.9.36"
-                                    | "1.9.37"
-                                    | "1.9.38"
-                                    | "1.9.39"
-                                    | "1.9.40"
-                                    | "1.9.41"
-                                    | "1.9.42"
-                                    | "1.9.43"
-                                    | "1.9.44"
-                                    | "1.9.45"
-                                    | "1.9.46"
-                                    | "1.9.47"
-                                    | "1.9.48"
-                                    | "1.9.49"
-                                    | "1.9.50"
-                                    | "1.9.51"
-                                    | "1.9.52"
-                                    | "1.9.53"
-                                    | "1.9.54"
-                                    | "1.9.55"
-                                    | "1.9.56"
-                                    | "1.9.57"
-                                    | "1.9.58"
-                                    | "1.9.59"
-                                    | "1.9.60"
-                                    | "1.9.61"
-                                    | "1.9.62"
-                                    | "1.9.63"
-                                    | "1.9.64"
-                                    | "1.9.65"
-                                    | "2.0.0"
-                                    | "3.0.0"
-                                    | "3.1.0"
-                                    | "3.2.0"
-                                    | "3.3.0"
-                                    | "3.4.0"
-                                    | "3.5.0"
-                                    | "3.6.0"
-                            ) {
-                                let ty = v06::fn_type(
-                                    &f.params,
-                                    &if f.asynchronous {
-                                        format!("Task<{}>", f.ret)
-                                    } else {
-                                        f.ret.clone()
-                                    },
-                                    &v06::function_effects(&self.engine.program, &name),
-                                );
-                                let names = v05::needed_globals(&self.engine.program, &name);
-                                let can = |shared: bool| {
-                                    names.iter().all(|n| {
-                                        self.get(n).is_none_or(|b| {
-                                            (!shared || !b.mutable)
-                                                && v06::captures::value_flags(
-                                                    &self.engine.program,
-                                                    &self.engine.runtime,
-                                                    &b.value,
-                                                    shared,
-                                                    &mut BTreeSet::new(),
-                                                )
-                                        })
+                    } else if let Some(f) = self.engine.program.functions.get(name) {
+                        Value::Function(name.clone(), {
+                            let ty = v06::fn_type(
+                                &f.params,
+                                &if f.asynchronous {
+                                    format!("Task<{}>", f.ret)
+                                } else {
+                                    f.ret.clone()
+                                },
+                                &v06::function_effects(&self.engine.program, &name),
+                            );
+                            let names = v05::needed_globals(&self.engine.program, &name);
+                            let can = |shared: bool| {
+                                names.iter().all(|n| {
+                                    self.get(n).is_none_or(|b| {
+                                        (!shared || !b.mutable)
+                                            && v06::captures::value_flags(
+                                                &self.engine.program,
+                                                &self.engine.runtime,
+                                                &b.value,
+                                                shared,
+                                                &mut BTreeSet::new(),
+                                            )
                                     })
-                                };
-                                v06::captures::with_flags(&ty, can(false), can(true))
-                            } else {
-                                format!(
-                                    "fn({})->{}",
-                                    f.params
-                                        .iter()
-                                        .map(|(_, t)| t.as_str())
-                                        .collect::<Vec<_>>()
-                                        .join(","),
-                                    if f.asynchronous {
-                                        format!("Task<{}>", f.ret)
-                                    } else {
-                                        f.ret.clone()
-                                    }
-                                )
-                            },
-                        )
+                                })
+                            };
+                            v06::captures::with_flags(&ty, can(false), can(true))
+                        })
                     } else if name.contains("::") {
                         unflow(self.engine.call(&name, Vec::new(), &inst.at), &inst.at)?
                     } else {
@@ -5121,18 +2637,32 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Declare(name, mutable, ty) => {
                     let value = self.pop()?;
-                    self.declare(name, value, mutable, ty, &inst.at)?;
+                    self.declare(name.clone(), value, *mutable, ty.as_deref(), &inst.at)?;
                 }
                 Op::Store(name, op) => {
                     let value = self.pop()?;
                     self.store(&name, &op, value, &inst.at)?;
                 }
                 Op::StoreField(field, op) => {
+                    let field = field.clone();
                     let rhs = self.pop()?;
                     let receiver = self.pop()?;
                     let Value::HeapRef(id) = receiver else {
                         return Err(self.error(&inst.at, "field assignment requires a struct"));
                     };
+                    // 文字列フィールドへの `+=` は、構造体の複製と文字列の再構築を避けて追記する。
+                    // 現在値が文字列なら結果も文字列で、型は現在値と同じなので検査は不要。
+                    if op == "+=" {
+                        if let Value::Text(suffix) = &rhs {
+                            if self
+                                .engine
+                                .runtime
+                                .heap_append_struct_text(id, &field, suffix)?
+                            {
+                                continue;
+                            }
+                        }
+                    }
                     let mut data = self
                         .engine
                         .runtime
@@ -5211,102 +2741,7 @@ impl<R: BufRead> Vm<R> {
                 Op::Binary(op) => {
                     let rhs = self.pop()?;
                     let lhs = self.pop()?;
-                    if matches!(
-                        self.engine.program.language.as_str(),
-                        "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) && (matches!(
+                    if (matches!(
                         lhs,
                         Value::Text(_)
                             | Value::Bytes(_)
@@ -5332,6 +2767,7 @@ impl<R: BufRead> Vm<R> {
                     self.push(unflow(binary(&op, lhs, rhs, &inst.at), &inst.at)?)?;
                 }
                 Op::Property(field) => {
+                    let field = field.clone();
                     let value = self.pop()?;
                     let secret = v05::unsecret(&value).cloned();
                     let value = secret.clone().unwrap_or(value);
@@ -5395,117 +2831,9 @@ impl<R: BufRead> Vm<R> {
                     self.push(result)?;
                 }
                 Op::Call(name, count) => {
+                    let count = *count;
                     let args = self.args(count)?;
-                    if matches!(
-                        self.engine.program.language.as_str(),
-                        "0.6"
-                            | "0.7"
-                            | "0.8"
-                            | "0.9"
-                            | "0.9.1"
-                            | "0.9.2"
-                            | "0.9.3"
-                            | "0.9.4"
-                            | "0.9.5"
-                            | "0.9.6"
-                            | "0.9.7"
-                            | "0.9.8"
-                            | "0.9.9"
-                            | "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) && name == "reveal"
-                    {
+                    if name == "reveal" {
                         self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
                     }
                     if (name == "property"
@@ -5517,117 +2845,7 @@ impl<R: BufRead> Vm<R> {
                         self.push(value)?;
                         continue;
                     }
-                    if name == "propertyInt"
-                        && matches!(
-                            self.engine.program.language.as_str(),
-                            "0.6"
-                                | "0.7"
-                                | "0.8"
-                                | "0.9"
-                                | "0.9.1"
-                                | "0.9.2"
-                                | "0.9.3"
-                                | "0.9.4"
-                                | "0.9.5"
-                                | "0.9.6"
-                                | "0.9.7"
-                                | "0.9.8"
-                                | "0.9.9"
-                                | "1.0.0"
-                                | "1.1.0"
-                                | "1.2.0"
-                                | "1.3.0"
-                                | "1.4.0"
-                                | "1.5.0"
-                                | "1.6.0"
-                                | "1.6.1"
-                                | "1.7.0"
-                                | "1.7.1"
-                                | "1.8.0"
-                                | "1.8.1"
-                                | "1.8.2"
-                                | "1.8.3"
-                                | "1.8.4"
-                                | "1.8.5"
-                                | "1.8.6"
-                                | "1.8.7"
-                                | "1.8.8"
-                                | "1.9.0"
-                                | "1.9.1"
-                                | "1.9.2"
-                                | "1.9.3"
-                                | "1.9.4"
-                                | "1.9.5"
-                                | "1.9.6"
-                                | "1.9.7"
-                                | "1.9.8"
-                                | "1.9.9"
-                                | "1.9.10"
-                                | "1.9.11"
-                                | "1.9.12"
-                                | "1.9.13"
-                                | "1.9.14"
-                                | "1.9.15"
-                                | "1.9.16"
-                                | "1.9.17"
-                                | "1.9.18"
-                                | "1.9.19"
-                                | "1.9.20"
-                                | "1.9.21"
-                                | "1.9.22"
-                                | "1.9.23"
-                                | "1.9.24"
-                                | "1.9.25"
-                                | "1.9.26"
-                                | "1.9.27"
-                                | "1.9.28"
-                                | "1.9.29"
-                                | "1.9.30"
-                                | "1.9.31"
-                                | "1.9.32"
-                                | "1.9.33"
-                                | "1.9.34"
-                                | "1.9.35"
-                                | "1.9.36"
-                                | "1.9.37"
-                                | "1.9.38"
-                                | "1.9.39"
-                                | "1.9.40"
-                                | "1.9.41"
-                                | "1.9.42"
-                                | "1.9.43"
-                                | "1.9.44"
-                                | "1.9.45"
-                                | "1.9.46"
-                                | "1.9.47"
-                                | "1.9.48"
-                                | "1.9.49"
-                                | "1.9.50"
-                                | "1.9.51"
-                                | "1.9.52"
-                                | "1.9.53"
-                                | "1.9.54"
-                                | "1.9.55"
-                                | "1.9.56"
-                                | "1.9.57"
-                                | "1.9.58"
-                                | "1.9.59"
-                                | "1.9.60"
-                                | "1.9.61"
-                                | "1.9.62"
-                                | "1.9.63"
-                                | "1.9.64"
-                                | "1.9.65"
-                                | "2.0.0"
-                                | "3.0.0"
-                                | "3.1.0"
-                                | "3.2.0"
-                                | "3.3.0"
-                                | "3.4.0"
-                                | "3.5.0"
-                                | "3.6.0"
-                        )
-                    {
+                    if name == "propertyInt" {
                         let value = self.property_int(&args, &inst.at)?;
                         self.push(value)?;
                         continue;
@@ -5668,6 +2886,7 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::CallValue(count) => {
+                    let count = *count;
                     let args = self.args(count)?;
                     let callable = self.pop()?;
                     self.call_value(callable, args, &inst.at)?;
@@ -5677,7 +2896,7 @@ impl<R: BufRead> Vm<R> {
                     let value = unflow(
                         self.engine.call_named(
                             &name,
-                            fields.into_iter().zip(values).collect(),
+                            fields.iter().cloned().zip(values).collect(),
                             &inst.at,
                         ),
                         &inst.at,
@@ -5685,121 +2904,12 @@ impl<R: BufRead> Vm<R> {
                     self.push(value)?;
                 }
                 Op::MakeClosure(name, ty) => {
+                    let (name, ty) = (name.clone(), ty.clone());
                     let mut captures = BTreeMap::new();
                     let needed = v05::needed_globals(&self.engine.program, &name);
                     for scope in &self.globals {
                         for (name, binding) in scope {
-                            if matches!(
-                                self.engine.program.language.as_str(),
-                                "0.5"
-                                    | "0.6"
-                                    | "0.7"
-                                    | "0.8"
-                                    | "0.9"
-                                    | "0.9.1"
-                                    | "0.9.2"
-                                    | "0.9.3"
-                                    | "0.9.4"
-                                    | "0.9.5"
-                                    | "0.9.6"
-                                    | "0.9.7"
-                                    | "0.9.8"
-                                    | "0.9.9"
-                                    | "1.0.0"
-                                    | "1.1.0"
-                                    | "1.2.0"
-                                    | "1.3.0"
-                                    | "1.4.0"
-                                    | "1.5.0"
-                                    | "1.6.0"
-                                    | "1.6.1"
-                                    | "1.7.0"
-                                    | "1.7.1"
-                                    | "1.8.0"
-                                    | "1.8.1"
-                                    | "1.8.2"
-                                    | "1.8.3"
-                                    | "1.8.4"
-                                    | "1.8.5"
-                                    | "1.8.6"
-                                    | "1.8.7"
-                                    | "1.8.8"
-                                    | "1.9.0"
-                                    | "1.9.1"
-                                    | "1.9.2"
-                                    | "1.9.3"
-                                    | "1.9.4"
-                                    | "1.9.5"
-                                    | "1.9.6"
-                                    | "1.9.7"
-                                    | "1.9.8"
-                                    | "1.9.9"
-                                    | "1.9.10"
-                                    | "1.9.11"
-                                    | "1.9.12"
-                                    | "1.9.13"
-                                    | "1.9.14"
-                                    | "1.9.15"
-                                    | "1.9.16"
-                                    | "1.9.17"
-                                    | "1.9.18"
-                                    | "1.9.19"
-                                    | "1.9.20"
-                                    | "1.9.21"
-                                    | "1.9.22"
-                                    | "1.9.23"
-                                    | "1.9.24"
-                                    | "1.9.25"
-                                    | "1.9.26"
-                                    | "1.9.27"
-                                    | "1.9.28"
-                                    | "1.9.29"
-                                    | "1.9.30"
-                                    | "1.9.31"
-                                    | "1.9.32"
-                                    | "1.9.33"
-                                    | "1.9.34"
-                                    | "1.9.35"
-                                    | "1.9.36"
-                                    | "1.9.37"
-                                    | "1.9.38"
-                                    | "1.9.39"
-                                    | "1.9.40"
-                                    | "1.9.41"
-                                    | "1.9.42"
-                                    | "1.9.43"
-                                    | "1.9.44"
-                                    | "1.9.45"
-                                    | "1.9.46"
-                                    | "1.9.47"
-                                    | "1.9.48"
-                                    | "1.9.49"
-                                    | "1.9.50"
-                                    | "1.9.51"
-                                    | "1.9.52"
-                                    | "1.9.53"
-                                    | "1.9.54"
-                                    | "1.9.55"
-                                    | "1.9.56"
-                                    | "1.9.57"
-                                    | "1.9.58"
-                                    | "1.9.59"
-                                    | "1.9.60"
-                                    | "1.9.61"
-                                    | "1.9.62"
-                                    | "1.9.63"
-                                    | "1.9.64"
-                                    | "1.9.65"
-                                    | "2.0.0"
-                                    | "3.0.0"
-                                    | "3.1.0"
-                                    | "3.2.0"
-                                    | "3.3.0"
-                                    | "3.4.0"
-                                    | "3.5.0"
-                                    | "3.6.0"
-                            ) && !needed.contains(name)
-                            {
+                            if !needed.contains(name) {
                                 continue;
                             }
                             captures.insert(
@@ -5815,117 +2925,7 @@ impl<R: BufRead> Vm<R> {
                     if let Some(frame) = self.frames.last() {
                         for scope in &frame.scopes {
                             for (name, binding) in scope {
-                                if matches!(
-                                    self.engine.program.language.as_str(),
-                                    "0.5"
-                                        | "0.6"
-                                        | "0.7"
-                                        | "0.8"
-                                        | "0.9"
-                                        | "0.9.1"
-                                        | "0.9.2"
-                                        | "0.9.3"
-                                        | "0.9.4"
-                                        | "0.9.5"
-                                        | "0.9.6"
-                                        | "0.9.7"
-                                        | "0.9.8"
-                                        | "0.9.9"
-                                        | "1.0.0"
-                                        | "1.1.0"
-                                        | "1.2.0"
-                                        | "1.3.0"
-                                        | "1.4.0"
-                                        | "1.5.0"
-                                        | "1.6.0"
-                                        | "1.6.1"
-                                        | "1.7.0"
-                                        | "1.7.1"
-                                        | "1.8.0"
-                                        | "1.8.1"
-                                        | "1.8.2"
-                                        | "1.8.3"
-                                        | "1.8.4"
-                                        | "1.8.5"
-                                        | "1.8.6"
-                                        | "1.8.7"
-                                        | "1.8.8"
-                                        | "1.9.0"
-                                        | "1.9.1"
-                                        | "1.9.2"
-                                        | "1.9.3"
-                                        | "1.9.4"
-                                        | "1.9.5"
-                                        | "1.9.6"
-                                        | "1.9.7"
-                                        | "1.9.8"
-                                        | "1.9.9"
-                                        | "1.9.10"
-                                        | "1.9.11"
-                                        | "1.9.12"
-                                        | "1.9.13"
-                                        | "1.9.14"
-                                        | "1.9.15"
-                                        | "1.9.16"
-                                        | "1.9.17"
-                                        | "1.9.18"
-                                        | "1.9.19"
-                                        | "1.9.20"
-                                        | "1.9.21"
-                                        | "1.9.22"
-                                        | "1.9.23"
-                                        | "1.9.24"
-                                        | "1.9.25"
-                                        | "1.9.26"
-                                        | "1.9.27"
-                                        | "1.9.28"
-                                        | "1.9.29"
-                                        | "1.9.30"
-                                        | "1.9.31"
-                                        | "1.9.32"
-                                        | "1.9.33"
-                                        | "1.9.34"
-                                        | "1.9.35"
-                                        | "1.9.36"
-                                        | "1.9.37"
-                                        | "1.9.38"
-                                        | "1.9.39"
-                                        | "1.9.40"
-                                        | "1.9.41"
-                                        | "1.9.42"
-                                        | "1.9.43"
-                                        | "1.9.44"
-                                        | "1.9.45"
-                                        | "1.9.46"
-                                        | "1.9.47"
-                                        | "1.9.48"
-                                        | "1.9.49"
-                                        | "1.9.50"
-                                        | "1.9.51"
-                                        | "1.9.52"
-                                        | "1.9.53"
-                                        | "1.9.54"
-                                        | "1.9.55"
-                                        | "1.9.56"
-                                        | "1.9.57"
-                                        | "1.9.58"
-                                        | "1.9.59"
-                                        | "1.9.60"
-                                        | "1.9.61"
-                                        | "1.9.62"
-                                        | "1.9.63"
-                                        | "1.9.64"
-                                        | "1.9.65"
-                                        | "2.0.0"
-                                        | "3.0.0"
-                                        | "3.1.0"
-                                        | "3.2.0"
-                                        | "3.3.0"
-                                        | "3.4.0"
-                                        | "3.5.0"
-                                        | "3.6.0"
-                                ) && !needed.contains(name)
-                                {
+                                if !needed.contains(name) {
                                     continue;
                                 }
                                 captures.insert(
@@ -5939,115 +2939,7 @@ impl<R: BufRead> Vm<R> {
                             }
                         }
                     }
-                    let ty = if matches!(
-                        self.engine.program.language.as_str(),
-                        "0.6"
-                            | "0.7"
-                            | "0.8"
-                            | "0.9"
-                            | "0.9.1"
-                            | "0.9.2"
-                            | "0.9.3"
-                            | "0.9.4"
-                            | "0.9.5"
-                            | "0.9.6"
-                            | "0.9.7"
-                            | "0.9.8"
-                            | "0.9.9"
-                            | "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) {
+                    let ty = {
                         let f =
                             &self.engine.program.functions[name.split('<').next().unwrap_or(&name)];
                         let checker = Checker {
@@ -6110,8 +3002,6 @@ impl<R: BufRead> Vm<R> {
                             })
                         };
                         v06::captures::with_flags(&ty, can(false), can(true))
-                    } else {
-                        ty
                     };
                     let id = self
                         .engine
@@ -6120,104 +3010,10 @@ impl<R: BufRead> Vm<R> {
                     self.push(Value::HeapRef(id))?;
                 }
                 Op::Method(method, count) => {
+                    let count = *count;
                     let mut args = self.args(count)?;
                     let target = self.pop()?;
-                    if matches!(
-                        self.engine.program.language.as_str(),
-                        "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) {
+                    {
                         self.engine.runtime.charge_native_work(v100::method_work(
                             &target,
                             &method,
@@ -6225,115 +3021,7 @@ impl<R: BufRead> Vm<R> {
                             &self.engine.runtime,
                         ))?;
                     }
-                    if matches!(
-                        self.engine.program.language.as_str(),
-                        "0.6"
-                            | "0.7"
-                            | "0.8"
-                            | "0.9"
-                            | "0.9.1"
-                            | "0.9.2"
-                            | "0.9.3"
-                            | "0.9.4"
-                            | "0.9.5"
-                            | "0.9.6"
-                            | "0.9.7"
-                            | "0.9.8"
-                            | "0.9.9"
-                            | "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) {
+                    {
                         if let Some(value) =
                             self.result_adapter(&target, &method, &args, &inst.at)?
                         {
@@ -6370,103 +3058,9 @@ impl<R: BufRead> Vm<R> {
                     self.push(value)?;
                 }
                 Op::Builtin(receiver, method, count) => {
+                    let count = *count;
                     let args = self.args(count)?;
-                    if matches!(
-                        self.engine.program.language.as_str(),
-                        "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) {
+                    {
                         self.engine.runtime.charge_native_work(v100::call_work(
                             &format!("{receiver}.{method}"),
                             &args,
@@ -6475,114 +3069,6 @@ impl<R: BufRead> Vm<R> {
                         ))?;
                     }
                     if matches!(
-                        self.engine.program.language.as_str(),
-                        "0.6"
-                            | "0.7"
-                            | "0.8"
-                            | "0.9"
-                            | "0.9.1"
-                            | "0.9.2"
-                            | "0.9.3"
-                            | "0.9.4"
-                            | "0.9.5"
-                            | "0.9.6"
-                            | "0.9.7"
-                            | "0.9.8"
-                            | "0.9.9"
-                            | "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) && matches!(
                         (receiver.as_str(), method.as_str()),
                         ("Env", "getSecret") | ("In", "readSecretLine")
                     ) {
@@ -6599,7 +3085,9 @@ impl<R: BufRead> Vm<R> {
                     Value::Result(Err(value)) => {
                         self.finish_call(Value::Result(Err(value)), &inst.at)?
                     }
-                    _ => return Err(self.error(&inst.at, "'?' requires Result")),
+                    Value::Option(Some(value)) => self.push(*value)?,
+                    Value::Option(None) => self.finish_call(Value::Option(None), &inst.at)?,
+                    _ => return Err(self.error(&inst.at, "'?' requires Result or Option")),
                 },
                 Op::Pop => {
                     let value = self.pop()?;
@@ -6613,10 +3101,7 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::EnterExternal(fresh) => {
-                    if (self.scheduler.active != 0
-                        && !language_at_least(&self.engine.program.language, "1.6.0"))
-                        || !self.branches.is_empty()
-                    {
+                    if (self.scheduler.active != 0 && false) || !self.branches.is_empty() {
                         return Err(self.error(
                             &inst.at,
                             "ExternalBoundary: external requires the main task outside branches",
@@ -6703,132 +3188,24 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::ApplicationEntry(to) => {
+                    let to = *to;
                     if self.engine.test_mode {
                         self.pc = to;
                     }
                 }
-                Op::Jump(to) => self.pc = to,
+                Op::Jump(to) => self.pc = *to,
                 Op::JumpFalse(to) => match self.pop()? {
-                    Value::Bool(false) => self.pc = to,
+                    Value::Bool(false) => self.pc = *to,
                     Value::Bool(true) => {}
                     _ => return Err(self.error(&inst.at, "condition must be Bool")),
                 },
                 Op::JumpTrue(to) => match self.pop()? {
-                    Value::Bool(true) => self.pc = to,
+                    Value::Bool(true) => self.pc = *to,
                     Value::Bool(false) => {}
                     _ => return Err(self.error(&inst.at, "condition must be Bool")),
                 },
                 Op::Return => {
                     let failed = matches!(
-                        self.engine.program.language.as_str(),
-                        "0.5"
-                            | "0.6"
-                            | "0.7"
-                            | "0.8"
-                            | "0.9"
-                            | "0.9.1"
-                            | "0.9.2"
-                            | "0.9.3"
-                            | "0.9.4"
-                            | "0.9.5"
-                            | "0.9.6"
-                            | "0.9.7"
-                            | "0.9.8"
-                            | "0.9.9"
-                            | "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) && matches!(
                         self.engine.runtime.state().stack.last(),
                         Some(Value::Result(Err(_)))
                     );
@@ -6839,6 +3216,7 @@ impl<R: BufRead> Vm<R> {
                     self.finish_call(value, &inst.at)?;
                 }
                 Op::Defer(expr) => {
+                    let expr = expr.clone();
                     let Some(frame) = self.frames.last_mut() else {
                         return Err(self.error(&inst.at, "defer requires a function"));
                     };
@@ -6909,11 +3287,10 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Revert(name) => {
                     self.engine.runtime.require_internal()?;
-                    let mut snap = self.snapshots.get(&name).cloned().ok_or_else(|| {
+                    let mut snap = self.snapshots.get(name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
-                    if name == "begin" && language_at_least(&self.engine.program.language, "1.3.0")
-                    {
+                    if name == "begin" {
                         // Retain only the live continuation skeleton. All bindings,
                         // resources, deferred cleanups and tasks are initial again.
                         if !self.branches.is_empty()
@@ -7019,11 +3396,10 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Resume(name) => {
                     self.engine.runtime.require_internal()?;
-                    let snap = self.snapshots.get(&name).cloned().ok_or_else(|| {
+                    let snap = self.snapshots.get(name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
-                    if name == "begin" && language_at_least(&self.engine.program.language, "1.3.0")
-                    {
+                    if name == "begin" {
                         self.engine.runtime.reset_begin()?;
                         self.snapshots.retain(|label, _| label == "begin");
                     } else {
@@ -7033,128 +3409,17 @@ impl<R: BufRead> Vm<R> {
                 }
                 Op::Drop(name) => {
                     self.engine.runtime.drop_checkpoint(&name)?;
-                    self.snapshots.remove(&name);
+                    self.snapshots.remove(name);
                 }
                 Op::Publish(force) => {
+                    let force = *force;
                     self.engine.runtime.require_internal()?;
-                    if matches!(
-                        self.engine.program.language.as_str(),
-                        "0.5"
-                            | "0.6"
-                            | "0.7"
-                            | "0.8"
-                            | "0.9"
-                            | "0.9.1"
-                            | "0.9.2"
-                            | "0.9.3"
-                            | "0.9.4"
-                            | "0.9.5"
-                            | "0.9.6"
-                            | "0.9.7"
-                            | "0.9.8"
-                            | "0.9.9"
-                            | "1.0.0"
-                            | "1.1.0"
-                            | "1.2.0"
-                            | "1.3.0"
-                            | "1.4.0"
-                            | "1.5.0"
-                            | "1.6.0"
-                            | "1.6.1"
-                            | "1.7.0"
-                            | "1.7.1"
-                            | "1.8.0"
-                            | "1.8.1"
-                            | "1.8.2"
-                            | "1.8.3"
-                            | "1.8.4"
-                            | "1.8.5"
-                            | "1.8.6"
-                            | "1.8.7"
-                            | "1.8.8"
-                            | "1.9.0"
-                            | "1.9.1"
-                            | "1.9.2"
-                            | "1.9.3"
-                            | "1.9.4"
-                            | "1.9.5"
-                            | "1.9.6"
-                            | "1.9.7"
-                            | "1.9.8"
-                            | "1.9.9"
-                            | "1.9.10"
-                            | "1.9.11"
-                            | "1.9.12"
-                            | "1.9.13"
-                            | "1.9.14"
-                            | "1.9.15"
-                            | "1.9.16"
-                            | "1.9.17"
-                            | "1.9.18"
-                            | "1.9.19"
-                            | "1.9.20"
-                            | "1.9.21"
-                            | "1.9.22"
-                            | "1.9.23"
-                            | "1.9.24"
-                            | "1.9.25"
-                            | "1.9.26"
-                            | "1.9.27"
-                            | "1.9.28"
-                            | "1.9.29"
-                            | "1.9.30"
-                            | "1.9.31"
-                            | "1.9.32"
-                            | "1.9.33"
-                            | "1.9.34"
-                            | "1.9.35"
-                            | "1.9.36"
-                            | "1.9.37"
-                            | "1.9.38"
-                            | "1.9.39"
-                            | "1.9.40"
-                            | "1.9.41"
-                            | "1.9.42"
-                            | "1.9.43"
-                            | "1.9.44"
-                            | "1.9.45"
-                            | "1.9.46"
-                            | "1.9.47"
-                            | "1.9.48"
-                            | "1.9.49"
-                            | "1.9.50"
-                            | "1.9.51"
-                            | "1.9.52"
-                            | "1.9.53"
-                            | "1.9.54"
-                            | "1.9.55"
-                            | "1.9.56"
-                            | "1.9.57"
-                            | "1.9.58"
-                            | "1.9.59"
-                            | "1.9.60"
-                            | "1.9.61"
-                            | "1.9.62"
-                            | "1.9.63"
-                            | "1.9.64"
-                            | "1.9.65"
-                            | "2.0.0"
-                            | "3.0.0"
-                            | "3.1.0"
-                            | "3.2.0"
-                            | "3.3.0"
-                            | "3.4.0"
-                            | "3.5.0"
-                            | "3.6.0"
-                    ) {
+                    {
                         if let Some(error) = self.unhandled_task_error() {
                             return Err(self.error(&inst.at, error));
                         }
                     }
-                    if self.scheduler.active != 0
-                        || (self.scheduler.has_live_tasks()
-                            && !language_at_least(&self.engine.program.language, "1.6.0"))
-                    {
+                    if self.scheduler.active != 0 || (self.scheduler.has_live_tasks() && false) {
                         return Err(self.error(&inst.at,"publish requires the application task and completed/cancelled children"));
                     }
                     if self.engine.test_mode {
@@ -7204,12 +3469,14 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::Runtime(budget, steps) => {
+                    let (budget, steps) = (budget.clone(), *steps);
                     self.engine.runtime.set_budget(budget)?;
                     if let Some(steps) = steps {
                         self.steps = steps;
                     }
                 }
                 Op::PatternTest(pattern, miss) | Op::BorrowPatternTest(pattern, miss) => {
+                    let miss = *miss;
                     let value = self.pop()?;
                     let mut bindings = BTreeMap::new();
                     if pattern_matches(&pattern, &value, &self.engine.runtime, &mut bindings) {
@@ -7289,118 +3556,7 @@ pub(super) fn execute(
                 vm.call_user(&test, Vec::new(), &at)?;
                 vm.run()
             })();
-            if result.is_ok()
-                || matches!(
-                    program.language.as_str(),
-                    "0.5"
-                        | "0.6"
-                        | "0.7"
-                        | "0.8"
-                        | "0.9"
-                        | "0.9.1"
-                        | "0.9.2"
-                        | "0.9.3"
-                        | "0.9.4"
-                        | "0.9.5"
-                        | "0.9.6"
-                        | "0.9.7"
-                        | "0.9.8"
-                        | "0.9.9"
-                        | "1.0.0"
-                        | "1.1.0"
-                        | "1.2.0"
-                        | "1.3.0"
-                        | "1.4.0"
-                        | "1.5.0"
-                        | "1.6.0"
-                        | "1.6.1"
-                        | "1.7.0"
-                        | "1.7.1"
-                        | "1.8.0"
-                        | "1.8.1"
-                        | "1.8.2"
-                        | "1.8.3"
-                        | "1.8.4"
-                        | "1.8.5"
-                        | "1.8.6"
-                        | "1.8.7"
-                        | "1.8.8"
-                        | "1.9.0"
-                        | "1.9.1"
-                        | "1.9.2"
-                        | "1.9.3"
-                        | "1.9.4"
-                        | "1.9.5"
-                        | "1.9.6"
-                        | "1.9.7"
-                        | "1.9.8"
-                        | "1.9.9"
-                        | "1.9.10"
-                        | "1.9.11"
-                        | "1.9.12"
-                        | "1.9.13"
-                        | "1.9.14"
-                        | "1.9.15"
-                        | "1.9.16"
-                        | "1.9.17"
-                        | "1.9.18"
-                        | "1.9.19"
-                        | "1.9.20"
-                        | "1.9.21"
-                        | "1.9.22"
-                        | "1.9.23"
-                        | "1.9.24"
-                        | "1.9.25"
-                        | "1.9.26"
-                        | "1.9.27"
-                        | "1.9.28"
-                        | "1.9.29"
-                        | "1.9.30"
-                        | "1.9.31"
-                        | "1.9.32"
-                        | "1.9.33"
-                        | "1.9.34"
-                        | "1.9.35"
-                        | "1.9.36"
-                        | "1.9.37"
-                        | "1.9.38"
-                        | "1.9.39"
-                        | "1.9.40"
-                        | "1.9.41"
-                        | "1.9.42"
-                        | "1.9.43"
-                        | "1.9.44"
-                        | "1.9.45"
-                        | "1.9.46"
-                        | "1.9.47"
-                        | "1.9.48"
-                        | "1.9.49"
-                        | "1.9.50"
-                        | "1.9.51"
-                        | "1.9.52"
-                        | "1.9.53"
-                        | "1.9.54"
-                        | "1.9.55"
-                        | "1.9.56"
-                        | "1.9.57"
-                        | "1.9.58"
-                        | "1.9.59"
-                        | "1.9.60"
-                        | "1.9.61"
-                        | "1.9.62"
-                        | "1.9.63"
-                        | "1.9.64"
-                        | "1.9.65"
-                        | "2.0.0"
-                        | "3.0.0"
-                        | "3.1.0"
-                        | "3.2.0"
-                        | "3.3.0"
-                        | "3.4.0"
-                        | "3.5.0"
-                        | "3.6.0"
-                )
-            {
+            if result.is_ok() || true {
                 vm.finish_tools(result.as_ref().err())?;
             }
             result.map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
@@ -7416,120 +3572,7 @@ pub(super) fn execute(
     } else {
         let mut vm = Vm::new(program, root, io::stdin().lock(), trace, false, &options)?;
         let result = vm.run();
-        if result.is_ok()
-            || matches!(
-                vm.engine.program.language.as_str(),
-                "0.5"
-                    | "0.6"
-                    | "0.7"
-                    | "0.8"
-                    | "0.9"
-                    | "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            )
-            || options.inspect
-            || options.profile
-        {
+        if result.is_ok() || true || options.inspect || options.profile {
             vm.finish_tools(result.as_ref().err())?;
         }
         result
@@ -7606,109 +3649,7 @@ fn build_artifact_mode(
         .collect::<Result<BTreeMap<_, _>>>()?;
     let functions=program.functions.iter().map(|(name,f)| (name.clone(),serde_json::json!({"async":f.asynchronous,"type_params":f.type_params,"parameters":f.params,"return":f.ret}))).collect::<BTreeMap<_,_>>();
     let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"module":inst.at.source,"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
-    let document = if matches!(
-        program.language.as_str(),
-        "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) && !root.join("rewind.toml").exists()
-    {
+    let document = if !root.join("rewind.toml").exists() {
         serde_json::to_string(&functions).map_err(|e| Error::InvalidOperation(e.to_string()))?
     } else {
         super::documentation_mode(&program.root_origin.to_string_lossy(), root, include_dev)?
@@ -7776,118 +3717,7 @@ fn explore_test(
             vm.call_user(test, Vec::new(), &program.functions[test].at)?;
             vm.run()
         })();
-        if run.is_err()
-            && matches!(
-                program.language.as_str(),
-                "0.5"
-                    | "0.6"
-                    | "0.7"
-                    | "0.8"
-                    | "0.9"
-                    | "0.9.1"
-                    | "0.9.2"
-                    | "0.9.3"
-                    | "0.9.4"
-                    | "0.9.5"
-                    | "0.9.6"
-                    | "0.9.7"
-                    | "0.9.8"
-                    | "0.9.9"
-                    | "1.0.0"
-                    | "1.1.0"
-                    | "1.2.0"
-                    | "1.3.0"
-                    | "1.4.0"
-                    | "1.5.0"
-                    | "1.6.0"
-                    | "1.6.1"
-                    | "1.7.0"
-                    | "1.7.1"
-                    | "1.8.0"
-                    | "1.8.1"
-                    | "1.8.2"
-                    | "1.8.3"
-                    | "1.8.4"
-                    | "1.8.5"
-                    | "1.8.6"
-                    | "1.8.7"
-                    | "1.8.8"
-                    | "1.9.0"
-                    | "1.9.1"
-                    | "1.9.2"
-                    | "1.9.3"
-                    | "1.9.4"
-                    | "1.9.5"
-                    | "1.9.6"
-                    | "1.9.7"
-                    | "1.9.8"
-                    | "1.9.9"
-                    | "1.9.10"
-                    | "1.9.11"
-                    | "1.9.12"
-                    | "1.9.13"
-                    | "1.9.14"
-                    | "1.9.15"
-                    | "1.9.16"
-                    | "1.9.17"
-                    | "1.9.18"
-                    | "1.9.19"
-                    | "1.9.20"
-                    | "1.9.21"
-                    | "1.9.22"
-                    | "1.9.23"
-                    | "1.9.24"
-                    | "1.9.25"
-                    | "1.9.26"
-                    | "1.9.27"
-                    | "1.9.28"
-                    | "1.9.29"
-                    | "1.9.30"
-                    | "1.9.31"
-                    | "1.9.32"
-                    | "1.9.33"
-                    | "1.9.34"
-                    | "1.9.35"
-                    | "1.9.36"
-                    | "1.9.37"
-                    | "1.9.38"
-                    | "1.9.39"
-                    | "1.9.40"
-                    | "1.9.41"
-                    | "1.9.42"
-                    | "1.9.43"
-                    | "1.9.44"
-                    | "1.9.45"
-                    | "1.9.46"
-                    | "1.9.47"
-                    | "1.9.48"
-                    | "1.9.49"
-                    | "1.9.50"
-                    | "1.9.51"
-                    | "1.9.52"
-                    | "1.9.53"
-                    | "1.9.54"
-                    | "1.9.55"
-                    | "1.9.56"
-                    | "1.9.57"
-                    | "1.9.58"
-                    | "1.9.59"
-                    | "1.9.60"
-                    | "1.9.61"
-                    | "1.9.62"
-                    | "1.9.63"
-                    | "1.9.64"
-                    | "1.9.65"
-                    | "2.0.0"
-                    | "3.0.0"
-                    | "3.1.0"
-                    | "3.2.0"
-                    | "3.3.0"
-                    | "3.4.0"
-                    | "3.5.0"
-                    | "3.6.0"
-            )
-        {
+        if run.is_err() {
             vm.options.record = options.record.clone();
             vm.finish_tools(run.as_ref().err())?;
         }
@@ -7921,9 +3751,7 @@ pub(super) fn session_mode(
     strict: bool,
     budget: usize,
 ) -> Result<(Result<()>, serde_json::Value, serde_json::Value, usize)> {
-    if language_at_least(&program.language, "1.9.21")
-        && v06::entry_effects(&program, false)?.contains("live")
-    {
+    if v06::entry_effects(&program, false)?.contains("live") {
         return Err(Error::InvalidOperation(
             "ExternalLiveRecordingUnsupported: REPL sessions require a complete observation tape"
                 .into(),

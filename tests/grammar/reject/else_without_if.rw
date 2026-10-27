@@ -1,0 +1,4 @@
+// if のない else
+fn f() {
+    else { }
+}

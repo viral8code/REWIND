@@ -18,7 +18,7 @@ const NAMES: &[&str] = &[
 ];
 
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    if language_at_least(&p.language, "3.0.0") {
+    {
         install_literal_helpers(p)?;
         super::interpolate::expand(p)?;
         // From 3.0.0 a source file holds declarations only; executable code
@@ -26,7 +26,11 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
         if let Some(stmt) = p
             .stmts
             .iter()
-            .find(|s| !matches!(s.kind, StmtKind::Runtime(..)))
+            .find(|s| {
+                // `const NAME: T = expr;` is a declaration even though it is stored as a `let`.
+                let constant = matches!(&s.kind, StmtKind::Let(name, false, Some(_), _) if p.const_origins.contains_key(name));
+                !matches!(s.kind, StmtKind::Runtime(..)) && !constant
+            })
         {
             return Err(diagnostic(
                 &stmt.at,
@@ -34,113 +38,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
             ));
         }
     }
-    if !matches!(
-        p.language.as_str(),
-        "0.9.1"
-            | "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) {
-        return Ok(());
-    }
+
     for n in NAMES {
         if p.functions.contains_key(*n) || p.structs.contains_key(*n) || p.enums.contains_key(*n) {
             return Err(Error::InvalidOperation(format!(
@@ -218,7 +116,7 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
         };
         // From 3.0.0 output is published when main returns, whatever its status;
         // a panic or error inside main never reaches the publish.
-        let implicit_publish = language_at_least(&p.language, "3.0.0");
+        let implicit_publish = true;
         let code = if implicit_publish {
             Expr {
                 at: at.clone(),
@@ -263,113 +161,13 @@ pub(super) fn prepare(p: &mut Program) -> Result<()> {
     }
     Ok(())
 }
-pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if !matches!(
-        p.language.as_str(),
-        "0.9.1"
-            | "0.9.2"
-            | "0.9.3"
-            | "0.9.4"
-            | "0.9.5"
-            | "0.9.6"
-            | "0.9.7"
-            | "0.9.8"
-            | "0.9.9"
-            | "1.0.0"
-            | "1.1.0"
-            | "1.2.0"
-            | "1.3.0"
-            | "1.4.0"
-            | "1.5.0"
-            | "1.6.0"
-            | "1.6.1"
-            | "1.7.0"
-            | "1.7.1"
-            | "1.8.0"
-            | "1.8.1"
-            | "1.8.2"
-            | "1.8.3"
-            | "1.8.4"
-            | "1.8.5"
-            | "1.8.6"
-            | "1.8.7"
-            | "1.8.8"
-            | "1.9.0"
-            | "1.9.1"
-            | "1.9.2"
-            | "1.9.3"
-            | "1.9.4"
-            | "1.9.5"
-            | "1.9.6"
-            | "1.9.7"
-            | "1.9.8"
-            | "1.9.9"
-            | "1.9.10"
-            | "1.9.11"
-            | "1.9.12"
-            | "1.9.13"
-            | "1.9.14"
-            | "1.9.15"
-            | "1.9.16"
-            | "1.9.17"
-            | "1.9.18"
-            | "1.9.19"
-            | "1.9.20"
-            | "1.9.21"
-            | "1.9.22"
-            | "1.9.23"
-            | "1.9.24"
-            | "1.9.25"
-            | "1.9.26"
-            | "1.9.27"
-            | "1.9.28"
-            | "1.9.29"
-            | "1.9.30"
-            | "1.9.31"
-            | "1.9.32"
-            | "1.9.33"
-            | "1.9.34"
-            | "1.9.35"
-            | "1.9.36"
-            | "1.9.37"
-            | "1.9.38"
-            | "1.9.39"
-            | "1.9.40"
-            | "1.9.41"
-            | "1.9.42"
-            | "1.9.43"
-            | "1.9.44"
-            | "1.9.45"
-            | "1.9.46"
-            | "1.9.47"
-            | "1.9.48"
-            | "1.9.49"
-            | "1.9.50"
-            | "1.9.51"
-            | "1.9.52"
-            | "1.9.53"
-            | "1.9.54"
-            | "1.9.55"
-            | "1.9.56"
-            | "1.9.57"
-            | "1.9.58"
-            | "1.9.59"
-            | "1.9.60"
-            | "1.9.61"
-            | "1.9.62"
-            | "1.9.63"
-            | "1.9.64"
-            | "1.9.65"
-            | "2.0.0"
-            | "3.0.0"
-            | "3.1.0"
-            | "3.2.0"
-            | "3.3.0"
-            | "3.4.0"
-            | "3.5.0"
-            | "3.6.0"
-    ) || !NAMES.contains(&n)
-    {
+pub(super) fn call_type(
+    _p: &Program,
+    n: &str,
+    args: &[String],
+    at: &Tok,
+) -> Result<Option<String>> {
+    if !NAMES.contains(&n) {
         return Ok(None);
     }
     let (params, ret): (&[&str], &str) = match n {
@@ -1037,6 +835,9 @@ fn install_literal_helpers(p: &mut Program) -> Result<()> {
         toks: lex(SOURCE)?,
         pos: 0,
         type_depth: 0,
+        cond_start: None,
+        splits: Vec::new(),
+        reserved: Vec::new(),
     };
     let parsed = parser.program()?;
     for (name, mut function) in parsed.functions {

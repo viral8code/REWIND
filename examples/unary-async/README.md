@@ -1,6 +1,6 @@
 # Cooperative unary numeric transforms
 
-`rewind run main.rw` runs sigmoid and tanh on reversed, broadcast native arrays.
+`rewind run main.rw --native-work 100000000 --steps 20000000 --task-steps 2000000` runs sigmoid and tanh on reversed, broadcast native arrays.
 Another task completes before the longer transform, and a checkpoint restores
 its partial result. Cancellation exposes no partial output. The program prints
 `true`, `true`, and `unary done`.

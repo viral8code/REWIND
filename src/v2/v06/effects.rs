@@ -54,6 +54,9 @@ fn syntactic(program: &Program, body: &[Stmt], seen: &mut BTreeSet<String>) -> B
                     if matches!(n.as_str(), "stdExternalClock" | "stdExternalInstant") {
                         needs.insert("clock".into());
                     }
+                    if n == "stdExternalRandomBytes" {
+                        needs.insert("random".into());
+                    }
                     if n.starts_with("stdExternalHttp") || n.starts_with("stdExternalTcp") {
                         needs.insert("network".into());
                         needs.insert("tasks".into());
@@ -135,7 +138,7 @@ pub(in crate::v2) fn function_effects(program: &Program, n: &str) -> BTreeSet<St
 pub(in crate::v2) fn entry_effects(program: &Program, tests: bool) -> Result<BTreeSet<String>> {
     let checker = Checker {
         program,
-        scopes: vec![BTreeMap::new()],
+        scopes: vec![crate::v2::Scope::default()],
         return_ty: None,
         loop_depth: 0,
         bounds: BTreeMap::new(),
@@ -225,6 +228,9 @@ impl Scan<'_> {
                         self.needs.insert("external".into());
                         if matches!(base, "stdExternalClock" | "stdExternalInstant") {
                             self.needs.insert("clock".into());
+                        }
+                        if base == "stdExternalRandomBytes" {
+                            self.needs.insert("random".into());
                         }
                         if base.starts_with("stdExternalHttp") || base.starts_with("stdExternalTcp")
                         {
@@ -402,7 +408,7 @@ impl Scan<'_> {
                 }
             }
             ExprKind::Block(body, tail) => {
-                self.checker.scopes.push(BTreeMap::new());
+                self.checker.scopes.push(crate::v2::Scope::default());
                 let result = self.body(body).and_then(|_| match tail {
                     Some(tail) => self.expr(tail),
                     None => Ok(()),
@@ -416,7 +422,7 @@ impl Scan<'_> {
                 for (p, g, e) in arms {
                     let mut bindings = BTreeMap::new();
                     self.checker.pattern(p, &ty, &e.at, &mut bindings)?;
-                    self.checker.scopes.push(bindings);
+                    self.checker.scopes.push(crate::v2::Scope::from(bindings));
                     if let Some(g) = g {
                         self.expr(g)?;
                     }
@@ -506,7 +512,10 @@ impl Scan<'_> {
                     self.expr(b)?;
                     self.checker
                         .scopes
-                        .push(BTreeMap::from([(n.clone(), ("Int".into(), false))]));
+                        .push(crate::v2::Scope::from(BTreeMap::from([(
+                            n.clone(),
+                            ("Int".into(), false),
+                        )])));
                     self.scope(body)?;
                     self.checker.scopes.pop();
                 }
@@ -516,7 +525,7 @@ impl Scan<'_> {
                     for (p, g, b) in arms {
                         let mut vars = BTreeMap::new();
                         self.checker.pattern(p, &ty, &s.at, &mut vars)?;
-                        self.checker.scopes.push(vars);
+                        self.checker.scopes.push(crate::v2::Scope::from(vars));
                         if let Some(g) = g {
                             self.expr(g)?;
                         }
@@ -533,7 +542,7 @@ impl Scan<'_> {
         Ok(())
     }
     fn scope(&mut self, b: &[Stmt]) -> Result<()> {
-        self.checker.scopes.push(BTreeMap::new());
+        self.checker.scopes.push(crate::v2::Scope::default());
         self.body(b)?;
         self.checker.scopes.pop();
         Ok(())
@@ -576,7 +585,7 @@ pub(in crate::v2) fn infer(program: &mut Program) -> Result<()> {
     for _ in 0..128 {
         let checker = Checker {
             program,
-            scopes: vec![BTreeMap::new()],
+            scopes: vec![crate::v2::Scope::default()],
             return_ty: None,
             loop_depth: 0,
             bounds: BTreeMap::new(),
@@ -731,7 +740,7 @@ pub(in crate::v2) fn validate(program: &Program, config: &project::ProjectConfig
     config.validate_module_effects(program)?;
     let globals = Checker {
         program,
-        scopes: vec![BTreeMap::new()],
+        scopes: vec![crate::v2::Scope::default()],
         return_ty: None,
         loop_depth: 0,
         bounds: BTreeMap::new(),

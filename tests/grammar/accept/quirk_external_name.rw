@@ -1,0 +1,4 @@
+// external の直後が { でも fresh でも live でもなければ名前の式. 実装の癖。文法の癖の一覧を参照。
+fn f() {
+    external;
+}

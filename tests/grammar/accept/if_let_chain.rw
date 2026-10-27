@@ -1,0 +1,4 @@
+// if let と else if let
+fn f() {
+    if let Some(v) = x { g(v); } else if let None = y { h(); } else { k(); }
+}

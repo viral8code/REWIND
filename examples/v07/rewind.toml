@@ -1,4 +1,0 @@
-language = "0.7"
-source_root = "."
-entry = "main.rw"
-effects = "output"
