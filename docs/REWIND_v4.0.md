@@ -1,49 +1,42 @@
 # REWIND 4.0.0
 
-4.0.0 は、言語の記法を、エディタなど他のツールが扱いやすい形に固めるバージョンです。3.0.0 未満の言語は、このバージョンから受け付けません。
+言語の記法を固め、エディタなどの外部ツールから扱いやすくしたバージョンです。壊れる変更があるので、先に「移行」を読んでください。
 
-## 言語（言語 4.0.0 で変わること）
+## 移行
 
-- 宣言・制御・チェックポイント・式の約 45 語が、名前に使えなくなりました。使うと `ReservedWord` で拒否されます。一覧は[言語リファレンス](language-reference.md#32-識別子)の 3.2 節にあります。`value`、`capture`、`borrow`、`force`、`live`、`fresh`、`test`、`where`、`effects`、`captures` は、文脈で意味が決まる語のままなので、名前に使えます。`None` も名前に使えます。`import std.external as host;` のような import の経路と、`effects { }` に書く効果の名前は、予約語の対象外です。
-- ソースに `null` と書けなくなりました。値がないことは `Option` の `None` で表します。DB の NULL や JSON の null は、専用の型と関数で、これまでどおり扱えます。
+- 言語 4.0.0 では、`fn`、`let`、`commit`、`revert`、`spawn`、`await` など約 45 語を名前に使えません。使うと `ReservedWord` で拒否され、メッセージが直し方を案内します（`commit` は `committed` など）。一覧は[言語リファレンスの 3.2 節](language-reference.md#32-識別子)にあります。`value`、`capture`、`borrow`、`force`、`live`、`fresh`、`test`、`where`、`effects`、`captures`、`None` は、これまでどおり名前に使えます。
+- 言語 4.0.0 では、ソースに `null` と書けません。値がないことは `None` で表します。DB の NULL と JSON の null は、専用の型と関数で扱えます。
+- 言語 3.0.0 未満は実行できません（`unsupported language version`）。古いプログラムは REWIND 3 で実行してください。
+- 通常の文字列リテラルの中の改行は、ソースの改行コードによらず、どの言語でも LF になります。OS に合わせた改行は、`external { }` の中で `std.text.lineSeparator()` を呼びます。
+- `pub effects { ... }` は、これまで `pub` を無視していましたが、拒否するようになりました。
+- `binding.revert` を削除しました。`binding.reset` を使ってください。`historyGraph` の `setHead`、`head`、`dropHead` は、引数名が `branch` から `branchName` に変わりました。どちらも `api-diff` では互換性のない変更です。
 
-3.x の言語を指定したプログラムでは、この 2 点は変わりません。
+3.x の言語を指定したプログラムでは、予約語と `null` の 2 点は変わりません。
 
-## どの言語でも変わること
+## 追加された書き方
 
-- 通常の文字列リテラルの中の改行は、ソースファイルの改行コード（CRLF、CR、LF）によらず LF になります。OS に合わせた改行が必要なときは、`external { }` の中で `std.text.lineSeparator()` を呼びます。
-- `pub effects { ... }` は、これまで `pub` を黙って無視していましたが、`effects cannot be public` で拒否します。`effects` はモジュールの宣言で、公開の指定はありません。
-- `binding.revert` を削除しました。`binding.reset` を使ってください。`historyGraph` の `setHead`、`head`、`dropHead` の引数名 `branch` は `branchName` に変わりました。どちらも `api-diff` では互換性のない変更です。
+どれも、これまで拒否していた書き方を受け付けるだけなので、3.x の言語でも使えます。
 
-## 追加（記法）
-
-3.6.0 のあとに入った記法の追加です。これまで拒否していた書き方を受け付けるだけなので、3.x の言語でも使えます（短いクロージャは 3.0.0 以上）。
-
-- 型注釈つきの `let` で、短いクロージャを書けます。`let f: fn(Int, Int) -> Int effects {} = |a, b| a + b;` のように、引数の型は注釈から決まります。型が決まらない場所の短いクロージャは、実行前の検査で拒否します。
-- カンマ区切りのすべての箇所で、最後のカンマを書けます。関数の仮引数、呼び出しの引数、型引数、関数の型、クロージャの仮引数、enum の variant、trait のメソッド、`where` の境界が対象です。
-- raw 文字列を書けます。3 個以上の `"` で開閉し、閉じの行の字下げを各行から取り除く複数行の形と、1 行の形があります。エスケープも補間 `${}` も効きません。
-- `match` の文でも、`{ }` のアームのあとの `,` を省けます（式の `match` と同じ規則です）。
-- let-else（`let Some(x) = 値 else { ... };`）を、式としてのブロック `{ ... }` と、式の `if` の本体にも書けます。残りの文と末尾の式が、一致したときの続きになります。
+- 型注釈つきの `let` で短いクロージャを書けます。`let f: fn(Int, Int) -> Int effects {} = |a, b| a + b;` のように、引数の型は注釈から決まります。
+- カンマ区切りのすべての箇所で、最後のカンマを書けます。
+- raw 文字列を書けます。3 個以上の `"` で開閉し、エスケープも補間も効きません。
+- `match` の文でも、`{ }` のアームのあとの `,` を省けます。
+- let-else（`let Some(x) = 値 else { ... };`）を、式としてのブロックと、式の `if` の本体にも書けます。
 - `match E::A { ... }` と `if x == E::A { ... }` を、括弧で囲まずに書けます。`a < b >= c` は比較の連鎖として読めます。
-- `runtime { }` の値に `_` 区切りと 16 進を書けます。文字列パターンは文字列リテラル 1 つだけを受け付けます。ASCII 以外の記号（絵文字など）は、字句の段階で拒否します。整数パターンは整数のトークンだけを受け付けます。
+- `runtime { }` の値に `_` 区切りと 16 進を書けます。
 
-## 追加（library）
+## 追加された library と tool
 
-- `std.text.codePoints` と `fromCodePoints` が、文字列とコードポイントの列を相互に変換します。
-- `std.text.lineSeparator` が、実行環境に合わせた改行を返します。クロックや乱数と同じ外部の観測として記録し、replay では記録した値を使います。
-- `std.binding.reset` が、編集を捨てて元の値に戻します。
-- `std.guiTabs`、`std.guiCombo`、`std.guiDate`、`std.binding` を、pure `.rw` で追加しました。GUI の部品とデータバインディングです。
+- `std.text` に `codePoints`、`fromCodePoints`、`lineSeparator` を追加しました。`lineSeparator` は、クロックや乱数と同じ外部の観測として記録され、replay では記録した値を使います。
+- `std.binding.reset` を追加しました。`std.guiTabs`、`std.guiCombo`、`std.guiDate`、`std.binding` を、pure な `.rw` で追加しました。
+- 形式文法 `docs/grammar/rewind.ebnf` と[説明](grammar/README.md)を追加しました。文法は、実際の構文解析器と突き合わせるテストで検証しています。
+- エディタ向けの窓口として、`rewind editor-info`、`rewind tokens`（壊れたソースでも動きます）、LSP の `documentSymbol` と `semanticTokens` を追加しました。作り方は[エディタ作成ガイド](editor-guide.md)にあります。
 
-## 追加（tool）
+## 速度と安全性
 
-- `docs/grammar/rewind.ebnf` に形式文法を追加しました。エディタ向けの[説明](grammar/README.md)も付けています。文法は、実際の構文解析器と突き合わせるテストで検証しています。
-- エディタ向けの窓口を追加しました。`rewind editor-info`（語、記号、診断と LSP の呼び方）、`rewind tokens`（壊れたソースでも動くトークン分類とアウトライン）、LSP の `textDocument/documentSymbol` と `textDocument/semanticTokens/full` です。作り方は[エディタ作成ガイド](editor-guide.md)にまとめています。
-- VM の命令ごとの固定費を減らしました。100 万回のループが約 10 秒から約 2 秒になり、構造体のフィールドへの `+=` は償却 O(1) になりました。
-
-## 互換性
-
-- 言語 3.0.0 未満の `rewind.toml` と、単体ファイルの旧版としての実行は、`unsupported language version` で拒否します。古い言語のプログラムは、REWIND 3 のコンパイラで実行してください。
-- 言語 4.0.0 では、予約語を名前に使っているプログラムを直す必要があります。エラーのメッセージが、名前を変えるよう案内します（たとえば `commit` を `committed` にします）。
-- ソースに `null` と書いているプログラムは、言語 4.0.0 では `None` に直す必要があります。
+- VM の命令ごとの固定費を減らしました。100 万回のループは約 10 秒から約 2 秒になりました。構造体のフィールドへの `+=` は、償却 O(1) です。
+- 悪意のあるソースへの対策として、1 MiB 以内のソースで、コンパイルに二乗時間がかかる入力（深い入れ子、大量の変数と分岐、巨大なスコープなど）をなくしました。確かめた形はすべて約 14 秒以内に終わります。回帰テストを `tests/hostile_input.rs` と `tests/hostile_runtime.rs` に置いています。
+- クロージャを連鎖して作ると二乗時間かかっていたのを、線形にしました。6000 段で約 10 秒かかっていたものが、約 0.2 秒です。
+- 認証に失敗した HTTP サーバの要求で、401 の応答が届かないことがあったのを直しました。
 
 詳細は[言語リファレンスの付録 B](language-reference.md#400-の変更)を参照してください。

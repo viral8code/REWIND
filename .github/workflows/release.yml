@@ -157,7 +157,7 @@ jobs:
           else
             : > "$NOTES"
           fi
-          cat docs/getting-started.md >> "$NOTES"
+          printf '\n使い方は [docs/getting-started.md](https://github.com/%s/blob/%s/docs/getting-started.md) を参照してください。\n' "$GITHUB_REPOSITORY" "$RELEASE_TAG" >> "$NOTES"
           printf '\n## Build and verification\n\nCommit: `%s`\n\n' "$GITHUB_SHA" >> "$NOTES"
           BASELINE_COUNT=$(python -c "import glob; print(len(glob.glob('libraries/api/*.api.json')))")
           printf 'Linux and Windows regression tests, standard-library contracts, SDK signatures, %s API baselines, extraction, input, record/replay and source-free execution passed.\n\n' "$BASELINE_COUNT" >> "$NOTES"
