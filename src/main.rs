@@ -1149,7 +1149,9 @@ fn run_cli(arguments: Vec<String>) -> Result<()> {
             .next()
             .ok_or_else(|| Error::InvalidOperation("usage: rewind tokens FILE.rw|-".into()))?;
         if args.next().is_some() {
-            return Err(Error::InvalidOperation("usage: rewind tokens FILE.rw|-".into()));
+            return Err(Error::InvalidOperation(
+                "usage: rewind tokens FILE.rw|-".into(),
+            ));
         }
         use std::io::Read as _;
         let mut bytes = Vec::new();

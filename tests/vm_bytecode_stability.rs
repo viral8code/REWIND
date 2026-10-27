@@ -7,14 +7,18 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::process::Command;
 
-const FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/vm_ops_bytecode.rw");
+const FIXTURE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/vm_ops_bytecode.rw"
+);
 const BYTECODE_OPS: usize = 241;
 const BYTECODE_SHA256: &str = "51faf5c49a39fd5c63eeb9ad86ebeb72caf4d4ef49f277a4c46aeb0fb6c30d91";
 const TRACE_OPS: usize = 485;
 const TRACE_SHA256: &str = "0bcda57066e86301f86b5da0764732d9cb70a6a592626147af6ff29eab938d59";
 
 fn scratch(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("rewind-bytecode-stability-{}", std::process::id()));
+    let dir =
+        std::env::temp_dir().join(format!("rewind-bytecode-stability-{}", std::process::id()));
     fs::create_dir_all(&dir).unwrap();
     dir.join(name)
 }
@@ -59,8 +63,18 @@ fn compiled_bytecode_debug_strings_are_unchanged() {
     assert_eq!(sha256_lines(&ops), BYTECODE_SHA256);
     // 主な Op が含まれていること。
     for name in [
-        "Load(", "Declare(", "Store(", "StoreField(", "Binary(", "Call(", "MakeClosure",
-        "DeferValue", "FailMatch", "Enter", "Exit", "JumpFalse",
+        "Load(",
+        "Declare(",
+        "Store(",
+        "StoreField(",
+        "Binary(",
+        "Call(",
+        "MakeClosure",
+        "DeferValue",
+        "FailMatch",
+        "Enter",
+        "Exit",
+        "JumpFalse",
     ] {
         assert!(ops.iter().any(|o| o.starts_with(name)), "missing {name}");
     }
@@ -79,7 +93,11 @@ fn debug_trace_operation_sequence_is_unchanged_and_replays() {
         .arg(&trace)
         .output()
         .unwrap();
-    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
     let value: Value = serde_json::from_slice(&fs::read(&trace).unwrap()).unwrap();
     let mut ops = Vec::new();
     collect_operations(&value, &mut ops);
@@ -90,5 +108,9 @@ fn debug_trace_operation_sequence_is_unchanged_and_replays() {
         .arg(&trace)
         .output()
         .unwrap();
-    assert!(replay.status.success(), "{}", String::from_utf8_lossy(&replay.stderr));
+    assert!(
+        replay.status.success(),
+        "{}",
+        String::from_utf8_lossy(&replay.stderr)
+    );
 }

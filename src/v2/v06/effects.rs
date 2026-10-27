@@ -512,7 +512,10 @@ impl Scan<'_> {
                     self.expr(b)?;
                     self.checker
                         .scopes
-                        .push(crate::v2::Scope::from(BTreeMap::from([(n.clone(), ("Int".into(), false))])));
+                        .push(crate::v2::Scope::from(BTreeMap::from([(
+                            n.clone(),
+                            ("Int".into(), false),
+                        )])));
                     self.scope(body)?;
                     self.checker.scopes.pop();
                 }

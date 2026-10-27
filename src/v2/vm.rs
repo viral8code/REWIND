@@ -133,7 +133,6 @@ impl Compiler {
         }
     }
     fn expression_type(&self, e: &Expr) -> Option<String> {
-        
         let checker = Checker {
             program: &self.typing_program,
             scopes: self.typing_scopes.clone(),
@@ -149,8 +148,7 @@ impl Compiler {
         checker.expr(e).ok()
     }
     fn call_name(&self, name: &str, args: &[Expr], at: &Tok) -> String {
-        if false || name.contains('<')
-        {
+        if false || name.contains('<') {
             return name.into();
         }
         let Some(f) = self.typing_program.functions.get(name) else {
@@ -290,8 +288,7 @@ impl Compiler {
         c.typing_program = program.clone();
         c.typing_origin = program.root_origin.clone();
         for stmt in &program.stmts {
-            let guard = if stmt.at.text == "@application-entry"
-            {
+            let guard = if stmt.at.text == "@application-entry" {
                 Some(c.emit(Op::ApplicationEntry(0), &stmt.at))
             } else {
                 None
@@ -457,10 +454,7 @@ impl Compiler {
                 local.insert(name, entry.clone());
             }
         }
-        vec![
-            self.typing_scopes[0].clone(),
-            crate::v2::Scope::from(local),
-        ]
+        vec![self.typing_scopes[0].clone(), crate::v2::Scope::from(local)]
     }
     fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
         let at = &stmt.at;
@@ -663,8 +657,7 @@ impl Compiler {
                     self.pattern_types(pattern, value_type.as_deref(), at);
                     self.emit(Op::Load(hidden.clone()), at);
                     let miss = self.emit(
-                        if matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
-                        {
+                        if matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _)) {
                             Op::BorrowPatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
                         } else {
                             Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
@@ -845,8 +838,7 @@ impl Compiler {
                     self.pattern_types(pattern, value_type.as_deref(), &e.at);
                     self.emit(Op::Load(hidden.clone()), &e.at);
                     let miss = self.emit(
-                        if matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _))
-                        {
+                        if matches!(value.kind, ExprKind::Name(_) | ExprKind::Member(_, _)) {
                             Op::BorrowPatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
                         } else {
                             Op::PatternTest(resolve_pattern_alias(pattern, &self.aliases), 0)
@@ -1232,7 +1224,6 @@ impl<R: BufRead> Vm<R> {
             || options.replay.is_some()
             || options.inspect
             || options.pause_after.is_some())
-            
             && v06::entry_effects(&program, test_mode)?.contains("live")
         {
             return Err(Error::InvalidOperation("ExternalLiveRecordingUnsupported: live effects require execution without record, replay or inspection".into()));
@@ -2156,14 +2147,13 @@ impl<R: BufRead> Vm<R> {
                 result => break result,
             }
         };
-        if result.is_ok()
-            
-        {
+        if result.is_ok() {
             {
                 if let Some(error) = self.unhandled_task_diagnostic() {
                     result = Err(Error::Diagnostic(Box::new(error)));
                 }
-            }}
+            }
+        }
         if result.is_err() {
             let mut causes = Vec::new();
             let mut typed_causes = Vec::new();
@@ -2220,7 +2210,8 @@ impl<R: BufRead> Vm<R> {
                     self.record_error(&result.unwrap_err(), &at, self.scheduler.active);
                 failure.causes.extend(typed_causes);
                 result = Err(Error::Diagnostic(Box::new(failure)));
-            }}
+            }
+        }
         result
     }
     fn finish_tools(&self, execution_error: Option<&Error>) -> Result<()> {
@@ -2285,9 +2276,7 @@ impl<R: BufRead> Vm<R> {
                     trace["artifact_entry"] = serde_json::json!(path);
                 }
             }
-            if !compact
-                
-            {
+            if !compact {
                 let mut deltas = self.debug_deltas.clone();
                 if !self.debug_previous.is_null() {
                     deltas.push(serde_json::json!(v06::debug::delta(
@@ -2375,7 +2364,6 @@ impl<R: BufRead> Vm<R> {
             self.current_pc = caller_pc;
         }
         result.map_err(|error| {
-            
             let at = self
                 .current_pc
                 .and_then(|pc| self.code.get(pc))
@@ -2613,36 +2601,33 @@ impl<R: BufRead> Vm<R> {
                     let value = if let Some(binding) = self.get(name) {
                         self.resolve(&binding.value)
                     } else if let Some(f) = self.engine.program.functions.get(name) {
-                        Value::Function(
-                            name.clone(),
-                            {
-                                let ty = v06::fn_type(
-                                    &f.params,
-                                    &if f.asynchronous {
-                                        format!("Task<{}>", f.ret)
-                                    } else {
-                                        f.ret.clone()
-                                    },
-                                    &v06::function_effects(&self.engine.program, &name),
-                                );
-                                let names = v05::needed_globals(&self.engine.program, &name);
-                                let can = |shared: bool| {
-                                    names.iter().all(|n| {
-                                        self.get(n).is_none_or(|b| {
-                                            (!shared || !b.mutable)
-                                                && v06::captures::value_flags(
-                                                    &self.engine.program,
-                                                    &self.engine.runtime,
-                                                    &b.value,
-                                                    shared,
-                                                    &mut BTreeSet::new(),
-                                                )
-                                        })
+                        Value::Function(name.clone(), {
+                            let ty = v06::fn_type(
+                                &f.params,
+                                &if f.asynchronous {
+                                    format!("Task<{}>", f.ret)
+                                } else {
+                                    f.ret.clone()
+                                },
+                                &v06::function_effects(&self.engine.program, &name),
+                            );
+                            let names = v05::needed_globals(&self.engine.program, &name);
+                            let can = |shared: bool| {
+                                names.iter().all(|n| {
+                                    self.get(n).is_none_or(|b| {
+                                        (!shared || !b.mutable)
+                                            && v06::captures::value_flags(
+                                                &self.engine.program,
+                                                &self.engine.runtime,
+                                                &b.value,
+                                                shared,
+                                                &mut BTreeSet::new(),
+                                            )
                                     })
-                                };
-                                v06::captures::with_flags(&ty, can(false), can(true))
-                            },
-                        )
+                                })
+                            };
+                            v06::captures::with_flags(&ty, can(false), can(true))
+                        })
                     } else if name.contains("::") {
                         unflow(self.engine.call(&name, Vec::new(), &inst.at), &inst.at)?
                     } else {
@@ -2848,8 +2833,7 @@ impl<R: BufRead> Vm<R> {
                 Op::Call(name, count) => {
                     let count = *count;
                     let args = self.args(count)?;
-                    if name == "reveal"
-                    {
+                    if name == "reveal" {
                         self.audit.push(serde_json::json!({"kind":"reveal","source":inst.at.source,"line":inst.at.line,"column":inst.at.col,"task":self.scheduler.active,"event":self.events.len()}));
                     }
                     if (name == "property"
@@ -2861,9 +2845,7 @@ impl<R: BufRead> Vm<R> {
                         self.push(value)?;
                         continue;
                     }
-                    if name == "propertyInt"
-                        
-                    {
+                    if name == "propertyInt" {
                         let value = self.property_int(&args, &inst.at)?;
                         self.push(value)?;
                         continue;
@@ -2927,8 +2909,7 @@ impl<R: BufRead> Vm<R> {
                     let needed = v05::needed_globals(&self.engine.program, &name);
                     for scope in &self.globals {
                         for (name, binding) in scope {
-                            if !needed.contains(name)
-                            {
+                            if !needed.contains(name) {
                                 continue;
                             }
                             captures.insert(
@@ -2944,8 +2925,7 @@ impl<R: BufRead> Vm<R> {
                     if let Some(frame) = self.frames.last() {
                         for scope in &frame.scopes {
                             for (name, binding) in scope {
-                                if !needed.contains(name)
-                                {
+                                if !needed.contains(name) {
                                     continue;
                                 }
                                 captures.insert(
@@ -3121,10 +3101,7 @@ impl<R: BufRead> Vm<R> {
                     }
                 }
                 Op::EnterExternal(fresh) => {
-                    if (self.scheduler.active != 0
-                        && false)
-                        || !self.branches.is_empty()
-                    {
+                    if (self.scheduler.active != 0 && false) || !self.branches.is_empty() {
                         return Err(self.error(
                             &inst.at,
                             "ExternalBoundary: external requires the main task outside branches",
@@ -3313,8 +3290,7 @@ impl<R: BufRead> Vm<R> {
                     let mut snap = self.snapshots.get(name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
-                    if name == "begin" 
-                    {
+                    if name == "begin" {
                         // Retain only the live continuation skeleton. All bindings,
                         // resources, deferred cleanups and tasks are initial again.
                         if !self.branches.is_empty()
@@ -3423,8 +3399,7 @@ impl<R: BufRead> Vm<R> {
                     let snap = self.snapshots.get(name).cloned().ok_or_else(|| {
                         self.error(&inst.at, format!("unknown checkpoint {name}"))
                     })?;
-                    if name == "begin" 
-                    {
+                    if name == "begin" {
                         self.engine.runtime.reset_begin()?;
                         self.snapshots.retain(|label, _| label == "begin");
                     } else {
@@ -3444,10 +3419,7 @@ impl<R: BufRead> Vm<R> {
                             return Err(self.error(&inst.at, error));
                         }
                     }
-                    if self.scheduler.active != 0
-                        || (self.scheduler.has_live_tasks()
-                            && false)
-                    {
+                    if self.scheduler.active != 0 || (self.scheduler.has_live_tasks() && false) {
                         return Err(self.error(&inst.at,"publish requires the application task and completed/cancelled children"));
                     }
                     if self.engine.test_mode {
@@ -3584,9 +3556,7 @@ pub(super) fn execute(
                 vm.call_user(&test, Vec::new(), &at)?;
                 vm.run()
             })();
-            if result.is_ok()
-                || true
-            {
+            if result.is_ok() || true {
                 vm.finish_tools(result.as_ref().err())?;
             }
             result.map_err(|error| Error::InvalidOperation(format!("test {test}: {error}")))?;
@@ -3602,11 +3572,7 @@ pub(super) fn execute(
     } else {
         let mut vm = Vm::new(program, root, io::stdin().lock(), trace, false, &options)?;
         let result = vm.run();
-        if result.is_ok()
-            || true
-            || options.inspect
-            || options.profile
-        {
+        if result.is_ok() || true || options.inspect || options.profile {
             vm.finish_tools(result.as_ref().err())?;
         }
         result
@@ -3683,8 +3649,7 @@ fn build_artifact_mode(
         .collect::<Result<BTreeMap<_, _>>>()?;
     let functions=program.functions.iter().map(|(name,f)| (name.clone(),serde_json::json!({"async":f.asynchronous,"type_params":f.type_params,"parameters":f.params,"return":f.ret}))).collect::<BTreeMap<_,_>>();
     let code=compiler.code.iter().map(|inst|serde_json::json!({"operation":format!("{:?}",inst.op),"module":inst.at.source,"line":inst.at.line,"column":inst.at.col})).collect::<Vec<_>>();
-    let document = if !root.join("rewind.toml").exists()
-    {
+    let document = if !root.join("rewind.toml").exists() {
         serde_json::to_string(&functions).map_err(|e| Error::InvalidOperation(e.to_string()))?
     } else {
         super::documentation_mode(&program.root_origin.to_string_lossy(), root, include_dev)?
@@ -3752,9 +3717,7 @@ fn explore_test(
             vm.call_user(test, Vec::new(), &program.functions[test].at)?;
             vm.run()
         })();
-        if run.is_err()
-            
-        {
+        if run.is_err() {
             vm.options.record = options.record.clone();
             vm.finish_tools(run.as_ref().err())?;
         }
@@ -3788,8 +3751,7 @@ pub(super) fn session_mode(
     strict: bool,
     budget: usize,
 ) -> Result<(Result<()>, serde_json::Value, serde_json::Value, usize)> {
-    if v06::entry_effects(&program, false)?.contains("live")
-    {
+    if v06::entry_effects(&program, false)?.contains("live") {
         return Err(Error::InvalidOperation(
             "ExternalLiveRecordingUnsupported: REPL sessions require a complete observation tape"
                 .into(),
@@ -3873,4 +3835,3 @@ pub(super) fn session_mode(
         budget - vm.steps,
     ))
 }
-

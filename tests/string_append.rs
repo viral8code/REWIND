@@ -32,7 +32,11 @@ fn run_script_with(source: &str, extra: &[&str]) -> String {
     let mut args = vec!["run", "main.rw"];
     args.extend_from_slice(extra);
     let out = call(&root, &args);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     fs::remove_dir_all(root).unwrap();
     String::from_utf8(out.stdout).unwrap()
 }
@@ -213,7 +217,10 @@ fn main() -> Int {
 }
 "#,
     );
-    assert!(err.contains("type mismatch") || err.contains("expects") || err.contains("cannot"), "{err}");
+    assert!(
+        err.contains("type mismatch") || err.contains("expects") || err.contains("cannot"),
+        "{err}"
+    );
     let err = run_failure(
         r#"
 struct Num { n: Int }
@@ -224,7 +231,10 @@ fn main() -> Int {
 }
 "#,
     );
-    assert!(err.contains("type mismatch") || err.contains("expects") || err.contains("cannot"), "{err}");
+    assert!(
+        err.contains("type mismatch") || err.contains("expects") || err.contains("cannot"),
+        "{err}"
+    );
 }
 #[test]
 fn field_append_of_many_pieces_finishes_in_reasonable_time() {

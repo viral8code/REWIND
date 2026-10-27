@@ -58,4 +58,3 @@ fn advanced_algorithms_checkpoint_source_free_and_both_record_modes() {
     }
     fs::remove_dir_all(root).unwrap();
 }
-

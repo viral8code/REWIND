@@ -12,12 +12,12 @@ pub mod transforms;
 use map_storage::PersistentMap;
 use storage::{HeapStore, PagedValues};
 pub mod bigint;
+pub mod crypto;
 pub mod csv_stream;
 pub mod database;
 pub mod datetime;
 pub mod decimal;
 pub mod external;
-pub mod crypto;
 pub mod gzip;
 pub mod http_server;
 pub mod json_stream;
@@ -2957,7 +2957,8 @@ impl Runtime {
     /// `make_mut`, and the copy counts again next to the checkpoint's, so those cases drop the
     /// headroom first.
     pub fn push_stack(&mut self, value: Value) -> Result<()> {
-        let scalar_bytes = Self::is_budget_scalar(&value).then(|| self.retained_value_bytes(&value));
+        let scalar_bytes =
+            Self::is_budget_scalar(&value).then(|| self.retained_value_bytes(&value));
         // Undo by popping instead of holding a second Arc: a retained clone would force
         // `make_mut` to copy the whole stack on every push.
         let stack = &mut self.state.quiet().stack;
@@ -3475,23 +3476,24 @@ impl Runtime {
         total
     }
     pub fn heap_set(&mut self, id: u64, value: Value) -> Result<()> {
-        let growth = self
-            .heap_value_bytes(&value)
-            .saturating_sub(self.state.heap.get(&id).map_or(0, |old| self.heap_value_bytes(old)));
+        let growth = self.heap_value_bytes(&value).saturating_sub(
+            self.state
+                .heap
+                .get(&id)
+                .map_or(0, |old| self.heap_value_bytes(old)),
+        );
         // The full check reads a heap only through its running totals plus the payload
         // registration below, so a heap that nothing else shares is proved by the change in those
         // totals. Registration is done here exactly as the full check would do it; that needs
         // every earlier registration to have been checked already.
         let tracked = Arc::strong_count(&self.state.heap) == 1
             && Arc::weak_count(&self.state.heap) == 0
-            && self
-                .numeric_accounting
-                .as_ref()
-                .map_or(true, |a| a.generation() == self.numeric_checked_generation.get())
-            && self
-                .shared_accounting
-                .as_ref()
-                .map_or(true, |a| a.generation() == self.shared_checked_generation.get());
+            && self.numeric_accounting.as_ref().map_or(true, |a| {
+                a.generation() == self.numeric_checked_generation.get()
+            })
+            && self.shared_accounting.as_ref().map_or(true, |a| {
+                a.generation() == self.shared_checked_generation.get()
+            });
         let before = tracked.then(|| self.budget_heap_bytes(&self.state.heap, false));
         // A tracked heap is uniquely owned, so keep the old store (an O(1) clone of its root)
         // after the copy-on-write step; an untracked heap keeps its Arc so a failure restores it.
@@ -3527,10 +3529,8 @@ impl Runtime {
             if let Some(a) = &self.shared_accounting {
                 self.shared_checked_generation.set(a.generation());
             }
-            let ok = self.enforce_budget_fast(
-                after.saturating_sub(before),
-                before.saturating_sub(after),
-            );
+            let ok = self
+                .enforce_budget_fast(after.saturating_sub(before), before.saturating_sub(after));
             if !ok {
                 self.numeric_checked_generation.set(marks.0);
                 self.shared_checked_generation.set(marks.1);

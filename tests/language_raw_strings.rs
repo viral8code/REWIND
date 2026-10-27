@@ -159,7 +159,8 @@ fn indentation_must_match_exactly_with_tabs_and_spaces() {
 
 #[test]
 fn missing_closing_quotes() {
-    let source = "fn main()->Int effects {} {\n    let s = \"\"\"\n        text\n    return 0;\n}\n";
+    let source =
+        "fn main()->Int effects {} {\n    let s = \"\"\"\n        text\n    return 0;\n}\n";
     let err = rejected(source, "RawStringUnterminated");
     assert!(err.contains("main.rw:2:13"), "{err}");
     let source = "fn main()->Int effects {} {\n    let s = \"\"\"abc\";\n    return 0;\n}\n";
@@ -174,7 +175,8 @@ fn quote_run_longer_than_the_delimiter() {
     assert!(err.contains("more than 3 quotes"), "{err}");
     let source = "fn main()->Int effects {} {\n    let s = \"\"\"a\"\"\"\";\n    return 0;\n}\n";
     rejected(source, "RawStringQuote");
-    let source = "fn main()->Int effects {} {\n    let s = \"\"\"a \"\"\"\" b\"\"\";\n    return 0;\n}\n";
+    let source =
+        "fn main()->Int effects {} {\n    let s = \"\"\"a \"\"\"\" b\"\"\";\n    return 0;\n}\n";
     rejected(source, "RawStringQuote");
 }
 

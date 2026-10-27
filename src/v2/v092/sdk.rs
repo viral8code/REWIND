@@ -66,26 +66,14 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
             "compress",
             include_str!("../../../libraries/std/compress.rw"),
         ),
-        (
-            "crypto",
-            include_str!("../../../libraries/std/crypto.rw"),
-        ),
-        (
-            "html",
-            include_str!("../../../libraries/std/html.rw"),
-        ),
+        ("crypto", include_str!("../../../libraries/std/crypto.rw")),
+        ("html", include_str!("../../../libraries/std/html.rw")),
         (
             "template",
             include_str!("../../../libraries/std/template.rw"),
         ),
-        (
-            "base64",
-            include_str!("../../../libraries/std/base64.rw"),
-        ),
-        (
-            "auth",
-            include_str!("../../../libraries/std/auth.rw"),
-        ),
+        ("base64", include_str!("../../../libraries/std/base64.rw")),
+        ("auth", include_str!("../../../libraries/std/auth.rw")),
         ("dna", include_str!("../../../libraries/std/dna.rw")),
         ("fastx", include_str!("../../../libraries/std/fastx.rw")),
         ("image", include_str!("../../../libraries/std/image.rw")),
@@ -233,7 +221,10 @@ pub(in crate::v2) fn modules() -> BTreeMap<&'static str, &'static str> {
         ),
         ("guiMenu", include_str!("../../../libraries/std/guiMenu.rw")),
         ("guiTabs", include_str!("../../../libraries/std/guiTabs.rw")),
-        ("guiCombo", include_str!("../../../libraries/std/guiCombo.rw")),
+        (
+            "guiCombo",
+            include_str!("../../../libraries/std/guiCombo.rw"),
+        ),
         ("guiDate", include_str!("../../../libraries/std/guiDate.rw")),
         ("binding", include_str!("../../../libraries/std/binding.rw")),
         ("guiForm", include_str!("../../../libraries/std/guiForm.rw")),

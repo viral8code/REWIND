@@ -389,7 +389,6 @@ pub(super) fn names() -> &'static [&'static str] {
     ]
 }
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    
     if p.structs.contains_key("StdError")
         || p.enums.contains_key("StdError")
         || names().iter().any(|n| {
@@ -657,10 +656,24 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
         _ => 0,
     };
     let work = match name {
-        "stdBytesLength" | "stdBytesGet" | "stdBitAnd" | "stdBitOr" | "stdBitXor" | "stdBitNot"
-        | "stdCountBits" | "stdShiftLeft" | "stdShiftRight" | "stdShiftUnsigned"
-        | "stdBitLeadingZeros" | "stdBitTrailingZeros" | "stdBitRotateLeft" | "stdBitRotateRight"
-        | "stdBitReverse" | "stdBitByteSwap" | "stdBitExtract" | "stdBitDeposit" => 1,
+        "stdBytesLength"
+        | "stdBytesGet"
+        | "stdBitAnd"
+        | "stdBitOr"
+        | "stdBitXor"
+        | "stdBitNot"
+        | "stdCountBits"
+        | "stdShiftLeft"
+        | "stdShiftRight"
+        | "stdShiftUnsigned"
+        | "stdBitLeadingZeros"
+        | "stdBitTrailingZeros"
+        | "stdBitRotateLeft"
+        | "stdBitRotateRight"
+        | "stdBitReverse"
+        | "stdBitByteSwap"
+        | "stdBitExtract"
+        | "stdBitDeposit" => 1,
         // 先頭から一致を探すので、最悪ケースは入力長 × 針の長さになる。
         "stdBytesIndexOf" => match args {
             [Value::Bytes(data), Value::Bytes(needle), ..] => data
@@ -729,7 +742,9 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
             _ => 256,
         },
         "stdConstantTimeEq" => match args {
-            [Value::Bytes(a), Value::Bytes(b)] => a.len().min(b.len()).saturating_mul(2).saturating_add(16),
+            [Value::Bytes(a), Value::Bytes(b)] => {
+                a.len().min(b.len()).saturating_mul(2).saturating_add(16)
+            }
             _ => 16,
         },
         // 乱数は要求された長さに比例して作る。範囲外の引数は実行前に Range で返すので、仕事量を見積もらず 256 とする。
@@ -767,8 +782,7 @@ pub(super) fn work(name: &str, args: &[Value], runtime: &Runtime) -> Option<usiz
     Some(work.max(1))
 }
 pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
-    if false || !names().contains(&n)
-    {
+    if false || !names().contains(&n) {
         return Ok(None);
     }
     if let Some(result) = json_stream::call_type(p, n, args, at)? {
@@ -795,9 +809,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if let Some(result) = numeric::call_type(p, n, args, at)? {
         return Ok(Some(result));
     }
-    if n == "stdBytesFromList"
-        && false
-    {
+    if n == "stdBytesFromList" && false {
         return Ok(None);
     }
     if n.starts_with("stdExternal") && false {
@@ -832,9 +844,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
     if n.starts_with("stdExternalHttp") && false {
         return Err(diagnostic(at, "HTTP requires language 1.6.0"));
     }
-    if matches!(n, "stdExternalDbPostgres" | "stdExternalDbCredentials")
-        && false
-    {
+    if matches!(n, "stdExternalDbPostgres" | "stdExternalDbCredentials") && false {
         return Err(diagnostic(
             at,
             "PostgreSQL primitives require language 1.7.1",
@@ -862,7 +872,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         if n == "stdGuiWindowNextAnyLiveAsync" && false {
             return Err(diagnostic(at, "live GUI input requires language 1.9.22"));
         }
-        
+
         let Some((params, ret)) = args.first().and_then(|ty| function_signature(ty)) else {
             return Err(diagnostic(at, "GUI wait requires a pure event decoder"));
         };
@@ -1186,9 +1196,7 @@ pub(super) fn call_type(p: &Program, n: &str, args: &[String], at: &Tok) -> Resu
         "stdBitLeadingZeros" | "stdBitTrailingZeros" | "stdBitReverse" | "stdBitByteSwap" => {
             (&["Int"], "Int")
         }
-        "stdBitRotateLeft" | "stdBitRotateRight" => {
-            (&["Int", "Int"], "Result<Int,StdError>")
-        }
+        "stdBitRotateLeft" | "stdBitRotateRight" => (&["Int", "Int"], "Result<Int,StdError>"),
         "stdBitExtract" => (&["Int", "Int", "Int"], "Result<Int,StdError>"),
         "stdBitDeposit" => (&["Int", "Int", "Int", "Int"], "Result<Int,StdError>"),
         "stdBytesConcat" => (&["Bytes", "Bytes"], "Result<Bytes,StdError>"),
@@ -1450,9 +1458,13 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
         return match result {
             Ok(v) => match v.as_str() {
                 Some(sep @ ("\n" | "\r\n")) => Ok(Some(Value::Text(sep.into()))),
-                _ => Err(Error::InvalidOperation("ExternalFailure: line separator".into())),
+                _ => Err(Error::InvalidOperation(
+                    "ExternalFailure: line separator".into(),
+                )),
             },
-            Err(_) => Err(Error::InvalidOperation("ExternalFailure: line separator".into())),
+            Err(_) => Err(Error::InvalidOperation(
+                "ExternalFailure: line separator".into(),
+            )),
         };
     }
     // 範囲外の長さは外部操作を記録せずに Range で返す。記録する値は 16 進文字列で、上限は長さの 2 倍と JSON の包みの分。
@@ -1463,12 +1475,13 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                 return Ok(Some(outcome(Err(("Range", 0)))));
             }
             let request = length.to_string();
-            let result = runtime.external_operation("entropy.bytes", request.as_bytes(), 131_136, || {
-                let mut buffer = vec![0u8; length as usize];
-                getrandom::getrandom(&mut buffer)
-                    .map(|()| serde_json::json!(rewind::crypto::to_hex(&buffer)))
-                    .map_err(|_| "EntropyFailure".into())
-            })?;
+            let result =
+                runtime.external_operation("entropy.bytes", request.as_bytes(), 131_136, || {
+                    let mut buffer = vec![0u8; length as usize];
+                    getrandom::getrandom(&mut buffer)
+                        .map(|()| serde_json::json!(rewind::crypto::to_hex(&buffer)))
+                        .map_err(|_| "EntropyFailure".into())
+                })?;
             return Ok(Some(match result {
                 Ok(v) => outcome(
                     v.as_str()
@@ -1600,9 +1613,14 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
         "stdTextCodePoints" => {
             let s = text(0)?;
             if s.len() > LIMIT {
-                return Err(Error::InvalidOperation("text code point limit exceeded".into()));
+                return Err(Error::InvalidOperation(
+                    "text code point limit exceeded".into(),
+                ));
             }
-            let values: Vec<Value> = s.chars().map(|c| Value::Int(i64::from(u32::from(c)))).collect();
+            let values: Vec<Value> = s
+                .chars()
+                .map(|c| Value::Int(i64::from(u32::from(c))))
+                .collect();
             Value::TypedList("Int".into(), values.into())
         }
         "stdBytesLength" => Value::Int(bytes(0)?.len() as i64),
@@ -2087,10 +2105,15 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                     let a = int(0)?;
                     let start = int(1)?;
                     let width = int(2)?;
-                    if !(0..64).contains(&start) || !(1..=64).contains(&width) || start + width > 64 {
+                    if !(0..64).contains(&start) || !(1..=64).contains(&width) || start + width > 64
+                    {
                         Err(("Range", 0))
                     } else {
-                        let mask = if width == 64 { u64::MAX } else { (1u64 << width) - 1 };
+                        let mask = if width == 64 {
+                            u64::MAX
+                        } else {
+                            (1u64 << width) - 1
+                        };
                         if n == "stdBitExtract" {
                             Ok(Value::Int((((a as u64) >> start) & mask) as i64))
                         } else {
@@ -2161,13 +2184,15 @@ pub(super) fn call(n: &str, args: &[Value], runtime: &mut Runtime) -> Result<Opt
                                         failure = Some(("Surrogate", index));
                                         break;
                                     }
-                                    Value::Int(v) => match u32::try_from(*v).ok().and_then(char::from_u32) {
-                                        Some(c) => output.push(c),
-                                        None => {
-                                            failure = Some(("Range", index));
-                                            break;
+                                    Value::Int(v) => {
+                                        match u32::try_from(*v).ok().and_then(char::from_u32) {
+                                            Some(c) => output.push(c),
+                                            None => {
+                                                failure = Some(("Range", index));
+                                                break;
+                                            }
                                         }
-                                    },
+                                    }
                                     _ => {
                                         failure = Some(("Range", index));
                                         break;

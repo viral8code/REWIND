@@ -68,4 +68,3 @@ fn native_pointer_cancels_large_pending_graph_and_replays_without_display() {
     ok(&result);
     fs::remove_dir_all(root).unwrap();
 }
-

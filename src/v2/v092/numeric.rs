@@ -1,7 +1,6 @@
 use super::*;
 use rewind::numeric::{Array, DType, Error as NumericError};
 pub(super) fn prepare(p: &mut Program) -> Result<()> {
-    
     for name in ["FloatArray", "IntArray"] {
         if p.structs.contains_key(name)
             || p.enums.contains_key(name)
@@ -293,7 +292,12 @@ fn unary_operation(
     };
     Ok(rewind::numeric::VectorOperation::Unary(unary))
 }
-pub(super) fn call_type(_p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
+pub(super) fn call_type(
+    _p: &Program,
+    n: &str,
+    args: &[String],
+    at: &Tok,
+) -> Result<Option<String>> {
     if !n.starts_with("stdNumeric") {
         return Ok(None);
     }

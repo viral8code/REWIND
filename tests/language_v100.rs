@@ -48,4 +48,3 @@ fn compiler_rejects_deep_syntax_and_oversized_source_with_diagnostics() {
         fs::remove_dir_all(root).unwrap();
     }
 }
-

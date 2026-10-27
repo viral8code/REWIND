@@ -296,7 +296,7 @@ impl Expand<'_> {
 
 pub(in crate::v2) fn prepare(program: &mut Program) -> Result<()> {
     let _uses_defaults = program.traits.values().any(|tr| !tr.defaults.is_empty());
-    
+
     let snapshot = program.clone();
     for (n, alias) in &snapshot.aliases {
         if snapshot.structs.contains_key(n)

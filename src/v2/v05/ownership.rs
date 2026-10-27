@@ -129,7 +129,9 @@ impl Vars {
     }
     /// The owners that hold a borrow or a capture borrow.
     fn holders(&self) -> impl Iterator<Item = &Owner> {
-        self.holders.iter().filter_map(|n| self.owners.get(n.as_str()))
+        self.holders
+            .iter()
+            .filter_map(|n| self.owners.get(n.as_str()))
     }
     fn reindex(&mut self) {
         self.types = self
@@ -226,12 +228,12 @@ impl Flow<'_> {
     fn closure_names(&self, params: &[(String, String)], body: &[Stmt]) -> BTreeSet<String> {
         {
             v06::captures::names(&self.checker(), params, body)
-        }}
+        }
+    }
     fn transfer_ty(&self, ty: &str, shared: bool) -> bool {
         transfer_bounded(self.program, ty, shared, &self.bounds)
     }
     fn owned_call(&self, e: &Expr) -> bool {
-        
         match &e.kind {
             ExprKind::Try(inner) => self.owned_call(inner),
             ExprKind::Call(callee, args) => {
@@ -256,8 +258,7 @@ impl Flow<'_> {
                 if matches!(base, "Ok" | "Err" | "Some") {
                     return args.iter().all(|a| self.shareable(a) || self.owned_call(a));
                 }
-                if self.program.structs.contains_key(base)
-                {
+                if self.program.structs.contains_key(base) {
                     return args.iter().all(|arg| self.shareable(arg) || self.owned_call(arg) || matches!(&arg.kind, ExprKind::Name(n) if self.vars.get(n).is_some_and(|v| v.borrow.is_none()) && !self.borrowed(n)));
                 }
                 base == "thaw"
@@ -269,9 +270,7 @@ impl Flow<'_> {
     }
     fn shareable(&self, e: &Expr) -> bool {
         match &e.kind {
-            ExprKind::Call(callee, args)
-                if matches!(&callee.kind,ExprKind::Name(n) if matches!(n.as_str(),"Ok"|"Err"|"Some")) =>
-            {
+            ExprKind::Call(callee, args) if matches!(&callee.kind,ExprKind::Name(n) if matches!(n.as_str(),"Ok"|"Err"|"Some")) => {
                 args.iter().all(|v| self.shareable(v))
             }
             ExprKind::Unary(op, v) if matches!(op.as_str(), "$capture:value" | "$capture:move") => {
@@ -298,9 +297,7 @@ impl Flow<'_> {
     }
     fn sendable(&self, e: &Expr) -> bool {
         match &e.kind {
-            ExprKind::Call(callee, args)
-                if matches!(&callee.kind,ExprKind::Name(n) if matches!(n.as_str(),"Ok"|"Err"|"Some")) =>
-            {
+            ExprKind::Call(callee, args) if matches!(&callee.kind,ExprKind::Name(n) if matches!(n.as_str(),"Ok"|"Err"|"Some")) => {
                 args.iter().all(|v| self.sendable(v))
             }
             ExprKind::Unary(op, v) if matches!(op.as_str(), "$capture:value" | "$capture:move") => {
@@ -344,7 +341,9 @@ impl Flow<'_> {
                         _ => true,
                     }
             }
-            _ => self.quiet_type(e).is_ok_and(|t| self.transfer_ty(&t, false)),
+            _ => self
+                .quiet_type(e)
+                .is_ok_and(|t| self.transfer_ty(&t, false)),
         }
     }
     /// The type of an expression, for callers that ignore a failure: no spelling hints are built.
@@ -390,10 +389,9 @@ impl Flow<'_> {
             v.capture_borrows
                 .iter()
                 .any(|target| Self::overlaps(target, n))
-                || v.borrow.as_ref().is_some_and(|(target, _)| {
-                    {
-                        Self::overlaps(target, n)
-                    }})
+                || v.borrow
+                    .as_ref()
+                    .is_some_and(|(target, _)| Self::overlaps(target, n))
         })
     }
     fn use_name(&self, n: &str, at: &Tok) -> Result<()> {
@@ -405,9 +403,7 @@ impl Flow<'_> {
                 let ExprKind::Closure(params, _, body) = &inner.kind else {
                     return Err(diagnostic(&e.at, "capture requires a closure"));
                 };
-                let mut captured = {
-                    v06::captures::names(&self.checker(), params, body)
-                };
+                let mut captured = { v06::captures::names(&self.checker(), params, body) };
                 for name in captured.clone() {
                     captured.extend(needed_globals(self.program, &name));
                 }
@@ -551,9 +547,7 @@ impl Flow<'_> {
                 }
                 self.expr(v)?;
             }
-            ExprKind::Member(_, _)
-                if Self::place(e).is_some() =>
-            {
+            ExprKind::Member(_, _) if Self::place(e).is_some() => {
                 self.use_place(&Self::place(e).unwrap(), &e.at)?
             }
             ExprKind::Member(v, _) | ExprKind::Try(v) => self.expr(v)?,
@@ -745,11 +739,15 @@ impl Flow<'_> {
                 let asynchronous = function.is_some_and(|f| f.asynchronous)
                     || (function.is_none()
                         && !matches!(&target.kind,ExprKind::Name(n) if v092::native_borrow(n).is_some())
-                        && self.quiet_type(target).ok()
+                        && self
+                            .quiet_type(target)
+                            .ok()
                             .and_then(|t| function_signature(&t))
                             .is_some_and(|(_, ret)| ret.starts_with("Task<")));
                 let send = matches!(&target.kind,ExprKind::Member(_,m) if m=="send");
-                let signature = self.quiet_type(target).ok()
+                let signature = self
+                    .quiet_type(target)
+                    .ok()
                     .and_then(|t| function_signature(&t));
                 let mut call_borrows: BTreeMap<String, bool> = BTreeMap::new();
                 let offset = usize::from(
@@ -1074,8 +1072,7 @@ impl Flow<'_> {
                                 moved: false,
                                 moved_fields: BTreeSet::new(),
                                 capture_borrows: BTreeSet::new(),
-                                borrow: if !self.transfer_ty(&ty, true)
-                                {
+                                borrow: if !self.transfer_ty(&ty, true) {
                                     Self::place(v).map(|p| (p, false))
                                 } else {
                                     None
@@ -1097,8 +1094,7 @@ impl Flow<'_> {
                     {
                         return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
                     }
-                    if self.quiet_type(v).is_ok_and(|t| t.starts_with('&'))
-                    {
+                    if self.quiet_type(v).is_ok_and(|t| t.starts_with('&')) {
                         return Err(diagnostic(&v.at, "borrow cannot escape into an aggregate"));
                     }
                     self.expr(v)?;
@@ -1150,7 +1146,9 @@ impl Flow<'_> {
         names.sort();
         names.dedup();
         for n in names {
-            let Some(mut v) = self.vars.get_mut(&n) else { continue };
+            let Some(mut v) = self.vars.get_mut(&n) else {
+                continue;
+            };
             let (l, r) = (left.vars.get(&n), right.vars.get(&n));
             v.moved = l.is_some_and(|v| v.moved) || r.is_some_and(|v| v.moved);
             if let Some(l) = l {
@@ -1203,10 +1201,8 @@ impl Flow<'_> {
                             _ => inferred.clone(),
                         }
                     };
-                    let transferable = self.sendable(e)
-                        || (self.transfer_ty(&ty, false));
-                    let shareable = self.shareable(e)
-                        || (self.transfer_ty(&ty, true));
+                    let transferable = self.sendable(e) || (self.transfer_ty(&ty, false));
+                    let shareable = self.shareable(e) || (self.transfer_ty(&ty, true));
                     if let ExprKind::Name(name) = &e.kind {
                         if self.vars.get(name).is_some_and(|v| !v.shareable) {
                             return Err(diagnostic(
@@ -1222,7 +1218,8 @@ impl Flow<'_> {
                                 Some((n.clone(), op == "borrowMut"))
                             } else {
                                 Self::place(v).map(|p| (p, op == "borrowMut"))
-                            }} else {
+                            }
+                        } else {
                             None
                         }
                     } else {
@@ -1254,10 +1251,7 @@ impl Flow<'_> {
                     } else {
                         BTreeSet::new()
                     };
-                    if borrow.is_none()
-                        && !shareable
-                        && !self.owned_call(e)
-                    {
+                    if borrow.is_none() && !shareable && !self.owned_call(e) {
                         super::expressions(
                             &[Stmt {
                                 at: e.at.clone(),
@@ -1350,9 +1344,7 @@ impl Flow<'_> {
                 }
                 StmtKind::Expr(e) | StmtKind::Defer(e) => self.expr(e)?,
                 StmtKind::Return(Some(e)) => {
-                    if !self.shareable(e)
-                        && !self.owned_call(e)
-                    {
+                    if !self.shareable(e) && !self.owned_call(e) {
                         let mut borrowed = false;
                         super::expressions(
                             &[Stmt {
@@ -1373,9 +1365,7 @@ impl Flow<'_> {
                             ));
                         }
                     }
-                    if self.quiet_type(e).is_ok_and(|t| t.starts_with("fn("))
-                        && !self.sendable(e)
-                    {
+                    if self.quiet_type(e).is_ok_and(|t| t.starts_with("fn(")) && !self.sendable(e) {
                         return Err(diagnostic(&e.at,"closure containing resources or borrows cannot escape; capture a transferable snapshot"));
                     }
                     if let ExprKind::Name(n) = &e.kind {
@@ -1466,8 +1456,7 @@ impl Flow<'_> {
                                     moved: false,
                                     moved_fields: BTreeSet::new(),
                                     capture_borrows: BTreeSet::new(),
-                                    borrow: if !self.transfer_ty(&t, true)
-                                    {
+                                    borrow: if !self.transfer_ty(&t, true) {
                                         Self::place(e).map(|p| (p, false))
                                     } else {
                                         None
@@ -1496,7 +1485,7 @@ impl Flow<'_> {
                     self.checkpoints.insert(n.clone(), self.vars.clone());
                 }
                 StmtKind::Revert(n) | StmtKind::Resume(n) => {
-                    if n == "begin"  {
+                    if n == "begin" {
                         self.vars.clear();
                         self.checkpoints.clear();
                         continue;
@@ -1535,8 +1524,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
     };
     flow.body(&program.stmts)?;
     for (function_name, f) in &program.functions {
-        if f.ret.contains('&')
-        {
+        if f.ret.contains('&') {
             return Err(diagnostic(&f.at, "borrowed return types are not supported"));
         }
         let mut flow = flow.clone();
@@ -1559,8 +1547,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
                     moved: false,
                     moved_fields: BTreeSet::new(),
                     capture_borrows: BTreeSet::new(),
-                    borrow: if ty.starts_with('&')
-                    {
+                    borrow: if ty.starts_with('&') {
                         Some((format!("$parameter:{n}"), ty.starts_with("&mut ")))
                     } else {
                         None

@@ -435,8 +435,7 @@ impl ProjectConfig {
             }
         }
         let lock_imports = imports.clone();
-        if !include_dev
-        {
+        if !include_dev {
             let mut reachable = runtime_roots;
             let mut pending = reachable.iter().cloned().collect::<Vec<_>>();
             while let Some(name) = pending.pop() {
@@ -592,7 +591,6 @@ impl ProjectConfig {
         }
         let mut document = serde_json::json!({"format":2,"language":self.language,"compiler":env!("CARGO_PKG_VERSION"),"effects":self.effects,"dependencies":dependencies});
         if !self.assets.is_empty() {
-            
             document["assets"] = v091::asset_inventory(root, &self.assets)?;
         }
         let expected = serde_json::to_string_pretty(&document)

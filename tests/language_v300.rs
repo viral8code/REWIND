@@ -578,8 +578,11 @@ fn short_closure_in_return_and_assign_is_typed_from_the_expected_type() {
 
 #[test]
 fn short_closure_in_return_and_assign_rejects_bad_bodies() {
-    let prelude = "fn mk() -> fn(Int) -> Int effects {} { return |n| { Out.println(n); n.nosuch() }; }\n";
-    let out = run(&format!("{prelude}fn main()->Int effects {{output}} {{ Out.println(\"ran\"); return 0; }}\n"));
+    let prelude =
+        "fn mk() -> fn(Int) -> Int effects {} { return |n| { Out.println(n); n.nosuch() }; }\n";
+    let out = run(&format!(
+        "{prelude}fn main()->Int effects {{output}} {{ Out.println(\"ran\"); return 0; }}\n"
+    ));
     assert!(!out.status.success());
     assert!(!stdout(&out).contains("ran"), "{}", stdout(&out));
     assert!(stderr(&out).contains("nosuch"), "{}", stderr(&out));
@@ -617,7 +620,11 @@ fn short_closure_for_generic_function_is_typed_from_other_arguments() {
     );
     assert!(!out.status.success());
     assert!(!stdout(&out).contains("ran"), "{}", stdout(&out));
-    assert!(stderr(&out).contains("closure parameter n"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("closure parameter n"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]

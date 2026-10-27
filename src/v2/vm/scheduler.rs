@@ -1272,9 +1272,7 @@ impl<R: BufRead> Vm<R> {
             }
             return Ok(Some(match (method, args) {
                 ("send", [value]) => {
-                    let value = {
-                        v05::task_copy(&mut self.engine.runtime, value)?
-                    };
+                    let value = { v05::task_copy(&mut self.engine.runtime, value)? };
                     self.new_action(TaskBody::Send(id, value), "Unit".into(), Vec::new(), at)?
                 }
                 ("receive", []) => self.new_action(
@@ -1295,10 +1293,7 @@ impl<R: BufRead> Vm<R> {
             }));
         }
         if ty.starts_with("Task<") {
-            if method == "isDone"
-                && args.is_empty()
-                
-            {
+            if method == "isDone" && args.is_empty() {
                 self.engine.runtime.require_internal()?;
                 self.pump_actions()?;
                 return Ok(Some(Value::Bool(
@@ -1311,9 +1306,7 @@ impl<R: BufRead> Vm<R> {
                 )));
             }
             match (method, args) {
-                ("ignore" | "detach", [])
-                    if true =>
-                {
+                ("ignore" | "detach", []) if true => {
                     self.scheduler
                         .tasks
                         .get_mut(&id)
@@ -1323,9 +1316,7 @@ impl<R: BufRead> Vm<R> {
                         self.complete_task(id, result)?;
                     }
                 }
-                ("timeout", [Value::Int(steps)])
-                    if true =>
-                {
+                ("timeout", [Value::Int(steps)]) if true => {
                     if *steps < 0 {
                         return Err(self.error(at, "timeout steps must be nonnegative"));
                     }
@@ -1342,9 +1333,7 @@ impl<R: BufRead> Vm<R> {
                         )
                         .map(Some);
                 }
-                ("selectReady", [other])
-                    if true =>
-                {
+                ("selectReady", [other]) if true => {
                     if !value_type(other, &self.engine.runtime).starts_with("Task<") {
                         return Err(self.error(at, "selectReady requires a Task"));
                     }
@@ -1362,9 +1351,7 @@ impl<R: BufRead> Vm<R> {
                         )
                         .map(Some);
                 }
-                ("select", [other])
-                    if true =>
-                {
+                ("select", [other]) if true => {
                     let other =
                         handle_id(other).ok_or_else(|| self.error(at, "select requires a Task"))?;
                     if !self.scheduler.tasks.contains_key(&other) {
@@ -1381,9 +1368,7 @@ impl<R: BufRead> Vm<R> {
                         .map(Some);
                 }
                 ("cancel", []) => self.cancel_task(id, at)?,
-                ("requestCancel", [])
-                    if true =>
-                {
+                ("requestCancel", []) if true => {
                     let task = self
                         .scheduler
                         .tasks
@@ -1397,9 +1382,7 @@ impl<R: BufRead> Vm<R> {
                         task.phase = TaskPhase::Ready;
                     }
                 }
-                ("cancelAndJoin", [])
-                    if true =>
-                {
+                ("cancelAndJoin", []) if true => {
                     self.cancel_task(id, at)?;
                     return Ok(Some(value.clone()));
                 }
@@ -1467,34 +1450,24 @@ impl<R: BufRead> Vm<R> {
         }
         result.map(|result| {
             Value::Result(match result {
-                Ok(value)
-                    if true =>
-                {
-                    v05::task_copy(&mut self.engine.runtime, &value)
-                        .map(Box::new)
-                        .map_err(|e| {
-                            Box::new(
-                                {
-                                    v06::diagnostics::task_error(&self.record_error(
-                                        &e,
-                                        &Tok {
-                                            source: String::new(),
-                                            text: String::new(),
-                                            line: 0,
-                                            col: 0,
-                                        },
-                                        id,
-                                    ))
+                Ok(value) if true => v05::task_copy(&mut self.engine.runtime, &value)
+                    .map(Box::new)
+                    .map_err(|e| {
+                        Box::new({
+                            v06::diagnostics::task_error(&self.record_error(
+                                &e,
+                                &Tok {
+                                    source: String::new(),
+                                    text: String::new(),
+                                    line: 0,
+                                    col: 0,
                                 },
-                            )
+                                id,
+                            ))
                         })
-                }
+                    }),
                 Ok(value) => Ok(Box::new(value)),
-                Err(error) => Err(Box::new(
-                    {
-                        v05::task_error(&error)
-                    },
-                )),
+                Err(error) => Err(Box::new(v05::task_error(&error))),
             })
         })
     }
@@ -1519,8 +1492,7 @@ impl<R: BufRead> Vm<R> {
             }
         }
         let task = self.scheduler.tasks.get_mut(&id).unwrap();
-        if task.failure.is_none()
-        {
+        if task.failure.is_none() {
             if let Err(message) = &result {
                 task.failure = Some(rewind::DiagnosticRecord {
                     code: if message == "ChannelClosed" {
@@ -2006,7 +1978,8 @@ impl<R: BufRead> Vm<R> {
                             .iter()
                             .position(|(_, id)| *id > active)
                             .unwrap_or(0)
-                    }});
+                    }
+                });
             if choice >= candidates.len() {
                 return Err(self.error(at, "ScheduleMismatch: choice is not runnable"));
             }
@@ -2086,11 +2059,7 @@ impl<R: BufRead> Vm<R> {
         at: &Tok,
     ) -> Result<bool> {
         let result = match result {
-            Ok(value) => Ok(
-                {
-                    v05::task_copy(&mut self.engine.runtime, &value)?
-                },
-            ),
+            Ok(value) => Ok(v05::task_copy(&mut self.engine.runtime, &value)?),
             Err(error) => Err(error),
         };
         let id = self.scheduler.active;
@@ -2147,7 +2116,6 @@ impl<R: BufRead> Vm<R> {
         self.scheduler.tasks[&self.scheduler.active].cancel_requested
     }
     pub(super) fn drain_scope_groups(&mut self, depth: Option<usize>, at: &Tok) -> Result<bool> {
-        
         let cleanups = self
             .frames
             .last()

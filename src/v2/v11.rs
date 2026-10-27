@@ -228,7 +228,11 @@ pub(super) fn unknown_name(at: &Tok, name: &str, names: impl Iterator<Item = Str
             continue;
         }
         let d = distance(&wanted, &candidate_chars, &mut row);
-        if d <= threshold && best.as_ref().is_none_or(|(bd, bs)| (d, &candidate) < (*bd, bs)) {
+        if d <= threshold
+            && best
+                .as_ref()
+                .is_none_or(|(bd, bs)| (d, &candidate) < (*bd, bs))
+        {
             best = Some((d, candidate));
         }
     }

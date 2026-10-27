@@ -61,4 +61,3 @@ fn bigint_constructor_and_names_cannot_be_forged() {
         fs::remove_dir_all(root).unwrap();
     }
 }
-

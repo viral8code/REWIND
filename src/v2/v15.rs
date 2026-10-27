@@ -191,8 +191,6 @@ pub(super) fn validate(p: &Program) -> Result<()> {
             }
             match &s.kind {
                 StmtKind::External(mode,b)=>{
-                    
-                    if mode.is_live() && false {return Err(diagnostic(&s.at,"external live requires language 1.9.21"));}
                     if region {return Err(diagnostic(&s.at,"ExternalBoundary: nested external region"));}
                     if !mode.is_live() {
                         let mut requires_live=false;

@@ -16,7 +16,9 @@ fn runtime() -> (Runtime, Vec<u64>) {
 }
 
 fn snapshot(rt: &Runtime, ids: &[u64]) -> Vec<Value> {
-    ids.iter().map(|id| rt.heap_get(*id).unwrap().clone()).collect()
+    ids.iter()
+        .map(|id| rt.heap_get(*id).unwrap().clone())
+        .collect()
 }
 
 fn failed_set_restores(checkpoint: bool) {

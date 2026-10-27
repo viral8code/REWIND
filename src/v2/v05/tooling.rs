@@ -109,7 +109,8 @@ fn program(root: &Path, path: &Path, documents: &BTreeMap<PathBuf, String>) -> R
     if let Some(c) = &config {
         {
             validate(&program, c)?;
-        }}
+        }
+    }
     Ok(program)
 }
 fn workspace_program(
@@ -178,13 +179,9 @@ pub fn lsp(root: &Path) -> Result<()> {
     let mut output = stdout.lock();
     let mut documents: BTreeMap<PathBuf, String> = BTreeMap::new();
     let mut versions: BTreeMap<PathBuf, i64> = BTreeMap::new();
-    let modern = project::ProjectConfig::load(root)?.is_none_or(|_c| {
-        true
-    });
+    let modern = project::ProjectConfig::load(root)?.is_none_or(|_c| true);
     let mut checked: BTreeMap<PathBuf, Program> = BTreeMap::new();
-    let incremental = project::ProjectConfig::load(root)?.is_none_or(|_c| {
-        true
-    });
+    let incremental = project::ProjectConfig::load(root)?.is_none_or(|_c| true);
     let mut shutdown = false;
     loop {
         let mut length = None;

@@ -10,4 +10,3 @@ let xs=List<Int>();xs.add(1);let bag=Bag(xs);bad(&bag);
     );
     assert!(!output.status.success());
 }
-

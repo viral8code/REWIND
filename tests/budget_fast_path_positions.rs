@@ -54,12 +54,17 @@ fn first_exceeded(history_memory: usize, accounting: bool, seed: u64) -> Option<
         let n = rng.next();
         let result: rewind::Result<()> = match n % 13 {
             0 | 1 => rt.push_stack(Value::Int(n as i64)),
-            2 => rt.push_stack(Value::Text(format!("t{n}-{}", "x".repeat((n % 23) as usize)).into())),
+            2 => rt.push_stack(Value::Text(
+                format!("t{n}-{}", "x".repeat((n % 23) as usize)).into(),
+            )),
             3 => rt.pop_stack().map(|_| ()),
             4 => rt.push_frame(i),
             5 => rt.pop_frame().map(|_| ()),
             6 | 7 => rt.set_local(format!("l{}", n % 9), Value::Int(n as i64)),
-            8 => rt.set_local(format!("s{}", n % 5), Value::Text(format!("v{}", "y".repeat((n % 31) as usize)).into())),
+            8 => rt.set_local(
+                format!("s{}", n % 5),
+                Value::Text(format!("v{}", "y".repeat((n % 31) as usize)).into()),
+            ),
             9 => rt.remove_local(&format!("l{}", n % 9)),
             10 => match rt.alloc(Value::Int(n as i64)) {
                 Ok(id) => {
@@ -74,7 +79,10 @@ fn first_exceeded(history_memory: usize, accounting: bool, seed: u64) -> Option<
             }
             12 if !heap_ids.is_empty() => {
                 let id = heap_ids[(n as usize / 13) % heap_ids.len()];
-                rt.heap_set(id, Value::Text(format!("h{}", "z".repeat((n % 40) as usize)).into()))
+                rt.heap_set(
+                    id,
+                    Value::Text(format!("h{}", "z".repeat((n % 40) as usize)).into()),
+                )
             }
             _ => rt.write_output(format!("out {i}\n").as_bytes()),
         };
@@ -89,17 +97,28 @@ fn first_exceeded(history_memory: usize, accounting: bool, seed: u64) -> Option<
     None
 }
 
-const BUDGETS: [usize; 12] = [0, 400, 800, 1200, 1600, 2400, 3200, 4800, 6400, 9600, 14000, 20000];
+const BUDGETS: [usize; 12] = [
+    0, 400, 800, 1200, 1600, 2400, 3200, 4800, 6400, 9600, 14000, 20000,
+];
 /// 容器の会計では 1 つの値の費用が大きいので、予算も大きく取る。
-const ACCOUNTING_BUDGETS: [usize; 12] = [0, 3000, 6000, 10000, 16000, 24000, 36000, 54000, 80000, 120000, 180000, 270000];
+const ACCOUNTING_BUDGETS: [usize; 12] = [
+    0, 3000, 6000, 10000, 16000, 24000, 36000, 54000, 80000, 120000, 180000, 270000,
+];
 const SEEDS: [u64; 3] = [1, 7, 2026];
 
 fn positions(accounting: bool) -> Vec<Vec<Option<usize>>> {
     SEEDS
         .iter()
         .map(|&seed| {
-            let budgets = if accounting { &ACCOUNTING_BUDGETS } else { &BUDGETS };
-            budgets.iter().map(|&hm| first_exceeded(hm, accounting, seed)).collect()
+            let budgets = if accounting {
+                &ACCOUNTING_BUDGETS
+            } else {
+                &BUDGETS
+            };
+            budgets
+                .iter()
+                .map(|&hm| first_exceeded(hm, accounting, seed))
+                .collect()
         })
         .collect()
 }
@@ -117,11 +136,97 @@ fn positions_with_container_accounting() {
 }
 
 fn expected_plain() -> Vec<Vec<Option<usize>>> {
-    vec![vec![Some(4), Some(141), Some(202), Some(235), Some(416), Some(1114), Some(1333), None, None, None, None, None], vec![Some(0), Some(113), Some(203), Some(204), Some(300), Some(506), Some(1426), None, None, None, None, None], vec![Some(0), Some(68), Some(150), Some(204), Some(217), Some(426), Some(1255), None, None, None, None, None]]
+    vec![
+        vec![
+            Some(4),
+            Some(141),
+            Some(202),
+            Some(235),
+            Some(416),
+            Some(1114),
+            Some(1333),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        vec![
+            Some(0),
+            Some(113),
+            Some(203),
+            Some(204),
+            Some(300),
+            Some(506),
+            Some(1426),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        vec![
+            Some(0),
+            Some(68),
+            Some(150),
+            Some(204),
+            Some(217),
+            Some(426),
+            Some(1255),
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+    ]
 }
 
 fn expected_accounting() -> Vec<Vec<Option<usize>>> {
-    vec![vec![Some(4), Some(9), Some(27), Some(56), Some(100), Some(187), Some(223), Some(328), Some(554), Some(1466), None, None], vec![Some(0), Some(20), Some(64), Some(102), Some(123), Some(203), Some(219), Some(354), Some(610), Some(1368), None, None], vec![Some(0), Some(5), Some(25), Some(42), Some(70), Some(117), Some(200), Some(227), Some(362), Some(652), None, None]]
+    vec![
+        vec![
+            Some(4),
+            Some(9),
+            Some(27),
+            Some(56),
+            Some(100),
+            Some(187),
+            Some(223),
+            Some(328),
+            Some(554),
+            Some(1466),
+            None,
+            None,
+        ],
+        vec![
+            Some(0),
+            Some(20),
+            Some(64),
+            Some(102),
+            Some(123),
+            Some(203),
+            Some(219),
+            Some(354),
+            Some(610),
+            Some(1368),
+            None,
+            None,
+        ],
+        vec![
+            Some(0),
+            Some(5),
+            Some(25),
+            Some(42),
+            Some(70),
+            Some(117),
+            Some(200),
+            Some(227),
+            Some(362),
+            Some(652),
+            None,
+            None,
+        ],
+    ]
 }
 
 // ---- ここから下は、超過のあとも続ける経路、spill の時機、会計の組み合わせ、branch / heap 共有 ----
@@ -140,7 +245,13 @@ struct Cfg {
 /// (拒否された区間 [始点, 長さ] の一覧, spill の回数, 最初の 4 回の位置)
 type Trace = (Vec<(usize, usize)>, usize, Vec<usize>);
 
-fn run_scenario(cfg: Cfg, history_memory: usize, seed: u64, steps: usize, structural: bool) -> Trace {
+fn run_scenario(
+    cfg: Cfg,
+    history_memory: usize,
+    seed: u64,
+    steps: usize,
+    structural: bool,
+) -> Trace {
     let mut rt = Runtime::new(std::env::temp_dir()).unwrap();
     if cfg.numeric {
         rt.enable_numeric_accounting();
@@ -158,7 +269,11 @@ fn run_scenario(cfg: Cfg, history_memory: usize, seed: u64, steps: usize, struct
         .set_budget(ResourceBudget {
             history_memory,
             history_storage: 8 * 1024 * 1024,
-            spill_threshold: if cfg.spill_threshold == 0 { 512 } else { cfg.spill_threshold },
+            spill_threshold: if cfg.spill_threshold == 0 {
+                512
+            } else {
+                cfg.spill_threshold
+            },
         })
         .is_err()
         || rt.push_frame(0).is_err()
@@ -193,10 +308,14 @@ fn run_scenario(cfg: Cfg, history_memory: usize, seed: u64, steps: usize, struct
                 0 | 1 => rt.push_stack(Value::Int(n as i64)),
                 2 => rt.pop_stack().map(|_| ()),
                 3 => rt.set_local(format!("l{}", n % 7), Value::Int(n as i64)),
-                4 => rt.write_output(format!("out {i} {}\n", "o".repeat((n % 30) as usize)).as_bytes()),
+                4 => rt.write_output(
+                    format!("out {i} {}\n", "o".repeat((n % 30) as usize)).as_bytes(),
+                ),
                 5 => {
                     let v = match n % 3 {
-                        0 if cfg.numeric => Value::NumericArray(Array::zeros(DType::Int64, vec![(n % 12 + 1) as usize]).unwrap()),
+                        0 if cfg.numeric => Value::NumericArray(
+                            Array::zeros(DType::Int64, vec![(n % 12 + 1) as usize]).unwrap(),
+                        ),
                         1 => Value::Bytes(std::sync::Arc::new(vec![7u8; (n % 50) as usize])),
                         _ => Value::Int(n as i64),
                     };
@@ -205,7 +324,9 @@ fn run_scenario(cfg: Cfg, history_memory: usize, seed: u64, steps: usize, struct
                 6 | 7 if !heap_ids.is_empty() => {
                     let id = heap_ids[(n as usize / 11) % heap_ids.len()];
                     let v = if cfg.numeric && n % 2 == 0 {
-                        Value::NumericArray(Array::zeros(DType::Int64, vec![(n % 20 + 1) as usize]).unwrap())
+                        Value::NumericArray(
+                            Array::zeros(DType::Int64, vec![(n % 20 + 1) as usize]).unwrap(),
+                        )
                     } else {
                         Value::Text(format!("h{}", "z".repeat((n % 40) as usize)).into())
                     };
@@ -213,7 +334,10 @@ fn run_scenario(cfg: Cfg, history_memory: usize, seed: u64, steps: usize, struct
                 }
                 8 => rt.push_frame(i),
                 9 => rt.pop_frame().map(|_| ()),
-                _ => rt.set_local(format!("t{}", n % 4), Value::Text("q".repeat((n % 25) as usize).into())),
+                _ => rt.set_local(
+                    format!("t{}", n % 4),
+                    Value::Text("q".repeat((n % 25) as usize).into()),
+                ),
             }
         };
         match result {
@@ -253,7 +377,14 @@ fn check_trace(name: &str, got: Vec<Trace>, expected: &str) {
                 }
             }
             let total: usize = ranges.iter().map(|r| r.1).sum();
-            (ranges.len(), total, ranges.iter().take(3).copied().collect::<Vec<_>>(), hash, *spills, first.clone())
+            (
+                ranges.len(),
+                total,
+                ranges.iter().take(3).copied().collect::<Vec<_>>(),
+                hash,
+                *spills,
+                first.clone(),
+            )
         })
         .collect();
     let text = format!("{summary:?}");
@@ -286,32 +417,74 @@ fn continue_after_first_exceeded_plain() {
 fn spill_timing_small_threshold() {
     let mut got = Vec::new();
     for &t in &[64usize, 200, 1000] {
-        got.extend(traces(Cfg { spill_threshold: t, ..Cfg::default() }, &[100000], 400, false));
+        got.extend(traces(
+            Cfg {
+                spill_threshold: t,
+                ..Cfg::default()
+            },
+            &[100000],
+            400,
+            false,
+        ));
     }
     check_trace("spill_timing", got, EXPECT_SPILL);
 }
 
 #[test]
 fn numeric_accounting_alone() {
-    let got = traces(Cfg { numeric: true, ..Cfg::default() }, &CONT_BUDGETS, 500, false);
+    let got = traces(
+        Cfg {
+            numeric: true,
+            ..Cfg::default()
+        },
+        &CONT_BUDGETS,
+        500,
+        false,
+    );
     check_trace("numeric", got, EXPECT_NUMERIC);
 }
 
 #[test]
 fn shared_and_byte_payload_accounting() {
-    let got = traces(Cfg { numeric: true, shared: true, bytes: true, ..Cfg::default() }, &CONT_BUDGETS, 500, false);
+    let got = traces(
+        Cfg {
+            numeric: true,
+            shared: true,
+            bytes: true,
+            ..Cfg::default()
+        },
+        &CONT_BUDGETS,
+        500,
+        false,
+    );
     check_trace("shared", got, EXPECT_SHARED);
 }
 
 #[test]
 fn allocation_accounting_alone() {
-    let got = traces(Cfg { alloc: true, ..Cfg::default() }, &CONT_BUDGETS, 500, false);
+    let got = traces(
+        Cfg {
+            alloc: true,
+            ..Cfg::default()
+        },
+        &CONT_BUDGETS,
+        500,
+        false,
+    );
     check_trace("alloc", got, EXPECT_ALLOC);
 }
 
 #[test]
 fn branch_checkpoint_and_shared_heap() {
-    let got = traces(Cfg { numeric: true, ..Cfg::default() }, &CONT_BUDGETS, 600, true);
+    let got = traces(
+        Cfg {
+            numeric: true,
+            ..Cfg::default()
+        },
+        &CONT_BUDGETS,
+        600,
+        true,
+    );
     check_trace("structural", got, EXPECT_STRUCTURAL);
 }
 

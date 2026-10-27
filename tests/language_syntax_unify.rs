@@ -105,12 +105,20 @@ fn let_else_in_an_expression_block_must_leave_the_scope() {
 }
 ");
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("let-else block must leave the scope"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("let-else block must leave the scope"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
 fn effects_declaration_cannot_be_public() {
     let out = run("pub effects { Clock }\nfn main() -> Int { return 0; }\n");
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("effects cannot be public"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("effects cannot be public"),
+        "{}",
+        stderr(&out)
+    );
 }

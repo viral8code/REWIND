@@ -43,7 +43,9 @@ fn stderr(out: &Output) -> String {
 const ENUM: &str = "enum E { A, B, P { x: Int } }\nstruct Point { x: Int }\n";
 
 fn expect_output(body: &str, expected: &str) {
-    let out = run(&format!("{ENUM}fn main() -> Int {{\n{body}\n    return 0;\n}}\n"));
+    let out = run(&format!(
+        "{ENUM}fn main() -> Int {{\n{body}\n    return 0;\n}}\n"
+    ));
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), expected);
 }
@@ -119,14 +121,13 @@ fn comparison_chain_with_greater_equal_runs_on_bools() {
 
 #[test]
 fn type_arguments_closing_with_greater_equal_still_split() {
-    expect_output(
-        "let xs: List<Int>= [1, 2]; Out.println(xs[1]);",
-        "2\n",
-    );
+    expect_output("let xs: List<Int>= [1, 2]; Out.println(xs[1]);", "2\n");
 }
 
 fn run_body(body: &str) -> Output {
-    run(&format!("{ENUM}fn main() -> Int {{\n{body}\n    return 0;\n}}\n"))
+    run(&format!(
+        "{ENUM}fn main() -> Int {{\n{body}\n    return 0;\n}}\n"
+    ))
 }
 
 #[test]
@@ -153,15 +154,27 @@ fn string_pattern_is_a_single_literal_token() {
     );
     let out = run_body("    let x = \"b\";\n    match \"a\" {\n        \"a\" + x => { Out.println(\"hit\"); },\n        _ => { Out.println(\"miss\"); },\n    }");
     assert!(!out.status.success());
-    assert!(!stderr(&out).contains("invalid literal pattern"), "{}", stderr(&out));
+    assert!(
+        !stderr(&out).contains("invalid literal pattern"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 #[test]
 fn non_ascii_symbols_are_rejected_by_the_lexer() {
-    for body in ["    let x = 1 ☃ 2;", "    let ② = 1;", "    let x = 1\u{200b};"] {
+    for body in [
+        "    let x = 1 ☃ 2;",
+        "    let ② = 1;",
+        "    let x = 1\u{200b};",
+    ] {
         let out = run_body(body);
         assert!(!out.status.success(), "{body}");
-        assert!(stderr(&out).contains("unexpected character"), "{body}: {}", stderr(&out));
+        assert!(
+            stderr(&out).contains("unexpected character"),
+            "{body}: {}",
+            stderr(&out)
+        );
     }
     // 名前の 2 文字目以降は is_alphanumeric なので、x² は 1 つの名前。
     expect_output("    let x² = 3;\n    Out.println(x²);", "3\n");
@@ -180,10 +193,17 @@ fn integer_patterns_accept_only_integer_tokens() {
         assert!(!out.status.success(), "{pattern}");
         let err = stderr(&out);
         assert!(err.contains("expected an integer"), "{pattern}: {err}");
-        assert!(!err.contains("integer literal overflow"), "{pattern}: {err}");
+        assert!(
+            !err.contains("integer literal overflow"),
+            "{pattern}: {err}"
+        );
     }
     let out = run_body("    match 1 {\n        99999999999999999999 => { Out.println(\"x\"); },\n        _ => { Out.println(\"y\"); },\n    }");
-    assert!(stderr(&out).contains("integer literal overflow"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("integer literal overflow"),
+        "{}",
+        stderr(&out)
+    );
     let out = run_body("    let v = -_9223372036854775808;");
     assert!(!out.status.success());
 }

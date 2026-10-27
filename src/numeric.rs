@@ -1246,7 +1246,9 @@ impl Array {
         // Small products stay serial, since thread start-up would cost more than the work.
         let threads = match (self.shape.as_slice(), other.shape.as_slice()) {
             ([m, k], [_, n]) if *m >= 2 && m.saturating_mul(*n).saturating_mul(*k) >= 1 << 21 => {
-                std::thread::available_parallelism().map_or(1, |p| p.get()).min(8)
+                std::thread::available_parallelism()
+                    .map_or(1, |p| p.get())
+                    .min(8)
             }
             _ => 1,
         };
@@ -1536,7 +1538,10 @@ mod tests {
         let b = Array::floats(vec![3, 2], &[1.0, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();
         for threads in [1, 2, 8] {
             assert_eq!(
-                a.matmul_threads(&b, threads).unwrap().float_values().unwrap(),
+                a.matmul_threads(&b, threads)
+                    .unwrap()
+                    .float_values()
+                    .unwrap(),
                 vec![4.0, 5.0]
             );
         }

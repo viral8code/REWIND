@@ -56,26 +56,38 @@ fn run(imports: &str, body: &str) -> (i32, String) {
         let _ = pipe.read_to_end(&mut bytes);
     }
     let _ = fs::remove_dir_all(&root);
-    (status.code().unwrap_or(-1), String::from_utf8_lossy(&bytes).into_owned())
+    (
+        status.code().unwrap_or(-1),
+        String::from_utf8_lossy(&bytes).into_owned(),
+    )
 }
 
 fn stopped(imports: &str, body: &str) {
     let (code, stderr) = run(imports, body);
-    assert_eq!(code, 71, "expected a budget stop, got {code}: {stderr}\n{body}");
+    assert_eq!(
+        code, 71,
+        "expected a budget stop, got {code}: {stderr}\n{body}"
+    );
 }
 
 #[test]
 fn endless_loops_and_recursion_hit_the_budget() {
     stopped("", "while true { }");
     stopped("", "var n = 0; while true { n = n + 1; }");
-    stopped("fn f(n: Int) -> Int { return f(n + 1) + 1; }\n", "let r = f(0);");
+    stopped(
+        "fn f(n: Int) -> Int { return f(n + 1) + 1; }\n",
+        "let r = f(0);",
+    );
 }
 
 #[test]
 fn memory_growth_hits_the_budget() {
     stopped("", "var s = \"a\"; while true { s = s + s; }");
     stopped("", "let xs = List<Int>(); while true { xs.add(1); }");
-    stopped("", "let m = Map<Int, Int>(); var i = 0; while true { m.set(i, i); i = i + 1; }");
+    stopped(
+        "",
+        "let m = Map<Int, Int>(); var i = 0; while true { m.set(i, i); i = i + 1; }",
+    );
 }
 
 #[test]
@@ -87,8 +99,15 @@ fn closure_chains_stay_linear() {
         "var f = |a: Int| a; var n = 0; while n < 6000 { let g = f; f = |a: Int| g(a) + 1; n = n + 1; }",
     );
     assert_eq!(code, 0, "{stderr}");
-    assert!(started.elapsed() < Duration::from_secs(10), "closure chain took {:?}", started.elapsed());
-    stopped("", "var f = |a: Int| a; while true { let g = f; f = |a: Int| g(a) + 1; }");
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "closure chain took {:?}",
+        started.elapsed()
+    );
+    stopped(
+        "",
+        "var f = |a: Int| a; while true { let g = f; f = |a: Int| g(a) + 1; }",
+    );
 }
 
 #[test]

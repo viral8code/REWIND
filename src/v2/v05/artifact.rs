@@ -147,7 +147,8 @@ fn run_with_policy(
             ));
         }
     }
-    if !project::is_supported_language(&program.language) || !program.strict_visibility
+    if !project::is_supported_language(&program.language)
+        || !program.strict_visibility
         || program.stmts.len() != program.stmt_origins.len()
         || program.functions.len() > 4096
         || program.included_modules.len() > 1024
@@ -186,87 +187,85 @@ fn run_with_policy(
     }
 
     if serde_json::to_value(program.structs.get("JsonStreamState")).ok()
-            != serde_json::to_value(standard.structs.get("JsonStreamState")).ok()
-            || program.enums.contains_key("JsonStreamState")
-            || program.aliases.contains_key("JsonStreamState")
-            || serde_json::to_value(program.enums.get("JsonStreamEvent")).ok()
-                != serde_json::to_value(standard.enums.get("JsonStreamEvent")).ok()
-            || program.structs.contains_key("JsonStreamEvent")
-            || program.aliases.contains_key("JsonStreamEvent")
+        != serde_json::to_value(standard.structs.get("JsonStreamState")).ok()
+        || program.enums.contains_key("JsonStreamState")
+        || program.aliases.contains_key("JsonStreamState")
+        || serde_json::to_value(program.enums.get("JsonStreamEvent")).ok()
+            != serde_json::to_value(standard.enums.get("JsonStreamEvent")).ok()
+        || program.structs.contains_key("JsonStreamEvent")
+        || program.aliases.contains_key("JsonStreamEvent")
     {
         return Err(invalid("invalid JSON stream layout"));
     }
     if serde_json::to_value(program.structs.get("CsvStreamState")).ok()
-            != serde_json::to_value(standard.structs.get("CsvStreamState")).ok()
-            || program.enums.contains_key("CsvStreamState")
-            || program.aliases.contains_key("CsvStreamState")
+        != serde_json::to_value(standard.structs.get("CsvStreamState")).ok()
+        || program.enums.contains_key("CsvStreamState")
+        || program.aliases.contains_key("CsvStreamState")
     {
         return Err(invalid("invalid CSV stream layout"));
     }
     if serde_json::to_value(program.structs.get("Regex")).ok()
-            != serde_json::to_value(standard.structs.get("Regex")).ok()
-            || program.enums.contains_key("Regex")
-            || program.aliases.contains_key("Regex")
+        != serde_json::to_value(standard.structs.get("Regex")).ok()
+        || program.enums.contains_key("Regex")
+        || program.aliases.contains_key("Regex")
     {
         return Err(invalid("invalid regex layout"));
     }
 
     if ["Instant", "Duration"].iter().any(|name| {
-            serde_json::to_value(program.structs.get(*name)).ok()
-                != serde_json::to_value(standard.structs.get(*name)).ok()
-                || program.enums.contains_key(*name)
-                || program.aliases.contains_key(*name)
-        })
-    {
+        serde_json::to_value(program.structs.get(*name)).ok()
+            != serde_json::to_value(standard.structs.get(*name)).ok()
+            || program.enums.contains_key(*name)
+            || program.aliases.contains_key(*name)
+    }) {
         return Err(invalid("invalid datetime layout"));
     }
 
     if serde_json::to_value(program.structs.get("Decimal")).ok()
-            != serde_json::to_value(standard.structs.get("Decimal")).ok()
-            || program.enums.contains_key("Decimal")
-            || program.aliases.contains_key("Decimal")
-            || serde_json::to_value(program.enums.get("DecimalRounding")).ok()
-                != serde_json::to_value(standard.enums.get("DecimalRounding")).ok()
-            || program.structs.contains_key("DecimalRounding")
-            || program.aliases.contains_key("DecimalRounding")
+        != serde_json::to_value(standard.structs.get("Decimal")).ok()
+        || program.enums.contains_key("Decimal")
+        || program.aliases.contains_key("Decimal")
+        || serde_json::to_value(program.enums.get("DecimalRounding")).ok()
+            != serde_json::to_value(standard.enums.get("DecimalRounding")).ok()
+        || program.structs.contains_key("DecimalRounding")
+        || program.aliases.contains_key("DecimalRounding")
     {
         return Err(invalid("invalid decimal standard layout"));
     }
 
     if serde_json::to_value(program.structs.get("BigInt")).ok()
-            != serde_json::to_value(standard.structs.get("BigInt")).ok()
-            || program.enums.contains_key("BigInt")
-            || program.aliases.contains_key("BigInt")
+        != serde_json::to_value(standard.structs.get("BigInt")).ok()
+        || program.enums.contains_key("BigInt")
+        || program.aliases.contains_key("BigInt")
     {
         return Err(invalid("invalid exact integer layout"));
     }
 
     if ["FloatArray", "IntArray"].iter().any(|name| {
-            serde_json::to_value(program.structs.get(*name)).ok()
-                != serde_json::to_value(standard.structs.get(*name)).ok()
-                || program.enums.contains_key(*name)
-                || program.aliases.contains_key(*name)
-        })
-    {
+        serde_json::to_value(program.structs.get(*name)).ok()
+            != serde_json::to_value(standard.structs.get(*name)).ok()
+            || program.enums.contains_key(*name)
+            || program.aliases.contains_key(*name)
+    }) {
         return Err(invalid("invalid numeric primitive layout"));
     }
 
     if serde_json::to_value(program.structs.get("TensorIdentityWork")).ok()
-            != serde_json::to_value(standard.structs.get("TensorIdentityWork")).ok()
-            || program.enums.contains_key("TensorIdentityWork")
-            || program.aliases.contains_key("TensorIdentityWork")
+        != serde_json::to_value(standard.structs.get("TensorIdentityWork")).ok()
+        || program.enums.contains_key("TensorIdentityWork")
+        || program.aliases.contains_key("TensorIdentityWork")
     {
         return Err(invalid("invalid tensor identity work layout"));
     }
 
     if ["QrResult", "EigenResult", "HistogramResult"]
-            .iter()
-            .any(|name| {
-                serde_json::to_value(program.structs.get(*name)).ok()
-                    != serde_json::to_value(standard.structs.get(*name)).ok()
-                    || program.enums.contains_key(*name)
-                    || program.aliases.contains_key(*name)
-            })
+        .iter()
+        .any(|name| {
+            serde_json::to_value(program.structs.get(*name)).ok()
+                != serde_json::to_value(standard.structs.get(*name)).ok()
+                || program.enums.contains_key(*name)
+                || program.aliases.contains_key(*name)
+        })
     {
         return Err(invalid("invalid numeric result layout"));
     }
@@ -325,8 +324,7 @@ fn run_with_policy(
     {
         return Err(invalid("invalid property failure layout"));
     }
-    if program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple")
-    {
+    if program.structs.contains_key("Tuple") || program.enums.contains_key("Tuple") {
         return Err(invalid("Tuple is a reserved standard type"));
     }
     for n in ["freeze", "thaw", "secret", "reveal"] {

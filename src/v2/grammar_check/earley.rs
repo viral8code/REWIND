@@ -131,7 +131,14 @@ impl<'b> Earley<'b> {
                             let wr = &bnf.rules[w.rule as usize];
                             if let Some(Sym::Nt(b)) = wr.rhs.get(w.dot as usize) {
                                 if *b == lhs {
-                                    push(&mut items, &mut seen, Item { dot: w.dot + 1, ..w });
+                                    push(
+                                        &mut items,
+                                        &mut seen,
+                                        Item {
+                                            dot: w.dot + 1,
+                                            ..w
+                                        },
+                                    );
                                 }
                             }
                         }
@@ -142,7 +149,14 @@ impl<'b> Earley<'b> {
                             if nt != lhs {
                                 break;
                             }
-                            push(&mut items, &mut seen, Item { dot: w.dot + 1, ..w });
+                            push(
+                                &mut items,
+                                &mut seen,
+                                Item {
+                                    dot: w.dot + 1,
+                                    ..w
+                                },
+                            );
                         }
                     }
                     continue;
@@ -165,17 +179,34 @@ impl<'b> Earley<'b> {
                             }
                         }
                         if self.nullable[b as usize] || empty_done.contains(&b) {
-                            push(&mut items, &mut seen, Item { dot: it.dot + 1, ..it });
+                            push(
+                                &mut items,
+                                &mut seen,
+                                Item {
+                                    dot: it.dot + 1,
+                                    ..it
+                                },
+                            );
                         }
                     }
                     Sym::T(t) => {
                         if i < n && bnf.terms[t as usize].matches(&toks[i]) {
-                            next.push(Item { dot: it.dot + 1, ..it });
+                            next.push(Item {
+                                dot: it.dot + 1,
+                                ..it
+                            });
                         }
                     }
                     Sym::Ns(t) | Sym::Nf(t) => {
                         if !(i < n && bnf.terms[t as usize].matches(&toks[i])) {
-                            push(&mut items, &mut seen, Item { dot: it.dot + 1, ..it });
+                            push(
+                                &mut items,
+                                &mut seen,
+                                Item {
+                                    dot: it.dot + 1,
+                                    ..it
+                                },
+                            );
                         }
                     }
                 }

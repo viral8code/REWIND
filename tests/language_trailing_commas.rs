@@ -139,12 +139,24 @@ fn tuples_and_captures_stay_accepted() {
 
 #[test]
 fn empty_and_double_commas_are_rejected() {
-    rejected(&wrap("fn f(a:Int)->Int effects {} { return a; }\nfn run()->Unit effects {} { f(,); }"));
-    rejected(&wrap("fn f(a:Int,b:Int)->Int effects {} { return a; }\nfn run()->Unit effects {} { f(1,,2); }"));
-    rejected(&wrap("fn f(,)->Int effects {} { return 1; }\nfn run()->Unit effects {} { }"));
-    rejected(&wrap("fn f(a:Int,,b:Int)->Int effects {} { return a; }\nfn run()->Unit effects {} { }"));
-    rejected(&wrap("fn f<,>()->Int effects {} { return 1; }\nfn run()->Unit effects {} { }"));
-    rejected(&wrap("fn f(g: fn(,)->Int)->Int effects {} { return 1; }\nfn run()->Unit effects {} { }"));
+    rejected(&wrap(
+        "fn f(a:Int)->Int effects {} { return a; }\nfn run()->Unit effects {} { f(,); }",
+    ));
+    rejected(&wrap(
+        "fn f(a:Int,b:Int)->Int effects {} { return a; }\nfn run()->Unit effects {} { f(1,,2); }",
+    ));
+    rejected(&wrap(
+        "fn f(,)->Int effects {} { return 1; }\nfn run()->Unit effects {} { }",
+    ));
+    rejected(&wrap(
+        "fn f(a:Int,,b:Int)->Int effects {} { return a; }\nfn run()->Unit effects {} { }",
+    ));
+    rejected(&wrap(
+        "fn f<,>()->Int effects {} { return 1; }\nfn run()->Unit effects {} { }",
+    ));
+    rejected(&wrap(
+        "fn f(g: fn(,)->Int)->Int effects {} { return 1; }\nfn run()->Unit effects {} { }",
+    ));
     rejected(&wrap("fn run()->Unit effects {} { let m = Map<,>(); }"));
 }
 

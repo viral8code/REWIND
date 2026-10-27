@@ -44,7 +44,10 @@ fn balance_factor<K, V>(node: &Node<K, V>) -> i16 {
 fn rotate_right<K: Clone, V: Clone>(link: &mut Link<K, V>) {
     let mut top = link.take().expect("rotate_right needs a node");
     let top_node = Arc::make_mut(&mut top);
-    let mut pivot = top_node.left.take().expect("rotate_right needs a left child");
+    let mut pivot = top_node
+        .left
+        .take()
+        .expect("rotate_right needs a left child");
     let pivot_node = Arc::make_mut(&mut pivot);
     top_node.left = pivot_node.right.take();
     update(top_node);
@@ -55,7 +58,10 @@ fn rotate_right<K: Clone, V: Clone>(link: &mut Link<K, V>) {
 fn rotate_left<K: Clone, V: Clone>(link: &mut Link<K, V>) {
     let mut top = link.take().expect("rotate_left needs a node");
     let top_node = Arc::make_mut(&mut top);
-    let mut pivot = top_node.right.take().expect("rotate_left needs a right child");
+    let mut pivot = top_node
+        .right
+        .take()
+        .expect("rotate_left needs a right child");
     let pivot_node = Arc::make_mut(&mut pivot);
     top_node.right = pivot_node.left.take();
     update(top_node);
@@ -305,7 +311,11 @@ impl<K: Ord + Clone, V: Clone> Extend<(K, V)> for PMap<K, V> {
 impl<K: Ord + Clone, V: Clone> FromIterator<(K, V)> for PMap<K, V> {
     fn from_iter<I: IntoIterator<Item = (K, V)>>(items: I) -> Self {
         // Later duplicates win, like repeated `insert`.
-        let sorted = items.into_iter().collect::<BTreeMap<_, _>>().into_iter().collect::<Vec<_>>();
+        let sorted = items
+            .into_iter()
+            .collect::<BTreeMap<_, _>>()
+            .into_iter()
+            .collect::<Vec<_>>();
         let count = sorted.len();
         PMap {
             root: build(&mut sorted.into_iter(), count),
@@ -366,8 +376,14 @@ mod tests {
         model: &BTreeMap<K, V>,
     ) {
         assert_eq!(tree.len(), model.len());
-        let got = tree.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
-        let want = model.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>();
+        let got = tree
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<Vec<_>>();
+        let want = model
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<Vec<_>>();
         assert_eq!(got, want);
         // AVL invariant and cached sizes on every node
         fn walk<K, V>(link: &Link<K, V>) -> (u8, usize) {
@@ -470,6 +486,10 @@ mod tests {
             branch.insert(format!("v{}", i % 50_000), i);
             assert_eq!(branch.len(), 50_000);
         }
-        assert!(started.elapsed() < std::time::Duration::from_secs(20), "{:?}", started.elapsed());
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "{:?}",
+            started.elapsed()
+        );
     }
 }

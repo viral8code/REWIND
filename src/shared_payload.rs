@@ -245,7 +245,9 @@ impl Owners {
         }
     }
     fn iter(&self) -> impl Iterator<Item = &LedgerRef> {
-        self.first.iter().chain(self.rest.iter().flat_map(|r| r.iter()))
+        self.first
+            .iter()
+            .chain(self.rest.iter().flat_map(|r| r.iter()))
     }
     fn push(&mut self, x: LedgerRef) {
         if self.first.is_none() {
@@ -412,7 +414,16 @@ mod tests {
         assert!(!r.register(&b, 20));
         assert_eq!(r.ledgers.lock().unwrap().len(), 2);
         // `a` died, so `b` moved from `rest` into the inline slot and is now the oldest.
-        assert!(r.ledgers.lock().unwrap().first.as_ref().unwrap().0.upgrade().is_some_and(|l| l.id == b_id));
+        assert!(r
+            .ledgers
+            .lock()
+            .unwrap()
+            .first
+            .as_ref()
+            .unwrap()
+            .0
+            .upgrade()
+            .is_some_and(|l| l.id == b_id));
         drop(r);
         assert_eq!(b.bytes(), 0);
         assert_eq!(c.bytes(), 0);

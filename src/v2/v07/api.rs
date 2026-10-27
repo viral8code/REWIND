@@ -26,7 +26,7 @@ pub(in crate::v2) fn load(root: &Path) -> Result<Program> {
     let config = project::ProjectConfig::load(root)?
         .ok_or_else(|| Error::InvalidOperation("API snapshot requires a manifest".into()))?;
     config.lock(root, false)?;
-    
+
     let mut p = load_program(
         &config.entry,
         root,

@@ -11,7 +11,9 @@ use super::syntaxcheck::{compare, parser_verdict, Class, Entry};
 use std::path::{Path, PathBuf};
 
 fn rw_files(kind: &str) -> Vec<PathBuf> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/grammar").join(kind);
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/grammar")
+        .join(kind);
     let mut v: Vec<PathBuf> = std::fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
         .map(|e| e.unwrap().path())
@@ -34,14 +36,22 @@ fn check_header(src: &str) -> Result<(), String> {
 fn check_accept(lx: &EbnfLexer, src: &str) -> Result<(), String> {
     check_header(src)?;
     let imp = impl_tokens(src).map_err(|e| format!("lex() が拒否: {e}"))?;
-    let eb = lx.tokenize(src).map_err(|e| format!("EBNF の字句が拒否: {e:?}"))?;
+    let eb = lx
+        .tokenize(src)
+        .map_err(|e| format!("EBNF の字句が拒否: {e:?}"))?;
     if imp != eb {
         return Err("lex() と EBNF の字句でトークン列が違う".into());
     }
     let r = compare(Entry::Program, &imp);
     if !r.parser_ok {
-        let e = parser_verdict(Entry::Program, &imp).0.err().unwrap_or_default();
-        return Err(format!("Parser が拒否: {}", e.chars().take(120).collect::<String>()));
+        let e = parser_verdict(Entry::Program, &imp)
+            .0
+            .err()
+            .unwrap_or_default();
+        return Err(format!(
+            "Parser が拒否: {}",
+            e.chars().take(120).collect::<String>()
+        ));
     }
     if !r.earley_ok {
         return Err("EBNF の Program が拒否".into());
@@ -77,8 +87,16 @@ fn grammar_example_files() {
     let lx = EbnfLexer::new();
     let accept = rw_files("accept");
     let reject = rw_files("reject");
-    assert!(accept.len() >= 30, "accept は 30 件以上（{}）", accept.len());
-    assert!(reject.len() >= 30, "reject は 30 件以上（{}）", reject.len());
+    assert!(
+        accept.len() >= 30,
+        "accept は 30 件以上（{}）",
+        accept.len()
+    );
+    assert!(
+        reject.len() >= 30,
+        "reject は 30 件以上（{}）",
+        reject.len()
+    );
     let mut bad = Vec::new();
     for (files, kind) in [(&accept, "accept"), (&reject, "reject")] {
         for p in files {
@@ -87,11 +105,20 @@ fn grammar_example_files() {
                 bad.push(format!("{kind}/{name}: 読めない"));
                 continue;
             };
-            let r = if kind == "accept" { check_accept(&lx, &src) } else { check_reject(&lx, &src) };
+            let r = if kind == "accept" {
+                check_accept(&lx, &src)
+            } else {
+                check_reject(&lx, &src)
+            };
             if let Err(m) = r {
                 bad.push(format!("{kind}/{name}: {m}"));
             }
         }
     }
-    assert!(bad.is_empty(), "例ファイルの食い違い（{} 件）:\n{}", bad.len(), bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "例ファイルの食い違い（{} 件）:\n{}",
+        bad.len(),
+        bad.join("\n")
+    );
 }

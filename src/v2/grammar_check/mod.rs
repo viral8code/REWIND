@@ -71,7 +71,9 @@ mod tests {
 
     /// 1 文字ずつのトークンにする。
     fn chars(s: &str) -> Vec<&str> {
-        s.char_indices().map(|(i, c)| &s[i..i + c.len_utf8()]).collect()
+        s.char_indices()
+            .map(|(i, c)| &s[i..i + c.len_utf8()])
+            .collect()
     }
 
     fn run<T: Token>(src: &str, start: &str, toks: &[T]) -> Result<(), RecognizeError> {
@@ -101,10 +103,22 @@ mod tests {
 
     #[test]
     fn arithmetic_precedence_and_parens() {
-        for s in ["1", "1+2", "1+2*3", "(1+2)*3", "((4))", "1 - 2 - 3", "2*(3+4)*5", "-1+-2", "12/(3-1)"] {
+        for s in [
+            "1",
+            "1+2",
+            "1+2*3",
+            "(1+2)*3",
+            "((4))",
+            "1 - 2 - 3",
+            "2*(3+4)*5",
+            "-1+-2",
+            "12/(3-1)",
+        ] {
             assert!(ok(ARITH, "Expr", &lex_arith(s)), "受理すべき: {s}");
         }
-        for s in ["", "1+", "+1", "(1", "1)", "()", "1 2", "1**2", "(1+2)(3)", "1+*2"] {
+        for s in [
+            "", "1+", "+1", "(1", "1)", "()", "1 2", "1**2", "(1+2)(3)", "1+*2",
+        ] {
             assert!(!ok(ARITH, "Expr", &lex_arith(s)), "拒否すべき: {s}");
         }
     }
@@ -280,15 +294,25 @@ mod tests {
         assert!(!ok(with, "Start", &words("a a")));
         // 入力の終わりでは成り立つ
         assert!(ok("Start ::= 'a' [ nf: 'b' ]", "Start", &words("a")));
-        assert!(!ok("Start ::= 'a' [ nf: 'b' ] Tail  Tail ::= 'b'?", "Start", &words("a b")));
+        assert!(!ok(
+            "Start ::= 'a' [ nf: 'b' ] Tail  Tail ::= 'b'?",
+            "Start",
+            &words("a b")
+        ));
         // トークン種別（字句規則）を条件にできる
         let kind = "
             Stmt ::= 'x' [ nf: NUMBER ] Tail
             Tail ::= ';' | NUMBER
             NUMBER ::= [0-9]+
         ";
-        let num = |t: &str| Tok { kind: "NUMBER", text: t.into() };
-        let sym = |t: &str| Tok { kind: "", text: t.into() };
+        let num = |t: &str| Tok {
+            kind: "NUMBER",
+            text: t.into(),
+        };
+        let sym = |t: &str| Tok {
+            kind: "",
+            text: t.into(),
+        };
         assert!(ok(kind, "Stmt", &[sym("x"), sym(";")]));
         assert!(!ok(kind, "Stmt", &[sym("x"), num("1")]));
     }
@@ -325,10 +349,18 @@ mod tests {
     fn grammar_load_errors() {
         // 未定義の記号
         let e = load_errors("Start ::= Missing", &["Start"]);
-        assert!(e.iter().any(|m| m.contains("未定義") && m.contains("Missing")), "{e:?}");
+        assert!(
+            e.iter()
+                .any(|m| m.contains("未定義") && m.contains("Missing")),
+            "{e:?}"
+        );
         // 到達しない規則
         let e = load_errors("Start ::= 'a'  Orphan ::= 'b'", &["Start"]);
-        assert!(e.iter().any(|m| m.contains("到達しません") && m.contains("Orphan")), "{e:?}");
+        assert!(
+            e.iter()
+                .any(|m| m.contains("到達しません") && m.contains("Orphan")),
+            "{e:?}"
+        );
         // 構文規則の本体に文字クラス / #x / 差
         let e = load_errors("Start ::= [a-z]", &["Start"]);
         assert!(e.iter().any(|m| m.contains("文字クラス")), "{e:?}");
@@ -338,7 +370,10 @@ mod tests {
         assert!(e.iter().any(|m| m.contains("差")), "{e:?}");
         // 字句規則から構文規則
         let e = load_errors("TOKEN ::= Syn  Syn ::= 'a'", &["TOKEN"]);
-        assert!(e.iter().any(|m| m.contains("字句規則から構文規則")), "{e:?}");
+        assert!(
+            e.iter().any(|m| m.contains("字句規則から構文規則")),
+            "{e:?}"
+        );
         // 二重定義
         let e = load_errors("Start ::= 'a'  Start ::= 'b'", &["Start"]);
         assert!(e.iter().any(|m| m.contains("二重")), "{e:?}");
@@ -365,7 +400,10 @@ mod tests {
             "Start ::= [ ns: 'a'",
             "'a'",
         ] {
-            assert!(!load_errors(bad, &["Start"]).is_empty(), "エラーのはず: {bad}");
+            assert!(
+                !load_errors(bad, &["Start"]).is_empty(),
+                "エラーのはず: {bad}"
+            );
         }
         // 正しい文法は通る。コメント、二重引用符、複数行。
         let good = "Start ::= /* c1 */ \"a\" /* c2 */\n  | 'b' Start2\nStart2 ::= 'c'";
@@ -392,9 +430,15 @@ mod tests {
     #[test]
     fn syntax_rule_references_lexical_kind_not_its_body() {
         // 構文規則から見た NUMBER は、トークンの種別。本体の文字クラスは字句解析器の仕事。
-        let toks = [Tok { kind: "NUMBER", text: "abc".into() }];
+        let toks = [Tok {
+            kind: "NUMBER",
+            text: "abc".into(),
+        }];
         assert!(ok("Start ::= NUMBER  NUMBER ::= [0-9]+", "Start", &toks));
-        let toks = [Tok { kind: "", text: "123".into() }];
+        let toks = [Tok {
+            kind: "",
+            text: "123".into(),
+        }];
         assert!(!ok("Start ::= NUMBER  NUMBER ::= [0-9]+", "Start", &toks));
     }
 
@@ -406,7 +450,10 @@ mod tests {
         let depth = 100_000;
         let src = format!("Start ::= {}'a'{}", "(".repeat(depth), ")".repeat(depth));
         let e = load_errors(&src, &["Start"]);
-        assert!(e.iter().any(|m| m.contains("入れ子")), "深すぎる入れ子を報告する");
+        assert!(
+            e.iter().any(|m| m.contains("入れ子")),
+            "深すぎる入れ子を報告する"
+        );
     }
 
     #[test]
@@ -468,7 +515,10 @@ mod tests {
         let (lo, hi) = per_token
             .iter()
             .fold((f64::MAX, 0.0f64), |(l, h), &x| (l.min(x), h.max(x)));
-        assert!(hi / lo < 1.05, "トークンあたりの項目数が一定: {per_token:?}");
+        assert!(
+            hi / lo < 1.05,
+            "トークンあたりの項目数が一定: {per_token:?}"
+        );
     }
 
     #[test]

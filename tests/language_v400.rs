@@ -93,14 +93,19 @@ fn keyword_names_are_rejected_in_every_binding_position() {
 
 #[test]
 fn the_same_programs_still_work_in_language_3_6_0() {
-    for word in ["commit", "drop", "branch", "publish", "resume", "revert", "if", "true"] {
+    for word in [
+        "commit", "drop", "branch", "publish", "resume", "revert", "if", "true",
+    ] {
         let out = run(
             "3.6.0",
             &format!("fn main() -> Int {{\n    let {word} = 1;\n    Out.println({word});\n    return 0;\n}}\n"),
         );
         // `let if = 1; Out.println(if)` cannot be used as a value, so only the
         // words that were usable as names must keep working.
-        if matches!(word, "commit" | "drop" | "branch" | "publish" | "resume" | "revert") {
+        if matches!(
+            word,
+            "commit" | "drop" | "branch" | "publish" | "resume" | "revert"
+        ) {
             assert!(out.status.success(), "{word}: {}", stderr(&out));
             assert_eq!(stdout(&out), "1\n", "{word}");
         }
@@ -167,10 +172,8 @@ fn line_breaks_inside_string_literals_are_lf_whatever_the_source_uses() {
 
 #[test]
 fn standalone_files_never_run_as_an_older_language_in_a_released_compiler() {
-    let root = std::env::temp_dir().join(format!(
-        "rewind-v400-old-standalone-{}",
-        std::process::id()
-    ));
+    let root =
+        std::env::temp_dir().join(format!("rewind-v400-old-standalone-{}", std::process::id()));
     let _ = fs::remove_dir_all(&root);
     // A directory left by an earlier process with the same id must not break this run.
     let _ = fs::remove_dir_all(&root);
@@ -184,7 +187,11 @@ fn standalone_files_never_run_as_an_older_language_in_a_released_compiler() {
         .output()
         .unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("top-level statements"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("top-level statements"),
+        "{}",
+        stderr(&out)
+    );
     let out = Command::new(env!("CARGO_BIN_EXE_rewind"))
         .current_dir(&root)
         .env("REWIND_STANDALONE_LANGUAGE", "2.0.0")

@@ -28,7 +28,11 @@ fn gui_controls2_example_runs_from_window_events_without_a_window() {
         ])
         .output()
         .unwrap();
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let expected = "A||Red|2026-10-21\n".replace("A||", "A|");
     let _ = expected;
     let lines: Vec<String> = String::from_utf8_lossy(&out.stdout)

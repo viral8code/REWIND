@@ -11,10 +11,10 @@
 //! 実装が正で、食い違いは EBNF を直す。構文解析器が意味の検査で拒否するもの（`NON_SYNTACTIC`）は、
 //! EBNF が受理していても食い違いとは数えない。
 
+use super::super::{Parser, Tok};
 use super::earley::Earley;
 use super::ebnf::{Bnf, Grammar, Token};
 use super::lexcheck::{corpus, impl_tokens};
-use super::super::{Parser, Tok};
 use std::collections::HashMap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::OnceLock;
@@ -33,8 +33,14 @@ pub enum Entry {
 }
 
 impl Entry {
-    pub const ALL: [Entry; 6] =
-        [Entry::Type, Entry::TypeParams, Entry::Where, Entry::Pattern, Entry::Expr, Entry::Program];
+    pub const ALL: [Entry; 6] = [
+        Entry::Type,
+        Entry::TypeParams,
+        Entry::Where,
+        Entry::Pattern,
+        Entry::Expr,
+        Entry::Program,
+    ];
 
     fn rule(self) -> &'static str {
         match self {
@@ -107,7 +113,8 @@ fn kind_of(text: &str) -> &'static str {
         }
         Some(c) if c.is_ascii_digit() => {
             let lower = text.to_ascii_lowercase();
-            let prefixed = lower.starts_with("0x") || lower.starts_with("0b") || lower.starts_with("0o");
+            let prefixed =
+                lower.starts_with("0x") || lower.starts_with("0b") || lower.starts_with("0o");
             if !prefixed && (text.contains('.') || lower.contains('e')) {
                 "FLOAT"
             } else {
@@ -125,10 +132,19 @@ pub fn earley_tokens(texts: &[String]) -> Vec<GTok> {
     let mut out = Vec::with_capacity(texts.len() + 4);
     for t in texts {
         if t == ">=" {
-            out.push(GTok { kind: "GE_FIRST", text: ">".into() });
-            out.push(GTok { kind: "GE_SECOND", text: "=".into() });
+            out.push(GTok {
+                kind: "GE_FIRST",
+                text: ">".into(),
+            });
+            out.push(GTok {
+                kind: "GE_SECOND",
+                text: "=".into(),
+            });
         } else {
-            out.push(GTok { kind: kind_of(t), text: t.clone() });
+            out.push(GTok {
+                kind: kind_of(t),
+                text: t.clone(),
+            });
         }
     }
     out
@@ -139,11 +155,14 @@ fn compiled() -> &'static HashMap<Entry, Bnf> {
     C.get_or_init(|| {
         let mut roots = vec!["TOKEN", "SKIP"];
         roots.extend(Entry::ALL.iter().map(|e| e.rule()));
-        let g = Grammar::parse(EBNF, &roots).unwrap_or_else(|e| panic!("rewind.ebnf の読み込み: {e:#?}"));
+        let g = Grammar::parse(EBNF, &roots)
+            .unwrap_or_else(|e| panic!("rewind.ebnf の読み込み: {e:#?}"));
         Entry::ALL
             .iter()
             .map(|&e| {
-                let b = g.compile(e.rule()).unwrap_or_else(|x| panic!("{} の展開: {x:#?}", e.rule()));
+                let b = g
+                    .compile(e.rule())
+                    .unwrap_or_else(|x| panic!("{} の展開: {x:#?}", e.rule()));
                 (e, b)
             })
             .collect()
@@ -152,12 +171,20 @@ fn compiled() -> &'static HashMap<Entry, Bnf> {
 
 fn recognizers() -> &'static HashMap<Entry, Earley<'static>> {
     static R: OnceLock<HashMap<Entry, Earley<'static>>> = OnceLock::new();
-    R.get_or_init(|| compiled().iter().map(|(&e, b)| (e, Earley::new(b))).collect())
+    R.get_or_init(|| {
+        compiled()
+            .iter()
+            .map(|(&e, b)| (e, Earley::new(b)))
+            .collect()
+    })
 }
 
 /// Earley の受理（`Ok`）か、止まったトークンの位置。
 pub fn earley_result(entry: Entry, texts: &[String]) -> Result<(), usize> {
-    recognizers()[&entry].recognize(&earley_tokens(texts)).map(|_| ()).map_err(|e| e.pos)
+    recognizers()[&entry]
+        .recognize(&earley_tokens(texts))
+        .map(|_| ())
+        .map_err(|e| e.pos)
 }
 
 pub fn earley_accepts(entry: Entry, texts: &[String]) -> bool {
@@ -169,20 +196,44 @@ pub fn parser_verdict(entry: Entry, texts: &[String]) -> (Result<(), String>, bo
     let mut toks: Vec<Tok> = texts
         .iter()
         .enumerate()
-        .map(|(i, t)| Tok { source: String::new(), text: t.clone(), line: 1, col: i + 1 })
+        .map(|(i, t)| Tok {
+            source: String::new(),
+            text: t.clone(),
+            line: 1,
+            col: i + 1,
+        })
         .collect();
     if entry == Entry::Where {
-        toks.push(Tok { source: String::new(), text: "{".into(), line: 1, col: texts.len() + 1 });
+        toks.push(Tok {
+            source: String::new(),
+            text: "{".into(),
+            line: 1,
+            col: texts.len() + 1,
+        });
     }
-    toks.push(Tok { source: String::new(), text: "<eof>".into(), line: 1, col: texts.len() + 2 });
-    let mut p = Parser { toks, pos: 0, type_depth: 0, cond_start: None, splits: Vec::new(), reserved: Vec::new() };
+    toks.push(Tok {
+        source: String::new(),
+        text: "<eof>".into(),
+        line: 1,
+        col: texts.len() + 2,
+    });
+    let mut p = Parser {
+        toks,
+        pos: 0,
+        type_depth: 0,
+        cond_start: None,
+        splits: Vec::new(),
+        reserved: Vec::new(),
+    };
     let r = catch_unwind(AssertUnwindSafe(|| -> Result<(), String> {
         match entry {
             Entry::Type => p.ty().map(|_| ()),
             Entry::TypeParams => p.type_params().map(|_| ()),
             Entry::Where => {
-                let mut params: Vec<(String, Option<String>)> =
-                    ["T", "U", "V"].iter().map(|n| (n.to_string(), None)).collect();
+                let mut params: Vec<(String, Option<String>)> = ["T", "U", "V"]
+                    .iter()
+                    .map(|n| (n.to_string(), None))
+                    .collect();
                 p.where_bounds(&mut params)
             }
             Entry::Pattern => p.pattern().map(|_| ()),
@@ -249,11 +300,18 @@ pub fn compare(entry: Entry, texts: &[String]) -> Res {
             if NON_SYNTACTIC.iter().any(|m| e.contains(m)) {
                 Class::NonSyntactic
             } else {
-                Class::Mismatch(format!("Parser は拒否（{}）、EBNF は受理", e.chars().take(100).collect::<String>()))
+                Class::Mismatch(format!(
+                    "Parser は拒否（{}）、EBNF は受理",
+                    e.chars().take(100).collect::<String>()
+                ))
             }
         }
     };
-    Res { parser_ok, earley_ok: ok_e, class }
+    Res {
+        parser_ok,
+        earley_ok: ok_e,
+        class,
+    }
 }
 
 fn toks(src: &str) -> Vec<String> {
@@ -306,7 +364,9 @@ pub fn fragments(t: &[String]) -> Vec<Fragment> {
     for i in 0..n {
         match t[i].as_str() {
             "let" | "var" => {
-                let Some(end) = scan_until(t, i + 1, &[";"]) else { continue };
+                let Some(end) = scan_until(t, i + 1, &[";"]) else {
+                    continue;
+                };
                 // 深さ 0 の最初の `:` と `=`（`>=` は型の終わりと `=`）
                 let mut depth = 0i32;
                 let (mut colon, mut eq, mut ge) = (None, None, None);
@@ -453,7 +513,9 @@ pub fn fragments(t: &[String]) -> Vec<Fragment> {
                 if t.get(j).map(|s| s.as_str()) != Some("(") {
                     continue;
                 }
-                let Some(close) = scan_until(t, j + 1, &[")"]) else { continue };
+                let Some(close) = scan_until(t, j + 1, &[")"]) else {
+                    continue;
+                };
                 // 引数ごとの型
                 let mut k = j + 1;
                 while k < close {
@@ -493,7 +555,11 @@ mod tests {
     fn check_list(entry: Entry, list: &[(&str, bool)]) {
         let accepts = list.iter().filter(|(_, a)| *a).count();
         let rejects = list.len() - accepts;
-        assert!(list.len() >= 50, "{entry:?}: 断片は 50 件以上（{}）", list.len());
+        assert!(
+            list.len() >= 50,
+            "{entry:?}: 断片は 50 件以上（{}）",
+            list.len()
+        );
         assert!(accepts >= 30, "{entry:?}: 受理は 30 件以上（{accepts}）");
         assert!(rejects >= 20, "{entry:?}: 拒否は 20 件以上（{rejects}）");
         let mut bad = Vec::new();
@@ -906,7 +972,10 @@ mod tests {
                 let t = toks(src);
                 let r = compare(entry, &t);
                 if matches!(r.class, Class::Mismatch(_)) || r.parser_ok != *expect {
-                    bad.push(format!("{src:?}: 期待 {expect} / Parser {} / EBNF {} / {:?}", r.parser_ok, r.earley_ok, r.class));
+                    bad.push(format!(
+                        "{src:?}: 期待 {expect} / Parser {} / EBNF {} / {:?}",
+                        r.parser_ok, r.earley_ok, r.class
+                    ));
                 }
             }
             assert!(bad.is_empty(), "{entry:?}:\n{}", bad.join("\n"));
@@ -927,7 +996,11 @@ mod tests {
     fn fragment_counts_are_reported() {
         for (name, list) in [("Type", TYPES), ("Pattern", PATTERNS), ("Expr", EXPRS)] {
             let a = list.iter().filter(|(_, a)| *a).count();
-            println!("{name}: {} 件（受理 {a}、拒否 {}）", list.len(), list.len() - a);
+            println!(
+                "{name}: {} 件（受理 {a}、拒否 {}）",
+                list.len(),
+                list.len() - a
+            );
         }
     }
 
@@ -937,7 +1010,15 @@ mod tests {
         let t = toks("a >= b");
         let g = earley_tokens(&t);
         let v: Vec<(&str, &str)> = g.iter().map(|x| (x.kind, x.text.as_str())).collect();
-        assert_eq!(v, [("IDENT", "a"), ("GE_FIRST", ">"), ("GE_SECOND", "="), ("IDENT", "b")]);
+        assert_eq!(
+            v,
+            [
+                ("IDENT", "a"),
+                ("GE_FIRST", ">"),
+                ("GE_SECOND", "="),
+                ("IDENT", "b")
+            ]
+        );
         // `> =`（空白あり）は比較演算子にならない。
         assert!(!earley_accepts(Entry::Expr, &toks("a > = b")));
         assert!(earley_accepts(Entry::Expr, &toks("a >= b")));
@@ -962,8 +1043,16 @@ mod tests {
                     (Class::Mismatch(_), _) => "食い違い",
                 };
                 *tally.entry(key).or_default() += 1;
-                if std::env::var("GC_DEBUG").is_ok() && matches!(r.class, Class::KnownGap(_) | Class::NonSyntactic) {
-                    println!("{:?} {name} [{entry:?}] p={} e={}: {}", r.class, r.parser_ok, r.earley_ok, excerpt(&frag));
+                if std::env::var("GC_DEBUG").is_ok()
+                    && matches!(r.class, Class::KnownGap(_) | Class::NonSyntactic)
+                {
+                    println!(
+                        "{:?} {name} [{entry:?}] p={} e={}: {}",
+                        r.class,
+                        r.parser_ok,
+                        r.earley_ok,
+                        excerpt(&frag)
+                    );
                 }
                 if let Class::Mismatch(m) = &r.class {
                     if bad.len() < 12 {
@@ -977,24 +1066,33 @@ mod tests {
         tally
     }
 
-
     const VOCAB: [&str; 60] = [
-        "(", ")", "{", "}", "[", "]", ",", ":", "::", ".", "<", ">", ">=", "=", "|", "||", "&", "-", "?", "if", "match",
-        "mut", "fn", "_", "begin", "x", "1", "\"s\"", "=>", ";", "->", "effects", "captures", "let", "capture", "value",
-        "move", "await", "true", "None", "else", "&&", "!", "..", "+", "1.5", "Int", "E", "borrow", "spawn", "return",
-        "<=", "==", "*", "0.1", "Send", "where", "_1", "__", "null",
+        "(", ")", "{", "}", "[", "]", ",", ":", "::", ".", "<", ">", ">=", "=", "|", "||", "&",
+        "-", "?", "if", "match", "mut", "fn", "_", "begin", "x", "1", "\"s\"", "=>", ";", "->",
+        "effects", "captures", "let", "capture", "value", "move", "await", "true", "None", "else",
+        "&&", "!", "..", "+", "1.5", "Int", "E", "borrow", "spawn", "return", "<=", "==", "*",
+        "0.1", "Send", "where", "_1", "__", "null",
     ];
 
     fn seeds() -> Vec<Fragment> {
         let mut seeds: Vec<Fragment> = Vec::new();
-        for (entry, list) in [(Entry::Type, TYPES), (Entry::Pattern, PATTERNS), (Entry::Expr, EXPRS)] {
+        for (entry, list) in [
+            (Entry::Type, TYPES),
+            (Entry::Pattern, PATTERNS),
+            (Entry::Expr, EXPRS),
+        ] {
             for (src, _) in list {
                 seeds.push((entry, toks(src)));
             }
         }
         let c = corpus();
         let mut picked = 0;
-        for (_, src) in c.docs.iter().chain(c.std_files.iter()).chain(c.fixtures.iter()) {
+        for (_, src) in c
+            .docs
+            .iter()
+            .chain(c.std_files.iter())
+            .chain(c.fixtures.iter())
+        {
             if let Ok(t) = impl_tokens(src) {
                 for (entry, f) in fragments(&t).into_iter().step_by(37) {
                     if f.len() <= 24 && picked < 400 {
@@ -1015,7 +1113,10 @@ mod tests {
 
     impl Fuzz {
         fn new() -> Self {
-            Fuzz { tally: BTreeMap::new(), bad: BTreeMap::new() }
+            Fuzz {
+                tally: BTreeMap::new(),
+                bad: BTreeMap::new(),
+            }
         }
 
         fn run(&mut self, entry: Entry, f: Vec<String>) {
@@ -1028,7 +1129,14 @@ mod tests {
                 (Class::Mismatch(m), _) => {
                     self.bad
                         .entry(format!("{entry:?} {m} {}", f.join(" ")))
-                        .or_insert_with(|| format!("[{entry:?}] p={} e={}: {}", r.parser_ok, r.earley_ok, f.join(" ")));
+                        .or_insert_with(|| {
+                            format!(
+                                "[{entry:?}] p={} e={}: {}",
+                                r.parser_ok,
+                                r.earley_ok,
+                                f.join(" ")
+                            )
+                        });
                     "食い違い"
                 }
             };
@@ -1043,8 +1151,10 @@ mod tests {
                 "{label}: 食い違い {} 種:
 {}",
                 self.bad.len(),
-                msgs.iter().map(|s| s.as_str()).collect::<Vec<_>>().join("
-")
+                msgs.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(
+                    "
+"
+                )
             );
         }
     }
@@ -1075,7 +1185,12 @@ mod tests {
     #[test]
     fn double_mutated_fragments_agree() {
         // 既定は決まった種と回数。GC_FUZZ_SEED と GC_FUZZ_N で変えて、長く探せる。
-        let env = |k: &str, d: u64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
+        let env = |k: &str, d: u64| {
+            std::env::var(k)
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(d)
+        };
         let mut state: u64 = env("GC_FUZZ_SEED", 0x9E37_79B9_7F4A_7C15);
         let mut next = move |n: usize| -> usize {
             state ^= state << 13;
@@ -1400,8 +1515,15 @@ mod tests {
     fn program_fragments_agree() {
         let accepts = PROGRAMS.iter().filter(|(_, a)| *a).count();
         let rejects = PROGRAMS.len() - accepts;
-        assert!(PROGRAMS.len() >= 150, "断片は 150 件以上（{}）", PROGRAMS.len());
-        assert!(accepts >= 80 && rejects >= 80, "受理 {accepts}、拒否 {rejects}");
+        assert!(
+            PROGRAMS.len() >= 150,
+            "断片は 150 件以上（{}）",
+            PROGRAMS.len()
+        );
+        assert!(
+            accepts >= 80 && rejects >= 80,
+            "受理 {accepts}、拒否 {rejects}"
+        );
         let mut bad = Vec::new();
         for (src, expect) in PROGRAMS {
             let t = toks(src);
@@ -1479,10 +1601,11 @@ mod tests {
 
     /// 文・宣言の語を多めに入れた、全体の変異に使う語。
     const PVOCAB: [&str; 71] = [
-        "(", ")", "{", "}", "[", "]", ",", ":", "::", ".", "<", ">", ">=", "=", "|", "||", "-", "?", "if", "match",
-        "fn", "_", "begin", "x", "1", "\"s\"", "=>", ";", "->", "effects", "let", "var", "else", "!", "..", "+=", "Int",
-        "E", "return", "pub", "import", "type", "enum", "trait", "impl", "for", "struct", "record", "const", "test",
-        "async", "while", "break", "continue", "using", "defer", "commit", "revert", "resume", "drop", "publish",
+        "(", ")", "{", "}", "[", "]", ",", ":", "::", ".", "<", ">", ">=", "=", "|", "||", "-",
+        "?", "if", "match", "fn", "_", "begin", "x", "1", "\"s\"", "=>", ";", "->", "effects",
+        "let", "var", "else", "!", "..", "+=", "Int", "E", "return", "pub", "import", "type",
+        "enum", "trait", "impl", "for", "struct", "record", "const", "test", "async", "while",
+        "break", "continue", "using", "defer", "commit", "revert", "resume", "drop", "publish",
         "force", "branch", "runtime", "external", "fresh", "live", "in", "as", "where", "private",
     ];
 
@@ -1495,7 +1618,12 @@ mod tests {
         }
         let c = corpus();
         let mut picked = 0;
-        for (_, src) in c.docs.iter().chain(c.std_files.iter()).chain(c.fixtures.iter()) {
+        for (_, src) in c
+            .docs
+            .iter()
+            .chain(c.std_files.iter())
+            .chain(c.fixtures.iter())
+        {
             // 小さいソースを、そのまま種にする。
             if let Ok(t) = impl_tokens(src) {
                 if !t.is_empty() && t.len() <= 40 && picked < 150 {
@@ -1514,7 +1642,10 @@ mod tests {
 
     impl PFuzz {
         fn new() -> Self {
-            PFuzz { tally: BTreeMap::new(), bad: BTreeMap::new() }
+            PFuzz {
+                tally: BTreeMap::new(),
+                bad: BTreeMap::new(),
+            }
         }
 
         fn run(&mut self, f: Vec<String>) {
@@ -1525,9 +1656,9 @@ mod tests {
                 (Class::NonSyntactic, _) => "意味の検査",
                 (Class::KnownGap(_), _) => "既知の差",
                 (Class::Mismatch(m), _) => {
-                    self.bad
-                        .entry(f.join(" "))
-                        .or_insert_with(|| format!("p={} e={} {m}: {}", r.parser_ok, r.earley_ok, f.join(" ")));
+                    self.bad.entry(f.join(" ")).or_insert_with(|| {
+                        format!("p={} e={} {m}: {}", r.parser_ok, r.earley_ok, f.join(" "))
+                    });
                     "食い違い"
                 }
             };
@@ -1541,7 +1672,10 @@ mod tests {
                 self.bad.is_empty(),
                 "{label}: 食い違い {} 種:\n{}",
                 self.bad.len(),
-                msgs.iter().map(|s| s.as_str()).collect::<Vec<_>>().join("\n")
+                msgs.iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
             );
         }
     }
@@ -1563,7 +1697,12 @@ mod tests {
     /// 置き換えと挿入と 2 つ重ねる変異を、決まった乱数列で選ぶ。
     #[test]
     fn mutated_program_tokens_agree() {
-        let env = |k: &str, d: u64| std::env::var(k).ok().and_then(|v| v.parse().ok()).unwrap_or(d);
+        let env = |k: &str, d: u64| {
+            std::env::var(k)
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(d)
+        };
         let mut state: u64 = env("GC_FUZZ_SEED", 0x2545_F491_4F6C_DD1D);
         let mut next = move |n: usize| -> usize {
             state ^= state << 13;
@@ -1624,7 +1763,10 @@ mod tests {
                         i += 1;
                     }
                 }
-            } else if c == 'r' && (i == 0 || !is_ident(b[i - 1]) || b[i - 1] == 'b') && matches!(next, Some('"') | Some('#')) {
+            } else if c == 'r'
+                && (i == 0 || !is_ident(b[i - 1]) || b[i - 1] == 'b')
+                && matches!(next, Some('"') | Some('#'))
+            {
                 let mut j = i + 1;
                 let mut hashes = 0;
                 while b.get(j) == Some(&'#') {
@@ -1714,7 +1856,10 @@ mod tests {
     }
 
     fn all_rw(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-        let mut v: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
+        let mut v: Vec<_> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
         v.sort();
         for p in v {
             if p.is_dir() {
@@ -1728,45 +1873,49 @@ mod tests {
     /// 全件を、複数のスレッドで比べる。ファイルの読み込みはスレッドの中で行う。
     fn run_paths_parallel(label: &str, paths: &[std::path::PathBuf]) {
         let t0 = std::time::Instant::now();
-        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(16);
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4)
+            .min(16);
         let chunk = paths.len().div_ceil(threads).max(1);
-        let results: Vec<(BTreeMap<&'static str, usize>, Vec<String>, usize)> = std::thread::scope(|sc| {
-            let hs: Vec<_> = paths
-                .chunks(chunk)
-                .map(|part| {
-                    sc.spawn(move || {
-                        let mut tally: BTreeMap<&'static str, usize> = BTreeMap::new();
-                        let mut bad = Vec::new();
-                        let mut tokens = 0usize;
-                        for p in part {
-                            let Ok(src) = std::fs::read_to_string(p) else {
-                                *tally.entry("読めない").or_default() += 1;
-                                continue;
-                            };
-                            let Ok(t) = impl_tokens(&src) else {
-                                *tally.entry("字句の誤り").or_default() += 1;
-                                continue;
-                            };
-                            tokens += t.len();
-                            let r = compare(Entry::Program, &t);
-                            let key = match (&r.class, r.parser_ok) {
-                                (Class::Agree, true) => "受理で一致",
-                                (Class::Agree, false) => "拒否で一致",
-                                (Class::NonSyntactic, _) => "意味の検査",
-                                (Class::KnownGap(_), _) => "既知の差",
-                                (Class::Mismatch(_), _) => "食い違い",
-                            };
-                            *tally.entry(key).or_default() += 1;
-                            if let Class::Mismatch(m) = r.class {
-                                bad.push(format!("{}: {m}", p.display()));
+        let results: Vec<(BTreeMap<&'static str, usize>, Vec<String>, usize)> =
+            std::thread::scope(|sc| {
+                let hs: Vec<_> = paths
+                    .chunks(chunk)
+                    .map(|part| {
+                        sc.spawn(move || {
+                            let mut tally: BTreeMap<&'static str, usize> = BTreeMap::new();
+                            let mut bad = Vec::new();
+                            let mut tokens = 0usize;
+                            for p in part {
+                                let Ok(src) = std::fs::read_to_string(p) else {
+                                    *tally.entry("読めない").or_default() += 1;
+                                    continue;
+                                };
+                                let Ok(t) = impl_tokens(&src) else {
+                                    *tally.entry("字句の誤り").or_default() += 1;
+                                    continue;
+                                };
+                                tokens += t.len();
+                                let r = compare(Entry::Program, &t);
+                                let key = match (&r.class, r.parser_ok) {
+                                    (Class::Agree, true) => "受理で一致",
+                                    (Class::Agree, false) => "拒否で一致",
+                                    (Class::NonSyntactic, _) => "意味の検査",
+                                    (Class::KnownGap(_), _) => "既知の差",
+                                    (Class::Mismatch(_), _) => "食い違い",
+                                };
+                                *tally.entry(key).or_default() += 1;
+                                if let Class::Mismatch(m) = r.class {
+                                    bad.push(format!("{}: {m}", p.display()));
+                                }
                             }
-                        }
-                        (tally, bad, tokens)
+                            (tally, bad, tokens)
+                        })
                     })
-                })
-                .collect();
-            hs.into_iter().map(|h| h.join().unwrap()).collect()
-        });
+                    .collect();
+                hs.into_iter().map(|h| h.join().unwrap()).collect()
+            });
         let mut total: BTreeMap<&'static str, usize> = BTreeMap::new();
         let mut bad = Vec::new();
         let mut tokens = 0;
@@ -1777,8 +1926,18 @@ mod tests {
             bad.extend(b);
             tokens += n;
         }
-        println!("{label}: {} ファイル、{tokens} トークン、{:?}、{:.1} 秒（{threads} スレッド）", paths.len(), total, t0.elapsed().as_secs_f64());
-        assert!(bad.is_empty(), "{label}: 食い違い {} 件\n{}", bad.len(), bad.iter().take(20).cloned().collect::<Vec<_>>().join("\n"));
+        println!(
+            "{label}: {} ファイル、{tokens} トークン、{:?}、{:.1} 秒（{threads} スレッド）",
+            paths.len(),
+            total,
+            t0.elapsed().as_secs_f64()
+        );
+        assert!(
+            bad.is_empty(),
+            "{label}: 食い違い {} 件\n{}",
+            bad.len(),
+            bad.iter().take(20).cloned().collect::<Vec<_>>().join("\n")
+        );
     }
 
     /// examples の全件（`cargo test --release --bin rewind grammar_check_full -- --ignored`）。
@@ -1812,12 +1971,17 @@ mod tests {
         let t0 = std::time::Instant::now();
         let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests");
         let mut strings: Vec<(String, String)> = Vec::new();
-        let mut files: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path()).collect();
+        let mut files: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
         files.sort();
         for p in files {
             if p.extension().is_some_and(|e| e == "rs") {
                 let name = p.file_name().unwrap().to_string_lossy().to_string();
-                let Ok(src) = std::fs::read_to_string(&p) else { continue };
+                let Ok(src) = std::fs::read_to_string(&p) else {
+                    continue;
+                };
                 for (i, s) in rust_strings(&src).into_iter().enumerate() {
                     if !s.trim().is_empty() {
                         strings.push((format!("{name}#{i}"), s));
@@ -1827,6 +1991,10 @@ mod tests {
         }
         let n = strings.len();
         let tally = run_programs("tests/*.rs の埋め込み文字列", &strings);
-        println!("埋め込み文字列 {n} 件（{:.1} 秒）、Parser が受理 {} 件", t0.elapsed().as_secs_f64(), tally.get("受理で一致").copied().unwrap_or(0));
+        println!(
+            "埋め込み文字列 {n} 件（{:.1} 秒）、Parser が受理 {} 件",
+            t0.elapsed().as_secs_f64(),
+            tally.get("受理で一致").copied().unwrap_or(0)
+        );
     }
 }

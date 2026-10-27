@@ -3,13 +3,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-mod editor;
-mod persistent;
 mod call_args;
+mod editor;
+#[cfg(test)]
+mod grammar_check;
 mod interpolate;
 mod namespacing;
 mod packages;
 mod pattern_space;
+mod persistent;
 mod project;
 mod v05;
 mod v06;
@@ -21,8 +23,6 @@ mod v092;
 mod v100;
 mod v11;
 mod v15;
-#[cfg(test)]
-mod grammar_check;
 fn program_v09(_p: &Program) -> bool {
     true
 }
@@ -116,7 +116,11 @@ fn typed_closure(expr: &Expr, wanted: &[String]) -> Option<Expr> {
                 .map(|((name, ty), wanted)| {
                     (
                         name.clone(),
-                        if ty == "Unknown" { wanted.clone() } else { ty.clone() },
+                        if ty == "Unknown" {
+                            wanted.clone()
+                        } else {
+                            ty.clone()
+                        },
                     )
                 })
                 .collect();
@@ -272,12 +276,7 @@ fn is_int_token(text: &str) -> bool {
     if !text.chars().next().is_some_and(|c| c.is_ascii_digit()) {
         return false;
     }
-    if text.len() > 2
-        && matches!(
-            &text[..2],
-            "0x" | "0X" | "0b" | "0B" | "0o" | "0O"
-        )
-    {
+    if text.len() > 2 && matches!(&text[..2], "0x" | "0X" | "0b" | "0B" | "0o" | "0O") {
         return true;
     }
     text.bytes().all(|b| b.is_ascii_digit() || b == b'_')
@@ -906,13 +905,47 @@ struct Program {
 fn is_hard_keyword(word: &str) -> bool {
     matches!(
         word,
-        "fn" | "let" | "var" | "const" | "struct" | "record" | "enum" | "trait" | "impl"
-            | "type" | "import" | "as" | "pub" | "private" | "async" | "mut"
-            | "if" | "else" | "match" | "while" | "for" | "in" | "break" | "continue"
-            | "return" | "defer" | "using"
-            | "commit" | "revert" | "resume" | "drop" | "publish" | "branch" | "runtime"
-            | "external" | "begin"
-            | "move" | "spawn" | "await" | "true" | "false" | "null"
+        "fn" | "let"
+            | "var"
+            | "const"
+            | "struct"
+            | "record"
+            | "enum"
+            | "trait"
+            | "impl"
+            | "type"
+            | "import"
+            | "as"
+            | "pub"
+            | "private"
+            | "async"
+            | "mut"
+            | "if"
+            | "else"
+            | "match"
+            | "while"
+            | "for"
+            | "in"
+            | "break"
+            | "continue"
+            | "return"
+            | "defer"
+            | "using"
+            | "commit"
+            | "revert"
+            | "resume"
+            | "drop"
+            | "publish"
+            | "branch"
+            | "runtime"
+            | "external"
+            | "begin"
+            | "move"
+            | "spawn"
+            | "await"
+            | "true"
+            | "false"
+            | "null"
     )
 }
 struct Parser {
@@ -4349,9 +4382,7 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
         &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )?;
-    program.strict_visibility = manifest.as_ref().is_some_and(|_m| {
-        true
-    });
+    program.strict_visibility = manifest.as_ref().is_some_and(|_m| true);
     program.language = manifest
         .as_ref()
         .map(|m| m.language.clone())
@@ -4361,7 +4392,6 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     // From 3.0.0 an application is its `fn main`; a run without one would
     // silently do nothing, so reject it before executing.
     if mode == "run"
-        
         && !program
             .functions
             .get("main")
@@ -4374,7 +4404,8 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     if let Some(config) = &manifest {
         {
             v05::validate(&program, config)?;
-        }}
+        }
+    }
     vm::validate(&program)?;
     if mode == "build" {
         let artifact = {
@@ -4430,9 +4461,7 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
         &mut BTreeSet::new(),
         &mut BTreeMap::new(),
     )?;
-    program.strict_visibility = manifest.as_ref().is_some_and(|_m| {
-        true
-    });
+    program.strict_visibility = manifest.as_ref().is_some_and(|_m| true);
     program.language = manifest
         .as_ref()
         .map(|m| m.language.clone())
@@ -4442,7 +4471,8 @@ fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<Stri
     if let Some(config) = &manifest {
         {
             v05::validate(&program, config)?;
-        }}
+        }
+    }
     let mut docs = BTreeMap::new();
     let mut pending = Vec::new();
     for line in fs::read_to_string(file)?.lines() {
@@ -5080,8 +5110,7 @@ fn check_program(program: &Program) -> Result<()> {
     for f in program.functions.values() {
         let root = program.root_origin.parent().unwrap_or(Path::new("."));
         let key = v06::cache::key(&(f, &interface_key)).unwrap_or_default();
-        if v06::cache::get::<bool>(root, "checked", &key) == Some(true)
-        {
+        if v06::cache::get::<bool>(root, "checked", &key) == Some(true) {
             continue;
         }
         {
@@ -5198,9 +5227,7 @@ struct Checker<'a> {
 }
 impl Checker<'_> {
     fn field_visible(&self, def: &StructDef, field: &str, at: &Tok) -> Result<()> {
-        if def.origin != self.origin
-            && def.private_fields.contains(field)
-        {
+        if def.origin != self.origin && def.private_fields.contains(field) {
             return Err(diagnostic(
                 at,
                 format!("field {field} is private to its module"),
@@ -5215,9 +5242,7 @@ impl Checker<'_> {
                 "opaque type constructor is not available; use its standard-library factory",
             ));
         }
-        if def.origin != self.origin
-            && !def.private_fields.is_empty()
-        {
+        if def.origin != self.origin && !def.private_fields.is_empty() {
             return Err(diagnostic(
                 at,
                 "opaque type constructor is private to its module",
@@ -5403,7 +5428,6 @@ impl Checker<'_> {
             }
             Pattern::Variant(name, parts) => {
                 let (head, field_types) = if name == "$tuple" {
-                    
                     let inner = ty
                         .strip_prefix("Tuple<")
                         .and_then(|s| s.strip_suffix('>'))
@@ -5540,7 +5564,8 @@ impl Checker<'_> {
                 if let Some(binding) = self.find(&resolved) {
                     {
                         v06::borrowed_type(&binding.0).into()
-                    }} else if let Some(f) = self
+                    }
+                } else if let Some(f) = self
                     .program
                     .functions
                     .get(self.program.import_aliases.get(n).unwrap_or(n))
@@ -5567,7 +5592,8 @@ impl Checker<'_> {
                             &ty,
                             v05::needed_globals(self.program, &resolved),
                         )
-                    }} else if let Some(ty) = enum_constructor_type(
+                    }
+                } else if let Some(ty) = enum_constructor_type(
                     self.program,
                     &resolve_alias(self.program, n),
                     &[],
@@ -5581,21 +5607,18 @@ impl Checker<'_> {
                     }
                     ty
                 } else {
-                    return Err(
-                        {
-                            v11::unknown_name(
-                                &e.at,
-                                n,
-                                self.scopes.iter().rev().flat_map(|s| s.keys().cloned()),
-                            )
-                        },
-                    );
+                    return Err({
+                        v11::unknown_name(
+                            &e.at,
+                            n,
+                            self.scopes.iter().rev().flat_map(|s| s.keys().cloned()),
+                        )
+                    });
                 }
             }
             ExprKind::Unary(op, inner) => {
                 let t = self.expr(inner)?;
                 if op.starts_with("$capture:") {
-                    
                     return Ok(if op == "$capture:borrow" {
                         v06::captures::with_flags(&t, false, false)
                     } else {
@@ -5624,16 +5647,11 @@ impl Checker<'_> {
                     return Ok(if op == "spawn" {
                         t
                     } else {
-                        format!(
-                            "Result<{inner},{}>",
-                            {
-                                "TaskError"
-                            })
+                        format!("Result<{inner},{}>", { "TaskError" })
                     });
                 }
                 if matches!(op.as_str(), "move" | "borrow" | "borrowMut") {
-                    if op != "move"
-                    {
+                    if op != "move" {
                         return Ok(format!(
                             "&{}{}",
                             if op == "borrowMut" { "mut " } else { "" },
@@ -5648,9 +5666,7 @@ impl Checker<'_> {
                 t
             }
             ExprKind::Binary(op, a, b) => {
-                if self.expr(a)?.starts_with("Secret<")
-                    || self.expr(b)?.starts_with("Secret<")
-                {
+                if self.expr(a)?.starts_with("Secret<") || self.expr(b)?.starts_with("Secret<") {
                     if matches!(op.as_str(), "&&" | "||") {
                         return Err(diagnostic(
                             &e.at,
@@ -5754,8 +5770,7 @@ impl Checker<'_> {
                     }
                 }
                 let t = self.expr(base)?;
-                if t.starts_with("Secret<")
-                {
+                if t.starts_with("Secret<") {
                     let inner = Expr {
                         kind: ExprKind::Unary("$unsecret".into(), base.clone()),
                         at: base.at.clone(),
@@ -5779,8 +5794,7 @@ impl Checker<'_> {
                             .ok_or_else(|| diagnostic(&e.at, "tuple field out of range"));
                     }
                 }
-                if t.starts_with("Frozen<")
-                {
+                if t.starts_with("Frozen<") {
                     let inner = Expr {
                         kind: ExprKind::Unary("$unfreeze".into(), base.clone()),
                         at: base.at.clone(),
@@ -5956,7 +5970,6 @@ impl Checker<'_> {
                     }
                 }
                 if matches!(&target.kind,ExprKind::Name(n) if n=="$tuple") {
-                    
                     if types.iter().any(|t| t.starts_with('&')) {
                         return Err(diagnostic(&e.at, "tuple cannot contain a borrow"));
                     }
@@ -6006,7 +6019,6 @@ impl Checker<'_> {
                         }
                         if ty.starts_with("Task<") {
                             if method == "selectReady"
-                                
                                 && types.len() == 1
                                 && types[0].starts_with("Task<")
                             {
@@ -6030,11 +6042,8 @@ impl Checker<'_> {
                                     ));
                                 }
                             }
-                            if types.is_empty()
-                            {
-                                if method == "isDone"
-                                    
-                                {
+                            if types.is_empty() {
+                                if method == "isDone" {
                                     return Ok("Bool".into());
                                 }
                                 if method == "requestCancel" {
@@ -6106,9 +6115,7 @@ impl Checker<'_> {
                     }
                     return Ok(format!("Result<Unit,PropertyCase<{ty}>>"));
                 }
-                if matches!(&target.kind, ExprKind::Name(n) if n == "propertyInt")
-                    
-                {
+                if matches!(&target.kind, ExprKind::Name(n) if n == "propertyInt") {
                     if types.len() != 5 || types[..4].iter().any(|t| t != "Int") {
                         return Err(diagnostic(
                             &e.at,
@@ -6132,8 +6139,7 @@ impl Checker<'_> {
                     if let Some(ty) = v091::call_type(self.program, name, &types, &e.at)? {
                         return Ok(ty);
                     }
-                    if matches!(name.as_str(), "secret" | "reveal")
-                    {
+                    if matches!(name.as_str(), "secret" | "reveal") {
                         if types.len() != 1 {
                             return Err(diagnostic(&e.at, "secret/reveal requires one argument"));
                         }
@@ -6147,8 +6153,7 @@ impl Checker<'_> {
                                 .ok_or_else(|| diagnostic(&e.at, "reveal requires Secret<T>"))
                         };
                     }
-                    if matches!(name.as_str(), "freeze" | "thaw")
-                    {
+                    if matches!(name.as_str(), "freeze" | "thaw") {
                         if types.len() != 1 {
                             return Err(diagnostic(&e.at, "freeze/thaw requires one argument"));
                         }
@@ -6468,19 +6473,23 @@ impl Checker<'_> {
                                 | "Locale"
                         ) {
                             {
-                                if false && matches!(
-                                    (n.as_str(), method.as_str()),
-                                    ("In", "readSecretLine") | ("Env", "getSecret")
-                                ) {
+                                if false
+                                    && matches!(
+                                        (n.as_str(), method.as_str()),
+                                        ("In", "readSecretLine") | ("Env", "getSecret")
+                                    )
+                                {
                                     return Err(diagnostic(
                                         &e.at,
                                         "secret observations require language 0.6",
                                     ));
                                 }
-                                if false && matches!(
-                                    (n.as_str(), method.as_str()),
-                                    ("In", "readChunk") | ("Out", "writeBytes")
-                                ) {
+                                if false
+                                    && matches!(
+                                        (n.as_str(), method.as_str()),
+                                        ("In", "readChunk") | ("Out", "writeBytes")
+                                    )
+                                {
                                     return Err(diagnostic(
                                         &e.at,
                                         "byte I/O requires language 0.9.4",
@@ -6633,9 +6642,7 @@ impl Checker<'_> {
                                     .and_then(|inner| split_type_args(inner).get(1).copied())
                                     .map(|inner| format!("Option<{inner}>"))
                                     .unwrap_or("Option<Unknown>".into()),
-                                ("List", "pop")
-                                    if true =>
-                                {
+                                ("List", "pop") if true => {
                                     format!(
                                         "Option<{}>",
                                         t.strip_prefix("List<")
@@ -6721,9 +6728,7 @@ impl Checker<'_> {
                             method.as_str(),
                             types.len(),
                         ) {
-                            ("List", "pop", 0)
-                                if true =>
-                            {
+                            ("List", "pop", 0) if true => {
                                 format!(
                                     "Option<{}>",
                                     t.strip_prefix("List<")
@@ -6852,7 +6857,6 @@ impl Checker<'_> {
                 result.unwrap_or("Unit".into())
             }
             ExprKind::Block(body, tail) => {
-                
                 let mut scoped = Checker {
                     program: self.program,
                     scopes: self.scopes.clone(),
@@ -6873,7 +6877,6 @@ impl Checker<'_> {
             }
             ExprKind::Closure(params, ret, body) => {
                 if params.iter().any(|(_, t)| t == "Unknown") {
-                    
                     // Positions that know the parameter types (calls, let, return,
                     // assignment) check a typed copy instead (`contextual_closures`,
                     // `closure_for_type`); call arguments left untyped are rejected
@@ -6925,7 +6928,8 @@ impl Checker<'_> {
                 {
                     let ty = v06::fn_type(params, ret, &v06::closure_effects(self, params, body)?);
                     v06::captures::infer(self, &ty, v06::captures::names(self, params, body))
-                }}
+                }
+            }
             ExprKind::NamedConstructor(name, fields) => {
                 let resolved_name = resolve_alias(self.program, name);
                 let (enum_name, variant) = resolved_name.split_once("::").unwrap();
@@ -7143,8 +7147,11 @@ impl Checker<'_> {
                     .program
                     .functions
                     .get(resolved.split('<').next().unwrap_or(&resolved))?;
-                let type_params: Vec<String> =
-                    function.type_params.iter().map(|(n, _)| n.clone()).collect();
+                let type_params: Vec<String> = function
+                    .type_params
+                    .iter()
+                    .map(|(n, _)| n.clone())
+                    .collect();
                 let mut substitutions = BTreeMap::new();
                 if !type_params.is_empty() {
                     // Fix the type parameters from the arguments that are not short closures.
@@ -7178,18 +7185,24 @@ impl Checker<'_> {
         }
         self.typed_arguments(args, expected)
     }
-    fn typed_arguments(&self, args: &[Expr], expected: Vec<Option<Vec<String>>>) -> Option<Vec<Expr>> {
+    fn typed_arguments(
+        &self,
+        args: &[Expr],
+        expected: Vec<Option<Vec<String>>>,
+    ) -> Option<Vec<Expr>> {
         let mut changed = false;
         let rewritten = args
             .iter()
             .zip(expected)
-            .map(|(arg, wanted)| match wanted.and_then(|w| typed_closure(arg, &w)) {
-                Some(typed) => {
-                    changed = true;
-                    typed
-                }
-                None => arg.clone(),
-            })
+            .map(
+                |(arg, wanted)| match wanted.and_then(|w| typed_closure(arg, &w)) {
+                    Some(typed) => {
+                        changed = true;
+                        typed
+                    }
+                    None => arg.clone(),
+                },
+            )
             .collect();
         changed.then_some(rewritten)
     }
@@ -7200,9 +7213,7 @@ impl Checker<'_> {
         let ExprKind::Closure(params, _, _) = &expr.kind else {
             return Ok(None);
         };
-        if !params.iter().any(|(_, t)| t == "Unknown")
-            || false
-        {
+        if !params.iter().any(|(_, t)| t == "Unknown") || false {
             return Ok(None);
         }
         let wanted = rename_type(wanted, &self.program.import_aliases);
@@ -7232,9 +7243,7 @@ impl Checker<'_> {
                             .map(|ty| rename_type(ty, &self.program.import_aliases))
                             .and_then(|ty| function_signature(&ty).map(|(p, _)| (ty, p)));
                         match annotated {
-                            Some((annotation, wanted))
-                                if true =>
-                            {
+                            Some((annotation, wanted)) if true => {
                                 if wanted.len() != params.len() {
                                     return Err(diagnostic(
                                         &expr.at,
@@ -7313,8 +7322,7 @@ impl Checker<'_> {
             }
             StmtKind::Assign(lhs, _, rhs) => {
                 if let ExprKind::Member(base, _) = &lhs.kind {
-                    if self.expr(base)?.starts_with("Tuple<")
-                    {
+                    if self.expr(base)?.starts_with("Tuple<") {
                         return Err(diagnostic(&lhs.at, "tuple fields are immutable"));
                     }
                     if self.expr(base)?.starts_with("Frozen<") {
@@ -7457,9 +7465,7 @@ impl Checker<'_> {
                     ));
                 }
             }
-            StmtKind::Revert(name) | StmtKind::Resume(name)
-                if name == "begin"  =>
-            {
+            StmtKind::Revert(name) | StmtKind::Resume(name) if name == "begin" => {
                 for scope in &mut self.scopes {
                     scope.clear();
                 }
@@ -8455,9 +8461,7 @@ impl<R: BufRead> Engine<R> {
                 }
             }
             if let Some(v) = v092::call(name, &args, &mut self.runtime).map_err(Flow::Error)? {
-                return {
-                    self.own_native_result(v)
-                };
+                return self.own_native_result(v);
             }
         }
         {
@@ -8465,9 +8469,7 @@ impl<R: BufRead> Engine<R> {
                 return Ok(value);
             }
         }
-        if name == "$tuple"
-            
-        {
+        if name == "$tuple" {
             return Ok(Value::Struct(
                 format!(
                     "Tuple<{}>",
@@ -8482,8 +8484,7 @@ impl<R: BufRead> Engine<R> {
                     .collect(),
             ));
         }
-        if matches!(name, "secret" | "reveal")
-        {
+        if matches!(name, "secret" | "reveal") {
             if args.len() != 1 {
                 return Err(self.fail(at, "secret/reveal requires one argument"));
             }
@@ -8502,8 +8503,7 @@ impl<R: BufRead> Engine<R> {
                     .ok_or_else(|| self.fail(at, "reveal requires Secret<T>"))
             };
         }
-        if matches!(name, "freeze" | "thaw")
-        {
+        if matches!(name, "freeze" | "thaw") {
             if args.len() != 1 {
                 return Err(self.fail(at, "freeze/thaw requires one argument"));
             }
@@ -9376,16 +9376,16 @@ impl<R: BufRead> Engine<R> {
                 v05::freeze_member(result, &self.runtime)
             });
         }
-        if args.is_empty()
-        {
+        if args.is_empty() {
             if method == "iter" {
                 let value = self.collection_snapshot(&target, at)?;
-                if let Some(iterator) = if matches!(self.program.language.as_str(), "3.0.0" | "3.1.0") {
-                    v05::new_budgeted_iterator(&mut self.runtime, &value)
-                } else {
-                    v05::new_iterator(&mut self.runtime, &value)
-                }
-                .map_err(Flow::Error)?
+                if let Some(iterator) =
+                    if matches!(self.program.language.as_str(), "3.0.0" | "3.1.0") {
+                        v05::new_budgeted_iterator(&mut self.runtime, &value)
+                    } else {
+                        v05::new_iterator(&mut self.runtime, &value)
+                    }
+                    .map_err(Flow::Error)?
                 {
                     return Ok(iterator);
                 }
@@ -9394,11 +9394,7 @@ impl<R: BufRead> Engine<R> {
                 if let Some(value) =
                     v05::iterator_next(&mut self.runtime, &target).map_err(Flow::Error)?
                 {
-                    return Ok(
-                        {
-                            v06::immutable_tuple(value, &self.runtime)
-                        },
-                    );
+                    return Ok(v06::immutable_tuple(value, &self.runtime));
                 }
             }
         }
@@ -9604,9 +9600,7 @@ impl<R: BufRead> Engine<R> {
                     }
                     Value::TypedList(ty, mut list) => {
                         match (method, args.as_slice()) {
-                            ("pop", [])
-                                if true =>
-                            {
+                            ("pop", []) if true => {
                                 let value = list.pop();
                                 self.runtime.heap_set(id, Value::TypedList(ty, list))?;
                                 Ok(Value::Option(value.map(Box::new)))
@@ -9793,27 +9787,17 @@ impl<R: BufRead> Engine<R> {
                 Ok(unit)
             }
             ("Out", "flush", 0) | ("Err", "flush", 0) => Ok(unit),
-            ("In", "readSecretLine", 0)
-                if true =>
-            {
-                Ok(Value::Option(
-                    self.runtime
-                        .secret_input_line(&mut self.input)?
-                        .map(|s| Box::new(v05::secret(Value::Text(s.into()), "String".into()))),
-                ))
-            }
-            ("Env", "getSecret", 1)
-                if true =>
-            {
-                Ok(Value::Option(
-                    self.runtime
-                        .secret_environment_value(&strings()[0])?
-                        .map(|s| Box::new(v05::secret(Value::Text(s.into()), "String".into()))),
-                ))
-            }
-            ("In", "readChunk", 1)
-                if true =>
-            {
+            ("In", "readSecretLine", 0) if true => Ok(Value::Option(
+                self.runtime
+                    .secret_input_line(&mut self.input)?
+                    .map(|s| Box::new(v05::secret(Value::Text(s.into()), "String".into()))),
+            )),
+            ("Env", "getSecret", 1) if true => Ok(Value::Option(
+                self.runtime
+                    .secret_environment_value(&strings()[0])?
+                    .map(|s| Box::new(v05::secret(Value::Text(s.into()), "String".into()))),
+            )),
+            ("In", "readChunk", 1) if true => {
                 let Value::Int(limit) = args[0] else {
                     return Err(self.fail(at, "readChunk expects Int"));
                 };
@@ -9826,9 +9810,7 @@ impl<R: BufRead> Engine<R> {
                         .map(|bytes| Box::new(Value::Bytes(bytes.into()))),
                 ))
             }
-            ("Out", "writeBytes", 1)
-                if true =>
-            {
+            ("Out", "writeBytes", 1) if true => {
                 let Value::Bytes(bytes) = &args[0] else {
                     return Err(self.fail(at, "writeBytes expects Bytes"));
                 };
@@ -10264,10 +10246,10 @@ fn trait_satisfied_in_context(
 }
 fn builtin_key_type(_program: &Program, ty: &str) -> bool {
     matches!(ty, "Bool" | "Int" | "Float" | "String" | "Bytes")
-        || (ty == "BigInt" )
-        || (ty == "Decimal" )
-        || (ty == "Regex" )
-        || (matches!(ty, "Instant" | "Duration") )
+        || (ty == "BigInt")
+        || (ty == "Decimal")
+        || (ty == "Regex")
+        || (matches!(ty, "Instant" | "Duration"))
 }
 fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
     if bound.contains('+') {
@@ -10276,8 +10258,7 @@ fn trait_satisfied(program: &Program, bound: &str, ty: &str) -> bool {
     if bound == "Effect" {
         return ty.starts_with('@');
     }
-    if matches!(bound, "Send" | "Share")
-    {
+    if matches!(bound, "Send" | "Share") {
         return v05::transfer_type(program, ty, bound == "Share", &mut BTreeSet::new());
     }
     if matches!(bound, "Eq" | "Ord" | "Hash" | "Display") && builtin_key_type(program, ty) {
@@ -10297,7 +10278,7 @@ fn impl_matches(
     if target == ty {
         return true;
     }
-    
+
     let Some(f) = methods
         .values()
         .next()
@@ -10484,10 +10465,7 @@ fn trait_method_return(
         return Ok(Some(substitute_type(&f.ret, &substitutions)));
     }
     if f.params.len() != args.len() + 1
-        || f.params.first().is_none_or(|(_, t)| {
-            {
-                !compatible(t, ty)
-            }})
+        || f.params.first().is_none_or(|(_, t)| !compatible(t, ty))
         || f.params
             .iter()
             .skip(1)
@@ -10950,9 +10928,7 @@ pub fn timeline(
 
 pub fn repl(root: &Path, record: Option<&Path>) -> Result<()> {
     let config = project::ProjectConfig::load(root)?;
-    if config.as_ref().is_some_and(|_c| {
-        true
-    }) {
+    if config.as_ref().is_some_and(|_c| true) {
         v09::repl(root, record)
     } else if record.is_some() {
         Err(Error::InvalidOperation(

@@ -1,6 +1,7 @@
 use std::{fs, path::Path, process::Command};
 
-const SOURCE: &str = "effects {external,random};import std.crypto as crypto;import std.bytes as bytes;\n\
+const SOURCE: &str =
+    "effects {external,random};import std.crypto as crypto;import std.bytes as bytes;\n\
 fn main() -> Int {\n\
     var low=\"\";\n\
     var high=\"\";\n\

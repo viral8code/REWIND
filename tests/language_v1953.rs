@@ -27,4 +27,3 @@ fn unary_views_checkpoint_handoff_and_source_free_recording() {
     ok(&result);
     fs::remove_dir_all(root).unwrap();
 }
-

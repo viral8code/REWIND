@@ -10,8 +10,8 @@ use serde_json::{json, Value as Json};
 /// Words with a fixed meaning in language 4.0.0 (see `is_hard_keyword`), in the order of the
 /// documentation. `None` is a literal but not a reserved word.
 const KEYWORDS: &[&str] = &[
-    "fn", "let", "var", "const", "struct", "record", "enum", "trait", "impl", "type", "import", "as",
-    "pub", "private", "async", "mut", "if", "else", "match", "while", "for", "in", "break",
+    "fn", "let", "var", "const", "struct", "record", "enum", "trait", "impl", "type", "import",
+    "as", "pub", "private", "async", "mut", "if", "else", "match", "while", "for", "in", "break",
     "continue", "return", "defer", "using", "commit", "revert", "resume", "drop", "publish",
     "branch", "runtime", "external", "begin", "move", "spawn", "await",
 ];
@@ -41,10 +41,12 @@ pub(super) struct Span {
 }
 
 pub(super) fn info() -> Json {
-    let supported = ["3.0.0", "3.1.0", "3.2.0", "3.3.0", "3.4.0", "3.5.0", "3.6.0", "4.0.0"]
-        .into_iter()
-        .filter(|v| project::is_supported_language(v))
-        .collect::<Vec<_>>();
+    let supported = [
+        "3.0.0", "3.1.0", "3.2.0", "3.3.0", "3.4.0", "3.5.0", "3.6.0", "4.0.0",
+    ]
+    .into_iter()
+    .filter(|v| project::is_supported_language(v))
+    .collect::<Vec<_>>();
     json!({
         "format": 1,
         "compiler": env!("CARGO_PKG_VERSION"),
@@ -268,7 +270,11 @@ pub(super) fn classify(source: &str) -> Vec<Span> {
             };
         } else {
             let two: String = [c, at(i + 1).unwrap_or('\0')].iter().collect();
-            let width = if TWO_CHARACTER_OPERATORS.contains(&two.as_str()) { 2 } else { 1 };
+            let width = if TWO_CHARACTER_OPERATORS.contains(&two.as_str()) {
+                2
+            } else {
+                1
+            };
             i += width;
             col += width;
             if PUNCTUATION_CHARACTERS.contains(c) {
@@ -331,8 +337,14 @@ pub(super) fn symbols(source: &str) -> Vec<Json> {
                 braces.pop();
             }
             ("punctuation", ";") => container_pending = false,
-            ("keyword", word @ ("fn" | "struct" | "record" | "enum" | "trait" | "impl" | "const" | "type")) => {
-                let Some(name) = code.get(index + 1).filter(|n| matches!(n.kind, "name" | "type_name")) else {
+            (
+                "keyword",
+                word @ ("fn" | "struct" | "record" | "enum" | "trait" | "impl" | "const" | "type"),
+            ) => {
+                let Some(name) = code
+                    .get(index + 1)
+                    .filter(|n| matches!(n.kind, "name" | "type_name"))
+                else {
                     continue;
                 };
                 if matches!(word, "trait" | "impl") {
@@ -359,8 +371,9 @@ pub(super) fn symbols(source: &str) -> Vec<Json> {
 
 /// LSP semantic tokens (`textDocument/semanticTokens/full`), UTF-16 columns, one entry per line of
 /// a token. The legend is `SEMANTIC_LEGEND`.
-pub(super) const SEMANTIC_LEGEND: &[&str] =
-    &["keyword", "comment", "string", "number", "operator", "type", "variable"];
+pub(super) const SEMANTIC_LEGEND: &[&str] = &[
+    "keyword", "comment", "string", "number", "operator", "type", "variable",
+];
 pub(super) fn semantic_tokens(source: &str) -> Vec<u32> {
     let chars: Vec<char> = source.chars().collect();
     let mut data = Vec::new();
@@ -392,7 +405,11 @@ pub(super) fn semantic_tokens(source: &str) -> Vec<u32> {
             if length > 0 {
                 let start = utf16(&chars[line_start..segment_start]);
                 let delta_line = line - previous_line;
-                let delta_start = if delta_line == 0 { start - previous_start } else { start };
+                let delta_start = if delta_line == 0 {
+                    start - previous_start
+                } else {
+                    start
+                };
                 data.extend([delta_line, delta_start, length, kind, 0]);
                 (previous_line, previous_start) = (line, start);
             }
@@ -428,12 +445,12 @@ mod tests {
         }
         // Every reserved word is either listed or a literal word, and nothing else.
         let probe = [
-            "fn", "let", "var", "const", "struct", "record", "enum", "trait", "impl", "type", "import",
-            "as", "pub", "private", "async", "mut", "if", "else", "match", "while", "for", "in",
-            "break", "continue", "return", "defer", "using", "commit", "revert", "resume", "drop",
-            "publish", "branch", "runtime", "external", "begin", "move", "spawn", "await", "true",
-            "false", "null", "None", "value", "capture", "borrow", "force", "live", "fresh", "test",
-            "where", "effects", "captures",
+            "fn", "let", "var", "const", "struct", "record", "enum", "trait", "impl", "type",
+            "import", "as", "pub", "private", "async", "mut", "if", "else", "match", "while",
+            "for", "in", "break", "continue", "return", "defer", "using", "commit", "revert",
+            "resume", "drop", "publish", "branch", "runtime", "external", "begin", "move", "spawn",
+            "await", "true", "false", "null", "None", "value", "capture", "borrow", "force",
+            "live", "fresh", "test", "where", "effects", "captures",
         ];
         for word in probe {
             let listed = KEYWORDS.contains(&word) || matches!(word, "true" | "false" | "null");
@@ -459,9 +476,14 @@ mod tests {
     #[test]
     fn broken_source_still_gets_classified() {
         let spans = classify("let s = \"open\nlet t = 1;");
-        assert_eq!(spans.iter().find(|s| s.kind == "string").unwrap().error, Some("unterminated"));
+        assert_eq!(
+            spans.iter().find(|s| s.kind == "string").unwrap().error,
+            Some("unterminated")
+        );
         let spans = classify("let a = 1 @ 2; /* open");
-        assert!(spans.iter().any(|s| s.kind == "unknown" && s.error.is_some()));
+        assert!(spans
+            .iter()
+            .any(|s| s.kind == "unknown" && s.error.is_some()));
         assert_eq!(spans.last().unwrap().kind, "comment");
         assert_eq!(spans.last().unwrap().error, Some("unterminated"));
         // Empty and whitespace-only sources are fine.
@@ -472,7 +494,15 @@ mod tests {
     #[test]
     fn multi_line_tokens_report_their_end() {
         let spans = classify("/* a\nb */ x");
-        assert_eq!((spans[0].line, spans[0].col, spans[0].end_line, spans[0].end_col), (1, 1, 2, 5));
+        assert_eq!(
+            (
+                spans[0].line,
+                spans[0].col,
+                spans[0].end_line,
+                spans[0].end_col
+            ),
+            (1, 1, 2, 5)
+        );
         assert_eq!((spans[1].line, spans[1].col), (2, 6));
     }
 
@@ -490,7 +520,12 @@ mod tests {
         let found = symbols(source);
         let names: Vec<(String, String)> = found
             .iter()
-            .map(|s| (s["kind"].as_str().unwrap().into(), s["name"].as_str().unwrap().into()))
+            .map(|s| {
+                (
+                    s["kind"].as_str().unwrap().into(),
+                    s["name"].as_str().unwrap().into(),
+                )
+            })
             .collect();
         assert_eq!(
             names,
@@ -523,7 +558,9 @@ mod tests {
     #[test]
     fn classifier_agrees_with_the_lexer() {
         fn collect(directory: &Path, files: &mut Vec<PathBuf>) {
-            let Ok(entries) = fs::read_dir(directory) else { return };
+            let Ok(entries) = fs::read_dir(directory) else {
+                return;
+            };
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {

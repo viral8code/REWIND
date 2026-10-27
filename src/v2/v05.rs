@@ -40,7 +40,7 @@ pub(super) fn prepare(program: &mut Program) -> Result<()> {
     v091::prepare(program)?;
     v092::prepare(program)?;
     v100::prepare(program)?;
-    
+
     for name in [
         "Frozen",
         "Secret",
@@ -797,9 +797,7 @@ fn transfer_type_with_bounds(
     {
         return true;
     }
-    if ty == "Json"
-        
-    {
+    if ty == "Json" {
         return true;
     }
     if ty == "FileError" {
@@ -815,9 +813,7 @@ fn transfer_type_with_bounds(
         }
     }
     if ty.starts_with("fn(") {
-        return {
-            v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" })
-        };
+        return v06::captures::flags(ty).contains(if shared { "Share" } else { "Send" });
     }
     if matches!(ty, "FileHandle") {
         return false;

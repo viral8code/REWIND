@@ -520,7 +520,10 @@ mod tests {
     fn replace_existing_matches_insert_and_reuses_the_key() {
         let mut map = PersistentMap::new();
         for id in 1u64..=200 {
-            map.set(MapKey::Bytes(id.to_be_bytes().to_vec()), Value::Int(id as i64));
+            map.set(
+                MapKey::Bytes(id.to_be_bytes().to_vec()),
+                Value::Int(id as i64),
+            );
         }
         for id in [1u64, 77, 128, 200] {
             let key = Arc::new(MapKey::Bytes(id.to_be_bytes().to_vec()));
@@ -552,7 +555,9 @@ mod tests {
             };
             assert!(Arc::ptr_eq(&found, &reused));
         }
-        assert!(replace_existing(&map.root, &1000u64.to_be_bytes(), Arc::new(Value::Int(0))).is_none());
+        assert!(
+            replace_existing(&map.root, &1000u64.to_be_bytes(), Arc::new(Value::Int(0))).is_none()
+        );
         assert!(replace_existing(&None, &1u64.to_be_bytes(), Arc::new(Value::Int(0))).is_none());
         assert!(!map.heap_replace_existing(1000, Value::Int(0)));
     }

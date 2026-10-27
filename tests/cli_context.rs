@@ -73,7 +73,11 @@ fn nearest_parent_manifest_wins_regardless_of_cwd() {
         "language = \"3.0.0\"\nsource_root = \"src\"\nentry = \"main.rw\"\neffects = \"output\"\n",
     )
     .unwrap();
-    fs::write(project.join("src/main.rw"), "fn main() -> Int {\n    Out.println(1);\n    publish;\n    return 0;\n}\n").unwrap();
+    fs::write(
+        project.join("src/main.rw"),
+        "fn main() -> Int {\n    Out.println(1);\n    publish;\n    return 0;\n}\n",
+    )
+    .unwrap();
     let ok = rewind(&project, &["update"]);
     assert!(ok.status.success(), "{}", stderr(&ok));
     let cwd = dir();

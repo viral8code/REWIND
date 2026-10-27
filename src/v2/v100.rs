@@ -3,7 +3,6 @@
 use super::*;
 
 pub(super) fn prepare(program: &mut Program) -> Result<()> {
-    
     fn expected(p: &Program, expr: &mut Expr, ty: &str) -> Result<()> {
         let ExprKind::Call(target, _) = &mut expr.kind else {
             return Ok(());

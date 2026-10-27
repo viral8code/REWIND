@@ -51,4 +51,3 @@ fn regex_source_free_replay_checkpoint_and_map() {
     assert_eq!(output.stdout, replay.stdout);
     fs::remove_dir_all(root).unwrap();
 }
-

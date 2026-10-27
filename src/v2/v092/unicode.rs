@@ -16,11 +16,16 @@ fn signature(n: &str) -> Option<(&'static [&'static str], &'static str)> {
 pub(super) fn parameter(n: &str, i: usize) -> Option<&'static str> {
     signature(n)?.0.get(i).copied()
 }
-pub(super) fn call_type(_p: &Program, n: &str, args: &[String], at: &Tok) -> Result<Option<String>> {
+pub(super) fn call_type(
+    _p: &Program,
+    n: &str,
+    args: &[String],
+    at: &Tok,
+) -> Result<Option<String>> {
     let Some((params, ret)) = signature(n) else {
         return Ok(None);
     };
-    
+
     if args.len() != params.len() || params.iter().zip(args).any(|(p, a)| !compatible(p, a)) {
         return Err(diagnostic(
             at,

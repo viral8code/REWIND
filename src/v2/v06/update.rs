@@ -6,7 +6,7 @@ fn old_hash(root: &Path) -> Option<String> {
 fn proposal(root: &Path) -> Result<Json> {
     let config = project::ProjectConfig::load_for_update(root)?
         .ok_or_else(|| Error::InvalidOperation("rewind.toml is required".into()))?;
-    
+
     let lock = config.lock_document(root)?;
     let next: Json =
         serde_json::from_str(&lock).map_err(|e| Error::InvalidOperation(e.to_string()))?;

@@ -77,7 +77,14 @@ fn recorded_line_separator_replays_the_recorded_value() {
     fs::remove_file(root.join("main.rw")).unwrap();
     let output = run(
         &root,
-        &["run", "main.rwc", "--allow-effects", "external", "--record", "trace.json"],
+        &[
+            "run",
+            "main.rwc",
+            "--allow-effects",
+            "external",
+            "--record",
+            "trace.json",
+        ],
     );
     success(&output);
     // The trace holds the observed value, so replay does not look at the host again.
@@ -100,7 +107,14 @@ fn replay_returns_the_recorded_separator_not_the_host_value() {
     fs::write(root.join("main.rw"), SINGLE).unwrap();
     success(&run(
         &root,
-        &["run", "main.rw", "--allow-effects", "external", "--record", "trace.json"],
+        &[
+            "run",
+            "main.rw",
+            "--allow-effects",
+            "external",
+            "--record",
+            "trace.json",
+        ],
     ));
     let trace = fs::read_to_string(root.join("trace.json")).unwrap();
     let host = if cfg!(windows) { r"\\r\\n" } else { r"\\n" };

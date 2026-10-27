@@ -159,7 +159,9 @@ fn read_hex(chars: &[char], i: &mut usize, line: usize) -> Result<u32, String> {
         return Err(format!("{line} 行: `#x` のあとに 16 進数が必要です"));
     }
     if char::from_u32(v).is_none() {
-        return Err(format!("{line} 行: `#x{v:X}` は Unicode のスカラ値ではありません"));
+        return Err(format!(
+            "{line} 行: `#x{v:X}` は Unicode のスカラ値ではありません"
+        ));
     }
     *i = j;
     Ok(v)
@@ -531,7 +533,10 @@ impl Grammar {
         let mut index = HashMap::new();
         for (i, r) in rules.iter().enumerate() {
             if index.insert(r.name.clone(), i).is_some() {
-                errors.push(format!("{} 行: 規則 {} が二重に定義されています", r.line, r.name));
+                errors.push(format!(
+                    "{} 行: 規則 {} が二重に定義されています",
+                    r.line, r.name
+                ));
             }
         }
         let g = Grammar { rules, index };
@@ -555,13 +560,23 @@ impl Grammar {
         }
     }
 
-    fn walk(&self, e: &Expr, rule: &Rule, layer: Layer, refs: &mut Vec<String>, errors: &mut Vec<String>) {
+    fn walk(
+        &self,
+        e: &Expr,
+        rule: &Rule,
+        layer: Layer,
+        refs: &mut Vec<String>,
+        errors: &mut Vec<String>,
+    ) {
         let at = |msg: String| format!("{} 行: 規則 {}: {msg}", rule.line, rule.name);
         match e {
             Expr::Empty | Expr::Lit(_) => {}
             Expr::Class(_) => {
                 if layer == Layer::Syntax {
-                    errors.push(at("構文規則の本体に文字クラスや #x は書けません（字句規則へ移してください）".into()));
+                    errors.push(at(
+                        "構文規則の本体に文字クラスや #x は書けません（字句規則へ移してください）"
+                            .into(),
+                    ));
                 }
             }
             Expr::Ref(n) => match (layer_of(n), self.index.contains_key(n)) {
@@ -586,14 +601,18 @@ impl Grammar {
                 }
                 for x in [a, b] {
                     if !self.is_terminal_like(x) {
-                        errors.push(at("差の項は終端（リテラル、文字クラス、字句規則）に限ります".into()));
+                        errors.push(at(
+                            "差の項は終端（リテラル、文字クラス、字句規則）に限ります".into(),
+                        ));
                     }
                     self.walk(x, rule, layer, refs, errors);
                 }
             }
             Expr::NotStart(x) | Expr::NotFollow(x) => {
                 if !self.is_terminal_like(x) {
-                    errors.push(at("注釈の項は終端（リテラル、文字クラス、字句規則）に限ります".into()));
+                    errors.push(at(
+                        "注釈の項は終端（リテラル、文字クラス、字句規則）に限ります".into(),
+                    ));
                 }
                 self.walk(x, rule, layer, refs, errors);
             }
@@ -636,7 +655,10 @@ impl Grammar {
         }
         for r in &self.rules {
             if !seen.contains(&r.name) && layer_of(&r.name).is_some() {
-                errors.push(format!("{} 行: 規則 {} は入口から到達しません", r.line, r.name));
+                errors.push(format!(
+                    "{} 行: 規則 {} は入口から到達しません",
+                    r.line, r.name
+                ));
             }
         }
     }
@@ -765,14 +787,16 @@ impl Compiler<'_> {
     /// 1 トークン（文字モードでは 1 文字）に当てはまる述語へ変える。
     fn to_terminal(&mut self, e: &Expr, depth: usize) -> Option<Terminal> {
         if depth > 50 {
-            self.errors.push("終端の定義が深すぎるか循環しています".into());
+            self.errors
+                .push("終端の定義が深すぎるか循環しています".into());
             return None;
         }
         match e {
             Expr::Lit(s) => {
                 if self.char_mode && s.chars().count() != 1 {
-                    self.errors
-                        .push(format!("文字単位では差・注釈の項に使うリテラルは 1 文字に限ります: '{s}'"));
+                    self.errors.push(format!(
+                        "文字単位では差・注釈の項に使うリテラルは 1 文字に限ります: '{s}'"
+                    ));
                     None
                 } else {
                     Some(Terminal::Text(s.clone()))

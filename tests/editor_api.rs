@@ -28,7 +28,12 @@ fn rewind(args: &[&str], stdin: &str) -> (i32, Value, String) {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    child.stdin.take().unwrap().write_all(stdin.as_bytes()).unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(stdin.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
     let json = serde_json::from_slice(&output.stdout).unwrap_or(Value::Null);
     (
@@ -45,7 +50,12 @@ fn editor_info_lists_the_words_of_the_language() {
     assert_eq!(info["format"], 1);
     assert_eq!(info["languages"]["latest"], "4.0.0");
     let words = |key: &str| -> Vec<&str> {
-        info[key].as_array().unwrap().iter().map(|w| w.as_str().unwrap()).collect()
+        info[key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|w| w.as_str().unwrap())
+            .collect()
     };
     assert!(words("keywords").contains(&"commit"));
     assert!(words("keywords").contains(&"fn"));
@@ -68,12 +78,15 @@ fn editor_info_lists_the_words_of_the_language() {
 
 #[test]
 fn tokens_work_on_source_that_does_not_compile() {
-    let source = "fn main() -> Int {\n    let s = \"open;\n    // keep this comment\n    return 0;\n}\n";
+    let source =
+        "fn main() -> Int {\n    let s = \"open;\n    // keep this comment\n    return 0;\n}\n";
     let (code, doc, stderr) = rewind(&["tokens", "-"], source);
     assert_eq!(code, 0, "{stderr}");
     let tokens = doc["tokens"].as_array().unwrap();
     assert_eq!(tokens[0]["kind"], "keyword");
-    assert!(tokens.iter().any(|t| t["kind"] == "string" && t["error"] == "unterminated"));
+    assert!(tokens
+        .iter()
+        .any(|t| t["kind"] == "string" && t["error"] == "unterminated"));
     assert_eq!(doc["symbols"][0]["name"], "main");
     assert_eq!(doc["symbols"][0]["kind"], "function");
 }
@@ -100,7 +113,12 @@ fn language_server_serves_outline_and_semantic_tokens() {
     let dir = root();
     let file = dir.join("main.rw");
     fs::write(&file, "").unwrap();
-    let uri = format!("file:///{}", file.to_string_lossy().replace('\\', "/").trim_start_matches('/'));
+    let uri = format!(
+        "file:///{}",
+        file.to_string_lossy()
+            .replace('\\', "/")
+            .trim_start_matches('/')
+    );
     let source = "struct P { x: Int }\nimpl P { fn len(self) -> Int { return 1; } }\nfn main() -> Int { return 0; } // end\n";
     let requests = vec![
         json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
@@ -125,7 +143,11 @@ fn language_server_serves_outline_and_semantic_tokens() {
     }
     drop(stdin);
     let output = child.wait_with_output().unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let mut rest = output.stdout.as_slice();
     let mut messages = Vec::new();
     while !rest.is_empty() {
@@ -141,14 +163,32 @@ fn language_server_serves_outline_and_semantic_tokens() {
     }
     let capabilities = &messages[0]["result"]["capabilities"];
     assert_eq!(capabilities["documentSymbolProvider"], true);
-    assert_eq!(capabilities["semanticTokensProvider"]["legend"]["tokenTypes"][0], "keyword");
-    let symbols = messages.iter().find(|m| m["id"] == 2).unwrap()["result"].as_array().unwrap().clone();
-    let names: Vec<&str> = symbols.iter().map(|s| s["name"].as_str().unwrap()).collect();
+    assert_eq!(
+        capabilities["semanticTokensProvider"]["legend"]["tokenTypes"][0],
+        "keyword"
+    );
+    let symbols = messages.iter().find(|m| m["id"] == 2).unwrap()["result"]
+        .as_array()
+        .unwrap()
+        .clone();
+    let names: Vec<&str> = symbols
+        .iter()
+        .map(|s| s["name"].as_str().unwrap())
+        .collect();
     assert_eq!(names, ["P", "P", "len", "main"]);
     assert_eq!(symbols[2]["kind"], 6);
-    assert_eq!(symbols[3]["range"]["start"], json!({"line": 2, "character": 3}));
-    let data = messages.iter().find(|m| m["id"] == 3).unwrap()["result"]["data"].as_array().unwrap().clone();
+    assert_eq!(
+        symbols[3]["range"]["start"],
+        json!({"line": 2, "character": 3})
+    );
+    let data = messages.iter().find(|m| m["id"] == 3).unwrap()["result"]["data"]
+        .as_array()
+        .unwrap()
+        .clone();
     assert_eq!(data.len() % 5, 0);
     // The first token is `struct`: line 0, column 0, length 6, type keyword.
-    assert_eq!(data[..5], [json!(0), json!(0), json!(6), json!(0), json!(0)]);
+    assert_eq!(
+        data[..5],
+        [json!(0), json!(0), json!(6), json!(0), json!(0)]
+    );
 }

@@ -70,4 +70,3 @@ fn compiled_sqlite_example_and_nested_frozen_rows_replay_without_source_or_datab
     assert!(!root.join("data.sqlite").exists());
     fs::remove_dir_all(root).unwrap();
 }
-
