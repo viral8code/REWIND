@@ -142,6 +142,8 @@ effects = "output,fileRead"
 | `[assets]` | 実行に同梱するファイル |
 | `[dependencies]` ほか | 依存パッケージ。`rewind update` が `rewind.lock` を書く |
 
+依存関係のないプロジェクトは、`rewind.lock` がなくても動きます。`std` の標準ライブラリは、`import std.…` と書くだけで、コンパイラに組み込まれたものを使えます（`std` を依存に書く必要はありません）。`source_root` を書かないと、既定の `src` を探します。
+
 マニフェストが近くにあるときは、その `language` と `effects` が使われ、ロックファイルの検証も行われます。`rewind update` は依存関係を解決して `rewind.lock` を更新します。依存パッケージの署名と信頼の仕組みは [REWIND_v1.0.md](releases/REWIND_v1.0.md) 以降の各版の文書にあります。
 
 ## 3. 字句

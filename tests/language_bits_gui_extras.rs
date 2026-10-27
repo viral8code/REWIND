@@ -142,3 +142,41 @@ fn main() -> Int effects {gui, output} {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+#[test]
+fn a_project_can_import_std_without_a_lock_or_a_std_dependency() {
+    let root = project("import std.text as text;\nfn main() -> Int {\n    Out.println(\"ok\");\n    return 0;\n}\n");
+    fs::write(
+        root.join("rewind.toml"),
+        "language = \"4.2.0\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"output\"\n",
+    )
+    .unwrap();
+    for args in [&["run", "--root", "."][..], &["run", "main.rw"][..]] {
+        let out = rewind(&root, args);
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout).replace("\r\n", "\n"),
+            "ok\n",
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
+
+#[test]
+fn a_missing_source_root_or_entry_names_the_path() {
+    let root = project("fn main() -> Int { return 0; }\n");
+    fs::write(
+        root.join("rewind.toml"),
+        "language = \"4.2.0\"\nentry = \"main.rw\"\n",
+    )
+    .unwrap();
+    let err = String::from_utf8_lossy(&rewind(&root, &["run", "--root", "."]).stderr).into_owned();
+    assert!(err.contains("source_root `src` was not found"), "{err}");
+    fs::write(
+        root.join("rewind.toml"),
+        "language = \"4.2.0\"\nsource_root = \".\"\nentry = \"nope.rw\"\n",
+    )
+    .unwrap();
+    let err = String::from_utf8_lossy(&rewind(&root, &["run", "--root", "."]).stderr).into_owned();
+    assert!(err.contains("entry file `nope.rw` was not found"), "{err}");
+}

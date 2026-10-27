@@ -345,12 +345,28 @@ impl ProjectConfig {
                 )));
             }
         }
-        let source_root = inside(&root, &source_root.unwrap_or_else(|| "src".into()))?;
+        let source_name = source_root.unwrap_or_else(|| "src".into());
+        let source_root = inside(&root, &source_name).map_err(|error| match error {
+            Error::Io(_) => Error::InvalidOperation(format!(
+                "source_root `{source_name}` was not found in {} (the default is `src`; write source_root = \".\" to use the project folder)",
+                root.display()
+            )),
+            other => other,
+        })?;
         if !source_root.is_dir() {
-            return Err(Error::InvalidPath(source_root.display().to_string()));
+            return Err(Error::InvalidOperation(format!(
+                "source_root {} is not a directory (the default is `src`; write source_root = \".\" to use the project folder)",
+                source_root.display()
+            )));
         }
         let entry = entry.unwrap_or_else(|| "main.rw".into());
-        let entry = inside(&source_root, &entry)?;
+        let entry = inside(&source_root, &entry).map_err(|error| match error {
+            Error::Io(_) => Error::InvalidOperation(format!(
+                "entry file `{entry}` was not found under source_root {}",
+                source_root.display()
+            )),
+            other => other,
+        })?;
         let mut imports = BTreeMap::new();
         imports.insert(String::new(), source_root.clone());
         if deps
@@ -654,9 +670,12 @@ impl ProjectConfig {
             }
             fs::write(path, expected)?;
         } else if !path.exists() {
-            return Err(Error::InvalidOperation(
-                "v0.4 requires rewind.lock; run 'rewind update' explicitly".into(),
-            ));
+            // Nothing is pinned when the project has no dependencies, so there is nothing to lock.
+            if self.lock_imports.keys().any(|name| !name.is_empty()) {
+                return Err(Error::InvalidOperation(
+                    "v0.4 requires rewind.lock; run 'rewind update' explicitly".into(),
+                ));
+            }
         } else if fs::read_to_string(path)? != expected {
             return Err(Error::InvalidOperation(
                 "rewind.lock mismatch; run 'rewind update' explicitly".into(),

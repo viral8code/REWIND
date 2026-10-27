@@ -167,6 +167,52 @@ fn standalone_config(
     effects.extend(extra.iter().cloned());
     let mut config = project::ProjectConfig::artifact(root, entry, effects);
     config.language = standalone_language(&config.entry);
+    let std_root = materialize_std(root)?;
+    config.imports.insert("std".into(), std_root);
+    Ok(config)
+}
+
+/// A project that imports `std.*` without listing a `std` dependency uses the standard library
+/// built into the compiler, the same one a single file gets. The compiler is the trust anchor, so
+/// no signature is involved.
+fn add_embedded_std(config: &mut project::ProjectConfig, root: &Path) -> Result<()> {
+    if config.imports.contains_key("std") || !imports_std(&config.source_root, &mut 0) {
+        return Ok(());
+    }
+    let std_root = materialize_std(root)?;
+    config.imports.insert("std".into(), std_root);
+    Ok(())
+}
+fn imports_std(dir: &Path, seen: &mut usize) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        if *seen > 4096 {
+            return false;
+        }
+        let path = entry.path();
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        if kind.is_dir() {
+            if imports_std(&path, seen) {
+                return true;
+            }
+        } else if kind.is_file() && path.extension().is_some_and(|e| e == "rw") {
+            *seen += 1;
+            if fs::read_to_string(&path).is_ok_and(|text| text.contains("import std.")) {
+                return true;
+            }
+        }
+    }
+    false
+}
+fn materialize_std(root: &Path) -> Result<PathBuf> {
     let base = root.join(".rewind");
     if fs::symlink_metadata(&base).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(Error::InvalidPath(base.display().to_string()));
@@ -195,8 +241,7 @@ fn standalone_config(
         return Err(Error::InvalidPath(metadata.display().to_string()));
     }
     fs::write(metadata, serde_json::to_vec(&serde_json::json!({"name":"std", "version":env!("CARGO_PKG_VERSION"), "effects":["gui","external","live","clock","network","db","tasks","random","fileRead","fileWrite"], "dependencies":{}})).unwrap())?;
-    config.imports.insert("std".into(), std_root);
-    Ok(config)
+    Ok(std_root)
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -4376,8 +4421,9 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     } else {
         project::ProjectConfig::load(root)?
     };
-    if let Some(config) = &manifest {
+    if let Some(config) = &mut manifest {
         config.lock(root, false)?;
+        add_embedded_std(config, root)?;
     }
     if manifest.is_none() && options.standalone {
         let entry = if file.is_empty() {
@@ -4476,11 +4522,14 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
     documentation_mode(file, root, false)
 }
 fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<String> {
-    let manifest = if include_dev {
+    let mut manifest = if include_dev {
         project::ProjectConfig::load_for_test(root)?
     } else {
         project::ProjectConfig::load(root)?
     };
+    if let Some(config) = &mut manifest {
+        add_embedded_std(config, root)?;
+    }
     let mut imports = BTreeMap::new();
     imports.insert(
         String::new(),
