@@ -392,7 +392,14 @@ mod tests {
         let cap = small.0.byte_owners.lock().unwrap().capacity();
         drop(tmp);
         small.prune_bytes();
-        assert_eq!(small.0.byte_owners.lock().unwrap().capacity(), cap);
+        // The table is not shrunk to fit: an empty table that was shrunk would have no capacity at
+        // all. The exact figure is not fixed, because removing entries can leave tombstones that
+        // lower the reported capacity depending on the hasher's random seed.
+        let after = small.0.byte_owners.lock().unwrap().capacity();
+        assert!(
+            after > 0 && after <= cap,
+            "capacity {after} after pruning, {cap} before"
+        );
         drop(keep);
     }
     #[test]
