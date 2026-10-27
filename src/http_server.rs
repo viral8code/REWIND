@@ -729,6 +729,14 @@ async fn dispatch(
             .is_some_and(|value| authentication.accepts(value.as_bytes()))
             && credentials.next().is_none();
         if !valid {
+            // Read and drop what the client already sent. Closing a socket that still holds
+            // unread data resets the connection, and the reset can wipe the 401 out of the
+            // client's receive buffer before it is read. Nothing read here is kept or used.
+            let _ = tokio::time::timeout(
+                Duration::from_millis(limits.lifetime_ms.min(1000)),
+                Limited::new(body, limits.body_bytes).collect(),
+            )
+            .await;
             let mut denied = response(StatusCode::UNAUTHORIZED);
             denied.headers_mut().insert(
                 hyper::header::WWW_AUTHENTICATE,
