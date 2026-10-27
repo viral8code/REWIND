@@ -26,6 +26,11 @@ pub(super) struct Node {
     pub y: i32,
     pub width: i32,
     pub height: i32,
+    // Only the Linux AT-SPI text interface reads the caret and the selection anchor.
+    #[cfg(target_os = "linux")]
+    pub cursor: usize,
+    #[cfg(target_os = "linux")]
+    pub anchor: usize,
 }
 #[derive(Default)]
 struct Published {
@@ -94,6 +99,10 @@ impl Tree {
                 y: 0,
                 width: frame.width,
                 height: frame.height,
+                #[cfg(target_os = "linux")]
+                cursor: 0,
+                #[cfg(target_os = "linux")]
+                anchor: 0,
             });
         };
         let item = frame.items.iter().find(|i| i.id == id)?;
@@ -128,6 +137,10 @@ impl Tree {
             y: item.y,
             width: item.width,
             height: item.height,
+            #[cfg(target_os = "linux")]
+            cursor: item.cursor,
+            #[cfg(target_os = "linux")]
+            anchor: item.anchor,
         })
     }
     pub fn default_action(&self, id: &str) -> Option<Event> {
