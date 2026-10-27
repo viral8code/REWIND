@@ -153,6 +153,8 @@ jobs:
           fi
           if [[ -f "$VERSION_DOC" ]]; then
             cat "$VERSION_DOC" > "$NOTES"
+            # The notes are read on the release page, where links relative to docs/ do not resolve.
+            perl -pi -e 's{\]\((?!https?://|#)([^)]+)\)}{](https://github.com/$ENV{GITHUB_REPOSITORY}/blob/$ENV{RELEASE_TAG}/docs/$1)}g' "$NOTES"
             printf '\n' >> "$NOTES"
           else
             : > "$NOTES"
@@ -165,7 +167,7 @@ jobs:
             printf '%s (this release only): `%s`\n\n' "$(basename "$KEY")" "$(tr -d '\r\n' < "$KEY")" >> "$NOTES"
           done
           gh release create "$RELEASE_TAG" release-assets/* --verify-tag --draft --title "REWIND $RELEASE_TAG — Linux / Windows x86_64 SDK" --notes-file "$NOTES"
-          if [[ "$RELEASE_TAG" == v1.* || "$RELEASE_TAG" == v2.* || "$RELEASE_TAG" == v3.* ]]; then
+          if [[ "$RELEASE_TAG" == v1.* || "$RELEASE_TAG" == v2.* || "$RELEASE_TAG" == v3.* || "$RELEASE_TAG" == v4.* ]]; then
             gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest
           else
             gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false
