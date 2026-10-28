@@ -2,7 +2,7 @@
 
 REWIND は、`commit` / `revert` / `publish` で VM の状態と入出力を扱う、Rust 製のプログラミング言語です。名前付きの保存点、決定的な replay、仮想的な入出力を組み合わせ、外部へ出る操作を `publish` まで保留できます。
 
-現在の版は 4.3.1 で、開発は `codex/develop` branch で行っています。
+現在の版は 4.3.2 で、開発は `codex/develop` branch で行っています。
 
 ## クイックスタート
 
@@ -79,9 +79,9 @@ fn main() -> Int {
 
 ## ドキュメント
 
-- [入門書（HTML）](docs/book/index.html) / [入門書（PDF）](docs/book/REWIND-4.3.1-book.pdf): 4.3.1 を対象に、基本から実用までを 25 章で説明します。
+- [入門書（HTML）](docs/book/index.html) / [入門書（PDF）](docs/book/REWIND-4.3.2-book.pdf): 4.3.2 を対象に、基本から実用までを 25 章で説明します。
 - [言語リファレンス](docs/language-reference.md)（[PDF 版](docs/language-reference.pdf)）: 言語の正確な定義です。
-- [使い方](docs/getting-started.md)、[GUI](docs/gui.md)、[4.3.1 の変更点](docs/releases/REWIND_v4.3.1.md)、[4.3.0 の変更点](docs/releases/REWIND_v4.3.md)、[4.2.2 の変更点](docs/releases/REWIND_v4.2.2.md)、[4.2.1 の変更点](docs/releases/REWIND_v4.2.1.md)、[4.2.0 の変更点](docs/releases/REWIND_v4.2.md)、[4.1.0 の変更点](docs/releases/REWIND_v4.1.md)、[4.0.0 の変更点](docs/releases/REWIND_v4.0.md)、[エディタ作成ガイド](docs/editor-guide.md)
+- [使い方](docs/getting-started.md)、[GUI](docs/gui.md)、[4.3.2 の変更点](docs/releases/REWIND_v4.3.2.md)、[4.3.1 の変更点](docs/releases/REWIND_v4.3.1.md)、[4.3.0 の変更点](docs/releases/REWIND_v4.3.md)、[4.2.2 の変更点](docs/releases/REWIND_v4.2.2.md)、[4.2.1 の変更点](docs/releases/REWIND_v4.2.1.md)、[4.2.0 の変更点](docs/releases/REWIND_v4.2.md)、[4.1.0 の変更点](docs/releases/REWIND_v4.1.md)、[4.0.0 の変更点](docs/releases/REWIND_v4.0.md)、[エディタ作成ガイド](docs/editor-guide.md)
 - [入門書の編集と再生成](docs/book/README.md)、[ロードマップ](docs/archive/ROADMAP_v2-next.md)
 
 ## 開発

@@ -44,7 +44,7 @@ pub(super) struct Span {
 pub(super) fn info() -> Json {
     let supported = [
         "3.0.0", "3.1.0", "3.2.0", "3.3.0", "3.4.0", "3.5.0", "3.6.0", "4.0.0", "4.1.0", "4.2.0",
-        "4.2.1", "4.2.2", "4.3.0", "4.3.1",
+        "4.2.1", "4.2.2", "4.3.0", "4.3.1", "4.3.2",
     ]
     .into_iter()
     .filter(|v| project::is_supported_language(v))
@@ -54,8 +54,8 @@ pub(super) fn info() -> Json {
         "compiler": env!("CARGO_PKG_VERSION"),
         "languages": {
             "supported": supported,
-            "latest": "4.3.1",
-            "defaultForStandaloneFiles": "4.3.1"
+            "latest": "4.3.2",
+            "defaultForStandaloneFiles": "4.3.2"
         },
         "keywords": KEYWORDS,
         "contextualKeywords": CONTEXTUAL_KEYWORDS,
