@@ -1,6 +1,7 @@
 //! VM の変数まわりの最適化で、`Op` の Debug 出力（artifact の `bytecode`）と、
 //! debug 記録のトレースの operation の列が変わらないことを固定する。
 //! 期待値は、最適化の前（HEAD の 3bd88a3）の処理系で採った SHA-256 とステップ数。
+//! 小さな純関数の呼び出しの展開（4.3.2）で、`add` の呼び出しがなくなったため、期待値を採り直した（トレースは 485 から 445 の operation に減った）。
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -12,9 +13,9 @@ const FIXTURE: &str = concat!(
     "/tests/fixtures/vm_ops_bytecode.rw"
 );
 const BYTECODE_OPS: usize = 241;
-const BYTECODE_SHA256: &str = "51faf5c49a39fd5c63eeb9ad86ebeb72caf4d4ef49f277a4c46aeb0fb6c30d91";
-const TRACE_OPS: usize = 485;
-const TRACE_SHA256: &str = "0bcda57066e86301f86b5da0764732d9cb70a6a592626147af6ff29eab938d59";
+const BYTECODE_SHA256: &str = "9b29f693b2c38b690567282827e3fb0ebe5249e09d2ed5e187e85c14fbaf82b2";
+const TRACE_OPS: usize = 445;
+const TRACE_SHA256: &str = "39b996e87828957aea133be197c881e738cd92c284e91d0a526a9eec643c3736";
 
 fn scratch(name: &str) -> std::path::PathBuf {
     let dir =

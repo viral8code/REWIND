@@ -285,3 +285,51 @@ fn main() -> Int {
 ");
     assert_eq!(out, "true\n", "{err}");
 }
+
+#[test]
+fn small_pure_functions_give_the_same_results_when_called_with_any_arguments() {
+    let (out, err) = run("fn shift(x: Int, d: Int) -> Int {
+    return match d { 0 => x << 8, 1 => x >> 8, 2 => x << 1, _ => x };
+}
+fn twice(n: Int) -> Int { return n + n; }
+fn bump() -> Int { return 7; }
+fn main() -> Int {
+    let a = 3;
+    let d = 2;
+    Out.println(shift(a, d));
+    Out.println(shift(a + 1, d - 1));
+    Out.println(shift(twice(a), twice(1)));
+    Out.println(twice(twice(twice(1))));
+    Out.println(twice(-5));
+    Out.println(bump() + twice(a));
+    let n = 10;
+    var i = 0;
+    var sum = 0;
+    while i < n { sum += shift(i, i % 3); i += 1; }
+    Out.println(sum);
+    return 0;
+}
+");
+    assert_eq!(out, "6\n0\n12\n8\n-10\n13\n4638\n", "{err}");
+}
+
+#[test]
+fn a_local_closure_named_like_a_function_is_not_replaced_by_that_function() {
+    let (out, err) = run("fn f(x: Int) -> Int { return x + 1; }
+fn main() -> Int {
+    let g = |x: Int| -> Int { return x * 100; };
+    let f = g;
+    Out.println(f(2));
+    return 0;
+}
+");
+    assert_eq!(out, "200\n", "{err}");
+}
+
+#[test]
+fn profile_reports_a_wall_clock_reference() {
+    let root = project("fn main() -> Int { return 0; }\n");
+    let out = rewind(&root, &["profile", "main.rw", "--profile-format", "text"]);
+    let text = String::from_utf8_lossy(&out.stderr);
+    assert!(text.contains("wall time (reference only)"), "{text}");
+}

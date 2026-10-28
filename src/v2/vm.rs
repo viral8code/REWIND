@@ -144,6 +144,93 @@ impl Compiler {
             closure_defs: self.closure_defs,
         }
     }
+    /// A call of a tiny pure function with plain arguments is compiled as the function's body, so the
+    /// frame setup and return cost nothing. Only functions whose body is one `return` of scalar
+    /// arithmetic or an integer `match` qualify, and every argument is a name or a literal, so
+    /// evaluating the body in the caller cannot capture a name or reorder a side effect.
+    fn inline_call(&mut self, name: &str, args: &[Expr]) -> Option<Expr> {
+        if self.typing_scopes.iter().any(|s| s.contains_key(name)) {
+            return None;
+        }
+        let function = self.typing_program.functions.get(&self.aliased(name))?;
+        let scalar = |ty: &str| matches!(ty, "Int" | "Bool" | "Float");
+        if function.asynchronous
+            || function.test
+            || !function.type_params.is_empty()
+            || !function.defaults.is_empty()
+            || function.params.len() != args.len()
+            || !scalar(&function.ret)
+            || function.params.iter().any(|(_, ty)| !scalar(ty))
+        {
+            return None;
+        }
+        let [Stmt {
+            kind: StmtKind::Return(Some(body)),
+            ..
+        }] = function.body.as_slice()
+        else {
+            return None;
+        };
+        let simple = |arg: &Expr| match &arg.kind {
+            ExprKind::Name(_)
+            | ExprKind::Value(Value::Int(_) | Value::Bool(_) | Value::Float(_)) => true,
+            ExprKind::Unary(op, inner) => {
+                op == "-" && matches!(inner.kind, ExprKind::Value(Value::Int(_) | Value::Float(_)))
+            }
+            _ => false,
+        };
+        let names = function
+            .params
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<_>>();
+        let mut budget = 96usize;
+        if !inlinable(body, &names, &mut budget) {
+            return None;
+        }
+        let params = function
+            .params
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+        let body = body.clone();
+        // A plain argument replaces its parameter. Any other argument is evaluated once, in order,
+        // into a fresh hidden name first, so it can neither be repeated nor capture a name.
+        let mut lets = Vec::new();
+        let mut replacements = BTreeMap::new();
+        for (param, arg) in params.iter().zip(args) {
+            if simple(arg) {
+                replacements.insert(param.clone(), arg.clone());
+            } else {
+                self.hidden += 1;
+                let hidden = format!("$inline{}", self.hidden);
+                lets.push(Stmt {
+                    kind: StmtKind::Let(hidden.clone(), false, None, arg.clone()),
+                    at: arg.at.clone(),
+                });
+                replacements.insert(
+                    param.clone(),
+                    Expr {
+                        kind: ExprKind::Name(hidden),
+                        at: arg.at.clone(),
+                    },
+                );
+            }
+        }
+        let bindings = replacements
+            .iter()
+            .map(|(name, expr)| (name.as_str(), expr))
+            .collect::<BTreeMap<_, _>>();
+        let inlined = substitute_names(&body, &bindings);
+        if lets.is_empty() {
+            return Some(inlined);
+        }
+        let at = inlined.at.clone();
+        Some(Expr {
+            kind: ExprKind::Block(lets, Some(Box::new(inlined))),
+            at,
+        })
+    }
     fn expression_type(&self, e: &Expr) -> Option<String> {
         let checker = Checker {
             program: &self.typing_program,
@@ -811,6 +898,9 @@ impl Compiler {
                     }
                     self.emit(Op::Method(method.clone(), args.len()), &e.at);
                 } else if let ExprKind::Name(name) = &target.kind {
+                    if let Some(body) = self.inline_call(name, args) {
+                        return self.expr(&body);
+                    }
                     for arg in args {
                         self.expr(arg)?;
                     }
@@ -984,6 +1074,66 @@ impl Compiler {
             }
         }
         Ok(())
+    }
+}
+
+/// True when `e` only combines the parameters `names` and literals with operators and an integer
+/// `match` (no bindings), within `budget` nodes.
+fn inlinable(e: &Expr, names: &[&str], budget: &mut usize) -> bool {
+    if *budget == 0 {
+        return false;
+    }
+    *budget -= 1;
+    match &e.kind {
+        ExprKind::Value(Value::Int(_) | Value::Bool(_) | Value::Float(_)) => true,
+        ExprKind::Name(n) => names.contains(&n.as_str()),
+        ExprKind::Unary(op, inner) => {
+            matches!(op.as_str(), "-" | "!" | "~") && inlinable(inner, names, budget)
+        }
+        ExprKind::Binary(_, a, b) => inlinable(a, names, budget) && inlinable(b, names, budget),
+        ExprKind::Match(value, arms) => {
+            inlinable(value, names, budget)
+                && arms.iter().all(|(pattern, guard, arm)| {
+                    matches!(
+                        pattern,
+                        Pattern::Wildcard | Pattern::Literal(_) | Pattern::Range(..)
+                    ) && guard.as_ref().is_none_or(|g| inlinable(g, names, budget))
+                        && inlinable(arm, names, budget)
+                })
+        }
+        _ => false,
+    }
+}
+/// `e` with each parameter name replaced by its argument (only called for expressions accepted by
+/// `inlinable`).
+fn substitute_names(e: &Expr, bindings: &BTreeMap<&str, &Expr>) -> Expr {
+    let kind = match &e.kind {
+        ExprKind::Name(n) => return (*bindings.get(n.as_str()).expect("a parameter")).clone(),
+        ExprKind::Unary(op, inner) => {
+            ExprKind::Unary(op.clone(), Box::new(substitute_names(inner, bindings)))
+        }
+        ExprKind::Binary(op, a, b) => ExprKind::Binary(
+            op.clone(),
+            Box::new(substitute_names(a, bindings)),
+            Box::new(substitute_names(b, bindings)),
+        ),
+        ExprKind::Match(value, arms) => ExprKind::Match(
+            Box::new(substitute_names(value, bindings)),
+            arms.iter()
+                .map(|(pattern, guard, arm)| {
+                    (
+                        pattern.clone(),
+                        guard.as_ref().map(|g| substitute_names(g, bindings)),
+                        substitute_names(arm, bindings),
+                    )
+                })
+                .collect(),
+        ),
+        other => other.clone(),
+    };
+    Expr {
+        kind,
+        at: e.at.clone(),
     }
 }
 
@@ -1268,6 +1418,8 @@ struct Vm<R: BufRead> {
     debug_bytes: usize,
     /// The step index outgrew its budget; the trace keeps its events and checkpoints but no index.
     debug_index_dropped: bool,
+    /// When the run began, for the wall-clock reference line of `rewind profile`.
+    started: std::time::Instant,
     audit: Vec<serde_json::Value>,
     inspections: Vec<serde_json::Value>,
     task_instruction_total: u64,
@@ -1584,6 +1736,7 @@ impl<R: BufRead> Vm<R> {
             debug_anchors: Vec::new(),
             debug_bytes: 0,
             debug_index_dropped: false,
+            started: std::time::Instant::now(),
             audit: Vec::new(),
             inspections: Vec::new(),
             task_instruction_total: 0,
@@ -2444,6 +2597,12 @@ impl<R: BufRead> Vm<R> {
             if let Some(metrics) = self.engine.runtime.sensitive_registry_metrics() {
                 profile["sensitive_registry"] = metrics;
             }
+            let wall = self.started.elapsed().as_secs_f64();
+            profile["wall_time"] = serde_json::json!({
+                "seconds": wall,
+                "microseconds_per_instruction": wall * 1e6 / self.task_instruction_total.max(1) as f64,
+                "meaning": "reference only: wall-clock time of this run, which varies with machine load",
+            });
             if let Some(work) = &self.profile {
                 profile["attribution"] = work.report(self.engine.runtime.native_work_by_scope());
                 profile["coverage"] = self.coverage_report(work);
@@ -2452,6 +2611,11 @@ impl<R: BufRead> Vm<R> {
                     serde_json::json!(self.scheduler.accounted_storage_bytes(&self.engine.runtime));
             }
             if self.options.profile_text {
+                eprintln!(
+                    "wall time (reference only): {:.3} s, {:.3} us per instruction",
+                    wall,
+                    wall * 1e6 / self.task_instruction_total.max(1) as f64
+                );
                 for line in profile["attribution"]["summary"]
                     .as_array()
                     .into_iter()
