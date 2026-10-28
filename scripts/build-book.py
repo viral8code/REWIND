@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build docs/book/index.html and docs/book/REWIND-4.2.1-book.pdf from docs/book/chapters/*.md.
+"""Build docs/book/index.html and docs/book/REWIND-4.2.2-book.pdf from docs/book/chapters/*.md.
 
 Dependencies: python -m pip install mistune==3.2.0, and Microsoft Edge or Chrome for the PDF.
 Check the code examples first: python scripts/check-docs-examples.py docs/book/chapters/*.md
@@ -13,7 +13,7 @@ import docs_render as dr
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOK = ROOT / "docs" / "book"
-PDF = BOOK / "REWIND-4.2.1-book.pdf"
+PDF = BOOK / "REWIND-4.2.2-book.pdf"
 
 
 def main():

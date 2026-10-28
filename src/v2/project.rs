@@ -777,5 +777,6 @@ pub(in crate::v2) fn is_supported_language(language: &str) -> bool {
             | "4.1.0"
             | "4.2.0"
             | "4.2.1"
+            | "4.2.2"
     )
 }
