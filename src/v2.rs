@@ -4423,7 +4423,6 @@ pub fn cli(mode: &str, file: &str, root: &Path, trace: bool, options: RunOptions
     };
     if let Some(config) = &mut manifest {
         config.lock(root, false)?;
-        add_embedded_std(config, root)?;
     }
     if manifest.is_none() && options.standalone {
         let entry = if file.is_empty() {
@@ -4522,14 +4521,11 @@ pub fn documentation(file: &str, root: &Path) -> Result<String> {
     documentation_mode(file, root, false)
 }
 fn documentation_mode(file: &str, root: &Path, include_dev: bool) -> Result<String> {
-    let mut manifest = if include_dev {
+    let manifest = if include_dev {
         project::ProjectConfig::load_for_test(root)?
     } else {
         project::ProjectConfig::load(root)?
     };
-    if let Some(config) = &mut manifest {
-        add_embedded_std(config, root)?;
-    }
     let mut imports = BTreeMap::new();
     imports.insert(
         String::new(),

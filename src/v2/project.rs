@@ -280,14 +280,23 @@ impl ProjectConfig {
             revoked: BTreeSet::new(),
         }
     }
+    /// Every loader except `load_for_update` also registers the compiler's built-in `std` for a
+    /// project that imports it, so the CLI and the language server resolve it the same way.
     pub fn load(root: &Path) -> Result<Option<Self>> {
-        Self::load_mode(root, false, false)
+        Self::with_embedded_std(root, Self::load_mode(root, false, false)?)
+    }
+    fn with_embedded_std(root: &Path, config: Option<Self>) -> Result<Option<Self>> {
+        let mut config = config;
+        if let Some(config) = &mut config {
+            super::add_embedded_std(config, root)?;
+        }
+        Ok(config)
     }
     pub(super) fn load_for_update(root: &Path) -> Result<Option<Self>> {
         Self::load_mode(root, true, true)
     }
     pub(super) fn load_for_test(root: &Path) -> Result<Option<Self>> {
-        Self::load_mode(root, false, true)
+        Self::with_embedded_std(root, Self::load_mode(root, false, true)?)
     }
     fn load_mode(root: &Path, latest: bool, include_dev: bool) -> Result<Option<Self>> {
         let root = fs::canonicalize(root)?;

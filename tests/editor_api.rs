@@ -192,3 +192,46 @@ fn language_server_serves_outline_and_semantic_tokens() {
         [json!(0), json!(0), json!(6), json!(0), json!(0)]
     );
 }
+
+#[test]
+fn language_server_resolves_std_in_a_project() {
+    let dir = root();
+    fs::write(
+        dir.join("rewind.toml"),
+        "language = \"4.2.1\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"output\"\n",
+    )
+    .unwrap();
+    let source = "import std.math as math;\nfn main() -> Int { return 0; }\n";
+    fs::write(dir.join("main.rw"), source).unwrap();
+    let uri = format!(
+        "file:///{}",
+        dir.join("main.rw")
+            .to_string_lossy()
+            .replace(char::from(92), "/")
+            .trim_start_matches('/')
+    );
+    let requests = vec![
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"version":1,"text":source}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"shutdown","params":{}}),
+        json!({"jsonrpc":"2.0","method":"exit","params":{}}),
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rewind"))
+        .args(["lsp", "--root", dir.to_str().unwrap()])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for request in requests {
+        let bytes = serde_json::to_vec(&request).unwrap();
+        write!(stdin, "Content-Length: {}\r\n\r\n", bytes.len()).unwrap();
+        stdin.write_all(&bytes).unwrap();
+    }
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("publishDiagnostics"), "{text}");
+    assert!(!text.contains("I/O error"), "{text}");
+}
