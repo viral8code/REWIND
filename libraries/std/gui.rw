@@ -184,7 +184,7 @@ pub fn remove(view:&mut View,id:String)->Result<Unit,GuiError> effects {} {
  view.widgets=move widgets;view.indices=move indices;view.focus=focus;view.scroll.remove(id);return Ok(());
 }
 
-// @api style failure UnknownId/InvalidColor; retains every other widget property. foreground is the text color, the line color of a line, or the outline of an ellipse; background is the fill.
+// @api style failure UnknownId/InvalidColor; retains every other widget property.
 pub fn style(view:&mut View,id:String,foreground:Int,background:Int)->Result<Unit,GuiError> effects {} {
  if foreground<0 || foreground>0xffffff || background<0 || background>0xffffff{return Err(StdError("GuiInvalidColor",0));}
  match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);
