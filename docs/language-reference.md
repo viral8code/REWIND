@@ -1,6 +1,6 @@
 # REWIND 言語リファレンス
 
-対象は REWIND 4.2.1（言語バージョン `4.2.1`）です。REWIND 4 が実行できる言語は 3.0.0 以降です。3.0.0 未満の言語（トップレベルに文を並べる書き方など）は受け付けないので、古い言語のプログラムは REWIND 3 のコンパイラで実行してください。3.x の言語と 4.0.0 の違いは[付録 B](#付録-b-言語バージョンの違い)にあります。
+対象は REWIND 4.2.2（言語バージョン `4.2.2`）です。REWIND 4 が実行できる言語は 3.0.0 以降です。3.0.0 未満の言語（トップレベルに文を並べる書き方など）は受け付けないので、古い言語のプログラムは REWIND 3 のコンパイラで実行してください。3.x の言語と 4.0.0 の違いは[付録 B](#付録-b-言語バージョンの違い)にあります。
 
 この文書は **言語そのもの** の仕様書です。次のものは別の文書にあります。
 
@@ -11,7 +11,7 @@
 | ネイティブ GUI | [gui.md](gui.md) |
 | デバッガ（DAP） | [debugger.md](debugger.md) |
 | 版ごとの変更点と契約 | [REWIND_v3.0.md](releases/REWIND_v3.0.md) など `REWIND_v*.md` |
-| 章立てで読む入門書 | [book/index.html](book/index.html)（[PDF 版](book/REWIND-4.2.1-book.pdf)） |
+| 章立てで読む入門書 | [book/index.html](book/index.html)（[PDF 版](book/REWIND-4.2.2-book.pdf)） |
 
 ## この文書の読み方
 
@@ -127,7 +127,7 @@ rewind run main.rwc         # 成果物を実行する。ソースは不要
 ファイルが複数あるプログラムや、権限・依存関係を固定したいプログラムは、ディレクトリに `rewind.toml` を置いてプロジェクトにします。
 
 ```toml
-language = "4.2.1"
+language = "4.2.2"
 source_root = "src"
 entry = "main.rw"
 effects = "output,fileRead"
