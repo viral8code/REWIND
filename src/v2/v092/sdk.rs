@@ -2349,8 +2349,8 @@ pub(in crate::v2) fn install(root: &Path, sdk: &Path, public: &str) -> Result<()
     verify(sdk, public)?;
     let sdk = fs::canonicalize(sdk)?;
     let root = fs::canonicalize(root)?;
-    let config =
-        project::ProjectConfig::load(&root)?.ok_or_else(|| invalid("project manifest required"))?;
+    let config = project::ProjectConfig::load_without_std(&root)?
+        .ok_or_else(|| invalid("project manifest required"))?;
     if config.language != env!("CARGO_PKG_VERSION") || config.production {
         return Err(invalid(
             "install requires a development project matching this SDK language",

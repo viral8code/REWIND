@@ -285,6 +285,10 @@ impl ProjectConfig {
     pub fn load(root: &Path) -> Result<Option<Self>> {
         Self::with_embedded_std(root, Self::load_mode(root, false, false)?)
     }
+    /// The manifest as written, without the built-in `std` (used when installing an SDK as `std`).
+    pub(in crate::v2) fn load_without_std(root: &Path) -> Result<Option<Self>> {
+        Self::load_mode(root, false, false)
+    }
     fn with_embedded_std(root: &Path, config: Option<Self>) -> Result<Option<Self>> {
         let mut config = config;
         if let Some(config) = &mut config {
