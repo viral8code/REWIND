@@ -127,6 +127,10 @@ pub(super) fn method_work(
         Value::HeapRef(id) | Value::CellRef(id) => runtime.heap_get(*id).unwrap_or(target),
         _ => target,
     };
+    // Methods of Int, Float and Bool are single machine operations, like the operators.
+    if matches!(value, Value::Int(_) | Value::Float(_) | Value::Bool(_)) {
+        return 0;
+    }
     let base = args
         .iter()
         .fold(1usize, |n, v| n.saturating_add(argument_work(v, runtime)));

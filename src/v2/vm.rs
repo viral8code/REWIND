@@ -2045,16 +2045,24 @@ impl<R: BufRead> Vm<R> {
         if args.len() != def.params.len() {
             return Err(self.error(at, format!("{name} expects {} arguments", def.params.len())));
         }
-        let actuals = args
-            .iter()
-            .map(|a| value_type(a, &self.engine.runtime))
-            .collect::<Vec<_>>();
-        let params = def
-            .type_params
-            .iter()
-            .map(|(n, _)| n.clone())
-            .collect::<Vec<_>>();
-        let substitutions = infer_call_arguments(invocation, &def.params, &params, &actuals, at)?;
+        // A plain function (no type parameters, no explicit `<..>`) has nothing to infer; skipping
+        // it saves two type strings per argument on every call.
+        let (params, substitutions) = if def.type_params.is_empty() && !invocation.contains('<') {
+            (Vec::new(), BTreeMap::new())
+        } else {
+            let actuals = args
+                .iter()
+                .map(|a| value_type(a, &self.engine.runtime))
+                .collect::<Vec<_>>();
+            let params = def
+                .type_params
+                .iter()
+                .map(|(n, _)| n.clone())
+                .collect::<Vec<_>>();
+            let substitutions =
+                infer_call_arguments(invocation, &def.params, &params, &actuals, at)?;
+            (params, substitutions)
+        };
         if substitutions
             .values()
             .any(|ty| ty.len() > 4096 || ty.chars().filter(|c| *c == '<').count() > 64)
@@ -2173,15 +2181,15 @@ impl<R: BufRead> Vm<R> {
         Ok(())
     }
     fn finish_call(&mut self, mut value: Value, at: &Tok) -> Result<()> {
-        let Some(frame) = self.frames.last().cloned() else {
+        let Some(frame) = self.frames.last() else {
             return Err(self.error(at, "return outside function"));
         };
-        let expected = &frame.ret_ty;
+        let return_pc = frame.return_pc;
         let actual = value_type(&value, &self.engine.runtime);
-        if !compatible(expected, &actual) {
+        if !compatible(&frame.ret_ty, &actual) {
             return Err(self.error(
                 at,
-                format!("{} returns {actual}, expected {expected}", frame.name),
+                format!("{} returns {actual}, expected {}", frame.name, frame.ret_ty),
             ));
         }
         let resource_frame = if self.engine.runtime.has_native_resources() {
@@ -2196,7 +2204,7 @@ impl<R: BufRead> Vm<R> {
         self.run_cleanups(deferred, at)?;
         self.frames.pop();
         self.engine.runtime.pop_frame()?;
-        self.pc = frame.return_pc;
+        self.pc = return_pc;
         self.push(value)?;
         if resource_frame {
             self.collect_native_resources()?;

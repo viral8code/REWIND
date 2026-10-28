@@ -689,10 +689,31 @@ impl ProjectConfig {
                     "v0.4 requires rewind.lock; run 'rewind update' explicitly".into(),
                 ));
             }
-        } else if fs::read_to_string(path)? != expected {
-            return Err(Error::InvalidOperation(
-                "rewind.lock mismatch; run 'rewind update' explicitly".into(),
-            ));
+        } else if fs::read_to_string(&path)? != expected {
+            // A project without dependencies pins nothing, so an old lock (from an earlier
+            // language or compiler) cannot protect anything and is ignored.
+            if self.lock_imports.keys().all(|name| name.is_empty()) {
+                return Ok(());
+            }
+            let old: serde_json::Value =
+                serde_json::from_slice(&fs::read(path)?).unwrap_or_default();
+            let new: serde_json::Value = serde_json::from_str(&expected).unwrap_or_default();
+            let differing = new
+                .as_object()
+                .into_iter()
+                .flatten()
+                .filter(|(key, value)| old.get(key.as_str()) != Some(*value))
+                .map(|(key, _)| key.as_str())
+                .collect::<Vec<_>>();
+            return Err(Error::InvalidOperation(format!(
+                "rewind.lock mismatch ({} differ{}); run 'rewind update' explicitly",
+                if differing.is_empty() {
+                    "formatting".to_string()
+                } else {
+                    differing.join(", ")
+                },
+                if differing.len() == 1 { "s" } else { "" }
+            )));
         }
         Ok(())
     }

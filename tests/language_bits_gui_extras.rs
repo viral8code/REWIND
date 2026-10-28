@@ -248,3 +248,40 @@ fn main() -> Int effects {gui, output} {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+#[test]
+fn a_stale_lock_is_ignored_without_dependencies_and_a_mismatch_names_the_field() {
+    let root = project("fn main() -> Int {\n    Out.println(5.countOnes());\n    return 0;\n}\n");
+    fs::write(
+        root.join("rewind.toml"),
+        "language = \"4.3.0\"\nsource_root = \".\"\nentry = \"main.rw\"\neffects = \"output\"\n",
+    )
+    .unwrap();
+    assert!(rewind(&root, &["update", "--root", "."]).status.success());
+    let lock = fs::read_to_string(root.join("rewind.lock")).unwrap();
+    fs::write(root.join("rewind.lock"), lock.replace("4.3.0", "4.2.1")).unwrap();
+    let out = rewind(&root, &["run", "--root", "."]);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout).replace("\r\n", "\n"),
+        "2\n",
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn int_methods_cost_no_native_work() {
+    let (out, err) = run("runtime { nativeWork = 100000; }
+fn main() -> Int {
+    var i = 0;
+    var n = 0;
+    while i < 20000 {
+        n += i.countOnes() + i.trailingZeros() + i.lowestBit();
+        i += 1;
+    }
+    Out.println(n > 0);
+    return 0;
+}
+");
+    assert_eq!(out, "true\n", "{err}");
+}
