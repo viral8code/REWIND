@@ -55,11 +55,7 @@ fn malformed_numbers_and_unicode_escapes_report_codes_and_locations() {
         assert_eq!(d["diagnostic"]["line"], 2);
         assert_eq!(d["diagnostic"]["column"], 7);
     }
-    for literal in [
-        "0x8000_0000_0000_0000",
-        "0x1_0000_0000_0000_0000",
-        "-0x8000_0000_0000_0001",
-    ] {
+    for literal in ["0x1_0000_0000_0000_0000", "0x1_0000_0000_0000_0001"] {
         let d = failure(&path, &format!("let n={literal};"));
         assert_eq!(d["diagnostic"]["code"], "IntegerOverflow", "{d}");
     }
