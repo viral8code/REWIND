@@ -180,3 +180,71 @@ fn a_missing_source_root_or_entry_names_the_path() {
     let err = String::from_utf8_lossy(&rewind(&root, &["run", "--root", "."]).stderr).into_owned();
     assert!(err.contains("entry file `nope.rw` was not found"), "{err}");
 }
+
+#[test]
+fn bit_helpers_wide_literals_logical_shift_and_complement() {
+    let (out, err) = run("fn main() -> Int {
+    let a = 0xFEFEFEFEFEFEFEFE;
+    Out.println(a);
+    Out.println(~0);
+    Out.println(a >>> 60);
+    Out.println(-1 >>> 1);
+    Out.println((1 << 63).lowestBit());
+    Out.println((1 << 63).wrappingSub(1));
+    Out.println(0xFF.countOnes() + 8.trailingZeros() + 1.leadingZeros());
+    Out.println(9223372036854775807.wrappingAdd(1));
+    let xs = List<List<List<Int>>>();
+    xs.add(List<List<Int>>());
+    Out.println(xs.len());
+    return 0;
+}
+");
+    assert_eq!(
+        out,
+        "-72340172838076674\n-1\n15\n9223372036854775807\n-9223372036854775808\n9223372036854775807\n74\n-9223372036854775808\n1\n",
+        "{err}"
+    );
+}
+
+#[test]
+fn next_event_skips_the_idle_entries_of_a_timed_wait() {
+    let root = project(
+        "import std.gui as gui;
+fn go() -> Result<Unit, gui.GuiError> effects {gui, output} {
+    var view = gui.window(\"t\", 200, 200)?;
+    gui.present(&view)?;
+    publish;
+    let e = gui.nextEvent()?;
+    Out.println(e.kind);
+    match gui.waitEvent(-1)? { None => { Out.println(\"none\"); }, Some(e) => { Out.println(e.kind); } }
+    return Ok(());
+}
+fn main() -> Int effects {gui, output} {
+    match go() { Ok(_) => { return 0; }, Err(_) => { Out.println(\"err\"); return 1; } }
+}
+",
+    );
+    fs::write(
+        root.join("events.json"),
+        r#"[{"kind":"idle","x":0,"y":0,"key":"","width":0,"height":0},{"kind":"pointer","x":1,"y":1,"key":"","width":0,"height":0},{"kind":"idle","x":0,"y":0,"key":"","width":0,"height":0},{"kind":"close","x":0,"y":0,"key":"","width":0,"height":0}]"#,
+    )
+    .unwrap();
+    let out = rewind(
+        &root,
+        &[
+            "run",
+            "main.rw",
+            "--allow-effects",
+            "gui,output",
+            "--gui-events",
+            "events.json",
+        ],
+    );
+    let text = String::from_utf8_lossy(&out.stdout).replace("\r\n", "\n");
+    assert_eq!(
+        text,
+        "pointer\nclose\n",
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}

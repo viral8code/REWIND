@@ -24,7 +24,7 @@ const TWO_CHARACTER_OPERATORS: &[&str] = &[
     "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "->", "=>", "::", "..", "<<",
     ">>",
 ];
-const OPERATOR_CHARACTERS: &str = "=+-*/%.!<>?:|&^";
+const OPERATOR_CHARACTERS: &str = "=+-*/%.!<>?:|&^~";
 const PUNCTUATION_CHARACTERS: &str = "(),;{}[]";
 
 pub(super) struct Span {
@@ -274,7 +274,10 @@ pub(super) fn classify(source: &str) -> Vec<Span> {
             let two: String = [c, at(i + 1).unwrap_or('\0')].iter().collect();
             // `<<=` and `>>=` are `<` + `<=` and `>` + `>=`, as in the lexer.
             let shift_assign = matches!(two.as_str(), "<<" | ">>") && at(i + 2) == Some('=');
-            let width = if TWO_CHARACTER_OPERATORS.contains(&two.as_str()) && !shift_assign {
+            let triple = two == ">>" && at(i + 2) == Some('>') && at(i + 3) != Some('=');
+            let width = if triple {
+                3
+            } else if TWO_CHARACTER_OPERATORS.contains(&two.as_str()) && !shift_assign {
                 2
             } else {
                 1

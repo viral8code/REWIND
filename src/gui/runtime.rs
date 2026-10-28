@@ -102,13 +102,13 @@ impl Runtime {
             }
             e
         };
-        if !poll && event.kind == "idle" {
-            return Err(Error::InvalidOperation(
-                "ReplayMismatch: polling mode differs from recording".into(),
-            ));
-        }
         self.state.gui_cursor += 1;
         self.gui_high_water = self.gui_high_water.max(self.state.gui_cursor);
+        if !poll && event.kind == "idle" {
+            // A wait that timed out recorded an idle event. `nextEvent` has no timeout, so the
+            // idle entry means nothing to it: read the next real input.
+            return self.gui_read_event(false, 0);
+        }
         Ok(event)
     }
     pub fn gui_continue_input(&mut self) {

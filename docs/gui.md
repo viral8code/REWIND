@@ -174,8 +174,12 @@ preedit / convert / commit、focus取消、終了の受入と検証範囲は
 - `ellipse(view,id,x,y,width,height,fill,border)` は塗りつぶした楕円を追加します。幅と高さが同じなら円です。`fill` が内側、`border` が 1px の輪郭の色です。操作の対象にはなりません。Windows は GDI の `Ellipse`、Linux は `XFillArc` と `XDrawArc` で描きます。
 - `setBounds(view,id,x,y,width,height)` は、ウィジェットの位置と大きさを変えます。View を作り直す必要はありません。範囲が canvas の外なら `GuiInvalidBounds` で、View は変わりません。
 - `setColor(view,id,color)` は、ウィジェットの塗りの色を変えます。`line` では線の色です。
-- `waitEvent(milliseconds)` は、入力を最大でその時間（0〜60000）だけ待ち、時間内に何も来なければ `None` を返します。待った結果は記録されるので、`replay` や `--gui-events` では待たずに同じ結果になります。fixture では `kind:"idle"` が「時間切れ」にあたります。CPU の手を少し間を置いて見せる、といった演出に使えます。
+- `waitEvent(milliseconds)` は、入力を最大でその時間（0〜60000）だけ待ち（`-1` は `nextEvent` と同じく無期限に待ち）、時間内に何も来なければ `None` を返します。待った結果は記録されるので、`replay` や `--gui-events` では待たずに同じ結果になります。fixture では `kind:"idle"` が「時間切れ」にあたります。CPU の手を少し間を置いて見せる、といった演出に使えます。
 
 円以外の図形や自前の描画は、まだありません。REWIND のウィンドウは「View というデータを描く」作りで、描画イベントを受けて呼び出すコールバックはないためです。自前で描きたい図形は、`rectangle`、`line`、`ellipse` を重ねて作ってください。
 
 GUI を実行するたびに `--allow-effects gui` を付けたくないときは、プロジェクトの `rewind.toml` に `effects = "gui,output"` と書きます（言語リファレンスの 2.3）。
+
+`nextEvent` は、記録に残った時間切れ（`idle`）を読み飛ばして、次の入力を返します。`waitEvent` と `nextEvent` を混ぜるプログラムでも、`--gui-events` の `idle` は、どこに置いても構いません。
+
+`style(view,id,前景色,背景色)` は、テキストの色、`line` の線の色、`ellipse` の輪郭の色（前景色）と、塗りの色（背景色）を変えます。`setColor` は塗りだけを変えます。

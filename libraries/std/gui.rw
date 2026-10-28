@@ -146,8 +146,9 @@ pub fn arrange(view:&mut View,ids:&List<String>,bounds:Rect,columns:Int,gap:Int)
  let seen=Map<String,Bool>();for i in 0..n{let id=ids.get(i);if view.indices.get(id)==None{return Err(StdError("GuiUnknownId",0));}if seen.get(id)!=None{return Err(StdError("GuiDuplicateId",0));}seen.set(id,true);}
  for i in 0..n{match view.indices.get(ids.get(i)){None=>{},Some(index)=>{let w=view.widgets.get(index);view.widgets.set(index,Widget(w.id,w.kind,bounds.x+(i%columns)*(width+gap),bounds.y+(i/columns)*(height+gap),width,height,w.caption,w.foreground,w.background,w.enabled,w.checked,w.cursor,w.anchor));}}}return Ok(());
 }
-// @api waitEvent failure GuiInvalidWait outside 0..60000; waits up to that many milliseconds for input and returns None on timeout. The wait is journaled, so replay does not sleep.
+// @api waitEvent failure GuiInvalidWait outside -1 and 0..60000; waits up to that many milliseconds for input and returns None on timeout; -1 waits without limit like nextEvent. The wait is journaled, so replay does not sleep.
 pub fn waitEvent(milliseconds:Int)->Result<Option<Event>,GuiError> effects {gui} {
+ if milliseconds==-1{let e=nextEvent()?;return Ok(Some(e));}
  if milliseconds<0 || milliseconds>60000{return Err(StdError("GuiInvalidWait",0));}
  match stdGuiWaitEvent(milliseconds)? {None=>{return Ok(None);},Some(caption)=>{match jsonParse(caption){Err(e)=>{return Err(StdError(e.code,e.offset));},Ok(j)=>{return Ok(Some(Event(string(j,"kind"),integer(j,"x"),integer(j,"y"),string(j,"key"),integer(j,"width"),integer(j,"height"))));}}}}
 }
@@ -183,7 +184,7 @@ pub fn remove(view:&mut View,id:String)->Result<Unit,GuiError> effects {} {
  view.widgets=move widgets;view.indices=move indices;view.focus=focus;view.scroll.remove(id);return Ok(());
 }
 
-// @api style failure UnknownId/InvalidColor; retains every other widget property.
+// @api style failure UnknownId/InvalidColor; retains every other widget property. foreground is the text color, the line color of a line, or the outline of an ellipse; background is the fill.
 pub fn style(view:&mut View,id:String,foreground:Int,background:Int)->Result<Unit,GuiError> effects {} {
  if foreground<0 || foreground>0xffffff || background<0 || background>0xffffff{return Err(StdError("GuiInvalidColor",0));}
  match view.indices.get(id){None=>{return Err(StdError("GuiUnknownId",0));},Some(i)=>{let w=view.widgets.get(i);

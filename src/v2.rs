@@ -332,6 +332,16 @@ fn integer_literal(at: &Tok, negative: bool) -> Result<i64> {
     }
     let magnitude =
         integer_magnitude(&at.text).ok_or_else(|| diagnostic(at, "integer literal overflow"))?;
+    // `0xFE..FE` with the top bit set is the two's complement of a negative number, as in C and Rust.
+    let based = at.text.len() > 1
+        && at.text.starts_with('0')
+        && matches!(
+            at.text.as_bytes()[1],
+            b'x' | b'X' | b'b' | b'B' | b'o' | b'O'
+        );
+    if based && !negative && magnitude > i64::MAX as u64 {
+        return Ok(magnitude as i64);
+    }
     let value = if negative {
         -(magnitude as i128)
     } else {
@@ -748,9 +758,17 @@ fn lex(src: &str) -> Result<Vec<Tok>> {
                 {
                     text.push(it.next().unwrap());
                     col += 1;
+                    // `>>>` (logical shift); `>>>=` stays `>>` + `>=`.
+                    if text == ">>" {
+                        let mut ahead = it.clone();
+                        if ahead.next() == Some('>') && ahead.peek() != Some(&'=') {
+                            text.push(it.next().unwrap());
+                            col += 1;
+                        }
+                    }
                 }
             }
-            if text.chars().count() == 1 && !"=+-*/%(),;{}.!<>?:[]|&^".contains(c) {
+            if text.chars().count() == 1 && !"=+-*/%(),;{}.!<>?:[]|&^~".contains(c) {
                 return Err(diagnostic(
                     &Tok {
                         source: String::new(),
@@ -1090,11 +1108,13 @@ impl Parser {
         self.pos = pos;
     }
     fn eat(&mut self, s: &str) -> bool {
-        if s == ">" && (self.is(">=") || self.is(">>")) {
+        if s == ">" && (self.is(">=") || self.is(">>") || self.is(">>>")) {
             let (original, rest) = if self.is(">=") {
                 (">=", "=")
-            } else {
+            } else if self.is(">>") {
                 (">>", ">")
+            } else {
+                (">>>", ">>")
             };
             self.toks[self.pos].text = rest.into();
             self.toks[self.pos].col += 1;
@@ -2904,7 +2924,7 @@ impl Parser {
                     at: at.clone(),
                 }
             }
-            "-" | "!" | "await" | "spawn" | "move" => Expr {
+            "-" | "!" | "~" | "await" | "spawn" | "move" => Expr {
                 kind: ExprKind::Unary(at.text.clone(), Box::new(self.expr(13)?)),
                 at: at.clone(),
             },
@@ -3353,7 +3373,7 @@ impl Parser {
                 "|" => 5,
                 "^" => 6,
                 "&" => 7,
-                "<<" | ">>" => 8,
+                "<<" | ">>" | ">>>" => 8,
                 "+" | "-" => 9,
                 "*" | "/" | "%" => 10,
                 _ => break,
@@ -5744,7 +5764,10 @@ impl Checker<'_> {
                     }
                     return Ok(t);
                 }
-                if op == "!" && t != "Bool" || op == "-" && !matches!(t.as_str(), "Int" | "Float") {
+                if op == "!" && t != "Bool"
+                    || op == "-" && !matches!(t.as_str(), "Int" | "Float")
+                    || op == "~" && t != "Int"
+                {
                     return Err(diagnostic(&e.at, format!("invalid operand {t} for {op}")));
                 }
                 t
@@ -5790,7 +5813,7 @@ impl Checker<'_> {
                         "Bool".into()
                     }
                     "+" if x == "String" || y == "String" => "String".into(),
-                    "&" | "|" | "^" | "<<" | ">>" => {
+                    "&" | "|" | "^" | "<<" | ">>" | ">>>" => {
                         if x != "Int" || y != "Int" {
                             return Err(diagnostic(
                                 &e.at,
@@ -7168,8 +7191,14 @@ impl Checker<'_> {
             }
         } else if receiver == "Int" {
             match (method, types) {
-                ("abs", []) => "Int".to_string(),
-                ("min" | "max" | "pow", [x]) if compatible("Int", x) => "Int".into(),
+                ("abs" | "countOnes" | "trailingZeros" | "leadingZeros" | "lowestBit", []) => {
+                    "Int".to_string()
+                }
+                ("min" | "max" | "pow" | "wrappingAdd" | "wrappingSub" | "wrappingMul", [x])
+                    if compatible("Int", x) =>
+                {
+                    "Int".into()
+                }
                 _ => return Ok(None),
             }
         } else if receiver == "Float" {
@@ -8340,6 +8369,7 @@ impl<R: BufRead> Engine<R> {
                         .ok_or_else(|| self.fail(&e.at, "integer overflow")),
                     ("-", Value::Float(n)) => Ok(Value::Float((-f64::from_bits(n)).to_bits())),
                     ("!", Value::Bool(n)) => Ok(Value::Bool(!n)),
+                    ("~", Value::Int(n)) => Ok(Value::Int(!n)),
                     ("move" | "borrow" | "borrowMut", v) => Ok(v),
                     _ => Err(self.fail(&e.at, "invalid unary operand")),
                 }
@@ -9210,6 +9240,26 @@ impl<R: BufRead> Engine<R> {
                     .checked_abs()
                     .ok_or_else(|| self.fail(at, "integer overflow"))?;
                 return Ok(Some(Value::Int(value)));
+            }
+            (Value::Int(n), "countOnes", []) => {
+                return Ok(Some(Value::Int(i64::from(n.count_ones()))))
+            }
+            (Value::Int(n), "trailingZeros", []) => {
+                return Ok(Some(Value::Int(i64::from(n.trailing_zeros()))))
+            }
+            (Value::Int(n), "leadingZeros", []) => {
+                return Ok(Some(Value::Int(i64::from(n.leading_zeros()))))
+            }
+            // The lowest set bit (0 for 0); `v & (0 - v)` would overflow for the sign bit.
+            (Value::Int(n), "lowestBit", []) => return Ok(Some(Value::Int(n & n.wrapping_neg()))),
+            (Value::Int(n), "wrappingAdd", [Value::Int(m)]) => {
+                return Ok(Some(Value::Int(n.wrapping_add(*m))))
+            }
+            (Value::Int(n), "wrappingSub", [Value::Int(m)]) => {
+                return Ok(Some(Value::Int(n.wrapping_sub(*m))))
+            }
+            (Value::Int(n), "wrappingMul", [Value::Int(m)]) => {
+                return Ok(Some(Value::Int(n.wrapping_mul(*m))))
             }
             (Value::Int(n), "min", [Value::Int(m)]) => return Ok(Some(Value::Int(*n.min(m)))),
             (Value::Int(n), "max", [Value::Int(m)]) => return Ok(Some(Value::Int(*n.max(m)))),
@@ -10095,10 +10145,47 @@ fn value_type(v: &Value, rt: &Runtime) -> String {
 }
 /// Methods added to the built-in `List`, `Map` and `String` types.
 const EXTRA_METHODS: &[&str] = &[
-    "isEmpty", "contains", "first", "last", "indexOf", "insert", "removeAt", "clear", "reverse",
-    "sort", "join", "values", "getOr", "trim", "replace", "repeat", "lines", "isSome", "isNone",
-    "valueOr", "isOk", "isErr", "abs", "min", "max", "pow", "sqrt", "floor", "ceil", "round",
-    "slice", "extend", "toUpper", "toLower",
+    "isEmpty",
+    "contains",
+    "first",
+    "last",
+    "indexOf",
+    "insert",
+    "removeAt",
+    "clear",
+    "reverse",
+    "sort",
+    "join",
+    "values",
+    "getOr",
+    "trim",
+    "replace",
+    "repeat",
+    "lines",
+    "isSome",
+    "isNone",
+    "valueOr",
+    "isOk",
+    "isErr",
+    "abs",
+    "min",
+    "max",
+    "pow",
+    "sqrt",
+    "floor",
+    "ceil",
+    "round",
+    "slice",
+    "extend",
+    "toUpper",
+    "toLower",
+    "countOnes",
+    "trailingZeros",
+    "leadingZeros",
+    "lowestBit",
+    "wrappingAdd",
+    "wrappingSub",
+    "wrappingMul",
 ];
 
 /// True when every name in `ty` is one of the built-in value types, so a
@@ -10887,15 +10974,19 @@ fn binary(op: &str, a: Value, b: Value, at: &Tok) -> Exec<Value> {
         ("&", Value::Int(a), Value::Int(b)) => Ok(Value::Int(a & b)),
         ("|", Value::Int(a), Value::Int(b)) => Ok(Value::Int(a | b)),
         ("^", Value::Int(a), Value::Int(b)) => Ok(Value::Int(a ^ b)),
-        ("<<" | ">>", Value::Int(a), Value::Int(b)) => {
+        ("<<" | ">>" | ">>>", Value::Int(a), Value::Int(b)) => {
             if !(0..64).contains(&b) {
                 return Err(Flow::Error(diagnostic(
                     at,
                     "shift amount must be between 0 and 63",
                 )));
             }
-            // `<<` drops the bits that leave the 64-bit value; `>>` keeps the sign.
-            Ok(Value::Int(if op == "<<" { a << b } else { a >> b }))
+            // `<<` drops the bits that leave the 64-bit value; `>>` keeps the sign; `>>>` shifts in zeros.
+            Ok(Value::Int(match op {
+                "<<" => a << b,
+                ">>" => a >> b,
+                _ => ((a as u64) >> b) as i64,
+            }))
         }
         ("%", Value::Int(a), Value::Int(b)) => a.checked_rem(b).map(Value::Int).ok_or_else(|| {
             Flow::Error(diagnostic(

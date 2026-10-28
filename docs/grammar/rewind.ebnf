@@ -156,7 +156,9 @@ RAW6_LINE ::= RAW6_ITEM* RAW6_RUN? RAW_NEWLINE
 /* ================================================================ 記号 */
 
 /* 2 文字の記号は次の 17 個だけ。`<<=` と `>>=` は `<<` や `>>` にならず、`<` と `<=`、`>` と `>=` に分かれる。 */
-SYMBOL ::= SYMBOL2 | SYMBOL1
+SYMBOL ::= SYMBOL3 | SYMBOL2 | SYMBOL1
+
+SYMBOL3 ::= '>>>' [ nf: [=] ]
 
 SYMBOL2 ::= '==' | '!=' | '<=' | '>=' | '&&' | '||'
           | '+=' | '-=' | '*=' | '/=' | '%='
@@ -164,7 +166,7 @@ SYMBOL2 ::= '==' | '!=' | '<=' | '>=' | '&&' | '||'
           | '<<' [ nf: [=] ] | '>>' [ nf: [=] ]
 
 /* 1 文字の記号。`/` は直後が `/` か `*` のときコメントになるので、記号にはならない。 */
-SYMBOL1 ::= [=+\-*%(),;{}.!<>?:\[\]|&^]
+SYMBOL1 ::= [=+\-*%(),;{}.!<>?:\[\]|&^~]
           | '/' [ nf: [/*] ]
 
 /* ================================================================ 構文（段階 C: 型・パターン・式。段階 D: 文・宣言・全体）
@@ -328,7 +330,7 @@ BitAndExpr ::= BitAndExpr '&' ShiftExpr | ShiftExpr
 /* `>>` は、構文解析器が型引数を閉じる `>` に分けることがあるので、GE と同じく SHR_FIRST SHR_SECOND の 2 トークンで渡す。 */
 ShiftExpr ::= ShiftExpr ShiftOp AddExpr | AddExpr
 
-ShiftOp ::= '<<' | SHR_FIRST SHR_SECOND
+ShiftOp ::= '<<' | SHR_FIRST SHR_SECOND | USR_FIRST USR_SECOND USR_THIRD
 
 CmpOp ::= '<' | '<=' | '>' | GE_FIRST GE_SECOND
 
@@ -339,6 +341,7 @@ MulExpr ::= MulExpr ( '*' | '/' | '%' ) UnaryExpr | UnaryExpr
 /* 前置。被演算子は、前置か、後置を含む項。 */
 UnaryExpr ::= '-' UnaryExpr
             | '!' UnaryExpr
+            | '~' UnaryExpr
             | 'await' UnaryExpr
             | 'spawn' UnaryExpr
             | 'move' UnaryExpr
@@ -463,6 +466,7 @@ CMulExpr ::= CMulExpr ( '*' | '/' | '%' ) CUnaryExpr | CUnaryExpr
 
 CUnaryExpr ::= '-' CUnaryExpr
              | '!' CUnaryExpr
+             | '~' CUnaryExpr
              | 'await' CUnaryExpr
              | 'spawn' CUnaryExpr
              | 'move' CUnaryExpr
@@ -797,6 +801,12 @@ GE_SECOND ::= '='
 SHR_FIRST ::= '>'
 
 SHR_SECOND ::= '>'
+
+USR_FIRST ::= '>'
+
+USR_SECOND ::= '>'
+
+USR_THIRD ::= '>'
 
 /* ================================================================ 付録 A: Unicode の表
    次の 3 つの表は、Rust の標準ライブラリ（char::is_alphabetic、char::is_alphanumeric、

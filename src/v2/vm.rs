@@ -2826,6 +2826,7 @@ impl<R: BufRead> Vm<R> {
                             .ok_or_else(|| self.error(&inst.at, "integer overflow"))?,
                         ("-", Value::Float(n)) => Value::Float((-f64::from_bits(n)).to_bits()),
                         ("!", Value::Bool(v)) => Value::Bool(!v),
+                        ("~", Value::Int(n)) => Value::Int(!n),
                         ("move", mut v) => {
                             self.engine.runtime.move_native(&mut v)?;
                             v

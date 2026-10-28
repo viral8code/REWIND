@@ -140,6 +140,13 @@ pub fn earley_tokens(texts: &[String]) -> Vec<GTok> {
                 kind: "GE_SECOND",
                 text: "=".into(),
             });
+        } else if t == ">>>" {
+            for kind in ["USR_FIRST", "USR_SECOND", "USR_THIRD"] {
+                out.push(GTok {
+                    kind,
+                    text: ">".into(),
+                });
+            }
         } else if t == ">>" {
             out.push(GTok {
                 kind: "SHR_FIRST",
@@ -503,8 +510,8 @@ pub fn fragments(t: &[String]) -> Vec<Fragment> {
                     while j < n {
                         match t[j].as_str() {
                             "<" => d += 1,
-                            ">" | ">>" => {
-                                d -= if t[j] == ">>" { 2 } else { 1 };
+                            ">" | ">>" | ">>>" => {
+                                d -= t[j].len() as i32;
                                 if d <= 0 {
                                     break;
                                 }
